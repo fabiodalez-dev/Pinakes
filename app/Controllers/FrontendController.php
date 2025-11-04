@@ -14,7 +14,7 @@ class FrontendController
     {
         // Carica i contenuti CMS della home
         $homeContent = [];
-        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image
+        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image, is_active
                        FROM home_content
                        WHERE is_active = 1
                        ORDER BY display_order ASC";

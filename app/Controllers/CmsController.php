@@ -47,7 +47,7 @@ class CmsController
     {
         // Carica tutti i contenuti della home
         $stmt = $db->prepare("
-            SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image
+            SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image, is_active
             FROM home_content
             ORDER BY display_order ASC
         ");

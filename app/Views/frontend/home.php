@@ -657,26 +657,34 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadLatestBooks();
     loadCategories();
+    initLoadMoreButton();
 });
 
 function loadStats() {
-    // You can create a specific API endpoint for stats or get from existing APIs
+    const totalBooksEl = document.getElementById('total-books');
+    const availableBooksEl = document.getElementById('available-books');
+
+    // Only load stats if elements exist
+    if (!totalBooksEl || !availableBooksEl) return;
+
     fetch('/api/catalogo')
         .then(response => response.json())
         .then(data => {
-            document.getElementById('total-books').innerHTML = data.pagination.total_books;
-            // You'd need to modify the API to return available count too
-            document.getElementById('available-books').innerHTML = '📚';
+            totalBooksEl.innerHTML = data.pagination.total_books;
+            availableBooksEl.innerHTML = '📚';
         })
         .catch(error => {
             console.error('Error loading stats:', error);
-            document.getElementById('total-books').innerHTML = '📚';
-            document.getElementById('available-books').innerHTML = '✓';
+            totalBooksEl.innerHTML = '📚';
+            availableBooksEl.innerHTML = '✓';
         });
 }
 
 function loadLatestBooks(page = 1) {
     const grid = document.getElementById('latest-books-grid');
+
+    // Only load if grid exists (section is active)
+    if (!grid) return;
 
     if (page === 1) {
         grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"spinner-border text-primary\" role=\"status\"><span class=\"visually-hidden\">Caricamento...</span></div><p class=\"mt-3\">Caricamento libri...</p></div>';
@@ -695,10 +703,12 @@ function loadLatestBooks(page = 1) {
             hasMoreLatestBooks = data.pagination.current_page < data.pagination.total_pages;
 
             const loadMoreBtn = document.getElementById('load-more-latest');
-            if (hasMoreLatestBooks) {
-                loadMoreBtn.style.display = 'inline-flex';
-            } else {
-                loadMoreBtn.style.display = 'none';
+            if (loadMoreBtn) {
+                if (hasMoreLatestBooks) {
+                    loadMoreBtn.style.display = 'inline-flex';
+                } else {
+                    loadMoreBtn.style.display = 'none';
+                }
             }
         })
         .catch(error => {
@@ -710,12 +720,12 @@ function loadLatestBooks(page = 1) {
 function loadCategories() {
     const container = document.getElementById('categories-sections');
 
-    // For now, we'll load a few main categories
-    // You could modify the API to return all categories with books
+    // Only load if container exists
+    if (!container) return;
+
     fetch('/api/catalogo')
         .then(response => response.json())
         .then(data => {
-            // This is a simplified approach - you'd want to create specific endpoints for categories
             container.innerHTML = '<section class=\"py-5\" style=\"background: var(--light-bg);\"><div class=\"container\"><h2 class=\"section-title\">Esplora per Categoria</h2><div class=\"text-center\"><a href=\"/catalogo.php\" class=\"btn-cta btn-cta-lg\"><i class=\"fas fa-th-large me-2\"></i>Visualizza Tutte le Categorie</a></div></div></section>';
         })
         .catch(error => {
@@ -724,12 +734,19 @@ function loadCategories() {
         });
 }
 
-// Load more latest books
-document.getElementById('load-more-latest').addEventListener('click', function() {
-    if (hasMoreLatestBooks) {
-        loadLatestBooks(currentLatestPage + 1);
-    }
-});
+// Initialize load more button listener
+function initLoadMoreButton() {
+    const loadMoreBtn = document.getElementById('load-more-latest');
+
+    // Only attach listener if button exists (section is active)
+    if (!loadMoreBtn) return;
+
+    loadMoreBtn.addEventListener('click', function() {
+        if (hasMoreLatestBooks) {
+            loadLatestBooks(currentLatestPage + 1);
+        }
+    });
+}
 </script>
 ";
 
