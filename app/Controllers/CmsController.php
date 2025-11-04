@@ -10,6 +10,9 @@ class CmsController
 {
     public function showPage(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
+        $db->set_charset('utf8mb4');
+
         $slug = $args['slug'] ?? 'chi-siamo';
 
         // Recupera la pagina dal database
@@ -45,6 +48,9 @@ class CmsController
 
     public function editHome(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
+        $db->set_charset('utf8mb4');
+
         // Carica tutti i contenuti della home
         $stmt = $db->prepare("
             SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image, is_active
@@ -80,6 +86,9 @@ class CmsController
     {
         $data = $request->getParsedBody();
         $files = $request->getUploadedFiles();
+
+        // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
+        $db->set_charset('utf8mb4');
 
         // SECURITY FIX: Validate CSRF first, before processing data
         if (!is_array($data) || !isset($data['csrf_token']) || !\App\Support\Csrf::validate($data['csrf_token'])) {
