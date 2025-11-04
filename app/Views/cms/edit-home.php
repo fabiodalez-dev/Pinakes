@@ -61,13 +61,13 @@ $cta = $sections['cta'] ?? null;
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
             <label for="hero_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo principale (H1)</label>
-            <input type="text" id="hero_title" name="hero[title]" value="<?php echo HtmlHelper::e($hero['title'] ?? ''); ?>"
+            <input type="text" id="hero_title" name="hero[title]" value="<?php echo HtmlHelper::e($hero['title'] ?? 'La Tua Biblioteca Digitale'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="Es. La Tua Biblioteca Digitale" required>
+                   placeholder="Es. La Tua Biblioteca Digitale">
           </div>
           <div>
             <label for="hero_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo</label>
-            <input type="text" id="hero_subtitle" name="hero[subtitle]" value="<?php echo HtmlHelper::e($hero['subtitle'] ?? ''); ?>"
+            <input type="text" id="hero_subtitle" name="hero[subtitle]" value="<?php echo HtmlHelper::e($hero['subtitle'] ?? 'Esplora, prenota e gestisci la tua collezione di libri'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="Descrizione breve">
           </div>
@@ -99,12 +99,12 @@ $cta = $sections['cta'] ?? null;
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="hero_button_text" class="block text-sm font-medium text-gray-700 mb-2">Testo pulsante</label>
-            <input type="text" id="hero_button_text" name="hero[button_text]" value="<?php echo HtmlHelper::e($hero['button_text'] ?? ''); ?>"
+            <input type="text" id="hero_button_text" name="hero[button_text]" value="<?php echo HtmlHelper::e($hero['button_text'] ?? 'Esplora il Catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="hero_button_link" class="block text-sm font-medium text-gray-700 mb-2">Link pulsante</label>
-            <input type="text" id="hero_button_link" name="hero[button_link]" value="<?php echo HtmlHelper::e($hero['button_link'] ?? ''); ?>"
+            <input type="text" id="hero_button_link" name="hero[button_link]" value="<?php echo HtmlHelper::e($hero['button_link'] ?? '/catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="/catalogo">
           </div>
@@ -128,12 +128,12 @@ $cta = $sections['cta'] ?? null;
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <label for="features_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo sezione</label>
-              <input type="text" id="features_title" name="features_title[title]" value="<?php echo HtmlHelper::e($featuresTitle['title'] ?? ''); ?>"
+              <input type="text" id="features_title" name="features_title[title]" value="<?php echo HtmlHelper::e($featuresTitle['title'] ?? 'Perché scegliere la nostra biblioteca'); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
             </div>
             <div>
               <label for="features_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo sezione</label>
-              <input type="text" id="features_subtitle" name="features_title[subtitle]" value="<?php echo HtmlHelper::e($featuresTitle['subtitle'] ?? ''); ?>"
+              <input type="text" id="features_subtitle" name="features_title[subtitle]" value="<?php echo HtmlHelper::e($featuresTitle['subtitle'] ?? 'Tutto ciò che ti serve per gestire la tua passione per la lettura'); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
             </div>
           </div>
@@ -141,7 +141,14 @@ $cta = $sections['cta'] ?? null;
 
         <!-- Features Cards -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <?php foreach ([1, 2, 3, 4] as $num): ?>
+          <?php
+          $defaultFeatures = [
+            1 => ['icon' => 'fas fa-book', 'title' => 'Catalogo Completo', 'desc' => 'Migliaia di libri organizzati e facilmente ricercabili'],
+            2 => ['icon' => 'fas fa-clock', 'title' => 'Disponibilità 24/7', 'desc' => 'Prenota e gestisci i tuoi libri in qualsiasi momento'],
+            3 => ['icon' => 'fas fa-heart', 'title' => 'Wishlist Personale', 'desc' => 'Crea la tua lista dei desideri e ricevi notifiche'],
+            4 => ['icon' => 'fas fa-users', 'title' => 'Comunità Attiva', 'desc' => 'Condividi recensioni e scopri nuove letture']
+          ];
+          foreach ([1, 2, 3, 4] as $num): ?>
             <?php $feature = ${"feature{$num}"}; ?>
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5">
               <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -153,7 +160,7 @@ $cta = $sections['cta'] ?? null;
                   <label for="feature<?php echo $num; ?>_icon" class="block text-xs font-medium text-gray-700 mb-1">Icona FontAwesome</label>
                   <div class="flex gap-2">
                     <input type="text" id="feature<?php echo $num; ?>_icon" name="feature_<?php echo $num; ?>[content]"
-                           value="<?php echo HtmlHelper::e($feature['content'] ?? ''); ?>"
+                           value="<?php echo HtmlHelper::e($feature['content'] ?? $defaultFeatures[$num]['icon']); ?>"
                            class="block flex-1 rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="fas fa-users">
                     <button type="button" onclick="openIconPicker('feature<?php echo $num; ?>_icon')"
@@ -164,19 +171,19 @@ $cta = $sections['cta'] ?? null;
                   </div>
                   <div class="mt-1 flex items-center gap-2">
                     <span class="text-xs text-gray-500">Anteprima:</span>
-                    <i class="<?php echo HtmlHelper::e($feature['content'] ?? 'fas fa-star'); ?> text-lg" id="preview_feature<?php echo $num; ?>_icon"></i>
+                    <i class="<?php echo HtmlHelper::e($feature['content'] ?? $defaultFeatures[$num]['icon']); ?> text-lg" id="preview_feature<?php echo $num; ?>_icon"></i>
                   </div>
                 </div>
                 <div>
                   <label for="feature<?php echo $num; ?>_title" class="block text-xs font-medium text-gray-700 mb-1">Titolo</label>
                   <input type="text" id="feature<?php echo $num; ?>_title" name="feature_<?php echo $num; ?>[title]"
-                         value="<?php echo HtmlHelper::e($feature['title'] ?? ''); ?>"
+                         value="<?php echo HtmlHelper::e($feature['title'] ?? $defaultFeatures[$num]['title']); ?>"
                          class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3">
                 </div>
                 <div>
                   <label for="feature<?php echo $num; ?>_subtitle" class="block text-xs font-medium text-gray-700 mb-1">Descrizione</label>
                   <textarea id="feature<?php echo $num; ?>_subtitle" name="feature_<?php echo $num; ?>[subtitle]" rows="2"
-                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"><?php echo HtmlHelper::e($feature['subtitle'] ?? ''); ?></textarea>
+                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"><?php echo HtmlHelper::e($feature['subtitle'] ?? $defaultFeatures[$num]['desc']); ?></textarea>
                 </div>
               </div>
             </div>
@@ -198,13 +205,13 @@ $cta = $sections['cta'] ?? null;
           <div>
             <label for="latest_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo sezione</label>
             <input type="text" id="latest_title" name="latest_books_title[title]"
-                   value="<?php echo HtmlHelper::e($latestBooksTitle['title'] ?? ''); ?>"
+                   value="<?php echo HtmlHelper::e($latestBooksTitle['title'] ?? 'Ultimi Arrivi'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="latest_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo</label>
             <input type="text" id="latest_subtitle" name="latest_books_title[subtitle]"
-                   value="<?php echo HtmlHelper::e($latestBooksTitle['subtitle'] ?? ''); ?>"
+                   value="<?php echo HtmlHelper::e($latestBooksTitle['subtitle'] ?? 'Scopri le ultime novità aggiunte al catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
@@ -224,24 +231,24 @@ $cta = $sections['cta'] ?? null;
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="cta_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo CTA</label>
-            <input type="text" id="cta_title" name="cta[title]" value="<?php echo HtmlHelper::e($cta['title'] ?? ''); ?>"
+            <input type="text" id="cta_title" name="cta[title]" value="<?php echo HtmlHelper::e($cta['title'] ?? 'Pronto a iniziare?'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="cta_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo CTA</label>
-            <input type="text" id="cta_subtitle" name="cta[subtitle]" value="<?php echo HtmlHelper::e($cta['subtitle'] ?? ''); ?>"
+            <input type="text" id="cta_subtitle" name="cta[subtitle]" value="<?php echo HtmlHelper::e($cta['subtitle'] ?? 'Registrati ora e inizia a esplorare il nostro catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="cta_button_text" class="block text-sm font-medium text-gray-700 mb-2">Testo pulsante</label>
-            <input type="text" id="cta_button_text" name="cta[button_text]" value="<?php echo HtmlHelper::e($cta['button_text'] ?? ''); ?>"
+            <input type="text" id="cta_button_text" name="cta[button_text]" value="<?php echo HtmlHelper::e($cta['button_text'] ?? 'Registrati Ora'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="cta_button_link" class="block text-sm font-medium text-gray-700 mb-2">Link pulsante</label>
-            <input type="text" id="cta_button_link" name="cta[button_link]" value="<?php echo HtmlHelper::e($cta['button_link'] ?? ''); ?>"
+            <input type="text" id="cta_button_link" name="cta[button_link]" value="<?php echo HtmlHelper::e($cta['button_link'] ?? '/registrati'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
