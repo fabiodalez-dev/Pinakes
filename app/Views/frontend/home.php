@@ -196,12 +196,13 @@ $additional_css = "
     }
 
     .cta-section {
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-        color: white;
+        background: var(--light-bg);
+        color: var(--primary-color);
         padding: 6rem 0;
         text-align: center;
         position: relative;
         overflow: hidden;
+        border-top: 1px solid var(--border-color);
     }
 
     .cta-section::before {
@@ -211,7 +212,7 @@ $additional_css = "
         left: 0;
         right: 0;
         bottom: 0;
-        background: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><defs><pattern id=\"grain\" width=\"100\" height=\"100\" patternUnits=\"userSpaceOnUse\"><circle cx=\"50\" cy=\"50\" r=\"1\" fill=\"white\" opacity=\"0.03\"/></pattern></defs><rect width=\"100\" height=\"100\" fill=\"url(%23grain)\"/></svg>');
+        background: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><defs><pattern id=\"grain\" width=\"100\" height=\"100\" patternUnits=\"userSpaceOnUse\"><circle cx=\"50\" cy=\"50\" r=\"1\" fill=\"black\" opacity=\"0.02\"/></pattern></defs><rect width=\"100\" height=\"100\" fill=\"url(%23grain)\"/></svg>');
     }
 
     .cta-content {
@@ -224,16 +225,18 @@ $additional_css = "
         font-weight: 800;
         margin-bottom: 1.5rem;
         letter-spacing: -0.03em;
+        color: var(--primary-color);
     }
 
     .cta-subtitle {
         font-size: 1.3rem;
         margin-bottom: 3rem;
-        opacity: 0.9;
-        font-weight: 300;
+        opacity: 0.8;
+        font-weight: 400;
         max-width: 500px;
         margin-left: auto;
         margin-right: auto;
+        color: var(--text-light);
     }
 
     /* Hero Search Styles */
@@ -632,11 +635,11 @@ ob_start();
                 <?php echo htmlspecialchars($homeContent['cta']['subtitle'] ?? 'Unisciti alla nostra community di lettori e scopri il piacere della lettura con la nostra piattaforma moderna.', ENT_QUOTES, 'UTF-8'); ?>
             </p>
             <div class="d-flex justify-content-center gap-3 flex-wrap">
-                <a href="<?php echo htmlspecialchars($homeContent['cta']['button_link'] ?? '/catalogo', ENT_QUOTES, 'UTF-8'); ?>" class="btn-cta">
-                    <i class="fas fa-search"></i>
-                    <?php echo htmlspecialchars($homeContent['cta']['button_text'] ?? 'Esplora il Catalogo', ENT_QUOTES, 'UTF-8'); ?>
+                <a href="<?php echo htmlspecialchars($homeContent['cta']['button_link'] ?? '/register', ENT_QUOTES, 'UTF-8'); ?>" class="btn-cta">
+                    <i class="fas fa-user-plus"></i>
+                    <?php echo htmlspecialchars($homeContent['cta']['button_text'] ?? 'Registrati Ora', ENT_QUOTES, 'UTF-8'); ?>
                 </a>
-                <a href="#contact" class="btn-cta">
+                <a href="/contatti" class="btn-cta">
                     <i class="fas fa-envelope"></i>
                     Contattaci
                 </a>
