@@ -11,7 +11,69 @@ if (!file_exists($envFile) && !file_exists($installerLockFile)) {
     exit;
 }
 
-require __DIR__ . '/../vendor/autoload.php';
+// Check if composer dependencies are installed
+$vendorAutoload = __DIR__ . '/../vendor/autoload.php';
+if (!file_exists($vendorAutoload)) {
+    http_response_code(500);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dipendenze PHP Mancanti</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7fafc; margin: 0; padding: 20px; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .container { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; padding: 40px; }
+        h1 { color: #dc2626; margin-top: 0; }
+        pre { background: #1f2937; color: #fff; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .info { color: #4b5563; line-height: 1.6; }
+        code { background: #e5e7eb; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚠️ Dipendenze PHP Mancanti</h1>
+        <p class="info">
+            L\'applicazione non può avviarsi perché mancano le librerie PHP necessarie.
+        </p>
+
+        <div class="warning">
+            <strong>Azione richiesta:</strong> Devi installare le dipendenze con Composer.
+        </div>
+
+        <h2>Cosa fare:</h2>
+        <ol class="info">
+            <li>Collegati al server via SSH</li>
+            <li>Vai nella directory dell\'applicazione:
+                <pre>cd ' . htmlspecialchars(dirname(__DIR__), ENT_QUOTES, 'UTF-8') . '</pre>
+            </li>
+            <li>Installa le dipendenze:
+                <pre>composer install --no-dev --optimize-autoloader</pre>
+            </li>
+            <li>Verifica che la cartella <code>vendor/</code> sia stata creata</li>
+            <li>Ricarica questa pagina</li>
+        </ol>
+
+        <h2>Non hai Composer installato?</h2>
+        <p class="info">
+            Scarica Composer da <a href="https://getcomposer.org/" target="_blank">getcomposer.org</a>
+            oppure usa:
+        </p>
+        <pre>curl -sS https://getcomposer.org/installer | php
+php composer.phar install --no-dev --optimize-autoloader</pre>
+
+        <p class="info" style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+            Se hai bisogno di assistenza, contatta il tuo provider di hosting.
+        </p>
+    </div>
+</body>
+</html>';
+    exit;
+}
+
+require $vendorAutoload;
 
 use DI\ContainerBuilder;
 use Slim\Factory\AppFactory;
