@@ -209,33 +209,33 @@ class CmsController
             }
 
             if (empty($errors)) {
-                $updateSql = "UPDATE home_content SET
-                    title = ?,
-                    subtitle = ?,
-                    button_text = ?,
-                    button_link = ?";
+                // UPSERT: Insert if not exists, update if exists
+                $backgroundImage = null;
+                if (isset($heroData['remove_background']) && $heroData['remove_background'] == '1') {
+                    $backgroundImage = null;
+                } elseif ($bgImagePath) {
+                    $backgroundImage = $bgImagePath;
+                }
 
-                $params = [
+                $stmt = $db->prepare("
+                    INSERT INTO home_content (section_key, title, subtitle, button_text, button_link, background_image, is_active, display_order)
+                    VALUES ('hero', ?, ?, ?, ?, ?, 1, -2)
+                    ON DUPLICATE KEY UPDATE
+                        title = VALUES(title),
+                        subtitle = VALUES(subtitle),
+                        button_text = VALUES(button_text),
+                        button_link = VALUES(button_link),
+                        background_image = IF(VALUES(background_image) IS NOT NULL OR ? = 1, VALUES(background_image), background_image)
+                ");
+                $removeBackground = isset($heroData['remove_background']) && $heroData['remove_background'] == '1' ? 1 : 0;
+                $stmt->bind_param('sssssi',
                     $heroData['title'],
                     $heroData['subtitle'],
                     $heroData['button_text'],
-                    $heroData['button_link']
-                ];
-                $types = 'ssss';
-
-                // Rimozione sfondo se richiesta
-                if (isset($heroData['remove_background']) && $heroData['remove_background'] == '1') {
-                    $updateSql .= ", background_image = NULL";
-                } elseif ($bgImagePath) {
-                    $updateSql .= ", background_image = ?";
-                    $params[] = $bgImagePath;
-                    $types .= 's';
-                }
-
-                $updateSql .= " WHERE section_key = 'hero'";
-
-                $stmt = $db->prepare($updateSql);
-                $stmt->bind_param($types, ...$params);
+                    $heroData['button_link'],
+                    $backgroundImage,
+                    $removeBackground
+                );
                 $stmt->execute();
                 $stmt->close();
             }
@@ -248,7 +248,14 @@ class CmsController
             $title = $sanitizeText($featuresTitle['title'] ?? '');
             $subtitle = $sanitizeText($featuresTitle['subtitle'] ?? '');
 
-            $stmt = $db->prepare("UPDATE home_content SET title = ?, subtitle = ? WHERE section_key = 'features_title'");
+            // UPSERT: Insert if not exists, update if exists
+            $stmt = $db->prepare("
+                INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
+                VALUES ('features_title', ?, ?, 1, 0)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    subtitle = VALUES(subtitle)
+            ");
             $stmt->bind_param('ss', $title, $subtitle);
             $stmt->execute();
             $stmt->close();
@@ -268,8 +275,16 @@ class CmsController
                     $content = 'fas fa-star'; // Default fallback
                 }
 
-                $stmt = $db->prepare("UPDATE home_content SET title = ?, subtitle = ?, content = ? WHERE section_key = ?");
-                $stmt->bind_param('ssss', $title, $subtitle, $content, $key);
+                // UPSERT: Insert if not exists, update if exists
+                $stmt = $db->prepare("
+                    INSERT INTO home_content (section_key, title, subtitle, content, is_active, display_order)
+                    VALUES (?, ?, ?, ?, 1, ?)
+                    ON DUPLICATE KEY UPDATE
+                        title = VALUES(title),
+                        subtitle = VALUES(subtitle),
+                        content = VALUES(content)
+                ");
+                $stmt->bind_param('ssssi', $key, $title, $subtitle, $content, $i);
                 $stmt->execute();
                 $stmt->close();
             }
@@ -282,7 +297,14 @@ class CmsController
             $title = $sanitizeText($latestBooks['title'] ?? '');
             $subtitle = $sanitizeText($latestBooks['subtitle'] ?? '');
 
-            $stmt = $db->prepare("UPDATE home_content SET title = ?, subtitle = ? WHERE section_key = 'latest_books_title'");
+            // UPSERT: Insert if not exists, update if exists
+            $stmt = $db->prepare("
+                INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
+                VALUES ('latest_books_title', ?, ?, 1, 5)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    subtitle = VALUES(subtitle)
+            ");
             $stmt->bind_param('ss', $title, $subtitle);
             $stmt->execute();
             $stmt->close();
@@ -301,7 +323,16 @@ class CmsController
             if (!empty($buttonLink) && !$validateUrl($buttonLink)) {
                 $errors[] = 'Il link del pulsante CTA non è valido.';
             } else {
-                $stmt = $db->prepare("UPDATE home_content SET title = ?, subtitle = ?, button_text = ?, button_link = ? WHERE section_key = 'cta'");
+                // UPSERT: Insert if not exists, update if exists
+                $stmt = $db->prepare("
+                    INSERT INTO home_content (section_key, title, subtitle, button_text, button_link, is_active, display_order)
+                    VALUES ('cta', ?, ?, ?, ?, 1, 6)
+                    ON DUPLICATE KEY UPDATE
+                        title = VALUES(title),
+                        subtitle = VALUES(subtitle),
+                        button_text = VALUES(button_text),
+                        button_link = VALUES(button_link)
+                ");
                 $stmt->bind_param('ssss', $title, $subtitle, $buttonText, $buttonLink);
                 $stmt->execute();
                 $stmt->close();
