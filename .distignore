@@ -1,0 +1,56 @@
+# ========================================
+# Pinakes - Distribution Ignore
+# Files to EXCLUDE from release packages
+# ========================================
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Development dependencies
+node_modules/
+vendor/
+frontend/node_modules/
+
+# Development files
+*.log
+*.tmp
+.DS_Store
+.env
+.installed
+config.local.php
+
+# Build artifacts (source only, not compiled)
+frontend/
+
+# Tests
+tests/
+test/
+.phpunit.result.cache
+
+# Documentation (dev only)
+docs/
+CLAUDE.md
+
+# CI/CD
+.github/
+
+# Temporary files
+*.bak
+*.backup
+*.old
+*backup*
+migration-*.php
+clean-*.sh
+export-*.php
+fix-*.php
+
+# Storage/uploads (user data)
+uploads/*
+storage/*
+backups/*
+cache/*
+
+# Keep only essentials for uploads
+!uploads/copertine/placeholder.jpg

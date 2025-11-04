@@ -1,0 +1,38 @@
+# Installer .htaccess - Protezione Directory
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /installer/
+
+    # Block access if .installed file exists
+    RewriteCond %{DOCUMENT_ROOT}/.installed -f
+    RewriteCond %{REQUEST_URI} !force [NC]
+    RewriteRule ^(.*)$ /../index.php [L,R=301]
+
+    # Allow access to assets
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Prevent directory browsing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Block access to class files and database files
+<FilesMatch "\.(sql|php)$">
+    <IfModule mod_rewrite.c>
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !index\.php$
+        RewriteRule .* - [F,L]
+    </IfModule>
+</FilesMatch>
+
+# Set proper MIME types
+AddType text/css .css
+AddType application/javascript .js

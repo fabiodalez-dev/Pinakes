@@ -1,0 +1,176 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\Csrf;
+use mysqli;
+
+class CopyController
+{
+    /**
+     * Aggiorna lo stato di una singola copia
+     */
+    public function updateCopy(Request $request, Response $response, mysqli $db, int $copyId): Response
+    {
+        $data = (array)$request->getParsedBody();
+
+        if (!Csrf::validate($data['csrf_token'] ?? null)) {
+            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+        }
+
+        $stato = $data['stato'] ?? 'disponibile';
+        $note = $data['note'] ?? '';
+
+        // Validazione stato
+        $statiValidi = ['disponibile', 'prestato', 'manutenzione', 'danneggiato', 'perso'];
+        if (!in_array($stato, $statiValidi)) {
+            $_SESSION['error_message'] = 'Stato non valido.';
+            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+        }
+
+        // Recupera la copia per ottenere il libro_id
+        $stmt = $db->prepare("SELECT libro_id, stato FROM copie WHERE id = ?");
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $copy = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!$copy) {
+            $_SESSION['error_message'] = 'Copia non trovata.';
+            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+        }
+
+        $libroId = (int)$copy['libro_id'];
+        $statoCorrente = $copy['stato'];
+
+        // Verifica se la copia è in prestito attivo
+        $stmt = $db->prepare("
+            SELECT id
+            FROM prestiti
+            WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')
+        ");
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $prestito = $result->fetch_assoc();
+        $stmt->close();
+
+        // GESTIONE CAMBIO STATO -> "PRESTATO"
+        // Non permettere cambio diretto a "prestato", deve usare il sistema prestiti
+        if ($stato === 'prestato' && $statoCorrente !== 'prestato') {
+            $_SESSION['error_message'] = 'Per prestare una copia, utilizza il sistema Prestiti dalla sezione dedicata. Non è possibile impostare manualmente lo stato "Prestato".';
+            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+        }
+
+        // GESTIONE CAMBIO STATO DA "PRESTATO" A "DISPONIBILE"
+        // Se c'è un prestito attivo e si vuole rendere disponibile, chiudi il prestito
+        if ($prestito && $statoCorrente === 'prestato' && $stato === 'disponibile') {
+            $prestitoId = (int)$prestito['id'];
+
+            // Chiudi il prestito
+            $stmt = $db->prepare("
+                UPDATE prestiti
+                SET stato = 'completato',
+                    attivo = 0,
+                    data_restituzione = CURDATE(),
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->bind_param('i', $prestitoId);
+            $stmt->execute();
+            $stmt->close();
+
+            $_SESSION['success_message'] = 'Prestito chiuso automaticamente. La copia è ora disponibile.';
+        }
+
+        // GESTIONE ALTRI STATI
+        // Blocca modifiche se c'è un prestito attivo (eccetto cambio a disponibile già gestito)
+        if ($prestito && !($statoCorrente === 'prestato' && $stato === 'disponibile')) {
+            $_SESSION['error_message'] = 'Impossibile modificare una copia attualmente in prestito. Prima termina il prestito o imposta lo stato su "Disponibile" per chiuderlo automaticamente.';
+            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+        }
+
+        // Aggiorna la copia
+        $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->bind_param('ssi', $stato, $note, $copyId);
+        $stmt->execute();
+        $stmt->close();
+
+        // Ricalcola disponibilità del libro
+        $integrity = new \App\Support\DataIntegrity($db);
+        $integrity->recalculateBookAvailability($libroId);
+
+        $_SESSION['success_message'] = 'Stato della copia aggiornato con successo.';
+        return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+    }
+
+    /**
+     * Elimina una singola copia
+     */
+    public function deleteCopy(Request $request, Response $response, mysqli $db, int $copyId): Response
+    {
+        $data = (array)$request->getParsedBody();
+
+        if (!Csrf::validate($data['csrf_token'] ?? null)) {
+            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+        }
+
+        // Recupera la copia per ottenere il libro_id e verificare lo stato
+        $stmt = $db->prepare("SELECT libro_id, stato FROM copie WHERE id = ?");
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $copy = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!$copy) {
+            $_SESSION['error_message'] = 'Copia non trovata.';
+            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+        }
+
+        $libroId = (int)$copy['libro_id'];
+        $stato = $copy['stato'];
+
+        // Verifica se la copia è in prestito attivo
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count
+            FROM prestiti
+            WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')
+        ");
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $hasPrestito = (int)$result->fetch_assoc()['count'] > 0;
+        $stmt->close();
+
+        if ($hasPrestito) {
+            $_SESSION['error_message'] = 'Impossibile eliminare una copia attualmente in prestito.';
+            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+        }
+
+        // Permetti eliminazione solo per copie perse, danneggiate o in manutenzione
+        if (!in_array($stato, ['perso', 'danneggiato', 'manutenzione'])) {
+            $_SESSION['error_message'] = 'Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.';
+            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+        }
+
+        // Elimina la copia
+        $stmt = $db->prepare("DELETE FROM copie WHERE id = ?");
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $stmt->close();
+
+        // Ricalcola disponibilità del libro
+        $integrity = new \App\Support\DataIntegrity($db);
+        $integrity->recalculateBookAvailability($libroId);
+
+        $_SESSION['success_message'] = 'Copia eliminata con successo.';
+        return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+    }
+}

@@ -1,0 +1,263 @@
+/**
+ * SweetAlert2 Custom Theme
+ * Schema colori: Nero (#111827), Bianco (#ffffff), Silver (#9ca3af)
+ */
+
+/* Popup container */
+.swal-app-popup {
+  background-color: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15) !important;
+  padding: 2rem !important;
+}
+
+/* Title */
+.swal-app-title {
+  color: #111827 !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* Text content */
+.swal-app-text {
+  color: #374151 !important;
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
+}
+
+/* Confirm button - Nero */
+.swal-app-confirm-button,
+.swal2-confirm {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 0.75rem 2rem !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.swal-app-confirm-button:hover,
+.swal2-confirm:hover {
+  background-color: #000000 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.swal-app-confirm-button:active,
+.swal2-confirm:active {
+  transform: translateY(0) !important;
+}
+
+/* Cancel button - Silver */
+.swal-app-cancel-button,
+.swal2-cancel {
+  background-color: #e5e7eb !important;
+  color: #374151 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 8px !important;
+  padding: 0.75rem 2rem !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.swal-app-cancel-button:hover,
+.swal2-cancel:hover {
+  background-color: #d1d5db !important;
+  border-color: #9ca3af !important;
+  transform: translateY(-1px) !important;
+}
+
+.swal-app-cancel-button:active,
+.swal2-cancel:active {
+  transform: translateY(0) !important;
+}
+
+/* Deny button - Rosso (per delete/distruttive) */
+.swal-app-deny-button,
+.swal2-deny {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 0.75rem 2rem !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2) !important;
+}
+
+.swal-app-deny-button:hover,
+.swal2-deny:hover {
+  background-color: #b91c1c !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3) !important;
+}
+
+.swal-app-deny-button:active,
+.swal2-deny:active {
+  transform: translateY(0) !important;
+}
+
+/* Icon colors - mantieni i colori standard ma raffina */
+.swal2-icon.swal2-success [class^='swal2-success-line'] {
+  background-color: #10b981 !important;
+}
+
+.swal2-icon.swal2-success .swal2-success-ring {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
+  background-color: #dc2626 !important;
+}
+
+.swal2-icon.swal2-warning {
+  border-color: #f59e0b !important;
+  color: #f59e0b !important;
+}
+
+.swal2-icon.swal2-info {
+  border-color: #3b82f6 !important;
+  color: #3b82f6 !important;
+}
+
+.swal2-icon.swal2-question {
+  border-color: #6b7280 !important;
+  color: #6b7280 !important;
+}
+
+/* Close button */
+.swal2-close {
+  color: #6b7280 !important;
+  font-size: 2rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.swal2-close:hover {
+  color: #111827 !important;
+}
+
+/* Loader/Progress bar */
+.swal2-timer-progress-bar {
+  background-color: #111827 !important;
+}
+
+/* HTML container spacing */
+.swal2-html-container {
+  margin: 1rem 0 !important;
+}
+
+/* Input fields in Swal */
+.swal2-input,
+.swal2-textarea {
+  border: 1px solid #d1d5db !important;
+  border-radius: 8px !important;
+  padding: 0.75rem !important;
+  font-size: 1rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.swal2-input:focus,
+.swal2-textarea:focus {
+  border-color: #111827 !important;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1) !important;
+  outline: none !important;
+}
+
+/* Validation message */
+.swal2-validation-message {
+  background-color: #fee2e2 !important;
+  color: #dc2626 !important;
+  border-radius: 6px !important;
+}
+
+/* Toast notifications */
+.swal2-toast {
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.swal2-toast .swal2-title {
+  color: #111827 !important;
+  font-size: 0.875rem !important;
+}
+
+/* Footer */
+.swal2-footer {
+  border-top: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+  padding-top: 1rem !important;
+  margin-top: 1rem !important;
+}
+
+/* Actions container spacing */
+.swal2-actions {
+  gap: 0.75rem !important;
+  margin-top: 1.5rem !important;
+}
+
+/* Responsiveness */
+@media (max-width: 640px) {
+  .swal-app-popup {
+    padding: 1.5rem !important;
+  }
+
+  .swal-app-title {
+    font-size: 1.25rem !important;
+  }
+
+  .swal-app-text {
+    font-size: 0.875rem !important;
+  }
+
+  .swal-app-confirm-button,
+  .swal-app-cancel-button,
+  .swal-app-deny-button,
+  .swal2-confirm,
+  .swal2-cancel,
+  .swal2-deny {
+    padding: 0.625rem 1.5rem !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+  .swal-app-popup {
+    background-color: #1f2937 !important;
+    border-color: #374151 !important;
+  }
+
+  .swal-app-title {
+    color: #f9fafb !important;
+  }
+
+  .swal-app-text {
+    color: #e5e7eb !important;
+  }
+
+  .swal-app-confirm-button {
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+  }
+
+  .swal-app-confirm-button:hover {
+    background-color: #e5e7eb !important;
+  }
+
+  .swal-app-cancel-button {
+    background-color: #374151 !important;
+    color: #e5e7eb !important;
+    border-color: #4b5563 !important;
+  }
+
+  .swal-app-cancel-button:hover {
+    background-color: #4b5563 !important;
+  }
+}

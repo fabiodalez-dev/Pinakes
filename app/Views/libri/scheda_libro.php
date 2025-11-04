@@ -1,0 +1,1014 @@
+<?php
+$status = strtolower((string)($libro['stato'] ?? ''));
+$statusClasses = [
+    'disponibile' => 'inline-flex items-center gap-2 rounded-full border border-green-400/40 bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-200',
+    'prestato'    => 'inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200',
+    'in_ritardo'  => 'inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200',
+    'danneggiato' => 'inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200',
+    'perso'       => 'inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200',
+];
+$statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/60 px-3 py-1 text-xs font-semibold text-slate-200';
+
+$btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700';
+$btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
+$btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50';
+?>
+
+<section class="min-h-screen py-6">
+<?php if (isset($_SESSION['success_message'])): ?>
+  <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
+    <i class="fas fa-check-circle mr-2"></i>
+    <?php echo App\Support\HtmlHelper::e($_SESSION['success_message']); ?>
+  </div>
+  <?php unset($_SESSION['success_message']); ?>
+<?php endif; ?>
+
+<!-- Hero Section with Breadcrumb -->
+<div class="mb-6">
+  <!-- Breadcrumb - Higher within hero -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="flex items-center space-x-2 text-sm">
+      <li>
+        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <i class="fas fa-home mr-1"></i>Home
+        </a>
+      </li>
+      <li>
+        <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
+      </li>
+      <li>
+        <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <i class="fas fa-book mr-1"></i>Libri
+        </a>
+      </li>
+      <li>
+        <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
+      </li>
+      <li class="text-gray-900 font-medium">
+        <span><?php echo App\Support\HtmlHelper::e(mb_substr($libro['titolo'] ?? '', 0, 30) . (mb_strlen($libro['titolo'] ?? '') > 30 ? '...' : '')); ?></span>
+      </li>
+    </ol>
+  </nav>
+  
+  <!-- Header: title + actions -->
+  <div class="flex flex-col gap-4">
+      <!-- Title and subtitle: full width -->
+      <div class="flex flex-col gap-2">
+        <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+          <i class="fas fa-book text-gray-600"></i>
+          <?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>
+        </h1>
+        <?php if (!empty($libro['sottotitolo'])): ?>
+          <div class="text-gray-600 mt-1"><?php echo App\Support\HtmlHelper::e($libro['sottotitolo']); ?></div>
+        <?php endif; ?>
+      </div>
+
+      <!-- Action buttons: responsive layout below title -->
+      <div class="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-3">
+        <!-- Primo blocco: Stampa etichetta e Visualizza frontend: 50% each su mobile -->
+        <div class="flex gap-3 w-full lg:w-auto">
+          <!-- Stampa etichetta -->
+          <a href="/api/libri/<?php echo (int)$libro['id']; ?>/etichetta-pdf" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+            <i class="fas fa-barcode"></i>
+            Stampa etichetta
+          </a>
+          <!-- Visualizza nel frontend -->
+          <a href="/libro/<?php echo (int)$libro['id']; ?>" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+            <i class="fas fa-eye"></i>
+            Visualizza
+          </a>
+        </div>
+
+        <!-- Secondo blocco: Modifica ed Elimina: 50% each su mobile, inline su desktop -->
+        <div class="flex gap-3 w-full lg:w-auto">
+          <a href="/admin/libri/modifica/<?php echo (int)$libro['id']; ?>" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+            <i class="fas fa-edit"></i>
+            Modifica
+          </a>
+          <?php if (!empty($activeLoan) && (int)($activeLoan['attivo'] ?? 0) === 1): ?>
+          <button type="button" id="open-return-modal" class="<?php echo $btnPrimary; ?> flex-1 lg:flex-none justify-center">
+            <i class="fas fa-undo"></i>
+            Restituzione
+          </button>
+          <?php endif; ?>
+          <form id="delete-book" method="post" action="/admin/libri/delete/<?php echo (int)$libro['id']; ?>" onsubmit="return confirmDeleteBook(event);" class="flex-1 lg:flex-none">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+            <button type="submit" class="<?php echo $btnDanger; ?> w-full">
+              <i class="fas fa-trash"></i>
+              Elimina
+            </button>
+          </form>
+        </div>
+      </div>
+  </div>
+</div>
+
+  <!-- Main content -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left: Cover + quick info -->
+    <div class="lg:col-span-1">
+      <div class="card overflow-hidden">
+        <?php 
+          $cover = (string)($libro['copertina_url'] ?? '');
+          if ($cover === '' && !empty($libro['copertina'])) { $cover = (string)$libro['copertina']; }
+          if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
+          if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+        ?>
+        <div class="p-4 flex items-center justify-center bg-gray-50">
+          <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
+               onerror="this.src='/uploads/copertine/placeholder.jpg'"
+               alt="<?php echo htmlspecialchars(($libro['titolo'] ?? 'Libro') . ' - Copertina', ENT_QUOTES, 'UTF-8'); ?>"
+               class="max-h-80 object-contain rounded-lg shadow" />
+        </div>
+        <div class="p-4 space-y-3">
+          <?php if (!empty($libro['stato'])): ?>
+          <div>
+            <span class="<?php echo $statusBadgeClass; ?>">
+              <i class="fas fa-circle text-[8px]"></i>
+              <?php echo App\Support\HtmlHelper::e(ucfirst($libro['stato'])); ?>
+            </span>
+          </div>
+          <?php endif; ?>
+          <div class="text-base text-gray-600">
+            <i class="fas fa-building text-gray-400 mr-2"></i>
+            <span class="font-medium">Editore:</span>
+            <?php echo App\Support\HtmlHelper::e($libro['editore_nome'] ?? 'Non specificato'); ?>
+          </div>
+          <div class="text-base text-gray-600">
+            <i class="fas fa-users text-gray-400 mr-2"></i>
+            <span class="font-medium">Autori:</span>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <?php
+                $autori = $libro['autori'] ?? [];
+                if (is_array($autori) && count($autori) > 0):
+                  foreach ($autori as $a):
+                    $label = trim((string)($a['nome'] ?? ''));
+                    if ($label === '') continue;
+              ?>
+                <a href="/admin/autori/<?php echo (int)($a['id'] ?? 0); ?>"
+                   class="inline-flex items-center px-2 py-1 rounded-full text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                  <i class="fas fa-user mr-1"></i><?php echo App\Support\HtmlHelper::e($label); ?>
+                </a>
+             <?php endforeach; else: ?>
+                <span class="text-gray-400">Non specificato</span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <div class="text-base text-gray-600">
+            <i class="fas fa-layer-group text-gray-400 mr-2"></i>
+            <span class="font-medium">Genere:</span>
+            <?php
+              $pathParts = [];
+              if (!empty($libro['radice_nome'])) $pathParts[] = (string)$libro['radice_nome'];
+              if (!empty($libro['genere_nome'])) {
+                $genName = (string)$libro['genere_nome'];
+                if (strpos($genName, ' - ') !== false) {
+                  $parts = explode(' - ', $genName);
+                  $genName = end($parts);
+                }
+                $pathParts[] = $genName;
+              }
+              if (!empty($libro['sottogenere_nome'])) $pathParts[] = (string)$libro['sottogenere_nome'];
+              $path = implode(' → ', array_map('App\\Support\\HtmlHelper::e', $pathParts));
+            ?>
+            <a href="/admin/generi/<?php echo !empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']); ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
+              <?php echo $path !== '' ? $path : 'Non specificato'; ?>
+            </a>
+          </div>
+          <div class="text-base text-gray-600">
+            <i class="fas fa-barcode text-gray-400 mr-2"></i>
+            <span class="font-medium">ISBN:</span>
+            <?php echo App\Support\HtmlHelper::e(($libro['isbn13'] ?? '') ?: ($libro['isbn10'] ?? 'Non specificato')); ?>
+          </div>
+      </div>
+    </div>
+      <?php if (!empty($activeLoan) && (int)$activeLoan['attivo'] === 1): ?>
+      <div class="card mt-4">
+        <div class="card-header">
+          <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-clock text-yellow-600"></i>
+            Prestito attivo
+          </h3>
+        </div>
+        <div class="card-body space-y-3 text-sm text-gray-700">
+          <div class="flex items-center justify-between">
+            <span class="font-medium">Utente</span>
+            <span class="text-right">
+              <?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? 'Sconosciuto'); ?><br>
+              <span class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_email'] ?? ''); ?></span>
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="font-medium">Dal</span>
+            <span><?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="font-medium">Scadenza</span>
+            <?php $isLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
+            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e($activeLoan['data_scadenza'] ?? ''); ?></span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="font-medium">Rinnovi effettuati</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-800">
+              <i class="fas fa-redo-alt mr-1 text-xs"></i>
+              <?php echo (int)($activeLoan['renewals'] ?? 0); ?> / 3
+            </span>
+          </div>
+          <?php if (!empty($activeLoan['processed_by_name'])): ?>
+          <div class="flex items-center justify-between">
+            <span class="font-medium">Gestito da</span>
+            <span><?php echo App\Support\HtmlHelper::e($activeLoan['processed_by_name']); ?></span>
+          </div>
+          <?php endif; ?>
+          <?php if (!empty($activeLoan['note'])): ?>
+          <div>
+            <span class="font-medium">Note</span>
+            <p class="mt-1 text-gray-600"><?php echo App\Support\HtmlHelper::e($activeLoan['note']); ?></p>
+          </div>
+          <?php endif; ?>
+
+          <div class="pt-3 border-t border-gray-200 space-y-2">
+            <?php
+              $maxRenewals = 3;
+              $currentRenewals = (int)($activeLoan['renewals'] ?? 0);
+              $canRenew = !$isLate && $currentRenewals < $maxRenewals;
+            ?>
+
+            <?php if ($canRenew): ?>
+            <form method="post" action="/admin/prestiti/rinnova/<?php echo (int)$activeLoan['id']; ?>" onsubmit="return confirmRenewal(event);">
+              <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+              <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars('/admin/libri/' . (int)($libro['id'] ?? 0), ENT_QUOTES, 'UTF-8'); ?>">
+              <button type="submit" class="<?php echo $btnPrimary; ?> w-full justify-center">
+                <i class="fas fa-redo-alt"></i> Rinnova prestito (+14 giorni)
+              </button>
+            </form>
+            <?php elseif ($isLate): ?>
+            <div class="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs text-center" role="alert">
+              <i class="fas fa-exclamation-triangle mr-1"></i>
+              Non rinnovabile: prestito in ritardo
+            </div>
+            <?php elseif ($currentRenewals >= $maxRenewals): ?>
+            <div class="px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs text-center" role="alert">
+              <i class="fas fa-info-circle mr-1"></i>
+              Limite massimo rinnovi raggiunto (<?php echo $maxRenewals; ?>)
+            </div>
+            <?php endif; ?>
+
+            <button type="button" id="open-return-modal-secondary" class="<?php echo $btnPrimary; ?> w-full justify-center">
+              <i class="fas fa-undo mr-2"></i>Registra restituzione
+            </button>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <!-- Right: Details -->
+    <div class="lg:col-span-2 space-y-6">
+      <!-- Metadata grid -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-info-circle text-primary"></i>
+            Dettagli Libro
+          </h2>
+        </div>
+        <div class="card-body">
+          <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <?php if (!empty($libro['isbn10'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">ISBN10</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['isbn10']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['isbn13'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">ISBN13</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['isbn13']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['ean'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">EAN</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['ean']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['edizione'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Edizione</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['edizione']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['anno_pubblicazione'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Anno pubblicazione</dt>
+              <dd class="text-gray-900 font-medium"><?php echo (int)$libro['anno_pubblicazione']; ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['data_pubblicazione'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Data di pubblicazione</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['data_pubblicazione']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['collana'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Collana</dt>
+              <dd class="text-gray-900 font-medium">
+                <a href="/admin/libri?collana=<?php echo urlencode($libro['collana']); ?>"
+                   class="text-gray-700 hover:text-gray-900 hover:underline transition-colors">
+                  <?php echo App\Support\HtmlHelper::e($libro['collana']); ?>
+                </a>
+              </dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['numero_serie'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Numero serie</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['numero_serie']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['numero_pagine'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Pagine</dt>
+              <dd class="text-gray-900 font-medium"><?php echo (int)$libro['numero_pagine']; ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['dimensioni'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Dimensioni</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['dimensioni']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['formato'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Formato</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['formato']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['peso'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Peso</dt>
+              <dd class="text-gray-900 font-medium"><?php echo htmlspecialchars((string)$libro['peso'], ENT_QUOTES, 'UTF-8'); ?> kg</dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['prezzo'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Prezzo</dt>
+              <dd class="text-gray-900 font-medium">€ <?php echo htmlspecialchars(number_format((float)$libro['prezzo'], 2, ',', '.'), ENT_QUOTES, 'UTF-8'); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php 
+              $fmtDate = function($s) {
+                $s = (string)$s;
+                if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) { $ts = strtotime($s); return $ts ? date('d-m-Y', $ts) : $s; }
+                return $s;
+              };
+            ?>
+            <?php if (!empty($libro['data_acquisizione'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Data acquisizione</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($fmtDate($libro['data_acquisizione'])); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['tipo_acquisizione'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Tipo acquisizione</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['tipo_acquisizione']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <div class="sm:col-span-2">
+              <dt class="text-xs uppercase text-gray-500">Classificazione Dewey</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dowey'] ?? ''); ?></dd>
+            </div>
+            <?php 
+              $scCod = (string)($libro['scaffale_codice'] ?? '');
+              $scNome = (string)($libro['scaffale_nome'] ?? '');
+              $msLvl = (string)($libro['mensola_livello'] ?? '');
+              $posProgressiva = (int)($libro['posizione_progressiva'] ?? 0);
+              $posCollocation = (string)($libro['collocazione'] ?? '');
+              $posLabel = '';
+              if ($posCollocation !== '') {
+                $posLabel = $posCollocation;
+              } elseif ($scCod !== '') {
+                $parts = ['['.$scCod.']'];
+                if ($scNome !== '') { $parts[] = $scNome; }
+                if ($msLvl !== '') { $parts[] = 'Mensola '.$msLvl; }
+                if ($posProgressiva > 0) { $parts[] = 'Pos '.str_pad((string)$posProgressiva, 2, '0', STR_PAD_LEFT); }
+                $posLabel = implode(' — ', $parts);
+              }
+            ?>
+            <div class="sm:col-span-2">
+              <dt class="text-xs uppercase text-gray-500">Collocazione</dt>
+              <dd class="text-gray-900 font-medium"><?php echo $posLabel !== '' ? App\Support\HtmlHelper::e($posLabel) : 'Non specificato'; ?></dd>
+            </div>
+            <?php if (!empty($libro['numero_inventario'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Numero inventario</dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['numero_inventario']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['parole_chiave'])): ?>
+            <div class="sm:col-span-2">
+              <dt class="text-xs uppercase text-gray-500">Parole chiave</dt>
+              <dd class="text-gray-900 font-medium">
+                <?php
+                  $keywords = array_map('trim', explode(',', $libro['parole_chiave']));
+                  foreach ($keywords as $keyword):
+                    if (empty($keyword)) continue;
+                ?>
+                  <a href="/admin/libri?keywords=<?php echo urlencode($keyword); ?>"
+                     class="inline-block px-2 py-1 mr-2 mb-2 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors">
+                    <i class="fas fa-tag mr-1"></i><?php echo App\Support\HtmlHelper::e($keyword); ?>
+                  </a>
+                <?php endforeach; ?>
+              </dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['stato'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Stato</dt>
+              <dd>
+                <?php $st = strtolower((string)($libro['stato'])); $cls = 'bg-gray-100 text-gray-800';
+                  if ($st === 'disponibile') $cls = 'bg-green-500 text-white';
+                  elseif (in_array($st, ['prestato','in_ritardo'])) $cls = 'bg-red-100 text-red-800';
+                  elseif (in_array($st, ['danneggiato','perso'])) $cls = 'bg-yellow-100 text-yellow-800'; ?>
+                <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $cls; ?>"><?php echo App\Support\HtmlHelper::e($libro['stato'] ?? 'Non specificato'); ?></span>
+              </dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['file_url'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">File</dt>
+              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['file_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener">Apri</a></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['audio_url'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500">Audio</dt>
+              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['audio_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener">Apri</a></dd>
+            </div>
+            <?php endif; ?>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <?php if (!empty($libro['descrizione'])): ?>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-align-left text-primary"></i>
+            Descrizione
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="prose prose-sm max-w-none text-gray-700">
+            <?php echo nl2br(App\Support\HtmlHelper::e($libro['descrizione'])); ?>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <?php if (!empty($libro['note_varie'])): ?>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-sticky-note text-primary"></i>
+            Note
+          </h2>
+        </div>
+        <div class="card-body text-gray-700">
+          <?php echo App\Support\HtmlHelper::e($libro['note_varie']); ?>
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Copies Section -->
+  <?php if (!empty($copie) && count($copie) > 0): ?>
+  <div class="mt-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-clone text-primary"></i>
+          Copie Fisiche
+          <span class="ml-2 text-sm font-normal text-gray-500">(<?php echo count($copie); ?> copi<?php echo count($copie) > 1 ? 'e' : 'a'; ?>)</span>
+        </h2>
+      </div>
+      <div class="card-body p-0">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numero Inventario</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stato</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prestito Attivo</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utente</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scadenza</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php foreach ($copie as $copia): ?>
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">
+                    <i class="fas fa-barcode mr-2 text-gray-400"></i>
+                    <?php echo App\Support\HtmlHelper::e($copia['numero_inventario']); ?>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <?php
+                  $copiaStatus = strtolower($copia['stato'] ?? '');
+                  $copiaStatusClasses = [
+                      'disponibile' => 'bg-green-100 text-green-800',
+                      'prestato'    => 'bg-red-100 text-red-800',
+                      'manutenzione' => 'bg-yellow-100 text-yellow-800',
+                      'perso'       => 'bg-gray-100 text-gray-800',
+                      'danneggiato' => 'bg-orange-100 text-orange-800',
+                  ];
+                  $copiaStatusClass = $copiaStatusClasses[$copiaStatus] ?? 'bg-gray-100 text-gray-800';
+                  ?>
+                  <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $copiaStatusClass; ?>">
+                    <?php echo App\Support\HtmlHelper::e(ucfirst($copia['stato'] ?? 'N/D')); ?>
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php if (!empty($copia['prestito_id'])): ?>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <i class="fas fa-book-reader mr-1"></i>
+                      #<?php echo (int)$copia['prestito_id']; ?>
+                    </span>
+                  <?php else: ?>
+                    <span class="text-gray-400">-</span>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                  <?php if (!empty($copia['utente_nome'])): ?>
+                    <div class="text-gray-900">
+                      <?php echo App\Support\HtmlHelper::e($copia['utente_nome'] . ' ' . $copia['utente_cognome']); ?>
+                    </div>
+                    <div class="text-gray-500 text-xs">
+                      <?php echo App\Support\HtmlHelper::e($copia['utente_email']); ?>
+                    </div>
+                  <?php else: ?>
+                    <span class="text-gray-400">-</span>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php if (!empty($copia['data_scadenza'])): ?>
+                    <?php
+                    $scadenza = new DateTime($copia['data_scadenza']);
+                    $oggi = new DateTime();
+                    $isScaduto = $scadenza < $oggi;
+                    ?>
+                    <span class="<?php echo $isScaduto ? 'text-red-600 font-semibold' : ''; ?>">
+                      <?php echo $scadenza->format('d/m/Y'); ?>
+                      <?php if ($isScaduto): ?>
+                        <i class="fas fa-exclamation-triangle ml-1"></i>
+                      <?php endif; ?>
+                    </span>
+                  <?php else: ?>
+                    <span class="text-gray-400">-</span>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-500">
+                  <?php echo App\Support\HtmlHelper::e($copia['note'] ?? '-'); ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <div class="flex items-center justify-end gap-2">
+                    <?php
+                    $canEdit = empty($copia['prestito_id']);
+                    $canDelete = $canEdit && in_array($copiaStatus, ['perso', 'danneggiato', 'manutenzione']);
+                    ?>
+                    <?php if ($canEdit): ?>
+                    <button type="button"
+                            onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, '<?php echo htmlspecialchars($copia['stato'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($copia['note'] ?? '', ENT_QUOTES); ?>')"
+                            class="text-blue-600 hover:text-blue-900 transition-colors"
+                            title="Modifica stato">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <?php endif; ?>
+                    <?php if ($canDelete): ?>
+                    <button type="button"
+                            onclick="confirmDeleteCopy(<?php echo (int)$copia['id']; ?>, '<?php echo htmlspecialchars($copia['numero_inventario'], ENT_QUOTES); ?>')"
+                            class="text-red-600 hover:text-red-900 transition-colors"
+                            title="Elimina copia">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                    <?php endif; ?>
+                    <?php if (!$canEdit): ?>
+                    <span class="text-gray-400 text-xs">In prestito</span>
+                    <?php endif; ?>
+                  </div>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Loan History Section -->
+  <?php if (!empty($loanHistory) && count($loanHistory) > 0): ?>
+  <div class="mt-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-history text-primary"></i>
+          Storico Prestiti
+          <span class="ml-2 text-sm font-normal text-gray-500">(<?php echo count($loanHistory); ?> prestiti totali)</span>
+        </h2>
+      </div>
+      <div class="card-body p-0">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utente</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Prestito</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Scadenza</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Restituzione</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stato</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rinnovi</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gestito da</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php foreach ($loanHistory as $loan): ?>
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex items-center">
+                    <div>
+                      <div class="text-sm font-medium text-gray-900">
+                        <a href="/admin/utenti/<?php echo (int)$loan['utente_id']; ?>" class="hover:text-blue-600 transition-colors">
+                          <?php echo App\Support\HtmlHelper::e($loan['utente_nome'] . ' ' . $loan['utente_cognome']); ?>
+                        </a>
+                      </div>
+                      <?php if (!empty($loan['utente_email'])): ?>
+                      <div class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($loan['utente_email']); ?></div>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <i class="fas fa-calendar-alt text-gray-400 mr-1"></i>
+                  <?php echo App\Support\HtmlHelper::e(date('d/m/Y', strtotime($loan['data_prestito']))); ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                  <?php
+                    $isOverdue = strtotime($loan['data_scadenza']) < strtotime(date('Y-m-d')) && $loan['stato'] !== 'restituito';
+                  ?>
+                  <span class="<?php echo $isOverdue ? 'text-red-600 font-semibold' : 'text-gray-900'; ?>">
+                    <i class="fas fa-calendar-times text-gray-400 mr-1"></i>
+                    <?php echo App\Support\HtmlHelper::e(date('d/m/Y', strtotime($loan['data_scadenza']))); ?>
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php if (!empty($loan['data_restituzione'])): ?>
+                    <i class="fas fa-check-circle text-green-500 mr-1"></i>
+                    <?php echo App\Support\HtmlHelper::e(date('d/m/Y', strtotime($loan['data_restituzione']))); ?>
+                  <?php else: ?>
+                    <span class="text-gray-400 italic">In corso</span>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <?php
+                    $statusClass = 'bg-gray-100 text-gray-800';
+                    $statusIcon = 'fa-circle';
+                    switch ($loan['stato']) {
+                      case 'restituito':
+                        $statusClass = 'bg-green-100 text-green-800';
+                        $statusIcon = 'fa-check-circle';
+                        break;
+                      case 'in_corso':
+                        $statusClass = 'bg-blue-100 text-blue-800';
+                        $statusIcon = 'fa-book-open';
+                        break;
+                      case 'in_ritardo':
+                        $statusClass = 'bg-red-100 text-red-800';
+                        $statusIcon = 'fa-exclamation-triangle';
+                        break;
+                      case 'perso':
+                      case 'danneggiato':
+                        $statusClass = 'bg-yellow-100 text-yellow-800';
+                        $statusIcon = 'fa-exclamation-circle';
+                        break;
+                    }
+                  ?>
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $statusClass; ?>">
+                    <i class="fas <?php echo $statusIcon; ?> mr-1"></i>
+                    <?php echo App\Support\HtmlHelper::e(ucfirst(str_replace('_', ' ', $loan['stato']))); ?>
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php if ((int)$loan['renewals'] > 0): ?>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-800">
+                      <i class="fas fa-redo-alt mr-1"></i>
+                      <?php echo (int)$loan['renewals']; ?>
+                    </span>
+                  <?php else: ?>
+                    <span class="text-gray-400">-</span>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <?php if (!empty($loan['staff_nome'])): ?>
+                    <i class="fas fa-user text-gray-400 mr-1"></i>
+                    <?php echo App\Support\HtmlHelper::e($loan['staff_nome'] . ' ' . $loan['staff_cognome']); ?>
+                  <?php else: ?>
+                    <span class="text-gray-400">-</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <?php if (!empty($loan['note'])): ?>
+              <tr class="bg-gray-50">
+                <td colspan="7" class="px-6 py-3">
+                  <div class="text-xs text-gray-600">
+                    <i class="fas fa-comment text-gray-400 mr-1"></i>
+                    <span class="font-medium">Note:</span> <?php echo App\Support\HtmlHelper::e($loan['note']); ?>
+                  </div>
+                </td>
+              </tr>
+              <?php endif; ?>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <script>
+    function confirmDeleteBook(e){
+      if (window.Swal){
+        e.preventDefault();
+        Swal.fire({title:'Sei sicuro?', text:'Questa azione non può essere annullata', icon:'warning', showCancelButton:true, confirmButtonText:'Elimina', confirmButtonColor:'#d33'}).then(r=>{ if(r.isConfirmed) e.target.submit(); });
+        return false;
+      }
+      return confirm('Eliminare il libro?');
+    }
+
+    function confirmRenewal(e){
+      if (window.Swal){
+        e.preventDefault();
+        Swal.fire({
+          title:'Rinnova prestito?',
+          text:'La scadenza verrà estesa di 14 giorni',
+          icon:'question',
+          showCancelButton:true,
+          confirmButtonText:'Rinnova',
+          cancelButtonText:'Annulla',
+          confirmButtonColor:'#1f2937'
+        }).then(r=>{ if(r.isConfirmed) e.target.submit(); });
+        return false;
+      }
+      return confirm('Rinnovare il prestito? La scadenza verrà estesa di 14 giorni.');
+    }
+  </script>
+
+  <?php if (!empty($activeLoan) && (int)$activeLoan['attivo'] === 1): ?>
+    <div id="return-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4">
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <h3 class="text-lg font-semibold text-gray-900">
+            <i class="fas fa-undo text-gray-600 mr-2"></i>
+            Registra restituzione prestito #<?php echo (int)$activeLoan['id']; ?>
+          </h3>
+          <button type="button" id="close-return-modal" class="text-gray-500 hover:text-gray-700">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <form method="post" action="/admin/prestiti/restituito/<?php echo (int)$activeLoan['id']; ?>" class="px-6 py-5 space-y-4">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+          <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($bookPath ?? ('/admin/libri/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
+            <div>
+              <div class="text-xs uppercase text-gray-500">Utente</div>
+              <div class="font-medium"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? 'Sconosciuto'); ?></div>
+              <div class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_email'] ?? ''); ?></div>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-gray-500">Prestito</div>
+              <div class="font-medium">Dal <?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></div>
+              <?php $modalLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
+              <div class="text-xs <?php echo $modalLate ? 'text-red-600 font-semibold' : 'text-gray-500'; ?>">
+                Scadenza <?php echo App\Support\HtmlHelper::e($activeLoan['data_scadenza'] ?? ''); ?>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label for="modal-stato" class="form-label">Esito restituzione</label>
+            <select id="modal-stato" name="stato" class="form-input" required aria-required="true">
+              <option value="restituito" selected>Restituito</option>
+              <option value="in_ritardo">Mantieni in ritardo</option>
+              <option value="danneggiato">Danneggiato</option>
+              <option value="perso">Perso</option>
+            </select>
+          </div>
+          <div>
+            <label for="modal-note" class="form-label">Note (opzionali)</label>
+            <textarea id="modal-note" name="note" rows="3" class="form-input" placeholder="Aggiungi eventuali note..."></textarea>
+          </div>
+          <div class="flex items-center justify-end gap-3 pt-2">
+            <button type="button" id="close-return-modal-secondary" class="btn-secondary">Annulla</button>
+            <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
+              <i class="fas fa-check mr-2"></i>Conferma restituzione
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('return-modal');
+        if (!modal) return;
+        const openButtons = [
+          document.getElementById('open-return-modal'),
+          document.getElementById('open-return-modal-secondary')
+        ].filter(Boolean);
+        const closeButtons = [
+          document.getElementById('close-return-modal'),
+          document.getElementById('close-return-modal-secondary')
+        ].filter(Boolean);
+
+        const openModal = () => {
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+        };
+        const closeModal = () => {
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        };
+
+        openButtons.forEach(btn => btn.addEventListener('click', openModal));
+        closeButtons.forEach(btn => btn.addEventListener('click', closeModal));
+        modal.addEventListener('click', (event) => {
+          if (event.target === modal) closeModal();
+        });
+      });
+    </script>
+  <?php endif; ?>
+
+  <!-- Modal Modifica Stato Copia -->
+  <div id="edit-copy-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+      <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+        <h3 class="text-lg font-semibold text-gray-900">
+          <i class="fas fa-edit text-gray-600 mr-2"></i>
+          Modifica Stato Copia
+        </h3>
+        <button type="button" id="close-edit-copy-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form method="post" id="edit-copy-form" class="px-6 py-5 space-y-4">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+        <input type="hidden" name="copy_id" id="edit-copy-id" value="">
+
+        <div>
+          <label for="edit-copy-stato" class="form-label">Stato della copia</label>
+          <select id="edit-copy-stato" name="stato" class="form-input" required aria-required="true">
+            <option value="disponibile">Disponibile</option>
+            <option value="prestato" disabled>Prestato (usa il sistema Prestiti)</option>
+            <option value="manutenzione">In manutenzione</option>
+            <option value="danneggiato">Danneggiato</option>
+            <option value="perso">Perso</option>
+          </select>
+          <p class="text-xs text-gray-600 mt-1">
+            <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+            <strong>Nota:</strong> Per prestare una copia, usa la sezione Prestiti. Imposta "Disponibile" per chiudere un prestito attivo.
+          </p>
+        </div>
+
+        <div>
+          <label for="edit-copy-note" class="form-label">Note (opzionale)</label>
+          <textarea id="edit-copy-note" name="note" rows="3" class="form-input" placeholder="Aggiungi eventuali note..."></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" id="close-edit-copy-modal-secondary" class="btn-secondary">Annulla</button>
+          <button type="submit" class="<?php echo $btnPrimary ?? 'btn-primary'; ?> justify-center">
+            <i class="fas fa-save mr-2"></i>Salva Modifiche
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Modal gestione copia
+    const editCopyModal = document.getElementById('edit-copy-modal');
+    const editCopyForm = document.getElementById('edit-copy-form');
+
+    function openEditCopyModal(copyId, currentStato, currentNote) {
+      document.getElementById('edit-copy-id').value = copyId;
+      document.getElementById('edit-copy-note').value = currentNote || '';
+
+      const statoSelect = document.getElementById('edit-copy-stato');
+      const prestatoOption = statoSelect.querySelector('option[value="prestato"]');
+
+      // Se lo stato corrente è "prestato", riabilita l'opzione per poterla selezionare
+      if (currentStato === 'prestato') {
+        prestatoOption.disabled = false;
+        prestatoOption.textContent = 'Prestato (imposta "Disponibile" per chiudere il prestito)';
+      } else {
+        prestatoOption.disabled = true;
+        prestatoOption.textContent = 'Prestato (usa il sistema Prestiti)';
+      }
+
+      statoSelect.value = currentStato;
+
+      editCopyForm.action = `/admin/libri/copie/${copyId}/update`;
+
+      editCopyModal.classList.remove('hidden');
+      editCopyModal.classList.add('flex');
+    }
+
+    function closeEditCopyModal() {
+      editCopyModal.classList.add('hidden');
+      editCopyModal.classList.remove('flex');
+    }
+
+    document.getElementById('close-edit-copy-modal')?.addEventListener('click', closeEditCopyModal);
+    document.getElementById('close-edit-copy-modal-secondary')?.addEventListener('click', closeEditCopyModal);
+    editCopyModal?.addEventListener('click', (e) => {
+      if (e.target === editCopyModal) closeEditCopyModal();
+    });
+
+    editCopyForm?.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      if (window.Swal) {
+        Swal.fire({
+          title: 'Conferma modifica',
+          text: 'Vuoi aggiornare lo stato di questa copia?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Sì, aggiorna',
+          cancelButtonText: 'Annulla',
+          confirmButtonColor: '#1f2937'
+        }).then(result => {
+          if (result.isConfirmed) {
+            e.target.submit();
+          }
+        });
+      } else {
+        if (confirm('Vuoi aggiornare lo stato di questa copia?')) {
+          e.target.submit();
+        }
+      }
+    });
+
+    function confirmDeleteCopy(copyId, numeroInventario) {
+      if (window.Swal) {
+        Swal.fire({
+          title: 'Elimina copia',
+          html: `Sei sicuro di voler eliminare la copia <strong>${numeroInventario}</strong>?<br><span class="text-sm text-gray-600">Questa azione non può essere annullata.</span>`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sì, elimina',
+          cancelButtonText: 'Annulla',
+          confirmButtonColor: '#dc2626'
+        }).then(result => {
+          if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/admin/libri/copie/${copyId}/delete`;
+
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>';
+            form.appendChild(csrfInput);
+
+            document.body.appendChild(form);
+            form.submit();
+          }
+        });
+      } else {
+        if (confirm(`Sei sicuro di voler eliminare la copia ${numeroInventario}? Questa azione non può essere annullata.`)) {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/admin/libri/copie/${copyId}/delete`;
+
+          const csrfInput = document.createElement('input');
+          csrfInput.type = 'hidden';
+          csrfInput.name = 'csrf_token';
+          csrfInput.value = '<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>';
+          form.appendChild(csrfInput);
+
+          document.body.appendChild(form);
+          form.submit();
+        }
+      }
+    }
+  </script>
+</section>

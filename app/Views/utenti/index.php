@@ -1,0 +1,706 @@
+<!-- Minimal White Users Management Interface -->
+<div class="min-h-screen bg-gray-50 py-6">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="flex items-center space-x-2 text-sm">
+        <li>
+          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+            <i class="fas fa-home mr-1"></i>Home
+          </a>
+        </li>
+        <li>
+          <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
+        </li>
+        <li class="text-gray-900 font-medium">
+          <a href="/admin/utenti" class="text-gray-900 hover:text-gray-700">
+            <i class="fas fa-users mr-1"></i>Utenti
+          </a>
+        </li>
+      </ol>
+    </nav>
+    <!-- Minimal Header -->
+    <div class="mb-8 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+            <i class="fas fa-users text-gray-600"></i>
+            Gestione Utenti
+          </h1>
+          <p class="text-gray-600">Esplora e gestisci gli utenti registrati alla biblioteca</p>
+        </div>
+        <div class="hidden md:flex items-center gap-3">
+          <a href="/admin/utenti/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+            <i class="fas fa-user-plus mr-2"></i>
+            Nuovo Utente
+          </a>
+        </div>
+      </div>
+      <div class="flex md:hidden mb-4">
+        <a href="/admin/utenti/crea" class="w-full px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center">
+          <i class="fas fa-user-plus mr-2"></i>
+          Nuovo Utente
+        </a>
+      </div>
+    </div>
+
+    <!-- Success Messages -->
+    <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
+      <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-check-circle"></i>
+          <span>Utente creato con successo!</span>
+        </div>
+      </div>
+    <?php endif; ?>
+    <?php if(isset($_GET['updated']) && $_GET['updated'] == '1'): ?>
+      <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-check-circle"></i>
+          <span>Utente aggiornato con successo!</span>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <!-- White Filters Card -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up">
+      <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-filter text-gray-600"></i>
+          Filtri di Ricerca
+        </h2>
+        <div class="flex items-center gap-2">
+          <button id="btn-pending-approvals" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
+            <i class="fas fa-user-clock mr-2"></i> Solo sospesi
+          </button>
+          <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
+            <i class="fas fa-chevron-up"></i>
+            <span>Nascondi filtri</span>
+          </button>
+        </div>
+      </div>
+      <div class="p-6" id="filters-container">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label class="form-label">
+              <i class="fas fa-search mr-1"></i>
+              Cerca testo
+            </label>
+            <input id="search_text" placeholder="Nome, cognome, email..." class="form-input" />
+          </div>
+          
+          <div>
+            <label class="form-label">
+              <i class="fas fa-user-tag mr-1"></i>
+              Ruolo
+            </label>
+            <select id="role_filter" class="form-input">
+              <option value="">Tutti i ruoli</option>
+              <option value="admin">Amministratore</option>
+              <option value="staff">Staff</option>
+              <option value="premium">Premium</option>
+              <option value="standard">Standard</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="form-label">
+              <i class="fas fa-info-circle mr-1"></i>
+              Stato
+            </label>
+            <select id="status_filter" class="form-input">
+              <option value="">Tutti gli stati</option>
+              <option value="attivo">Attivo</option>
+              <option value="sospeso">Sospeso</option>
+              <option value="scaduto">Scaduto</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="form-label">
+              <i class="fas fa-calendar mr-1"></i>
+              Registrato da
+            </label>
+            <input id="created_from" type="date" class="form-input" />
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-4 border-t border-gray-200">
+          <div class="flex items-center gap-2 text-sm text-gray-500">
+            <i class="fas fa-info-circle"></i>
+            <span>I filtri vengono applicati automaticamente mentre digiti</span>
+          </div>
+          <button id="clear-filters" class="btn-secondary">
+            <i class="fas fa-times mr-2"></i>
+            Cancella filtri
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-table text-primary"></i>
+          Elenco Utenti
+          <span id="total-count" class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"></span>
+        </h2>
+        <div id="export-buttons" class="flex items-center space-x-2">
+          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta CSV (formato compatibile per import)">
+            <i class="fas fa-file-csv mr-1"></i>
+            CSV
+          </button>
+          <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta PDF">
+            <i class="fas fa-file-pdf mr-1"></i>
+            PDF
+          </button>
+          <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Stampa">
+            <i class="fas fa-print mr-1"></i>
+            Stampa
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="overflow-x-auto">
+          <table id="utenti-table" class="display responsive nowrap" style="width:100%">
+            <thead>
+              <tr>
+                <th class="all">Utente</th>
+                <th>Email</th>
+                <th>Telefono</th>
+                <th>Ruolo</th>
+                <th>Stato</th>
+                <th class="all">Azioni</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modern DataTables with Advanced Features -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  
+  // Check if DataTables is available
+  if (typeof DataTable === 'undefined') {
+    console.error('DataTable is not loaded!');
+    return;
+  }
+
+  // Initialize DataTable with modern features
+  const table = new DataTable('#utenti-table', {
+    processing: true,
+    serverSide: true,
+    responsive: true,
+    searching: false, // We use custom search
+    dom: 'lfrtip',
+    ajax: {
+      url: '/api/utenti',
+      type: 'GET',
+      data: function(d) {
+        return {
+          ...d,
+          search_text: $('#search_text').val(),
+          role_filter: $('#role_filter').val(),
+          status_filter: $('#status_filter').val(),
+          created_from: $('#created_from').val()
+        };
+      },
+      dataSrc: function(json) {
+        // Update total count
+        const totalCount = json.recordsTotal || 0;
+        $('#total-count').text(totalCount.toLocaleString() + ' utenti');
+        return json.data;
+      }
+    },
+    columns: [
+      {
+        data: 'nome',
+        render: function(data, type, row) {
+          const nome = decodeHtml(data) || 'N/A';
+          const cognome = decodeHtml(row.cognome) || '';
+          const nomeCompleto = cognome ? `${nome} ${cognome}` : nome;
+          const tessera = row.codice_tessera || 'N/A';
+
+          return `
+            <a href="/admin/utenti/dettagli/${row.id}"
+               class="block hover:bg-blue-50 -m-2 p-2 rounded transition-colors duration-200">
+              <div class="font-semibold text-gray-900 text-base">
+                ${nomeCompleto}
+              </div>
+              <div class="text-xs text-gray-500 mt-0.5 font-mono">
+                <i class="fas fa-id-card mr-1"></i>${tessera}
+              </div>
+            </a>`;
+        }
+      },
+      {
+        data: 'email',
+        render: function(data, type, row) {
+          if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
+          return `<a href="mailto:${data}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${data}</a>`;
+        }
+      },
+      {
+        data: 'telefono',
+        render: function(data, type, row) {
+          if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
+          return `<a href="tel:${data}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${data}</a>`;
+        }
+      },
+      {
+        data: 'tipo_utente',
+        render: function(data, type, row) {
+          const roleClass = {
+            'admin': 'bg-red-100 text-red-800',
+            'staff': 'bg-blue-100 text-blue-800', 
+            'premium': 'bg-purple-100 text-purple-800',
+            'standard': 'bg-gray-100 text-gray-800'
+          };
+          const roleIcon = {
+            'admin': 'fas fa-crown',
+            'staff': 'fas fa-user-tie',
+            'premium': 'fas fa-star',
+            'standard': 'fas fa-user'
+          };
+          const colorClass = roleClass[data] || 'bg-gray-100 text-gray-800';
+          const iconClass = roleIcon[data] || 'fas fa-user';
+          return `<span class="px-2 py-1 rounded-full text-xs font-medium ${colorClass} inline-flex items-center gap-1">
+            <i class="${iconClass}"></i>
+            ${data || 'N/D'}
+          </span>`;
+        }
+      },
+      {
+        data: 'stato',
+        render: function(data, type, row) {
+          const statusClass = {
+            'attivo': 'bg-green-100 text-green-800',
+            'sospeso': 'bg-yellow-100 text-yellow-800',
+            'scaduto': 'bg-red-100 text-red-800'
+          };
+          const statusIcon = {
+            'attivo': 'fas fa-check-circle',
+            'sospeso': 'fas fa-pause-circle',
+            'scaduto': 'fas fa-times-circle'
+          };
+          const colorClass = statusClass[data] || 'bg-gray-100 text-gray-800';
+          const iconClass = statusIcon[data] || 'fas fa-question-circle';
+          return `<span class="px-2 py-1 rounded-full text-xs font-medium ${colorClass} inline-flex items-center gap-1">
+            <i class="${iconClass}"></i>
+            ${data || 'N/D'}
+          </span>`;
+        }
+      },
+      {
+        data: 'id',
+        orderable: false,
+        searchable: false,
+        render: function(data, type, row) {
+          return `
+            <div class="flex items-center gap-1">
+              <a href="/admin/utenti/dettagli/${data}" 
+                 class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200" 
+                 title="Visualizza dettagli">
+                <i class="fas fa-eye text-sm"></i>
+              </a>
+              <a href="/admin/utenti/modifica/${data}" 
+                 class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200" 
+                 title="Modifica">
+                <i class="fas fa-edit text-sm"></i>
+              </a>
+              <button onclick="deleteUser(${data})" 
+                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200" 
+                      title="Elimina">
+                <i class="fas fa-trash text-sm"></i>
+              </button>
+            </div>`;
+        }
+      }
+    ],
+    order: [[0, 'asc']], // Order by nome (utente column)
+    pageLength: 25,
+    lengthMenu: [
+      [10, 25, 50, 100, -1],
+      [10, 25, 50, 100, "Tutti"]
+    ],
+  language: window.DT_LANG_IT,
+    initComplete: function() {
+      
+      // Initialize filter toggle
+      initializeFilterToggle();
+      
+      // Initialize clear filters
+      initializeClearFilters();
+
+      // Initialize export buttons
+      initializeExportButtons();
+    }
+  });
+
+  // Filter event handlers
+  $('#search_text, #role_filter, #status_filter, #created_from').on('keyup change', function() {
+    table.ajax.reload();
+  });
+
+  function initializeFilterToggle() {
+    const toggleBtn = document.getElementById('toggle-filters');
+    const filtersContainer = document.getElementById('filters-container');
+    let filtersVisible = true;
+
+    if (toggleBtn && filtersContainer) {
+      toggleBtn.addEventListener('click', function() {
+        filtersVisible = !filtersVisible;
+        filtersContainer.style.display = filtersVisible ? 'block' : 'none';
+        
+        const icon = this.querySelector('i');
+        const text = this.querySelector('span');
+        
+        if (filtersVisible) {
+          icon.className = 'fas fa-chevron-up';
+          text.textContent = 'Nascondi filtri';
+        } else {
+          icon.className = 'fas fa-chevron-down';
+          text.textContent = 'Mostra filtri';
+        }
+      });
+    }
+  }
+
+  function initializeClearFilters() {
+    const clearBtn = document.getElementById('clear-filters');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function() {
+        // Clear all filter inputs
+        $('#search_text, #role_filter, #status_filter, #created_from').val('');
+        
+        // Reload table
+        table.ajax.reload();
+        
+        // Show success message
+        if (window.Swal) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Filtri cancellati',
+            text: 'Tutti i filtri sono stati rimossi',
+            timer: 2000,
+            showConfirmButton: false
+          });
+        }
+      });
+    }
+  }
+
+  // Quick filter: pending approvals
+  const btnPending = document.getElementById('btn-pending-approvals');
+  if (btnPending) {
+    btnPending.addEventListener('click', function() {
+      const statusSel = document.getElementById('status_filter');
+      if (statusSel) { statusSel.value = 'sospeso'; }
+      table.ajax.reload();
+    });
+  }
+
+  // Delete user function
+  window.deleteUser = function(userId) {
+    if (window.Swal) {
+      Swal.fire({
+        title: 'Sei sicuro?',
+        text: 'Questa azione non può essere annullata!',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sì, elimina!',
+        cancelButtonText: 'Annulla'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Make DELETE request
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+          fetch(`/admin/utenti/delete/${userId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}`
+          })
+          .then(response => {
+            if (response.ok || response.redirected) {
+              table.ajax.reload(null, false);
+              Swal.fire('Eliminato!', 'L\'utente è stato eliminato.', 'success');
+            } else {
+              return response.text().then(text => {
+                console.error('Delete failed - Status:', response.status, 'Body:', text);
+                Swal.fire('Errore!', 'Non è stato possibile eliminare l\'utente. Controlla la console.', 'error');
+              });
+            }
+          })
+          .catch(error => {
+            console.error('Delete error:', error);
+            Swal.fire('Errore!', 'Si è verificato un errore: ' + error.message, 'error');
+          });
+        }
+      });
+    } else {
+      if (confirm('Sei sicuro di voler eliminare questo utente?')) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        fetch(`/admin/utenti/delete/${userId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: `csrf_token=${encodeURIComponent(csrfToken)}`
+        })
+        .then(() => table.ajax.reload(null, false))
+        .catch(error => console.error('Delete error:', error));
+      }
+    }
+  };
+
+  // Utility function
+  function decodeHtml(html) {
+    if (!html) return '';
+    var txt = document.createElement("textarea");
+    txt.innerHTML = html;
+    return txt.value;
+  }
+
+  // Initialize export buttons
+  function initializeExportButtons() {
+    // CSV export
+    document.getElementById('export-excel').addEventListener('click', function() {
+      // Get current filters
+      const params = new URLSearchParams();
+
+      // Search text
+      const searchText = document.getElementById('search_text')?.value || '';
+      if (searchText) {
+        params.append('search_text', searchText);
+      }
+
+      // Role filter
+      const roleFilter = document.getElementById('role_filter')?.value || '';
+      if (roleFilter) {
+        params.append('role_filter', roleFilter);
+      }
+
+      // Status filter
+      const statusFilter = document.getElementById('status_filter')?.value || '';
+      if (statusFilter) {
+        params.append('status_filter', statusFilter);
+      }
+
+      // Created from filter
+      const createdFrom = document.getElementById('created_from')?.value || '';
+      if (createdFrom) {
+        params.append('created_from', createdFrom);
+      }
+
+      // Check if any filters are applied
+      const hasFilters = params.toString().length > 0;
+      const filteredCount = table.rows({search: 'applied'}).count();
+      const totalCount = table.rows().count();
+
+      const message = hasFilters
+        ? `Esportazione di ${filteredCount} utenti filtrati su ${totalCount} totali`
+        : `Esportazione di tutti i ${totalCount} utenti`;
+
+      if (window.Swal) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Generazione CSV in corso...',
+          text: message,
+          showConfirmButton: false,
+          timer: 1500
+        });
+      }
+
+      // Redirect to server-side export endpoint with filters
+      const url = '/admin/utenti/export/csv' + (params.toString() ? '?' + params.toString() : '');
+      window.location.href = url;
+    });
+
+    // Print
+    document.getElementById('print-table').addEventListener('click', function() {
+      window.print();
+    });
+
+    // PDF export
+    document.getElementById('export-pdf').addEventListener('click', function() {
+      const currentData = table.rows({search: 'applied'}).data().toArray();
+      if (currentData.length === 0) {
+        if (window.Swal) {
+          Swal.fire({
+            icon: 'info',
+            title: 'Nessun dato',
+            text: 'Non ci sono dati da esportare'
+          });
+        }
+        return;
+      }
+
+      // Create PDF content using jsPDF
+      if (typeof window.jspdf === 'undefined') {
+        // Load jsPDF if not available
+        const script = document.createElement('script');
+        script.src = '/assets/js/jspdf.umd.min.js';
+        script.onload = function() {
+          generatePDF(currentData);
+        };
+        document.head.appendChild(script);
+      } else {
+        generatePDF(currentData);
+      }
+    });
+
+    function generatePDF(data) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      // Title
+      doc.setFontSize(18);
+      doc.text('Elenco Utenti - Biblioteca', 14, 22);
+
+      // Date
+      doc.setFontSize(11);
+      doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
+
+      // Total count
+      doc.text(`Totale utenti: ${data.length}`, 14, 38);
+
+      // Table headers
+      const headers = ['Nome', 'Cognome', 'Email', 'Ruolo', 'Stato'];
+      let yPos = 50;
+
+      // Set font for table
+      doc.setFontSize(10);
+
+      // Column widths
+      const colWidths = [40, 40, 60, 25, 25];
+      const startX = 14;
+
+      // Draw headers
+      headers.forEach((header, i) => {
+        doc.text(header, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), yPos);
+      });
+
+      yPos += 8;
+
+      // Draw data
+      data.forEach((row, index) => {
+        if (yPos > 280) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        const rowData = [
+          (decodeHtml(row.nome) || '').substring(0, 20),
+          (decodeHtml(row.cognome) || '').substring(0, 20),
+          (row.email || '').substring(0, 35),
+          (row.tipo_utente || '').substring(0, 15),
+          (row.stato || '').substring(0, 15)
+        ];
+
+        rowData.forEach((cell, i) => {
+          doc.text(cell, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), yPos);
+        });
+
+        yPos += 7;
+      });
+
+      // Save the PDF
+      doc.save(`utenti_${new Date().toISOString().slice(0, 10)}.pdf`);
+
+      if (window.Swal) {
+        Swal.fire({
+          icon: 'success',
+          title: 'PDF generato!',
+          text: 'Il download dovrebbe iniziare automaticamente',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    }
+  }
+
+});
+</script>
+
+<!-- Custom Styles for Enhanced UI -->
+<style>
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.slide-in-up {
+  animation: slideInUp 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* DataTables responsive enhancements */
+.dataTables_wrapper .dataTables_processing {
+  @apply bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  @apply px-3 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 transition-colors duration-200;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  @apply bg-gray-900 text-white border-blue-600 hover:bg-blue-700;
+}
+
+.dataTables_wrapper .dataTables_length select {
+  @apply form-input py-1 text-sm;
+}
+
+.dataTables_wrapper .dataTables_filter input {
+  @apply form-input;
+}
+
+.dataTables_wrapper .dataTables_info {
+  @apply text-sm text-gray-600;
+}
+
+#utenti-table thead th {
+  @apply bg-gray-50 font-semibold text-gray-700 border-b-2 border-gray-200 px-4 py-3;
+}
+
+#utenti-table tbody td {
+  @apply px-4 py-3 border-b border-gray-100;
+}
+
+#utenti-table tbody tr:hover {
+  @apply bg-gray-50;
+}
+
+/* Responsive table improvements */
+@media (max-width: 768px) {
+  .card-header {
+    @apply flex-col items-start gap-3;
+  }
+
+  .card-header .flex {
+    @apply w-full justify-center;
+  }
+}
+</style>
