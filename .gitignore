@@ -147,7 +147,7 @@ docs/reference/
 vendor/
 node_modules/
 frontend/node_modules/
-composer.lock
+# composer.lock - MUST be in git for applications (ensures consistent dependency versions)
 package-lock.json
 yarn.lock
 
