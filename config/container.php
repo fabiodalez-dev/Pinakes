@@ -118,7 +118,11 @@ $containerDefinitions = [
             }
             
             $mysqli->set_charset($cfg['charset']);
-            
+
+            // Force UTF-8 encoding for all queries (prevents "PerchÃ©" encoding issues)
+            $mysqli->query("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
+            $mysqli->query("SET CHARACTER SET utf8mb4");
+
             // Test connection with a simple query
             $result = $mysqli->query("SELECT 1 as test");
             if (!$result || $result->fetch_assoc()['test'] != 1) {
