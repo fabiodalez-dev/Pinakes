@@ -247,15 +247,15 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <p class="text-xs text-gray-500 mt-1">Livello principale (es. Prosa, Poesia, Teatro)</p>
             </div>
             <div>
-              <label for="genere_id" class="form-label">Genere</label>
-              <select id="genere_id" name="genere_id" class="form-input" disabled data-initial-genere="<?php echo (int)$initialData['genere_id']; ?>">
+              <label for="genere_select" class="form-label">Genere</label>
+              <select id="genere_select" name="genere_id" class="form-input" disabled data-initial-genere="<?php echo (int)$initialData['genere_id']; ?>">
                 <option value="0">Seleziona prima una radice...</option>
               </select>
               <p class="text-xs text-gray-500 mt-1" id="genere_hint">Genere letterario del libro</p>
             </div>
             <div>
-              <label for="sottogenere_id" class="form-label">Sottogenere</label>
-              <select id="sottogenere_id" name="sottogenere_id" class="form-input" disabled data-initial-sottogenere="<?php echo (int)$initialData['sottogenere_id']; ?>">
+              <label for="sottogenere_select" class="form-label">Sottogenere</label>
+              <select id="sottogenere_select" name="sottogenere_id" class="form-input" disabled data-initial-sottogenere="<?php echo (int)$initialData['sottogenere_id']; ?>">
                 <option value="0">Seleziona prima un genere...</option>
               </select>
               <p class="text-xs text-gray-500 mt-1" id="sottogenere_hint">Sottogenere specifico (opzionale)</p>
