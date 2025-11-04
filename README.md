@@ -27,36 +27,50 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 
 ### 📖 Gestione Catalogo
 - **Catalogazione libri completa** con ISBN, autori, editori, generi, tag
-- **Importazione automatica dati** da servizi ISBN esterni
+- **Importazione automatica dati** da servizi ISBN esterni (Google Books API, Open Library)
 - **Gestione copie fisiche multiple** con sistema scaffali/mensole/posizioni
-  - Tracciamento posizione fisica di ogni copia
-  - Numerazione copie automatica
-  - Stati: disponibile, prestato, in manutenzione
+  - Tracciamento posizione fisica di ogni copia (es. "Scaffale A - Mensola 3 - Posizione 12")
+  - Numerazione copie automatica progressiva
+  - Stati copia: disponibile, prestato, in manutenzione, smarrito, danneggiato
+  - Note per copia (condizioni, annotazioni)
+  - QR code generabile per etichettatura fisica
+  - Inventario completo con export Excel/CSV
+  - Storico movimenti per ogni copia
+  - Ricerca rapida per codice copia
 - **Classificazione Dewey Decimal** integrata (1369 classificazioni)
-- **Ricerca avanzata** con filtri multipli (titolo, autore, anno, genere)
-- **Sistema tag** per categorizzazione flessibile
-- **Upload copertine** con gestione intelligente URL
+- **Ricerca avanzata** con filtri multipli (titolo, autore, anno, genere, editore, ISBN)
+- **Sistema tag** per categorizzazione flessibile e dinamica
+- **Upload copertine** con gestione intelligente URL e fallback automatico
 - **Pagine archivio** dedicate per autori ed editori
-  - Vista completa opere per autore
-  - Catalogo per casa editrice
-  - Statistiche e contatori
+  - Vista completa opere per autore (con biografia e foto)
+  - Catalogo completo per casa editrice
+  - Statistiche: totale opere, copie disponibili, prestiti attivi
+  - URL SEO-friendly (es. `/autore/gabriel-garcia-marquez`)
+  - Ordinamento personalizzabile (alfabetico, cronologico, popolarità)
 
 ### 🔄 Sistema Prestiti e Prenotazioni
 - **Gestione prestiti completa** con date inizio/fine/scadenza
 - **Approvazione richieste** da pannello admin con workflow
 - **Sistema prenotazioni avanzato**
-  - Code gestite automaticamente
-  - Notifiche disponibilità libro
-  - Prenotazioni multiple per utente
-  - Scadenza automatica prenotazioni
+  - Code FIFO (First In First Out) gestite automaticamente
+  - Notifiche email istantanee quando libro disponibile
+  - Prenotazioni multiple per utente (limite configurabile)
+  - Scadenza automatica prenotazioni (default 7 giorni)
+  - Promemoria scadenza prenotazione (48h prima)
+  - Annullamento prenotazioni da utente
+  - Statistiche prenotazioni in dashboard admin
 - **Wishlist personale utenti**
-  - Lista desideri personalizzata
-  - Notifiche email quando libro disponibile
-  - Gestione priorità wishlist
+  - Lista desideri personalizzata illimitata
+  - Notifiche email automatiche quando libro in wishlist diventa disponibile
+  - Aggiunta/rimozione wishlist con un click
+  - Contatore wishlist in pagina libro
+  - Vista dedicata "I Miei Desideri" in profilo utente
+  - Priorità gestita dall'ordine di aggiunta
 - **Scadenze automatiche** e promemoria email (3 giorni prima)
-- **Notifiche prestiti scaduti** automatiche
-- **Cronologia prestiti** completa per utente
+- **Notifiche prestiti scaduti** automatiche con giorni di ritardo
+- **Cronologia prestiti** completa per utente con filtri
 - **Stati prestito** (pendente, attivo, scaduto, restituito, rifiutato)
+- **Rinnovo prestiti** se libro non prenotato da altri
 
 ### 👥 Gestione Multiutente
 - **Registrazione utenti** con verifica email
@@ -88,16 +102,33 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 
 ### ⭐ Funzionalità Social e Recensioni
 - **Sistema recensioni completo**
-  - Rating a stelle (1-5)
-  - Testo recensione con validazione
-  - Moderazione admin/staff
-  - Approvazione/rifiuto recensioni
-  - Filtro contenuti inappropriati
-  - Display pubblico recensioni approvate
-- **Condivisione social** (Facebook, Twitter, WhatsApp, LinkedIn)
-- **Copia link diretto** al libro
-- **Feedback utenti** raccolto e gestito
-- **Messaggi contatti** via form con anti-spam
+  - Rating a stelle (1-5) con half-star support
+  - Testo recensione (min 50 caratteri, max 2000 caratteri)
+  - Validazione contenuti con filtro parole inappropriate
+  - Moderazione admin/staff con dashboard dedicata
+  - Approvazione/rifiuto recensioni con notifiche utente
+  - Motivo rifiuto richiesto (feedback costruttivo)
+  - Display pubblico recensioni solo se approvate
+  - Calcolo rating medio automatico con peso per numero recensioni
+  - Una recensione per utente per libro (modificabile)
+  - Ordinamento recensioni: più recenti, più utili, rating alto/basso
+  - "Questa recensione è utile?" - sistema voting
+  - Segnalazione recensioni inappropriate da utenti
+  - Export recensioni CSV per analisi
+- **Condivisione social** multi-piattaforma
+  - Facebook (Open Graph ottimizzato)
+  - Twitter/X (Twitter Cards)
+  - WhatsApp (mobile-friendly)
+  - LinkedIn (professional sharing)
+  - Telegram
+  - Email (mailto con pre-compilato)
+- **Copia link diretto** al libro con feedback visivo
+- **Feedback utenti** raccolto e gestito via dashboard
+- **Messaggi contatti** via form con:
+  - reCAPTCHA v3 anti-spam
+  - Rate limiting per IP
+  - Validazione honeypot
+  - Notifiche admin email immediate
 
 ### 🎨 CMS e Personalizzazione
 - **Pagine CMS** editabili (Chi Siamo, Privacy, Termini)
@@ -254,54 +285,248 @@ php scripts/generate-sitemap.php
 
 ## 🌐 API RESTful
 
-Pinakes include un'API RESTful completa per integrazioni esterne:
+Pinakes include un'API RESTful completa per integrazioni esterne e applicazioni di terze parti:
 
-- **Autenticazione**: API Key based
-- **Endpoints disponibili**:
-  - `/api/books` - Ricerca e dettagli libri
-  - `/api/authors` - Informazioni autori
-  - `/api/publishers` - Informazioni editori
-  - `/api/genres` - Catalogo generi
-  - `/api/dewey` - Classificazione Dewey
+### Autenticazione
+- **Metodo**: API Key based (header `X-API-Key`)
+- **Gestione chiavi**: Dashboard admin → API Settings
+- **Scadenza**: Configurabile (30/60/90 giorni o mai)
+- **Rate limiting**: 100 richieste/minuto per chiave (configurabile)
+
+### Endpoints Disponibili
+
+| Endpoint | Metodo | Descrizione | Parametri |
+|----------|--------|-------------|-----------|
+| `/api/v1/books` | GET | Lista libri paginata | `page`, `limit`, `search`, `author`, `genre`, `year` |
+| `/api/v1/books/{id}` | GET | Dettagli libro specifico | - |
+| `/api/v1/books/{id}/copies` | GET | Copie fisiche disponibili | - |
+| `/api/v1/authors` | GET | Lista autori | `page`, `limit`, `search` |
+| `/api/v1/authors/{id}` | GET | Dettagli autore + opere | - |
+| `/api/v1/publishers` | GET | Lista editori | `page`, `limit`, `search` |
+| `/api/v1/publishers/{id}` | GET | Dettagli editore + catalogo | - |
+| `/api/v1/genres` | GET | Catalogo generi | - |
+| `/api/v1/dewey` | GET | Classificazione Dewey completa | `search`, `class` |
+| `/api/v1/search` | GET | Ricerca globale | `q`, `type`, `limit` |
+| `/api/v1/availability/{isbn}` | GET | Disponibilità rapida via ISBN | - |
+
+### Formato Risposte
+```json
+{
+  "status": "success",
+  "data": {
+    "id": 123,
+    "title": "Don Chisciotte della Mancia",
+    "author": "Miguel de Cervantes",
+    "isbn": "9788817123456",
+    "year": 1605,
+    "available_copies": 2
+  },
+  "meta": {
+    "timestamp": "2025-11-04T10:30:00Z",
+    "version": "v1"
+  }
+}
+```
+
+### Caratteristiche API
 - **Formato**: JSON con encoding UTF-8
-- **Rate limiting**: Protezione anti-abuse
-- **Documentazione**: Swagger/OpenAPI compatibile
+- **Versioning**: URI-based (`/api/v1/`)
+- **Paginazione**: Link Header (RFC 5988)
 - **CORS**: Configurabile per domini autorizzati
+- **HTTPS**: Enforced in produzione
+- **Cache**: ETag e Last-Modified headers
+- **Errori**: Codici HTTP standard + messaggi descrittivi
+- **Documentazione**: Swagger/OpenAPI 3.0 compatibile
+- **Throttling**: 429 Too Many Requests con Retry-After
 
-**Esempio utilizzo**:
+### Esempi Utilizzo
+
+**Ricerca libro per titolo:**
 ```bash
 curl -H "X-API-Key: your_key_here" \
-  https://tuodominio.com/api/books?search=cervantes
+  "https://tuodominio.com/api/v1/books?search=cervantes&limit=10"
 ```
+
+**Dettagli autore:**
+```bash
+curl -H "X-API-Key: your_key_here" \
+  "https://tuodominio.com/api/v1/authors/42"
+```
+
+**Disponibilità rapida via ISBN:**
+```bash
+curl -H "X-API-Key: your_key_here" \
+  "https://tuodominio.com/api/v1/availability/9788817123456"
+```
+
+### Sicurezza API
+- ✅ API Key rotation automatica
+- ✅ IP whitelisting opzionale
+- ✅ Rate limiting con sliding window
+- ✅ Request logging completo
+- ✅ Input validation rigorosa
+- ✅ SQL injection protection
+- ✅ XSS prevention su output
 
 ---
 
 ## 🔍 SEO e Ottimizzazione
 
-Pinakes è ottimizzato per i motori di ricerca:
+Pinakes è ottimizzato per i motori di ricerca con tecniche SEO moderne:
 
-- **Sitemap XML** auto-generata
-  - Libri con lastmod
-  - Autori con priorità
-  - Editori con priorità
-  - Pagine statiche
-  - Aggiornamento automatico
-- **Schema.org markup**
-  - Book structured data
-  - Person (autori)
-  - Organization (editori)
-  - BreadcrumbList
-- **Meta tags dinamici**
-  - Open Graph per social sharing
-  - Twitter Cards
-  - Canonical URLs
-- **URL semantici** (SEO-friendly)
-- **Performance optimization**
-  - Asset minification
-  - Image lazy loading
-  - CDN-ready
-- **Robots.txt** configurabile
-- **Google Analytics** ready
+### Sitemap XML Auto-generata
+- **URL**: `https://tuodominio.com/sitemap.xml`
+- **Aggiornamento**: Automatico ad ogni modifica
+- **Contenuto**:
+  - Tutti i libri con `<lastmod>` (data ultima modifica)
+  - Pagine archivio autori (priorità 0.8)
+  - Pagine archivio editori (priorità 0.7)
+  - Pagine statiche (homepage, catalogo, contatti)
+  - Generi e classificazioni Dewey
+- **Compressione**: gzip-ready
+- **Validazione**: XML Schema conforme
+- **Submit**: Google Search Console + Bing Webmaster Tools
+
+**Rigenera manualmente:**
+```bash
+php scripts/generate-sitemap.php
+```
+
+### Schema.org Structured Data
+Markup JSON-LD su tutte le pagine rilevanti:
+
+**Pagina Libro:**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Book",
+  "name": "Don Chisciotte della Mancia",
+  "author": {
+    "@type": "Person",
+    "name": "Miguel de Cervantes"
+  },
+  "isbn": "9788817123456",
+  "datePublished": "1605",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Rizzoli"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.8",
+    "reviewCount": "42"
+  }
+}
+```
+
+**Pagina Autore:**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Gabriel García Márquez",
+  "birthDate": "1927-03-06",
+  "nationality": "Colombiano",
+  "award": "Premio Nobel per la Letteratura (1982)"
+}
+```
+
+**BreadcrumbList:**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "/"},
+    {"@type": "ListItem", "position": 2, "name": "Catalogo", "item": "/catalogo"},
+    {"@type": "ListItem", "position": 3, "name": "Don Chisciotte", "item": "/libro/123"}
+  ]
+}
+```
+
+### Meta Tags Dinamici
+**Open Graph (Facebook, LinkedIn):**
+```html
+<meta property="og:title" content="Don Chisciotte della Mancia - Miguel de Cervantes">
+<meta property="og:description" content="Romanzo capolavoro della letteratura spagnola...">
+<meta property="og:image" content="https://tuodominio.com/uploads/covers/cervantes.jpg">
+<meta property="og:type" content="book">
+<meta property="book:isbn" content="9788817123456">
+<meta property="book:author" content="Miguel de Cervantes">
+```
+
+**Twitter Cards:**
+```html
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Don Chisciotte della Mancia">
+<meta name="twitter:description" content="...">
+<meta name="twitter:image" content="...">
+```
+
+**Canonical URLs:**
+```html
+<link rel="canonical" href="https://tuodominio.com/libro/don-chisciotte-123">
+```
+
+### URL SEO-Friendly
+- ✅ **Semantici**: `/autore/gabriel-garcia-marquez` (non `/author.php?id=42`)
+- ✅ **Lowercase**: Tutti minuscoli
+- ✅ **Hyphen-separated**: Trattini al posto di underscore
+- ✅ **No stop words**: Articoli rimossi
+- ✅ **Transliteration**: Caratteri speciali normalizzati
+- ✅ **301 redirects**: URL vecchi reindirizzati permanentemente
+
+**Esempi:**
+- `/libro/il-nome-della-rosa-umberto-eco`
+- `/autore/jose-saramago`
+- `/editore/einaudi`
+- `/genere/narrativa-classica`
+- `/catalogo?anno=2024&genere=giallo`
+
+### Performance Optimization
+- **Asset Minification**: Webpack minify JS/CSS (produzione)
+- **Image Optimization**:
+  - Lazy loading con Intersection Observer
+  - Responsive images `<picture>` + `srcset`
+  - WebP con fallback JPEG/PNG
+  - Dimensioni ottimizzate (max 1920x1080)
+- **HTTP/2 Push**: Header Link per asset critici
+- **CDN-ready**: Asset URL configurabili per CDN
+- **Gzip Compression**: Abilitata di default
+- **Browser Caching**: Cache-Control headers ottimizzati (1 anno per asset)
+- **Critical CSS**: Above-the-fold CSS inline
+- **Defer JavaScript**: Script non critici posticipati
+
+### Core Web Vitals
+- **LCP** (Largest Contentful Paint): < 2.5s
+- **FID** (First Input Delay): < 100ms
+- **CLS** (Cumulative Layout Shift): < 0.1
+- **TTFB** (Time to First Byte): < 600ms
+
+### Robots.txt
+```
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /installer/
+Disallow: /storage/logs/
+
+Sitemap: https://tuodominio.com/sitemap.xml
+```
+
+### Google Analytics / Tag Manager
+```html
+<!-- Configurabile da admin panel -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+```
+
+### Indicizzazione Avanzata
+- ✅ **hreflang tags**: Supporto multi-lingua (se necessario)
+- ✅ **Alternate links**: Mobile-specific URLs
+- ✅ **Pagination**: `rel="next"` e `rel="prev"`
+- ✅ **Noindex headers**: Pagine duplicate/sensibili
+- ✅ **Rich snippets**: Rating, disponibilità, prezzo (se applicabile)
 
 ---
 
