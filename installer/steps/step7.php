@@ -126,7 +126,7 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
     <?php endif; ?>
 <h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;">Riepilogo Installazione</h3>
 <ul class="summary-list">
-    <li><i class="fas fa-check-circle"></i> Database installato (29 tabelle)</li>
+    <li><i class="fas fa-check-circle"></i> Database installato (30 tabelle)</li>
     <li><i class="fas fa-check-circle"></i> Trigger database configurati</li>
     <li><i class="fas fa-check-circle"></i> Dati essenziali caricati</li>
     <?php if ($adminUser): ?>
@@ -162,30 +162,49 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
     <p style="color: #4a5568; margin-bottom: 15px;">
         Per motivi di sicurezza, è <strong>altamente consigliato</strong> eliminare la cartella <code>installer/</code> dopo aver completato l'installazione.
     </p>
-    <form method="POST" action="index.php?step=7&action=delete_installer" onsubmit="return confirmDeleteInstaller();" style="margin-top: 10px;">
-        <button type="submit" class="btn btn-secondary">
-            <i class="fas fa-trash"></i> Elimina Installer
+    <?php if (!$vendorExists): ?>
+        <div class="alert alert-warning" style="margin-bottom: 15px;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Non puoi eliminare l'installer finché non completi l'installazione delle dipendenze PHP.</strong><br>
+            <small>Esegui <code>composer install</code> prima di procedere.</small>
+        </div>
+        <button type="button" class="btn btn-secondary" disabled style="opacity: 0.5; cursor: not-allowed;">
+            <i class="fas fa-trash"></i> Elimina Installer (Richiede Composer)
         </button>
-        <small style="display: block; margin-top: 8px; color: #718096;">
-            Questa azione rimuoverà completamente la cartella installer per sicurezza.
-        </small>
-    </form>
+    <?php else: ?>
+        <form method="POST" action="index.php?step=7&action=delete_installer" onsubmit="return confirmDeleteInstaller();" style="margin-top: 10px;">
+            <button type="submit" class="btn btn-secondary">
+                <i class="fas fa-trash"></i> Elimina Installer
+            </button>
+            <small style="display: block; margin-top: 8px; color: #718096;">
+                Questa azione rimuoverà completamente la cartella installer per sicurezza.
+            </small>
+        </form>
+    <?php endif; ?>
 </div>
 
 <?php
 // Handle installer deletion
 if (isset($_GET['action']) && $_GET['action'] === 'delete_installer' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        if ($installer->deleteInstaller()) {
-            echo '<div class="alert alert-success" style="margin-top: 20px;">
-                <i class="fas fa-check-circle"></i> Installer eliminato con successo!
-            </div>';
-            echo '<script>setTimeout(() => { window.location.href = "/"; }, 2000);</script>';
-        }
-    } catch (Exception $e) {
+    // Check if vendor/ exists before attempting deletion
+    if (!$vendorExists) {
         echo '<div class="alert alert-error" style="margin-top: 20px;">
-            Impossibile eliminare l\'installer: ' . htmlspecialchars($e->getMessage()) . '
+            <i class="fas fa-exclamation-triangle"></i>
+            Impossibile eliminare l\'installer: devi prima installare le dipendenze PHP con <code>composer install</code>.
         </div>';
+    } else {
+        try {
+            if ($installer->deleteInstaller()) {
+                echo '<div class="alert alert-success" style="margin-top: 20px;">
+                    <i class="fas fa-check-circle"></i> Installer eliminato con successo!
+                </div>';
+                echo '<script>setTimeout(() => { window.location.href = "/"; }, 2000);</script>';
+            }
+        } catch (Exception $e) {
+            echo '<div class="alert alert-error" style="margin-top: 20px;">
+                Impossibile eliminare l\'installer: ' . htmlspecialchars($e->getMessage()) . '
+            </div>';
+        }
     }
 }
 ?>
