@@ -209,6 +209,7 @@ class Installer {
         if (!empty($password)) {
             $cmd .= ' -p' . escapeshellarg($password);
         }
+        $cmd .= ' --default-character-set=utf8mb4'; // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
         $cmd .= ' ' . escapeshellarg($database);
         $cmd .= ' < ' . escapeshellarg($schemaFile);
 
@@ -342,6 +343,7 @@ class Installer {
         if (!empty($password)) {
             $cmd .= ' -p' . escapeshellarg($password);
         }
+        $cmd .= ' --default-character-set=utf8mb4'; // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
         $cmd .= ' ' . escapeshellarg($database);
         $cmd .= ' < ' . escapeshellarg($dataFile);
 
