@@ -386,7 +386,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         <!-- Icons Grid -->
         <div id="iconsGrid" class="flex-1 overflow-y-auto p-6">
-            <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-3">
+            <div id="iconsGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 12px;">
                 <!-- Icons will be inserted here by JavaScript -->
             </div>
         </div>
@@ -466,14 +466,15 @@ function closeIconPicker() {
 }
 
 function renderIcons(icons) {
-    const grid = document.querySelector('#iconsGrid > div');
+    const grid = document.getElementById('iconsGridContainer');
     grid.innerHTML = '';
 
     icons.forEach(icon => {
         const iconClass = 'fas fa-' + icon;
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'flex items-center justify-center w-12 h-12 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:bg-gray-50 transition-all group';
+        btn.className = 'flex items-center justify-center h-12 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:bg-gray-50 transition-all group';
+        btn.style.aspectRatio = '1';
         btn.title = iconClass;
         btn.onclick = () => selectIcon(iconClass);
 
