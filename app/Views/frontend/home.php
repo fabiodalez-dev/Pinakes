@@ -539,7 +539,7 @@ ob_start();
 </section>
 
 <!-- Features Section -->
-<?php if (!empty($homeContent['features_title']) && !empty($homeContent['features_title']['is_active'])): ?>
+<?php if (!empty($homeContent['features_title'])): ?>
 <section class="section section-alt">
     <div class="container">
         <h2 class="section-title"><?php echo htmlspecialchars($homeContent['features_title']['title'] ?? 'Perché Scegliere la Nostra Biblioteca', ENT_QUOTES, 'UTF-8'); ?></h2>
@@ -569,7 +569,7 @@ ob_start();
 <?php endif; ?>
 
 <!-- Text Content Section -->
-<?php if (!empty($homeContent['text_content']) && !empty($homeContent['text_content']['is_active'])): ?>
+<?php if (!empty($homeContent['text_content'])): ?>
 <section class="section section-alt">
     <div class="container">
         <?php if (!empty($homeContent['text_content']['title'])): ?>
@@ -583,7 +583,7 @@ ob_start();
 <?php endif; ?>
 
 <!-- Latest Books Section -->
-<?php if (!empty($homeContent['latest_books_title']) && !empty($homeContent['latest_books_title']['is_active'])): ?>
+<?php if (!empty($homeContent['latest_books_title'])): ?>
 <section id="latest-books" class="section">
     <div class="container">
         <h2 class="section-title"><?php echo htmlspecialchars($homeContent['latest_books_title']['title'] ?? 'Ultimi Libri Aggiunti', ENT_QUOTES, 'UTF-8'); ?></h2>
@@ -623,7 +623,7 @@ ob_start();
 </div>
 
 <!-- Call to Action Section -->
-<?php if (!empty($homeContent['cta']) && !empty($homeContent['cta']['is_active'])): ?>
+<?php if (!empty($homeContent['cta'])): ?>
 <section class="cta-section">
     <div class="container">
         <div class="cta-content">
