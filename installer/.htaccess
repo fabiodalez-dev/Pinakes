@@ -24,9 +24,25 @@ Options -Indexes
     Deny from all
 </FilesMatch>
 
-# Block access to class files and database files
-<FilesMatch "\.(sql|php)$">
-    <IfModule mod_rewrite.c>
+# Block access to database files specifically
+<FilesMatch "^(schema|data|backup.*)\.(sql|sql\.gz)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block direct access to PHP classes (except index.php)
+<FilesMatch "\.php$">
+    <IfModule mod_authz_core.c>
+        <If "%{REQUEST_URI} !~ m#/index\.php$#">
+            Require all denied
+        </If>
+    </IfModule>
+    <IfModule !mod_authz_core.c>
         RewriteEngine On
         RewriteCond %{REQUEST_FILENAME} !index\.php$
         RewriteRule .* - [F,L]
