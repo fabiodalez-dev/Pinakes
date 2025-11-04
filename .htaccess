@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# Exclude installer from rewrite (allow direct access)
+RewriteCond %{REQUEST_URI} ^/installer/ [NC]
+RewriteRule ^ - [L]
+
+# Redirect everything else to /public/
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L,QSA]

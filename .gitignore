@@ -1,0 +1,204 @@
+# ========================================
+# Pinakes - Git Ignore Rules
+# ========================================
+
+# ========================================
+# CRITICAL: Environment & Credentials
+# ========================================
+.env
+.env.*
+!.env.example
+.installed
+config.local.php
+config.local.sample.php
+
+# ========================================
+# CRITICAL: Database Backups & Archives
+# ========================================
+backups/
+backups/*.sql
+storage/backups/
+storage/backups/*.sql
+*.sql
+!installer/database/*.sql
+*.backup
+*.backup*
+*backup*
+*.bak
+*.old
+backup_*.sql
+migration-*.php
+
+# ========================================
+# CRITICAL: Archives
+# ========================================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+Archive.zip
+old.sql
+
+# ========================================
+# Runtime Data (user-generated)
+# ========================================
+uploads/*
+!uploads/copertine/placeholder.jpg
+public/uploads/settings/
+public/uploads/copertine/*.jpg
+!public/uploads/copertine/placeholder.jpg
+
+# Storage
+storage/*
+storage/logs/*.log
+storage/*.log
+storage/tmp/
+
+# Cache & Temp
+cache/*
+tmp/*
+temp/*
+*.tmp
+*.cache
+*.temp
+
+# ========================================
+# Logs
+# ========================================
+*.log
+logs/*.log
+error_log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================================
+# Operating System Files
+# ========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ========================================
+# IDE & Editors
+# ========================================
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+.project
+.buildpath
+.settings/
+
+# ========================================
+# Test Artifacts
+# ========================================
+.playwright-mcp/
+
+# ========================================
+# Development Documentation (not for distribution)
+# ========================================
+CLAUDE.md
+CHANGELOG.md
+docs/LOGGING.md
+docs/RELEASE_PROCESS.md
+docs/reference/
+
+# ========================================
+# Git History Backups
+# ========================================
+.git-backup-*/
+
+# ========================================
+# Git Service Files
+# ========================================
+.github/
+**/.gitkeep
+
+# ========================================
+# Dependencies
+# ========================================
+vendor/
+node_modules/
+frontend/node_modules/
+composer.lock
+package-lock.json
+yarn.lock
+
+# ========================================
+# Build Artifacts
+# ========================================
+dist/
+build/
+frontend/dist/
+frontend/build/
+public/assets/*.map
+
+# ========================================
+# PHPUnit & Tests
+# ========================================
+.phpunit.result.cache
+.phpunit.cache/
+phpunit.xml
+tests/
+test/
+coverage/
+.nyc_output/
+.coverage
+htmlcov/
+
+# ========================================
+# Package Managers
+# ========================================
+.npm
+.yarn
+.pnpm-store
+bower_components/
+
+# ========================================
+# Security
+# ========================================
+.htpasswd
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+
+# ========================================
+# CI/CD
+# ========================================
+.travis.yml
+.circleci/
+azure-pipelines.yml
+.gitlab-ci.yml
+
+# ========================================
+# Git
+# ========================================
+.gitattributes
+.gitmodules
+
+# ========================================
+# Release artifacts
+# ========================================
+releases/
+releases/*.zip
+releases/*.sha256
+releases/*.md
+
+# ========================================
+# IMPORTANT: Keep these files
+# ========================================
+# - .env.example (template for users)
+# - installer/database/*.sql (installer data)
+# - cron/automatic-notifications.php (cron job)
+# - uploads/copertine/placeholder.jpg (default cover)

@@ -1,0 +1,691 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import external libraries */
+@import '../node_modules/@uppy/core/dist/style.css';
+@import '../node_modules/@uppy/drag-drop/dist/style.css';
+@import '../node_modules/@uppy/progress-bar/dist/style.css';
+@import '../node_modules/choices.js/public/assets/styles/choices.css';
+@import '../node_modules/sweetalert2/dist/sweetalert2.css';
+
+/* Design System Variables */
+:root {
+  /* Primary Color - Tailwind Gray-900 (Black theme) */
+  --color-primary: #111827;
+  --color-primary-light: #1f2937;
+  --color-primary-dark: #030712;
+  
+  /* Semantic Colors */
+  --color-success: #10b981;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+  
+  /* Action Colors */
+  --color-danger: #ef4444;
+  --color-danger-dark: #dc2626;
+  --color-danger-light: #fee2e2;
+  
+  /* Neutral Colors */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  
+  /* Typography Scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  
+  /* Spacing Scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* Custom Component Classes - Core Design System */
+@layer components {
+  /* === CORE BUTTON COMPONENTS === */
+  /* Primary Button - Main action buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+  }
+  
+  .btn-primary:hover {
+    background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  
+  .btn-primary:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .btn-primary:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  
+  /* Secondary Button */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold;
+    color: var(--color-primary);
+    background-color: white;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .btn-secondary:hover {
+    background-color: var(--color-gray-50);
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  
+  /* Danger Button - Missing class */
+  .btn-danger {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
+    background: linear-gradient(135deg, var(--color-danger) 0%, var(--color-danger-dark) 100%);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+  }
+  
+  .btn-danger:hover {
+    background: linear-gradient(135deg, var(--color-danger-dark) 0%, #b91c1c 100%);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  
+  .btn-danger:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .btn-danger:focus {
+    outline: 2px solid var(--color-danger);
+    outline-offset: 2px;
+  }
+  
+  /* Outline Button - Missing fallback */
+  .btn-outline {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold;
+    color: var(--color-primary);
+    background-color: transparent;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .btn-outline:hover {
+    background-color: var(--color-primary);
+    color: white;
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  
+  .btn-outline:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .btn-outline:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  
+  /* === CORE FORM COMPONENTS === */
+  /* Form Input - Unified design */
+  .form-input {
+    @apply w-full px-4 py-3 text-sm;
+    background-color: white;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .form-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
+  }
+  
+  .form-input:hover {
+    border-color: var(--color-gray-400);
+  }
+  
+  /* Dark mode support for form inputs */
+  @media (prefers-color-scheme: dark) {
+    .form-input {
+      background-color: var(--color-gray-800);
+      border-color: var(--color-gray-600);
+      color: var(--color-gray-100);
+    }
+    
+    .form-input:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgb(37 99 235 / 0.2);
+    }
+    
+    .form-input:hover {
+      border-color: var(--color-gray-500);
+    }
+  }
+  
+  [data-theme="dark"] .form-input {
+    background-color: var(--color-gray-800);
+    border-color: var(--color-gray-600);
+    color: var(--color-gray-100);
+  }
+  
+  [data-theme="dark"] .form-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.2);
+  }
+  
+  [data-theme="dark"] .form-input:hover {
+    border-color: var(--color-gray-500);
+  }
+  
+  /* Form Label */
+  .form-label {
+    @apply block text-sm font-medium mb-2;
+    color: var(--color-gray-700);
+  }
+  
+  /* === CORE CARD COMPONENTS === */
+  .card {
+    @apply bg-white p-6;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--color-gray-200);
+    transition: all 0.2s ease;
+  }
+
+  .card-header {
+    @apply py-4 border-b;
+    border-color: var(--color-gray-200);
+    margin: -1.5rem -1.5rem 1.5rem -1.5rem; /* Negative margin to extend to card edges */
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .card-body {
+    /* No padding - inherits from .card */
+  }
+  
+  /* Dark mode support for cards */
+  @media (prefers-color-scheme: dark) {
+    .card {
+      background-color: var(--color-gray-800);
+      border-color: var(--color-gray-700);
+    }
+    
+    .card-header {
+      border-color: var(--color-gray-700);
+    }
+  }
+  
+  [data-theme="dark"] .card {
+    background-color: var(--color-gray-800);
+    border-color: var(--color-gray-700);
+  }
+  
+  [data-theme="dark"] .card-header {
+    border-color: var(--color-gray-700);
+  }
+  
+  /* Chip/Badge */
+  .chip {
+    @apply inline-flex items-center gap-2 px-3 py-1 text-sm rounded-full;
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-700);
+  }
+  
+  .chip-remove {
+    @apply w-4 h-4 rounded-full flex items-center justify-center text-xs cursor-pointer hover:bg-red-100 hover:text-red-600;
+    transition: all 0.2s ease;
+  }
+  
+  /* Upload Area */
+  .upload-area {
+    @apply border-2 border-dashed border-gray-300 rounded-lg p-8 text-center;
+    background-color: var(--color-gray-50);
+    transition: all 0.2s ease;
+  }
+  
+  .upload-area:hover {
+    border-color: var(--color-primary);
+    background-color: white;
+  }
+  
+  /* Form Grid */
+  .form-grid {
+    @apply grid gap-6;
+  }
+  
+  .form-grid-2 {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+  }
+  
+  .form-grid-3 {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+  }
+  
+  /* Section */
+  .form-section {
+    @apply space-y-6;
+  }
+  
+  .form-section-title {
+    @apply text-lg font-semibold text-gray-900 pb-2 border-b border-gray-200;
+  }
+  
+  /* Alert Styles */
+  .alert {
+    @apply px-4 py-3 rounded-lg text-sm;
+  }
+  
+  .alert-success {
+    @apply bg-green-50 text-green-800 border border-green-200;
+  }
+  
+  .alert-error {
+    @apply bg-red-50 text-red-800 border border-red-200;
+  }
+  
+  .alert-warning {
+    @apply bg-yellow-50 text-yellow-800 border border-yellow-200;
+  }
+  
+  .alert-info {
+    @apply bg-blue-50 text-blue-800 border border-blue-200;
+  }
+}
+
+/* Custom Choices.js Styling */
+.choices {
+  position: relative;
+  margin-bottom: 0;
+}
+
+.choices__inner {
+  display: inline-block;
+  vertical-align: top;
+  width: 100%;
+  background-color: #ffffff;
+  padding: 12px 16px;
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius);
+  font-size: 14px;
+  min-height: 44px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.choices__inner:hover {
+  border-color: var(--color-gray-400);
+}
+
+.choices.is-focused .choices__inner {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgb(0 0 0 / 0.1);
+}
+
+.choices__item--choice {
+  padding: 12px 16px;
+  color: var(--color-gray-700);
+}
+
+.choices__item--choice:hover {
+  background-color: var(--color-gray-50);
+}
+
+.choices__item--choice.is-highlighted {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-900);
+}
+
+.choices__item--selectable.is-highlighted {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-900);
+}
+
+/* Custom Uppy Styling */
+.uppy-Root {
+  font-family: inherit;
+}
+
+.uppy-DragDrop-container {
+  border: 2px dashed var(--color-gray-300);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-gray-50);
+  padding: 2rem;
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.uppy-DragDrop-container:hover,
+.uppy-DragDrop-container.uppy-DragDrop--isDragOver {
+  border-color: var(--color-primary);
+  background-color: white;
+}
+
+.uppy-DragDrop-label {
+  color: var(--color-gray-600);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.uppy-ProgressBar {
+  height: 8px;
+  background-color: var(--color-gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.uppy-ProgressBar-inner {
+  background-color: var(--color-primary);
+}
+
+/* Custom SweetAlert2 Styling */
+.swal2-popup {
+  border-radius: var(--radius-xl);
+  font-family: inherit;
+}
+
+.swal2-title {
+  color: var(--color-gray-900);
+  font-weight: 600;
+}
+
+.swal2-html-container {
+  color: var(--color-gray-600);
+}
+
+.swal2-confirm {
+  background-color: var(--color-primary) !important;
+  border-radius: var(--radius) !important;
+  font-weight: 500 !important;
+  padding: 12px 24px !important;
+}
+
+.swal2-cancel {
+  background-color: var(--color-gray-500) !important;
+  border-radius: var(--radius) !important;
+  font-weight: 500 !important;
+  padding: 12px 24px !important;
+}
+
+/* Utility Classes */
+@layer utilities {
+  .text-primary {
+    color: var(--color-primary);
+  }
+  
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+  
+  /* Animation utilities */
+  .fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .slide-in-up {
+    animation: slideInUp 0.3s ease-out;
+  }
+  
+  .pulse-subtle {
+    animation: pulseSubtle 2s infinite;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+/* Responsive Design Helpers */
+@media (max-width: 640px) {
+  .form-grid-2,
+  .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+  
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* === COMPREHENSIVE DARK MODE SUPPORT === */
+/* Dark mode for all button types */
+@media (prefers-color-scheme: dark) {
+  /* Primary button dark mode */
+  .btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, var(--color-primary-light) 100%);
+  }
+  
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+  }
+  
+  /* Secondary button dark mode */
+  .btn-secondary {
+    background-color: var(--color-gray-800);
+    border-color: var(--color-gray-600);
+    color: var(--color-gray-100);
+  }
+  
+  .btn-secondary:hover {
+    background-color: var(--color-gray-700);
+    border-color: var(--color-primary);
+    color: var(--color-gray-100);
+  }
+  
+  /* Danger button dark mode */
+  .btn-danger {
+    background: linear-gradient(135deg, #f87171 0%, var(--color-danger-dark) 100%);
+  }
+  
+  .btn-danger:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  }
+  
+  /* Outline button dark mode */
+  .btn-outline {
+    background-color: transparent;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+  
+  .btn-outline:hover {
+    background-color: var(--color-primary);
+    color: white;
+  }
+}
+
+[data-theme="dark"] .btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, var(--color-primary-light) 100%);
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+}
+
+[data-theme="dark"] .btn-secondary {
+  background-color: var(--color-gray-800);
+  border-color: var(--color-gray-600);
+  color: var(--color-gray-100);
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  background-color: var(--color-gray-700);
+  border-color: var(--color-primary);
+  color: var(--color-gray-100);
+}
+
+[data-theme="dark"] .btn-danger {
+  background: linear-gradient(135deg, #f87171 0%, var(--color-danger-dark) 100%);
+}
+
+[data-theme="dark"] .btn-danger:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+[data-theme="dark"] .btn-outline {
+  background-color: transparent;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+[data-theme="dark"] .btn-outline:hover {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* === CSS IMPORT ORDER VERIFICATION === */
+/* CSS is loaded in the following order (ensures proper cascade):
+   1. Tailwind base styles
+   2. External library styles
+   3. Custom component classes (this file)
+   4. Custom overrides (custom.css)
+   5. Responsive utilities
+*/
+
+/* === COMPONENT DOCUMENTATION === */
+/*
+ * CORE COMPONENTS:
+ * .btn-primary - Primary actions (blue gradient)
+ * .btn-secondary - Secondary actions (white with border)
+ * .btn-danger - Destructive actions (red gradient)
+ * .btn-outline - Transparent with border
+ * .card - Content containers
+ * .form-input - Form input fields
+ * .form-label - Form labels
+ * .chip - Badge/chip components
+ *
+ * UTILITIES:
+ * .text-primary, .bg-primary, .border-primary - Color utilities
+ * .fade-in, .slide-in-up, .pulse-subtle - Animation utilities
+ *
+ * DARK MODE:
+ * All components support both @media (prefers-color-scheme: dark) and [data-theme="dark"]
+ * for maximum compatibility and user preference respect.
+ */
+
+/* === DATATABLES SELECT DROPDOWN FIX === */
+/* Fix for overlapping number and dropdown arrow in pagination selects */
+div.dt-container select.dt-input {
+  padding-right: 2rem !important; /* Space for custom dropdown arrow */
+  padding-left: 0.75rem !important;
+  appearance: none; /* Remove default browser arrow */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 12px;
+}
+
+/* Dark mode support for select dropdown arrow */
+@media (prefers-color-scheme: dark) {
+  div.dt-container select.dt-input {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23d1d5db' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  }
+}
+
+html.dark div.dt-container select.dt-input,
+[data-theme="dark"] div.dt-container select.dt-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23d1d5db' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+}
+
+/* === DATATABLES CONSISTENT PADDING === */
+/* Add consistent padding to all DataTables for uniform appearance */
+table.dataTable {
+  padding: 0 !important;
+}
+
+/* Padding for table cells to match card design system */
+table.dataTable thead th,
+table.dataTable thead td,
+table.dataTable tbody th,
+table.dataTable tbody td,
+table.dataTable tfoot th,
+table.dataTable tfoot td {
+  padding: 0.75rem 1rem !important; /* 12px vertical, 16px horizontal */
+}
+
+/* Slightly more padding for header cells */
+table.dataTable thead th,
+table.dataTable thead td {
+  padding: 1rem !important; /* 16px all around */
+}
+
