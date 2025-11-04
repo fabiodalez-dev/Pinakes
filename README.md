@@ -28,28 +28,56 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 ### 📖 Gestione Catalogo
 - **Catalogazione libri completa** con ISBN, autori, editori, generi, tag
 - **Importazione automatica dati** da servizi ISBN esterni
-- **Gestione copie fisiche** con sistema mensole/scaffali/posizioni
-- **Classificazione Dewey Decimal** integrata
+- **Gestione copie fisiche multiple** con sistema scaffali/mensole/posizioni
+  - Tracciamento posizione fisica di ogni copia
+  - Numerazione copie automatica
+  - Stati: disponibile, prestato, in manutenzione
+- **Classificazione Dewey Decimal** integrata (1369 classificazioni)
 - **Ricerca avanzata** con filtri multipli (titolo, autore, anno, genere)
 - **Sistema tag** per categorizzazione flessibile
 - **Upload copertine** con gestione intelligente URL
+- **Pagine archivio** dedicate per autori ed editori
+  - Vista completa opere per autore
+  - Catalogo per casa editrice
+  - Statistiche e contatori
 
-### 🔄 Sistema Prestiti
+### 🔄 Sistema Prestiti e Prenotazioni
 - **Gestione prestiti completa** con date inizio/fine/scadenza
-- **Approvazione richieste** da pannello admin
-- **Sistema prenotazioni** con code gestite
-- **Wishlist utenti** con notifiche disponibilità
-- **Scadenze automatiche** e promemoria email
+- **Approvazione richieste** da pannello admin con workflow
+- **Sistema prenotazioni avanzato**
+  - Code gestite automaticamente
+  - Notifiche disponibilità libro
+  - Prenotazioni multiple per utente
+  - Scadenza automatica prenotazioni
+- **Wishlist personale utenti**
+  - Lista desideri personalizzata
+  - Notifiche email quando libro disponibile
+  - Gestione priorità wishlist
+- **Scadenze automatiche** e promemoria email (3 giorni prima)
+- **Notifiche prestiti scaduti** automatiche
 - **Cronologia prestiti** completa per utente
-- **Stati prestito** (pendente, attivo, scaduto, restituito)
+- **Stati prestito** (pendente, attivo, scaduto, restituito, rifiutato)
 
-### 👥 Gestione Utenti
+### 👥 Gestione Multiutente
 - **Registrazione utenti** con verifica email
-- **Sistema ruoli** (admin, staff, premium, standard)
+- **Sistema ruoli avanzato**
+  - **Admin**: Accesso completo
+  - **Staff**: Gestione prestiti e catalogo
+  - **Premium**: Prestiti estesi
+  - **Standard**: Utente base
 - **Approvazione account** da admin
-- **Codice tessera** auto-generato univoco
+  - Workflow a 2 step (approvazione + verifica email)
+  - Attivazione diretta senza email
+- **Codice tessera** auto-generato univoco (formato: T + 10 hex)
 - **Profilo utente** personalizzabile
-- **Gestione scadenze tessere**
+  - Dati anagrafici completi
+  - Storico prestiti
+  - Wishlist personale
+  - Prenotazioni attive
+  - Impostazioni privacy
+- **Gestione scadenze tessere** (5 anni default)
+- **Dashboard utente** con panoramica attività
+- **Preferenze notifiche** granulari
 
 ### 🔔 Sistema Notifiche
 - **Notifiche admin** dashboard centralizzata
@@ -58,11 +86,18 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 - **Notifiche wishlist** quando libro disponibile
 - **Template email** professionali e personalizzabili UTF-8
 
-### ⭐ Funzionalità Social
-- **Recensioni e rating** libri da utenti
-- **Approvazione recensioni** da moderatori
+### ⭐ Funzionalità Social e Recensioni
+- **Sistema recensioni completo**
+  - Rating a stelle (1-5)
+  - Testo recensione con validazione
+  - Moderazione admin/staff
+  - Approvazione/rifiuto recensioni
+  - Filtro contenuti inappropriati
+  - Display pubblico recensioni approvate
+- **Condivisione social** (Facebook, Twitter, WhatsApp, LinkedIn)
+- **Copia link diretto** al libro
 - **Feedback utenti** raccolto e gestito
-- **Messaggi contatti** via form
+- **Messaggi contatti** via form con anti-spam
 
 ### 🎨 CMS e Personalizzazione
 - **Pagine CMS** editabili (Chi Siamo, Privacy, Termini)
@@ -200,11 +235,73 @@ Configura cronjob per backup periodici:
 0 2 * * * php /path/to/pinakes/scripts/maintenance.php
 ```
 
-### Sitemap
-Genera sitemap per SEO:
+### Sitemap e SEO
+La sitemap viene generata automaticamente e include:
+- Pagine statiche (homepage, catalogo, contatti)
+- Tutti i libri con lastmod
+- Pagine archivio autori
+- Pagine archivio editori
+- Priorità e frequenze di aggiornamento ottimizzate
+
+Accesso: `http://tuodominio.com/sitemap.xml`
+
+Rigenera manualmente se necessario:
 ```bash
 php scripts/generate-sitemap.php
 ```
+
+---
+
+## 🌐 API RESTful
+
+Pinakes include un'API RESTful completa per integrazioni esterne:
+
+- **Autenticazione**: API Key based
+- **Endpoints disponibili**:
+  - `/api/books` - Ricerca e dettagli libri
+  - `/api/authors` - Informazioni autori
+  - `/api/publishers` - Informazioni editori
+  - `/api/genres` - Catalogo generi
+  - `/api/dewey` - Classificazione Dewey
+- **Formato**: JSON con encoding UTF-8
+- **Rate limiting**: Protezione anti-abuse
+- **Documentazione**: Swagger/OpenAPI compatibile
+- **CORS**: Configurabile per domini autorizzati
+
+**Esempio utilizzo**:
+```bash
+curl -H "X-API-Key: your_key_here" \
+  https://tuodominio.com/api/books?search=cervantes
+```
+
+---
+
+## 🔍 SEO e Ottimizzazione
+
+Pinakes è ottimizzato per i motori di ricerca:
+
+- **Sitemap XML** auto-generata
+  - Libri con lastmod
+  - Autori con priorità
+  - Editori con priorità
+  - Pagine statiche
+  - Aggiornamento automatico
+- **Schema.org markup**
+  - Book structured data
+  - Person (autori)
+  - Organization (editori)
+  - BreadcrumbList
+- **Meta tags dinamici**
+  - Open Graph per social sharing
+  - Twitter Cards
+  - Canonical URLs
+- **URL semantici** (SEO-friendly)
+- **Performance optimization**
+  - Asset minification
+  - Image lazy loading
+  - CDN-ready
+- **Robots.txt** configurabile
+- **Google Analytics** ready
 
 ---
 
