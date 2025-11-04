@@ -229,9 +229,8 @@ $cta = $sections['cta'] ?? null;
                  placeholder="Lascia vuoto per nascondere il titolo">
         </div>
         <div>
-          <label for="text_content_body" class="block text-sm font-medium text-gray-700 mb-2">Contenuto HTML</label>
-          <textarea id="text_content_body" name="text_content[content]" rows="12"
-                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo htmlspecialchars($textContent['content'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
+          <label for="text_content_body" class="block text-sm font-medium text-gray-700 mb-2">Contenuto</label>
+          <textarea id="text_content_body" name="text_content[content]"><?php echo htmlspecialchars($textContent['content'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
           <p class="mt-2 text-xs text-gray-500">
             <i class="fas fa-info-circle"></i> Usa l'editor per formattare il testo, aggiungere link, immagini e altro.
           </p>
@@ -602,23 +601,37 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// Initialize TinyMCE for text content
-if (typeof tinymce !== 'undefined') {
-    tinymce.init({
-        selector: '.tinymce-editor',
-        plugins: 'lists link image table code help wordcount anchor charmap codesample emoticons fullscreen hr insertdatetime media nonbreaking pagebreak preview searchreplace visualblocks visualchars',
-        toolbar: 'undo redo | formatselect | bold italic underline strikethrough | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | code fullscreen preview | removeformat help',
-        menubar: 'file edit view insert format tools table help',
-        height: 400,
-        branding: false,
-        promotion: false,
-        content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }',
-        language: 'it',
-        setup: function(editor) {
-            editor.on('change', function() {
-                editor.save();
-            });
-        }
-    });
-}
+</script>
+
+<!-- TinyMCE -->
+<script src="/assets/tinymce/tinymce.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.tinymce) {
+   tinymce.init({
+     selector: '#text_content_body',
+     license_key: 'gpl',
+     height: 500,
+     menubar: true,
+     plugins: [
+       'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+       'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+       'insertdatetime', 'media', 'table', 'help', 'wordcount'
+     ],
+     toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | removeformat | help',
+     style_formats: [
+       { title: 'Paragraph', format: 'p' },
+       { title: 'Heading 1', format: 'h1' },
+       { title: 'Heading 2', format: 'h2' },
+       { title: 'Heading 3', format: 'h3' },
+       { title: 'Heading 4', format: 'h4' },
+       { title: 'Heading 5', format: 'h5' },
+       { title: 'Heading 6', format: 'h6' }
+     ],
+     content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
+     branding: false,
+     promotion: false
+   });
+ }
+});
 </script>
