@@ -43,6 +43,78 @@ renderHeader(7, 'Installazione Completata');
     </div>
 
     <?php
+    // Check if vendor/ directory exists (critical for app to run)
+    $vendorExists = file_exists($baseDir . '/vendor/autoload.php');
+    ?>
+
+    <?php if (!$vendorExists): ?>
+    <!-- CRITICAL: Composer dependencies missing -->
+    <div class="alert alert-error" style="margin-top: 20px; border: 3px solid #dc2626;">
+        <h4 style="margin-bottom: 15px;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>⚠️ AZIONE RICHIESTA: Installazione Dipendenze PHP</strong>
+        </h4>
+        <p style="font-size: 16px; margin-bottom: 15px;">
+            <strong>L'applicazione NON può funzionare senza questo passaggio!</strong><br>
+            Il database è stato installato, ma mancano le librerie PHP necessarie per eseguire l'applicazione.
+        </p>
+        <p style="margin-bottom: 15px;">
+            <strong>Cosa fare:</strong> Devi eseguire <code style="background: #2d3748; color: #fff; padding: 3px 8px; border-radius: 4px;">composer install</code> sul server tramite SSH.
+        </p>
+
+        <details open style="margin-top: 20px; padding: 15px; background: #2d3748; border-radius: 8px;">
+            <summary style="cursor: pointer; color: #fff; font-weight: 600; font-size: 15px; margin-bottom: 15px;">
+                📋 Istruzioni SSH (Click per espandere/chiudere)
+            </summary>
+            <div style="color: #fff;">
+                <p style="margin-bottom: 10px; color: #fbbf24;">
+                    <strong>1. Collegati al server via SSH:</strong>
+                </p>
+                <pre style="background: #1f2937; padding: 15px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">ssh tuoutente@biblioteca.fabiodalez.it
+# Oppure usa il terminale SSH del tuo hosting (cPanel, Plesk, etc.)</pre>
+
+                <p style="margin-bottom: 10px; color: #fbbf24;">
+                    <strong>2. Vai nella directory dell'applicazione:</strong>
+                </p>
+                <pre style="background: #1f2937; padding: 15px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">cd <?= htmlspecialchars($baseDir) ?></pre>
+
+                <p style="margin-bottom: 10px; color: #fbbf24;">
+                    <strong>3. Installa le dipendenze con Composer:</strong>
+                </p>
+                <pre style="background: #1f2937; padding: 15px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">composer install --no-dev --optimize-autoloader
+
+# Se composer non è installato globalmente:
+php composer.phar install --no-dev --optimize-autoloader</pre>
+
+                <p style="margin-bottom: 10px; color: #fbbf24;">
+                    <strong>4. Verifica che le dipendenze siano state installate:</strong>
+                </p>
+                <pre style="background: #1f2937; padding: 15px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">ls -la vendor/
+# Output atteso: cartella vendor/ con sottocartelle (slim, monolog, etc.)</pre>
+
+                <p style="margin-top: 15px; color: #10b981;">
+                    ✅ <strong>Fatto!</strong> Ora puoi ricaricare questa pagina - il warning sparirà se tutto è OK.
+                </p>
+            </div>
+        </details>
+
+        <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+            <p style="margin: 0; color: #92400e;">
+                <strong>💡 Non hai accesso SSH?</strong><br>
+                Contatta il tuo provider di hosting e chiedi di eseguire <code>composer install --no-dev</code> nella directory dell'applicazione.
+            </p>
+        </div>
+    </div>
+    <?php else: ?>
+    <!-- Composer dependencies OK -->
+    <div class="alert alert-success" style="margin-top: 20px; border-left: 4px solid #16a34a;">
+        <i class="fas fa-check-circle"></i>
+        <strong>✅ Dipendenze PHP installate correttamente</strong><br>
+        <small style="opacity: 0.8;">La cartella vendor/ esiste e contiene le librerie necessarie.</small>
+    </div>
+    <?php endif; ?>
+
+    <?php
     $triggerWarnings = $_SESSION['trigger_warnings'] ?? [];
     if (!empty($triggerWarnings)):
     ?>
