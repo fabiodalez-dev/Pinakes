@@ -17,8 +17,10 @@ config.local.sample.php
 # ========================================
 backups/
 backups/*.sql
+!backups/.gitkeep
 storage/backups/
 storage/backups/*.sql
+!storage/backups/.gitkeep
 *.sql
 !installer/database/*.sql
 *.backup
@@ -49,16 +51,27 @@ old.sql
 # Runtime Data (user-generated)
 # ========================================
 uploads/*
+!uploads/.gitkeep
 !uploads/copertine/placeholder.jpg
 public/uploads/settings/
+public/uploads/*
+!public/uploads/.gitkeep
 public/uploads/copertine/*.jpg
 !public/uploads/copertine/placeholder.jpg
 
 # Storage
 storage/*
-storage/logs/*.log
+!storage/.gitkeep
+!storage/logs/
+storage/logs/*
+!storage/logs/.gitkeep
 storage/*.log
-storage/tmp/
+!storage/tmp/
+storage/tmp/*
+!storage/tmp/.gitkeep
+!storage/uploads/
+storage/uploads/*
+!storage/uploads/.gitkeep
 
 # Cache & Temp
 cache/*

@@ -200,7 +200,30 @@ git clone https://github.com/fabiodalez-dev/pinakes.git
 cd pinakes
 ```
 
-### 2. Install Dependencies
+### 2. Setup Permissions
+**IMPORTANTE:** Git non preserva i permessi delle directory. Dopo il clone, esegui:
+
+```bash
+# Metodo 1: Script automatico (raccomandato)
+./bin/setup-permissions.sh
+
+# Metodo 2: Manuale
+chmod 777 uploads backups storage storage/logs storage/tmp public/uploads
+chmod +x bin/*.sh
+```
+
+**Lo script crea automaticamente:**
+- Directory mancanti (se non esistono)
+- Permessi 777 per directory scrivibili dal web server
+- File `.gitkeep` per preservare struttura directory in Git
+
+**Verifica permessi:**
+```bash
+ls -la uploads backups storage
+# Output atteso: drwxrwxrwx (777) per tutte
+```
+
+### 3. Install Dependencies
 ```bash
 # Backend dependencies (Composer)
 composer install --no-dev --optimize-autoloader
@@ -212,7 +235,7 @@ npm run build
 cd ..
 ```
 
-### 3. Configurazione Database
+### 4. Configurazione Database
 Crea un database MySQL e un utente dedicato:
 ```sql
 CREATE DATABASE pinakes CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -221,13 +244,13 @@ GRANT ALL PRIVILEGES ON pinakes.* TO 'pinakes_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### 4. Configurazione Ambiente
+### 5. Configurazione Ambiente
 ```bash
 cp .env.example .env
 # Modifica .env con i tuoi parametri
 ```
 
-### 5. Installer Web
+### 6. Installer Web
 1. Apri il browser su `http://tuodominio.com`
 2. Verrai reindirizzato automaticamente all'installer
 3. Segui i 7 step guidati:
@@ -239,7 +262,7 @@ cp .env.example .env
    - Configurazione applicazione
    - Completamento
 
-### 6. Primo Accesso
+### 7. Primo Accesso
 - URL: `http://tuodominio.com/admin`
 - Username: quello creato durante installer
 - Password: quella impostata durante installer
