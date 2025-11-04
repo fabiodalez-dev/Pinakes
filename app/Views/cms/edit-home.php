@@ -114,12 +114,20 @@ $cta = $sections['cta'] ?? null;
 
     <!-- Features Section -->
     <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
-      <div class="border-b border-gray-200 px-6 py-4">
-        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-th text-purple-500"></i>
-          Sezione Caratteristiche
-        </h2>
-        <p class="text-sm text-gray-600 mt-1">Titolo della sezione e le 4 card con le caratteristiche</p>
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-th text-purple-500"></i>
+            Sezione Caratteristiche
+          </h2>
+          <p class="text-sm text-gray-600 mt-1">Titolo della sezione e le 4 card con le caratteristiche</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="features_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <input type="checkbox" id="features_visible" name="features_title[is_active]" value="1"
+                 <?php echo (!isset($featuresTitle['is_active']) || $featuresTitle['is_active'] == 1) ? 'checked' : ''; ?>
+                 class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
+        </div>
       </div>
       <div class="p-6 space-y-6">
         <!-- Features Title -->
@@ -192,13 +200,61 @@ $cta = $sections['cta'] ?? null;
       </div>
     </div>
 
+    <!-- Text Content Section -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-align-left text-indigo-500"></i>
+            Sezione Testo Libero
+          </h2>
+          <p class="text-sm text-gray-600 mt-1">Contenuto testuale HTML con editor avanzato</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="text_content_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <input type="checkbox" id="text_content_visible" name="text_content[is_active]" value="1"
+                 <?php
+                 $textContent = $sections['text_content'] ?? null;
+                 echo (!isset($textContent['is_active']) || $textContent['is_active'] == 1) ? 'checked' : '';
+                 ?>
+                 class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
+        </div>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label for="text_content_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo (opzionale)</label>
+          <input type="text" id="text_content_title" name="text_content[title]"
+                 value="<?php echo HtmlHelper::e($textContent['title'] ?? ''); ?>"
+                 class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                 placeholder="Lascia vuoto per nascondere il titolo">
+        </div>
+        <div>
+          <label for="text_content_body" class="block text-sm font-medium text-gray-700 mb-2">Contenuto HTML</label>
+          <textarea id="text_content_body" name="text_content[content]" rows="12"
+                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo htmlspecialchars($textContent['content'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
+          <p class="mt-2 text-xs text-gray-500">
+            <i class="fas fa-info-circle"></i> Usa l'editor per formattare il testo, aggiungere link, immagini e altro.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Latest Books Section -->
     <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
-      <div class="border-b border-gray-200 px-6 py-4">
-        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-book text-green-500"></i>
-          Sezione Ultimi Libri
-        </h2>
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-book text-green-500"></i>
+            Sezione Ultimi Libri
+          </h2>
+          <p class="text-sm text-gray-600 mt-1">Mostra gli ultimi libri aggiunti al catalogo</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="latest_books_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <input type="checkbox" id="latest_books_visible" name="latest_books_title[is_active]" value="1"
+                 <?php echo (!isset($latestBooksTitle['is_active']) || $latestBooksTitle['is_active'] == 1) ? 'checked' : ''; ?>
+                 class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
+        </div>
       </div>
       <div class="p-6 space-y-4">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -220,12 +276,20 @@ $cta = $sections['cta'] ?? null;
 
     <!-- CTA Section -->
     <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
-      <div class="border-b border-gray-200 px-6 py-4">
-        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-bullhorn text-red-500"></i>
-          Call to Action (CTA)
-        </h2>
-        <p class="text-sm text-gray-600 mt-1">L'ultima sezione che invita all'azione</p>
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-bullhorn text-red-500"></i>
+            Call to Action (CTA)
+          </h2>
+          <p class="text-sm text-gray-600 mt-1">L'ultima sezione che invita all'azione</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="cta_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <input type="checkbox" id="cta_visible" name="cta[is_active]" value="1"
+                 <?php echo (!isset($cta['is_active']) || $cta['is_active'] == 1) ? 'checked' : ''; ?>
+                 class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
+        </div>
       </div>
       <div class="p-6 space-y-4">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -537,4 +601,24 @@ document.addEventListener('keydown', function(e) {
         closeIconPicker();
     }
 });
+
+// Initialize TinyMCE for text content
+if (typeof tinymce !== 'undefined') {
+    tinymce.init({
+        selector: '.tinymce-editor',
+        plugins: 'lists link image table code help wordcount anchor charmap codesample emoticons fullscreen hr insertdatetime media nonbreaking pagebreak preview searchreplace visualblocks visualchars',
+        toolbar: 'undo redo | formatselect | bold italic underline strikethrough | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | code fullscreen preview | removeformat help',
+        menubar: 'file edit view insert format tools table help',
+        height: 400,
+        branding: false,
+        promotion: false,
+        content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }',
+        language: 'it',
+        setup: function(editor) {
+            editor.on('change', function() {
+                editor.save();
+            });
+        }
+    });
+}
 </script>

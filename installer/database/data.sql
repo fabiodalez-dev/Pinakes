@@ -1681,7 +1681,7 @@ INSERT INTO `email_templates` VALUES (8,'wishlist_book_available','📖 Libro de
         ','Email inviata quando un libro della wishlist diventa disponibile.',1,'2025-11-03 19:18:26','2025-11-03 19:18:26');
 
 
--- Home content - All sections (hero, features, latest books, cta)
+-- Home content - All sections (hero, features, text content, latest books, cta)
 INSERT INTO `home_content` (section_key, title, subtitle, content, button_text, button_link, is_active, display_order, created_at, updated_at) VALUES
 ('hero', 'La Tua Biblioteca Digitale', 'Esplora, prenota e gestisci la tua collezione di libri', NULL, 'Esplora il Catalogo', '/catalogo', 1, -2, NOW(), NOW()),
 ('features_title', 'Perché Scegliere Pinakes', 'Un\'esperienza di gestione biblioteca moderna, intuitiva e sempre a portata di mano', NULL, NULL, NULL, 1, 0, NOW(), NOW()),
@@ -1689,6 +1689,7 @@ INSERT INTO `home_content` (section_key, title, subtitle, content, button_text, 
 ('feature_2', 'Catalogazione Completa', 'Importa dati da ISBN, organizza per categorie, genera etichette e traccia ogni copia fisica', 'fas fa-book', NULL, NULL, 1, 2, NOW(), NOW()),
 ('feature_3', 'Sistema di Prestiti', 'Gestisci prestiti, scadenze, rinnovi e notifiche automatiche via email per utenti e staff', 'fas fa-exchange-alt', NULL, NULL, 1, 3, NOW(), NOW()),
 ('feature_4', 'Open Source & Gratuito', 'Software libero al 100%, senza costi di licenza. Personalizza e contribuisci al progetto Pinakes', 'fas fa-code-branch', NULL, NULL, 1, 4, NOW(), NOW()),
+('text_content', 'Chi Siamo', '<p>Benvenuti nella nostra biblioteca digitale, un luogo dove la passione per la lettura incontra la tecnologia. Il nostro sistema di gestione bibliotecaria è progettato per rendere l\'esperienza di prestito e scoperta di nuovi libri semplice e piacevole.</p><p>Che tu sia un lettore appassionato o un nuovo utente, troverai tutto ciò che ti serve per esplorare il nostro vasto catalogo, prenotare i tuoi libri preferiti e gestire i tuoi prestiti in modo efficiente.</p>', NULL, NULL, 1, 4, NOW(), NOW()),
 ('latest_books_title', 'Ultimi Arrivi', 'Scopri le ultime novità aggiunte al catalogo', NULL, NULL, NULL, 1, 5, NOW(), NOW()),
 ('cta', 'Pronto a iniziare?', 'Registrati ora e inizia a esplorare il nostro catalogo', NULL, 'Registrati Ora', '/registrati', 1, 6, NOW(), NOW());
 SET FOREIGN_KEY_CHECKS=1;
