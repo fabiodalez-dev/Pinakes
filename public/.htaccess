@@ -28,7 +28,7 @@
 
     # Content Security Policy - restrictive but allows inline styles/scripts for compatibility
     # All assets are self-hosted (fonts, styles, scripts) for privacy and performance
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https: http: blob:; connect-src 'self'; frame-ancestors 'self';"
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https: http: blob:; connect-src 'self'; frame-src 'self' https://www.openstreetmap.org; frame-ancestors 'self';"
 
     # Referrer policy
     Header always set Referrer-Policy "strict-origin-when-cross-origin"

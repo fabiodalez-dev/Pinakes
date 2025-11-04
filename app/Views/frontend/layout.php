@@ -20,7 +20,10 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $footerDescription = (string)ConfigStore::get('app.footer_description', 'Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.');
 
 // Cookie Banner Texts and Flags
-$showAnalytics = (bool)ConfigStore::get('cookie_banner.show_analytics', true);
+// Show analytics if explicitly enabled, OR if analytics code exists, OR if map iframe exists
+$hasAnalyticsCode = !empty(ConfigStore::get('advanced.custom_js_analytics'));
+$hasMapIframe = !empty(ConfigStore::get('contacts.google_maps_embed'));
+$showAnalytics = (bool)ConfigStore::get('cookie_banner.show_analytics', true) || $hasAnalyticsCode || $hasMapIframe;
 $showMarketing = (bool)ConfigStore::get('cookie_banner.show_marketing', true);
 $cookieBannerTexts = [
     'banner_description' => (string)ConfigStore::get('cookie_banner.banner_description', '<p>Utilizziamo i cookie per migliorare la tua esperienza. Continuando a visitare questo sito, accetti il nostro uso dei cookie.</p>'),

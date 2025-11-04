@@ -269,6 +269,16 @@ php cron/automatic-notifications.php
               <label class="form-label">Descrizione</label>
               <textarea name="cookie_analytics_description" class="form-input" rows="2"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_analytics_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
+            <div class="bg-blue-50 p-4 rounded border border-blue-200">
+              <p class="text-sm text-blue-900 font-medium mb-2">
+                <i class="fas fa-info-circle mr-2"></i>Codice JavaScript Analytics
+              </p>
+              <p class="text-xs text-blue-800">
+                Per inserire il codice JavaScript Analytics (Google Analytics, Matomo, ecc.),
+                vai su <a href="/admin/settings?tab=advanced#advanced" class="underline font-semibold hover:text-blue-900">Impostazioni → Avanzate</a>
+                nella sezione "JavaScript Analitici".
+              </p>
+            </div>
           </div>
 
           <!-- Marketing Cookies Section -->
