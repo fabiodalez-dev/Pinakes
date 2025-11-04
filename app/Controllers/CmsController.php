@@ -247,16 +247,18 @@ class CmsController
             // SECURITY: Sanitize inputs
             $title = $sanitizeText($featuresTitle['title'] ?? '');
             $subtitle = $sanitizeText($featuresTitle['subtitle'] ?? '');
+            $isActive = isset($featuresTitle['is_active']) ? 1 : 0;
 
             // UPSERT: Insert if not exists, update if exists
             $stmt = $db->prepare("
                 INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
-                VALUES ('features_title', ?, ?, 1, 0)
+                VALUES ('features_title', ?, ?, ?, 0)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
-                    subtitle = VALUES(subtitle)
+                    subtitle = VALUES(subtitle),
+                    is_active = VALUES(is_active)
             ");
-            $stmt->bind_param('ss', $title, $subtitle);
+            $stmt->bind_param('ssi', $title, $subtitle, $isActive);
             $stmt->execute();
             $stmt->close();
         }
@@ -296,16 +298,40 @@ class CmsController
             // SECURITY: Sanitize inputs
             $title = $sanitizeText($latestBooks['title'] ?? '');
             $subtitle = $sanitizeText($latestBooks['subtitle'] ?? '');
+            $isActive = isset($latestBooks['is_active']) ? 1 : 0;
 
             // UPSERT: Insert if not exists, update if exists
             $stmt = $db->prepare("
                 INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
-                VALUES ('latest_books_title', ?, ?, 1, 5)
+                VALUES ('latest_books_title', ?, ?, ?, 5)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
-                    subtitle = VALUES(subtitle)
+                    subtitle = VALUES(subtitle),
+                    is_active = VALUES(is_active)
             ");
-            $stmt->bind_param('ss', $title, $subtitle);
+            $stmt->bind_param('ssi', $title, $subtitle, $isActive);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        // Text content section
+        if (isset($data['text_content']) && empty($errors)) {
+            $textContent = $data['text_content'];
+            // SECURITY: Sanitize inputs
+            $title = $sanitizeText($textContent['title'] ?? '');
+            $content = $textContent['content'] ?? ''; // TinyMCE content - sanitized by TinyMCE
+            $isActive = isset($textContent['is_active']) ? 1 : 0;
+
+            // UPSERT: Insert if not exists, update if exists
+            $stmt = $db->prepare("
+                INSERT INTO home_content (section_key, title, content, is_active, display_order)
+                VALUES ('text_content', ?, ?, ?, 4)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    content = VALUES(content),
+                    is_active = VALUES(is_active)
+            ");
+            $stmt->bind_param('ssi', $title, $content, $isActive);
             $stmt->execute();
             $stmt->close();
         }
@@ -318,6 +344,7 @@ class CmsController
             $subtitle = $sanitizeText($cta['subtitle'] ?? '');
             $buttonText = $sanitizeText($cta['button_text'] ?? '');
             $buttonLink = trim($cta['button_link'] ?? '');
+            $isActive = isset($cta['is_active']) ? 1 : 0;
 
             // SECURITY: Validate CTA button URL
             if (!empty($buttonLink) && !$validateUrl($buttonLink)) {
@@ -326,14 +353,15 @@ class CmsController
                 // UPSERT: Insert if not exists, update if exists
                 $stmt = $db->prepare("
                     INSERT INTO home_content (section_key, title, subtitle, button_text, button_link, is_active, display_order)
-                    VALUES ('cta', ?, ?, ?, ?, 1, 6)
+                    VALUES ('cta', ?, ?, ?, ?, ?, 6)
                     ON DUPLICATE KEY UPDATE
                         title = VALUES(title),
                         subtitle = VALUES(subtitle),
                         button_text = VALUES(button_text),
-                        button_link = VALUES(button_link)
+                        button_link = VALUES(button_link),
+                        is_active = VALUES(is_active)
                 ");
-                $stmt->bind_param('ssss', $title, $subtitle, $buttonText, $buttonLink);
+                $stmt->bind_param('ssssi', $title, $subtitle, $buttonText, $buttonLink, $isActive);
                 $stmt->execute();
                 $stmt->close();
             }
