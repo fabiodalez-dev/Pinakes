@@ -18,10 +18,10 @@ final class Csrf
             $needsRegeneration = true;
         }
 
-        // Rigenera token se troppo vecchio (ogni 30 minuti ± 5 minuti di randomizzazione)
-        // Timeout più lungo per compatibilità con mobile e hosting gratuiti
+        // Rigenera token se troppo vecchio (ogni 2 ore ± 10 minuti di randomizzazione)
+        // Timeout lungo per permettere agli admin di compilare form complessi senza interruzioni
         if (!empty($_SESSION['csrf_token_time'])) {
-            $timeout = 1800 + random_int(-300, 300); // 30 minuti ± 5 minuti
+            $timeout = 7200 + random_int(-600, 600); // 2 ore ± 10 minuti
             if (time() - $_SESSION['csrf_token_time'] > $timeout) {
                 $needsRegeneration = true;
             }

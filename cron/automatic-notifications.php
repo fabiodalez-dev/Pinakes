@@ -10,8 +10,6 @@
  * Esegui ogni ora dalle 8 alle 20:
  * 0 8-20 * * * /usr/bin/php /path/to/biblioteca/cron/automatic-notifications.php
  *
- * Oppure ogni 15 minuti durante l'orario di lavoro:
- * */15 8-18 * * 1-5 /usr/bin/php /path/to/biblioteca/cron/automatic-notifications.php
  */
 
 declare(strict_types=1);
@@ -42,7 +40,7 @@ try {
         $cfg['password'],
         $cfg['database'],
         $cfg['port'],
-        $cfg['hostname'] === 'localhost' ? '/opt/homebrew/var/mysql/mysql.sock' : null
+        $cfg['socket'] ?? null  // Use socket from config if set
     );
 
     if ($db->connect_error) {
@@ -50,6 +48,10 @@ try {
     }
 
     $db->set_charset($cfg['charset']);
+
+    // Set timezone to UTC for consistency with main application
+    $db->query("SET SESSION time_zone = '+00:00'");
+
     logMessage("Database connected successfully");
 
     // Initialize notification service

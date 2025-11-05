@@ -92,8 +92,8 @@ class SettingsController
         } elseif (isset($_FILES['app_logo']) && is_array($_FILES['app_logo']) && ($_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $_SESSION['error_message'] = 'Caricamento del logo non riuscito. Verifica le dimensioni e il formato del file.';
             return $this->redirect($response, '/admin/settings?tab=general');
-        } elseif ($logoPath !== '') {
-            // Ensure ConfigStore reflects DB stored logo when no upload occurs
+        } elseif (!$removeLogo && $logoPath !== '') {
+            // Ensure ConfigStore reflects DB stored logo when no upload occurs AND logo was not removed
             ConfigStore::set('app.logo', $logoPath);
         }
 

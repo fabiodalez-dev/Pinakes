@@ -221,8 +221,12 @@ final class ConfigStore
                 if (isset($raw['app']['name']) && $raw['app']['name'] !== '') {
                     $cache['app']['name'] = (string)$raw['app']['name'];
                 }
-                if (!empty($raw['app']['logo_path'])) {
-                    $cache['app']['logo'] = (string)$raw['app']['logo_path'];
+                // Handle logo: if logo_path exists in DB, use it; if not, explicitly set to empty to override file cache
+                if (isset($raw['app']['logo_path'])) {
+                    $cache['app']['logo'] = !empty($raw['app']['logo_path']) ? (string)$raw['app']['logo_path'] : '';
+                } else {
+                    // Logo was deleted from DB - explicitly override any cached value in storage/settings.json
+                    $cache['app']['logo'] = '';
                 }
             }
 

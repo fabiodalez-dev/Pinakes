@@ -578,7 +578,7 @@ ob_start();
         <?php if (!empty($homeContent['text_content']['title'])): ?>
         <h2 class="section-title"><?php echo htmlspecialchars($homeContent['text_content']['title'], ENT_QUOTES, 'UTF-8'); ?></h2>
         <?php endif; ?>
-        <div class="text-content-body" style="max-width: 800px; margin: 0 auto; font-size: 1.1rem; line-height: 1.8;">
+        <div class="text-content-body" style="margin: 0 auto; font-size: 1.1rem; line-height: 1.8;">
             <?php echo $homeContent['text_content']['content'] ?? ''; ?>
         </div>
     </div>
