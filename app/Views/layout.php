@@ -178,6 +178,18 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <div class="text-xs text-gray-500">Gestione recensioni</div>
               </div>
             </a>
+
+            <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
+            <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900" href="/admin/plugins">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+                <i class="fas fa-puzzle-piece text-gray-600"></i>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium">Plugin</div>
+                <div class="text-xs text-gray-500">Estensioni</div>
+              </div>
+            </a>
+            <?php endif; ?>
           </div>
 
           <!-- Quick Actions Section -->

@@ -615,6 +615,107 @@ CREATE TABLE `wishlist` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Plugin System Tables
+--
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugins` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Plugin unique identifier',
+  `display_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Human-readable plugin name',
+  `description` text COLLATE utf8mb4_unicode_ci COMMENT 'Plugin description',
+  `version` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Plugin version',
+  `author` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Plugin author name',
+  `author_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Author website URL',
+  `plugin_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Plugin website/repository URL',
+  `is_active` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Whether plugin is activated',
+  `path` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Plugin directory path',
+  `main_file` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Main plugin file',
+  `requires_php` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Minimum PHP version required',
+  `requires_app` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Minimum app version required',
+  `metadata` json DEFAULT NULL COMMENT 'Additional plugin metadata',
+  `installed_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Installation timestamp',
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update timestamp',
+  `activated_at` datetime DEFAULT NULL COMMENT 'Last activation timestamp',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_plugin_name` (`name`),
+  KEY `idx_active` (`is_active`),
+  KEY `idx_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin registry and metadata';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_hooks` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
+  `hook_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Hook identifier',
+  `callback_class` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'PHP class to call',
+  `callback_method` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Method name in class',
+  `priority` int NOT NULL DEFAULT '10' COMMENT 'Execution priority (lower = earlier)',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Whether hook is active',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_hook_name` (`hook_name`,`priority`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  KEY `idx_active` (`is_active`),
+  CONSTRAINT `fk_plugin_hooks_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin hooks registry';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_settings` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
+  `setting_key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Setting key',
+  `setting_value` longtext COLLATE utf8mb4_unicode_ci COMMENT 'Setting value (can store JSON)',
+  `autoload` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Whether to autoload this setting',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_plugin_setting` (`plugin_id`,`setting_key`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  KEY `idx_autoload` (`autoload`),
+  CONSTRAINT `fk_plugin_settings_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin-specific settings and configuration';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_data` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
+  `data_key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Data key',
+  `data_value` longtext COLLATE utf8mb4_unicode_ci COMMENT 'Data value (can store JSON)',
+  `data_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'string' COMMENT 'Data type hint',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_plugin_key` (`plugin_id`,`data_key`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  CONSTRAINT `fk_plugin_data_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generic plugin data storage';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_logs` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned DEFAULT NULL COMMENT 'Reference to plugin (NULL for system logs)',
+  `level` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'info' COMMENT 'Log level',
+  `message` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Log message',
+  `context` json DEFAULT NULL COMMENT 'Additional context data',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  KEY `idx_level` (`level`),
+  KEY `idx_created_at` (`created_at`),
+  CONSTRAINT `fk_plugin_logs_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin activity and error logs';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Default system settings for cookie banner
 -- Only essential cookies are enabled by default
 --

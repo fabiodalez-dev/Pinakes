@@ -114,6 +114,10 @@ class BookRepository
         $authorsRes = $stmt2->get_result();
         $row['autori'] = [];
         while ($a = $authorsRes->fetch_assoc()) { $row['autori'][] = $a; }
+
+        // Plugin hook: Allow plugins to extend book data
+        $row = \App\Support\Hooks::apply('book.data.get', $row, [$id]);
+
         return $row;
     }
 
