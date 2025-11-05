@@ -245,6 +245,7 @@ $additional_css = "
         position: relative;
         z-index: 10;
         width: 100%;
+        margin: auto;
     }
 
     .book-publisher {
@@ -278,7 +279,7 @@ $additional_css = "
         box-shadow: none;
     }
 
-    /* Margine per la copertina nella sezione hero */
+    /* Margine verticale copertina su desktop */
     .row.align-items-center.book-hero-content img {
         margin: 38px 0;
     }
@@ -896,9 +897,48 @@ $additional_css = "
             word-break: break-word;
         }
 
+        /* Breadcrumb responsive su mobile */
+        .breadcrumb {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .breadcrumb-item {
+            display: inline;
+            word-break: break-word;
+        }
+
+        .breadcrumb-item + .breadcrumb-item::before {
+            display: inline;
+            padding-right: 0.25rem;
+            padding-left: 0.25rem;
+        }
+
+        .breadcrumb-item.active {
+            word-break: break-word;
+            display: inline;
+        }
+
+        /* Copertina full-width su mobile */
+        #book-cover-container {
+            flex: 0 0 100%;
+            max-width: 100%;
+            padding-left: 0;
+            padding-right: 0;
+            margin-bottom: 2rem;
+        }
+
         .book-cover-large {
-            max-width: clamp(150px, 40vw, 220px);
-            margin-bottom: 1.5rem;
+            max-width: min(85vw, 500px);
+            width: 100%;
+            margin: 0 auto 1.5rem;
+        }
+
+        /* Rimuovi margine verticale su mobile */
+        .row.align-items-center.book-hero-content img {
+            margin: 0 auto 1.5rem;
         }
 
         .book-meta {
@@ -1000,12 +1040,42 @@ $additional_css = "
             line-height: 1.3;
         }
 
+        /* Copertina full-width su mobile piccolo */
+        #book-cover-container {
+            flex: 0 0 100%;
+            max-width: 100%;
+            padding-left: 0;
+            padding-right: 0;
+            margin-bottom: 1.5rem;
+        }
+
         .book-cover-large {
-            max-width: clamp(120px, 50vw, 180px);
+            max-width: min(85vw, 450px);
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* Rimuovi margine verticale su mobile */
+        .row.align-items-center.book-hero-content img {
+            margin: 0 auto;
         }
 
         .breadcrumb {
             font-size: 0.8rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .breadcrumb-item {
+            display: inline;
+            word-break: break-word;
+        }
+
+        .breadcrumb-item + .breadcrumb-item::before {
+            display: inline;
+            padding-right: 0.25rem;
+            padding-left: 0.25rem;
         }
 
         .author-item {
@@ -1067,8 +1137,24 @@ $additional_css = "
             font-size: clamp(1.2rem, 6vw, 1.5rem);
         }
 
+        /* Copertina full-width su schermi molto piccoli */
+        #book-cover-container {
+            flex: 0 0 100%;
+            max-width: 100%;
+            padding-left: 0;
+            padding-right: 0;
+            margin-bottom: 1.5rem;
+        }
+
         .book-cover-large {
-            max-width: clamp(100px, 45vw, 150px);
+            max-width: min(85vw, 400px);
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* Rimuovi margine verticale su mobile */
+        .row.align-items-center.book-hero-content img {
+            margin: 0 auto;
         }
 
         .hero-text {
@@ -1784,11 +1870,18 @@ document.addEventListener('DOMContentLoaded', function() {
       alert('Errore nell\'aggiornare i preferiti.');
     }
   });
+});
+</script>
+<?php endif; ?>
 
+<!-- Loan/Reserve request handler (works for all users) -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
   // Loan/Reserve request enhancement - unified flow
   const requestBtn = document.getElementById('btn-request-loan');
   if (requestBtn) {
     const libroId = <?php echo (int)$libroIdJs; ?>;
+    const isLogged = <?php echo $isLoggedJs ? 'true' : 'false'; ?>;
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');
@@ -1804,6 +1897,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     requestBtn.addEventListener('click', async function(){
+      // Check if user is logged in
+      if (!isLogged) {
+        if (window.Swal) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Accesso Richiesto',
+            html: '<p class="mb-3">Per richiedere un prestito devi effettuare il login.</p>',
+            confirmButtonText: 'Vai al Login',
+            cancelButtonText: 'Annulla',
+            showCancelButton: true,
+            customClass: {
+              confirmButton: 'btn btn-dark',
+              cancelButton: 'btn btn-outline-dark'
+            }
+          }).then((result) => {
+            if (result.isConfirmed) {
+              window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            }
+          });
+        } else {
+          if (confirm('Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?')) {
+            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+          }
+        }
+        return;
+      }
+
       if (window.Swal) {
         // Fetch availability data for the calendar
         let disabledDates = [];
@@ -1978,7 +2098,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-<?php endif; ?>
 
 <!-- Social Share and Copy Link Handler -->
 <script>
