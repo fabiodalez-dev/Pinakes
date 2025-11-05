@@ -15,7 +15,7 @@ class HookManager
 {
     private mysqli $db;
     private array $hooks = [];
-    private array $loadedHooks = false;
+    private bool $loadedHooks = false;
 
     public function __construct(mysqli $db)
     {
