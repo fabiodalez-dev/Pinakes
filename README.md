@@ -139,20 +139,29 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 
 ### 🧩 Sistema Plugin Estensibile
 - **Architettura plugin completa** per estendere funzionalità senza modificare il core
-- **Sistema hook flessibile** con Filter e Action hooks
+- **Runtime loading system** - Plugin caricati al bootstrap con dependency injection
+- **Sistema hook flessibile** con Action hooks (esegui codice) e Filter hooks (modifica dati)
 - **Installazione tramite ZIP** con upload drag & drop via interfaccia admin
-- **Gestione completa plugin**: attivazione, disattivazione, disinstallazione
-- **16+ hook predefiniti** per libri, autori, editori, login, catalogo
-- **Storage dedicato** per dati plugin (database + filesystem)
+- **Gestione completa plugin**: attivazione, disattivazione, disinstallazione con CSRF protection
+- **Lifecycle hooks**: onInstall, onActivate, onDeactivate, onUninstall
+- **16+ hook predefiniti** pronti all'uso per libri, autori, editori, login, catalogo
+- **Storage dedicato** per dati plugin (5 tabelle database + filesystem isolato)
 - **API completa**: PluginManager, HookManager, Settings, Data, Logs
-- **Sicurezza integrata**: CSRF protection, validazione, isolamento
+- **Sicurezza integrata**:
+  - CSRF protection su tutte le operazioni plugin
+  - Validazione file upload (solo ZIP, max 10MB)
+  - Isolamento filesystem (`storage/plugins/`)
+  - Prepared statements per query database
+  - Sanitizzazione input/output
+- **Database automatico**: Tabelle plugin create durante installazione
+- **Test plugin incluso**: HookTesterPlugin dimostra 9 hook funzionanti
 - **Documentazione completa** con esempi pratici in `docs/PLUGIN_SYSTEM.md`
 - **Hook disponibili**:
-  - **Login**: form render, custom fields, validation, success/failed events
-  - **Libri**: extend data, save before/after, custom fields backend/frontend
-  - **Autori**: extend data, save before/after hooks
+  - **Login**: form render, custom fields, validation, success/failed events, 2FA integration
+  - **Libri**: extend data, save before/after, custom fields backend/frontend, detail page widgets
+  - **Autori**: extend data, save before/after hooks, custom fields
   - **Editori**: extend data customization
-- **Plugin di esempio** incluso (Book Rating Plugin)
+  - **Catalogo**: filter modification, search enhancement
 
 ### 📊 Pannello Admin
 - **Dashboard completa** con statistiche
@@ -323,37 +332,118 @@ php scripts/generate-sitemap.php
 ```
 
 ### Sistema Plugin
-Il sistema di plugin permette di estendere Pinakes senza modificare il codice core:
+Il sistema di plugin permette di estendere Pinakes senza modificare il codice core attraverso un'architettura modulare completa.
 
-**Installazione Plugin:**
+#### Architettura
+Il sistema implementa un pattern **Hybrid Database + Runtime Loading**:
+- **Metadata in Database**: Plugin info, hooks, settings persistiti in 5 tabelle dedicate
+- **Runtime Loading**: Plugin istanziati al bootstrap con dependency injection (mysqli + HookManager)
+- **Bootstrap Integration**: Caricamento automatico in `public/index.php` dopo `Hooks::init()`
+
+**Lifecycle completo:**
+```
+Upload ZIP → Install → Activate → Runtime Load → Hook Execution → Deactivate → Uninstall
+```
+
+#### Installazione Plugin
 1. Accedi come admin
 2. Vai in **Admin → Plugin**
-3. Carica file ZIP del plugin
-4. Attiva il plugin dalla lista
+3. Drag & drop file ZIP del plugin (max 10MB)
+4. Plugin estratto in `storage/plugins/nome-plugin/`
+5. Click **Attiva** per caricare il plugin
+6. Hook registrati automaticamente nel sistema
 
-**Sviluppo Plugin:**
+**Sicurezza:**
+- ✅ CSRF token validation su activate/deactivate/uninstall
+- ✅ Validazione ZIP: struttura, file richiesti (plugin.json, MainClass.php)
+- ✅ Isolamento filesystem: plugin solo in `storage/plugins/`
+- ✅ Dependency injection: nessun accesso globale a DB
+
+#### Sviluppo Plugin
 Per creare un plugin personalizzato, consulta la documentazione completa:
 - `docs/PLUGIN_SYSTEM.md` - Guida completa con struttura, API, esempi
-- `docs/PLUGIN_HOOKS.md` - Riferimento di tutti gli hook disponibili
-- `docs/examples/example-plugin/` - Plugin di esempio funzionante
+- `docs/PLUGIN_HOOKS.md` - Riferimento di tutti i 41+ hook disponibili
+- `storage/plugins/hook-tester/` - Plugin di test funzionante incluso
 
-**Hook Disponibili:**
-Il sistema include 16+ hook predefiniti per:
-- Estendere campi libri (backend e frontend)
-- Aggiungere funzionalità al login (reCAPTCHA, 2FA, OAuth)
-- Modificare dati autori ed editori
-- Interagire con API esterne
-- Elaborare immagini
-- Estendere filtri catalogo
+**Struttura Plugin Base:**
+```
+my-plugin/
+├── plugin.json          # Metadata (name, version, author)
+├── MyPlugin.php         # Main class
+└── README.md            # Documentazione
+```
 
-**Aggiornamento Installazioni Esistenti:**
+**Esempio Minimo:**
+```php
+class MyPlugin
+{
+    private mysqli $db;
+    private HookManager $hookManager;
+
+    public function __construct(mysqli $db, HookManager $hookManager) {
+        $this->db = $db;
+        $this->hookManager = $hookManager;
+    }
+
+    public function onInstall(): void {
+        // Setup iniziale
+    }
+
+    public function onActivate(): void {
+        // Registra hook
+    }
+
+    public function myCustomHook(array $bookData, int $bookId): void {
+        // Hook personalizzato
+    }
+}
+```
+
+#### Hook Disponibili (16+ predefiniti)
+Il sistema include hook pronti per:
+
+**Login & Auth:**
+- `login.form.fields` - Aggiungi campi custom al form (2FA, captcha)
+- `login.success` - Evento post-login (logging, analytics)
+- `login.failed` - Gestione errori login (brute force protection)
+
+**Libri:**
+- `book.frontend.details` - Widget nella pagina dettaglio libro
+- `book.save.before` / `book.save.after` - Validazione e post-processing
+- `book.data.get` - Modifica dati libro (filter hook, arricchimento)
+
+**Autori & Editori:**
+- `author.save.after` - Post-processing autore
+- `publisher.data.get` - Arricchimento dati editore
+
+**Catalogo:**
+- Filtri ricerca personalizzati
+- Ordinamento custom
+- Integrazione API esterne
+
+**Test Plugin Incluso:**
+`storage/plugins/hook-tester/HookTesterPlugin.php` dimostra:
+- ✅ 9 hook funzionanti (7 action + 2 filter)
+- ✅ Database logging con tabella `plugin_logs`
+- ✅ Settings management con `plugin_settings`
+- ✅ Badge visibile in pagina libro ("Hook Tester Plugin attivo")
+- ✅ Lifecycle completo (install, activate, deactivate, uninstall)
+
+#### Aggiornamento Installazioni Esistenti
 Se hai già un'installazione Pinakes precedente al plugin system:
 ```bash
-# Esegui la migration
+# Esegui la migration per creare le 5 tabelle plugin
 mysql -u username -p database_name < data/migrations/create_plugins_table.sql
 ```
 
-Vedi `docs/PLUGIN_SYSTEM.md` sezione "Aggiornamento Installazioni Esistenti" per dettagli completi.
+**Tabelle create:**
+- `plugins` - Registry plugin (id, name, version, is_active)
+- `plugin_hooks` - Registrazione hook (plugin_id, hook_name, callback, priority)
+- `plugin_settings` - Configurazioni plugin (key-value pairs)
+- `plugin_data` - Storage dati custom
+- `plugin_logs` - Log attività plugin (level, message, context JSON)
+
+Vedi `docs/PLUGIN_SYSTEM.md` sezione "Aggiornamento Installazioni Esistenti" per dettagli completi e troubleshooting.
 
 ---
 
