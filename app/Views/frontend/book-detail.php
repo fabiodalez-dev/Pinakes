@@ -1587,6 +1587,11 @@ ob_start();
                     </div>
                 </div>
                 <?php endif; ?>
+
+                <?php
+                // Plugin hook: Additional content in book detail page (frontend)
+                \App\Support\Hooks::do('book.frontend.details', [$book, $book['id'] ?? null]);
+                ?>
             </div>
 
             <!-- Sidebar -->

@@ -399,7 +399,13 @@ class LibriController
             $fields['collocazione'] = $fields['collocazione'] ?? '';
         }
 
+        // Plugin hook: Before book save
+        \App\Support\Hooks::do('book.save.before', [$fields, null]);
+
         $id = $repo->createBasic($fields);
+
+        // Plugin hook: After book save
+        \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
         // Genera copie fisiche del libro
         $copyRepo = new \App\Models\CopyRepository($db);
@@ -757,7 +763,14 @@ class LibriController
                 }
             }
         }
+
+        // Plugin hook: Before book save (update)
+        \App\Support\Hooks::do('book.save.before', [$fields, $id]);
+
         $repo->updateBasic($id, $fields);
+
+        // Plugin hook: After book save (update)
+        \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
         // Gestione copie: aggiorna il numero di copie se cambiato
         $copyRepo = new \App\Models\CopyRepository($db);

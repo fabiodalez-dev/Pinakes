@@ -19,12 +19,18 @@ class AuthController
         $params = $request->getQueryParams();
         $returnUrl = $this->sanitizeReturnUrl($params['return_url'] ?? null);
 
+        // Plugin hook: Before login form render
+        \App\Support\Hooks::do('login.form.render.before', [$request]);
+
         // Render login page standalone (without admin layout)
         ob_start();
         $csrf_token = $token;
         $return_url = $returnUrl;
         require __DIR__ . '/../Views/auth/login.php';
         $html = ob_get_clean();
+
+        // Plugin hook: Modify login form HTML
+        $html = \App\Support\Hooks::apply('login.form.html', $html, [$request]);
 
         $response->getBody()->write($html);
         return $response;
@@ -67,7 +73,10 @@ class AuthController
             $dummyHash = '$2y$12$PXZb520pM93TmNGnoJy2TuhssLxu4XversvqtKZ4B7xrm0sAldZE6';
             $hashToCheck = (string)($row['password'] ?? $dummyHash);
 
-            if (password_verify($password, $hashToCheck) && $row) {
+            // Plugin hook: Custom login validation (e.g., reCAPTCHA, 2FA)
+            $customValidation = \App\Support\Hooks::apply('login.validate', true, [$email, $request]);
+
+            if (password_verify($password, $hashToCheck) && $row && $customValidation) {
                 // Allow login only if email verified and stato attivo
                 if (((int)($row['email_verificata'] ?? 0)) !== 1) {
                     Log::security('login.email_not_verified', [
@@ -133,6 +142,9 @@ class AuthController
                     'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
                 ]);
 
+                // Plugin hook: After successful login
+                \App\Support\Hooks::do('login.success', [$row['id'], $_SESSION['user'], $request]);
+
                 // Redirect based on user role (respect safe return URL if provided)
                 if ($returnUrl !== null) {
                     $redirectUrl = $returnUrl;
@@ -155,6 +167,9 @@ class AuthController
             'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
         ]);
+
+        // Plugin hook: After failed login
+        \App\Support\Hooks::do('login.failed', [$email, $request]);
 
         return $response->withHeader('Location', '/login?error=invalid_credentials')->withStatus(302);
     }
