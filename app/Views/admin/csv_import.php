@@ -126,6 +126,10 @@ ob_start();
                                         Per ogni libro con ISBN, prova a recuperare automaticamente i dati mancanti (copertina, autori, descrizione) dai servizi online.
                                         <strong>Rallenta l'importazione</strong> per evitare blocchi (delay di 3 secondi tra ogni richiesta).
                                     </p>
+                                    <p class="text-gray-500 text-xs mt-2">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        Limiti: massimo 50 libri con scraping attivo, timeout 5 minuti
+                                    </p>
                                 </div>
                             </label>
                         </div>
@@ -147,12 +151,17 @@ ob_start();
                             </div>
                         </div>
 
-                        <div class="mt-6 flex items-center justify-between">
+                        <div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                             <div class="text-sm text-gray-600">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                Formato: CSV con separatore <code class="bg-gray-100 px-2 py-0.5 rounded">;</code> • Max 10MB
+                                <div class="flex items-center">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Formato: CSV con separatore <code class="bg-gray-100 px-2 py-0.5 rounded">;</code> • Max 10MB
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    Max 10.000 righe • Max 100 copie per libro
+                                </div>
                             </div>
-                            <button type="submit" id="submitBtn" class="px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <button type="submit" id="submitBtn" class="px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap" disabled>
                                 <i class="fas fa-cloud-upload-alt mr-2"></i>
                                 Importa
                             </button>
@@ -205,8 +214,8 @@ ob_start();
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">autori</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded">Consigliato</span></td>
-                                        <td class="px-4 py-3 text-gray-600">Autori separati da , o ;</td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">Umberto Eco</td>
+                                        <td class="px-4 py-3 text-gray-600">Autori multipli separati da <code>|</code></td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs">Umberto Eco<br><small class="text-gray-400">Multipli: "Eco|Fellini"</small></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">editore</code></td>

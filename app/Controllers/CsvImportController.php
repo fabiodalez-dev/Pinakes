@@ -70,13 +70,50 @@ class CsvImportController
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
-        if ($uploadedFile->getClientMediaType() !== 'text/csv' &&
-            !str_ends_with($uploadedFile->getClientFilename(), '.csv')) {
-            $_SESSION['error'] = 'Il file deve essere in formato CSV';
+        // Validazione estensione file
+        $filename = $uploadedFile->getClientFilename();
+        if (!str_ends_with(strtolower($filename), '.csv')) {
+            $_SESSION['error'] = 'Il file deve avere estensione .csv';
+            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+        }
+
+        // Validazione MIME type (check multipli)
+        $allowedMimes = ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'];
+        $mimeType = $uploadedFile->getClientMediaType();
+        if (!in_array($mimeType, $allowedMimes, true)) {
+            $_SESSION['error'] = 'Tipo MIME non valido. Solo file CSV sono accettati.';
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
         $tmpFile = $uploadedFile->getStream()->getMetadata('uri');
+
+        // Validazione contenuto CSV: verifica che contenga separatori validi
+        $handle = fopen($tmpFile, 'r');
+        if ($handle === false) {
+            $_SESSION['error'] = 'Impossibile leggere il file caricato';
+            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+        }
+
+        // Leggi prime 3 righe per validare formato
+        $firstLines = [];
+        for ($i = 0; $i < 3 && !feof($handle); $i++) {
+            $firstLines[] = fgets($handle);
+        }
+        fclose($handle);
+
+        // Verifica che almeno una riga contenga il separatore CSV (;)
+        $hasValidSeparator = false;
+        foreach ($firstLines as $line) {
+            if (strpos($line, ';') !== false) {
+                $hasValidSeparator = true;
+                break;
+            }
+        }
+
+        if (!$hasValidSeparator) {
+            $_SESSION['error'] = 'File CSV non valido: separatore ";" non trovato. Usa separatore punto e virgola.';
+            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+        }
         $enableScraping = !empty($data['enable_scraping']);
 
         // Initialize progress tracking
@@ -149,6 +186,9 @@ class CsvImportController
 
     /**
      * Genera CSV di esempio con intestazioni e dati di esempio
+     *
+     * Nota: Per autori multipli, usa il separatore | (pipe)
+     * Esempio: "Umberto Eco|Federico Fellini" per due autori
      */
     private function generateExampleCsv(): string
     {
@@ -300,6 +340,11 @@ class CsvImportController
         $scraped = 0;
         $errors = [];
 
+        // Scraping limits to prevent timeout
+        $maxScrapingTime = 300; // 5 minutes max for scraping operations
+        $maxScrapeItems = 50;   // Max 50 books with scraping enabled
+        $scrapingStartTime = time();
+
         $file = fopen($filePath, 'r');
         if (!$file) {
             throw new \Exception('Impossibile aprire il file CSV');
@@ -392,9 +437,9 @@ class CsvImportController
                     $stmt->close();
                 }
 
-                // Gestione autori (possono essere multipli separati da punto e virgola)
+                // Gestione autori (possono essere multipli separati da pipe |)
                 if (!empty($data['autori'])) {
-                    $authors = preg_split('/;/', $data['autori']);
+                    $authors = preg_split('/\|/', $data['autori']);
                     $authorOrder = 1;
 
                     foreach ($authors as $authorName) {
@@ -429,25 +474,31 @@ class CsvImportController
                 $_SESSION['import_progress']['current_book'] = $data['titolo'];
 
                 // Try scraping if enabled and book has ISBN
-                if ($enableScraping && !empty($data['isbn13'])) {
-                    $needsScraping = empty($data['autori']) ||
-                                   empty($data['descrizione']) ||
-                                   empty($data['editore']);
+                if ($enableScraping && !empty($data['isbn13']) && $scraped < $maxScrapeItems) {
+                    // Check timeout before scraping
+                    if (time() - $scrapingStartTime > $maxScrapingTime) {
+                        $errors[] = "Scraping interrotto: timeout di {$maxScrapingTime} secondi raggiunto. Importati {$scraped} libri con scraping.";
+                        $enableScraping = false; // Disable for remaining books
+                    } else {
+                        $needsScraping = empty($data['autori']) ||
+                                       empty($data['descrizione']) ||
+                                       empty($data['editore']);
 
-                    if ($needsScraping) {
-                        try {
-                            $scrapedData = $this->scrapeBookData($data['isbn13']);
+                        if ($needsScraping) {
+                            try {
+                                $scrapedData = $this->scrapeBookData($data['isbn13']);
 
-                            if (!empty($scrapedData)) {
-                                $this->enrichBookWithScrapedData($db, $bookId, $data, $scrapedData);
-                                $scraped++;
+                                if (!empty($scrapedData)) {
+                                    $this->enrichBookWithScrapedData($db, $bookId, $data, $scrapedData);
+                                    $scraped++;
+                                }
+
+                                // Rate limiting: wait 3 seconds between scraping requests
+                                sleep(3);
+                            } catch (\Exception $scrapeError) {
+                                // Log but don't fail the import
+                                error_log("Scraping failed for ISBN {$data['isbn13']}: " . $scrapeError->getMessage());
                             }
-
-                            // Rate limiting: wait 3 seconds between scraping requests
-                            sleep(3);
-                        } catch (\Exception $scrapeError) {
-                            // Log but don't fail the import
-                            error_log("Scraping failed for ISBN {$data['isbn13']}: " . $scrapeError->getMessage());
                         }
                     }
                 }
@@ -486,8 +537,7 @@ class CsvImportController
 
         // Crea nuovo editore
         $stmt = $db->prepare("INSERT INTO editori (nome, created_at) VALUES (?, NOW())");
-        $decodedName = \App\Support\HtmlHelper::decode($name);
-        $stmt->bind_param('s', $decodedName);
+        $stmt->bind_param('s', $name);
         $stmt->execute();
 
         return 'created';
@@ -509,8 +559,7 @@ class CsvImportController
 
         // Crea nuovo autore
         $stmt = $db->prepare("INSERT INTO autori (nome, created_at) VALUES (?, NOW())");
-        $decodedName = \App\Support\HtmlHelper::decode($name);
-        $stmt->bind_param('s', $decodedName);
+        $stmt->bind_param('s', $name);
         $stmt->execute();
 
         return 'created';
@@ -701,11 +750,11 @@ class CsvImportController
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
         $prezzo = !empty($data['prezzo']) ? (float)str_replace(',', '.', $data['prezzo']) : null;
         $copie = !empty($data['copie_totali']) ? (int)$data['copie_totali'] : 1;
-        // Add bounds checking to prevent integer overflow
+        // Add bounds checking to prevent DoS attacks
         if ($copie < 1) {
             $copie = 1;
-        } elseif ($copie > 9999) {
-            $copie = 9999;
+        } elseif ($copie > 100) {
+            $copie = 100;  // Max 100 copie per libro da CSV import
         }
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
