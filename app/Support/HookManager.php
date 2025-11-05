@@ -219,6 +219,15 @@ class HookManager
     }
 
     /**
+     * Mark hooks as loaded to prevent database loading
+     * This should be called by PluginManager after loading plugins runtime
+     */
+    public function setPluginsLoadedRuntime(): void
+    {
+        $this->loadedHooks = true;
+    }
+
+    /**
      * Clear all loaded hooks (useful for testing)
      */
     public function clearHooks(): void

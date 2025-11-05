@@ -131,10 +131,14 @@ class PluginManager
      */
     public function installFromZip(string $zipPath): array
     {
-        // Validate ZIP file
-        if (!file_exists($zipPath)) {
-            return ['success' => false, 'message' => 'File ZIP non trovato.', 'plugin_id' => null];
-        }
+        try {
+            error_log("🔌 [PluginManager] Starting plugin installation from: $zipPath");
+
+            // Validate ZIP file
+            if (!file_exists($zipPath)) {
+                error_log("❌ [PluginManager] ZIP file not found: $zipPath");
+                return ['success' => false, 'message' => 'File ZIP non trovato.', 'plugin_id' => null];
+            }
 
         $zip = new ZipArchive();
         $zipResult = $zip->open($zipPath);
@@ -259,19 +263,33 @@ class PluginManager
         ");
 
         $metadata = json_encode($pluginMeta['metadata'] ?? []);
+
+        // Prepare values with defaults for optional fields
+        $name = $pluginMeta['name'];
+        $displayName = $pluginMeta['display_name'];
+        $description = $pluginMeta['description'] ?? '';
+        $version = $pluginMeta['version'];
+        $author = $pluginMeta['author'] ?? '';
+        $authorUrl = $pluginMeta['author_url'] ?? '';
+        $pluginUrl = $pluginMeta['plugin_url'] ?? '';
+        $path = $pluginMeta['name'];
+        $mainFile = $pluginMeta['main_file'];
+        $requiresPhp = $pluginMeta['requires_php'] ?? '';
+        $requiresApp = $pluginMeta['requires_app'] ?? '';
+
         $stmt->bind_param(
             'ssssssssssss',
-            $pluginMeta['name'],
-            $pluginMeta['display_name'],
-            $pluginMeta['description'],
-            $pluginMeta['version'],
-            $pluginMeta['author'],
-            $pluginMeta['author_url'],
-            $pluginMeta['plugin_url'],
-            $pluginMeta['name'],
-            $pluginMeta['main_file'],
-            $pluginMeta['requires_php'],
-            $pluginMeta['requires_app'],
+            $name,
+            $displayName,
+            $description,
+            $version,
+            $author,
+            $authorUrl,
+            $pluginUrl,
+            $path,
+            $mainFile,
+            $requiresPhp,
+            $requiresApp,
             $metadata
         );
 
@@ -284,14 +302,25 @@ class PluginManager
             return ['success' => false, 'message' => 'Errore durante il salvataggio nel database.', 'plugin_id' => null];
         }
 
-        // Run plugin installation hook if exists
-        $this->runPluginMethod($pluginMeta['name'], 'onInstall');
+            // Run plugin installation hook if exists
+            $this->runPluginMethod($pluginMeta['name'], 'onInstall');
 
-        return [
-            'success' => true,
-            'message' => 'Plugin installato con successo.',
-            'plugin_id' => $pluginId
-        ];
+            error_log("✅ [PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
+
+            return [
+                'success' => true,
+                'message' => 'Plugin installato con successo.',
+                'plugin_id' => $pluginId
+            ];
+        } catch (Exception $e) {
+            error_log("❌ [PluginManager] Installation error: " . $e->getMessage());
+            error_log("❌ [PluginManager] Stack trace: " . $e->getTraceAsString());
+            return [
+                'success' => false,
+                'message' => 'Errore durante l\'installazione: ' . $e->getMessage(),
+                'plugin_id' => null
+            ];
+        }
     }
 
     /**
@@ -642,5 +671,102 @@ class PluginManager
         $stmt->close();
 
         return $result;
+    }
+
+    /**
+     * Load and initialize all active plugins
+     * This method should be called at application bootstrap
+     *
+     * @return void
+     */
+    public function loadActivePlugins(): void
+    {
+        // Get all active plugins
+        $activePlugins = $this->getActivePlugins();
+
+        if (empty($activePlugins)) {
+            return;
+        }
+
+        foreach ($activePlugins as $plugin) {
+            try {
+                $this->loadPlugin($plugin);
+            } catch (\Throwable $e) {
+                error_log("[PluginManager] Failed to load plugin '{$plugin['name']}': " . $e->getMessage());
+                // Continue loading other plugins even if one fails
+            }
+        }
+
+        // Prevent HookManager from loading hooks from database
+        $this->hookManager->setPluginsLoadedRuntime();
+    }
+
+    /**
+     * Load a single plugin and register its hooks
+     *
+     * @param array $plugin
+     * @return void
+     */
+    private function loadPlugin(array $plugin): void
+    {
+        $pluginName = $plugin['name'];
+        $pluginPath = $this->pluginsDir . '/' . $plugin['path'];
+        $mainFile = $pluginPath . '/' . $plugin['main_file'];
+
+        if (!file_exists($mainFile)) {
+            throw new \Exception("Main file not found: {$mainFile}");
+        }
+
+        // Load plugin main file
+        require_once $mainFile;
+
+        // Get plugin class name
+        $className = $this->getPluginClassName($pluginName);
+
+        if (!class_exists($className)) {
+            throw new \Exception("Plugin class not found: {$className}");
+        }
+
+        // Instantiate plugin
+        $instance = new $className($this->db, $this->hookManager);
+
+        // Load and register hooks for this plugin
+        $this->registerPluginHooks((int)$plugin['id'], $instance);
+    }
+
+    /**
+     * Register hooks for a plugin instance
+     *
+     * @param int $pluginId
+     * @param object $pluginInstance
+     * @return void
+     */
+    private function registerPluginHooks(int $pluginId, object $pluginInstance): void
+    {
+        // Get hooks from database
+        $stmt = $this->db->prepare("
+            SELECT hook_name, callback_method, priority
+            FROM plugin_hooks
+            WHERE plugin_id = ?
+            ORDER BY priority ASC
+        ");
+        $stmt->bind_param('i', $pluginId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        while ($row = $result->fetch_assoc()) {
+            $hookName = $row['hook_name'];
+            $callbackMethod = $row['callback_method'];
+            $priority = (int)$row['priority'];
+
+            // Register hook in HookManager
+            if (method_exists($pluginInstance, $callbackMethod)) {
+                $this->hookManager->addHook($hookName, [$pluginInstance, $callbackMethod], $priority);
+            } else {
+                error_log("[PluginManager] Method not found: {$callbackMethod} for hook {$hookName}");
+            }
+        }
+
+        $stmt->close();
     }
 }

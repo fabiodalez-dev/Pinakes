@@ -214,6 +214,9 @@ AppFactory::setContainer($container);
 // Initialize Hook System
 \App\Support\Hooks::init($container->get('hookManager'));
 
+// Load active plugins
+$container->get('pluginManager')->loadActivePlugins();
+
 // App
 $app = AppFactory::create();
 $app->addRoutingMiddleware();

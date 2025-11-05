@@ -89,7 +89,7 @@ $pageTitle = 'Gestione Plugin';
                             <!-- Plugin Info -->
                             <div class="flex-1">
                                 <div class="flex items-start gap-4">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center flex-shrink-0">
+                                    <div class="hidden lg:flex w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl items-center justify-center flex-shrink-0">
                                         <i class="fas fa-puzzle-piece text-gray-600 text-xl"></i>
                                     </div>
                                     <div class="flex-1 min-w-0">
@@ -227,9 +227,7 @@ $pageTitle = 'Gestione Plugin';
     </div>
 </div>
 
-<script src="https://releases.transloadit.com/uppy/v3.3.1/uppy.min.js"></script>
-<link href="https://releases.transloadit.com/uppy/v3.3.1/uppy.min.css" rel="stylesheet">
-
+<!-- Uppy is loaded from vendor.bundle.js (self-hosted, no CDN) -->
 <script>
 const csrfToken = '<?= Csrf::ensureToken() ?>';
 let uppyInstance = null;
@@ -241,7 +239,10 @@ function initUppy() {
         return;
     }
 
-    uppyInstance = new Uppy.Core({
+    // Use self-hosted Uppy from window globals
+    const { Uppy } = window;
+
+    uppyInstance = new Uppy({
         restrictions: {
             maxNumberOfFiles: 1,
             allowedFileTypes: ['.zip']
@@ -249,7 +250,7 @@ function initUppy() {
         autoProceed: false
     });
 
-    uppyInstance.use(Uppy.Dashboard, {
+    uppyInstance.use(window.UppyDashboard, {
         target: '#uppy-dashboard',
         inline: true,
         height: 300,
@@ -287,7 +288,7 @@ function openUploadModal() {
 function closeUploadModal() {
     document.getElementById('uploadModal').classList.add('hidden');
     if (uppyInstance) {
-        uppyInstance.close();
+        uppyInstance.cancelAll(); // Remove all files
         uppyInstance = null;
     }
     selectedFile = null;
@@ -310,13 +311,21 @@ document.getElementById('uploadButton')?.addEventListener('click', async functio
     this.disabled = true;
     this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Installazione in corso...';
 
+    console.log('📤 Sending plugin upload request...', {
+        file: selectedFile.name,
+        size: selectedFile.data.size
+    });
+
     try {
         const response = await fetch('/admin/plugins/upload', {
             method: 'POST',
             body: formData
         });
 
+        console.log('📥 Response status:', response.status);
+
         const result = await response.json();
+        console.log('📦 Response data:', result);
 
         if (result.success) {
             await Swal.fire({
@@ -360,12 +369,12 @@ async function activatePlugin(pluginId) {
     }
 
     try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
         const response = await fetch(`/admin/plugins/${pluginId}/activate`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ csrf_token: csrfToken })
+            body: formData
         });
 
         const data = await response.json();
@@ -409,12 +418,12 @@ async function deactivatePlugin(pluginId) {
     }
 
     try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
         const response = await fetch(`/admin/plugins/${pluginId}/deactivate`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ csrf_token: csrfToken })
+            body: formData
         });
 
         const data = await response.json();
@@ -459,12 +468,12 @@ async function uninstallPlugin(pluginId, pluginName) {
     }
 
     try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
         const response = await fetch(`/admin/plugins/${pluginId}/uninstall`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ csrf_token: csrfToken })
+            body: formData
         });
 
         const data = await response.json();

@@ -53,68 +53,89 @@ class PluginController
      */
     public function upload(Request $request, Response $response): Response
     {
-        // Check authorization
-        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+        try {
+            // Check authorization
+            if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => 'Non autorizzato.'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
+            // Verify CSRF token (handle multipart/form-data)
+            $body = $request->getParsedBody();
+            $csrfToken = $body['csrf_token'] ?? $_POST['csrf_token'] ?? '';
+
+            if (!Csrf::validate($csrfToken)) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => 'Token CSRF non valido.'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
+            $uploadedFiles = $request->getUploadedFiles();
+
+            if (!isset($uploadedFiles['plugin_file'])) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => 'File non trovato nell\'upload.'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $uploadError = $uploadedFiles['plugin_file']->getError();
+            if ($uploadError !== UPLOAD_ERR_OK) {
+                error_log("[Plugin Upload] Upload error code: $uploadError");
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => 'Errore durante il caricamento del file (code: ' . $uploadError . ').'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $uploadedFile = $uploadedFiles['plugin_file'];
+
+            // Validate file type
+            $filename = $uploadedFile->getClientFilename();
+            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+            if ($extension !== 'zip') {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => 'Solo file ZIP sono accettati.'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Save uploaded file temporarily
+            $uploadsDir = __DIR__ . '/../../uploads/plugins';
+            if (!is_dir($uploadsDir)) {
+                mkdir($uploadsDir, 0755, true);
+            }
+
+            $tempPath = $uploadsDir . '/' . uniqid('plugin_', true) . '.zip';
+            $uploadedFile->moveTo($tempPath);
+
+            // Install plugin
+            $result = $this->pluginManager->installFromZip($tempPath);
+
+            // Delete temporary file
+            if (file_exists($tempPath)) {
+                unlink($tempPath);
+            }
+
+            $response->getBody()->write(json_encode($result));
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (Exception $e) {
+            error_log("[Plugin Upload] Exception: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Non autorizzato.'
+                'message' => 'Errore interno: ' . $e->getMessage()
             ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
-
-        // Verify CSRF token
-        $body = $request->getParsedBody();
-        if (!Csrf::validateToken($body['csrf_token'] ?? '')) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => 'Token CSRF non valido.'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        $uploadedFiles = $request->getUploadedFiles();
-
-        if (!isset($uploadedFiles['plugin_file']) || $uploadedFiles['plugin_file']->getError() !== UPLOAD_ERR_OK) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => 'Errore durante il caricamento del file.'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        $uploadedFile = $uploadedFiles['plugin_file'];
-
-        // Validate file type
-        $filename = $uploadedFile->getClientFilename();
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-        if ($extension !== 'zip') {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => 'Solo file ZIP sono accettati.'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        // Save uploaded file temporarily
-        $uploadsDir = __DIR__ . '/../../uploads/plugins';
-        if (!is_dir($uploadsDir)) {
-            mkdir($uploadsDir, 0755, true);
-        }
-
-        $tempPath = $uploadsDir . '/' . uniqid('plugin_', true) . '.zip';
-        $uploadedFile->moveTo($tempPath);
-
-        // Install plugin
-        $result = $this->pluginManager->installFromZip($tempPath);
-
-        // Delete temporary file
-        if (file_exists($tempPath)) {
-            unlink($tempPath);
-        }
-
-        $response->getBody()->write(json_encode($result));
-        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
@@ -133,7 +154,7 @@ class PluginController
 
         // Verify CSRF token
         $body = $request->getParsedBody();
-        if (!Csrf::validateToken($body['csrf_token'] ?? '')) {
+        if (!Csrf::validate($body['csrf_token'] ?? '')) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => 'Token CSRF non valido.'
@@ -164,7 +185,7 @@ class PluginController
 
         // Verify CSRF token
         $body = $request->getParsedBody();
-        if (!Csrf::validateToken($body['csrf_token'] ?? '')) {
+        if (!Csrf::validate($body['csrf_token'] ?? '')) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => 'Token CSRF non valido.'
@@ -195,7 +216,7 @@ class PluginController
 
         // Verify CSRF token
         $body = $request->getParsedBody();
-        if (!Csrf::validateToken($body['csrf_token'] ?? '')) {
+        if (!Csrf::validate($body['csrf_token'] ?? '')) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => 'Token CSRF non valido.'
