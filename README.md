@@ -137,9 +137,27 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 - **Sistema settings** centralizzato
 - **Logo personalizzabile** e branding
 
+### 🧩 Sistema Plugin Estensibile
+- **Architettura plugin completa** per estendere funzionalità senza modificare il core
+- **Sistema hook flessibile** con Filter e Action hooks
+- **Installazione tramite ZIP** con upload drag & drop via interfaccia admin
+- **Gestione completa plugin**: attivazione, disattivazione, disinstallazione
+- **16+ hook predefiniti** per libri, autori, editori, login, catalogo
+- **Storage dedicato** per dati plugin (database + filesystem)
+- **API completa**: PluginManager, HookManager, Settings, Data, Logs
+- **Sicurezza integrata**: CSRF protection, validazione, isolamento
+- **Documentazione completa** con esempi pratici in `docs/PLUGIN_SYSTEM.md`
+- **Hook disponibili**:
+  - **Login**: form render, custom fields, validation, success/failed events
+  - **Libri**: extend data, save before/after, custom fields backend/frontend
+  - **Autori**: extend data, save before/after hooks
+  - **Editori**: extend data customization
+- **Plugin di esempio** incluso (Book Rating Plugin)
+
 ### 📊 Pannello Admin
 - **Dashboard completa** con statistiche
 - **Gestione libri, utenti, prestiti** centralizzata
+- **Gestione plugin** con statistiche e controlli
 - **Notifiche admin** in tempo reale
 - **Log attività** e cronologia modifiche
 - **Export database** e backup automatici
@@ -303,6 +321,39 @@ Rigenera manualmente se necessario:
 ```bash
 php scripts/generate-sitemap.php
 ```
+
+### Sistema Plugin
+Il sistema di plugin permette di estendere Pinakes senza modificare il codice core:
+
+**Installazione Plugin:**
+1. Accedi come admin
+2. Vai in **Admin → Plugin**
+3. Carica file ZIP del plugin
+4. Attiva il plugin dalla lista
+
+**Sviluppo Plugin:**
+Per creare un plugin personalizzato, consulta la documentazione completa:
+- `docs/PLUGIN_SYSTEM.md` - Guida completa con struttura, API, esempi
+- `docs/PLUGIN_HOOKS.md` - Riferimento di tutti gli hook disponibili
+- `docs/examples/example-plugin/` - Plugin di esempio funzionante
+
+**Hook Disponibili:**
+Il sistema include 16+ hook predefiniti per:
+- Estendere campi libri (backend e frontend)
+- Aggiungere funzionalità al login (reCAPTCHA, 2FA, OAuth)
+- Modificare dati autori ed editori
+- Interagire con API esterne
+- Elaborare immagini
+- Estendere filtri catalogo
+
+**Aggiornamento Installazioni Esistenti:**
+Se hai già un'installazione Pinakes precedente al plugin system:
+```bash
+# Esegui la migration
+mysql -u username -p database_name < data/migrations/create_plugins_table.sql
+```
+
+Vedi `docs/PLUGIN_SYSTEM.md` sezione "Aggiornamento Installazioni Esistenti" per dettagli completi.
 
 ---
 
@@ -591,11 +642,17 @@ Sitemap: https://tuodominio.com/sitemap.xml
 - **Content Security Policy**: Configurabile
 
 ### Database
-- 30 tabelle normalizzate
+- 35 tabelle normalizzate (30 core + 5 plugin system)
 - Indici ottimizzati per performance
 - Foreign keys per integrità referenziale
 - Triggers per consistency automatica
 - Stored procedures per operazioni complesse
+- **Tabelle Plugin System**:
+  - `plugins` - Registry e metadata plugin
+  - `plugin_hooks` - Registrazione hook
+  - `plugin_settings` - Configurazioni plugin
+  - `plugin_data` - Storage dati plugin
+  - `plugin_logs` - Log attività plugin
 
 ---
 
@@ -620,19 +677,29 @@ pinakes/
 │   ├── Models/          # Database models
 │   ├── Repositories/    # Data access layer
 │   ├── Routes/          # Route definitions
-│   ├── Support/         # Helper classes
+│   ├── Support/         # Helper classes (HookManager, PluginManager)
 │   └── Views/           # Templates PHP
 ├── config/              # Configurazioni
+├── data/
+│   └── migrations/      # Database migrations (plugin tables)
+├── docs/                # Documentazione
+│   ├── PLUGIN_SYSTEM.md      # Guida completa plugin system
+│   ├── PLUGIN_HOOKS.md       # Riferimento hook disponibili
+│   └── examples/             # Plugin di esempio
+│       └── example-plugin/   # Book Rating Plugin
 ├── frontend/            # Asset frontend
 │   ├── css/
 │   ├── js/
 │   └── webpack.config.js
 ├── installer/           # Sistema installazione
+│   └── database/
+│       └── schema.sql   # Include tabelle plugin
 ├── public/              # Document root
 │   ├── assets/          # Build webpack output
 │   └── uploads/         # File utente
 ├── scripts/             # Maintenance scripts
 ├── storage/             # Logs e cache
+│   └── plugins/         # Directory plugin installati
 ├── vendor/              # Composer dependencies
 ├── .env.example         # Environment template
 ├── composer.json        # PHP dependencies
