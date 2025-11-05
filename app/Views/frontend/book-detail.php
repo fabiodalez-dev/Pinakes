@@ -941,6 +941,13 @@ $additional_css = "
             margin: 0 auto 1.5rem;
         }
 
+        /* Padding ridotto per sezioni su mobile */
+        .book-description-section,
+        .book-details-section,
+        .book-reviews-section {
+            padding: 2rem;
+        }
+
         .book-meta {
             margin-top: -1rem;
             padding: 1.5rem;
@@ -1060,6 +1067,13 @@ $additional_css = "
             margin: 0 auto;
         }
 
+        /* Padding ridotto per sezioni su mobile */
+        .book-description-section,
+        .book-details-section,
+        .book-reviews-section {
+            padding: 2rem;
+        }
+
         .breadcrumb {
             font-size: 0.8rem;
             display: flex;
@@ -1155,6 +1169,13 @@ $additional_css = "
         /* Rimuovi margine verticale su mobile */
         .row.align-items-center.book-hero-content img {
             margin: 0 auto;
+        }
+
+        /* Padding ridotto per sezioni su mobile */
+        .book-description-section,
+        .book-details-section,
+        .book-reviews-section {
+            padding: 1.5rem;
         }
 
         .hero-text {
