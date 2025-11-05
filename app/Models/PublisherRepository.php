@@ -28,7 +28,14 @@ class PublisherRepository
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $res = $stmt->get_result();
-        return $res->fetch_assoc() ?: null;
+        $publisher = $res->fetch_assoc() ?: null;
+
+        if ($publisher) {
+            // Plugin hook: Extend publisher data
+            $publisher = \App\Support\Hooks::apply('publisher.data.get', $publisher, [$id]);
+        }
+
+        return $publisher;
     }
 
     public function getBooksByPublisherId(int $publisherId): array

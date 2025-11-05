@@ -211,6 +211,9 @@ $containerBuilder->addDefinitions($containerDefinitions ?? []);
 $container = $containerBuilder->build();
 AppFactory::setContainer($container);
 
+// Initialize Hook System
+\App\Support\Hooks::init($container->get('hookManager'));
+
 // App
 $app = AppFactory::create();
 $app->addRoutingMiddleware();

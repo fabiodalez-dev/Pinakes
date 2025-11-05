@@ -1513,4 +1513,50 @@ $app->get('/catalogo', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\PublicApiController();
         return $controller->searchBooks($request, $response, $db);
     })->add(new \App\Middleware\ApiKeyMiddleware($app->getContainer()->get('db')));
+
+    // ==========================================
+    // Plugin Management Routes (Admin Only)
+    // ==========================================
+
+    // Plugin list page
+    $app->get('/admin/plugins', function ($request, $response) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->index($request, $response);
+    })->add(new AdminAuthMiddleware());
+
+    // Plugin upload/install
+    $app->post('/admin/plugins/upload', function ($request, $response) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->upload($request, $response);
+    })->add(new AdminAuthMiddleware());
+
+    // Plugin activate
+    $app->post('/admin/plugins/{id}/activate', function ($request, $response, $args) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->activate($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    // Plugin deactivate
+    $app->post('/admin/plugins/{id}/deactivate', function ($request, $response, $args) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->deactivate($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    // Plugin uninstall
+    $app->post('/admin/plugins/{id}/uninstall', function ($request, $response, $args) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->uninstall($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    // Plugin details
+    $app->get('/admin/plugins/{id}/details', function ($request, $response, $args) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->details($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
 };

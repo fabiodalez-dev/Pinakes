@@ -1,0 +1,22 @@
+{
+  "name": "book-rating",
+  "display_name": "Book Rating System",
+  "description": "Aggiunge un sistema di valutazione esterna per i libri con integrazione API Goodreads",
+  "version": "1.0.0",
+  "author": "Example Author",
+  "author_url": "https://example.com",
+  "plugin_url": "https://github.com/example/book-rating-plugin",
+  "main_file": "BookRatingPlugin.php",
+  "requires_php": "8.0",
+  "requires_app": "1.0.0",
+  "metadata": {
+    "license": "MIT",
+    "tags": ["books", "rating", "goodreads", "api"],
+    "features": [
+      "External book ratings",
+      "Goodreads integration",
+      "Custom rating display",
+      "Automatic sync"
+    ]
+  }
+}

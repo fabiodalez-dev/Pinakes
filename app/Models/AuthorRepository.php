@@ -29,7 +29,14 @@ class AuthorRepository
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $res = $stmt->get_result();
-        return $res->fetch_assoc() ?: null;
+        $author = $res->fetch_assoc() ?: null;
+
+        if ($author) {
+            // Plugin hook: Extend author data
+            $author = \App\Support\Hooks::apply('author.data.get', $author, [$id]);
+        }
+
+        return $author;
     }
 
     public function getByPublisherId(int $publisherId): array
@@ -120,20 +127,23 @@ class AuthorRepository
 
     public function update(int $id, array $data): bool
     {
+        // Plugin hook: Before author save
+        \App\Support\Hooks::do('author.save.before', [$data, $id]);
+
         $sql = "UPDATE autori SET nome=?, pseudonimo=?, data_nascita=?, data_morte=?, `nazionalità`=?, biografia=?, sito_web=?, updated_at=NOW() WHERE id=?";
         $stmt = $this->db->prepare($sql);
-        
+
         // Handle empty dates by converting them to NULL
         $data_nascita = empty($data['data_nascita']) ? null : $data['data_nascita'];
         $data_morte = empty($data['data_morte']) ? null : $data['data_morte'];
-        
+
         // Decode HTML entities to prevent double encoding
         $nome = \App\Support\HtmlHelper::decode($data['nome']);
         $pseudonimo = \App\Support\HtmlHelper::decode($data['pseudonimo'] ?? '');
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
-        
+
         $stmt->bind_param(
             'sssssssi',
             $nome,
@@ -145,7 +155,13 @@ class AuthorRepository
             $sito_web,
             $id
         );
-        return $stmt->execute();
+
+        $result = $stmt->execute();
+
+        // Plugin hook: After author save
+        \App\Support\Hooks::do('author.save.after', [$id, $data]);
+
+        return $result;
     }
 
     public function findByName(string $name): ?int

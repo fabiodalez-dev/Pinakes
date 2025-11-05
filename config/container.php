@@ -163,4 +163,17 @@ $containerDefinitions = [
             throw new Exception($errorMessage);
         }
     },
+
+    // Hook Manager for plugin system
+    'hookManager' => function ($container) {
+        return new \App\Support\HookManager($container->get('db'));
+    },
+
+    // Plugin Manager
+    'pluginManager' => function ($container) {
+        return new \App\Support\PluginManager(
+            $container->get('db'),
+            $container->get('hookManager')
+        );
+    },
 ];

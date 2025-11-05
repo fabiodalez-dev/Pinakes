@@ -492,6 +492,13 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       </div>
 
       <!-- Submit Section -->
+      <?php
+      // Plugin hook: Additional fields in book form (backend)
+      $bookData = $mode === 'edit' ? ($libro ?? null) : null;
+      $bookId = $mode === 'edit' ? ($libro['id'] ?? null) : null;
+      \App\Support\Hooks::do('book.form.fields', [$bookData, $bookId]);
+      ?>
+
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
         <button type="button" id="btnCancel" class="btn-secondary order-2 sm:order-1">
           <i class="fas fa-times mr-2"></i>

@@ -134,6 +134,11 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
           </a>
         </div>
 
+        <?php
+        // Plugin hook: Additional fields before submit button (e.g., reCAPTCHA, 2FA)
+        \App\Support\Hooks::do('login.form.fields', []);
+        ?>
+
         <div>
           <button
             type="submit"
