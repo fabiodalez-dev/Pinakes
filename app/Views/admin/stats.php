@@ -283,7 +283,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const monthLabels = loansByMonthData.map(item => {
     const parts = item.mese.split('-');
     const date = new Date(parts[0], parts[1] - 1);
-    return date.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' });
+    const locale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>' === 'en_US' ? 'en-US' : 'it-IT';
+    return date.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
   });
   const monthValues = loansByMonthData.map(item => parseInt(item.totale_prestiti));
 
