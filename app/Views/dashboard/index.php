@@ -118,7 +118,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <?php foreach ($pending as $loan): ?>
               <div class="flex flex-col bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm" data-loan-card>
-                <div class="flex gap-4">
+                <div class="flex flex-col md:flex-row gap-4 items-center md:items-start">
                   <div class="flex-shrink-0">
                     <?php $cover = !empty($loan['copertina_url']) ? $loan['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
                     <img
@@ -158,7 +158,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="mt-4 flex gap-3">
+                <div class="mt-4 flex flex-col md:flex-row gap-3">
                   <button type="button" class="flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm" data-loan-id="<?= (int)$loan['id']; ?>">
                     <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
                   </button>
