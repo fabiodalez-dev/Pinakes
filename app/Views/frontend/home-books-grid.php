@@ -11,9 +11,9 @@ function createBookUrl($book) {
 
 function getBookStatusBadge($book) {
     if (($book['copie_disponibili'] ?? 0) > 0) {
-        return '<span class="book-status-badge status-available">Disponibile</span>';
+        return '<span class="book-status-badge status-available">__("Disponibile")</span>';
     } else {
-        return '<span class="book-status-badge status-borrowed">In prestito</span>';
+        return '<span class="book-status-badge status-borrowed">__("In prestito")</span>';
     }
 }
 ?>

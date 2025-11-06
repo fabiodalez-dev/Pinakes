@@ -26,7 +26,7 @@
           <input type="hidden" id="utente_id" name="utente_id" value="<?php echo (int)($utente_id ?? 0); ?>">
         </div>
         <div class="flex gap-2">
-          <button class="btn-primary"><i class="fas fa-search mr-2"></i>Cerca</button>
+          <button class="btn-primary"><i class="fas fa-search mr-2"></i>__("Cerca")</button>
           <a href="/admin/prenotazioni" class="btn-secondary" id="btn-reset"><i class="fas fa-times mr-2"></i>Reset</a>
         </div>
       </form>
@@ -42,8 +42,8 @@
             <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Inizio</th>
             <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Fine</th>
             <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Coda</th>
-            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Stato</th>
-            <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600">Azioni</th>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">__("Stato")</th>
+            <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600">__("Azioni")</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
@@ -59,7 +59,7 @@
                 <span class="px-2 py-1 rounded-full text-xs font-medium <?php echo ($r['stato']==='attiva'?'bg-green-100 text-green-800':($r['stato']==='completata'?'bg-blue-100 text-blue-800':'bg-gray-100 text-gray-800')); ?>"><?php echo App\Support\HtmlHelper::e($r['stato']); ?></span>
               </td>
               <td class="px-4 py-2 text-sm text-right">
-                <a href="/admin/prenotazioni/modifica/<?php echo (int)$r['id']; ?>" class="text-blue-600 hover:text-blue-800"><i class="fas fa-edit mr-1"></i>Modifica</a>
+                <a href="/admin/prenotazioni/modifica/<?php echo (int)$r['id']; ?>" class="text-blue-600 hover:text-blue-800"><i class="fas fa-edit mr-1"></i>__("Modifica")</a>
               </td>
             </tr>
           <?php endforeach; ?>

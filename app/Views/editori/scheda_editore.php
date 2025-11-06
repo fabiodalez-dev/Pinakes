@@ -120,7 +120,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
         <div class="card-body">
           <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Nome</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs">__("Nome")</dt>
               <dd class="mt-1 text-gray-900 font-medium"><?php echo $nomeEditore; ?></dd>
             </div>
             <?php if ($sitoWeb): ?>
@@ -161,7 +161,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
           <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
             <?php if (!empty($editore['email'])): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Email</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs">__("Email")</dt>
                 <dd class="mt-1 text-gray-900 font-medium">
                   <a href="mailto:<?php echo htmlspecialchars($editore['email'], ENT_QUOTES, 'UTF-8'); ?>" class="text-gray-600 hover:underline">
                     <?php echo HtmlHelper::e($editore['email']); ?>
@@ -171,7 +171,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             <?php endif; ?>
             <?php if (!empty($editore['telefono'])): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Telefono</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs">__("Telefono")</dt>
                 <dd class="mt-1 text-gray-900 font-medium">
                   <a href="tel:<?php echo htmlspecialchars($editore['telefono'], ENT_QUOTES, 'UTF-8'); ?>" class="text-gray-600 hover:underline">
                     <?php echo HtmlHelper::e($editore['telefono']); ?>
@@ -181,7 +181,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             <?php endif; ?>
             <?php if (!empty($editore['indirizzo'])): ?>
               <div class="sm:col-span-2">
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Indirizzo</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs">__("Indirizzo")</dt>
                 <dd class="mt-1 text-gray-900 font-medium"><?php echo HtmlHelper::e($editore['indirizzo']); ?></dd>
               </div>
             <?php endif; ?>
@@ -202,13 +202,13 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
           <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
             <?php if (!empty($editore['referente_nome'])): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Nome</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs">__("Nome")</dt>
                 <dd class="mt-1 text-gray-900 font-medium"><?php echo HtmlHelper::e($editore['referente_nome']); ?></dd>
               </div>
             <?php endif; ?>
             <?php if (!empty($editore['referente_email'])): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Email</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs">__("Email")</dt>
                 <dd class="mt-1 text-gray-900 font-medium">
                   <a href="mailto:<?php echo htmlspecialchars($editore['referente_email'], ENT_QUOTES, 'UTF-8'); ?>" class="text-gray-600 hover:underline">
                     <?php echo HtmlHelper::e($editore['referente_email']); ?>
@@ -218,7 +218,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             <?php endif; ?>
             <?php if (!empty($editore['referente_telefono'])): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Telefono</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs">__("Telefono")</dt>
                 <dd class="mt-1 text-gray-900 font-medium">
                   <a href="tel:<?php echo htmlspecialchars($editore['referente_telefono'], ENT_QUOTES, 'UTF-8'); ?>" class="text-gray-600 hover:underline">
                     <?php echo HtmlHelper::e($editore['referente_telefono']); ?>

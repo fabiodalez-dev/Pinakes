@@ -200,7 +200,7 @@ ob_start();
                                     <tr>
                                         <th class="px-4 py-2 text-left font-semibold text-gray-700">Campo</th>
                                         <th class="px-4 py-2 text-left font-semibold text-gray-700">Obbligatorio</th>
-                                        <th class="px-4 py-2 text-left font-semibold text-gray-700">Descrizione</th>
+                                        <th class="px-4 py-2 text-left font-semibold text-gray-700">__("Descrizione")</th>
                                         <th class="px-4 py-2 text-left font-semibold text-gray-700">Esempio</th>
                                     </tr>
                                 </thead>

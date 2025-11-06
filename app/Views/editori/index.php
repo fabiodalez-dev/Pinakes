@@ -144,9 +144,9 @@ $editori = $data['editori'];
                   <tr>
                     <th style="width:30%">Nome Casa Editrice</th>
                     <th style="width:20%">Sito Web</th>
-                    <th style="width:25%">Indirizzo</th>
+                    <th style="width:25%">__("Indirizzo")</th>
                     <th style="width:15%">Città</th>
-                    <th style="width:10%" class="text-center">Azioni</th>
+                    <th style="width:10%" class="text-center">__("Azioni")</th>
                   </tr>
                 </thead>
               </table>

@@ -41,11 +41,11 @@ $errorKey = (string)($_GET['error'] ?? '');
             <p class="text-xs text-gray-500 mt-1" id="role-hint">Definisce i privilegi dell'utente.</p>
           </div>
           <div>
-            <label for="stato" class="block text-sm font-medium text-gray-700">Stato</label>
+            <label for="stato" class="block text-sm font-medium text-gray-700">__("Stato")</label>
             <select id="stato" name="stato" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
-              <option value="attivo" selected>Attivo</option>
+              <option value="attivo" selected>__("Attivo")</option>
               <option value="sospeso">Sospeso</option>
-              <option value="scaduto">Scaduto</option>
+              <option value="scaduto">__("Scaduto")</option>
             </select>
           </div>
         </div>
@@ -98,7 +98,7 @@ $errorKey = (string)($_GET['error'] ?? '');
             <p class="text-xs text-gray-500 mt-1">Usata per login e comunicazioni.</p>
           </div>
           <div>
-            <label for="telefono" class="block text-sm font-medium text-gray-700">Telefono</label>
+            <label for="telefono" class="block text-sm font-medium text-gray-700">__("Telefono")</label>
             <input type="text" id="telefono" name="telefono" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="+39 123 456 7890">
             <p class="text-xs text-gray-500 mt-1">Obbligatorio per utenti non amministratori.</p>
           </div>
@@ -129,7 +129,7 @@ $errorKey = (string)($_GET['error'] ?? '');
       </section>
 
       <div class="flex items-center justify-end gap-3">
-        <a href="/admin/utenti" class="btn-secondary">Annulla</a>
+        <a href="/admin/utenti" class="btn-secondary">__("Annulla")</a>
         <button type="submit" class="btn-primary">Salva utente</button>
       </div>
     </form>

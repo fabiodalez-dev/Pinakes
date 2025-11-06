@@ -666,7 +666,7 @@ use App\Support\HtmlHelper;
                  placeholder="es. Integrazione Sito Web">
         </div>
         <div>
-          <label for="api_key_description" class="block text-sm font-medium text-gray-700 mb-1">Descrizione</label>
+          <label for="api_key_description" class="block text-sm font-medium text-gray-700 mb-1">__("Descrizione")</label>
           <textarea id="api_key_description"
                     name="description"
                     rows="3"

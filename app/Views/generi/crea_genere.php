@@ -55,7 +55,7 @@
           </div>
         </div>
         <div class="mt-6 flex gap-3 justify-end">
-          <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i>Salva</button>
+          <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i>__("Salva")</button>
         </div>
       </div>
     </form>

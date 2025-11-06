@@ -6,7 +6,7 @@
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
         <li><a href="/admin/prenotazioni" class="text-gray-500 hover:text-gray-700"><i class="fas fa-bookmark mr-1"></i>Prenotazioni</a></li>
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
-        <li class="text-gray-900 font-medium">Modifica</li>
+        <li class="text-gray-900 font-medium">__("Modifica")</li>
       </ol>
     </nav>
     <div class="bg-white border border-gray-200 rounded-2xl shadow p-6">
@@ -29,7 +29,7 @@
           </div>
         </div>
         <div>
-          <label class="form-label">Stato</label>
+          <label class="form-label">__("Stato")</label>
           <select name="stato" class="form-input">
             <?php $st = (string)($p['stato'] ?? 'attiva'); ?>
             <option value="attiva" <?php echo $st==='attiva'?'selected':''; ?>>Attiva</option>
@@ -38,8 +38,8 @@
           </select>
         </div>
         <div class="flex justify-end gap-2">
-          <a href="/admin/prenotazioni" class="btn-secondary"><i class="fas fa-arrow-left mr-1"></i>Indietro</a>
-          <button class="btn-primary"><i class="fas fa-save mr-2"></i>Salva</button>
+          <a href="/admin/prenotazioni" class="btn-secondary"><i class="fas fa-arrow-left mr-1"></i>__("Indietro")</a>
+          <button class="btn-primary"><i class="fas fa-save mr-2"></i>__("Salva")</button>
         </div>
       </form>
     </div>

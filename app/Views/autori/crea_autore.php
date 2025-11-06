@@ -94,7 +94,7 @@
         <div class="card-body form-section">
           <div>
             <label for="biografia" class="form-label">Biografia dell'autore</label>
-            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="Inserisci una breve biografia dell'autore, i suoi successi, stile di scrittura, opere principali..."></textarea>
+            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci $1") ?>"></textarea>
             <p class="text-xs text-gray-500 mt-1">Una descrizione completa aiuta gli utenti a conoscere meglio l'autore</p>
           </div>
         </div>

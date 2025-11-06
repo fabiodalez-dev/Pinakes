@@ -27,7 +27,7 @@ $title = "Modifica Autore: " . ($autore['nome'] ?? 'N/D');
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
-        <li class="text-gray-900 font-medium">Modifica</li>
+        <li class="text-gray-900 font-medium">__("Modifica")</li>
       </ol>
     </nav>
     <!-- Header -->
@@ -101,7 +101,7 @@ $title = "Modifica Autore: " . ($autore['nome'] ?? 'N/D');
         <div class="card-body form-section">
           <div>
             <label for="biografia" class="form-label">Biografia dell'autore</label>
-            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="Inserisci una breve biografia dell'autore, i suoi successi, stile di scrittura, opere principali..."><?php echo App\Support\HtmlHelper::e($autore['biografia'] ?? ''); ?></textarea>
+            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci $1") ?>"><?php echo App\Support\HtmlHelper::e($autore['biografia'] ?? ''); ?></textarea>
             <p class="text-xs text-gray-500 mt-1">Una descrizione completa aiuta gli utenti a conoscere meglio l'autore</p>
           </div>
         </div>

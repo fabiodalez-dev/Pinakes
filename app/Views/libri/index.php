@@ -99,7 +99,7 @@ $libri = $data['libri'];
             </label>
             <select id="stato_filter" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full">
               <option value="">Tutti gli stati</option>
-              <option value="Disponibile">Disponibile</option>
+              <option value="Disponibile">__("Disponibile")</option>
               <option value="Prestato">Prestato</option>
               <option value="Riservato">Riservato</option>
               <option value="Danneggiato">Danneggiato</option>
@@ -240,13 +240,13 @@ $libri = $data['libri'];
               <table id="libri-table" class="display responsive nowrap" style="width:100%">
                 <thead>
                   <tr>
-                    <th style="width:40px">Stato</th>
+                    <th style="width:40px">__("Stato")</th>
                     <th style="width:70px">Copertina</th>
                     <th style="width:40%">Informazioni Principali</th>
                     <th style="width:15%">Genere</th>
                     <th style="width:10%">Posizione</th>
                     <th style="width:8%">Anno</th>
-                    <th style="width:12%">Azioni</th>
+                    <th style="width:12%">__("Azioni")</th>
                   </tr>
                 </thead>
               </table>

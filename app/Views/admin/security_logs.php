@@ -106,8 +106,8 @@ $totalLines = $data['total_lines'] ?? 0;
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Timestamp</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tipo</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Email</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">__("Tipo")</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">__("Email")</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">IP</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Dettagli</th>
               </tr>

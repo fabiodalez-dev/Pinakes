@@ -86,7 +86,7 @@
             <input id="nome_sottogenere" name="nome" class="form-input" placeholder="es. Urban fantasy" required aria-required="true">
           </div>
           <div class="flex justify-end">
-            <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i>Salva</button>
+            <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i>__("Salva")</button>
           </div>
         </form>
       </div>

@@ -28,7 +28,7 @@ $title = "Modifica Editore: " . ($editore['nome'] ?? 'N/D');
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
-        <li class="text-gray-900 font-medium">Modifica</li>
+        <li class="text-gray-900 font-medium">__("Modifica")</li>
       </ol>
     </nav>
     <!-- Header -->
@@ -73,13 +73,13 @@ $title = "Modifica Editore: " . ($editore['nome'] ?? 'N/D');
               <input id="email" name="email" value="<?php echo App\Support\HtmlHelper::e($editore['email'] ?? ''); ?>" type="email" class="form-input" placeholder="info@editore.com" />
             </div>
             <div>
-              <label for="telefono" class="form-label">Telefono</label>
+              <label for="telefono" class="form-label">__("Telefono")</label>
               <input id="telefono" name="telefono" value="<?php echo App\Support\HtmlHelper::e($editore['telefono'] ?? ''); ?>" type="tel" class="form-input" placeholder="+39 02 1234567" />
             </div>
           </div>
 
           <div>
-            <label for="indirizzo" class="form-label">Indirizzo</label>
+            <label for="indirizzo" class="form-label">__("Indirizzo")</label>
             <textarea id="indirizzo" name="indirizzo" rows="3" class="form-input" placeholder="Via Roma 123, 00100 Roma RM, Italia"><?php echo App\Support\HtmlHelper::e($editore['indirizzo'] ?? ''); ?></textarea>
           </div>
         </div>

@@ -180,7 +180,7 @@ $autori = $data['autori'];
                     <th style="width:20%">Pseudonimo</th>
                     <th style="width:15%" class="text-center">Nazionalità</th>
                     <th style="width:15%" class="text-center">Numero Libri</th>
-                    <th style="width:15%" class="text-center">Azioni</th>
+                    <th style="width:15%" class="text-center">__("Azioni")</th>
                   </tr>
                 </thead>
               </table>

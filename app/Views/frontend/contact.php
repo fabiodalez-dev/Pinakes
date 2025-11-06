@@ -406,7 +406,7 @@ ob_start();
                             <i class="fas fa-envelope"></i>
                         </div>
                         <div class="contact-info-content">
-                            <h3>Email</h3>
+                            <h3>__("Email")</h3>
                             <p><a href="mailto:<?= htmlspecialchars($contactEmail) ?>"><?= htmlspecialchars($contactEmail) ?></a></p>
                         </div>
                     </div>
@@ -418,7 +418,7 @@ ob_start();
                             <i class="fas fa-phone"></i>
                         </div>
                         <div class="contact-info-content">
-                            <h3>Telefono</h3>
+                            <h3>__("Telefono")</h3>
                             <p><a href="tel:<?= htmlspecialchars($contactPhone) ?>"><?= htmlspecialchars($contactPhone) ?></a></p>
                         </div>
                     </div>
@@ -462,7 +462,7 @@ ob_start();
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="nome" class="form-label">Nome<span class="required">*</span></label>
+                            <label for="nome" class="form-label">__("Nome")<span class="required">*</span></label>
                             <input type="text" id="nome" name="nome" class="form-input" required aria-required="true" aria-describedby="nome-error">
                             <span id="nome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
                         </div>
@@ -474,18 +474,18 @@ ob_start();
                     </div>
 
                     <div class="form-group">
-                        <label for="email" class="form-label">Email<span class="required">*</span></label>
+                        <label for="email" class="form-label">__("Email")<span class="required">*</span></label>
                         <input type="email" id="email" name="email" class="form-input" required aria-required="true" aria-describedby="email-error">
                         <span id="email-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
                     </div>
 
                     <div class="form-group">
-                        <label for="telefono" class="form-label">Telefono</label>
+                        <label for="telefono" class="form-label">__("Telefono")</label>
                         <input type="tel" id="telefono" name="telefono" class="form-input">
                     </div>
 
                     <div class="form-group">
-                        <label for="indirizzo" class="form-label">Indirizzo</label>
+                        <label for="indirizzo" class="form-label">__("Indirizzo")</label>
                         <input type="text" id="indirizzo" name="indirizzo" class="form-input">
                     </div>
 

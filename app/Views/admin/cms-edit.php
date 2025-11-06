@@ -44,7 +44,7 @@
             class="form-input w-full text-lg"
             value="<?= htmlspecialchars($pageData['title']) ?>"
             required
-            placeholder="Inserisci il titolo della pagina">
+            placeholder="<?= __("Inserisci $1") ?>">
         </div>
       </div>
 

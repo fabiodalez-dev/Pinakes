@@ -140,7 +140,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
         <dd class="text-sm text-gray-900 mt-1"><?= $display($name); ?></dd>
       </div>
       <div>
-        <dt class="text-sm text-gray-500">Email</dt>
+        <dt class="text-sm text-gray-500">__("Email")</dt>
         <dd class="text-sm text-gray-900 mt-1">
           <?php if ($email !== ''): ?>
             <a href="mailto:<?= HtmlHelper::e($email); ?>" class="text-blue-600 hover:underline"><?= HtmlHelper::e($email); ?></a>
@@ -150,7 +150,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
         </dd>
       </div>
       <div>
-        <dt class="text-sm text-gray-500">Telefono</dt>
+        <dt class="text-sm text-gray-500">__("Telefono")</dt>
         <dd class="text-sm text-gray-900 mt-1"><?= $display($telefono); ?></dd>
       </div>
       <div>
@@ -168,7 +168,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
         <dd class="text-sm text-gray-900 mt-1 font-mono"><?= $display($cod_fiscale); ?></dd>
       </div>
       <div>
-        <dt class="text-sm text-gray-500">Indirizzo</dt>
+        <dt class="text-sm text-gray-500">__("Indirizzo")</dt>
         <dd class="text-sm text-gray-900 mt-1"><?= $display($indirizzo); ?></dd>
       </div>
     </dl>
@@ -178,7 +178,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
     <h2 class="text-lg font-medium text-gray-900">Dati Account</h2>
     <dl class="mt-4 grid gap-4 sm:grid-cols-2">
       <div>
-        <dt class="text-sm text-gray-500">Stato</dt>
+        <dt class="text-sm text-gray-500">__("Stato")</dt>
         <dd class="mt-1 text-sm text-gray-900"><?= HtmlHelper::e($statusLabels[$stato] ?? ucfirst($stato)); ?></dd>
       </div>
       <div>
@@ -264,8 +264,8 @@ $display = static function (?string $value, string $placeholder = '—'): string
                 <tr>
                     <th scope="col" class="px-6 py-3 text-left font-medium">Libro</th>
                     <th scope="col" class="px-6 py-3 text-left font-medium">Date Prestito</th>
-                    <th scope="col" class="px-6 py-3 text-center font-medium">Stato</th>
-                    <th scope="col" class="px-6 py-3 text-right font-medium">Azioni</th>
+                    <th scope="col" class="px-6 py-3 text-center font-medium">__("Stato")</th>
+                    <th scope="col" class="px-6 py-3 text-right font-medium">__("Azioni")</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">

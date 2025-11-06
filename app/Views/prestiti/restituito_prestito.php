@@ -181,7 +181,7 @@ $csrfToken = Csrf::ensureToken();
             </button>
             <a href="/admin/prestiti" class="inline-flex items-center justify-center gap-3 rounded-lg border-2 border-gray-300 px-8 py-3.5 text-base font-bold text-gray-700 transition hover:bg-gray-100">
                 <i class="fas fa-times text-lg"></i>
-                <span class="whitespace-nowrap">Annulla</span>
+                <span class="whitespace-nowrap">__("Annulla")</span>
             </a>
         </div>
     </form>

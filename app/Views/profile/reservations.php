@@ -682,7 +682,7 @@
       </div>
 
       <div style="display: flex; gap: 1rem;">
-        <button type="button" onclick="closeReviewModal()" style="flex: 1; padding: 0.75rem; background: #e5e7eb; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Annulla</button>
+        <button type="button" onclick="closeReviewModal()" style="flex: 1; padding: 0.75rem; background: #e5e7eb; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">__("Annulla")</button>
         <button type="submit" style="flex: 1; padding: 0.75rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Invia recensione</button>
       </div>
     </form>

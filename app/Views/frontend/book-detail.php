@@ -1717,7 +1717,7 @@ ob_start();
                         <?php endif; ?>
 
                         <div class="meta-item">
-                            <div class="meta-label">Stato</div>
+                            <div class="meta-label">__("Stato")</div>
                             <div class="meta-value">
                                 <span class="badge <?= ($book['copie_disponibili'] > 0) ? 'bg-success' : 'bg-danger' ?>">
                                     <?= ($book['copie_disponibili'] > 0) ? 'Disponibile' : 'Non Disponibile' ?>

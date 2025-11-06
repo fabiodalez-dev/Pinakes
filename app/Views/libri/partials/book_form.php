@@ -183,7 +183,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <label for="stato" class="form-label">Disponibilità</label>
             <?php $statoCorrente = $book['stato'] ?? ''; ?>
             <select id="stato" name="stato" class="form-input">
-              <option value="Disponibile" <?php echo strcasecmp($statoCorrente, 'Disponibile') === 0 ? 'selected' : ''; ?>>Disponibile</option>
+              <option value="Disponibile" <?php echo strcasecmp($statoCorrente, 'Disponibile') === 0 ? 'selected' : ''; ?>>__("Disponibile")</option>
               <option value="Non Disponibile" <?php echo strcasecmp($statoCorrente, 'Non Disponibile') === 0 ? 'selected' : ''; ?>>Non Disponibile</option>
               <option value="Prestato" <?php echo strcasecmp($statoCorrente, 'Prestato') === 0 ? 'selected' : ''; ?>>Prestato</option>
               <option value="Riservato" <?php echo strcasecmp($statoCorrente, 'Riservato') === 0 ? 'selected' : ''; ?>>Riservato</option>
@@ -198,7 +198,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <!-- Description -->
           <div>
-            <label for="descrizione" class="form-label">Descrizione</label>
+            <label for="descrizione" class="form-label">__("Descrizione")</label>
             <textarea id="descrizione" name="descrizione" rows="4" class="form-input" placeholder="Descrizione del libro..."><?php echo HtmlHelper::e($book['descrizione'] ?? ''); ?></textarea>
           </div>
         </div>

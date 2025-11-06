@@ -122,7 +122,7 @@ function formatLoanStatus($status) {
 
     <?php if (!empty($prestito['note'])): ?>
       <div class="mt-6 pt-4 border-t">
-        <h3 class="text-lg font-semibold mb-2">Note</h3>
+        <h3 class="text-lg font-semibold mb-2">__("Note")</h3>
         <p class="text-gray-700 prose max-w-none"><?= nl2br(App\Support\HtmlHelper::e($prestito['note'])); ?></p>
       </div>
     <?php endif; ?>

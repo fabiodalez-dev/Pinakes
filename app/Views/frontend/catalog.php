@@ -1277,7 +1277,7 @@ ob_start();
                                     <i class="fas fa-clock"></i>
                                 </div>
                                 <div class="availability-text">
-                                    <div class="availability-title">In prestito</div>
+                                    <div class="availability-title">__("In prestito")</div>
                                     <div class="availability-desc">Attualmente prestati</div>
                                 </div>
                                 <div class="availability-count" id="borrowed-books-count">

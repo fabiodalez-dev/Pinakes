@@ -202,8 +202,8 @@ function getStatusBadge($status) {
                         <th scope="col" class="px-6 py-3 text-left font-medium">Libro</th>
                         <th scope="col" class="px-6 py-3 text-left font-medium">Utente</th>
                         <th scope="col" class="px-6 py-3 text-left font-medium">Date</th>
-                        <th scope="col" class="px-6 py-3 text-center font-medium">Stato</th>
-                        <th scope="col" class="px-6 py-3 text-right font-medium">Azioni</th>
+                        <th scope="col" class="px-6 py-3 text-center font-medium">__("Stato")</th>
+                        <th scope="col" class="px-6 py-3 text-right font-medium">__("Azioni")</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-200">

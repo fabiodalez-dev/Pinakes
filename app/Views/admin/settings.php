@@ -246,7 +246,7 @@ php cron/automatic-notifications.php
               <input name="cookie_essential_name" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_essential_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div>
-              <label class="form-label">Descrizione</label>
+              <label class="form-label">__("Descrizione")</label>
               <textarea name="cookie_essential_description" class="form-input" rows="2"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_essential_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
           </div>
@@ -266,7 +266,7 @@ php cron/automatic-notifications.php
               <input name="cookie_analytics_name" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_analytics_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div>
-              <label class="form-label">Descrizione</label>
+              <label class="form-label">__("Descrizione")</label>
               <textarea name="cookie_analytics_description" class="form-input" rows="2"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_analytics_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
             <div class="bg-blue-50 p-4 rounded border border-blue-200">
@@ -296,7 +296,7 @@ php cron/automatic-notifications.php
               <input name="cookie_marketing_name" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_marketing_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div>
-              <label class="form-label">Descrizione</label>
+              <label class="form-label">__("Descrizione")</label>
               <textarea name="cookie_marketing_description" class="form-input" rows="2"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_marketing_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
           </div>
@@ -356,7 +356,7 @@ php cron/automatic-notifications.php
 
               <div class="flex gap-2">
                 <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i>Salva Template</button>
-                <button type="button" onclick="closeTemplateEditor()" class="btn-secondary"><i class="fas fa-times mr-2"></i>Annulla</button>
+                <button type="button" onclick="closeTemplateEditor()" class="btn-secondary"><i class="fas fa-times mr-2"></i>__("Annulla")</button>
               </div>
             </form>
           </div>
