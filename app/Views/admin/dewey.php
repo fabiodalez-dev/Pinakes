@@ -5,41 +5,41 @@
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <span><i class="fas fa-tags mr-1"></i>Dewey</span>
+          <span><i class="fas fa-tags mr-1"></i><?= __("Dewey") ?></span>
         </li>
       </ol>
     </nav>
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
         <i class="fas fa-tags text-blue-600"></i>
-        Admin Dewey
+        <?= __("Admin Dewey") ?>
       </h1>
-      <p class="text-gray-600">Gestione classificazione Dewey: seed e statistiche</p>
+      <p class="text-gray-600"><?= __("Gestione classificazione Dewey: seed e statistiche") ?></p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6" id="dewey-stats">
       <div class="card">
         <div class="card-body">
-          <div class="text-sm text-gray-500">Livello 1 (Classi)</div>
+          <div class="text-sm text-gray-500"><?= __("Livello 1 (Classi)") ?></div>
           <div class="text-2xl font-bold" id="stat-l1">-</div>
         </div>
       </div>
       <div class="card">
         <div class="card-body">
-          <div class="text-sm text-gray-500">Livello 2 (Divisioni)</div>
+          <div class="text-sm text-gray-500"><?= __("Livello 2 (Divisioni)") ?></div>
           <div class="text-2xl font-bold" id="stat-l2">-</div>
         </div>
       </div>
       <div class="card">
         <div class="card-body">
-          <div class="text-sm text-gray-500">Livello 3 (Specifiche)</div>
+          <div class="text-sm text-gray-500"><?= __("Livello 3 (Specifiche)") ?></div>
           <div class="text-2xl font-bold" id="stat-l3">-</div>
         </div>
       </div>
@@ -47,18 +47,18 @@
 
     <div class="card mb-6">
       <div class="card-header flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900">Operazioni</h2>
+        <h2 class="text-lg font-semibold text-gray-900"><?= __("Operazioni") ?></h2>
         <button id="btn-reseed" class="btn-primary">
-          <i class="fas fa-sync mr-2"></i>Ricarica Dewey (seed)
+          <i class="fas fa-sync mr-2"></i><?= __("Ricarica Dewey (seed)") ?>
         </button>
       </div>
       <div class="card-body">
-        <div id="reseed-result" class="text-sm text-gray-600">Premi il pulsante per ricaricare tutti i livelli (L1/L2/L3).</div>
+        <div id="reseed-result" class="text-sm text-gray-600"><?= __("Premi il pulsante per ricaricare tutti i livelli (L1/L2/L3).") ?></div>
       </div>
     </div>
 
     <div class="text-xs text-gray-500">
-      Nota: in produzione limita questa funzione agli amministratori.
+      <?= __("Nota: in produzione limita questa funzione agli amministratori.") ?>
     </div>
   </div>
 </div>
@@ -81,16 +81,16 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   btn.addEventListener('click', async ()=>{
-    btn.disabled = true; const prev = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Working...';
+    btn.disabled = true; const prev = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= addslashes(__("Working...")) ?>';
     try {
       const res = await fetch('/api/dewey/reseed', { method: 'POST' }).then(r=>r.json());
       if (res && res.ok) {
-        out.textContent = `Seed completato. L1=${res.counts.l1 || 0}, L2=${res.counts.l2 || 0}, L3=${res.counts.l3 || 0}`;
+        out.textContent = `<?= addslashes(__("Seed completato.")) ?> L1=${res.counts.l1 || 0}, L2=${res.counts.l2 || 0}, L3=${res.counts.l3 || 0}`;
         await loadCounts();
       } else {
-        out.textContent = 'Errore durante il seed';
+        out.textContent = '<?= addslashes(__("Errore durante il seed")) ?>';
       }
-    } catch(e){ out.textContent = 'Errore durante il seed'; console.error('reseed', e); }
+    } catch(e){ out.textContent = '<?= addslashes(__("Errore durante il seed")) ?>'; console.error('reseed', e); }
     finally { btn.disabled=false; btn.innerHTML = prev; }
   });
 
