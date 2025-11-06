@@ -362,11 +362,11 @@
                 <table class="w-full text-sm" id="collocation-table">
                   <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
-                      <th>__("$1")</th>
-                      <th class="px-4 py-2 text-left font-semibold text-gray-700">__("Titolo")</th>
-                      <th>__("$1")</th>
-                      <th>__("$1")</th>
-                      <th class="px-4 py-2 text-center font-semibold text-gray-700">__("Azioni")</th>
+                      <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __('Collocazione') ?></th>
+                      <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __('Titolo') ?></th>
+                      <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __('Autori') ?></th>
+                      <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __('Editore') ?></th>
+                      <th class="px-4 py-2 text-center font-semibold text-gray-700"><?= __('Azioni') ?></th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100" id="collocation-tbody">
