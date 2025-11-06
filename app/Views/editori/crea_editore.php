@@ -14,22 +14,22 @@
         </li>
         <li>
           <a href="/admin/editori" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-building mr-1"></i>Editori
+            <i class="fas fa-building mr-1"></i><?= __("Editori") ?>
           </a>
         </li>
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
-        <li class="text-gray-900 font-medium">Nuovo</li>
+        <li class="text-gray-900 font-medium"><?= __("Nuovo") ?></li>
       </ol>
     </nav>
     <!-- Header -->
     <div class="mb-8 fade-in">
       <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
         <i class="fas fa-building text-blue-600"></i>
-        Aggiungi Nuovo Editore
+        <?= __("Aggiungi Nuovo Editore") ?>
       </h1>
-      <p class="text-gray-600">Compila i dettagli della casa editrice per aggiungerla alla biblioteca</p>
+      <p class="text-gray-600"><?= __("Compila i dettagli della casa editrice per aggiungerla alla biblioteca") ?></p>
     </div>
 
     <!-- Main Form -->
@@ -41,27 +41,27 @@
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-building text-primary"></i>
-            Informazioni Base
+            <?= __("Informazioni Base") ?>
           </h2>
         </div>
         <div class="card-body form-section">
           <div class="form-grid-2">
             <div>
               <label for="nome" class="form-label">
-                Nome Editore <span class="text-red-500">*</span>
+                <?= __("Nome Editore") ?> <span class="text-red-500">*</span>
               </label>
               <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= __('Nome della casa editrice') ?>" />
             </div>
             <div>
-              <label for="sito_web" class="form-label">Sito Web</label>
+              <label for="sito_web" class="form-label"><?= __("Sito Web") ?></label>
               <input id="sito_web" name="sito_web" type="url" class="form-input" placeholder="<?= __('https://www.editore.com') ?>" />
-              <p class="text-xs text-gray-500 mt-1">Sito web ufficiale dell'editore</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Sito web ufficiale dell'editore") ?></p>
             </div>
           </div>
 
           <div class="form-grid-2">
             <div>
-              <label for="email" class="form-label">Email Contatto</label>
+              <label for="email" class="form-label"><?= __("Email Contatto") ?></label>
               <input id="email" name="email" type="email" class="form-input" placeholder="<?= __('info@editore.com') ?>" />
             </div>
             <div>
@@ -82,30 +82,30 @@
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-user-tie text-primary"></i>
-            Referente
+            <?= __("Referente") ?>
           </h2>
         </div>
         <div class="card-body form-section">
           <div class="form-grid-3">
             <div>
-              <label for="referente_nome" class="form-label">Nome Referente</label>
+              <label for="referente_nome" class="form-label"><?= __("Nome Referente") ?></label>
               <input id="referente_nome" name="referente_nome" class="form-input" placeholder="<?= __('Nome e cognome del referente') ?>" />
-              <p class="text-xs text-gray-500 mt-1">Persona di riferimento presso l'editore</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Persona di riferimento presso l'editore") ?></p>
             </div>
             <div>
-              <label for="referente_telefono" class="form-label">Telefono Referente</label>
+              <label for="referente_telefono" class="form-label"><?= __("Telefono Referente") ?></label>
               <input id="referente_telefono" name="referente_telefono" type="tel" class="form-input" placeholder="<?= __('+39 02 1234567') ?>" />
             </div>
             <div>
-              <label for="referente_email" class="form-label">Email Referente</label>
+              <label for="referente_email" class="form-label"><?= __("Email Referente") ?></label>
               <input id="referente_email" name="referente_email" type="email" class="form-input" placeholder="<?= __('referente@editore.com') ?>" />
             </div>
           </div>
 
           <div>
-            <label for="codice_fiscale" class="form-label">Codice Fiscale</label>
+            <label for="codice_fiscale" class="form-label"><?= __("Codice Fiscale") ?></label>
             <input id="codice_fiscale" name="codice_fiscale" type="text" maxlength="16" class="form-input" placeholder="<?= __('es. RSSMRA80A01H501U') ?>" />
-            <p class="text-xs text-gray-500 mt-1">Codice fiscale dell'editore (opzionale)</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Codice fiscale dell'editore (opzionale)") ?></p>
           </div>
         </div>
       </div>
@@ -114,11 +114,11 @@
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
         <a href="/admin/editori" class="btn-secondary order-2 sm:order-1 text-center">
           <i class="fas fa-times mr-2"></i>
-          Annulla
+          <?= __("Annulla") ?>
         </a>
         <button type="submit" class="btn-primary order-1 sm:order-2">
           <i class="fas fa-save mr-2"></i>
-          Salva Editore
+          <?= __("Salva Editore") ?>
         </button>
       </div>
     </form>

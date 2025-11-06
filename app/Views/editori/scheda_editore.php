@@ -26,7 +26,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
         <li>
           <a href="/admin/editori" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-building mr-1"></i>Editori
+            <i class="fas fa-building mr-1"></i><?= __("Editori") ?>
           </a>
         </li>
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
@@ -40,7 +40,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
           <div>
             <div class="text-sm uppercase tracking-widest text-gray-900 mb-2 flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-              Profilo Editore
+              <?= __("Profilo Editore") ?>
             </div>
             <h1 class="text-3xl sm:text-4xl font-bold tracking-tight flex flex-wrap items-center gap-3">
               <?php echo $nomeEditore; ?>
@@ -58,28 +58,28 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             <a href="/admin/editori/modifica/<?php echo (int)($editore['id'] ?? 0); ?>"
                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-800 font-medium transition-colors">
               <i class="fas fa-pen"></i>
-              Modifica
+              <?= __("Modifica") ?>
             </a>
             <a href="/admin/libri/crea"
                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium transition-colors">
               <i class="fas fa-plus"></i>
-              Nuovo Libro
+              <?= __("Nuovo Libro") ?>
             </a>
             <?php if ($hasBooks): ?>
               <button type="button" disabled
                       class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-300 text-gray-400 cursor-not-allowed"
-                      title="Rimuovere i libri dell'editore prima di eliminarlo">
+                      title="<?= __("Rimuovere i libri dell'editore prima di eliminarlo") ?>">
                 <i class="fas fa-lock"></i>
-                Non eliminabile
+                <?= __("Non eliminabile") ?>
               </button>
             <?php else: ?>
               <form method="post" action="/admin/editori/delete/<?php echo (int)($editore['id'] ?? 0); ?>" class="inline-flex">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                 <button type="submit"
                         class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors"
-                        onclick="return confirm('Confermi l\'eliminazione dell\'editore?');">
+                        onclick="return confirm('<?= __("Confermi l\'eliminazione dell\'editore?") ?>');">
                   <i class="fas fa-trash"></i>
-                  Elimina
+                  <?= __("Elimina") ?>
                 </button>
               </form>
             <?php endif; ?>
@@ -114,7 +114,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-building text-gray-600"></i>
-            Informazioni generali
+            <?= __("Informazioni generali") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -125,7 +125,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             </div>
             <?php if ($sitoWeb): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Sito web</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Sito web") ?></dt>
                 <dd class="mt-1 text-gray-900 font-medium truncate">
                   <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-gray-600 hover:underline">
                     <?php echo HtmlHelper::e($sitoWeb); ?>
@@ -135,13 +135,13 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             <?php endif; ?>
             <?php if (!empty($editore['codice_fiscale'])): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Codice Fiscale</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Codice Fiscale") ?></dt>
                 <dd class="mt-1 text-gray-900 font-medium"><?php echo HtmlHelper::e($editore['codice_fiscale']); ?></dd>
               </div>
             <?php endif; ?>
             <?php if (!empty($editore['created_at'])): ?>
               <div>
-                <dt class="text-gray-500 uppercase tracking-wide text-xs">Aggiunto il</dt>
+                <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Aggiunto il") ?></dt>
                 <dd class="mt-1 text-gray-900 font-medium"><?php echo HtmlHelper::e($editore['created_at']); ?></dd>
               </div>
             <?php endif; ?>
@@ -154,7 +154,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-address-card text-gray-600"></i>
-            Contatti
+            <?= __("Contatti") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -195,7 +195,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-user-tie text-gray-600"></i>
-            Referente
+            <?= __("Referente") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -236,7 +236,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
           <div class="card-header">
             <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <i class="fas fa-user-edit text-gray-600"></i>
-              Autori pubblicati
+              <?= __("Autori pubblicati") ?>
             </h2>
           </div>
           <div class="card-body">
@@ -258,15 +258,15 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
           <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <i class="fas fa-book text-gray-600"></i>
-              Catalogo libri
+              <?= __("Catalogo libri") ?>
               <span class="bg-gray-200 text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full">
-                <?php echo $totalBooks; ?> titoli
+                <?php echo $totalBooks; ?> <?= __("titoli") ?>
               </span>
             </h2>
             <a href="/admin/libri/crea"
                class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-800">
               <i class="fas fa-plus"></i>
-              Aggiungi nuovo libro
+              <?= __("Aggiungi nuovo libro") ?>
             </a>
           </div>
         </div>
@@ -276,8 +276,8 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
               <div class="mx-auto mb-4 w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
                 <i class="fas fa-book text-gray-500 text-2xl"></i>
               </div>
-              <h3 class="text-lg font-semibold text-gray-900 mb-1">Nessun libro registrato</h3>
-              <p class="text-sm text-gray-500">Aggiungi un nuovo titolo per arricchire il catalogo di questo editore.</p>
+              <h3 class="text-lg font-semibold text-gray-900 mb-1"><?= __("Nessun libro registrato") ?></h3>
+              <p class="text-sm text-gray-500"><?= __("Aggiungi un nuovo titolo per arricchire il catalogo di questo editore.") ?></p>
             </div>
           <?php else: ?>
             <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -298,10 +298,10 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
                   <div class="p-5 space-y-3">
                     <div>
                       <h3 class="text-base font-semibold text-gray-900 line-clamp-2 group-hover:text-gray-600 transition-colors">
-                        <a href="/admin/libri/<?php echo (int)$libro['id']; ?>"><?php echo HtmlHelper::e($libro['titolo'] ?? 'Titolo non disponibile'); ?></a>
+                        <a href="/admin/libri/<?php echo (int)$libro['id']; ?>"><?php echo HtmlHelper::e($libro['titolo'] ?? __("Titolo non disponibile")); ?></a>
                       </h3>
                       <?php if (!empty($libro['editore_nome'])): ?>
-                        <p class="text-sm text-gray-500 mt-1">Editore: <?php echo HtmlHelper::e($libro['editore_nome']); ?></p>
+                        <p class="text-sm text-gray-500 mt-1"><?= __("Editore:") ?> <?php echo HtmlHelper::e($libro['editore_nome']); ?></p>
                       <?php endif; ?>
                     </div>
                     <div class="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">
@@ -311,11 +311,11 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
                     <div class="flex gap-2 pt-3">
                       <a href="/admin/libri/<?php echo (int)$libro['id']; ?>"
                          class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white text-sm font-medium py-2.5 hover:bg-gray-800 transition-colors">
-                        <i class="fas fa-eye"></i>Dettagli
+                        <i class="fas fa-eye"></i><?= __("Dettagli") ?>
                       </a>
                       <a href="/admin/libri/modifica/<?php echo (int)$libro['id']; ?>"
                          class="inline-flex items-center justify-center p-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-                         title="Modifica">
+                         title="<?= __("Modifica") ?>">
                         <i class="fas fa-edit"></i>
                       </a>
                     </div>
@@ -332,14 +332,14 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
           <div class="card-header">
             <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <i class="fas fa-globe text-gray-600"></i>
-              Risorse esterne
+              <?= __("Risorse esterne") ?>
             </h2>
           </div>
           <div class="card-body">
             <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-800 font-medium transition-colors">
               <i class="fas fa-external-link-alt"></i>
-              Visita il sito ufficiale
+              <?= __("Visita il sito ufficiale") ?>
             </a>
           </div>
         </div>

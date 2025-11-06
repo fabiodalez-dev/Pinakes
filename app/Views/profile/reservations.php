@@ -305,8 +305,8 @@
       <i class="fas fa-exclamation-triangle"></i>
     </div>
     <div class="alert-overdue-content">
-      <h3>Attenzione: <?php echo $overdueCount; ?> prestito<?php echo $overdueCount !== 1 ? 'i' : ''; ?> in ritardo</h3>
-      <p>Hai libri che dovevano essere restituiti. Restituiscili al più presto per evitare sanzioni.</p>
+      <h3><?= __('Attenzione:') ?> <?= __n('%d prestito in ritardo', '%d prestiti in ritardo', $overdueCount, $overdueCount) ?></h3>
+      <p><?= __('Hai libri che dovevano essere restituiti. Restituiscili al più presto per evitare sanzioni.') ?></p>
     </div>
   </div>
   <?php endif; ?>
@@ -319,7 +319,7 @@
     </div>
     <div class="section-title">
       <h2><?= __('Richieste in Sospeso') ?></h2>
-      <p><?php echo count($pendingRequests); ?> richiesta<?php echo count($pendingRequests) !== 1 ? 'e' : ''; ?> in sospeso</p>
+      <p><?= __n('%d richiesta in sospeso', '%d richieste in sospeso', count($pendingRequests), count($pendingRequests)) ?></p>
     </div>
   </div>
 
@@ -342,15 +342,15 @@
             <div class="item-badges">
               <div class="badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
                 <i class="fas fa-clock" style="color: #f59e0b;"></i>
-                <span>In attesa di approvazione</span>
+                <span><?= __('In attesa di approvazione') ?></span>
               </div>
               <div class="badge badge-date">
                 <i class="fas fa-calendar-plus"></i>
-                <span>Dal <?php echo date('d/m/Y', strtotime($p['data_prestito'])); ?> al <?php echo date('d/m/Y', strtotime($p['data_scadenza'])); ?></span>
+                <span><?= sprintf('%s %s %s %s', __('Dal'), date('d/m/Y', strtotime($p['data_prestito'])), __('al'), date('d/m/Y', strtotime($p['data_scadenza']))) ?></span>
               </div>
               <div class="badge badge-date" style="font-size: 0.75rem; color: #999;">
                 <i class="fas fa-history"></i>
-                <span>Richiesto il <?php echo date('d/m/Y H:i', strtotime($p['created_at'])); ?></span>
+                <span><?= sprintf('%s %s', __('Richiesto il'), date('d/m/Y H:i', strtotime($p['created_at']))) ?></span>
               </div>
             </div>
           </div>
