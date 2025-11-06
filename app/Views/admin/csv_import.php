@@ -1,5 +1,5 @@
 <?php
-$pageTitle = $title ?? 'Import Libri da CSV';
+$pageTitle = $title ?? __('Import Libri da CSV');
 ob_start();
 ?>
 
@@ -13,18 +13,18 @@ ob_start();
             <ol class="flex items-center space-x-2 text-sm">
                 <li>
                     <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-                        <i class="fas fa-home mr-1"></i>Home
+                        <i class="fas fa-home mr-1"></i><?= __("Home") ?>
                     </a>
                 </li>
                 <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
                 <li>
                     <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
-                        <i class="fas fa-book mr-1"></i>Libri
+                        <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
                     </a>
                 </li>
                 <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
                 <li class="text-gray-900 font-medium">
-                    <i class="fas fa-file-csv mr-1"></i>Import CSV
+                    <i class="fas fa-file-csv mr-1"></i><?= __("Import CSV") ?>
                 </li>
             </ol>
         </nav>
@@ -35,13 +35,13 @@ ob_start();
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900 flex items-center">
                         <i class="fas fa-file-csv text-gray-600 mr-3"></i>
-                        Import Massivo Libri
+                        <?= __("Import Massivo Libri") ?>
                     </h1>
-                    <p class="text-sm text-gray-600 mt-1">Carica un file CSV per importare più libri contemporaneamente</p>
+                    <p class="text-sm text-gray-600 mt-1"><?= __("Carica un file CSV per importare più libri contemporaneamente") ?></p>
                 </div>
                 <a href="/admin/libri" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center">
                     <i class="fas fa-arrow-left mr-2"></i>
-                    Torna ai Libri
+                    <?= __("Torna ai Libri") ?>
                 </a>
             </div>
         </div>
