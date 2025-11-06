@@ -240,13 +240,13 @@ $libri = $data['libri'];
               <table id="libri-table" class="display responsive nowrap" style="width:100%">
                 <thead>
                   <tr>
-                    <th style="width:40px">__("Stato")</th>
-                    <th>__("$1")</th>
-                    <th>__("$1")</th>
-                    <th>__("$1")</th>
-                    <th>__("$1")</th>
-                    <th>__("$1")</th>
-                    <th style="width:12%">__("Azioni")</th>
+                    <th style="width:40px"><?= __("Stato") ?></th>
+                    <th><?= __("Copertina") ?></th>
+                    <th><?= __("Informazioni") ?></th>
+                    <th><?= __("Genere") ?></th>
+                    <th><?= __("Posizione") ?></th>
+                    <th><?= __("Anno") ?></th>
+                    <th style="width:12%"><?= __("Azioni") ?></th>
                   </tr>
                 </thead>
               </table>
