@@ -1110,21 +1110,21 @@ if (!function_exists('assetUrl')) {
                     </a>
 
                     <ul class="nav-links d-none d-md-flex">
-                        <li><a href="<?= absoluteUrl('/catalogo') ?>" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>">Catalogo</a></li>
+                        <li><a href="<?= absoluteUrl('/catalogo') ?>" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a></li>
                     </ul>
 
                     <!-- Mobile Search Toggle -->
-                    <button class="mobile-search-toggle d-md-none" id="mobileSearchToggle" aria-label="Toggle search">
+                    <button class="mobile-search-toggle d-md-none" id="mobileSearchToggle" aria-label="<?= __('Toggle search') ?>">
                         <i class="fas fa-search"></i>
                     </button>
 
                     <!-- Mobile Menu Toggle -->
-                    <button class="mobile-menu-toggle d-md-none" id="mobileMenuToggle" aria-label="Toggle menu">
+                    <button class="mobile-menu-toggle d-md-none" id="mobileMenuToggle" aria-label="<?= __('Toggle menu') ?>">
                         <i class="fas fa-bars"></i>
                     </button>
 
                     <form class="search-form d-none d-md-block" action="<?= absoluteUrl('/catalogo') ?>" method="get">
-                        <input class="search-input" type="search" name="q" placeholder="Cerca libri, autori..." aria-label="Search">
+                        <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori...') ?>" aria-label="<?= __('Search') ?>">
                     </form>
 
                     <div class="user-menu d-none d-md-flex">
@@ -1134,17 +1134,17 @@ if (!function_exists('assetUrl')) {
                             <div class="d-flex align-items-center gap-2">
                                 <a class="btn btn-outline-header" href="<?= absoluteUrl('/prenotazioni') ?>">
                                     <i class="fas fa-bookmark"></i>
-                                    <span class="d-none d-sm-inline">Prenotazioni</span>
+                                    <span class="d-none d-sm-inline"><?= __('Prenotazioni') ?></span>
                                     <span id="nav-res-count" class="badge-notification d-none">0</span>
                                 </a>
                                 <a class="btn btn-outline-header" href="<?= absoluteUrl('/wishlist') ?>">
                                     <i class="fas fa-heart"></i>
-                                    <span class="d-none d-sm-inline">Preferiti</span>
+                                    <span class="d-none d-sm-inline"><?= __('Preferiti') ?></span>
                                 </a>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                                 <a class="btn btn-primary-header" href="<?= absoluteUrl('/admin/dashboard') ?>">
                                     <i class="fas fa-user-shield"></i>
-                                    <span class="d-none d-md-inline">Admin</span>
+                                    <span class="d-none d-md-inline"><?= __('Admin') ?></span>
                                 </a>
                                 <?php else: ?>
                                 <a class="btn btn-primary-header" href="<?= absoluteUrl('/profilo') ?>">
@@ -1157,11 +1157,11 @@ if (!function_exists('assetUrl')) {
                             <div class="d-flex align-items-center gap-2">
                                 <a class="btn btn-outline-header" href="<?= absoluteUrl('/login') ?>">
                                     <i class="fas fa-sign-in-alt"></i>
-                                    <span class="d-none d-sm-inline">Accedi</span>
+                                    <span class="d-none d-sm-inline"><?= __('Accedi') ?></span>
                                 </a>
                                 <a class="btn btn-primary-header" href="<?= absoluteUrl('/register') ?>">
                                     <i class="fas fa-user-plus"></i>
-                                    <span class="d-none d-sm-inline">Registrati</span>
+                                    <span class="d-none d-sm-inline"><?= __('Registrati') ?></span>
                                 </a>
                             </div>
                         <?php endif; ?>
@@ -1170,7 +1170,7 @@ if (!function_exists('assetUrl')) {
                     <!-- Mobile search container with animation -->
                     <div class="mobile-search-container d-md-none" id="mobileSearchContainer">
                         <form class="search-form w-100" action="<?= absoluteUrl('/catalogo') ?>" method="get">
-                            <input class="search-input" type="search" name="q" placeholder="Cerca libri..." aria-label="Search">
+                            <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>" aria-label="<?= __('Search') ?>">
                         </form>
                     </div>
                 </div>
@@ -1182,7 +1182,7 @@ if (!function_exists('assetUrl')) {
             <div class="mobile-menu-content">
                 <div class="mobile-menu-header">
                     <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
-                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">
+                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= __('Close menu') ?>">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
