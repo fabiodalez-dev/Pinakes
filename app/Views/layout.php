@@ -84,7 +84,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-tachometer-alt text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Dashboard</div>
+                <div class="font-medium"><?= __("Dashboard") ?></div>
                 <div class="text-xs text-gray-500">Panoramica generale</div>
               </div>
             </a>
@@ -94,7 +94,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-book text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Libri</div>
+                <div class="font-medium"><?= __("Libri") ?></div>
                 <div class="text-xs text-gray-500">Gestione collezione</div>
               </div>
             </a>
@@ -134,7 +134,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-handshake text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Prestiti</div>
+                <div class="font-medium"><?= __("Prestiti") ?></div>
                 <div class="text-xs text-gray-500">Gestione prestiti</div>
               </div>
             </a>
@@ -154,7 +154,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-users text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Utenti</div>
+                <div class="font-medium"><?= __("Utenti") ?></div>
                 <div class="text-xs text-gray-500">Gestione utenti</div>
               </div>
             </a>
@@ -221,7 +221,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <i class="fas fa-clock text-sm text-gray-600"></i>
                 </div>
                 <div class="ml-3">
-                  <div class="font-medium text-sm">Approva Prestiti</div>
+                  <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
                   <div class="text-xs text-gray-500">Richieste pendenti</div>
                 </div>
               </a>
@@ -244,11 +244,11 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             <div class="grid grid-cols-2 gap-3 mt-3">
               <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
                 <div class="text-2xl font-bold text-gray-900" id="stats-books">-</div>
-                <div class="text-xs text-gray-600 font-medium">Libri</div>
+                <div class="text-xs text-gray-600 font-medium"><?= __("Libri") ?></div>
               </div>
               <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
                 <div class="text-2xl font-bold text-gray-900" id="stats-loans">-</div>
-                <div class="text-xs text-gray-600 font-medium">Prestiti</div>
+                <div class="text-xs text-gray-600 font-medium"><?= __("Prestiti") ?></div>
               </div>
             </div>
           </div>
@@ -265,7 +265,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
               <div class="text-sm font-medium text-gray-900">Admin</div>
               <div class="text-xs text-gray-500">Sistema attivo</div>
             </div>
-            <a href="/admin/settings" class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="Impostazioni">
+            <a href="/admin/settings" class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="<?= __('Impostazioni') ?>">
               <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
             </a>
           </div>
@@ -337,11 +337,11 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <div class="hidden xl:flex items-center gap-4 mr-4">
                   <div class="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200">
                     <div class="text-sm font-bold text-gray-900" id="header-books-count">-</div>
-                    <div class="text-xs text-gray-600">Libri</div>
+                    <div class="text-xs text-gray-600"><?= __("Libri") ?></div>
                   </div>
                   <div class="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200">
                     <div class="text-sm font-bold text-gray-900" id="header-loans-count">-</div>
-                    <div class="text-xs text-gray-600">Prestiti</div>
+                    <div class="text-xs text-gray-600"><?= __("Prestiti") ?></div>
                   </div>
                 </div>
 
@@ -375,7 +375,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 </div>
 
                 <!-- Settings Button -->
-                <a href="/admin/settings" class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="Impostazioni">
+                <a href="/admin/settings" class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="<?= __('Impostazioni') ?>">
                   <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
                 </a>
 
@@ -405,7 +405,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                         </a>
                         <a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
                           <i class="fas fa-cog w-4 h-4"></i>
-                          <span class="text-sm">Impostazioni</span>
+                          <span class="text-sm"><?= __("Impostazioni") ?></span>
                         </a>
                         <?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
                         <a href="/admin/security-logs" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
