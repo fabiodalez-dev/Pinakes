@@ -13,17 +13,16 @@
       </li>
       <li>
         <a href="/admin/prestiti" class="text-gray-500 hover:text-gray-700 transition-colors">
-          <i class="fas fa-handshake mr-1"></i>Prestiti
-        </a>
+          <i class="fas fa-handshake mr-1"></i><?= __("Prestiti") ?></a>
       </li>
       <li>
         <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
       </li>
-      <li class="text-gray-900 font-medium">Nuovo</li>
+      <li class="text-gray-900 font-medium"><?= __("Nuovo") ?></li>
     </ol>
   </nav>
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">Crea Nuovo Prestito</h1>
+    <h1 class="text-2xl font-bold"><?= __("Crea Nuovo Prestito") ?></h1>
   </div>
 
   <!-- Visualizzazione eventuale messaggio d'errore -->
@@ -48,9 +47,7 @@
   <?php endif; ?>
 
   <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
-    <div class="mb-4 p-4 bg-green-100 text-green-800 rounded">
-      Prestito creato con successo.
-    </div>
+    <div class="mb-4 p-4 bg-green-100 text-green-800 rounded"><?= __("Prestito creato con successo.") ?></div>
   <?php endif; ?>
 
   <form method="post" action="/admin/prestiti/crea" class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
@@ -88,15 +85,14 @@
 
     <!-- Note sul prestito -->
     <div>
-      <label for="note" class="block text-gray-700 dark:text-gray-300 font-medium">Note (opzionali)</label>
+      <label for="note" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Note (opzionali)") ?></label>
       <textarea id="note" name="note" rows="4" placeholder="<?= __('Aggiungi eventuali note sul prestito') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"></textarea>
     </div>
 
     <!-- Pulsanti -->
     <div class="flex items-center gap-4">
       <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
-        <i class="fas fa-save mr-2"></i>Crea Prestito
-      </button>
+        <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
       <a href="/admin/prestiti" class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-times mr-2"></i>Annulla
       </a>

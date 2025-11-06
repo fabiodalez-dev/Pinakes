@@ -334,7 +334,7 @@
         <div class="item-inner">
           <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                 alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? 'Libro') . ' - Copertina'); ?>"
+                 alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? __('Libro')) . ' - ' . __('Copertina')); ?>"
                  onerror="this.src='/uploads/copertine/placeholder.jpg'">
           </a>
           <div class="item-info">
@@ -369,7 +369,7 @@
     </div>
     <div class="section-title">
       <h2><?= __('Prestiti in Corso') ?></h2>
-      <p><?php echo count($activePrestiti); ?> prestito<?php echo count($activePrestiti) !== 1 ? 'i' : ''; ?> attivo<?php echo count($activePrestiti) !== 1 ? 'i' : ''; ?></p>
+      <p><?= __n('%d prestito attivo', '%d prestiti attivi', count($activePrestiti), count($activePrestiti)) ?></p>
     </div>
   </div>
 
@@ -377,7 +377,7 @@
     <div class="empty-state">
       <i class="fas fa-book-open empty-state-icon"></i>
       <h3><?= __('Nessun prestito in corso') ?></h3>
-      <p>Non hai libri in prestito al momento</p>
+      <p><?= __('Non hai libri in prestito al momento') ?></p>
     </div>
   <?php else: ?>
     <div class="items-grid">
@@ -395,7 +395,7 @@
           <div class="item-inner">
             <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="Copertina"
+                   alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -403,22 +403,22 @@
               <div class="item-badges">
                 <div class="badge <?php echo $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar"></i>
-                  <span><?php echo $isOverdue ? 'In ritardo' : 'Scadenza'; ?>: <?php echo date('d/m/Y', strtotime($scadenza)); ?></span>
+                  <span><?= sprintf('%s: %s', $isOverdue ? __('In ritardo') : __('Scadenza'), date('d/m/Y', strtotime($scadenza))) ?></span>
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-clock"></i>
-                  <span>Dal <?php echo date('d/m/Y', strtotime($p['data_prestito'])); ?></span>
+                  <span><?= sprintf('%s %s', __('Dal'), date('d/m/Y', strtotime($p['data_prestito']))) ?></span>
                 </div>
               </div>
               <?php if ($hasReview): ?>
               <button class="btn-review" disabled>
                 <i class="fas fa-star"></i>
-                <span>Già recensito</span>
+                <span><?= __('Già recensito') ?></span>
               </button>
               <?php else: ?>
               <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, '<?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?>')">
                 <i class="fas fa-star"></i>
-                <span>Lascia una recensione</span>
+                <span><?= __('Lascia una recensione') ?></span>
               </button>
               <?php endif; ?>
             </div>
@@ -437,7 +437,7 @@
     </div>
     <div class="section-title">
       <h2><?= __('Prenotazioni Attive') ?></h2>
-      <p><?php echo count($items); ?> prenotazione<?php echo count($items) !== 1 ? 'i' : ''; ?> attiva<?php echo count($items) !== 1 ? 'e' : ''; ?></p>
+      <p><?= __n('%d prenotazione attiva', '%d prenotazioni attive', count($items), count($items)) ?></p>
     </div>
   </div>
 
@@ -445,7 +445,7 @@
     <div class="empty-state">
       <i class="fas fa-calendar-times empty-state-icon"></i>
       <h3><?= __('Nessuna prenotazione attiva') ?></h3>
-      <p>Non hai prenotazioni attive al momento</p>
+      <p><?= __('Non hai prenotazioni attive al momento') ?></p>
     </div>
   <?php else: ?>
     <div class="items-grid">
@@ -459,7 +459,7 @@
           <div class="item-inner">
             <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="Copertina"
+                   alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -467,11 +467,11 @@
               <div class="item-badges">
                 <div class="badge badge-position">
                   <i class="fas fa-sort-numeric-up"></i>
-                  <span>Posizione: <?php echo (int)($p['queue_position'] ?? 0); ?></span>
+                  <span><?= sprintf('%s: %d', __('Posizione'), (int)($p['queue_position'] ?? 0)) ?></span>
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-calendar"></i>
-                  <span><?php echo !empty($p['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($p['data_scadenza_prenotazione'])) : 'Non specificata'; ?></span>
+                  <span><?= !empty($p['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($p['data_scadenza_prenotazione'])) : __('Non specificata') ?></span>
                 </div>
               </div>
               <form method="post" action="/reservation/cancel" onsubmit="return confirm(__('Annullare questa prenotazione?'))">
@@ -479,7 +479,7 @@
                 <input type="hidden" name="reservation_id" value="<?php echo (int)$p['id']; ?>">
                 <button type="submit" class="btn-cancel">
                   <i class="fas fa-trash"></i>
-                  <span>Annulla prenotazione</span>
+                  <span><?= __('Annulla prenotazione') ?></span>
                 </button>
               </form>
             </div>
@@ -498,7 +498,7 @@
     </div>
     <div class="section-title">
       <h2><?= __('Storico Prestiti') ?></h2>
-      <p><?php echo count($pastPrestiti); ?> prestito<?php echo count($pastPrestiti) !== 1 ? 'i' : ''; ?> passat<?php echo count($pastPrestiti) !== 1 ? 'i' : 'o'; ?></p>
+      <p><?= __n('%d prestito passato', '%d prestiti passati', count($pastPrestiti), count($pastPrestiti)) ?></p>
     </div>
   </div>
 
@@ -506,7 +506,7 @@
     <div class="empty-state">
       <i class="fas fa-archive empty-state-icon"></i>
       <h3><?= __('Nessuno storico') ?></h3>
-      <p>Non hai prestiti passati</p>
+      <p><?= __('Non hai prestiti passati') ?></p>
     </div>
   <?php else: ?>
     <div class="items-grid">
@@ -517,12 +517,12 @@
         if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
 
         $statusLabels = [
-          'restituito' => 'Restituito',
-          'in_ritardo' => 'Restituito in ritardo',
-          'perso' => 'Perso',
-          'danneggiato' => 'Danneggiato',
-          'prestato' => 'Prestato',
-          'in_corso' => 'In corso'
+          'restituito' => __('Restituito'),
+          'in_ritardo' => __('Restituito in ritardo'),
+          'perso' => __('Perso'),
+          'danneggiato' => __('Danneggiato'),
+          'prestato' => __('Prestato'),
+          'in_corso' => __('In corso')
         ];
         $statusLabel = $statusLabels[$p['stato']] ?? ucfirst(str_replace('_', ' ', $p['stato']));
         $hasReview = !empty($p['has_review']);
@@ -531,7 +531,7 @@
           <div class="item-inner">
             <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="Copertina"
+                   alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -539,24 +539,24 @@
               <div class="item-badges">
                 <div class="badge badge-status">
                   <i class="fas fa-check-circle"></i>
-                  <span><?php echo $statusLabel; ?></span>
+                  <span><?= $statusLabel ?></span>
                 </div>
                 <?php if (!empty($p['data_restituzione'])): ?>
                 <div class="badge badge-date">
                   <i class="fas fa-calendar"></i>
-                  <span><?php echo date('d/m/Y', strtotime($p['data_restituzione'])); ?></span>
+                  <span><?= date('d/m/Y', strtotime($p['data_restituzione'])) ?></span>
                 </div>
                 <?php endif; ?>
               </div>
               <?php if ($hasReview): ?>
               <button class="btn-review" disabled>
                 <i class="fas fa-star"></i>
-                <span>Già recensito</span>
+                <span><?= __('Già recensito') ?></span>
               </button>
               <?php else: ?>
               <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, '<?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?>')">
                 <i class="fas fa-star"></i>
-                <span>Lascia una recensione</span>
+                <span><?= __('Lascia una recensione') ?></span>
               </button>
               <?php endif; ?>
             </div>
@@ -575,7 +575,8 @@
     </div>
     <div class="section-title">
       <h2><?= __('Le Mie Recensioni') ?></h2>
-      <p><?php echo isset($myReviews) ? count($myReviews) : 0; ?> recensione<?php echo (isset($myReviews) && count($myReviews) !== 1) ? 'i' : ''; ?></p>
+      <?php $reviewCount = isset($myReviews) ? count($myReviews) : 0; ?>
+      <p><?= __n('%d recensione', '%d recensioni', $reviewCount, $reviewCount) ?></p>
     </div>
   </div>
 
@@ -583,7 +584,7 @@
     <div class="empty-state">
       <i class="fas fa-star empty-state-icon"></i>
       <h3><?= __('Nessuna recensione') ?></h3>
-      <p>Non hai ancora lasciato recensioni</p>
+  <p><?= __('Non hai ancora lasciato recensioni') ?></p>
     </div>
   <?php else: ?>
     <div class="items-grid">
@@ -609,7 +610,7 @@
           <div class="item-inner">
             <a href="/libro/<?php echo (int)$r['libro_id']; ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="Copertina"
+                   alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -651,8 +652,8 @@
 <div id="reviewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
   <div style="background: white; border-radius: 16px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; padding: 2rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-      <h3 style="margin: 0; font-size: 1.5rem; font-weight: 700;">Lascia una recensione</h3>
-      <button onclick="closeReviewModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280;">&times;</button>
+      <h3 style="margin: 0; font-size: 1.5rem; font-weight: 700;"><?= __('Lascia una recensione') ?></h3>
+      <button onclick="closeReviewModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280;" aria-label="<?= __('Chiudi') ?>">&times;</button>
     </div>
     <div id="reviewBookTitle" style="font-size: 1.125rem; color: #6b7280; margin-bottom: 1.5rem;"></div>
     <form id="reviewForm">
@@ -660,30 +661,30 @@
       <input type="hidden" name="csrf_token" value="<?php echo Csrf::generateToken(); ?>">
 
       <div style="margin-bottom: 1.5rem;">
-        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Valutazione *</label>
+        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;"><?= __('Valutazione *') ?></label>
         <select id="review-stelle" name="stelle" required aria-required="true" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px;">
           <option value=""><?= __("Seleziona") ?></option>
-          <option value="5">★★★★★ - Eccellente</option>
-          <option value="4">★★★★☆ - Molto buono</option>
-          <option value="3">★★★☆☆ - Buono</option>
-          <option value="2">★★☆☆☆ - Mediocre</option>
-          <option value="1">★☆☆☆☆ - Scarso</option>
+          <option value="5">★★★★★ - <?= __('Eccellente') ?></option>
+          <option value="4">★★★★☆ - <?= __('Molto buono') ?></option>
+          <option value="3">★★★☆☆ - <?= __('Buono') ?></option>
+          <option value="2">★★☆☆☆ - <?= __('Mediocre') ?></option>
+          <option value="1">★☆☆☆☆ - <?= __('Scarso') ?></option>
         </select>
       </div>
 
       <div style="margin-bottom: 1.5rem;">
-        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Titolo (opzionale)</label>
+        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;"><?= __('Titolo (opzionale)') ?></label>
         <input type="text" id="review-titolo" name="titolo" maxlength="255" placeholder="<?= __('Es. Un libro fantastico!') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px;">
       </div>
 
       <div style="margin-bottom: 1.5rem;">
-        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Recensione (opzionale)</label>
+        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;"><?= __('Recensione (opzionale)') ?></label>
         <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" placeholder="<?= __('Cosa ne pensi di questo libro?') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px; resize: vertical;"></textarea>
       </div>
 
       <div style="display: flex; gap: 1rem;">
         <button type="button" onclick="closeReviewModal()" style="flex: 1; padding: 0.75rem; background: #e5e7eb; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;"><?= __('Annulla') ?></button>
-        <button type="submit" style="flex: 1; padding: 0.75rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Invia recensione</button>
+        <button type="submit" style="flex: 1; padding: 0.75rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;"><?= __('Invia recensione') ?></button>
       </div>
     </form>
   </div>
@@ -714,7 +715,7 @@ function openReviewModal(bookId, bookTitle) {
       },
       clearable: false,
       maxStars: 5,
-      tooltip: 'Seleziona la valutazione'
+      tooltip: '<?= addslashes(__('Seleziona la valutazione')) ?>'
     });
   }
 }
@@ -767,7 +768,7 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
       Swal.fire({
         icon: 'error',
         title: __('Errore'),
-        text: result.message || 'Impossibile inviare la recensione'
+        text: result.message || __('Impossibile inviare la recensione')
       });
     }
   } catch (error) {

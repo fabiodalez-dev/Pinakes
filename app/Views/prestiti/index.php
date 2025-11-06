@@ -56,9 +56,7 @@ function getStatusBadge($status) {
       </div>
       <div class="flex md:hidden mb-3">
         <a href="/admin/prestiti/crea" class="w-full btn-primary inline-flex items-center justify-center">
-          <i class="fas fa-plus mr-2"></i>
-          Nuovo Prestito
-        </a>
+          <i class="fas fa-plus mr-2"></i><?= __("Nuovo Prestito") ?></a>
       </div>
     </div>
 
@@ -328,11 +326,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     const baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
                     switch (data) {
                         case 'in_corso':
-                            return `<span class='${baseClasses} bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>In Corso</span>`;
+                            return `<span class='${baseClasses} bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i><?= __("In Corso") ?></span>`;
                         case 'in_ritardo':
-                            return `<span class='${baseClasses} bg-yellow-100 text-yellow-800'><i class='fas fa-exclamation-triangle mr-2'></i>In Ritardo</span>`;
+                            return `<span class='${baseClasses} bg-yellow-100 text-yellow-800'><i class='fas fa-exclamation-triangle mr-2'></i><?= __("In Ritardo") ?></span>`;
                         case 'restituito':
-                            return `<span class='${baseClasses} bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i>Restituito</span>`;
+                            return `<span class='${baseClasses} bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i><?= __("Restituito") ?></span>`;
                         case 'perso':
                         case 'danneggiato':
                             return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>${data.charAt(0).toUpperCase() + data.slice(1)}</span>`;

@@ -26,8 +26,7 @@ function formatLoanStatus($status) {
       </li>
       <li>
         <a href="/admin/prestiti" class="text-gray-500 hover:text-gray-700 transition-colors">
-          <i class="fas fa-handshake mr-1"></i>Prestiti
-        </a>
+          <i class="fas fa-handshake mr-1"></i><?= __("Prestiti") ?></a>
       </li>
       <li>
         <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
@@ -36,24 +35,24 @@ function formatLoanStatus($status) {
     </ol>
   </nav>
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">Dettagli del Prestito</h1>
+    <h1 class="text-2xl font-bold"><?= __("Dettagli del Prestito") ?></h1>
   </div>
 
   <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
       <div>
-        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">Informazioni Prestito</h3>
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2"><?= __("Informazioni Prestito") ?></h3>
         <div class="space-y-3">
           <div>
-            <span class="font-semibold text-gray-600">ID Prestito:</span>
+            <span class="font-semibold text-gray-600"><?= __("ID Prestito:") ?></span>
             <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['id']); ?></span>
           </div>
           <div>
-            <span class="font-semibold text-gray-600">Libro:</span>
+            <span class="font-semibold text-gray-600"><?= __("Libro:") ?></span>
             <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? 'Non disponibile'); ?></span>
           </div>
           <div>
-            <span class="font-semibold text-gray-600">Utente:</span>
+            <span class="font-semibold text-gray-600"><?= __("Utente:") ?></span>
             <span class="text-gray-800">
               <?= App\Support\HtmlHelper::e($prestito['utente_nome'] ?? 'Non disponibile'); ?>
               <?php if (!empty($prestito['utente_email'])): ?>
@@ -65,7 +64,7 @@ function formatLoanStatus($status) {
       </div>
 
       <div>
-        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">Date</h3>
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2"><?= __("Date") ?></h3>
         <div class="space-y-3">
           <div>
             <span class="font-semibold text-gray-600">Data Prestito:</span>
@@ -76,17 +75,17 @@ function formatLoanStatus($status) {
             <span class="text-gray-800"><?= date("d/m/Y", strtotime($prestito['data_scadenza'] ?? '')); ?></span>
           </div>
           <div>
-            <span class="font-semibold text-gray-600">Data Restituzione:</span>
+            <span class="font-semibold text-gray-600"><?= __("Data Restituzione:") ?></span>
             <span class="text-gray-800"><?= !empty($prestito['data_restituzione']) ? date("d/m/Y", strtotime($prestito['data_restituzione'])) : "Non ancora restituito"; ?></span>
           </div>
         </div>
       </div>
 
       <div>
-        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">Stato e Gestione</h3>
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2"><?= __("Stato e Gestione") ?></h3>
         <div class="space-y-3">
           <div>
-            <span class="font-semibold text-gray-600">Stato:</span>
+            <span class="font-semibold text-gray-600"><?= __("Stato:") ?></span>
             <span class="inline-block px-2 py-1 rounded text-sm <?php
               echo match($prestito['stato'] ?? '') {
                 'pendente' => 'bg-orange-100 text-orange-800',
@@ -99,21 +98,21 @@ function formatLoanStatus($status) {
             ?>"><?= formatLoanStatus(App\Support\HtmlHelper::e($prestito['stato'] ?? 'N/D')); ?></span>
           </div>
           <div>
-            <span class="font-semibold text-gray-600">Attivo:</span>
+            <span class="font-semibold text-gray-600"><?= __("Attivo:") ?></span>
             <span class="text-gray-800"><?= ((int)($prestito['attivo'] ?? 0)) ? 'Sì' : 'No'; ?></span>
           </div>
           <div>
-            <span class="font-semibold text-gray-600">Rinnovi Effettuati:</span>
+            <span class="font-semibold text-gray-600"><?= __("Rinnovi Effettuati:") ?></span>
             <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['renewals'] ?? '0'); ?></span>
           </div>
         </div>
       </div>
 
       <div>
-        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">Gestito da</h3>
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2"><?= __("Gestito da") ?></h3>
         <div class="space-y-3">
             <div>
-                <span class="font-semibold text-gray-600">Staff:</span>
+                <span class="font-semibold text-gray-600"><?= __("Staff:") ?></span>
                 <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['processed_by_name'] ?? 'N/D'); ?></span>
             </div>
         </div>
@@ -140,18 +139,14 @@ function formatLoanStatus($status) {
       <?php endif; ?>
       <?php if ((int)($prestito['attivo'] ?? 0) === 1 && ($prestito['stato'] ?? '') !== 'pendente'): ?>
         <a href="/admin/prestiti/restituito/<?= (int)$prestito['id']; ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
-            <i class="fas fa-undo-alt mr-2"></i>
-            Gestisci Restituzione
-        </a>
+            <i class="fas fa-undo-alt mr-2"></i><?= __("Gestisci Restituzione") ?></a>
         <a href="/admin/prestiti/modifica/<?= (int)$prestito['id']; ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-pencil-alt mr-2"></i>
             Modifica
         </a>
       <?php endif; ?>
       <a href="/admin/prestiti" class="px-4 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
-        <i class="fas fa-arrow-left mr-2"></i>
-        Torna ai Prestiti
-      </a>
+        <i class="fas fa-arrow-left mr-2"></i><?= __("Torna ai Prestiti") ?></a>
     </div>
   </div>
 </section>

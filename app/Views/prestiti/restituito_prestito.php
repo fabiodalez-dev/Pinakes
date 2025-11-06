@@ -16,18 +16,16 @@ $csrfToken = Csrf::ensureToken();
             <li><i class="fas fa-chevron-right text-xs"></i></li>
             <li>
                 <a href="/admin/prestiti" class="flex items-center gap-1 hover:text-white transition-colors">
-                    <i class="fas fa-handshake"></i>
-                    Prestiti
-                </a>
+                    <i class="fas fa-handshake"></i><?= __("Prestiti") ?></a>
             </li>
             <li><i class="fas fa-chevron-right text-xs"></i></li>
-            <li class="text-white font-medium">Gestisci restituzione</li>
+            <li class="text-white font-medium"><?= __("Gestisci restituzione") ?></li>
         </ol>
     </nav>
 
     <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-gray-500">Gestione prestiti</p>
+            <p class="text-xs uppercase tracking-[0.3em] text-gray-500"><?= __("Gestione prestiti") ?></p>
             <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-undo-alt text-gray-600"></i>
                 Restituzione prestito #<?= (int)($prestito['id'] ?? 0); ?>
@@ -35,7 +33,7 @@ $csrfToken = Csrf::ensureToken();
         </div>
         <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 whitespace-nowrap">
             <i class="fas fa-arrow-left"></i>
-            <span>Torna all'elenco</span>
+            <span><?= __("Torna all\'elenco") ?></span>
         </a>
     </header>
 
@@ -63,7 +61,7 @@ $csrfToken = Csrf::ensureToken();
                         <i class="fas fa-book"></i>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Libro</p>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500"><?= __("Libro") ?></p>
                         <p class="text-xs text-gray-400">ID #<?= (int)($prestito['libro_id'] ?? 0); ?></p>
                     </div>
                 </div>
@@ -73,7 +71,7 @@ $csrfToken = Csrf::ensureToken();
                 <div class="space-y-2 text-sm">
                     <div class="flex items-center gap-2 text-gray-600">
                         <i class="fas fa-calendar w-4"></i>
-                        <span>Prestato il</span>
+                        <span><?= __("Prestato il") ?></span>
                         <strong class="text-gray-900"><?= HtmlHelper::e($prestito['data_prestito'] ?? '-'); ?></strong>
                     </div>
                     <div class="flex items-center gap-2 text-gray-600">
@@ -130,9 +128,7 @@ $csrfToken = Csrf::ensureToken();
         <!-- Form restituzione -->
         <div class="rounded-lg border border-gray-300 bg-white p-6 shadow-sm">
             <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <i class="fas fa-edit text-gray-600"></i>
-                Dettagli restituzione
-            </h3>
+                <i class="fas fa-edit text-gray-600"></i><?= __("Dettagli restituzione") ?></h3>
 
             <div class="grid gap-5 md:grid-cols-2">
                 <label class="flex flex-col gap-2">
@@ -161,7 +157,7 @@ $csrfToken = Csrf::ensureToken();
                 </label>
 
                 <label class="flex flex-col gap-2">
-                    <span class="text-sm font-bold text-gray-900">Note sulla restituzione</span>
+                    <span class="text-sm font-bold text-gray-900"><?= __("Note sulla restituzione") ?></span>
                     <textarea
                         id="note"
                         name="note"
@@ -177,7 +173,7 @@ $csrfToken = Csrf::ensureToken();
         <div class="flex flex-wrap gap-3">
             <button type="submit" class="inline-flex items-center justify-center gap-3 rounded-lg bg-gray-900 px-8 py-3.5 text-base font-bold text-white transition hover:bg-gray-700">
                 <i class="fas fa-check text-lg"></i>
-                <span class="whitespace-nowrap">Conferma restituzione</span>
+                <span class="whitespace-nowrap"><?= __("Conferma restituzione") ?></span>
             </button>
             <a href="/admin/prestiti" class="inline-flex items-center justify-center gap-3 rounded-lg border-2 border-gray-300 px-8 py-3.5 text-base font-bold text-gray-700 transition hover:bg-gray-100">
                 <i class="fas fa-times text-lg"></i>

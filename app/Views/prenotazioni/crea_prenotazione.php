@@ -7,9 +7,9 @@
             <nav class="flex text-sm text-gray-500 mb-8 pb-4 border-b border-gray-200">
                 <a href="/admin/dashboard" class="hover:text-gray-900 transition-colors">Dashboard</a>
                 <span class="mx-3 text-gray-300">/</span>
-                <a href="/admin/prenotazioni" class="hover:text-gray-900 transition-colors">Prenotazioni</a>
+                <a href="/admin/prenotazioni" class="hover:text-gray-900 transition-colors"><?= __("Prenotazioni") ?></a>
                 <span class="mx-3 text-gray-300">/</span>
-                <span class="text-gray-900 font-medium">Crea Prenotazione</span>
+                <span class="text-gray-900 font-medium"><?= __("Crea Prenotazione") ?></span>
             </nav>
 
             <div class="flex items-start justify-between">
@@ -17,14 +17,11 @@
                     <h1 class="text-4xl font-bold text-gray-900 flex items-center">
                         <div class="w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center mr-6">
                             <i class="fas fa-calendar-plus text-white text-2xl"></i>
-                        </div>
-                        Crea Nuova Prenotazione
-                    </h1>
-                    <p class="text-lg text-gray-600 ml-22">Registra una prenotazione per permettere ad un utente di riservare un libro specifico</p>
+                        </div><?= __("Crea Nuova Prenotazione") ?></h1>
+                    <p class="text-lg text-gray-600 ml-22"><?= __("Registra una prenotazione per permettere ad un utente di riservare un libro specifico") ?></p>
                 </div>
                 <a href="/admin/prenotazioni" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
-                    <i class="fas fa-arrow-left mr-2"></i>Torna alle Prenotazioni
-                </a>
+                    <i class="fas fa-arrow-left mr-2"></i><?= __("Torna alle Prenotazioni") ?></a>
             </div>
         </div>
 
@@ -41,8 +38,8 @@
                         <i class="fas fa-exclamation-triangle text-red-600"></i>
                     </div>
                     <div>
-                        <h3 class="font-semibold">Errore di sicurezza</h3>
-                        <p class="text-sm mt-1">Token di sicurezza non valido. Riprova.</p>
+                        <h3 class="font-semibold"><?= __("Errore di sicurezza") ?></h3>
+                        <p class="text-sm mt-1"><?= __("Token di sicurezza non valido. Riprova.") ?></p>
                     </div>
                 </div>
             </div>
@@ -53,8 +50,8 @@
                         <i class="fas fa-exclamation-triangle text-red-600"></i>
                     </div>
                     <div>
-                        <h3 class="font-semibold">Dati mancanti</h3>
-                        <p class="text-sm mt-1">Libro e utente sono campi obbligatori.</p>
+                        <h3 class="font-semibold"><?= __("Dati mancanti") ?></h3>
+                        <p class="text-sm mt-1"><?= __("Libro e utente sono campi obbligatori.") ?></p>
                     </div>
                 </div>
             </div>
@@ -65,8 +62,8 @@
                         <i class="fas fa-exclamation-triangle text-red-600"></i>
                     </div>
                     <div>
-                        <h3 class="font-semibold">Errore di salvataggio</h3>
-                        <p class="text-sm mt-1">Si è verificato un errore durante il salvataggio della prenotazione.</p>
+                        <h3 class="font-semibold"><?= __("Errore di salvataggio") ?></h3>
+                        <p class="text-sm mt-1"><?= __("Si è verificato un errore durante il salvataggio della prenotazione.") ?></p>
                     </div>
                 </div>
             </div>
@@ -78,10 +75,8 @@
             <!-- Form Header -->
             <div class="p-10 border-b border-gray-200">
                 <h2 class="text-3xl font-bold text-gray-900 flex items-center">
-                    <i class="fas fa-edit text-gray-600 mr-4 text-2xl"></i>
-                    Dati della Prenotazione
-                </h2>
-                <p class="text-lg text-gray-600 mt-4">Compila tutti i campi per creare una nuova prenotazione</p>
+                    <i class="fas fa-edit text-gray-600 mr-4 text-2xl"></i><?= __("Dati della Prenotazione") ?></h2>
+                <p class="text-lg text-gray-600 mt-4"><?= __("Compila tutti i campi per creare una nuova prenotazione") ?></p>
             </div>
 
             <div class="p-10">
@@ -98,8 +93,8 @@
                                     <i class="fas fa-book text-blue-600 text-xl"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-2xl font-bold text-gray-900">Seleziona Libro</h3>
-                                    <p class="text-lg text-gray-600 mt-1">Scegli il libro da prenotare dal catalogo</p>
+                                    <h3 class="text-2xl font-bold text-gray-900"><?= __("Seleziona Libro") ?></h3>
+                                    <p class="text-lg text-gray-600 mt-1"><?= __("Scegli il libro da prenotare dal catalogo") ?></p>
                                 </div>
                             </div>
                             <div>
@@ -108,7 +103,7 @@
                                 </label>
                                 <select name="libro_id" id="libro_id" required aria-required="true"
                                         class="w-full px-6 py-5 text-xl border-2 border-gray-300 rounded-2xl focus:ring-4 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-lg transition-all">
-                                    <option value="">Seleziona un libro dalla lista...</option>
+                                    <option value=""><?= __("Seleziona un libro dalla lista...") ?></option>
                                     <?php foreach ($libri as $libro): ?>
                                         <option value="<?php echo (int)$libro['id']; ?>">
                                             <?php echo App\Support\HtmlHelper::e($libro['titolo']); ?>
@@ -125,8 +120,8 @@
                                     <i class="fas fa-user text-green-600 text-xl"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-2xl font-bold text-gray-900">Seleziona Utente</h3>
-                                    <p class="text-lg text-gray-600 mt-1">Scegli l'utente che effettua la prenotazione</p>
+                                    <h3 class="text-2xl font-bold text-gray-900"><?= __("Seleziona Utente") ?></h3>
+                                    <p class="text-lg text-gray-600 mt-1"><?= __("Scegli l\'utente che effettua la prenotazione") ?></p>
                                 </div>
                             </div>
                             <div>
@@ -135,7 +130,7 @@
                                 </label>
                                 <select name="utente_id" id="utente_id" required aria-required="true"
                                         class="w-full px-6 py-5 text-xl border-2 border-gray-300 rounded-2xl focus:ring-4 focus:ring-green-500 focus:border-green-500 bg-white shadow-lg transition-all">
-                                    <option value="">Seleziona un utente dalla lista...</option>
+                                    <option value=""><?= __("Seleziona un utente dalla lista...") ?></option>
                                     <?php foreach ($utenti as $utente): ?>
                                         <option value="<?php echo (int)$utente['id']; ?>">
                                             <?php echo App\Support\HtmlHelper::e($utente['nome_completo']); ?>
@@ -153,32 +148,28 @@
                                     <i class="fas fa-calendar-alt text-purple-600 text-xl"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-2xl font-bold text-gray-900">Impostazioni Date</h3>
-                                    <p class="text-lg text-gray-600 mt-1">Configura le date della prenotazione</p>
+                                    <h3 class="text-2xl font-bold text-gray-900"><?= __("Impostazioni Date") ?></h3>
+                                    <p class="text-lg text-gray-600 mt-1"><?= __("Configura le date della prenotazione") ?></p>
                                 </div>
                             </div>
 
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 <!-- Data Prenotazione -->
                                 <div>
-                                    <label for="data_prenotazione" class="block text-lg font-bold text-gray-700 mb-4">
-                                        Data Prenotazione
-                                    </label>
+                                    <label for="data_prenotazione" class="block text-lg font-bold text-gray-700 mb-4"><?= __("Data Prenotazione") ?></label>
                                     <input type="date" name="data_prenotazione" id="data_prenotazione"
                                            value="<?php echo date('Y-m-d'); ?>"
                                            class="w-full px-6 py-5 text-xl border-2 border-gray-300 rounded-2xl focus:ring-4 focus:ring-purple-500 focus:border-purple-500 bg-white shadow-lg transition-all">
-                                    <p class="text-lg text-gray-500 mt-3">Data di inizio della prenotazione (default: oggi)</p>
+                                    <p class="text-lg text-gray-500 mt-3"><?= __("Data di inizio della prenotazione (default: oggi)") ?></p>
                                 </div>
 
                                 <!-- Data Scadenza -->
                                 <div>
-                                    <label for="data_scadenza" class="block text-lg font-bold text-gray-700 mb-4">
-                                        Data Scadenza
-                                    </label>
+                                    <label for="data_scadenza" class="block text-lg font-bold text-gray-700 mb-4"><?= __("Data Scadenza") ?></label>
                                     <input type="date" name="data_scadenza" id="data_scadenza"
                                            value="<?php echo date('Y-m-d', strtotime('+30 days')); ?>"
                                            class="w-full px-6 py-5 text-xl border-2 border-gray-300 rounded-2xl focus:ring-4 focus:ring-purple-500 focus:border-purple-500 bg-white shadow-lg transition-all">
-                                    <p class="text-lg text-gray-500 mt-3">Data di scadenza della prenotazione (default: +30 giorni)</p>
+                                    <p class="text-lg text-gray-500 mt-3"><?= __("Data di scadenza della prenotazione (default: +30 giorni)") ?></p>
                                 </div>
                             </div>
                         </div>
@@ -192,19 +183,19 @@
                                 <i class="fas fa-info-circle text-blue-600 text-xl"></i>
                             </div>
                             <div>
-                                <h4 class="text-2xl font-bold text-blue-900 mb-6">Informazioni Importanti</h4>
+                                <h4 class="text-2xl font-bold text-blue-900 mb-6"><?= __("Informazioni Importanti") ?></h4>
                                 <div class="text-lg text-blue-800 space-y-4">
                                     <div class="flex items-start space-x-3">
                                         <i class="fas fa-check-circle text-blue-600 mt-1 text-lg"></i>
-                                        <span>La posizione in coda sarà calcolata automaticamente in base alle prenotazioni esistenti</span>
+                                        <span><?= __("La posizione in coda sarà calcolata automaticamente in base alle prenotazioni esistenti") ?></span>
                                     </div>
                                     <div class="flex items-start space-x-3">
                                         <i class="fas fa-check-circle text-blue-600 mt-1 text-lg"></i>
-                                        <span>Lo stato della prenotazione sarà impostato automaticamente come "attiva"</span>
+                                        <span><?= __("Lo stato della prenotazione sarà impostato automaticamente come \"attiva\"") ?></span>
                                     </div>
                                     <div class="flex items-start space-x-3">
                                         <i class="fas fa-check-circle text-blue-600 mt-1 text-lg"></i>
-                                        <span>L'utente riceverà una notifica via email della prenotazione creata</span>
+                                        <span><?= __("L\'utente riceverà una notifica via email della prenotazione creata") ?></span>
                                     </div>
                                 </div>
                             </div>
@@ -219,8 +210,7 @@
                         </a>
                         <button type="submit"
                                 class="px-12 py-4 text-lg bg-gray-900 text-white rounded-2xl hover:bg-gray-800 transition-colors font-semibold shadow-xl">
-                            <i class="fas fa-save mr-3"></i>Crea Prenotazione
-                        </button>
+                            <i class="fas fa-save mr-3"></i><?= __("Crea Prenotazione") ?></button>
                     </div>
 
                 </form>

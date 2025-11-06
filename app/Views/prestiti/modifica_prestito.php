@@ -17,24 +17,20 @@ $csrf = Csrf::ensureToken();
             <li><i class="fas fa-chevron-right text-xs"></i></li>
             <li>
                 <a href="/admin/prestiti" class="hover:text-gray-900 transition-colors flex items-center gap-1">
-                    <i class="fas fa-handshake"></i>
-                    Prestiti
-                </a>
+                    <i class="fas fa-handshake"></i><?= __("Prestiti") ?></a>
             </li>
             <li><i class="fas fa-chevron-right text-xs"></i></li>
-            <li class="text-gray-900 font-medium">Modifica prestito</li>
+            <li class="text-gray-900 font-medium"><?= __("Modifica prestito") ?></li>
         </ol>
     </nav>
 
     <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-gray-500">Gestione prestiti</p>
+            <p class="text-xs uppercase tracking-[0.3em] text-gray-500"><?= __("Gestione prestiti") ?></p>
             <h1 class="text-2xl font-bold text-gray-900">Modifica prestito #<?= (int)($prestito['id'] ?? 0); ?></h1>
         </div>
         <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
-            <i class="fas fa-arrow-left"></i>
-            Torna all'elenco
-        </a>
+            <i class="fas fa-arrow-left"></i><?= __("Torna all\'elenco") ?></a>
     </header>
 
     <form method="post" action="/admin/prestiti/update/<?= (int)($prestito['id'] ?? 0); ?>" class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -59,7 +55,7 @@ $csrf = Csrf::ensureToken();
             </div>
 
             <div class="rounded-lg border border-gray-200 bg-gray-50 p-5">
-                <span class="text-xs uppercase tracking-widest text-gray-500">Libro</span>
+                <span class="text-xs uppercase tracking-widest text-gray-500"><?= __("Libro") ?></span>
                 <div class="mt-3 flex items-start gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white">
                         <i class="fas fa-book"></i>
@@ -76,7 +72,7 @@ $csrf = Csrf::ensureToken();
 
         <div class="mt-8 grid gap-5 lg:grid-cols-2">
             <label class="flex flex-col gap-2">
-                <span class="text-sm font-medium text-gray-700">Data prestito</span>
+                <span class="text-sm font-medium text-gray-700"><?= __("Data prestito") ?></span>
                 <input
                     type="date"
                     name="data_prestito"
@@ -86,7 +82,7 @@ $csrf = Csrf::ensureToken();
             </label>
 
             <label class="flex flex-col gap-2">
-                <span class="text-sm font-medium text-gray-700">Data scadenza prevista</span>
+                <span class="text-sm font-medium text-gray-700"><?= __("Data scadenza prevista") ?></span>
                 <input
                     type="date"
                     name="data_scadenza"
@@ -98,15 +94,11 @@ $csrf = Csrf::ensureToken();
 
         <div class="mt-8 flex flex-wrap gap-3">
             <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800">
-                <i class="fas fa-save"></i>
-                Salva modifiche
-            </button>
+                <i class="fas fa-save"></i><?= __("Salva modifiche") ?></button>
 
             <?php if ((int)($prestito['attivo'] ?? 0) === 1 && empty($prestito['data_restituzione'])): ?>
             <a href="/admin/prestiti/restituito/<?= (int)($prestito['id'] ?? 0); ?>" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700">
-                <i class="fas fa-check-circle"></i>
-                Registra Restituzione
-            </a>
+                <i class="fas fa-check-circle"></i><?= __("Registra Restituzione") ?></a>
             <?php endif; ?>
 
             <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
