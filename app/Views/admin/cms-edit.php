@@ -61,7 +61,7 @@
             <img
               id="preview-img"
               src="<?= htmlspecialchars($pageData['image'] ?? '') ?>"
-              alt="Preview"
+              alt="<?= __("Anteprima") ?>"
               class="max-w-full h-auto rounded border"
               style="max-height: 300px;">
             <button

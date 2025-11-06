@@ -451,17 +451,17 @@ document.addEventListener('DOMContentLoaded', function() {
           .then(response => {
             if (response.ok || response.redirected) {
               table.ajax.reload(null, false);
-              Swal.fire('Eliminato!', 'L\'utente è stato eliminato.', 'success');
+              Swal.fire(__('Eliminato!'), __('L\'utente è stato eliminato.'), 'success');
             } else {
               return response.text().then(text => {
                 console.error('Delete failed - Status:', response.status, 'Body:', text);
-                Swal.fire('Errore!', 'Non è stato possibile eliminare l\'utente. Controlla la console.', 'error');
+                Swal.fire(__('Errore!'), __('Non è stato possibile eliminare l\'utente. Controlla la console.'), 'error');
               });
             }
           })
           .catch(error => {
             console.error('Delete error:', error);
-            Swal.fire('Errore!', 'Si è verificato un errore: ' + error.message, 'error');
+            Swal.fire(__('Errore!'), __('Si è verificato un errore: %s').replace('%s', error.message), 'error');
           });
         }
       });
@@ -526,8 +526,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const totalCount = table.rows().count();
 
       const message = hasFilters
-        ? `Esportazione di ${filteredCount} utenti filtrati su ${totalCount} totali`
-        : `Esportazione di tutti i ${totalCount} utenti`;
+        ? __('Esportazione di %d utenti filtrati su %d totali').replace('%d', filteredCount).replace('%d', totalCount)
+        : __('Esportazione di tutti i %d utenti').replace('%d', totalCount);
 
       if (window.Swal) {
         Swal.fire({
@@ -583,17 +583,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Title
       doc.setFontSize(18);
-      doc.text('Elenco Utenti - Biblioteca', 14, 22);
+      doc.text(__('Elenco Utenti - Biblioteca'), 14, 22);
 
       // Date
       doc.setFontSize(11);
-      doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
+      doc.text(`${__('Generato il:')} ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
 
       // Total count
-      doc.text(`Totale utenti: ${data.length}`, 14, 38);
+      doc.text(`${__('Totale utenti:')} ${data.length}`, 14, 38);
 
       // Table headers
-      const headers = ['Nome', 'Cognome', 'Email', 'Ruolo', 'Stato'];
+      const headers = [__('Nome'), __('Cognome'), __('Email'), __('Ruolo'), __('Stato')];
       let yPos = 50;
 
       // Set font for table

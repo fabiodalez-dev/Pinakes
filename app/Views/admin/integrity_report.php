@@ -9,16 +9,16 @@
                         <i class="fas fa-shield-alt text-white text-sm"></i>
                     </div>
                     <div>
-                        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Report Integrità Dati</h1>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Verifica coerenza e integrità del database</p>
+                        <h1 class="text-xl font-bold text-gray-900 dark:text-white"><?= __("Report Integrità Dati") ?></h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400"><?= __("Verifica coerenza e integrità del database") ?></p>
                     </div>
                 </div>
                 <div class="flex space-x-3">
                     <button onclick="performMaintenance()" class="bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-                        <i class="fas fa-tools mr-2"></i>Esegui Manutenzione
+                        <i class="fas fa-tools mr-2"></i><?= __("Esegui Manutenzione") ?>
                     </button>
                     <button onclick="location.reload()" class="bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300 font-medium py-2 px-4 rounded-lg transition-colors">
-                        <i class="fas fa-sync-alt mr-2"></i>Aggiorna
+                        <i class="fas fa-sync-alt mr-2"></i><?= __("Aggiorna") ?>
                     </button>
                 </div>
             </div>
@@ -30,9 +30,9 @@
         <!-- Report Info -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Informazioni Report</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white"><?= __("Informazioni Report") ?></h2>
                 <span class="text-sm text-gray-500 dark:text-gray-400">
-                    Generato il <?= date('d-m-Y H:i:s', strtotime($report['timestamp'])) ?>
+                    <?= __("Generato il") ?> <?= date('d-m-Y H:i:s', strtotime($report['timestamp'])) ?>
                 </span>
             </div>
 
@@ -69,14 +69,14 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Problemi di Integrità</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white"><?= __("Problemi di Integrità") ?></h2>
                     <?php if (empty($report['consistency_issues'])): ?>
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                            <i class="fas fa-check-circle mr-2"></i>Nessun Problema
+                            <i class="fas fa-check-circle mr-2"></i><?= __("Nessun Problema") ?>
                         </span>
                     <?php else: ?>
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
-                            <i class="fas fa-exclamation-triangle mr-2"></i><?= count($report['consistency_issues']) ?> Problemi
+                            <i class="fas fa-exclamation-triangle mr-2"></i><?= sprintf(__("%d Problemi"), count($report['consistency_issues'])) ?>
                         </span>
                     <?php endif; ?>
                 </div>
@@ -86,8 +86,8 @@
                 <?php if (empty($report['consistency_issues'])): ?>
                     <div class="text-center py-8">
                         <i class="fas fa-check-circle text-4xl text-green-500 mb-4"></i>
-                        <p class="text-gray-600 dark:text-gray-400 text-lg">Tutti i controlli di integrità sono passati con successo!</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-500 mt-2">Il database è coerente e non sono stati rilevati problemi.</p>
+                        <p class="text-gray-600 dark:text-gray-400 text-lg"><?= __("Tutti i controlli di integrità sono passati con successo!") ?></p>
+                        <p class="text-sm text-gray-500 dark:text-gray-500 mt-2"><?= __("Il database è coerente e non sono stati rilevati problemi.") ?></p>
                     </div>
                 <?php else: ?>
                     <div class="space-y-4">
@@ -101,11 +101,11 @@
                         ];
 
                         $typeLabels = [
-                            'negative_copies' => 'Copie Negative',
-                            'excess_copies' => 'Copie Eccessive',
-                            'orphan_loan' => 'Prestiti Orfani',
-                            'missing_due_date' => 'Scadenza Mancante',
-                            'status_mismatch' => 'Stato Incongruente'
+                            'negative_copies' => __('Copie Negative'),
+                            'excess_copies' => __('Copie Eccessive'),
+                            'orphan_loan' => __('Prestiti Orfani'),
+                            'missing_due_date' => __('Scadenza Mancante'),
+                            'status_mismatch' => __('Stato Incongruente')
                         ];
 
                         foreach ($report['consistency_issues'] as $issue):
@@ -128,7 +128,7 @@
                             <div>
                                 <div class="font-medium text-yellow-800 dark:text-yellow-200"><?= __('Sono stati rilevati problemi di integrità') ?></div>
                                 <div class="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                                    Clicca su "Esegui Manutenzione" per correggere automaticamente i problemi riparabili.
+                                    <?= __("Clicca su \"Esegui Manutenzione\" per correggere automaticamente i problemi riparabili.") ?>
                                 </div>
                             </div>
                         </div>
@@ -139,7 +139,7 @@
 
         <!-- Actions -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Azioni di Manutenzione</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4"><?= __("Azioni di Manutenzione") ?></h3>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <button onclick="recalculateAvailability()" class="p-4 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">

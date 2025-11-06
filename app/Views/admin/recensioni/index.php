@@ -9,14 +9,14 @@
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900 flex items-center">
                         <i class="fas fa-star text-yellow-600 mr-3"></i>
-                        Gestione Recensioni
+                        <?= __("Gestione Recensioni") ?>
                     </h1>
-                    <p class="text-sm text-gray-600 mt-1">Approva o rifiuta le recensioni degli utenti</p>
+                    <p class="text-sm text-gray-600 mt-1"><?= __("Approva o rifiuta le recensioni degli utenti") ?></p>
                 </div>
                 <?php if ($pendingCount > 0): ?>
                 <div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm font-semibold" role="alert">
                     <i class="fas fa-clock"></i>
-                    <?php echo $pendingCount; ?> in attesa
+                    <?php echo $pendingCount; ?> <?= __("in attesa") ?>
                 </div>
                 <?php endif; ?>
             </div>
@@ -26,7 +26,7 @@
         <div class="mb-8">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <i class="fas fa-clock text-yellow-600 mr-2"></i>
-                In Attesa di Approvazione
+                <?= __("In Attesa di Approvazione") ?>
             </h2>
             <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 <?php foreach ($pendingReviews as $review): ?>
@@ -84,19 +84,19 @@
                             <button type="button"
                                     class="flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm"
                                     data-review-id="<?php echo (int)$review['id']; ?>">
-                                <i class="fas fa-check mr-2"></i>Approva
+                                <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
                             </button>
                             <button type="button"
                                     class="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors reject-btn shadow-sm"
                                     data-review-id="<?php echo (int)$review['id']; ?>">
-                                <i class="fas fa-times mr-2"></i>Rifiuta
+                                <i class="fas fa-times mr-2"></i><?= __("Rifiuta") ?>
                             </button>
                         </div>
                     </div>
                     <div class="px-6 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
                         <p class="text-xs text-gray-500 dark:text-gray-400 flex items-center">
                             <i class="fas fa-clock mr-2"></i>
-                            Recensione del <?php echo date('d-m-Y H:i', strtotime($review['created_at'])); ?>
+                            <?= __("Recensione del") ?> <?php echo date('d-m-Y H:i', strtotime($review['created_at'])); ?>
                         </p>
                     </div>
                 </div>
@@ -108,8 +108,8 @@
             <div class="w-16 h-16 bg-blue-100 dark:bg-blue-900/40 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="fas fa-info-circle text-blue-600 dark:text-blue-400 text-2xl"></i>
             </div>
-            <h3 class="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">Nessuna recensione in attesa</h3>
-            <p class="text-blue-600 dark:text-blue-400">Non ci sono recensioni in attesa di approvazione.</p>
+            <h3 class="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2"><?= __("Nessuna recensione in attesa") ?></h3>
+            <p class="text-blue-600 dark:text-blue-400"><?= __("Non ci sono recensioni in attesa di approvazione.") ?></p>
         </div>
         <?php endif; ?>
 
@@ -120,7 +120,7 @@
                         class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <div class="flex items-center gap-2">
                         <i class="fas fa-check-circle text-green-600"></i>
-                        <span class="font-semibold text-gray-900 dark:text-white">Recensioni Approvate</span>
+                        <span class="font-semibold text-gray-900 dark:text-white"><?= __("Recensioni Approvate") ?></span>
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                             <?php echo count($approvedReviews); ?>
                         </span>
@@ -130,7 +130,7 @@
                 <div id="approved-section" class="hidden border-t border-gray-200 dark:border-gray-700">
                     <div class="p-4">
                         <?php if (empty($approvedReviews)): ?>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Nessuna recensione approvata</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4"><?= __("Nessuna recensione approvata") ?></p>
                         <?php else: ?>
                         <div class="space-y-3">
                             <?php foreach ($approvedReviews as $review): ?>
@@ -159,7 +159,7 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                             <?php echo HtmlHelper::e($review['utente_nome']); ?>
                                             <span class="mx-1">•</span>
-                                            Approvata il <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
+                                            <?= __("Approvata il") ?> <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
                                         </div>
                                         <?php if (!empty($review['titolo'])): ?>
                                         <div class="text-xs font-medium text-gray-800 dark:text-gray-200 mt-1">
@@ -184,7 +184,7 @@
                         class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <div class="flex items-center gap-2">
                         <i class="fas fa-times-circle text-red-600"></i>
-                        <span class="font-semibold text-gray-900 dark:text-white">Recensioni Rifiutate</span>
+                        <span class="font-semibold text-gray-900 dark:text-white"><?= __("Recensioni Rifiutate") ?></span>
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                             <?php echo count($rejectedReviews); ?>
                         </span>
@@ -194,7 +194,7 @@
                 <div id="rejected-section" class="hidden border-t border-gray-200 dark:border-gray-700">
                     <div class="p-4">
                         <?php if (empty($rejectedReviews)): ?>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Nessuna recensione rifiutata</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4"><?= __("Nessuna recensione rifiutata") ?></p>
                         <?php else: ?>
                         <div class="space-y-3">
                             <?php foreach ($rejectedReviews as $review): ?>
@@ -223,7 +223,7 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                             <?php echo HtmlHelper::e($review['utente_nome']); ?>
                                             <span class="mx-1">•</span>
-                                            Rifiutata il <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
+                                            <?= __("Rifiutata il") ?> <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
                                         </div>
                                         <?php if (!empty($review['titolo'])): ?>
                                         <div class="text-xs font-medium text-gray-800 dark:text-gray-200 mt-1">
@@ -262,15 +262,15 @@ function toggleSection(section) {
                 text: options.text,
                 icon: options.icon || 'warning',
                 showCancelButton: true,
-                confirmButtonText: options.confirmText || 'Conferma',
-                cancelButtonText: options.cancelText || 'Annulla',
+                confirmButtonText: options.confirmText || __('Conferma'),
+                cancelButtonText: options.cancelText || __('Annulla'),
                 confirmButtonColor: '#111827',
                 cancelButtonColor: '#6b7280'
             });
             return result.isConfirmed;
         }
 
-        return window.confirm(options.text || options.title || 'Confermi l\'operazione?');
+        return window.confirm(options.text || options.title || __('Confermi l\'operazione?'));
     };
 
     const showFeedback = (icon, title, text) => {
@@ -282,7 +282,7 @@ function toggleSection(section) {
                 confirmButtonColor: '#111827'
             });
         } else {
-            window.alert(text || title || 'Operazione completata');
+            window.alert(text || title || __('Operazione completata'));
         }
     };
 
@@ -325,11 +325,11 @@ function toggleSection(section) {
                         location.reload();
                     }
                 } else {
-                    showFeedback('error', 'Errore', `${errorPrefix}: ${result.message || 'Operazione non riuscita'}`);
+                    showFeedback('error', __('Errore'), `${errorPrefix}: ${result.message || __('Operazione non riuscita')}`);
                 }
             } catch (error) {
                 console.error('Review action error:', error);
-                showFeedback('error', 'Errore', `${errorPrefix}: errore di comunicazione con il server`);
+                showFeedback('error', __('Errore'), `${errorPrefix}: ${__('errore di comunicazione con il server')}`);
             }
         });
     };
@@ -342,10 +342,10 @@ function toggleSection(section) {
                     title: __('Recensione approvata'),
                     text: __('La recensione è stata approvata e pubblicata con successo.')
                 },
-                confirmTitle: 'Approva recensione',
-                confirmText: 'Vuoi approvare questa recensione e renderla visibile sul sito?',
-                confirmButton: 'Approva',
-                errorPrefix: 'Impossibile approvare la recensione'
+                confirmTitle: __('Approva recensione'),
+                confirmText: __('Vuoi approvare questa recensione e renderla visibile sul sito?'),
+                confirmButton: __('Approva'),
+                errorPrefix: __('Impossibile approvare la recensione')
             });
         });
 
@@ -356,10 +356,10 @@ function toggleSection(section) {
                     title: __('Recensione rifiutata'),
                     text: __('La recensione è stata rifiutata e non sarà pubblicata.')
                 },
-                confirmTitle: 'Rifiuta recensione',
-                confirmText: 'Vuoi rifiutare questa recensione? L\'utente verrà avvisato dell\'esito.',
-                confirmButton: 'Rifiuta',
-                errorPrefix: 'Impossibile rifiutare la recensione'
+                confirmTitle: __('Rifiuta recensione'),
+                confirmText: __('Vuoi rifiutare questa recensione? L\'utente verrà avvisato dell\'esito.'),
+                confirmButton: __('Rifiuta'),
+                errorPrefix: __('Impossibile rifiutare la recensione')
             });
         });
     };

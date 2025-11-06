@@ -173,14 +173,14 @@ ob_start();
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-download text-gray-600 mr-2"></i>
-                        File di Esempio
+                        <?= __("File di Esempio") ?>
                     </h2>
                     <p class="text-gray-600 mb-4">
-                        Scarica il CSV di esempio con 3 libri già compilati per capire il formato corretto e iniziare subito.
+                        <?= __("Scarica il CSV di esempio con 3 libri già compilati per capire il formato corretto e iniziare subito.") ?>
                     </p>
                     <a href="/admin/libri/import/example" class="px-6 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center">
                         <i class="fas fa-file-download mr-2"></i>
-                        Scarica esempio_import_libri.csv
+                        <?= __("Scarica esempio_import_libri.csv") ?>
                     </a>
                 </div>
 
@@ -189,7 +189,7 @@ ob_start();
                     <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
                         <span class="font-semibold text-gray-900 flex items-center">
                             <i class="fas fa-table text-gray-600 mr-2"></i>
-                            Formato CSV Dettagliato
+                            <?= __("Formato CSV Dettagliato") ?>
                         </span>
                         <i class="fas fa-chevron-down text-gray-400"></i>
                     </button>
