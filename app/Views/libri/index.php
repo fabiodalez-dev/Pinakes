@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function() {
       error: function(xhr, status, err) {
         console.error('Errore caricamento /api/libri:', { status, err, responseText: xhr && xhr.responseText });
         if (window.Swal) {
-          Swal.fire({ icon: 'error', title: __('Errore'), text: __('Impossibile caricare i libri. Controlla la console per i dettagli.') });
+          Swal.fire({ icon: 'error', title: '<?= addslashes(__("Errore")) ?>', text: '<?= addslashes(__("Impossibile caricare i libri. Controlla la console per i dettagli.")) ?>' });
         }
       },
       dataSrc: function(json) {
@@ -786,8 +786,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'success',
-            title: __('Filtri cancellati'),
-            text: __('Tutti i filtri sono stati rimossi'),
+            title: '<?= addslashes(__("Filtri cancellati")) ?>',
+            text: '<?= addslashes(__("Tutti i filtri sono stati rimossi")) ?>',
             timer: 2000,
             showConfirmButton: false
           });
@@ -828,8 +828,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'success',
-            title: __('Filtri salvati'),
-            text: __('I filtri correnti sono stati salvati nell\')URL',
+            title: '<?= addslashes(__("Filtri salvati")) ?>',
+            text: '<?= addslashes(__("I filtri correnti sono stati salvati nell\'URL")) ?>',
             timer: 2000,
             showConfirmButton: false
           });
@@ -886,7 +886,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.Swal) {
         Swal.fire({
           icon: 'info',
-          title: __('Generazione CSV in corso...'),
+          title: '<?= addslashes(__("Generazione CSV in corso...")) ?>',
           text: message,
           showConfirmButton: false,
           timer: 1500
@@ -910,8 +910,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'info',
-            title: __('Nessun dato'),
-            text: __('Non ci sono dati da esportare')
+            title: '<?= addslashes(__("Nessun dato")) ?>',
+            text: '<?= addslashes(__("Non ci sono dati da esportare")) ?>'
           });
         }
         return;
@@ -1008,17 +1008,17 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     if (window.Swal) {
       Swal.fire({
-        title: __('Sei sicuro?'),
-        text: __('Questa azione non può essere annullata!'),
+        title: '<?= addslashes(__("Sei sicuro?")) ?>',
+        text: '<?= addslashes(__("Questa azione non può essere annullata!")) ?>',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
         cancelButtonColor: '#3085d6',
-        confirmButtonText: __('Sì, elimina!'),
-        cancelButtonText: __('Annulla')
+        confirmButtonText: '<?= addslashes(__("Sì, elimina!")) ?>',
+        cancelButtonText: '<?= addslashes(__("Annulla")) ?>'
       }).then((result) => { if (result.isConfirmed) confirmAndSubmit(); });
     } else {
-      if (confirm(__('Sei sicuro di voler eliminare questo libro?'))) confirmAndSubmit();
+      if (confirm('<?= addslashes(__("Sei sicuro di voler eliminare questo libro?")) ?>')) confirmAndSubmit();
     }
   };
 
