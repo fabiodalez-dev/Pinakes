@@ -407,11 +407,11 @@ ob_start();
             <h1 class="archive-title"><?= htmlspecialchars($archive_info['nome']) ?></h1>
             <p class="archive-subtitle">
                 <?php if ($archive_type === 'autore'): ?>
-                    Autore
+                    <?= __("Autore") ?>
                 <?php elseif ($archive_type === 'editore'): ?>
-                    Casa Editrice
+                    <?= __("Casa Editrice") ?>
                 <?php else: ?>
-                    Genere
+                    <?= __("Genere") ?>
                 <?php endif; ?>
             </p>
         </div>
@@ -423,12 +423,12 @@ ob_start();
     <div class="stats-row">
             <span class="stat-badge">
                 <i class="fas fa-book"></i>
-                <span><?= $totalBooks ?> <?= $totalBooks === 1 ? 'libro' : 'libri' ?></span>
+                <span><?= $totalBooks ?> <?= __n('libro', 'libri', $totalBooks) ?></span>
             </span>
             <?php if ($totalPages > 1): ?>
                 <span class="stat-badge">
                     <i class="fas fa-file-alt"></i>
-                    <span><?= $totalPages ?> <?= $totalPages === 1 ? 'pagina' : 'pagine' ?></span>
+                    <span><?= $totalPages ?> <?= __n('pagina', 'pagine', $totalPages) ?></span>
                 </span>
             <?php endif; ?>
         </div>
