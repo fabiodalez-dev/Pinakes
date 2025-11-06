@@ -183,6 +183,9 @@
 
 <!-- Modern DataTables with Advanced Features -->
 <script>
+// Set current locale for DataTables language selection
+window.i18nLocale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>';
+
 document.addEventListener('DOMContentLoaded', function() {
   
   // Check if DataTables is available
@@ -328,7 +331,7 @@ document.addEventListener('DOMContentLoaded', function() {
       [10, 25, 50, 100, -1],
       [10, 25, 50, 100, "Tutti"]
     ],
-  language: window.DT_LANG_IT,
+  language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
     initComplete: function() {
       
       // Initialize filter toggle

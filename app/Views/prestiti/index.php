@@ -274,6 +274,9 @@ function getStatusBadge($status) {
 </style>
 
 <script>
+// Set current locale for DataTables language selection
+window.i18nLocale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>';
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof DataTable === 'undefined') {
         console.error('DataTable is not loaded!');
@@ -358,23 +361,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         ],
         order: [[0, 'desc']],
-        language: {
-            processing: "Elaborazione...",
-            search: "Cerca:",
-            lengthMenu: "Mostra _MENU_ elementi",
-            info: "Elementi da _START_ a _END_ di _TOTAL_ totali",
-            infoEmpty: "Nessun elemento disponibile",
-            infoFiltered: "(filtrati da _MAX_ elementi totali)",
-            loadingRecords: "Caricamento...",
-            zeroRecords: "Nessun prestito trovato",
-            emptyTable: "Nessun prestito disponibile",
-            paginate: {
-                first: "Primo",
-                previous: "Precedente",
-                next: "Successivo",
-                last: "Ultimo"
-            }
-        },
+        language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
         pageLength: 25,
         dom: '<"px-6 py-4"<"flex items-center justify-between"<"flex items-center gap-4"l><"flex-1"f>>>rtip'
     });
