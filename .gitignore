@@ -130,6 +130,10 @@ docs/LOGGING.md
 docs/RELEASE_PROCESS.md
 docs/reference/
 
+# Internationalization planning (contains untranslated strings)
+traduzione_piano.md
+traduzione_stringhe.md
+
 # ========================================
 # Git History Backups
 # ========================================
