@@ -77,7 +77,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 
           <!-- Main Navigation -->
           <div class="space-y-1">
-            <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Menu Principale</div>
+            <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Menu Principale") ?></div>
 
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900" href="/admin/dashboard">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
@@ -85,7 +85,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
               </div>
               <div class="ml-3">
                 <div class="font-medium"><?= __("Dashboard") ?></div>
-                <div class="text-xs text-gray-500">Panoramica generale</div>
+                <div class="text-xs text-gray-500"><?= __("Panoramica generale") ?></div>
               </div>
             </a>
 
@@ -95,7 +95,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
               </div>
               <div class="ml-3">
                 <div class="font-medium"><?= __("Libri") ?></div>
-                <div class="text-xs text-gray-500">Gestione collezione</div>
+                <div class="text-xs text-gray-500"><?= __("Gestione collezione") ?></div>
               </div>
             </a>
 
@@ -104,8 +104,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-user-edit text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Autori</div>
-                <div class="text-xs text-gray-500">Gestione autori</div>
+                <div class="font-medium"><?= __("Autori") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Gestione autori") ?></div>
               </div>
             </a>
 
@@ -114,8 +114,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-building text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Editori</div>
-                <div class="text-xs text-gray-500">Case editrici</div>
+                <div class="font-medium"><?= __("Editori") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Case editrici") ?></div>
               </div>
             </a>
 
@@ -124,8 +124,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-tags text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Generi</div>
-                <div class="text-xs text-gray-500">Generi e sottogeneri</div>
+                <div class="font-medium"><?= __("Generi") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Generi e sottogeneri") ?></div>
               </div>
             </a>
 
@@ -135,7 +135,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
               </div>
               <div class="ml-3">
                 <div class="font-medium"><?= __("Prestiti") ?></div>
-                <div class="text-xs text-gray-500">Gestione prestiti</div>
+                <div class="text-xs text-gray-500"><?= __("Gestione prestiti") ?></div>
               </div>
             </a>
 
@@ -144,8 +144,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-warehouse text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Collocazione</div>
-                <div class="text-xs text-gray-500">Scaffali e mensole</div>
+                <div class="font-medium"><?= __("Collocazione") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Scaffali e mensole") ?></div>
               </div>
             </a>
 
@@ -155,7 +155,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
               </div>
               <div class="ml-3">
                 <div class="font-medium"><?= __("Utenti") ?></div>
-                <div class="text-xs text-gray-500">Gestione utenti</div>
+                <div class="text-xs text-gray-500"><?= __("Gestione utenti") ?></div>
               </div>
             </a>
 
@@ -164,8 +164,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-chart-bar text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Statistiche</div>
-                <div class="text-xs text-gray-500">Report e analisi</div>
+                <div class="font-medium"><?= __("Statistiche") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Report e analisi") ?></div>
               </div>
             </a>
 
@@ -174,8 +174,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-star text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Recensioni</div>
-                <div class="text-xs text-gray-500">Gestione recensioni</div>
+                <div class="font-medium"><?= __("Recensioni") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Gestione recensioni") ?></div>
               </div>
             </a>
 
@@ -185,8 +185,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <i class="fas fa-puzzle-piece text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium">Plugin</div>
-                <div class="text-xs text-gray-500">Estensioni</div>
+                <div class="font-medium"><?= __("Plugin") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Estensioni") ?></div>
               </div>
             </a>
             <?php endif; ?>
@@ -194,15 +194,15 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 
           <!-- Quick Actions Section -->
           <div class="pt-6 mt-6 border-t border-gray-200">
-            <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Azioni Rapide</div>
+            <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?></div>
             <div class="space-y-2 mt-3">
               <a href="/admin/libri/crea" class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
                 <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
                   <i class="fas fa-plus text-sm text-gray-600"></i>
                 </div>
                 <div class="ml-3">
-                  <div class="font-medium text-sm">Nuovo Libro</div>
-                  <div class="text-xs text-gray-500">Aggiungi alla collezione</div>
+                  <div class="font-medium text-sm"><?= __("Nuovo Libro") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Aggiungi alla collezione") ?></div>
                 </div>
               </a>
 
@@ -211,8 +211,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <i class="fas fa-handshake text-sm text-gray-600"></i>
                 </div>
                 <div class="ml-3">
-                  <div class="font-medium text-sm">Nuovo Prestito</div>
-                  <div class="text-xs text-gray-500">Registra prestito</div>
+                  <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
                 </div>
               </a>
 
@@ -222,7 +222,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 </div>
                 <div class="ml-3">
                   <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
-                  <div class="text-xs text-gray-500">Richieste pendenti</div>
+                  <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
                 </div>
               </a>
 
@@ -231,8 +231,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <i class="fas fa-shield-alt text-sm text-gray-600"></i>
                 </div>
                 <div class="ml-3">
-                  <div class="font-medium text-sm">Manutenzione</div>
-                  <div class="text-xs text-gray-500">Integrità dati</div>
+                  <div class="font-medium text-sm"><?= __("Manutenzione") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Integrità dati") ?></div>
                 </div>
               </a>
             </div>
@@ -240,7 +240,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 
           <!-- Statistics Section -->
           <div class="pt-6 mt-6 border-t border-gray-200">
-            <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Statistiche Rapide</div>
+            <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Statistiche Rapide") ?></div>
             <div class="grid grid-cols-2 gap-3 mt-3">
               <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
                 <div class="text-2xl font-bold text-gray-900" id="stats-books">-</div>

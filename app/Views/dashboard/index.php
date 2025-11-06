@@ -6,9 +6,9 @@
       <div>
         <h1 class="text-3xl font-bold text-gray-900 flex items-center">
           <i class="fas fa-tachometer-alt text-gray-600 mr-3"></i>
-          Dashboard
+          <?= __("Dashboard") ?>
         </h1>
-        <p class="text-sm text-gray-600 mt-2">Panoramica generale del sistema bibliotecario</p>
+        <p class="text-sm text-gray-600 mt-2"><?= __("Panoramica generale del sistema bibliotecario") ?></p>
       </div>
     </div>
 
@@ -17,9 +17,9 @@
       <div class="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Libri</p>
+            <p class="text-sm font-medium text-gray-600"><?= __("Libri") ?></p>
             <p class="text-3xl font-bold text-gray-900"><?php echo (int)$stats['libri']; ?></p>
-            <p class="text-xs text-gray-500 mt-1">Totale libri presenti</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Totale libri presenti") ?></p>
           </div>
           <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
             <i class="fas fa-book text-gray-600 text-xl"></i>
@@ -30,9 +30,9 @@
       <div class="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Utenti</p>
+            <p class="text-sm font-medium text-gray-600"><?= __("Utenti") ?></p>
             <p class="text-3xl font-bold text-gray-900"><?php echo (int)$stats['utenti']; ?></p>
-            <p class="text-xs text-gray-500 mt-1">Utenti registrati</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Utenti registrati") ?></p>
           </div>
           <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
             <i class="fas fa-users text-gray-600 text-xl"></i>
@@ -43,9 +43,9 @@
       <div class="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Prestiti Attivi</p>
+            <p class="text-sm font-medium text-gray-600"><?= __("Prestiti Attivi") ?></p>
             <p class="text-3xl font-bold text-gray-900"><?php echo (int)$stats['prestiti_in_corso']; ?></p>
-            <p class="text-xs text-gray-500 mt-1">In corso di restituzione</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("In corso di restituzione") ?></p>
           </div>
           <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
             <i class="fas fa-handshake text-gray-600 text-xl"></i>
@@ -58,9 +58,9 @@
         <a href="/admin/loans/pending" class="bg-red-50 rounded-xl border border-red-200 p-6 hover:bg-red-100 transition-colors duration-200">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium text-red-600">Richieste Pendenti</p>
+              <p class="text-sm font-medium text-red-600"><?= __("Richieste Pendenti") ?></p>
               <p class="text-3xl font-bold text-red-800"><?php echo (int)$stats['prestiti_pendenti']; ?></p>
-              <p class="text-xs text-red-500 mt-1">Da approvare</p>
+              <p class="text-xs text-red-500 mt-1"><?= __("Da approvare") ?></p>
             </div>
             <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center animate-pulse">
               <i class="fas fa-clock text-red-600 text-xl"></i>
@@ -71,9 +71,9 @@
         <div class="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium text-gray-600">Richieste Pendenti</p>
+              <p class="text-sm font-medium text-gray-600"><?= __("Richieste Pendenti") ?></p>
               <p class="text-3xl font-bold text-gray-900">0</p>
-              <p class="text-xs text-gray-500 mt-1">Nessuna richiesta</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Nessuna richiesta") ?></p>
             </div>
             <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
               <i class="fas fa-check-circle text-gray-600 text-xl"></i>
@@ -85,9 +85,9 @@
       <div class="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Autori</p>
+            <p class="text-sm font-medium text-gray-600"><?= __("Autori") ?></p>
             <p class="text-3xl font-bold text-gray-900"><?php echo (int)$stats['autori']; ?></p>
-            <p class="text-xs text-gray-500 mt-1">Nella collezione</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Nella collezione") ?></p>
           </div>
           <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
             <i class="fas fa-user-edit text-gray-600 text-xl"></i>
@@ -101,18 +101,18 @@
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-clock text-gray-600 mr-2"></i>
-          Richieste di Prestito in Attesa
+          <?= __("Richieste di Prestito in Attesa") ?>
         </h2>
         <a href="/admin/loans/pending" class="px-3 py-1.5 text-sm bg-gray-900 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200">
           <i class="fas fa-external-link-alt mr-1"></i>
-          Gestisci tutte
+          <?= __("Gestisci tutte") ?>
         </a>
       </div>
       <div class="p-6">
         <?php if (empty($pending)): ?>
           <div class="text-center py-8">
             <i class="fas fa-check-circle text-4xl text-green-500 mb-4"></i>
-            <p class="text-gray-500">Nessuna richiesta in attesa di approvazione.</p>
+            <p class="text-gray-500"><?= __("Nessuna richiesta in attesa di approvazione.") ?></p>
           </div>
         <?php else: ?>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -146,13 +146,13 @@
                       <?php if (!empty($loan['data_richiesta_inizio'])): ?>
                         <span class="flex items-center">
                           <i class="fas fa-play mr-2 text-green-500"></i>
-                          Inizio: <?= date('d-m-Y', strtotime((string)$loan['data_richiesta_inizio'])); ?>
+                          <?= __("Inizio:") ?> <?= date('d-m-Y', strtotime((string)$loan['data_richiesta_inizio'])); ?>
                         </span>
                       <?php endif; ?>
                       <?php if (!empty($loan['data_richiesta_fine'])): ?>
                         <span class="flex items-center">
                           <i class="fas fa-stop mr-2 text-red-500"></i>
-                          Fine: <?= date('d-m-Y', strtotime((string)$loan['data_richiesta_fine'])); ?>
+                          <?= __("Fine:") ?> <?= date('d-m-Y', strtotime((string)$loan['data_richiesta_fine'])); ?>
                         </span>
                       <?php endif; ?>
                     </div>
@@ -160,15 +160,15 @@
                 </div>
                 <div class="mt-4 flex gap-3">
                   <button type="button" class="flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm" data-loan-id="<?= (int)$loan['id']; ?>">
-                    <i class="fas fa-check mr-2"></i>Approva
+                    <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
                   </button>
                   <button type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors reject-btn shadow-sm" data-loan-id="<?= (int)$loan['id']; ?>">
-                    <i class="fas fa-times mr-2"></i>Rifiuta
+                    <i class="fas fa-times mr-2"></i><?= __("Rifiuta") ?>
                   </button>
                 </div>
                 <div class="mt-3 text-xs text-gray-400 flex items-center">
                   <i class="fas fa-clock mr-2"></i>
-                  Richiesto il <?= !empty($loan['created_at']) ? date('d-m-Y H:i', strtotime((string)$loan['created_at'])) : 'N/D'; ?>
+                  <?= __("Richiesto il") ?> <?= !empty($loan['created_at']) ? date('d-m-Y H:i', strtotime((string)$loan['created_at'])) : 'N/D'; ?>
                 </div>
               </div>
             <?php endforeach; ?>
@@ -182,18 +182,18 @@
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-clock text-gray-600 mr-2"></i>
-          Ultimi Libri Inseriti
+          <?= __("Ultimi Libri Inseriti") ?>
         </h2>
         <a href="/admin/libri" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
           <i class="fas fa-eye mr-1"></i>
-          Vedi tutti
+          <?= __("Vedi tutti") ?>
         </a>
       </div>
       <div class="p-6">
         <?php if (empty($lastBooks)): ?>
           <div class="text-center py-8">
             <i class="fas fa-book-open text-4xl text-gray-300 mb-4"></i>
-            <p class="text-gray-500">Nessun libro ancora inserito</p>
+            <p class="text-gray-500"><?= __("Nessun libro ancora inserito") ?></p>
           </div>
         <?php else: ?>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -231,18 +231,18 @@
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-handshake text-gray-600 mr-2"></i>
-          Prestiti in Corso
+          <?= __("Prestiti in Corso") ?>
         </h2>
         <a href="/admin/prestiti" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
           <i class="fas fa-eye mr-1"></i>
-          Vedi tutti
+          <?= __("Vedi tutti") ?>
         </a>
       </div>
       <div class="p-6">
         <?php if (empty($active)): ?>
           <div class="text-center py-8">
             <i class="fas fa-handshake text-4xl text-gray-300 mb-4"></i>
-            <p class="text-gray-500">Nessun prestito in corso</p>
+            <p class="text-gray-500"><?= __("Nessun prestito in corso") ?></p>
           </div>
         <?php else: ?>
           <div class="overflow-x-auto">
@@ -274,7 +274,7 @@
                     <td class="px-6 py-4 whitespace-nowrap">
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         <i class="fas fa-clock mr-1"></i>
-                        In corso
+                        <?= __("In corso") ?>
                       </span>
                     </td>
                   </tr>
@@ -291,18 +291,18 @@
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-exclamation-triangle text-gray-600 mr-2"></i>
-          Prestiti Scaduti
+          <?= __("Prestiti Scaduti") ?>
         </h2>
         <a href="/admin/prestiti" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
           <i class="fas fa-eye mr-1"></i>
-          Gestisci
+          <?= __("Gestisci") ?>
         </a>
       </div>
       <div class="p-6">
         <?php if (empty($overdue)): ?>
           <div class="text-center py-8">
             <i class="fas fa-check-circle text-4xl text-green-400 mb-4"></i>
-            <p class="text-gray-500">Nessun prestito scaduto</p>
+            <p class="text-gray-500"><?= __("Nessun prestito scaduto") ?></p>
           </div>
         <?php else: ?>
           <div class="overflow-x-auto">
@@ -334,7 +334,7 @@
                     <td class="px-6 py-4 whitespace-nowrap">
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                         <i class="fas fa-exclamation-triangle mr-1"></i>
-                        Scaduto
+                        <?= __("Scaduto") ?>
                       </span>
                     </td>
                   </tr>
@@ -348,8 +348,22 @@
 </div>
 </div>
 
+<?php
+// Create i18n translations for JavaScript
+$i18nTranslations = [
+    'confirm_approve' => __('Sei sicuro di voler approvare questo prestito?'),
+    'error_prefix' => __('Errore:'),
+    'server_error' => __('Errore nella comunicazione con il server'),
+    'reject_reason_prompt' => __('Motivo del rifiuto (opzionale):'),
+];
+$i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+?>
+
 <script>
 (function() {
+    // Translations object for JavaScript
+    const i18n = <?= $i18nJson ?>;
+
     const bindLoanActions = (context = document) => {
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
@@ -361,7 +375,7 @@
             btn.addEventListener('click', async function() {
                 const loanId = this.dataset.loanId;
 
-                if (!confirm(__('Sei sicuro di voler approvare questo prestito?'))) {
+                if (!confirm(i18n.confirm_approve)) {
                     return;
                 }
 
@@ -387,10 +401,10 @@
                             location.reload();
                         }
                     } else {
-                        alert('Errore: ' + result.message);
+                        alert(i18n.error_prefix + ' ' + result.message);
                     }
                 } catch (error) {
-                    alert(__('Errore nella comunicazione con il server'));
+                    alert(i18n.server_error);
                 }
             });
         });
@@ -402,7 +416,7 @@
             btn.dataset.bound = '1';
             btn.addEventListener('click', async function() {
                 const loanId = this.dataset.loanId;
-                const reason = prompt('Motivo del rifiuto (opzionale):');
+                const reason = prompt(i18n.reject_reason_prompt);
                 if (reason === null) {
                     return;
                 }
@@ -432,10 +446,10 @@
                             location.reload();
                         }
                     } else {
-                        alert('Errore: ' + result.message);
+                        alert(i18n.error_prefix + ' ' + result.message);
                     }
                 } catch (error) {
-                    alert(__('Errore nella comunicazione con il server'));
+                    alert(i18n.server_error);
                 }
             });
         });
