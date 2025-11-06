@@ -25,6 +25,7 @@ use App\Controllers\CollocazioneController;
 use App\Controllers\UserDashboardController;
 use App\Controllers\MaintenanceController;
 use App\Controllers\SettingsController;
+use App\Controllers\LanguageController;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminAuthMiddleware;
 
@@ -1559,4 +1560,10 @@ $app->get('/catalogo', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->details($request, $response, $args);
     })->add(new AdminAuthMiddleware());
+
+    // Language switcher (no auth required - available to all users)
+    $app->get('/language/{locale}', function ($request, $response, $args) use ($app) {
+        $controller = new LanguageController();
+        return $controller->switchLanguage($request, $response, $args);
+    });
 };

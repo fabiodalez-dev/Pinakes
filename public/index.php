@@ -111,6 +111,11 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
     session_start();
 
+    // Initialize locale from session
+    if (isset($_SESSION['locale'])) {
+        \App\Support\I18n::setLocale($_SESSION['locale']);
+    }
+
     // Regenera session ID periodicamente per prevenire session hijacking
     if (!isset($_SESSION['last_regeneration'])) {
         $_SESSION['last_regeneration'] = time();

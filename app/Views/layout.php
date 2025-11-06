@@ -379,6 +379,39 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
                 </a>
 
+                <!-- Language Switcher -->
+                <div class="relative ml-2">
+                  <?php
+                    $currentLocale = $_SESSION['locale'] ?? 'it_IT';
+                    $localeLabels = [
+                      'it_IT' => ['name' => 'Italiano', 'flag' => '🇮🇹', 'code' => 'IT'],
+                      'en_US' => ['name' => 'English', 'flag' => '🇬🇧', 'code' => 'EN']
+                    ];
+                    $currentLocaleInfo = $localeLabels[$currentLocale] ?? $localeLabels['it_IT'];
+                  ?>
+                  <button id="language-menu-button" class="flex items-center gap-2 p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="<?= __('Cambia lingua') ?>">
+                    <span class="text-xl"><?= $currentLocaleInfo['flag'] ?></span>
+                    <span class="hidden sm:inline text-sm font-medium text-gray-700"><?= $currentLocaleInfo['code'] ?></span>
+                    <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" id="language-menu-arrow"></i>
+                  </button>
+                  <div id="language-menu-dropdown" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
+                    <div class="p-2">
+                      <?php foreach ($localeLabels as $locale => $info): ?>
+                        <a href="/language/<?= $locale ?>" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors <?= $currentLocale === $locale ? 'bg-gray-50' : '' ?>">
+                          <span class="text-2xl"><?= $info['flag'] ?></span>
+                          <div class="flex-1">
+                            <div class="text-sm font-medium text-gray-900"><?= $info['name'] ?></div>
+                            <div class="text-xs text-gray-500"><?= $info['code'] ?></div>
+                          </div>
+                          <?php if ($currentLocale === $locale): ?>
+                            <i class="fas fa-check text-sm text-green-600"></i>
+                          <?php endif; ?>
+                        </a>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Enhanced User Menu / Public Login -->
                 <div class="relative ml-2">
                   <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
@@ -700,9 +733,11 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             if (!notificationsDropdown.classList.contains('hidden')) {
               await loadNotifications();
             }
-            // Close user menu if open
+            // Close other dropdowns
             const userDropdown = document.getElementById('user-menu-dropdown');
             if (userDropdown) userDropdown.classList.add('hidden');
+            const languageDropdown = document.getElementById('language-menu-dropdown');
+            if (languageDropdown) languageDropdown.classList.add('hidden');
           });
         }
 
@@ -713,7 +748,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
         const userMenuButton = document.getElementById('user-menu-button');
         const userMenuDropdown = document.getElementById('user-menu-dropdown');
         const userMenuArrow = document.getElementById('user-menu-arrow');
-        
+
         if (userMenuButton && userMenuDropdown) {
           userMenuButton.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -721,16 +756,39 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             if (userMenuArrow) {
               userMenuArrow.classList.toggle('rotate-180');
             }
-            // Close notifications dropdown if open
+            // Close other dropdowns
             if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
+            if (languageMenuDropdown) languageMenuDropdown.classList.add('hidden');
+            if (languageMenuArrow) languageMenuArrow.classList.remove('rotate-180');
           });
         }
-        
+
+        // Language menu dropdown
+        const languageMenuButton = document.getElementById('language-menu-button');
+        const languageMenuDropdown = document.getElementById('language-menu-dropdown');
+        const languageMenuArrow = document.getElementById('language-menu-arrow');
+
+        if (languageMenuButton && languageMenuDropdown) {
+          languageMenuButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            languageMenuDropdown.classList.toggle('hidden');
+            if (languageMenuArrow) {
+              languageMenuArrow.classList.toggle('rotate-180');
+            }
+            // Close other dropdowns
+            if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
+            if (userMenuDropdown) userMenuDropdown.classList.add('hidden');
+            if (userMenuArrow) userMenuArrow.classList.remove('rotate-180');
+          });
+        }
+
         // Close dropdowns when clicking outside
         document.addEventListener('click', function() {
           if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
           if (userMenuDropdown) userMenuDropdown.classList.add('hidden');
           if (userMenuArrow) userMenuArrow.classList.remove('rotate-180');
+          if (languageMenuDropdown) languageMenuDropdown.classList.add('hidden');
+          if (languageMenuArrow) languageMenuArrow.classList.remove('rotate-180');
         });
 
         // Mobile search functionality
@@ -1106,6 +1164,12 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             const userMenuDropdown = document.getElementById('user-menu-dropdown');
             if (userMenuDropdown && !userMenuDropdown.classList.contains('hidden')) {
               userMenuDropdown.classList.add('hidden');
+            }
+
+            // Close language menu dropdown
+            const languageMenuDropdown = document.getElementById('language-menu-dropdown');
+            if (languageMenuDropdown && !languageMenuDropdown.classList.contains('hidden')) {
+              languageMenuDropdown.classList.add('hidden');
             }
 
             // Blur focused input/button
