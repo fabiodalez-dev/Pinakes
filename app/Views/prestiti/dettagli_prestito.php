@@ -167,12 +167,12 @@ function formatLoanStatus($status) {
             const loanId = this.dataset.loanId;
 
             const result = await Swal.fire({
-                title: 'Approva prestito?',
-                text: 'Sei sicuro di voler approvare questa richiesta di prestito?',
+                title: __('Approva prestito?'),
+                text: __('Sei sicuro di voler approvare questa richiesta di prestito?'),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Sì, approva',
-                cancelButtonText: 'Annulla',
+                confirmButtonText: __('Sì, approva'),
+                cancelButtonText: __('Annulla'),
                 confirmButtonColor: '#111827',
                 cancelButtonColor: '#6b7280'
             });
@@ -195,28 +195,28 @@ function formatLoanStatus($status) {
 
                 if (data.success) {
                     await Swal.fire({
-                        title: 'Approvato!',
-                        text: 'Il prestito è stato approvato con successo.',
+                        title: __('Approvato!'),
+                        text: __('Il prestito è stato approvato con successo.'),
                         icon: 'success',
-                        confirmButtonText: 'OK',
+                        confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'
                     });
                     window.location.href = '/admin/prestiti';
                 } else {
                     Swal.fire({
-                        title: 'Errore',
+                        title: __('Errore'),
                         text: data.message || 'Errore durante l\'approvazione',
                         icon: 'error',
-                        confirmButtonText: 'OK',
+                        confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'
                     });
                 }
             } catch (error) {
                 Swal.fire({
-                    title: 'Errore',
-                    text: 'Errore nella comunicazione con il server',
+                    title: __('Errore'),
+                    text: __('Errore nella comunicazione con il server'),
                     icon: 'error',
-                    confirmButtonText: 'OK',
+                    confirmButtonText: __('OK'),
                     confirmButtonColor: '#111827'
                 });
             }
@@ -230,13 +230,13 @@ function formatLoanStatus($status) {
             const loanId = this.dataset.loanId;
 
             const { value: reason } = await Swal.fire({
-                title: 'Rifiuta prestito',
+                title: __('Rifiuta prestito'),
                 input: 'textarea',
                 inputLabel: 'Motivo del rifiuto (opzionale)',
                 inputPlaceholder: 'Inserisci il motivo del rifiuto...',
                 showCancelButton: true,
-                confirmButtonText: 'Rifiuta',
-                cancelButtonText: 'Annulla',
+                confirmButtonText: __('Rifiuta'),
+                cancelButtonText: __('Annulla'),
                 confirmButtonColor: '#dc2626',
                 cancelButtonColor: '#6b7280',
                 inputValidator: (value) => {
@@ -267,28 +267,28 @@ function formatLoanStatus($status) {
 
                 if (data.success) {
                     await Swal.fire({
-                        title: 'Rifiutato',
-                        text: 'Il prestito è stato rifiutato.',
+                        title: __('Rifiutato'),
+                        text: __('Il prestito è stato rifiutato.'),
                         icon: 'success',
-                        confirmButtonText: 'OK',
+                        confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'
                     });
                     window.location.href = '/admin/prestiti';
                 } else {
                     Swal.fire({
-                        title: 'Errore',
+                        title: __('Errore'),
                         text: data.message || 'Errore durante il rifiuto',
                         icon: 'error',
-                        confirmButtonText: 'OK',
+                        confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'
                     });
                 }
             } catch (error) {
                 Swal.fire({
-                    title: 'Errore',
-                    text: 'Errore nella comunicazione con il server',
+                    title: __('Errore'),
+                    text: __('Errore nella comunicazione con il server'),
                     icon: 'error',
-                    confirmButtonText: 'OK',
+                    confirmButtonText: __('OK'),
                     confirmButtonColor: '#111827'
                 });
             }

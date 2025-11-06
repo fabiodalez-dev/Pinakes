@@ -419,12 +419,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Use SweetAlert for confirmation
     const result = await Swal.fire({
-      title: 'Rimuovere dalla wishlist?',
-      text: 'Sei sicuro di voler rimuovere questo libro dalla tua wishlist?',
+      title: __('Rimuovere dalla wishlist?'),
+      text: __('Sei sicuro di voler rimuovere questo libro dalla tua wishlist?'),
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Sì, rimuovi',
-      cancelButtonText: 'Annulla',
+      confirmButtonText: __('Sì, rimuovi'),
+      cancelButtonText: __('Annulla'),
       confirmButtonColor: '#111827',
       cancelButtonColor: '#6b7280'
     });
@@ -462,10 +462,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (error) {
       Swal.fire({
-        title: 'Errore',
-        text: 'Si è verificato un errore nella rimozione. Riprova.',
+        title: __('Errore'),
+        text: __('Si è verificato un errore nella rimozione. Riprova.'),
         icon: 'error',
-        confirmButtonText: 'OK',
+        confirmButtonText: __('OK'),
         confirmButtonColor: '#111827'
       });
     }

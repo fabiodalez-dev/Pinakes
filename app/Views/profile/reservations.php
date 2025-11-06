@@ -474,7 +474,7 @@
                   <span><?php echo !empty($p['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($p['data_scadenza_prenotazione'])) : 'Non specificata'; ?></span>
                 </div>
               </div>
-              <form method="post" action="/reservation/cancel" onsubmit="return confirm('Annullare questa prenotazione?')">
+              <form method="post" action="/reservation/cancel" onsubmit="return confirm(__('Annullare questa prenotazione?'))">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="reservation_id" value="<?php echo (int)$p['id']; ?>">
                 <button type="submit" class="btn-cancel">
@@ -740,8 +740,8 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
       console.error('Failed to parse JSON:', e);
       Swal.fire({
         icon: 'error',
-        title: 'Errore del server',
-        text: 'Risposta non valida. Controlla la console per dettagli.'
+        title: __('Errore del server'),
+        text: __('Risposta non valida. Controlla la console per dettagli.')
       });
       return;
     }
@@ -749,9 +749,9 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
     if (result.success) {
       Swal.fire({
         icon: 'success',
-        title: 'Recensione inviata!',
-        text: 'Sarà pubblicata dopo l\'approvazione di un amministratore.',
-        confirmButtonText: 'OK'
+        title: __('Recensione inviata!'),
+        text: __('Sarà pubblicata dopo l\')approvazione di un amministratore.',
+        confirmButtonText: __('OK')
       }).then(() => {
         closeReviewModal();
         location.reload();
@@ -759,7 +759,7 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
     } else {
       Swal.fire({
         icon: 'error',
-        title: 'Errore',
+        title: __('Errore'),
         text: result.message || 'Impossibile inviare la recensione'
       });
     }
@@ -767,7 +767,7 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
     console.error('Error:', error);
     Swal.fire({
       icon: 'error',
-      title: 'Errore di connessione',
+      title: __('Errore di connessione'),
       text: error.message
     });
   }

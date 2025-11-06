@@ -529,7 +529,7 @@ use App\Support\HtmlHelper;
                       <i class="fas <?php echo $key['is_active'] ? 'fa-pause' : 'fa-play'; ?>"></i>
                     </button>
                   </form>
-                  <form action="/admin/settings/api/keys/<?php echo $key['id']; ?>/delete" method="post" class="inline" onsubmit="return confirm('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.')">
+                  <form action="/admin/settings/api/keys/<?php echo $key['id']; ?>/delete" method="post" class="inline" onsubmit="return confirm(__('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.'))">
                     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"

@@ -603,7 +603,7 @@ $csrfToken = Csrf::ensureToken();
                   <span><?= $deadline ? date('d/m/Y', strtotime($deadline)) : 'Non specificata'; ?></span>
                 </div>
               </div>
-              <form method="post" action="/reservation/cancel" onsubmit="return confirm('Annullare questa prenotazione?');">
+              <form method="post" action="/reservation/cancel" onsubmit="return confirm(__('Annullare questa prenotazione?'));">
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
                 <button type="submit" class="btn-cancel">
@@ -906,9 +906,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!stelleValue) {
       Swal.fire({
         icon: 'warning',
-        title: 'Attenzione',
-        text: 'Seleziona una valutazione prima di inviare la recensione.',
-        confirmButtonText: 'OK'
+        title: __('Attenzione'),
+        text: __('Seleziona una valutazione prima di inviare la recensione.'),
+        confirmButtonText: __('OK')
       });
       return;
     }
@@ -938,9 +938,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.success) {
         Swal.fire({
           icon: 'success',
-          title: 'Successo!',
+          title: __('Successo!'),
           text: result.message || 'Recensione inviata con successo!',
-          confirmButtonText: 'OK'
+          confirmButtonText: __('OK')
         }).then(() => {
           closeModal();
           window.location.reload();
@@ -948,18 +948,18 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         Swal.fire({
           icon: 'error',
-          title: 'Errore',
+          title: __('Errore'),
           text: result.message || 'Impossibile inviare la recensione.',
-          confirmButtonText: 'OK'
+          confirmButtonText: __('OK')
         });
       }
     } catch (error) {
       console.error('Errore invio recensione:', error);
       Swal.fire({
         icon: 'error',
-        title: 'Errore di connessione',
-        text: 'Impossibile comunicare con il server. Riprova più tardi.',
-        confirmButtonText: 'OK'
+        title: __('Errore di connessione'),
+        text: __('Impossibile comunicare con il server. Riprova più tardi.'),
+        confirmButtonText: __('OK')
       });
     }
   });

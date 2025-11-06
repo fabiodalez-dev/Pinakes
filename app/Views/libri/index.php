@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function() {
       error: function(xhr, status, err) {
         console.error('Errore caricamento /api/libri:', { status, err, responseText: xhr && xhr.responseText });
         if (window.Swal) {
-          Swal.fire({ icon: 'error', title: 'Errore', text: 'Impossibile caricare i libri. Controlla la console per i dettagli.' });
+          Swal.fire({ icon: 'error', title: __('Errore'), text: __('Impossibile caricare i libri. Controlla la console per i dettagli.') });
         }
       },
       dataSrc: function(json) {
@@ -786,8 +786,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'success',
-            title: 'Filtri cancellati',
-            text: 'Tutti i filtri sono stati rimossi',
+            title: __('Filtri cancellati'),
+            text: __('Tutti i filtri sono stati rimossi'),
             timer: 2000,
             showConfirmButton: false
           });
@@ -828,8 +828,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'success',
-            title: 'Filtri salvati',
-            text: 'I filtri correnti sono stati salvati nell\'URL',
+            title: __('Filtri salvati'),
+            text: __('I filtri correnti sono stati salvati nell\')URL',
             timer: 2000,
             showConfirmButton: false
           });
@@ -886,7 +886,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.Swal) {
         Swal.fire({
           icon: 'info',
-          title: 'Generazione CSV in corso...',
+          title: __('Generazione CSV in corso...'),
           text: message,
           showConfirmButton: false,
           timer: 1500
@@ -910,8 +910,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'info',
-            title: 'Nessun dato',
-            text: 'Non ci sono dati da esportare'
+            title: __('Nessun dato'),
+            text: __('Non ci sono dati da esportare')
           });
         }
         return;
@@ -1008,17 +1008,17 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     if (window.Swal) {
       Swal.fire({
-        title: 'Sei sicuro?',
-        text: 'Questa azione non può essere annullata!',
+        title: __('Sei sicuro?'),
+        text: __('Questa azione non può essere annullata!'),
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
         cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sì, elimina!',
-        cancelButtonText: 'Annulla'
+        confirmButtonText: __('Sì, elimina!'),
+        cancelButtonText: __('Annulla')
       }).then((result) => { if (result.isConfirmed) confirmAndSubmit(); });
     } else {
-      if (confirm('Sei sicuro di voler eliminare questo libro?')) confirmAndSubmit();
+      if (confirm(__('Sei sicuro di voler eliminare questo libro?'))) confirmAndSubmit();
     }
   };
 

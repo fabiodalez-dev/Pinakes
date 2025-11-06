@@ -140,8 +140,8 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Campo Obbligatorio',
-                    text: 'Il nome dell\'autore è obbligatorio.'
+                    title: __('Campo Obbligatorio'),
+                    text: __('Il nome dell\')autore è obbligatorio.'
                 });
             } else {
                 alert('Il nome dell\'autore è obbligatorio.');
@@ -158,11 +158,11 @@ function initializeFormValidation() {
                 if (window.Swal) {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Date Non Valide',
-                        text: 'La data di nascita deve essere precedente alla data di morte.'
+                        title: __('Date Non Valide'),
+                        text: __('La data di nascita deve essere precedente alla data di morte.')
                     });
                 } else {
-                    alert('La data di nascita deve essere precedente alla data di morte.');
+                    alert(__('La data di nascita deve essere precedente alla data di morte.'));
                 }
                 return;
             }
@@ -171,20 +171,20 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: 'Conferma Salvataggio',
+                title: __('Conferma Salvataggio'),
                 text: `Sei sicuro di voler salvare l'autore "${nome}"?`,
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Sì, Salva',
-                cancelButtonText: 'Annulla',
+                confirmButtonText: __('Sì, Salva'),
+                cancelButtonText: __('Annulla'),
                 reverseButtons: true
             });
             
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: 'Salvataggio in corso...',
-                    text: 'Attendere prego',
+                    title: __('Salvataggio in corso...'),
+                    text: __('Attendere prego'),
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {

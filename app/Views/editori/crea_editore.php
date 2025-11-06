@@ -150,8 +150,8 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Campo Obbligatorio',
-                    text: 'Il nome dell\'editore è obbligatorio.'
+                    title: __('Campo Obbligatorio'),
+                    text: __('Il nome dell\')editore è obbligatorio.'
                 });
             } else {
                 alert('Il nome dell\'editore è obbligatorio.');
@@ -165,11 +165,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: 'URL Non Valido',
-                    text: 'Il sito web deve essere un URL valido (es. https://www.esempio.com).'
+                    title: __('URL Non Valido'),
+                    text: __('Il sito web deve essere un URL valido (es. https://www.esempio.com).')
                 });
             } else {
-                alert('Il sito web deve essere un URL valido.');
+                alert(__('Il sito web deve essere un URL valido.'));
             }
             return;
         }
@@ -180,8 +180,8 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Email Non Valida',
-                    text: 'L\'indirizzo email deve essere valido.'
+                    title: __('Email Non Valida'),
+                    text: __('L\')indirizzo email deve essere valido.'
                 });
             } else {
                 alert('L\'indirizzo email deve essere valido.');
@@ -192,20 +192,20 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: 'Conferma Salvataggio',
+                title: __('Conferma Salvataggio'),
                 text: `Sei sicuro di voler salvare l'editore "${nome}"?`,
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Sì, Salva',
-                cancelButtonText: 'Annulla',
+                confirmButtonText: __('Sì, Salva'),
+                cancelButtonText: __('Annulla'),
                 reverseButtons: true
             });
             
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: 'Salvataggio in corso...',
-                    text: 'Attendere prego',
+                    title: __('Salvataggio in corso...'),
+                    text: __('Attendere prego'),
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {

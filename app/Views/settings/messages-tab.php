@@ -189,7 +189,7 @@ function closeMessageModal() {
 }
 
 function deleteMessage(id) {
-  if (confirm('Sei sicuro di voler eliminare questo messaggio?')) {
+  if (confirm(__('Sei sicuro di voler eliminare questo messaggio?'))) {
     csrfFetch(`/admin/messages/${id}`, { method: 'DELETE' })
       .then(() => location.reload());
   }

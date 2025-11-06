@@ -1928,10 +1928,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'warning',
-            title: 'Accesso Richiesto',
+            title: __('Accesso Richiesto'),
             html: '<p class="mb-3">Per richiedere un prestito devi effettuare il login.</p>',
-            confirmButtonText: 'Vai al Login',
-            cancelButtonText: 'Annulla',
+            confirmButtonText: __('Vai al Login'),
+            cancelButtonText: __('Annulla'),
             showCancelButton: true,
             customClass: {
               confirmButton: 'btn btn-dark',
@@ -1943,7 +1943,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           });
         } else {
-          if (confirm('Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?')) {
+          if (confirm(__('Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?'))) {
             window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
           }
         }
@@ -1985,7 +1985,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const suggestedDate = iso(earliestAvailable);
 
         const { value: formValues } = await Swal.fire({
-          title: 'Richiesta Prestito',
+          title: __('Richiesta Prestito'),
           html:
             `<div class="text-start">`+
             `<label class="form-label">Quando vuoi iniziare il prestito?</label>`+
@@ -1999,8 +1999,8 @@ document.addEventListener('DOMContentLoaded', function() {
             `</div>`,
           focusConfirm: false,
           showCancelButton: true,
-          confirmButtonText: 'Invia Richiesta',
-          cancelButtonText: 'Annulla',
+          confirmButtonText: __('Invia Richiesta'),
+          cancelButtonText: __('Annulla'),
           didOpen: () => {
             const startEl = document.getElementById('swal-date-start');
             const endEl = document.getElementById('swal-date-end');
@@ -2076,7 +2076,7 @@ document.addEventListener('DOMContentLoaded', function() {
               await updateReservationsBadge();
               Swal.fire({
                 icon: 'success',
-                title: 'Richiesta Inviata!',
+                title: __('Richiesta Inviata!'),
                 html: `Richiesta di prestito dal <strong>${formatDateIT(formValues.startDate)}</strong>` +
                       (formValues.endDate ? ` al <strong>${formatDateIT(formValues.endDate)}</strong>` : ' per 1 mese') +
                       `<br><small class="text-muted">La richiesta è in attesa di approvazione dall'amministratore.</small>`
@@ -2085,13 +2085,13 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
               Swal.fire({
                 icon: 'error',
-                title: 'Errore',
+                title: __('Errore'),
                 text: result.message || 'Impossibile creare la prenotazione'
               });
             }
           } catch(e) {
             console.error('Reservation error:', e);
-            Swal.fire({ icon:'error', title:'Errore', text:'Impossibile creare la prenotazione' });
+            Swal.fire({ icon:'error', title: __('Errore'), text: __('Impossibile creare la prenotazione') });
           }
         }
       } else {
@@ -2116,7 +2116,7 @@ document.addEventListener('DOMContentLoaded', function() {
               alert('Errore: ' + (result.message || 'Impossibile creare la prenotazione'));
             }
           } catch(_) {
-            alert('Errore nella prenotazione');
+            alert(__('Errore nella prenotazione'));
           }
         }
       }

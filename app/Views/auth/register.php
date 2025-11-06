@@ -309,14 +309,14 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
       if (password.value !== confirmPassword.value) {
         e.preventDefault();
-        alert('Le password non coincidono!');
+        alert(__('Le password non coincidono!'));
         confirmPassword.focus();
         return false;
       }
       
       if (password.value.length < 8) {
         e.preventDefault();
-        alert('La password deve essere lunga almeno 8 caratteri!');
+        alert(__('La password deve essere lunga almeno 8 caratteri!'));
         password.focus();
         return false;
       }

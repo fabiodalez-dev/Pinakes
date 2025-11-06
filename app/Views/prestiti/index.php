@@ -406,12 +406,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!loanId) return;
 
             Swal.fire({
-                title: 'Approva Prestito?',
-                text: 'Approverai questa richiesta di prestito?',
+                title: __('Approva Prestito?'),
+                text: __('Approverai questa richiesta di prestito?'),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Approva',
-                cancelButtonText: 'Annulla',
+                confirmButtonText: __('Approva'),
+                cancelButtonText: __('Annulla'),
                 confirmButtonColor: '#111827'
             }).then((result) => {
                 if (result.isConfirmed) {
@@ -448,12 +448,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!loanId) return;
 
             Swal.fire({
-                title: 'Rifiuta Prestito?',
-                text: 'Rifiuterai questa richiesta di prestito?',
+                title: __('Rifiuta Prestito?'),
+                text: __('Rifiuterai questa richiesta di prestito?'),
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'Rifiuta',
-                cancelButtonText: 'Annulla',
+                confirmButtonText: __('Rifiuta'),
+                cancelButtonText: __('Annulla'),
                 confirmButtonColor: '#dc2626'
             }).then((result) => {
                 if (result.isConfirmed) {

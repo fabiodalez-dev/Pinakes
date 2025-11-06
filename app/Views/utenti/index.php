@@ -385,8 +385,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'success',
-            title: 'Filtri cancellati',
-            text: 'Tutti i filtri sono stati rimossi',
+            title: __('Filtri cancellati'),
+            text: __('Tutti i filtri sono stati rimossi'),
             timer: 2000,
             showConfirmButton: false
           });
@@ -409,14 +409,14 @@ document.addEventListener('DOMContentLoaded', function() {
   window.deleteUser = function(userId) {
     if (window.Swal) {
       Swal.fire({
-        title: 'Sei sicuro?',
-        text: 'Questa azione non può essere annullata!',
+        title: __('Sei sicuro?'),
+        text: __('Questa azione non può essere annullata!'),
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
         cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sì, elimina!',
-        cancelButtonText: 'Annulla'
+        confirmButtonText: __('Sì, elimina!'),
+        cancelButtonText: __('Annulla')
       }).then((result) => {
         if (result.isConfirmed) {
           // Make DELETE request
@@ -446,7 +446,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     } else {
-      if (confirm('Sei sicuro di voler eliminare questo utente?')) {
+      if (confirm(__('Sei sicuro di voler eliminare questo utente?'))) {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         fetch(`/admin/utenti/delete/${userId}`, {
           method: 'POST',
@@ -512,7 +512,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.Swal) {
         Swal.fire({
           icon: 'info',
-          title: 'Generazione CSV in corso...',
+          title: __('Generazione CSV in corso...'),
           text: message,
           showConfirmButton: false,
           timer: 1500
@@ -536,8 +536,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
           Swal.fire({
             icon: 'info',
-            title: 'Nessun dato',
-            text: 'Non ci sono dati da esportare'
+            title: __('Nessun dato'),
+            text: __('Non ci sono dati da esportare')
           });
         }
         return;
@@ -618,8 +618,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.Swal) {
         Swal.fire({
           icon: 'success',
-          title: 'PDF generato!',
-          text: 'Il download dovrebbe iniziare automaticamente',
+          title: __('PDF generato!'),
+          text: __('Il download dovrebbe iniziare automaticamente'),
           timer: 2000,
           showConfirmButton: false
         });

@@ -239,7 +239,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
         </p>
       </form>
 
-      <form method="POST" action="/admin/utenti/<?= $id; ?>/activate-directly" class="flex-1" onsubmit="return confirm('Confermi di voler attivare direttamente questo utente senza richiedere verifica email?')">
+      <form method="POST" action="/admin/utenti/<?= $id; ?>/activate-directly" class="flex-1" onsubmit="return confirm(__('Confermi di voler attivare direttamente questo utente senza richiedere verifica email?'))">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
         <button type="submit" class="w-full px-4 py-3 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center gap-2 border border-green-700">
           <i class="fas fa-user-check"></i>

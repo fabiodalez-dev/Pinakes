@@ -419,7 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Errore Upload',
+                    title: __('Errore Upload'),
                     text: error.message
                 });
             } else {
@@ -530,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.Swal) {
             Swal.fire({
                 icon: 'error',
-                title: 'Errore',
+                title: __('Errore'),
                 text: message
             });
         } else {

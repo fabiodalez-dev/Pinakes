@@ -180,12 +180,12 @@ async function recalculateAvailability() {
             alert(`❌ ${result.message}`);
         }
     } catch (error) {
-        alert('❌ Errore di comunicazione con il server');
+        alert(__('❌ Errore di comunicazione con il server'));
     }
 }
 
 async function fixIssues() {
-    if (!confirm('Vuoi correggere automaticamente i problemi di integrità rilevati?')) return;
+    if (!confirm(__('Vuoi correggere automaticamente i problemi di integrità rilevati?'))) return;
 
     try {
         const response = await csrfFetch('/admin/maintenance/fix-issues', {
@@ -201,12 +201,12 @@ async function fixIssues() {
             alert(`❌ ${result.message}`);
         }
     } catch (error) {
-        alert('❌ Errore di comunicazione con il server');
+        alert(__('❌ Errore di comunicazione con il server'));
     }
 }
 
 async function performMaintenance() {
-    if (!confirm('Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti.')) return;
+    if (!confirm(__('Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti.'))) return;
 
     try {
         const response = await csrfFetch('/admin/maintenance/perform', {
@@ -222,7 +222,7 @@ async function performMaintenance() {
             alert(`❌ ${result.message}`);
         }
     } catch (error) {
-        alert('❌ Errore di comunicazione con il server');
+        alert(__('❌ Errore di comunicazione con il server'));
     }
 }
 </script>

@@ -600,7 +600,7 @@ function initializeUppy() {
             
             Swal.fire({
                 icon: 'success',
-                title: 'Immagine Caricata!',
+                title: __('Immagine Caricata!'),
                 text: `File "${file.name}" pronto per l'upload`,
                 timer: 2000,
                 showConfirmButton: false
@@ -617,7 +617,7 @@ function initializeUppy() {
             console.error('Upload restriction failed:', error);
             Swal.fire({
                 icon: 'error',
-                title: 'Errore Upload',
+                title: __('Errore Upload'),
                 text: error.message
             });
         });
@@ -664,7 +664,7 @@ function clearImagePreview() {
 
 // Remove cover image
 function removeCoverImage() {
-    if (!confirm('Sei sicuro di voler rimuovere la copertina?')) {
+    if (!confirm(__('Sei sicuro di voler rimuovere la copertina?'))) {
         return;
     }
 
@@ -1434,10 +1434,10 @@ function initializeSuggestCollocazione() {
           }, 100);
         }
         info.textContent = data.collocazione ? `Suggerito: ${data.collocazione}` : `Suggerito scaffale #${data.scaffale_id}`;
-        if (window.Toast) Toast.fire({icon: 'success', title: 'Collocazione suggerita' });
+        if (window.Toast) Toast.fire({icon: 'success', title: __('Collocazione suggerita') });
       } else {
         info.textContent = 'Nessun suggerimento disponibile';
-        if (window.Toast) Toast.fire({icon: 'info', title: 'Nessun suggerimento' });
+        if (window.Toast) Toast.fire({icon: 'info', title: __('Nessun suggerimento') });
       }
     } catch (e) {
       info.textContent = 'Errore suggerimento';
@@ -1527,7 +1527,7 @@ function initializeCollocationFilters() {
         if (window.Toast) {
           window.Toast.fire({
             icon: 'warning',
-            title: 'Seleziona scaffale e mensola prima'
+            title: __('Seleziona scaffale e mensola prima')
           });
         }
         return;
@@ -1869,8 +1869,8 @@ function initializeFormValidation() {
         if (!title) {
             Swal.fire({
                 icon: 'error',
-                title: 'Campo Obbligatorio',
-                text: 'Il titolo del libro è obbligatorio.'
+                title: __('Campo Obbligatorio'),
+                text: __('Il titolo del libro è obbligatorio.')
             });
             return;
         }
@@ -1882,8 +1882,8 @@ function initializeFormValidation() {
         if (isbn10 && !/^\d{9}[\dX]$/.test(isbn10)) {
             Swal.fire({
                 icon: 'error',
-                title: 'ISBN10 Non Valido',
-                text: 'ISBN10 deve contenere esattamente 10 caratteri (9 cifre + 1 cifra o X).'
+                title: __('ISBN10 Non Valido'),
+                text: __('ISBN10 deve contenere esattamente 10 caratteri (9 cifre + 1 cifra o X).')
             });
             return;
         }
@@ -1891,8 +1891,8 @@ function initializeFormValidation() {
         if (isbn13 && !/^\d{13}$/.test(isbn13)) {
             Swal.fire({
                 icon: 'error',
-                title: 'ISBN13 Non Valido', 
-                text: 'ISBN13 deve contenere esattamente 13 cifre.'
+                title: __('ISBN13 Non Valido'), 
+                text: __('ISBN13 deve contenere esattamente 13 cifre.')
             });
             return;
         }
@@ -1905,11 +1905,11 @@ function initializeFormValidation() {
         const gid = genSel ? parseInt(genSel.value || '0', 10) : 0;
         const sid = subSel ? parseInt(subSel.value || '0', 10) : 0;
         if (sid > 0 && gid === 0) {
-            Swal.fire({icon: 'error', title: 'Selezione non valida', text: 'Seleziona un Genere prima del Sottogenere.' });
+            Swal.fire({icon: 'error', title: __('Selezione non valida'), text: __('Seleziona un Genere prima del Sottogenere.') });
             return;
         }
         if (gid > 0 && rid === 0) {
-            Swal.fire({icon: 'error', title: 'Selezione non valida', text: 'Seleziona una Radice prima del Genere.' });
+            Swal.fire({icon: 'error', title: __('Selezione non valida'), text: __('Seleziona una Radice prima del Genere.') });
             return;
         }
 
@@ -1926,7 +1926,7 @@ function initializeFormValidation() {
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: confirmButton,
-            cancelButtonText: 'Annulla',
+            cancelButtonText: __('Annulla'),
             reverseButtons: true
         });
         
@@ -1934,7 +1934,7 @@ function initializeFormValidation() {
             // Show loading
             Swal.fire({
                 title: FORM_MODE === 'edit' ? 'Aggiornamento in corso...' : 'Salvataggio in corso...',
-                text: 'Attendere prego',
+                text: __('Attendere prego'),
                 allowOutsideClick: false,
                 showConfirmButton: false,
                 willOpen: () => {
@@ -1961,12 +1961,12 @@ function initializeFormValidation() {
                 ? `/admin/libri/${INITIAL_BOOK.id}`
                 : '/admin/libri';
             const result = await Swal.fire({
-                title: 'Conferma Annullamento',
-                text: 'Sei sicuro di voler annullare? Tutti i dati inseriti andranno persi.',
+                title: __('Conferma Annullamento'),
+                text: __('Sei sicuro di voler annullare? Tutti i dati inseriti andranno persi.'),
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'Sì, Annulla',
-                cancelButtonText: 'Continua',
+                confirmButtonText: __('Sì, Annulla'),
+                cancelButtonText: __('Continua'),
                 reverseButtons: true
             });
             
@@ -1993,8 +1993,8 @@ function initializeIsbnImport() {
         if (!isbn) {
             Swal.fire({
                 icon: 'warning',
-                title: 'ISBN Mancante',
-                text: 'Inserisci un codice ISBN per continuare.'
+                title: __('ISBN Mancante'),
+                text: __('Inserisci un codice ISBN per continuare.')
             });
             return;
         }
@@ -2217,14 +2217,14 @@ function initializeIsbnImport() {
             // Show success toast (small notification)
             Toast.fire({
                 icon: 'success',
-                title: 'Importazione completata con successo!'
+                title: __('Importazione completata con successo!')
             });
             
         } catch (error) {
             console.error('ISBN import error:', error);
             Toast.fire({
                 icon: 'error',
-                title: 'Errore durante l\'importazione dati'
+                title: __('Errore durante l\')importazione dati'
             });
         } finally {
             btn.disabled = false;

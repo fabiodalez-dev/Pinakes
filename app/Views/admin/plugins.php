@@ -298,8 +298,8 @@ document.getElementById('uploadButton')?.addEventListener('click', async functio
     if (!selectedFile) {
         Swal.fire({
             icon: 'error',
-            title: 'Errore',
-            text: 'Seleziona un file ZIP del plugin.'
+            title: __('Errore'),
+            text: __('Seleziona un file ZIP del plugin.')
         });
         return;
     }
@@ -330,22 +330,22 @@ document.getElementById('uploadButton')?.addEventListener('click', async functio
         if (result.success) {
             await Swal.fire({
                 icon: 'success',
-                title: 'Successo',
+                title: __('Successo'),
                 text: result.message
             });
             window.location.reload();
         } else {
             await Swal.fire({
                 icon: 'error',
-                title: 'Errore',
+                title: __('Errore'),
                 text: result.message
             });
         }
     } catch (error) {
         await Swal.fire({
             icon: 'error',
-            title: 'Errore',
-            text: 'Errore durante l\'installazione del plugin.'
+            title: __('Errore'),
+            text: __('Errore durante l\')installazione del plugin.'
         });
     } finally {
         this.disabled = false;
@@ -355,12 +355,12 @@ document.getElementById('uploadButton')?.addEventListener('click', async functio
 
 async function activatePlugin(pluginId) {
     const result = await Swal.fire({
-        title: 'Conferma',
-        text: 'Vuoi attivare questo plugin?',
+        title: __('Conferma'),
+        text: __('Vuoi attivare questo plugin?'),
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Sì, attiva',
-        cancelButtonText: 'Annulla',
+        confirmButtonText: __('Sì, attiva'),
+        cancelButtonText: __('Annulla'),
         confirmButtonColor: '#000000'
     });
 
@@ -382,34 +382,34 @@ async function activatePlugin(pluginId) {
         if (data.success) {
             await Swal.fire({
                 icon: 'success',
-                title: 'Successo',
+                title: __('Successo'),
                 text: data.message
             });
             window.location.reload();
         } else {
             await Swal.fire({
                 icon: 'error',
-                title: 'Errore',
+                title: __('Errore'),
                 text: data.message
             });
         }
     } catch (error) {
         await Swal.fire({
             icon: 'error',
-            title: 'Errore',
-            text: 'Errore durante l\'attivazione del plugin.'
+            title: __('Errore'),
+            text: __('Errore durante l\')attivazione del plugin.'
         });
     }
 }
 
 async function deactivatePlugin(pluginId) {
     const result = await Swal.fire({
-        title: 'Conferma',
-        text: 'Vuoi disattivare questo plugin?',
+        title: __('Conferma'),
+        text: __('Vuoi disattivare questo plugin?'),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Sì, disattiva',
-        cancelButtonText: 'Annulla',
+        confirmButtonText: __('Sì, disattiva'),
+        cancelButtonText: __('Annulla'),
         confirmButtonColor: '#6b7280'
     });
 
@@ -431,35 +431,35 @@ async function deactivatePlugin(pluginId) {
         if (data.success) {
             await Swal.fire({
                 icon: 'success',
-                title: 'Successo',
+                title: __('Successo'),
                 text: data.message
             });
             window.location.reload();
         } else {
             await Swal.fire({
                 icon: 'error',
-                title: 'Errore',
+                title: __('Errore'),
                 text: data.message
             });
         }
     } catch (error) {
         await Swal.fire({
             icon: 'error',
-            title: 'Errore',
-            text: 'Errore durante la disattivazione del plugin.'
+            title: __('Errore'),
+            text: __('Errore durante la disattivazione del plugin.')
         });
     }
 }
 
 async function uninstallPlugin(pluginId, pluginName) {
     const result = await Swal.fire({
-        title: 'Conferma Disinstallazione',
+        title: __('Conferma Disinstallazione'),
         html: `Sei sicuro di voler disinstallare <strong>${pluginName}</strong>?<br><br>
                <span class="text-sm text-red-600">Questa azione eliminerà tutti i dati del plugin e non può essere annullata.</span>`,
         icon: 'error',
         showCancelButton: true,
-        confirmButtonText: 'Sì, disinstalla',
-        cancelButtonText: 'Annulla',
+        confirmButtonText: __('Sì, disinstalla'),
+        cancelButtonText: __('Annulla'),
         confirmButtonColor: '#dc2626'
     });
 
@@ -481,22 +481,22 @@ async function uninstallPlugin(pluginId, pluginName) {
         if (data.success) {
             await Swal.fire({
                 icon: 'success',
-                title: 'Successo',
+                title: __('Successo'),
                 text: data.message
             });
             window.location.reload();
         } else {
             await Swal.fire({
                 icon: 'error',
-                title: 'Errore',
+                title: __('Errore'),
                 text: data.message
             });
         }
     } catch (error) {
         await Swal.fire({
             icon: 'error',
-            title: 'Errore',
-            text: 'Errore durante la disinstallazione del plugin.'
+            title: __('Errore'),
+            text: __('Errore durante la disinstallazione del plugin.')
         });
     }
 }
@@ -537,8 +537,8 @@ async function showPluginDetails(pluginId) {
     } catch (error) {
         await Swal.fire({
             icon: 'error',
-            title: 'Errore',
-            text: 'Errore durante il caricamento dei dettagli del plugin.'
+            title: __('Errore'),
+            text: __('Errore durante il caricamento dei dettagli del plugin.')
         });
     }
 }

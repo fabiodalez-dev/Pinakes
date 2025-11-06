@@ -105,7 +105,7 @@
             btn.addEventListener('click', async function() {
                 const loanId = this.dataset.loanId;
 
-                if (!confirm('Sei sicuro di voler approvare questo prestito?')) {
+                if (!confirm(__('Sei sicuro di voler approvare questo prestito?'))) {
                     return;
                 }
 
@@ -134,7 +134,7 @@
                         alert('Errore: ' + result.message);
                     }
                 } catch (error) {
-                    alert('Errore nella comunicazione con il server');
+                    alert(__('Errore nella comunicazione con il server'));
                 }
             });
         });
@@ -179,7 +179,7 @@
                         alert('Errore: ' + result.message);
                     }
                 } catch (error) {
-                    alert('Errore nella comunicazione con il server');
+                    alert(__('Errore nella comunicazione con il server'));
                 }
             });
         });

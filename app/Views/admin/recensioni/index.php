@@ -339,8 +339,8 @@ function toggleSection(section) {
             handleAction(btn, {
                 endpoint: 'approve',
                 successMessage: {
-                    title: 'Recensione approvata',
-                    text: 'La recensione è stata approvata e pubblicata con successo.'
+                    title: __('Recensione approvata'),
+                    text: __('La recensione è stata approvata e pubblicata con successo.')
                 },
                 confirmTitle: 'Approva recensione',
                 confirmText: 'Vuoi approvare questa recensione e renderla visibile sul sito?',
@@ -353,8 +353,8 @@ function toggleSection(section) {
             handleAction(btn, {
                 endpoint: 'reject',
                 successMessage: {
-                    title: 'Recensione rifiutata',
-                    text: 'La recensione è stata rifiutata e non sarà pubblicata.'
+                    title: __('Recensione rifiutata'),
+                    text: __('La recensione è stata rifiutata e non sarà pubblicata.')
                 },
                 confirmTitle: 'Rifiuta recensione',
                 confirmText: 'Vuoi rifiutare questa recensione? L\'utente verrà avvisato dell\'esito.',

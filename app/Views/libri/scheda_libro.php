@@ -749,27 +749,27 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     function confirmDeleteBook(e){
       if (window.Swal){
         e.preventDefault();
-        Swal.fire({title:'Sei sicuro?', text:'Questa azione non può essere annullata', icon:'warning', showCancelButton:true, confirmButtonText:'Elimina', confirmButtonColor:'#d33'}).then(r=>{ if(r.isConfirmed) e.target.submit(); });
+        Swal.fire({title: __('Sei sicuro?'), text: __('Questa azione non può essere annullata'), icon:'warning', showCancelButton:true, confirmButtonText: __('Elimina'), confirmButtonColor:'#d33'}).then(r=>{ if(r.isConfirmed) e.target.submit(); });
         return false;
       }
-      return confirm('Eliminare il libro?');
+      return confirm(__('Eliminare il libro?'));
     }
 
     function confirmRenewal(e){
       if (window.Swal){
         e.preventDefault();
         Swal.fire({
-          title:'Rinnova prestito?',
-          text:'La scadenza verrà estesa di 14 giorni',
+          title: __('Rinnova prestito?'),
+          text: __('La scadenza verrà estesa di 14 giorni'),
           icon:'question',
           showCancelButton:true,
-          confirmButtonText:'Rinnova',
-          cancelButtonText:'Annulla',
+          confirmButtonText: __('Rinnova'),
+          cancelButtonText: __('Annulla'),
           confirmButtonColor:'#1f2937'
         }).then(r=>{ if(r.isConfirmed) e.target.submit(); });
         return false;
       }
-      return confirm('Rinnovare il prestito? La scadenza verrà estesa di 14 giorni.');
+      return confirm(__('Rinnovare il prestito? La scadenza verrà estesa di 14 giorni.'));
     }
   </script>
 
@@ -948,12 +948,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
       if (window.Swal) {
         Swal.fire({
-          title: 'Conferma modifica',
-          text: 'Vuoi aggiornare lo stato di questa copia?',
+          title: __('Conferma modifica'),
+          text: __('Vuoi aggiornare lo stato di questa copia?'),
           icon: 'question',
           showCancelButton: true,
-          confirmButtonText: 'Sì, aggiorna',
-          cancelButtonText: 'Annulla',
+          confirmButtonText: __('Sì, aggiorna'),
+          cancelButtonText: __('Annulla'),
           confirmButtonColor: '#1f2937'
         }).then(result => {
           if (result.isConfirmed) {
@@ -961,7 +961,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           }
         });
       } else {
-        if (confirm('Vuoi aggiornare lo stato di questa copia?')) {
+        if (confirm(__('Vuoi aggiornare lo stato di questa copia?'))) {
           e.target.submit();
         }
       }
@@ -970,12 +970,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     function confirmDeleteCopy(copyId, numeroInventario) {
       if (window.Swal) {
         Swal.fire({
-          title: 'Elimina copia',
+          title: __('Elimina copia'),
           html: `Sei sicuro di voler eliminare la copia <strong>${numeroInventario}</strong>?<br><span class="text-sm text-gray-600">Questa azione non può essere annullata.</span>`,
           icon: 'warning',
           showCancelButton: true,
-          confirmButtonText: 'Sì, elimina',
-          cancelButtonText: 'Annulla',
+          confirmButtonText: __('Sì, elimina'),
+          cancelButtonText: __('Annulla'),
           confirmButtonColor: '#dc2626'
         }).then(result => {
           if (result.isConfirmed) {

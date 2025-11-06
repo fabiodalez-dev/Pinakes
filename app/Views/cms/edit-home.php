@@ -403,7 +403,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Errore Upload',
+                    title: __('Errore Upload'),
                     text: error.message
                 });
             } else {
@@ -620,13 +620,13 @@ document.addEventListener('DOMContentLoaded', function() {
      ],
      toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | removeformat | help',
      style_formats: [
-       { title: 'Paragraph', format: 'p' },
-       { title: 'Heading 1', format: 'h1' },
-       { title: 'Heading 2', format: 'h2' },
-       { title: 'Heading 3', format: 'h3' },
-       { title: 'Heading 4', format: 'h4' },
-       { title: 'Heading 5', format: 'h5' },
-       { title: 'Heading 6', format: 'h6' }
+       { title: __('Paragraph'), format: 'p' },
+       { title: __('Heading 1'), format: 'h1' },
+       { title: __('Heading 2'), format: 'h2' },
+       { title: __('Heading 3'), format: 'h3' },
+       { title: __('Heading 4'), format: 'h4' },
+       { title: __('Heading 5'), format: 'h5' },
+       { title: __('Heading 6'), format: 'h6' }
      ],
      content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
      branding: false,

@@ -397,13 +397,13 @@ tinymce.init({
   branding: false,
   relative_urls: false,
   style_formats: [
-    { title: 'Paragraph', format: 'p' },
-    { title: 'Heading 1', format: 'h1' },
-    { title: 'Heading 2', format: 'h2' },
-    { title: 'Heading 3', format: 'h3' },
-    { title: 'Heading 4', format: 'h4' },
-    { title: 'Heading 5', format: 'h5' },
-    { title: 'Heading 6', format: 'h6' }
+    { title: __('Paragraph'), format: 'p' },
+    { title: __('Heading 1'), format: 'h1' },
+    { title: __('Heading 2'), format: 'h2' },
+    { title: __('Heading 3'), format: 'h3' },
+    { title: __('Heading 4'), format: 'h4' },
+    { title: __('Heading 5'), format: 'h5' },
+    { title: __('Heading 6'), format: 'h6' }
   ],
   setup: function(editor) {
     editor.on('init', function() {
@@ -485,7 +485,7 @@ document.getElementById('template-form').addEventListener('submit', async functi
     });
 
     if (response.ok) {
-      alert('Template aggiornato con successo!');
+      alert(__('Template aggiornato con successo!'));
       closeTemplateEditor();
     } else {
       alert('Errore nell\'aggiornamento del template');
