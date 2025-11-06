@@ -192,6 +192,27 @@ $autori = $data['autori'];
 
 <!-- Modern DataTables with Advanced Features -->
 <script>
+// i18n translations for JavaScript
+const i18nTranslations = <?= json_encode([
+    'Autore sconosciuto' => __("Autore sconosciuto"),
+    'Visualizza dettagli' => __("Visualizza dettagli"),
+    'Tutti' => __("Tutti"),
+    'Nascondi filtri' => __("Nascondi filtri"),
+    'Mostra filtri' => __("Mostra filtri"),
+    'Nessun risultato trovato' => __("Nessun risultato trovato"),
+    'Sì' => __("Sì"),
+    'No' => __("No"),
+    'Nome' => __("Nome"),
+    'Pseudonimo' => __("Pseudonimo"),
+    'Nazionalità' => __("Nazionalità"),
+    'Libri' => __("Libri"),
+], JSON_UNESCAPED_UNICODE) ?>;
+
+// Global translation function for JavaScript
+window.__ = function(key) {
+    return i18nTranslations[key] || key;
+};
+
 document.addEventListener('DOMContentLoaded', function() {
 
   // Check if DataTables is available
