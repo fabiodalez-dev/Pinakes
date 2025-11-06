@@ -109,6 +109,75 @@ $cta = $sections['cta'] ?? null;
                    placeholder="<?= __('/catalogo') ?>">
           </div>
         </div>
+
+        <!-- SEO Fields Section -->
+        <div class="border-t border-gray-200 pt-6 mt-6">
+          <h3 class="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="fas fa-search text-blue-600"></i>
+            <?= __("Ottimizzazione SEO (Meta Tags)") ?>
+          </h3>
+          <p class="text-sm text-gray-600 mb-4">
+            Personalizza i meta tag per i motori di ricerca e i social media. Se lasciati vuoti, verranno utilizzati i valori predefiniti.
+          </p>
+
+          <div class="space-y-4">
+            <div>
+              <label for="hero_seo_title" class="block text-sm font-medium text-gray-700 mb-2">
+                <?= __("Titolo SEO") ?>
+                <span class="text-xs text-gray-500 font-normal">(opzionale - max 60 caratteri)</span>
+              </label>
+              <input type="text" id="hero_seo_title" name="hero[seo_title]" maxlength="255"
+                     value="<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>"
+                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                     placeholder="<?= __('Es. Biblioteca Digitale - Migliaia di libri da esplorare') ?>">
+              <p class="mt-1 text-xs text-gray-500">
+                Apparirà nei risultati di ricerca Google. Se vuoto, usa il titolo hero o il nome dell'app.
+              </p>
+            </div>
+
+            <div>
+              <label for="hero_seo_description" class="block text-sm font-medium text-gray-700 mb-2">
+                <?= __("Descrizione SEO") ?>
+                <span class="text-xs text-gray-500 font-normal">(opzionale - max 160 caratteri)</span>
+              </label>
+              <textarea id="hero_seo_description" name="hero[seo_description]" rows="3" maxlength="500"
+                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                        placeholder="<?= __('Es. Scopri il nostro catalogo digitale con migliaia di libri disponibili per il prestito. Registrati gratuitamente e inizia a leggere oggi stesso.') ?>"><?php echo HtmlHelper::e($hero['seo_description'] ?? ''); ?></textarea>
+              <p class="mt-1 text-xs text-gray-500">
+                Apparirà sotto il titolo nei risultati di ricerca. Se vuoto, usa il sottotitolo hero o una descrizione generica.
+              </p>
+            </div>
+
+            <div>
+              <label for="hero_seo_keywords" class="block text-sm font-medium text-gray-700 mb-2">
+                <?= __("Parole Chiave SEO") ?>
+                <span class="text-xs text-gray-500 font-normal">(opzionale - separate da virgola)</span>
+              </label>
+              <input type="text" id="hero_seo_keywords" name="hero[seo_keywords]" maxlength="500"
+                     value="<?php echo HtmlHelper::e($hero['seo_keywords'] ?? ''); ?>"
+                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                     placeholder="<?= __('Es. biblioteca digitale, prestito libri, catalogo online, libri gratis') ?>">
+              <p class="mt-1 text-xs text-gray-500">
+                Parole chiave per i motori di ricerca (impatto SEO limitato). Separate da virgola.
+              </p>
+            </div>
+
+            <div>
+              <label for="hero_og_image" class="block text-sm font-medium text-gray-700 mb-2">
+                <?= __("Immagine Open Graph") ?>
+                <span class="text-xs text-gray-500 font-normal">(opzionale - URL completo)</span>
+              </label>
+              <input type="text" id="hero_og_image" name="hero[og_image]" maxlength="500"
+                     value="<?php echo HtmlHelper::e($hero['og_image'] ?? ''); ?>"
+                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                     placeholder="<?= __('Es. https://tuosito.com/uploads/og-image.jpg') ?>">
+              <p class="mt-1 text-xs text-gray-500">
+                Immagine mostrata quando condividi la pagina su social media (Facebook, Twitter, LinkedIn). Se vuoto, usa l'immagine hero di sfondo.
+                <br>Dimensioni consigliate: 1200x630px (rapporto 1.91:1).
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

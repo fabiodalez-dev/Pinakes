@@ -12,9 +12,10 @@ class FrontendController
 {
     public function home(Request $request, Response $response, mysqli $db): Response
     {
-        // Carica i contenuti CMS della home
+        // Carica i contenuti CMS della home (inclusi campi SEO)
         $homeContent = [];
-        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image, is_active
+        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
+                              seo_title, seo_description, seo_keywords, og_image, is_active
                        FROM home_content
                        WHERE is_active = 1
                        ORDER BY display_order ASC";
@@ -86,6 +87,101 @@ class FrontendController
                     ];
                 }
             }
+        }
+
+        // Build dynamic SEO data from settings and CMS
+        $hero = $homeContent['hero'] ?? [];
+
+        // Fetch app settings for SEO fallbacks
+        $appName = \App\Support\ConfigStore::get('app.name', 'Pinakes');
+        $footerDescription = \App\Support\ConfigStore::get('app.footer_description', '');
+        $appLogo = \App\Support\ConfigStore::get('app.logo', '');
+
+        // Build SEO title (priority: custom SEO title > hero title > app name)
+        $seoTitle = !empty($hero['seo_title']) ? $hero['seo_title'] :
+                    (!empty($hero['title']) ? $hero['title'] . ' - ' . $appName : $appName);
+
+        // Build SEO description (priority: custom SEO description > hero subtitle > footer description)
+        $seoDescription = !empty($hero['seo_description']) ? $hero['seo_description'] :
+                         (!empty($hero['subtitle']) ? $hero['subtitle'] :
+                          ($footerDescription ?: __('Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture')));
+
+        // Build OG image (priority: custom OG image > hero background > app logo > default)
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $baseUrl = $protocol . '://' . $host;
+
+        $seoImage = $baseUrl . '/uploads/copertine/default-cover.jpg'; // Default fallback
+        if (!empty($hero['og_image'])) {
+            // Custom OG image specified
+            $seoImage = (str_starts_with($hero['og_image'], 'http')) ? $hero['og_image'] : $baseUrl . $hero['og_image'];
+        } elseif (!empty($hero['background_image'])) {
+            // Use hero background image
+            $seoImage = $baseUrl . $hero['background_image'];
+        } elseif (!empty($appLogo)) {
+            // Use app logo
+            $seoImage = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
+        }
+
+        // Build canonical URL
+        $seoCanonical = $baseUrl . '/';
+
+        // Build keywords (custom or defaults)
+        $seoKeywords = !empty($hero['seo_keywords']) ? $hero['seo_keywords'] :
+                       __('biblioteca, prestito libri, catalogo online, scopri libri, prenotazioni');
+
+        // Social media links
+        $socialFacebook = \App\Support\ConfigStore::get('app.social_facebook', '');
+        $socialTwitter = \App\Support\ConfigStore::get('app.social_twitter', '');
+        $socialInstagram = \App\Support\ConfigStore::get('app.social_instagram', '');
+        $socialLinkedin = \App\Support\ConfigStore::get('app.social_linkedin', '');
+
+        // Build Schema.org structured data
+        $schemaOrg = [
+            '@context' => 'https://schema.org',
+            '@type' => 'WebSite',
+            'name' => $appName,
+            'url' => $baseUrl,
+            'description' => $seoDescription,
+        ];
+
+        // Add search action if applicable
+        $schemaOrg['potentialAction'] = [
+            '@type' => 'SearchAction',
+            'target' => [
+                '@type' => 'EntryPoint',
+                'urlTemplate' => $baseUrl . '/catalogo?q={search_term_string}'
+            ],
+            'query-input' => 'required name=search_term_string'
+        ];
+
+        // Add organization schema if logo exists
+        if (!empty($appLogo)) {
+            $logoUrl = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
+
+            $orgSchema = [
+                '@context' => 'https://schema.org',
+                '@type' => 'Organization',
+                'name' => $appName,
+                'url' => $baseUrl,
+                'logo' => $logoUrl,
+            ];
+
+            // Add social media profiles
+            $sameAs = [];
+            if ($socialFacebook) $sameAs[] = $socialFacebook;
+            if ($socialTwitter) $sameAs[] = $socialTwitter;
+            if ($socialInstagram) $sameAs[] = $socialInstagram;
+            if ($socialLinkedin) $sameAs[] = $socialLinkedin;
+
+            if (!empty($sameAs)) {
+                $orgSchema['sameAs'] = $sameAs;
+            }
+
+            // Combine schemas
+            $seoSchema = json_encode([$schemaOrg, $orgSchema], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        } else {
+            $seoSchema = json_encode($schemaOrg, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         }
 
         // Render template

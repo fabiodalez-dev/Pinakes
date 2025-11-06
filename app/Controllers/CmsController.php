@@ -51,9 +51,10 @@ class CmsController
         // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
         $db->set_charset('utf8mb4');
 
-        // Carica tutti i contenuti della home
+        // Carica tutti i contenuti della home (inclusi campi SEO)
         $stmt = $db->prepare("
-            SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image, is_active
+            SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image,
+                   seo_title, seo_description, seo_keywords, og_image, is_active
             FROM home_content
             ORDER BY display_order ASC
         ");
@@ -226,23 +227,37 @@ class CmsController
                     $backgroundImage = $bgImagePath;
                 }
 
+                // SEO fields for hero
+                $seoTitle = $sanitizeText($heroData['seo_title'] ?? '');
+                $seoDescription = $sanitizeText($heroData['seo_description'] ?? '');
+                $seoKeywords = $sanitizeText($heroData['seo_keywords'] ?? '');
+                $ogImage = $sanitizeText($heroData['og_image'] ?? '');
+
                 $stmt = $db->prepare("
-                    INSERT INTO home_content (section_key, title, subtitle, button_text, button_link, background_image, is_active, display_order)
-                    VALUES ('hero', ?, ?, ?, ?, ?, 1, -2)
+                    INSERT INTO home_content (section_key, title, subtitle, button_text, button_link, background_image, seo_title, seo_description, seo_keywords, og_image, is_active, display_order)
+                    VALUES ('hero', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, -2)
                     ON DUPLICATE KEY UPDATE
                         title = VALUES(title),
                         subtitle = VALUES(subtitle),
                         button_text = VALUES(button_text),
                         button_link = VALUES(button_link),
-                        background_image = IF(VALUES(background_image) IS NOT NULL OR ? = 1, VALUES(background_image), background_image)
+                        background_image = IF(VALUES(background_image) IS NOT NULL OR ? = 1, VALUES(background_image), background_image),
+                        seo_title = VALUES(seo_title),
+                        seo_description = VALUES(seo_description),
+                        seo_keywords = VALUES(seo_keywords),
+                        og_image = VALUES(og_image)
                 ");
                 $removeBackground = isset($heroData['remove_background']) && $heroData['remove_background'] == '1' ? 1 : 0;
-                $stmt->bind_param('sssssi',
+                $stmt->bind_param('ssssssssi',
                     $heroData['title'],
                     $heroData['subtitle'],
                     $heroData['button_text'],
                     $heroData['button_link'],
                     $backgroundImage,
+                    $seoTitle,
+                    $seoDescription,
+                    $seoKeywords,
+                    $ogImage,
                     $removeBackground
                 );
                 $stmt->execute();

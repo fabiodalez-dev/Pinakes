@@ -103,7 +103,29 @@ if (!function_exists('assetUrl')) {
 
     <!-- SEO Meta Tags -->
     <meta name="description" content="<?= HtmlHelper::e($seoDescription ?? ($appName . ' digitale con catalogo completo di libri disponibili per il prestito')) ?>">
+    <?php if (isset($seoKeywords) && !empty($seoKeywords)): ?>
+    <meta name="keywords" content="<?= htmlspecialchars($seoKeywords) ?>">
+    <?php endif; ?>
     <link rel="canonical" href="<?= htmlspecialchars($seoCanonical ?? (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']) ?>">
+
+    <!-- Hreflang Tags for Multilingual SEO -->
+    <?php
+    $currentUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    $currentLang = $_SESSION['locale'] ?? 'it_IT';
+    $isItalian = str_starts_with($currentLang, 'it');
+
+    // Remove existing lang parameter if present
+    $baseUrlClean = preg_replace('/([?&])lang=[^&]*(&|$)/', '$1', $currentUrl);
+    $baseUrlClean = rtrim($baseUrlClean, '?&');
+
+    // Build hreflang URLs
+    $separator = (str_contains($baseUrlClean, '?')) ? '&' : '?';
+    $hreflangIt = $baseUrlClean . $separator . 'lang=it';
+    $hreflangEn = $baseUrlClean . $separator . 'lang=en';
+    ?>
+    <link rel="alternate" hreflang="it" href="<?= htmlspecialchars($hreflangIt) ?>">
+    <link rel="alternate" hreflang="en" href="<?= htmlspecialchars($hreflangEn) ?>">
+    <link rel="alternate" hreflang="x-default" href="<?= htmlspecialchars($baseUrlClean) ?>">
 
     <!-- Open Graph Meta Tags -->
     <?php if (isset($seoTitle)): ?>
@@ -121,6 +143,21 @@ if (!function_exists('assetUrl')) {
     <meta name="twitter:title" content="<?= htmlspecialchars($seoTitle) ?>">
     <meta name="twitter:description" content="<?= htmlspecialchars($seoDescription) ?>">
     <meta name="twitter:image" content="<?= htmlspecialchars($seoImage) ?>">
+    <?php
+    // Add Twitter handle if available (extract from social_twitter URL)
+    if (!empty($socialTwitter)) {
+        // Extract Twitter handle from URL (e.g., https://twitter.com/handle -> @handle)
+        $twitterHandle = '';
+        if (preg_match('/twitter\.com\/([^\/\?]+)/', $socialTwitter, $matches)) {
+            $twitterHandle = '@' . $matches[1];
+        } elseif (preg_match('/x\.com\/([^\/\?]+)/', $socialTwitter, $matches)) {
+            $twitterHandle = '@' . $matches[1];
+        }
+        if ($twitterHandle):
+    ?>
+    <meta name="twitter:site" content="<?= htmlspecialchars($twitterHandle) ?>">
+    <meta name="twitter:creator" content="<?= htmlspecialchars($twitterHandle) ?>">
+    <?php endif; } ?>
     <?php endif; ?>
 
     <!-- Schema.org JSON-LD -->
