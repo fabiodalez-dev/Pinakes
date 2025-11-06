@@ -287,10 +287,14 @@ class NotificationService {
             $emailSent = $this->sendToAdmins('loan_request_notification', $variables);
 
             // Create in-app notification
-            $notificationTitle = 'Nuova richiesta di prestito';
-            $notificationMessage = "Richiesta di prestito per \"" . $loan['libro_titolo'] . "\" da " . $loan['utente_nome'] .
-                                  " dal " . date('d/m/Y', strtotime($loan['data_prestito'])) .
-                                  " al " . date('d/m/Y', strtotime($loan['data_scadenza']));
+            $notificationTitle = __('Nuova richiesta di prestito');
+            $notificationMessage = sprintf(
+                __("Richiesta di prestito per \"%s\" da %s dal %s al %s"),
+                $loan['libro_titolo'],
+                $loan['utente_nome'],
+                date('d/m/Y', strtotime($loan['data_prestito'])),
+                date('d/m/Y', strtotime($loan['data_scadenza']))
+            );
             $notificationLink = '/admin/prestiti';
 
             $this->createNotification(
@@ -980,9 +984,9 @@ class NotificationService {
 
             // Create in-app notification
             $stelle_text = str_repeat('⭐', (int)$review['stelle']);
-            $notificationTitle = 'Nuova recensione da approvare';
+            $notificationTitle = __('Nuova recensione da approvare');
             $notificationMessage = sprintf(
-                'Recensione per "%s" da %s - %s',
+                __('Recensione per "%s" da %s - %s'),
                 $review['libro_titolo'],
                 $review['utente_nome'],
                 $stelle_text

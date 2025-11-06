@@ -28,6 +28,31 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
     <link rel="stylesheet" href="/assets/flatpickr-custom.css" />
     <link rel="stylesheet" href="/assets/main.css" />
     <link rel="stylesheet" href="/assets/css/swal-theme.css" />
+    <script>
+      (function() {
+        if (typeof window.__ !== 'function') {
+          window.__ = function(message, ...args) {
+            if (typeof message !== 'string') {
+              return '';
+            }
+            if (!args.length) {
+              return message;
+            }
+            let argIndex = 0;
+            return message.replace(/%(\d+\$)?[sd]/g, function() {
+              const value = args[argIndex++];
+              return value !== undefined ? String(value) : '';
+            });
+          };
+        }
+        if (typeof window.__n !== 'function') {
+          window.__n = function(singular, plural, count, ...args) {
+            const base = count === 1 ? singular : plural;
+            return window.__(base, ...args);
+          };
+        }
+      })();
+    </script>
 
   </head>
   <body class="bg-gray-50 text-gray-900 antialiased">
@@ -988,7 +1013,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                       <div class="mt-3">
                         <button type="button" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-900 rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500/40" data-open-link="${escapedLink}">
                           <i class="fas fa-external-link-alt text-[11px]"></i>
-                          ' + __('Apri') + '
+                          ${__('Apri')}
                         </button>
                       </div>
                     ` : ''}
