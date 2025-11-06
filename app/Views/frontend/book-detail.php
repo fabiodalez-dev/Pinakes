@@ -34,25 +34,25 @@ foreach ($authors as $authorData) {
 $authorNames = array_values(array_unique($authorNames));
 $coverAltParts = [];
 if ($bookTitle !== '') {
-    $coverAltParts[] = 'Copertina del libro "' . $bookTitle . '"';
+    $coverAltParts[] = __('Copertina del libro "%s"', $bookTitle);
 }
 if (!empty($authorNames)) {
-    $coverAltParts[] = 'di ' . implode(', ', $authorNames);
+    $coverAltParts[] = __('di %s', implode(', ', $authorNames));
 }
 if ($bookPublisher !== '') {
-    $coverAltParts[] = 'Editore ' . $bookPublisher;
+    $coverAltParts[] = __('Editore %s', $bookPublisher);
 }
 $coverAlt = trim(implode(' ', $coverAltParts));
 if ($coverAlt === '') {
-    $coverAlt = 'Copertina del libro';
+    $coverAlt = __('Copertina del libro');
 }
 
 // Meta title ottimizzato (max 60 caratteri)
 $title = $bookTitle;
 if ($bookAuthor) {
-    $title .= " di " . $bookAuthor;
+    $title .= " " . __("di") . " " . $bookAuthor;
 }
-$title .= " - Biblioteca";
+$title .= " - " . __("Biblioteca");
 $metaTitle = $title;
 
 // Meta description ottimizzata (max 160 caratteri)
@@ -63,16 +63,16 @@ if ($bookDescription) {
         $metaDescription .= '...';
     }
 } else {
-    $metaDescription = "Scopri \"$bookTitle\"";
+    $metaDescription = __("Scopri \"%s\"", $bookTitle);
     if ($bookAuthor) {
-        $metaDescription .= " di $bookAuthor";
+        $metaDescription .= " " . __("di %s", $bookAuthor);
     }
     if ($bookPublisher) {
-        $metaDescription .= " ($bookPublisher)";
+        $metaDescription .= " (" . $bookPublisher . ")";
     }
-    $metaDescription .= " nella nostra biblioteca.";
+    $metaDescription .= " " . __("nella nostra biblioteca.");
     if ($isAvailable) {
-        $metaDescription .= " Disponibile per il prestito.";
+        $metaDescription .= " " . __("Disponibile per il prestito.");
     }
 }
 
@@ -96,13 +96,13 @@ $breadcrumbSchema = [
         [
             "@type" => "ListItem",
             "position" => 1,
-            "name" => "Home",
+            "name" => __("Home"),
             "item" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
         ],
         [
             "@type" => "ListItem",
             "position" => 2,
-            "name" => "Catalogo",
+            "name" => __("Catalogo"),
             "item" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/catalogo'
         ]
     ]
@@ -196,9 +196,9 @@ if (!empty($reviewStats) && $reviewStats['total_reviews'] > 0) {
 $organizationSchema = [
     "@context" => "https://schema.org",
     "@type" => "Library",
-    "name" => "Biblioteca",
+    "name" => __("Biblioteca"),
     "url" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'],
-    "description" => "Biblioteca digitale con catalogo completo di libri disponibili per il prestito"
+    "description" => __("Biblioteca digitale con catalogo completo di libri disponibili per il prestito")
 ];
 $additional_css = "
 <style>
@@ -1404,10 +1404,10 @@ ob_start();
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb bg-transparent p-0 mb-0">
                                 <li class="breadcrumb-item">
-                                    <a href="/" class="text-dark">Home</a>
+                                    <a href="/" class="text-dark"><?= __("Home") ?></a>
                                 </li>
                                 <li class="breadcrumb-item">
-                                    <a href="/catalogo.php" class="text-dark-50">Catalogo</a>
+                                    <a href="/catalogo.php" class="text-dark-50"><?= __("Catalogo") ?></a>
                                 </li>
                                 <li class="breadcrumb-item active text-dark" aria-current="page">
                                     <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
@@ -1432,16 +1432,16 @@ ob_start();
                     <!-- Always show the calendar to choose dates -->
                     <button id="btn-request-loan" type="button" class="btn <?= ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> btn-lg" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
                         <i class="fas fa-<?= ($book['copie_disponibili'] ?? 0) > 0 ? 'book-reader' : 'calendar-alt' ?> me-2"></i>
-                        <?= ($book['copie_disponibili'] ?? 0) > 0 ? 'Richiedi Prestito' : 'Prenota Quando Disponibile' ?>
+                        <?= ($book['copie_disponibili'] ?? 0) > 0 ? __('Richiedi Prestito') : __('Prenota Quando Disponibile') ?>
                     </button>
                     <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
                     <?php if ($isLogged): ?>
                       <button id="btn-fav" type="button" class="btn btn-light btn-lg btn-fav-custom" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
-                        <i class="fas fa-heart me-2"></i><span>Aggiungi ai Preferiti</span>
+                        <i class="fas fa-heart me-2"></i><span><?= __("Aggiungi ai Preferiti") ?></span>
                       </button>
                     <?php else: ?>
                       <a href="/login" class="btn btn-light btn-lg btn-fav-custom">
-                        <i class="fas fa-heart me-2"></i>Accedi per aggiungere ai Preferiti
+                        <i class="fas fa-heart me-2"></i><?= __("Accedi per aggiungere ai Preferiti") ?>
                       </a>
                     <?php endif; ?>
                 </div>
@@ -1450,7 +1450,7 @@ ob_start();
                 <div id="book-alerts">
                     <?php if (!empty($_GET['loan_success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <i class="fas fa-check-circle me-2"></i>Prestito richiesto con successo.
+                            <i class="fas fa-check-circle me-2"></i><?= __("Prestito richiesto con successo.") ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>
@@ -1458,14 +1458,14 @@ ob_start();
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
                               $e = $_GET['loan_error'];
-                              echo $e==='not_available' ? 'Libro non disponibile per il prestito.' : 'Errore nella richiesta di prestito.';
+                              echo $e==='not_available' ? __('Libro non disponibile per il prestito.') : __('Errore nella richiesta di prestito.');
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($_GET['reserve_success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <i class="fas fa-check-circle me-2"></i>Prenotazione effettuata con successo<?php if(!empty($_GET['reserve_date'])): ?> per il giorno <strong><?= htmlspecialchars($_GET['reserve_date']) ?></strong><?php endif; ?>.
+                            <i class="fas fa-check-circle me-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date']) ?></strong><?php endif; ?>.
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php elseif (!empty($_GET['reserve_error'])): ?>
@@ -1473,7 +1473,7 @@ ob_start();
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
                               $e = $_GET['reserve_error'];
-                              echo $e==='duplicate' ? 'Hai già una prenotazione attiva per questo libro.' : ($e==='invalid_date' ? 'Data non valida.' : ($e==='past_date' ? 'La data non può essere nel passato.' : 'Errore nella prenotazione.'));
+                              echo $e==='duplicate' ? __('Hai già una prenotazione attiva per questo libro.') : ($e==='invalid_date' ? __('Data non valida.') : ($e==='past_date' ? __('La data non può essere nel passato.') : __('Errore nella prenotazione.')));
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
@@ -1484,13 +1484,13 @@ ob_start();
                 <div class="book-description-section" id="book-description-section">
                     <h2 class="section-title">
                         <i class="fas fa-info-circle"></i>
-                        Descrizione
+                        <?= __("Descrizione") ?>
                     </h2>
                     <div class="description-content">
                         <?php if (!empty($book['descrizione'])): ?>
                             <p><?= nl2br(htmlspecialchars(html_entity_decode($book['descrizione'] ?? '', ENT_QUOTES, 'UTF-8'))) ?></p>
                         <?php else: ?>
-                            <p class="text-muted">Nessuna descrizione disponibile per questo libro.</p>
+                            <p class="text-muted"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1499,7 +1499,7 @@ ob_start();
                 <div class="book-details-section" id="book-details-section">
                     <h2 class="section-title">
                         <i class="fas fa-list"></i>
-                        Dettagli Libro
+                        <?= __("Dettagli Libro") ?>
                     </h2>
                     <div class="details-grid">
                         <div class="details-column">
@@ -1526,21 +1526,21 @@ ob_start();
 
                             <?php if (!empty($bookGenre)): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Genere</div>
+                                <div class="meta-label"><?= __("Genere") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($bookGenre) ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['lingua'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Lingua</div>
+                                <div class="meta-label"><?= __("Lingua") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['lingua']) ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['prezzo'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Prezzo</div>
+                                <div class="meta-label"><?= __("Prezzo") ?></div>
                                 <div class="meta-value">€ <?= number_format($book['prezzo'], 2) ?></div>
                             </div>
                             <?php endif; ?>
@@ -1548,49 +1548,49 @@ ob_start();
                         <div class="details-column">
                             <?php if (!empty($book['anno_pubblicazione'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Anno di Pubblicazione</div>
+                                <div class="meta-label"><?= __("Anno di Pubblicazione") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione']) ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['data_pubblicazione'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Data di Pubblicazione</div>
+                                <div class="meta-label"><?= __("Data di Pubblicazione") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['data_pubblicazione']) ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['numero_pagine'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Numero di Pagine</div>
+                                <div class="meta-label"><?= __("Numero di Pagine") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['numero_pagine']) ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['formato'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Formato</div>
+                                <div class="meta-label"><?= __("Formato") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['formato']) ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['dimensioni'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Dimensioni</div>
+                                <div class="meta-label"><?= __("Dimensioni") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['dimensioni']) ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['peso'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Peso</div>
+                                <div class="meta-label"><?= __("Peso") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['peso']) ?> kg</div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['numero_inventario'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">Numero Inventario</div>
+                                <div class="meta-label"><?= __("Numero Inventario") ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['numero_inventario']) ?></div>
                             </div>
                             <?php endif; ?>
@@ -1603,7 +1603,7 @@ ob_start();
                 <div class="book-reviews-section" id="book-reviews-section">
                     <h2 class="section-title">
                         <i class="fas fa-star"></i>
-                        Recensioni
+                        <?= __("Recensioni") ?>
                         <span class="badge bg-primary rounded-pill"><?= count($reviews) ?></span>
                     </h2>
 
@@ -1628,7 +1628,7 @@ ob_start();
                                             endfor;
                                             ?>
                                         </div>
-                                        <div class="text-muted small"><?= $reviewStats['total_reviews'] ?> recensioni</div>
+                                        <div class="text-muted small"><?= $reviewStats['total_reviews'] ?> <?= __("recensioni") ?></div>
                                     </div>
                                 </div>
                                 <div class="col-md-8 review-distribution-column">
