@@ -5,14 +5,14 @@
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <span>Statistiche Prestiti</span>
+          <span><?= __("Statistiche Prestiti") ?></span>
         </li>
       </ol>
     </nav>
@@ -20,7 +20,7 @@
     <div class="flex items-center justify-between">
       <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
         <i class="fas fa-chart-bar text-gray-700"></i>
-        Statistiche Prestiti
+        <?= __("Statistiche Prestiti") ?>
       </h1>
     </div>
   </div>
@@ -30,7 +30,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs uppercase text-gray-500 font-medium">Libri Disponibili</p>
+          <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Libri Disponibili") ?></p>
           <p class="text-2xl font-bold text-green-600 mt-1"><?php echo number_format((int)($stats['libri_disponibili'] ?? 0)); ?></p>
         </div>
         <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -42,7 +42,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs uppercase text-gray-500 font-medium">Libri Prestati</p>
+          <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Libri Prestati") ?></p>
           <p class="text-2xl font-bold text-blue-600 mt-1"><?php echo number_format((int)($stats['libri_prestati'] ?? 0)); ?></p>
         </div>
         <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -54,7 +54,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs uppercase text-gray-500 font-medium">Prestiti Attivi</p>
+          <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Prestiti Attivi") ?></p>
           <p class="text-2xl font-bold text-indigo-600 mt-1"><?php echo number_format((int)($stats['prestiti_attivi'] ?? 0)); ?></p>
         </div>
         <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
@@ -66,7 +66,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs uppercase text-gray-500 font-medium">Prestiti in Ritardo</p>
+          <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Prestiti in Ritardo") ?></p>
           <p class="text-2xl font-bold text-red-600 mt-1"><?php echo number_format((int)($stats['prestiti_in_ritardo'] ?? 0)); ?></p>
         </div>
         <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
@@ -78,7 +78,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs uppercase text-gray-500 font-medium">Prestiti Completati</p>
+          <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Prestiti Completati") ?></p>
           <p class="text-2xl font-bold text-gray-600 mt-1"><?php echo number_format((int)($stats['prestiti_completati'] ?? 0)); ?></p>
         </div>
         <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
@@ -90,7 +90,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs uppercase text-gray-500 font-medium">Utenti Attivi</p>
+          <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Utenti Attivi") ?></p>
           <p class="text-2xl font-bold text-purple-600 mt-1"><?php echo number_format((int)($stats['utenti_con_prestiti'] ?? 0)); ?></p>
         </div>
         <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -107,7 +107,7 @@
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-chart-line text-primary"></i>
-          Prestiti per Mese (Ultimi 12 mesi)
+          <?= __("Prestiti per Mese (Ultimi 12 mesi)") ?>
         </h2>
       </div>
       <div class="card-body h-[360px]">
@@ -120,7 +120,7 @@
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-chart-pie text-primary"></i>
-          Prestiti per Stato
+          <?= __("Prestiti per Stato") ?>
         </h2>
       </div>
       <div class="card-body h-[360px] flex items-center justify-center">
@@ -135,7 +135,7 @@
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-trophy text-yellow-500"></i>
-          Top 10 Libri Più Prestati
+          <?= __("Top 10 Libri Più Prestati") ?>
         </h2>
       </div>
       <div class="card-body p-0">
@@ -144,10 +144,10 @@
             <thead class="bg-gray-50">
               <tr>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                <th>__("$1")</th>
-                <th>__("$1")</th>
-                <th>__("$1")</th>
-                <th>__("$1")</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Titolo") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Totale") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Completati") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Attivi") ?></th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -155,7 +155,7 @@
               <tr>
                 <td colspan="5" class="px-6 py-8 text-center text-gray-500">
                   <i class="fas fa-book text-4xl text-gray-300 mb-3"></i>
-                  <p>Nessun prestito registrato</p>
+                  <p><?= __("Nessun prestito registrato") ?></p>
                 </td>
               </tr>
               <?php else: ?>
@@ -210,7 +210,7 @@
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-user-graduate text-blue-500"></i>
-          Top 10 Lettori Più Attivi
+          <?= __("Top 10 Lettori Più Attivi") ?>
         </h2>
       </div>
       <div class="card-body p-0">
@@ -219,10 +219,10 @@
             <thead class="bg-gray-50">
               <tr>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                <th>__("$1")</th>
-                <th>__("$1")</th>
-                <th>__("$1")</th>
-                <th>__("$1")</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Lettore") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Totale") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Completati") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Attivi") ?></th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -230,7 +230,7 @@
               <tr>
                 <td colspan="5" class="px-6 py-8 text-center text-gray-500">
                   <i class="fas fa-users text-4xl text-gray-300 mb-3"></i>
-                  <p>Nessun prestito registrato</p>
+                  <p><?= __("Nessun prestito registrato") ?></p>
                 </td>
               </tr>
               <?php else: ?>
@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
     data: {
       labels: monthLabels,
       datasets: [{
-        label: 'Prestiti',
+        label: __('Prestiti'),
         data: monthValues,
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -345,11 +345,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const loansByStatusData = <?php echo json_encode($loansByStatus); ?>;
   const statusLabels = loansByStatusData.map(item => {
     const labels = {
-      'in_corso': 'In Corso',
-      'pendente': 'Pendente',
-      'in_ritardo': 'In Ritardo',
-      'perso': 'Perso',
-      'danneggiato': 'Danneggiato'
+      'in_corso': __('In Corso'),
+      'pendente': __('Pendente'),
+      'in_ritardo': __('In Ritardo'),
+      'perso': __('Perso'),
+      'danneggiato': __('Danneggiato')
     };
     return labels[item.stato] || item.stato;
   });
@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loansByStatusWrapper.innerHTML = `
       <div class="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-400">
         <i class="fas fa-chart-pie text-4xl"></i>
-        <p class="text-sm">Nessun prestito disponibile per generare il grafico</p>
+        <p class="text-sm">${__('Nessun prestito disponibile per generare il grafico')}</p>
       </div>
     `;
   } else if (loansByStatusCanvas) {

@@ -196,19 +196,19 @@
     <div class="profile-header-icon">
       <i class="fas fa-user"></i>
     </div>
-    <h$1><?= __("$2") ?></h$1>
+    <h1><?= __("Il mio profilo") ?></h1>
   </div>
 
   <?php if (!empty($_GET['success'])): ?>
     <?php if ($_GET['success'] === 'password'): ?>
       <div class="alert alert-success">
         <i class="fas fa-check-circle"></i>
-        <span>Password aggiornata con successo.</span>
+        <span><?= __("Password aggiornata con successo.") ?></span>
       </div>
     <?php else: ?>
       <div class="alert alert-success">
         <i class="fas fa-check-circle"></i>
-        <span>Profilo aggiornato con successo.</span>
+        <span><?= __("Profilo aggiornato con successo.") ?></span>
       </div>
     <?php endif; ?>
   <?php endif; ?>
@@ -219,13 +219,13 @@
       <span>
         <?php
           $errors = [
-            'csrf' => 'Errore di sicurezza. Riprova.',
-            'required' => 'Nome e cognome sono obbligatori.',
-            'password_mismatch' => 'Le password non coincidono.',
-            'password_too_short' => 'La password deve essere lunga almeno 8 caratteri.',
-            'password_weak' => 'La password deve contenere maiuscole, minuscole e numeri.'
+            'csrf' => __('Errore di sicurezza. Riprova.'),
+            'required' => __('Nome e cognome sono obbligatori.'),
+            'password_mismatch' => __('Le password non coincidono.'),
+            'password_too_short' => __('La password deve essere lunga almeno 8 caratteri.'),
+            'password_weak' => __('La password deve contenere maiuscole, minuscole e numeri.')
           ];
-          echo $errors[$_GET['error']] ?? 'Si è verificato un errore.';
+          echo $errors[$_GET['error']] ?? __('Si è verificato un errore.');
         ?>
       </span>
     </div>
@@ -235,11 +235,11 @@
   <div class="card">
     <h2 class="card-title">
       <i class="fas fa-id-card"></i>
-      Informazioni tessera
+      <?= __("Informazioni tessera") ?>
     </h2>
     <div class="info-grid">
       <div class="info-item">
-        <dt>Numero tessera</dt>
+        <dt><?= __("Numero tessera") ?></dt>
         <dd><?php echo App\Support\HtmlHelper::e($user['codice_tessera'] ?? ''); ?></dd>
       </div>
       <div class="info-item">
@@ -259,9 +259,9 @@
         </dd>
       </div>
       <div class="info-item">
-        <dt>Scadenza tessera</dt>
+        <dt><?= __("Scadenza tessera") ?></dt>
         <dd class="<?php echo empty($user['data_scadenza_tessera']) ? 'empty' : ''; ?>">
-          <?php echo !empty($user['data_scadenza_tessera']) ? date('d/m/Y', strtotime($user['data_scadenza_tessera'])) : 'Non specificata'; ?>
+          <?php echo !empty($user['data_scadenza_tessera']) ? date('d/m/Y', strtotime($user['data_scadenza_tessera'])) : __('Non specificata'); ?>
         </dd>
       </div>
     </div>
@@ -271,20 +271,20 @@
   <div class="card">
     <h2 class="card-title">
       <i class="fas fa-user-edit"></i>
-      Dati personali
+      <?= __("Dati personali") ?>
     </h2>
     <form method="post" action="/profilo/update">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
         <div class="form-group">
-          <label for="nome" class="form-label">Nome *</label>
+          <label for="nome" class="form-label"><?= __("Nome") ?> *</label>
           <input type="text" id="nome" name="nome" class="form-input" required aria-required="true" aria-describedby="nome-error"
                  value="<?php echo App\Support\HtmlHelper::e($user['nome'] ?? ''); ?>">
           <span id="nome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
         <div class="form-group">
-          <label for="cognome" class="form-label">Cognome *</label>
+          <label for="cognome" class="form-label"><?= __("Cognome") ?> *</label>
           <input type="text" id="cognome" name="cognome" class="form-input" required aria-required="true" aria-describedby="cognome-error"
                  value="<?php echo App\Support\HtmlHelper::e($user['cognome'] ?? ''); ?>">
           <span id="cognome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -298,7 +298,7 @@
                  value="<?php echo App\Support\HtmlHelper::e($user['telefono'] ?? ''); ?>">
         </div>
         <div class="form-group">
-          <label for="data_nascita" class="form-label">Data di nascita</label>
+          <label for="data_nascita" class="form-label"><?= __("Data di nascita") ?></label>
           <input type="date" id="data_nascita" name="data_nascita" class="form-input"
                  value="<?php echo htmlspecialchars(substr($user['data_nascita'] ?? '', 0, 10)); ?>">
         </div>
@@ -306,17 +306,17 @@
 
       <div class="form-grid">
         <div class="form-group">
-          <label for="cod_fiscale" class="form-label">Codice fiscale</label>
+          <label for="cod_fiscale" class="form-label"><?= __("Codice fiscale") ?></label>
           <input type="text" id="cod_fiscale" name="cod_fiscale" class="form-input" maxlength="16"
                  value="<?php echo App\Support\HtmlHelper::e($user['cod_fiscale'] ?? ''); ?>">
         </div>
         <div class="form-group">
-          <label for="sesso" class="form-label">Sesso</label>
+          <label for="sesso" class="form-label"><?= __("Sesso") ?></label>
           <select id="sesso" name="sesso" class="form-select">
-            <option value="">Non specificato</option>
-            <option value="M" <?php echo ($user['sesso'] ?? '') === 'M' ? 'selected' : ''; ?>>Maschio</option>
-            <option value="F" <?php echo ($user['sesso'] ?? '') === 'F' ? 'selected' : ''; ?>>Femmina</option>
-            <option value="Altro" <?php echo ($user['sesso'] ?? '') === 'Altro' ? 'selected' : ''; ?>>Altro</option>
+            <option value=""><?= __("Non specificato") ?></option>
+            <option value="M" <?php echo ($user['sesso'] ?? '') === 'M' ? 'selected' : ''; ?>><?= __("Maschio") ?></option>
+            <option value="F" <?php echo ($user['sesso'] ?? '') === 'F' ? 'selected' : ''; ?>><?= __("Femmina") ?></option>
+            <option value="Altro" <?php echo ($user['sesso'] ?? '') === 'Altro' ? 'selected' : ''; ?>><?= __("Altro") ?></option>
           </select>
         </div>
       </div>
@@ -331,7 +331,7 @@
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">
           <i class="fas fa-save"></i>
-          Salva modifiche
+          <?= __("Salva modifiche") ?>
         </button>
       </div>
     </form>
@@ -341,23 +341,23 @@
   <div class="card">
     <h2 class="card-title">
       <i class="fas fa-lock"></i>
-      Cambia password
+      <?= __("Cambia password") ?>
     </h2>
     <form method="post" action="/profilo/password">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
         <div class="form-group">
-          <label for="password" class="form-label">Nuova password</label>
+          <label for="password" class="form-label"><?= __("Nuova password") ?></label>
           <input type="password" id="password" name="password" class="form-input" autocomplete="new-password" required aria-required="true" aria-describedby="password-error"
-                 minlength="8" placeholder="Minimo 8 caratteri">
-          <small><?= __("$1") ?></small>
+                 minlength="8" placeholder="<?= __("Minimo 8 caratteri") ?>">
+          <small><?= __("Deve contenere maiuscole, minuscole e numeri") ?></small>
           <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
         <div class="form-group">
-          <label for="password_confirm" class="form-label">Conferma password</label>
+          <label for="password_confirm" class="form-label"><?= __("Conferma password") ?></label>
           <input type="password" id="password_confirm" name="password_confirm" class="form-input" autocomplete="new-password" required aria-required="true" aria-describedby="password_confirm-error"
-                 minlength="8" placeholder="Ripeti la password">
+                 minlength="8" placeholder="<?= __("Ripeti la password") ?>">
           <span id="password_confirm-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
       </div>
@@ -365,7 +365,7 @@
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">
           <i class="fas fa-key"></i>
-          Aggiorna password
+          <?= __("Aggiorna password") ?>
         </button>
       </div>
     </form>
