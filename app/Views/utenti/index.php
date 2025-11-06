@@ -325,17 +325,17 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="flex items-center gap-1">
               <a href="/admin/utenti/dettagli/${data}" 
                  class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200" 
-                 title="Visualizza dettagli">
+                 title="<?= __("Visualizza dettagli") ?>">
                 <i class="fas fa-eye text-sm"></i>
               </a>
               <a href="/admin/utenti/modifica/${data}" 
                  class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200" 
-                 title="Modifica">
+                 title="<?= __("Modifica") ?>">
                 <i class="fas fa-edit text-sm"></i>
               </a>
               <button onclick="deleteUser(${data})" 
                       class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200" 
-                      title="Elimina">
+                      title="<?= __("Elimina") ?>">
                 <i class="fas fa-trash text-sm"></i>
               </button>
             </div>`;
