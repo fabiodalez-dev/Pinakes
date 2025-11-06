@@ -98,10 +98,10 @@ $activeTab = $activeTab ?? 'general';
                      data-original-src="<?php echo HtmlHelper::e($currentLogo); ?>">
                   <img id="logo-preview-image"
                        src="<?php echo $currentLogo !== '' ? HtmlHelper::e($currentLogo) : ''; ?>"
-                       alt="Anteprima logo"
+                       alt="<?= __("Anteprima logo") ?>"
                        class="h-16 object-contain <?php echo $currentLogo === '' ? 'hidden' : ''; ?>">
                   <div id="logo-preview-label" class="text-xs text-gray-500">
-                    <?php echo $currentLogo !== '' ? 'Anteprima logo' : 'Nessun logo caricato'; ?>
+                    <?php echo $currentLogo !== '' ? '<?= __("Anteprima logo") ?>' : '<?= __("Nessun logo caricato") ?>'; ?>
                   </div>
                 </div>
 
@@ -114,7 +114,7 @@ $activeTab = $activeTab ?? 'general';
                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
                        style="display: none;"
                        id="logo-file-input">
-                <p class="text-xs text-gray-500">Consigliato PNG o SVG con sfondo trasparente. Dimensione massima 2MB.</p>
+                <p class="text-xs text-gray-500"><?= __("Consigliato PNG o SVG con sfondo trasparente. Dimensione massima 2MB.") ?></p>
               </div>
             </div>
           </div>
@@ -126,18 +126,18 @@ $activeTab = $activeTab ?? 'general';
                 <i class="fas fa-file-alt text-gray-500"></i>
                 Footer
               </h2>
-              <p class="text-sm text-gray-600">Personalizza il testo descrittivo e i link ai social media nel footer del sito</p>
+              <p class="text-sm text-gray-600"><?= __("Personalizza il testo descrittivo e i link ai social media nel footer del sito") ?></p>
             </div>
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
               <div>
-                <label for="footer_description" class="block text-sm font-medium text-gray-700">Descrizione footer</label>
+                <label for="footer_description" class="block text-sm font-medium text-gray-700"><?= __("Descrizione footer") ?></label>
                 <textarea
                   id="footer_description"
                   name="footer_description"
                   rows="3"
                   class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                   placeholder="<?= __('La tua biblioteca digitale...') ?>"><?php echo HtmlHelper::e((string)($appSettings['footer_description'] ?? '')); ?></textarea>
-                <p class="text-xs text-gray-500 mt-1">Testo che apparirà nel footer del sito</p>
+                <p class="text-xs text-gray-500 mt-1"><?= __("Testo che apparirà nel footer del sito") ?></p>
               </div>
 
               <div class="border-t border-gray-200 pt-4">
@@ -228,27 +228,27 @@ $activeTab = $activeTab ?? 'general';
                 <i class="fas fa-paper-plane text-gray-500"></i>
                 Configurazione invio
               </h2>
-              <p class="text-sm text-gray-600">Scegli come inviare le email dal sistema. Puoi usare la funzione PHP <code class="text-xs bg-gray-100 px-1 py-0.5 rounded">mail()</code>, PHPMailer o un server SMTP esterno.</p>
+              <p class="text-sm text-gray-600"><?= __("Scegli come inviare le email dal sistema. Puoi usare la funzione PHP <code class=\"text-xs bg-gray-100 px-1 py-0.5 rounded\">mail()</code>, PHPMailer o un server SMTP esterno.") ?></p>
             </div>
 
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
               <div>
-                <label for="mail_driver" class="block text-sm font-medium text-gray-700">Metodo di invio</label>
+                <label for="mail_driver" class="block text-sm font-medium text-gray-700"><?= __("Metodo di invio") ?></label>
                 <select id="mail_driver" name="mail_driver" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
                   <?php $selectedDriver = (string)($emailSettings['type'] ?? 'mail'); ?>
-                  <option value="mail" <?php echo $selectedDriver === 'mail' ? 'selected' : ''; ?>>PHP mail()</option>
-                  <option value="phpmailer" <?php echo $selectedDriver === 'phpmailer' ? 'selected' : ''; ?>>PHPMailer</option>
-                  <option value="smtp" <?php echo $selectedDriver === 'smtp' ? 'selected' : ''; ?>>SMTP personalizzato</option>
+                  <option value="mail" <?php echo $selectedDriver === 'mail' ? 'selected' : ''; ?>><?= __("PHP mail()") ?></option>
+                  <option value="phpmailer" <?php echo $selectedDriver === 'phpmailer' ? 'selected' : ''; ?>><?= __("PHPMailer") ?></option>
+                  <option value="smtp" <?php echo $selectedDriver === 'smtp' ? 'selected' : ''; ?>><?= __("SMTP personalizzato") ?></option>
                 </select>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="from_email" class="block text-sm font-medium text-gray-700">Mittente (email)</label>
+                  <label for="from_email" class="block text-sm font-medium text-gray-700"><?= __("Mittente (email)") ?></label>
                   <input type="email" id="from_email" name="from_email" value="<?php echo HtmlHelper::e((string)($emailSettings['from_email'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('es. noreply@biblioteca.local') ?>">
                 </div>
                 <div>
-                  <label for="from_name" class="block text-sm font-medium text-gray-700">Mittente (nome)</label>
+                  <label for="from_name" class="block text-sm font-medium text-gray-700"><?= __("Mittente (nome)") ?></label>
                   <input type="text" id="from_name" name="from_name" value="<?php echo HtmlHelper::e((string)($emailSettings['from_name'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('es. Biblioteca Civica') ?>">
                 </div>
               </div>
@@ -257,20 +257,20 @@ $activeTab = $activeTab ?? 'general';
 
           <div id="smtp-settings-card" class="border border-gray-200 rounded-2xl p-5 bg-white">
             <div class="flex items-center justify-between mb-4">
-              <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Server SMTP</h3>
-              <span class="text-xs text-gray-500">Disponibile solo con driver SMTP</span>
+              <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide"><?= __("Server SMTP") ?></h3>
+              <span class="text-xs text-gray-500"><?= __("Disponibile solo con driver SMTP") ?></span>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label for="smtp_host" class="block text-sm font-medium text-gray-700">Host</label>
+                <label for="smtp_host" class="block text-sm font-medium text-gray-700"><?= __("Host") ?></label>
                 <input type="text" id="smtp_host" name="smtp_host" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_host'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('smtp.example.com') ?>">
               </div>
               <div>
-                <label for="smtp_port" class="block text-sm font-medium text-gray-700">Porta</label>
+                <label for="smtp_port" class="block text-sm font-medium text-gray-700"><?= __("Porta") ?></label>
                 <input type="number" min="1" id="smtp_port" name="smtp_port" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_port'] ?? '587')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
               </div>
               <div>
-                <label for="smtp_username" class="block text-sm font-medium text-gray-700">Username</label>
+                <label for="smtp_username" class="block text-sm font-medium text-gray-700"><?= __("Username") ?></label>
                 <input type="text" id="smtp_username" name="smtp_username" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_username'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
               </div>
               <div>
@@ -278,12 +278,12 @@ $activeTab = $activeTab ?? 'general';
                 <input type="password" id="smtp_password" autocomplete="off" name="smtp_password" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_password'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
               </div>
               <div>
-                <label for="smtp_encryption" class="block text-sm font-medium text-gray-700">Crittografia</label>
+                <label for="smtp_encryption" class="block text-sm font-medium text-gray-700"><?= __("Crittografia") ?></label>
                 <?php $encryption = (string)($emailSettings['smtp_security'] ?? 'tls'); ?>
                 <select id="smtp_encryption" name="smtp_encryption" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
                   <option value="tls" <?php echo $encryption === 'tls' ? 'selected' : ''; ?>>TLS</option>
                   <option value="ssl" <?php echo $encryption === 'ssl' ? 'selected' : ''; ?>>SSL</option>
-                  <option value="none" <?php echo $encryption === 'none' ? 'selected' : ''; ?>>Nessuna</option>
+                  <option value="none" <?php echo $encryption === 'none' ? 'selected' : ''; ?>><?= __("Nessuna") ?></option>
                 </select>
               </div>
             </div>
@@ -293,8 +293,8 @@ $activeTab = $activeTab ?? 'general';
             <div class="flex items-start gap-3">
               <i class="fas fa-info-circle text-base text-gray-500 mt-0.5"></i>
               <div>
-                <p class="font-semibold text-gray-800">PHPMailer</p>
-                <p>Quando utilizzi PHPMailer il sistema invia le email con le configurazioni definite nel codice o tramite provider esterni. Passa al driver "SMTP personalizzato" per modificare questi parametri direttamente dall'interfaccia.</p>
+                <p class="font-semibold text-gray-800"><?= __("PHPMailer") ?></p>
+                <p><?= __("Quando utilizzi PHPMailer il sistema invia le email con le configurazioni definite nel codice o tramite provider esterni. Passa al driver \"SMTP personalizzato\" per modificare questi parametri direttamente dall'interfaccia.") ?></p>
               </div>
             </div>
           </div>
@@ -317,7 +317,7 @@ $activeTab = $activeTab ?? 'general';
                 <i class="fas fa-envelope-open-text text-gray-500"></i>
                 Template email
               </h2>
-              <p class="text-sm text-gray-600">Personalizza il contenuto delle mail automatiche con l'editor TinyMCE. Usa i segnaposto <code class="text-xs bg-gray-100 px-1 py-0.5 rounded">{{variabile}}</code> per inserire dati dinamici.</p>
+              <p class="text-sm text-gray-600"><?= __("Personalizza il contenuto delle mail automatiche con l'editor TinyMCE. Usa i segnaposto <code class=\"text-xs bg-gray-100 px-1 py-0.5 rounded\">{{variabile}}</code> per inserire dati dinamici.") ?></p>
             </div>
             <div class="text-xs text-gray-500 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
               Segnaposto disponibili mostrati in ciascun template.
@@ -333,7 +333,7 @@ $activeTab = $activeTab ?? 'general';
                     <p class="text-sm text-gray-600 mt-1"><?php echo HtmlHelper::e($template['description']); ?></p>
                     <?php if (!empty($template['placeholders'])): ?>
                       <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                        <span class="font-medium text-gray-700">Segnaposto:</span>
+                        <span class="font-medium text-gray-700"><?= __("Segnaposto:") ?></span>
                         <?php foreach ($template['placeholders'] as $placeholder): ?>
                           <span class="inline-flex items-center rounded-lg bg-gray-200/70 px-2 py-1 text-[11px] font-semibold text-gray-700">{{<?php echo HtmlHelper::e($placeholder); ?>}}</span>
                         <?php endforeach; ?>
@@ -349,11 +349,11 @@ $activeTab = $activeTab ?? 'general';
                 <form action="/admin/settings/templates/<?php echo HtmlHelper::e($template['name']); ?>" method="post" class="p-5 space-y-4">
                   <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700">Oggetto</label>
+                    <label class="block text-sm font-medium text-gray-700"><?= __("Oggetto") ?></label>
                     <input type="text" name="subject" value="<?php echo HtmlHelper::e($template['subject']); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Corpo email</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2"><?= __("Corpo email") ?></label>
                     <textarea name="body" class="tinymce-editor" data-template="<?php echo HtmlHelper::e($template['name']); ?>"><?php echo HtmlHelper::escape($template['body']); ?></textarea>
                   </div>
                   <div class="flex justify-end">
@@ -378,7 +378,7 @@ $activeTab = $activeTab ?? 'general';
                 <i class="fas fa-file-alt text-gray-500"></i>
                 Gestione Contenuti (CMS)
               </h2>
-              <p class="text-sm text-gray-600 mt-1">Modifica le pagine statiche del sito</p>
+              <p class="text-sm text-gray-600 mt-1"><?= __("Modifica le pagine statiche del sito") ?></p>
             </div>
           </div>
 
@@ -390,12 +390,12 @@ $activeTab = $activeTab ?? 'general';
                     <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
                       <i class="fas fa-home text-blue-600"></i>
                     </div>
-                    <h3 class="text-lg font-semibold text-gray-900">Homepage</h3>
+                    <h3 class="text-lg font-semibold text-gray-900"><?= __("Homepage") ?></h3>
                   </div>
-                  <p class="text-sm text-gray-600">Modifica i contenuti della homepage: hero, features, CTA e immagine di sfondo</p>
+                  <p class="text-sm text-gray-600"><?= __("Modifica i contenuti della homepage: hero, features, CTA e immagine di sfondo") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="/" target="_blank" class="hover:text-gray-900 underline">Visualizza pagina live</a>
+                    <a href="/" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
@@ -414,12 +414,12 @@ $activeTab = $activeTab ?? 'general';
                     <div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
                       <i class="fas fa-info-circle text-green-600"></i>
                     </div>
-                    <h3 class="text-lg font-semibold text-gray-900">Chi Siamo</h3>
+                    <h3 class="text-lg font-semibold text-gray-900"><?= __("Chi Siamo") ?></h3>
                   </div>
-                  <p class="text-sm text-gray-600">Gestisci il contenuto della pagina Chi Siamo con testo e immagine personalizzati</p>
+                  <p class="text-sm text-gray-600"><?= __("Gestisci il contenuto della pagina Chi Siamo con testo e immagine personalizzati") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="/chi-siamo" target="_blank" class="hover:text-gray-900 underline">Visualizza pagina live</a>
+                    <a href="/chi-siamo" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
@@ -436,8 +436,8 @@ $activeTab = $activeTab ?? 'general';
             <div class="flex items-start gap-3">
               <i class="fas fa-lightbulb text-blue-600 text-lg mt-0.5"></i>
               <div class="text-sm text-blue-800">
-                <p class="font-semibold mb-1">Suggerimento</p>
-                <p>Utilizza l'editor TinyMCE per formattare il testo e Uppy per caricare immagini di alta qualità. Le modifiche saranno immediatamente visibili nella pagina pubblica.</p>
+                <p class="font-semibold mb-1"><?= __("Suggerimento") ?></p>
+                <p><?= __("Utilizza l'editor TinyMCE per formattare il testo e Uppy per caricare immagini di alta qualità. Le modifiche saranno immediatamente visibili nella pagina pubblica.") ?></p>
               </div>
             </div>
           </div>
@@ -482,12 +482,12 @@ $activeTab = $activeTab ?? 'general';
                 $currentFormat = "{$currentWidth}x{$currentHeight}";
 
                 $labelFormats = [
-                  ['width' => 25, 'height' => 38, 'name' => '25×38mm', 'desc' => 'Standard dorso libri (più comune)'],
-                  ['width' => 50, 'height' => 25, 'name' => '50×25mm', 'desc' => 'Formato orizzontale per dorso'],
-                  ['width' => 70, 'height' => 36, 'name' => '70×36mm', 'desc' => 'Etichette interne grandi (Herma 4630, Avery 3490)'],
-                  ['width' => 25, 'height' => 40, 'name' => '25×40mm', 'desc' => 'Standard Tirrenia catalogazione'],
-                  ['width' => 34, 'height' => 48, 'name' => '34×48mm', 'desc' => 'Formato quadrato Tirrenia'],
-                  ['width' => 52, 'height' => 30, 'name' => '52×30mm', 'desc' => 'Formato biblioteche scolastiche (compatibile A4)'],
+                  ['width' => 25, 'height' => 38, 'name' => '25×38mm', 'desc' => '<?= __("Standard dorso libri (più comune)") ?>'],
+                  ['width' => 50, 'height' => 25, 'name' => '50×25mm', 'desc' => '<?= __("Formato orizzontale per dorso") ?>'],
+                  ['width' => 70, 'height' => 36, 'name' => '70×36mm', 'desc' => '<?= __("Etichette interne grandi (Herma 4630, Avery 3490)") ?>'],
+                  ['width' => 25, 'height' => 40, 'name' => '25×40mm', 'desc' => '<?= __("Standard Tirrenia catalogazione") ?>'],
+                  ['width' => 34, 'height' => 48, 'name' => '34×48mm', 'desc' => '<?= __("Formato quadrato Tirrenia") ?>'],
+                  ['width' => 52, 'height' => 30, 'name' => '52×30mm', 'desc' => '<?= __("Formato biblioteche scolastiche (compatibile A4)") ?>'],
                 ];
                 ?>
 
@@ -519,7 +519,7 @@ $activeTab = $activeTab ?? 'general';
                 <div class="flex gap-2">
                   <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
                   <div class="text-sm text-blue-800">
-                    <p class="font-medium mb-1">Nota:</p>
+                    <p class="font-medium mb-1"><?= __("Nota:") ?></p>
                     <p>Il formato selezionato verrà applicato a tutte le etichette generate dal sistema.
                     Assicurati che corrisponda al tipo di carta per etichette che utilizzi.</p>
                   </div>
@@ -693,12 +693,12 @@ $activeTab = $activeTab ?? 'general';
         previewImage.src = src;
         previewWrapper.classList.remove('hidden');
         previewImage.classList.remove('hidden');
-        previewLabel.textContent = 'Anteprima logo';
+        previewLabel.textContent = '<?= __("Anteprima logo") ?>';
         currentLogoPreviewSrc = src;
       } else {
         previewImage.src = '';
         previewImage.classList.add('hidden');
-        previewLabel.textContent = 'Nessun logo caricato';
+        previewLabel.textContent = '<?= __("Nessun logo caricato") ?>';
         previewWrapper.classList.add('hidden');
         currentLogoPreviewSrc = '';
       }
@@ -748,11 +748,11 @@ $activeTab = $activeTab ?? 'general';
 
         uppyLogo.use(UppyDragDrop, {
           target: '#uppy-logo-upload',
-          note: 'PNG, SVG, JPG o WebP (max 2MB)',
+          note: '<?= __("PNG, SVG, JPG o WebP (max 2MB)") ?>',
           locale: {
             strings: {
-              dropPasteFiles: 'Trascina qui il logo o %{browse}',
-              browse: 'seleziona file'
+              dropPasteFiles: '<?= __("Trascina qui il logo o %{browse}") ?>',
+              browse: '<?= __("seleziona file") ?>'
             }
           }
         });
@@ -849,11 +849,11 @@ $activeTab = $activeTab ?? 'general';
           if (typeof Swal !== 'undefined') {
             Swal.fire({
               icon: 'error',
-              title: __('Errore Upload'),
+              title: '<?= __("Errore Upload") ?>',
               text: error.message
             });
           } else {
-            alert('Errore: ' + error.message);
+            alert('<?= __("Errore: ") ?>' + error.message);
           }
         });
       } catch (error) {
