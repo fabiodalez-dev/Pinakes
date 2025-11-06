@@ -357,7 +357,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     <div class="p-4 border-b border-gray-200 flex items-center justify-between">
                       <h3 class="text-lg font-semibold text-gray-900"><?= __("Notifiche") ?></h3>
                       <button onclick="markAllNotificationsAsRead()" class="text-xs text-gray-900 hover:text-gray-700 font-medium">
-                        Segna tutte come lette
+                        <?= __("Segna tutte come lette") ?>
                       </button>
                     </div>
                     <div class="max-h-96 overflow-y-auto" id="notifications-list">
@@ -368,7 +368,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     </div>
                     <div class="p-4 border-t border-gray-200 flex items-center justify-between">
                       <a href="/admin/notifications" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
-                        Vedi tutte le notifiche
+                        <?= __("Vedi tutte le notifiche") ?>
                       </a>
                     </div>
                   </div>
@@ -518,6 +518,19 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
     <script src="/assets/js/csrf-helper.js"></script>
     <script src="/assets/js/swal-config.js"></script>
     <script>
+      // Global translations for JavaScript
+      window.i18nTranslations = <?= json_encode([
+        'Apri' => __('Apri'),
+        'Segna tutte come lette' => __('Segna tutte come lette'),
+        'Vedi tutte le notifiche' => __('Vedi tutte le notifiche'),
+        'Nessuna notifica' => __('Nessuna notifica'),
+      ], JSON_UNESCAPED_UNICODE) ?>;
+
+      // Global __ function for JavaScript translations
+      window.__ = function(key) {
+        return window.i18nTranslations[key] || key;
+      };
+
       // Modern library management system initialization
       document.addEventListener('DOMContentLoaded', function() {
         initializeGlobalSearch();
@@ -975,7 +988,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                       <div class="mt-3">
                         <button type="button" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-900 rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500/40" data-open-link="${escapedLink}">
                           <i class="fas fa-external-link-alt text-[11px]"></i>
-                          Apri
+                          ' + __('Apri') + '
                         </button>
                       </div>
                     ` : ''}
