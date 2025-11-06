@@ -588,7 +588,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     <button type="button"
                             onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, '<?php echo htmlspecialchars($copia['stato'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($copia['note'] ?? '', ENT_QUOTES); ?>')"
                             class="text-blue-600 hover:text-blue-900 transition-colors"
-                            title="Modifica stato">
+                            title="<?= __("Modifica stato") ?>">
                       <i class="fas fa-edit"></i>
                     </button>
                     <?php endif; ?>
@@ -596,7 +596,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     <button type="button"
                             onclick="confirmDeleteCopy(<?php echo (int)$copia['id']; ?>, '<?php echo htmlspecialchars($copia['numero_inventario'], ENT_QUOTES); ?>')"
                             class="text-red-600 hover:text-red-900 transition-colors"
-                            title="Elimina copia">
+                            title="<?= __("Elimina copia") ?>">
                       <i class="fas fa-trash"></i>
                     </button>
                     <?php endif; ?>

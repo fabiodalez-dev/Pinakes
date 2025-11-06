@@ -91,7 +91,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             <?php if ($hasBooks): ?>
               <button type="button" disabled
                       class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-400 cursor-not-allowed"
-                      title="Rimuovere i libri associati prima di eliminare l'autore">
+                      title="<?= __("Rimuovere i libri associati prima di eliminare l'autore") ?>">
                 <i class="fas fa-lock"></i>
                 Non eliminabile
               </button>
@@ -283,7 +283,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
                     </a>
                     <a href="/admin/libri/modifica/<?php echo (int)$libro['id']; ?>"
                        class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-medium h-11 hover:bg-gray-50 transition"
-                       title="Modifica">
+                       title="<?= __("Modifica") ?>">
                       <i class="fas fa-edit"></i>
                       Modifica
                     </a>
