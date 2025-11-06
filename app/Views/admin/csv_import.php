@@ -77,14 +77,14 @@ ob_start();
             <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg" role="alert">
                 <div class="flex items-start mb-2">
                     <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5 mr-3"></i>
-                    <h5 class="text-yellow-900 font-semibold">Errori durante l'import</h5>
+                    <h5 class="text-yellow-900 font-semibold"><?= __("Errori durante l'import") ?></h5>
                 </div>
                 <ul class="ml-8 space-y-1 text-sm text-yellow-800">
                     <?php foreach (array_slice($_SESSION['import_errors'], 0, 10) as $error): ?>
                         <li class="list-disc"><?= htmlspecialchars($error) ?></li>
                     <?php endforeach; ?>
                     <?php if (count($_SESSION['import_errors']) > 10): ?>
-                        <li class="list-none text-yellow-600 italic">... e altri <?= count($_SESSION['import_errors']) - 10 ?> errori</li>
+                        <li class="list-none text-yellow-600 italic"><?= __("... e altri %d errori", count($_SESSION['import_errors']) - 10) ?></li>
                     <?php endif; ?>
                 </ul>
             </div>
@@ -100,7 +100,7 @@ ob_start();
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-upload text-gray-600 mr-2"></i>
-                        Carica File CSV
+                        <?= __("Carica File CSV") ?>
                     </h2>
 
                     <form id="uploadForm" action="/admin/libri/import/upload" method="POST" enctype="multipart/form-data">
@@ -120,15 +120,15 @@ ob_start();
                                 <div class="ml-3 text-sm">
                                     <div class="font-medium text-gray-900">
                                         <i class="fas fa-robot mr-1 text-gray-600"></i>
-                                        Arricchimento automatico dati
+                                        <?= __("Arricchimento automatico dati") ?>
                                     </div>
                                     <p class="text-gray-600 mt-1">
-                                        Per ogni libro con ISBN, prova a recuperare automaticamente i dati mancanti (copertina, autori, descrizione) dai servizi online.
-                                        <strong>Rallenta l'importazione</strong> per evitare blocchi (delay di 3 secondi tra ogni richiesta).
+                                        <?= __("Per ogni libro con ISBN, prova a recuperare automaticamente i dati mancanti (copertina, autori, descrizione) dai servizi online.") ?>
+                                        <strong><?= __("Rallenta l'importazione") ?></strong> <?= __("per evitare blocchi (delay di 3 secondi tra ogni richiesta).") ?>
                                     </p>
                                     <p class="text-gray-500 text-xs mt-2">
                                         <i class="fas fa-info-circle mr-1"></i>
-                                        Limiti: massimo 50 libri con scraping attivo, timeout 5 minuti
+                                        <?= __("Limiti: massimo 50 libri con scraping attivo, timeout 5 minuti") ?>
                                     </p>
                                 </div>
                             </label>
@@ -138,14 +138,14 @@ ob_start();
                         <div id="import-progress-container" class="mt-6 hidden">
                             <div class="bg-white border border-gray-200 rounded-lg p-4">
                                 <div class="flex items-center justify-between mb-2">
-                                    <span class="text-sm font-medium text-gray-700">Importazione in corso...</span>
+                                    <span class="text-sm font-medium text-gray-700"><?= __("Importazione in corso...") ?></span>
                                     <span id="progress-percent" class="text-sm font-bold text-gray-900">0%</span>
                                 </div>
                                 <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
                                     <div id="progress-bar" class="bg-gray-800 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
                                 </div>
                                 <div class="text-xs text-gray-600">
-                                    <span id="progress-status">Inizializzazione...</span>
+                                    <span id="progress-status"><?= __("Inizializzazione...") ?></span>
                                     <span id="progress-details" class="ml-2"></span>
                                 </div>
                             </div>
@@ -155,15 +155,15 @@ ob_start();
                             <div class="text-sm text-gray-600">
                                 <div class="flex items-center">
                                     <i class="fas fa-info-circle mr-1"></i>
-                                    Formato: CSV con separatore <code class="bg-gray-100 px-2 py-0.5 rounded">;</code> • Max 10MB
+                                    <?= __("Formato: CSV con separatore %s • Max 10MB", '<code class="bg-gray-100 px-2 py-0.5 rounded">;</code>') ?>
                                 </div>
                                 <div class="text-xs text-gray-500 mt-1">
-                                    Max 10.000 righe • Max 100 copie per libro
+                                    <?= __("Max 10.000 righe • Max 100 copie per libro") ?>
                                 </div>
                             </div>
                             <button type="submit" id="submitBtn" class="px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap" disabled>
                                 <i class="fas fa-cloud-upload-alt mr-2"></i>
-                                Importa
+                                <?= __("Importa") ?>
                             </button>
                         </div>
                     </form>
@@ -198,52 +198,52 @@ ob_start();
                             <table class="w-full text-sm">
                                 <thead class="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th>__("$1")</th>
-                                        <th>__("$1")</th>
-                                        <th class="px-4 py-2 text-left font-semibold text-gray-700">__("Descrizione")</th>
-                                        <th>__("$1")</th>
+                                        <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __("Campo") ?></th>
+                                        <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __("Obbligatorio") ?></th>
+                                        <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __("Descrizione") ?></th>
+                                        <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __("Esempio") ?></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">titolo</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded"><?= __("Sì") ?></span></td>
-                                        <td class="px-4 py-3 text-gray-600">Titolo del libro</td>
+                                        <td class="px-4 py-3 text-gray-600"><?= __("Titolo del libro") ?></td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">Il nome della rosa</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">autori</code></td>
-                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded">Consigliato</span></td>
-                                        <td class="px-4 py-3 text-gray-600">Autori multipli separati da <code>|</code></td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">Umberto Eco<br><small><?= __("$1") ?></small></td>
+                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded"><?= __("Consigliato") ?></span></td>
+                                        <td class="px-4 py-3 text-gray-600"><?= __("Autori multipli separati da %s", '<code>|</code>') ?></td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs">Umberto Eco<br><small><?= __("o multipli separati da |") ?></small></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">editore</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
-                                        <td class="px-4 py-3 text-gray-600">Nome dell'editore</td>
+                                        <td class="px-4 py-3 text-gray-600"><?= __("Nome dell'editore") ?></td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">Mondadori</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">isbn13</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
-                                        <td class="px-4 py-3 text-gray-600">ISBN a 13 cifre (univoco)</td>
+                                        <td class="px-4 py-3 text-gray-600"><?= __("ISBN a 13 cifre (univoco)") ?></td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">9788804562627</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">anno_pubblicazione</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
-                                        <td class="px-4 py-3 text-gray-600">Anno (YYYY)</td>
+                                        <td class="px-4 py-3 text-gray-600"><?= __("Anno (YYYY)") ?></td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">1980</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">categoria</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
-                                        <td class="px-4 py-3 text-gray-600">Nome categoria esistente</td>
+                                        <td class="px-4 py-3 text-gray-600"><?= __("Nome categoria esistente") ?></td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">Narrativa</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3 text-gray-500 text-xs italic" colspan="4">
-                                            + 15 campi aggiuntivi disponibili (vedi CSV di esempio)
+                                            <?= __("+ 15 campi aggiuntivi disponibili (vedi CSV di esempio)") ?>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -261,24 +261,24 @@ ob_start();
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-info-circle text-gray-600 mr-2"></i>
-                        Come Funziona
+                        <?= __("Come Funziona") ?>
                     </h3>
                     <ol class="space-y-3 text-sm text-gray-700">
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">1</span>
-                            <span>Scarica il file CSV di esempio</span>
+                            <span><?= __("Scarica il file CSV di esempio") ?></span>
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">2</span>
-                            <span>Compila con i dati dei tuoi libri</span>
+                            <span><?= __("Compila con i dati dei tuoi libri") ?></span>
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">3</span>
-                            <span>Carica il file usando l'uploader</span>
+                            <span><?= __("Carica il file usando l'uploader") ?></span>
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">4</span>
-                            <span>Il sistema creerà automaticamente libri, autori ed editori</span>
+                            <span><?= __("Il sistema creerà automaticamente libri, autori ed editori") ?></span>
                         </li>
                     </ol>
                 </div>
@@ -287,28 +287,28 @@ ob_start();
                 <div class="bg-gray-800 text-white rounded-lg shadow-sm p-6">
                     <h3 class="text-lg font-semibold mb-4 flex items-center">
                         <i class="fas fa-lightbulb mr-2"></i>
-                        Suggerimenti
+                        <?= __("Suggerimenti") ?>
                     </h3>
                     <ul class="space-y-2 text-sm">
                         <li class="flex items-start">
                             <i class="fas fa-check text-gray-400 mr-2 mt-0.5"></i>
-                            <span>Usa il separatore <code class="bg-gray-700 px-1.5 py-0.5 rounded">;</code></span>
+                            <span><?= __("Usa il separatore %s", '<code class="bg-gray-700 px-1.5 py-0.5 rounded">;</code>') ?></span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-gray-400 mr-2 mt-0.5"></i>
-                            <span>Campo <strong>titolo</strong> obbligatorio</span>
+                            <span><?= __("Campo %s obbligatorio", '<strong>titolo</strong>') ?></span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-gray-400 mr-2 mt-0.5"></i>
-                            <span>Autori multipli separati da <code class="bg-gray-700 px-1.5 py-0.5 rounded">,</code></span>
+                            <span><?= __("Autori multipli separati da %s", '<code class="bg-gray-700 px-1.5 py-0.5 rounded">,</code>') ?></span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-gray-400 mr-2 mt-0.5"></i>
-                            <span>Salva in UTF-8</span>
+                            <span><?= __("Salva in UTF-8") ?></span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-gray-400 mr-2 mt-0.5"></i>
-                            <span>Autori ed editori vengono creati automaticamente</span>
+                            <span><?= __("Autori ed editori vengono creati automaticamente") ?></span>
                         </li>
                     </ul>
                 </div>
@@ -317,23 +317,23 @@ ob_start();
                 <div class="bg-gradient-to-br from-gray-700 to-gray-800 text-white rounded-lg shadow-sm p-6">
                     <h3 class="text-lg font-semibold mb-4 flex items-center">
                         <i class="fas fa-magic mr-2"></i>
-                        Automatismi
+                        <?= __("Automatismi") ?>
                     </h3>
                     <div class="space-y-3 text-sm">
                         <div class="flex items-center justify-between">
-                            <span>✓ Crea autori mancanti</span>
+                            <span><?= __("✓ Crea autori mancanti") ?></span>
                             <i class="fas fa-user-plus text-gray-400"></i>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span>✓ Crea editori mancanti</span>
+                            <span><?= __("✓ Crea editori mancanti") ?></span>
                             <i class="fas fa-building text-gray-400"></i>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span>✓ Validazione dati</span>
+                            <span><?= __("✓ Validazione dati") ?></span>
                             <i class="fas fa-shield-alt text-gray-400"></i>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span>✓ Report errori</span>
+                            <span><?= __("✓ Report errori") ?></span>
                             <i class="fas fa-clipboard-list text-gray-400"></i>
                         </div>
                     </div>
@@ -366,11 +366,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyCsv.use(UppyDragDrop, {
             target: '#uppy-csv-upload',
-            note: 'File CSV (max 10MB)',
+            note: '<?= addslashes(__("File CSV (max 10MB)")) ?>',
             locale: {
                 strings: {
-                    dropPasteFiles: 'Trascina qui il file CSV o %{browse}',
-                    browse: 'seleziona file'
+                    dropPasteFiles: '<?= addslashes(__("Trascina qui il file CSV o %{browse}")) ?>',
+                    browse: '<?= addslashes(__("seleziona file")) ?>'
                 }
             }
         });
@@ -419,11 +419,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Errore Upload'),
+                    title: '<?= addslashes(__("Errore Upload")) ?>',
                     text: error.message
                 });
             } else {
-                alert('Errore: ' + error.message);
+                alert('<?= addslashes(__("Errore:")) ?> ' + error.message);
             }
         });
 
@@ -445,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show progress container
         progressContainer.classList.remove('hidden');
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Importazione in corso...';
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= addslashes(__("Importazione in corso...")) ?>';
 
         // Use XMLHttpRequest for progress monitoring
         const xhr = new XMLHttpRequest();
@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function() {
         xhr.upload.addEventListener('progress', function(e) {
             if (e.lengthComputable) {
                 const uploadPercent = Math.round((e.loaded / e.total) * 20); // Upload is first 20%
-                updateProgress(uploadPercent, 'Caricamento file...', `${Math.round(e.loaded / 1024)} KB / ${Math.round(e.total / 1024)} KB`);
+                updateProgress(uploadPercent, '<?= addslashes(__("Caricamento file...")) ?>', `${Math.round(e.loaded / 1024)} KB / ${Math.round(e.total / 1024)} KB`);
             }
         });
 
@@ -462,7 +462,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     const response = JSON.parse(xhr.responseText);
                     if (response.redirect) {
-                        updateProgress(100, 'Completato!', '');
+                        updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
                         window.location.href = response.redirect;
                     } else if (response.error) {
                         showError(response.error);
@@ -472,12 +472,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.location.reload();
                 }
             } else {
-                showError('Errore durante l\'importazione (HTTP ' + xhr.status + ')');
+                showError('<?= addslashes(__("Errore durante l\'importazione (HTTP %d)", "")) ?>' + xhr.status + ')');
             }
         });
 
         xhr.addEventListener('error', function() {
-            showError('Errore di connessione durante l\'importazione');
+            showError('<?= addslashes(__("Errore di connessione durante l\'importazione")) ?>');
         });
 
         xhr.open('POST', form.action, true);
@@ -500,13 +500,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     const percent = Math.round((data.current / data.total) * 80) + 20; // 20-100%
                     updateProgress(
                         percent,
-                        `Importazione libro ${data.current}/${data.total}...`,
+                        `<?= addslashes(__("Importazione libro")) ?> ${data.current}/${data.total}...`,
                         data.current_book || ''
                     );
                     pollInterval = setTimeout(() => pollProgress(), 500);
                 } else if (data.status === 'completed') {
                     clearTimeout(pollInterval);
-                    updateProgress(100, 'Completato!', '');
+                    updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
                 }
             })
             .catch(err => {
@@ -525,16 +525,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function showError(message) {
         const submitBtn = document.getElementById('submitBtn');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>Importa';
+        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i><?= addslashes(__("Importa")) ?>';
 
         if (window.Swal) {
             Swal.fire({
                 icon: 'error',
-                title: __('Errore'),
+                title: '<?= addslashes(__("Errore")) ?>',
                 text: message
             });
         } else {
-            alert('Errore: ' + message);
+            alert('<?= addslashes(__("Errore:")) ?> ' + message);
         }
 
         document.getElementById('import-progress-container').classList.add('hidden');
