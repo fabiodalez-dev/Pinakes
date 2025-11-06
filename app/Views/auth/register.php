@@ -84,7 +84,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               required aria-required="true"
               aria-describedby="nome-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="Mario"
+              placeholder="<?= __('Mario') ?>"
               value="<?php echo htmlspecialchars($_GET['nome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
             <span id="nome-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -101,7 +101,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               required aria-required="true"
               aria-describedby="cognome-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="Rossi"
+              placeholder="<?= __('Rossi') ?>"
               value="<?php echo htmlspecialchars($_GET['cognome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
             <span id="cognome-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -119,7 +119,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             required aria-required="true"
             aria-describedby="email-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="mario.rossi@email.it"
+            placeholder="<?= __('mario.rossi@email.it') ?>"
             value="<?php echo htmlspecialchars($_GET['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <span id="email-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -136,7 +136,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             required aria-required="true"
             aria-describedby="telefono-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="+39 123 456 7890"
+            placeholder="<?= __('+39 123 456 7890') ?>"
             value="<?php echo htmlspecialchars($_GET['telefono'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <span id="telefono-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -153,7 +153,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             aria-describedby="indirizzo-error"
             rows="3"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="Via, numero civico, città, CAP"
+            placeholder="<?= __('Via, numero civico, città, CAP') ?>"
           ><?php echo htmlspecialchars($_GET['indirizzo'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
           <span id="indirizzo-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
@@ -199,7 +199,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             name="cod_fiscale"
             maxlength="16"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="es. RSSMRA80A01H501U"
+            placeholder="<?= __('es. RSSMRA80A01H501U') ?>"
             style="text-transform: uppercase;"
             value="<?php echo htmlspecialchars($_GET['cod_fiscale'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
@@ -219,7 +219,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               autocomplete="new-password"
               aria-describedby="password-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="••••••••"
+              placeholder="<?= __('••••••••') ?>"
             />
             <span id="password-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>
@@ -236,7 +236,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               autocomplete="new-password"
               aria-describedby="password_confirm-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="••••••••"
+              placeholder="<?= __('••••••••') ?>"
             />
             <span id="password_confirm-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>

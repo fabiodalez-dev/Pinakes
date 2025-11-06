@@ -95,7 +95,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               required aria-required="true"
               aria-describedby="password-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200"
-              placeholder="••••••••"
+              placeholder="<?= __('••••••••') ?>"
               minlength="8"
             />
             <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -115,7 +115,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               required aria-required="true"
               aria-describedby="password_confirm-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200"
-              placeholder="••••••••"
+              placeholder="<?= __('••••••••') ?>"
               minlength="8"
             />
             <span id="password_confirm-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>

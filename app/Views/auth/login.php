@@ -94,7 +94,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             required aria-required="true"
             aria-describedby="email-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
-            placeholder="mario.rossi@email.it"
+            placeholder="<?= __('mario.rossi@email.it') ?>"
             value="<?php echo htmlspecialchars($_GET['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <span id="email-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -112,7 +112,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             autocomplete="current-password"
             aria-describedby="password-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
-            placeholder="••••••••"
+            placeholder="<?= __('••••••••') ?>"
           />
           <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
