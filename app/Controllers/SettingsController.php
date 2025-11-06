@@ -51,7 +51,7 @@ class SettingsController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $this->redirect($response, '/admin/settings?tab=general');
         }
 
@@ -60,7 +60,7 @@ class SettingsController
 
         $appName = trim((string)($data['app_name'] ?? ''));
         if ($appName === '') {
-            $appName = 'Biblioteca';
+            $appName = __('Biblioteca');
         }
         $repository->set('app', 'name', $appName);
         ConfigStore::set('app.name', $appName);
@@ -90,7 +90,7 @@ class SettingsController
                 return $this->redirect($response, '/admin/settings?tab=general');
             }
         } elseif (isset($_FILES['app_logo']) && is_array($_FILES['app_logo']) && ($_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-            $_SESSION['error_message'] = 'Caricamento del logo non riuscito. Verifica le dimensioni e il formato del file.';
+            $_SESSION['error_message'] = __('Caricamento del logo non riuscito. Verifica le dimensioni e il formato del file.');
             return $this->redirect($response, '/admin/settings?tab=general');
         } elseif (!$removeLogo && $logoPath !== '') {
             // Ensure ConfigStore reflects DB stored logo when no upload occurs AND logo was not removed
@@ -118,7 +118,7 @@ class SettingsController
             ConfigStore::set("app.{$key}", $value);
         }
 
-        $_SESSION['success_message'] = 'Impostazioni generali aggiornate correttamente.';
+        $_SESSION['success_message'] = __('Impostazioni generali aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=general');
     }
 
@@ -126,7 +126,7 @@ class SettingsController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $this->redirect($response, '/admin/settings?tab=email');
         }
 
@@ -170,7 +170,7 @@ class SettingsController
         ConfigStore::set('mail.smtp.password', $smtpPass);
         ConfigStore::set('mail.smtp.encryption', $encryption);
 
-        $_SESSION['success_message'] = 'Impostazioni email aggiornate correttamente.';
+        $_SESSION['success_message'] = __('Impostazioni email aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=email');
     }
 
@@ -203,7 +203,7 @@ class SettingsController
 
     private function resolveAppSettings(SettingsRepository $repository): array
     {
-        $name = $repository->get('app', 'name', ConfigStore::get('app.name', 'Biblioteca'));
+        $name = $repository->get('app', 'name', ConfigStore::get('app.name', __('Biblioteca')));
         $logo = $repository->get('app', 'logo_path', ConfigStore::get('app.logo', ''));
 
         if ($logo === null) {
@@ -213,7 +213,7 @@ class SettingsController
         return [
             'name' => $name,
             'logo' => $logo,
-            'footer_description' => $repository->get('app', 'footer_description', ConfigStore::get('app.footer_description', 'La tua biblioteca digitale per scoprire, esplorare e gestire la tua collezione di libri preferiti.')),
+            'footer_description' => $repository->get('app', 'footer_description', ConfigStore::get('app.footer_description', __('La tua biblioteca digitale per scoprire, esplorare e gestire la tua collezione di libri preferiti.'))),
             'social_facebook' => $repository->get('app', 'social_facebook', ConfigStore::get('app.social_facebook', '')),
             'social_twitter' => $repository->get('app', 'social_twitter', ConfigStore::get('app.social_twitter', '')),
             'social_instagram' => $repository->get('app', 'social_instagram', ConfigStore::get('app.social_instagram', '')),
@@ -228,7 +228,7 @@ class SettingsController
         $defaults = [
             'type' => ConfigStore::get('mail.driver', 'mail'),
             'from_email' => ConfigStore::get('mail.from_email', ''),
-            'from_name' => ConfigStore::get('mail.from_name', 'Biblioteca'),
+            'from_name' => ConfigStore::get('mail.from_name', __('Biblioteca')),
             'smtp_host' => ConfigStore::get('mail.smtp.host', ''),
             'smtp_port' => (string)ConfigStore::get('mail.smtp.port', 587),
             'smtp_username' => ConfigStore::get('mail.smtp.username', ''),
