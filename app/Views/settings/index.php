@@ -346,7 +346,7 @@ $activeTab = $activeTab ?? 'general';
                   </div>
                 </div>
 
-                <form action="/admin/settings/templates/<?php echo HtmlHelper::e($template['name']); ?>" method="post" class="p-5 space-y-4">
+                <form action="/admin/settings/templates/<?php echo HtmlHelper::e($template['name']); ?>" method="post" class="p-3 md:p-5 space-y-4">
                   <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
                   <div>
                     <label class="block text-sm font-medium text-gray-700"><?= __("Oggetto") ?></label>
@@ -357,7 +357,7 @@ $activeTab = $activeTab ?? 'general';
                     <textarea name="body" class="tinymce-editor" data-template="<?php echo HtmlHelper::e($template['name']); ?>"><?php echo HtmlHelper::escape($template['body']); ?></textarea>
                   </div>
                   <div class="flex justify-end">
-                    <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+                    <button type="submit" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
                       <i class="fas fa-save"></i>
                       <?= __("Salva template") ?>
                     </button>
