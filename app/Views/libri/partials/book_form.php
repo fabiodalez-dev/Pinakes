@@ -95,7 +95,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <input id="titolo" name="titolo" type="text" required aria-required="true" class="form-input" placeholder="<?= __('es. La morale anarchica') ?>" value="<?php echo HtmlHelper::e($book['titolo'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="sottotitolo" class="form-label">Sottotitolo</label>
+              <label for="sottotitolo" class="form-label"><?= __("Sottotitolo") ?></label>
               <input id="sottotitolo" name="sottotitolo" type="text" class="form-input" placeholder="<?= __('Sottotitolo del libro (opzionale)') ?>" value="<?php echo HtmlHelper::e($book['sottotitolo'] ?? ''); ?>" />
             </div>
           </div>
@@ -110,7 +110,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <input id="isbn13" name="isbn13" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['isbn13'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="edizione" class="form-label">Edizione</label>
+              <label for="edizione" class="form-label"><?= __("Edizione") ?></label>
               <input id="edizione" name="edizione" type="text" class="form-input" placeholder="<?= __('es. Prima edizione') ?>" value="<?php echo HtmlHelper::e($book['edizione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1">Numero o descrizione dell'edizione</p>
             </div>
@@ -136,9 +136,9 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <p class="text-xs text-gray-500 mt-1">European Article Number (opzionale)</p>
             </div>
             <div>
-              <label for="lingua" class="form-label">Lingua</label>
+              <label for="lingua" class="form-label"><?= __("Lingua") ?></label>
               <input id="lingua" name="lingua" type="text" class="form-input" placeholder="<?= __('es. Italiano, Inglese') ?>" value="<?php echo HtmlHelper::e($book['lingua'] ?? ''); ?>" />
-              <p class="text-xs text-gray-500 mt-1">Lingua originale del libro</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Lingua originale del libro") ?></p>
             </div>
           </div>
           <div class="mt-2 text-xs text-gray-500" id="genre_path_preview" style="min-height:1.25rem;">
@@ -147,7 +147,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <!-- Publisher with Enhanced Search -->
           <div>
-            <label for="editore_field" class="form-label">Editore</label>
+            <label for="editore_field" class="form-label"><?= __("Editore") ?></label>
             <div class="relative">
               <div id="editore_field" class="choices choices--multiple">
                 <div class="choices__inner form-input pr-10 flex flex-wrap items-center gap-2">
@@ -170,30 +170,30 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <!-- Authors with Choices.js -->
           <div>
-            <label for="autori_select" class="form-label">Autori</label>
+            <label for="autori_select" class="form-label"><?= __("Autori") ?></label>
             <select id="autori_select" name="autori_select[]" multiple placeholder="<?= __('Cerca autori esistenti o aggiungine di nuovi...') ?>" data-initial-authors="<?php echo $initialAuthorsJson; ?>">
               <!-- Options will be populated dynamically -->
             </select>
             <div id="autori_hidden"></div>
-            <p class="text-xs text-gray-500 mt-1">Puoi selezionare più autori o aggiungerne di nuovi digitando il nome</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Puoi selezionare più autori o aggiungerne di nuovi digitando il nome") ?></p>
           </div>
 
           <!-- Book Status -->
           <div>
-            <label for="stato" class="form-label">Disponibilità</label>
+            <label for="stato" class="form-label"><?= __("Disponibilità") ?></label>
             <?php $statoCorrente = $book['stato'] ?? ''; ?>
             <select id="stato" name="stato" class="form-input">
               <option value="Disponibile" <?php echo strcasecmp($statoCorrente, 'Disponibile') === 0 ? 'selected' : ''; ?>><?= __("Disponibile") ?></option>
               <option value="Non Disponibile" <?php echo strcasecmp($statoCorrente, 'Non Disponibile') === 0 ? 'selected' : ''; ?>>Non Disponibile</option>
-              <option value="Prestato" <?php echo strcasecmp($statoCorrente, 'Prestato') === 0 ? 'selected' : ''; ?>>Prestato</option>
-              <option value="Riservato" <?php echo strcasecmp($statoCorrente, 'Riservato') === 0 ? 'selected' : ''; ?>>Riservato</option>
-              <option value="Danneggiato" <?php echo strcasecmp($statoCorrente, 'Danneggiato') === 0 ? 'selected' : ''; ?>>Danneggiato</option>
-              <option value="Perso" <?php echo strcasecmp($statoCorrente, 'Perso') === 0 ? 'selected' : ''; ?>>Perso</option>
+              <option value="Prestato" <?php echo strcasecmp($statoCorrente, 'Prestato') === 0 ? 'selected' : ''; ?>><?= __("Prestato") ?></option>
+              <option value="Riservato" <?php echo strcasecmp($statoCorrente, 'Riservato') === 0 ? 'selected' : ''; ?>><?= __("Riservato") ?></option>
+              <option value="Danneggiato" <?php echo strcasecmp($statoCorrente, 'Danneggiato') === 0 ? 'selected' : ''; ?>><?= __("Danneggiato") ?></option>
+              <option value="Perso" <?php echo strcasecmp($statoCorrente, 'Perso') === 0 ? 'selected' : ''; ?>><?= __("Perso") ?></option>
               <option value="In Riparazione" <?php echo strcasecmp($statoCorrente, 'In Riparazione') === 0 ? 'selected' : ''; ?>>In Riparazione</option>
               <option value="Fuori Catalogo" <?php echo strcasecmp($statoCorrente, 'Fuori Catalogo') === 0 ? 'selected' : ''; ?>>Fuori Catalogo</option>
               <option value="Da Inventariare" <?php echo strcasecmp($statoCorrente, 'Da Inventariare') === 0 ? 'selected' : ''; ?>>Da Inventariare</option>
             </select>
-            <p class="text-xs text-gray-500 mt-1">Status attuale di questa copia del libro</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Status attuale di questa copia del libro") ?></p>
           </div>
 
           <!-- Description -->
@@ -227,7 +227,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               </select>
             </div>
             <div>
-              <label for="dewey_l3" class="form-label">Sezione</label>
+              <label for="dewey_l3" class="form-label"><?= __("Sezione") ?></label>
               <select id="dewey_l3" name="dewey_l3" class="form-input" disabled>
                 <option value="">Seleziona sezione...</option>
               </select>
@@ -236,25 +236,25 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <p class="text-xs text-gray-500 mt-2">Codice Dewey selezionato: <span id="dewey_code" class="font-mono font-semibold text-gray-900">-</span></p>
           <p class="text-xs text-gray-500 mt-1">La classificazione Dewey è utilizzata per organizzare i libri per argomento secondo standard internazionali</p>
 
-          <h3 class="text-lg font-semibold text-gray-900 mt-6 mb-4">Genere</h3>
+          <h3 class="text-lg font-semibold text-gray-900 mt-6 mb-4"><?= __("Genere") ?></h3>
 
           <div class="form-grid-3">
             <div>
-              <label for="radice_select" class="form-label">Radice</label>
+              <label for="radice_select" class="form-label"><?= __("Radice") ?></label>
               <select id="radice_select" name="radice_id" class="form-input" data-initial-radice="<?php echo (int)$initialData['radice_id']; ?>">
                 <option value="0">Seleziona radice...</option>
               </select>
               <p class="text-xs text-gray-500 mt-1">Livello principale (es. Prosa, Poesia, Teatro)</p>
             </div>
             <div>
-              <label for="genere_select" class="form-label">Genere</label>
+              <label for="genere_select" class="form-label"><?= __("Genere") ?></label>
               <select id="genere_select" name="genere_id" class="form-input" disabled data-initial-genere="<?php echo (int)$initialData['genere_id']; ?>">
                 <option value="0">Seleziona prima una radice...</option>
               </select>
-              <p class="text-xs text-gray-500 mt-1" id="genere_hint">Genere letterario del libro</p>
+              <p class="text-xs text-gray-500 mt-1" id="genere_hint"><?= __("Genere letterario del libro") ?></p>
             </div>
             <div>
-              <label for="sottogenere_select" class="form-label">Sottogenere</label>
+              <label for="sottogenere_select" class="form-label"><?= __("Sottogenere") ?></label>
               <select id="sottogenere_select" name="sottogenere_id" class="form-input" disabled data-initial-sottogenere="<?php echo (int)$initialData['sottogenere_id']; ?>">
                 <option value="0">Seleziona prima un genere...</option>
               </select>
@@ -266,7 +266,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <div class="mt-4">
             <label for="parole_chiave" class="form-label">Parole Chiave</label>
             <input id="parole_chiave" name="parole_chiave" type="text" class="form-input" placeholder="<?= __('es. romanzo, fantasy, avventura (separare con virgole)') ?>" value="<?php echo HtmlHelper::e($book['parole_chiave'] ?? ''); ?>" />
-            <p class="text-xs text-gray-500 mt-1">Inserisci parole chiave separate da virgole per facilitare la ricerca</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Inserisci parole chiave separate da virgole per facilitare la ricerca") ?></p>
           </div>
         </div>
       </div>
@@ -307,7 +307,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-body form-section">
           <div class="form-grid-3">
             <div>
-              <label for="formato" class="form-label">Formato</label>
+              <label for="formato" class="form-label"><?= __("Formato") ?></label>
               <input id="formato" name="formato" type="text" class="form-input" placeholder="<?= __('es. Copertina rigida, Brossura') ?>" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
             </div>
             <div>
@@ -321,7 +321,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           </div>
 
           <div>
-            <label for="dimensioni" class="form-label">Dimensioni</label>
+            <label for="dimensioni" class="form-label"><?= __("Dimensioni") ?></label>
             <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= __('es. 21x14 cm') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
           
@@ -354,7 +354,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="collana" class="form-label">Collana</label>
+              <label for="collana" class="form-label"><?= __("Collana") ?></label>
               <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= __('es. I Classici') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
             </div>
             <div>
@@ -407,7 +407,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                     <img src="<?php echo HtmlHelper::e($currentCover); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none';" />
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="text-xs text-gray-500">Copertina attuale</span>
+                    <span class="text-xs text-gray-500"><?= __("Copertina attuale") ?></span>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                       <i class="fas fa-trash"></i>
                       Rimuovi
@@ -432,7 +432,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-body form-section">
           <div class="form-grid-2">
             <div>
-              <label for="scaffale_id" class="form-label">Scaffale</label>
+              <label for="scaffale_id" class="form-label"><?= __("Scaffale") ?></label>
               <select id="scaffale_id" name="scaffale_id" class="form-input">
                 <option value="0">Seleziona scaffale...</option>
                 <?php foreach ($scaffali as $s): ?>
@@ -441,7 +441,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               </select>
             </div>
             <div>
-              <label class="form-label">Mensola</label>
+              <label class="form-label"><?= __("Mensola") ?></label>
               <?php
                 $mensoleOptions = [];
                 $selectedMensola = $initialMensolaId;
@@ -470,22 +470,22 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           </div>
           <div class="form-grid-2 mt-3">
             <div>
-              <label for="posizione_progressiva_input" class="form-label">Posizione progressiva</label>
+              <label for="posizione_progressiva_input" class="form-label"><?= __("Posizione progressiva") ?></label>
               <div class="flex flex-col gap-2">
                 <input type="number" min="1" name="posizione_progressiva" id="posizione_progressiva_input" class="form-input" value="<?php echo $initialPosizioneProgressiva ?: ''; ?>" placeholder="<?= __('Auto') ?>" />
-                <button type="button" id="btnAutoPosition" class="btn-outline w-full sm:w-auto"><i class="fas fa-sync mr-2"></i>Genera automaticamente</button>
+                <button type="button" id="btnAutoPosition" class="btn-outline w-full sm:w-auto"><i class="fas fa-sync mr-2"></i><?= __("Genera automaticamente") ?></button>
                 <p class="text-xs text-gray-500">Lascia vuoto o usa "Genera" per assegnare automaticamente la prossima posizione disponibile.</p>
               </div>
             </div>
             <div>
-              <label for="collocazione_preview" class="form-label">Collocazione calcolata</label>
+              <label for="collocazione_preview" class="form-label"><?= __("Collocazione calcolata") ?></label>
               <input type="text" id="collocazione_preview" name="collocazione_preview" class="form-input bg-slate-900/20 text-slate-100" value="<?php echo HtmlHelper::e($initialCollocazione); ?>" readonly />
               <p class="text-xs text-gray-500 mt-1">Aggiornata in base a scaffale, mensola e posizione.</p>
             </div>
           </div>
           <p class="text-xs text-gray-500 mt-2">La posizione fisica è indipendente dalla classificazione Dewey e indica dove si trova il libro sugli scaffali.</p>
           <div class="mt-3">
-            <button type="button" id="btnSuggestCollocazione" class="btn-outline"><i class="fas fa-magic mr-2"></i>Suggerisci collocazione</button>
+            <button type="button" id="btnSuggestCollocazione" class="btn-outline"><i class="fas fa-magic mr-2"></i><?= __("Suggerisci collocazione") ?></button>
             <span id="suggest_info" class="ml-2 text-xs text-gray-500"></span>
           </div>
         </div>
@@ -682,7 +682,7 @@ function removeCoverImage() {
     container.innerHTML = `
         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex items-center gap-2" role="alert">
             <i class="fas fa-info-circle"></i>
-            <span>La copertina verrà rimossa al salvataggio del libro</span>
+            <span><?= __("La copertina verrà rimossa al salvataggio del libro") ?></span>
         </div>
     `;
 }
@@ -1381,7 +1381,7 @@ function initializeGeneriDropdowns() {
       try {
         const res = await fetch(`/api/generi/sottogeneri?parent_id=${encodeURIComponent(parentId)}`);
         const data = await res.json();
-        sottogenereSelect.innerHTML = '<option value="0">Nessun sottogenere</option>';
+        sottogenereSelect.innerHTML = '<option value="0"><?= __("Nessun sottogenere") ?></option>';
         data.forEach(sg => {
           const opt = document.createElement('option');
           opt.value = sg.id;
@@ -1793,7 +1793,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                     suggestions.classList.remove('hidden');
                     safeOnEmpty(fallback);
                 } else {
-                    suggestions.innerHTML = '<li class="px-4 py-2 text-red-500">Errore nella ricerca</li>';
+                    suggestions.innerHTML = '<li class="px-4 py-2 text-red-500"><?= __("Errore nella ricerca") ?></li>';
                     lastResults = [];
                     highlightedIndex = -1;
                     suggestions.classList.remove('hidden');
@@ -2270,7 +2270,7 @@ function displayScrapedCover(imageUrl) {
                 <div class="text-gray-400 mb-2">
                     <i class="fas fa-image text-3xl"></i>
                 </div>
-                <p class="text-sm text-gray-600 mb-2">Anteprima non disponibile</p>
+                <p class="text-sm text-gray-600 mb-2"><?= __("Anteprima non disponibile") ?></p>
                 <p class="text-xs text-gray-500 mb-3">L'immagine verrà scaricata al salvataggio</p>
                 <a href="${imageSrc}" target="_blank" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${imageUrl}</a>
             </div>
@@ -2287,7 +2287,7 @@ function displayScrapedCover(imageUrl) {
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                     <i class="fas fa-globe text-gray-600"></i>
-                    <span>Copertina recuperata automaticamente</span>
+                    <span><?= __("Copertina recuperata automaticamente") ?></span>
                 </div>
                 <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>

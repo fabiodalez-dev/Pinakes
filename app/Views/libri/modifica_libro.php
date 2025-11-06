@@ -20,7 +20,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
         <ol class="flex items-center space-x-2 text-sm">
           <li>
             <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-              <i class="fas fa-home mr-1"></i>Home
+              <i class="fas fa-home mr-1"></i><?= __("Home") ?>
             </a>
           </li>
           <li>
@@ -28,7 +28,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
           </li>
           <li>
             <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
-              <i class="fas fa-book mr-1"></i>Libri
+              <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
             </a>
           </li>
           <li>
@@ -41,15 +41,15 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h1 class="text-2xl font-bold text-gray-900 mb-3 flex items-center gap-3">
           <i class="fas fa-book-open text-blue-600"></i>
-          Modifica Libro
+          <?= __("Modifica Libro") ?>
         </h1>
         <p class="text-gray-600 text-base mb-4">
-          Aggiorna i dettagli del libro: <a href="/admin/libri/<?php echo (int)($book['id'] ?? 0); ?>" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold transition-colors"><strong><?php echo HtmlHelper::e($book['titolo'] ?? ''); ?></strong></a>
+          <?= __("Aggiorna i dettagli del libro:") ?> <a href="/admin/libri/<?php echo (int)($book['id'] ?? 0); ?>" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold transition-colors"><strong><?php echo HtmlHelper::e($book['titolo'] ?? ''); ?></strong></a>
         </p>
         
         <div class="flex items-center text-sm text-gray-500">
           <i class="fas fa-info-circle mr-2"></i>
-          I campi con * sono obbligatori
+          <?= __("I campi con * sono obbligatori") ?>
         </div>
       </div>
     </div>
@@ -59,7 +59,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <h3 class="text-sm font-semibold text-gray-900 mb-2">
           <i class="fas fa-barcode text-primary mr-2"></i>
-          Aggiorna da ISBN
+          <?= __("Aggiorna da ISBN") ?>
         </h3>
         <div class="flex gap-2">
           <input id="importIsbn" class="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm" 
@@ -67,7 +67,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
                  value="<?php echo HtmlHelper::e($book['isbn13'] ?? $book['isbn10'] ?? ''); ?>" />
           <button type="button" id="btnImportIsbn" class="px-4 py-2 bg-gray-900 text-white rounded-md text-sm hover:bg-blue-700 transition">
             <i class="fas fa-sync-alt mr-1"></i>
-            Aggiorna Dati
+            <?= __("Aggiorna Dati") ?>
           </button>
         </div>
       </div>
@@ -75,7 +75,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <h3 class="text-sm font-semibold text-gray-900 mb-2">
           <i class="fas fa-image text-primary mr-2"></i>
-          Copertina Attuale
+          <?= __("Copertina Attuale") ?>
         </h3>
         <div class="flex items-center gap-3">
           <?php $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? ''); ?>
@@ -85,7 +85,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
                  class="w-12 h-16 object-cover rounded border"
                  onerror="this.style.display='none'" />
           <?php else: ?>
-            <span class="text-sm text-gray-500">Nessuna copertina caricata</span>
+            <span class="text-sm text-gray-500"><?= __("Nessuna copertina caricata") ?></span>
           <?php endif; ?>
         </div>
       </div>
