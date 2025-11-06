@@ -226,77 +226,75 @@ php cron/automatic-notifications.php
 
           <!-- Preferences Modal Section -->
           <div class="space-y-4">
-            <h3 class="font-semibold text-gray-800 border-b pb-2">Testi Modale Preferenze</h3>
+            <h3 class="font-semibold text-gray-800 border-b pb-2"><?= __("Testi Modale Preferenze") ?></h3>
             <div>
-              <label class="form-label">Titolo Modale</label>
+              <label class="form-label"><?= __("Titolo Modale") ?></label>
               <input name="cookie_preferences_title" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['cookie_banner']['preferences_title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div>
-              <label class="form-label">Descrizione Modale</label>
+              <label class="form-label"><?= __("Descrizione Modale") ?></label>
               <textarea name="cookie_preferences_description" class="form-input" rows="3"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['preferences_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
-              <p class="text-xs text-gray-500 mt-1">Descrizione nella modale preferenze. Puoi usare HTML.</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Descrizione nella modale preferenze. Puoi usare HTML.") ?></p>
             </div>
           </div>
 
           <!-- Essential Cookies Section -->
           <div class="space-y-4">
-            <h3 class="font-semibold text-gray-800 border-b pb-2">Cookie Essenziali</h3>
+            <h3 class="font-semibold text-gray-800 border-b pb-2"><?= __("Cookie Essenziali") ?></h3>
             <div>
-              <label class="form-label">Nome Categoria</label>
+              <label class="form-label"><?= __("Nome Categoria") ?></label>
               <input name="cookie_essential_name" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_essential_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div>
-              <label class="form-label">__("Descrizione")</label>
+              <label class="form-label"><?= __("Descrizione") ?></label>
               <textarea name="cookie_essential_description" class="form-input" rows="2"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_essential_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
           </div>
 
           <!-- Analytics Cookies Section -->
           <div class="space-y-4">
-            <h3 class="font-semibold text-gray-800 border-b pb-2">Cookie Analitici</h3>
+            <h3 class="font-semibold text-gray-800 border-b pb-2"><?= __("Cookie Analitici") ?></h3>
             <div class="p-3 bg-blue-50 border border-blue-200 rounded">
               <label class="inline-flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" name="show_analytics" value="1" <?php echo (($cfg['cookie_banner']['show_analytics'] ?? true) ? 'checked' : ''); ?> />
-                <span class="font-medium text-blue-900">Mostra categoria "Cookie Analitici"</span>
+                <span class="font-medium text-blue-900"><?= __("Mostra categoria \"Cookie Analitici\"") ?></span>
               </label>
-              <p class="text-xs text-blue-700 mt-1">Disabilita se il tuo sito non usa cookie analitici (es. Google Analytics)</p>
+              <p class="text-xs text-blue-700 mt-1"><?= __("Disabilita se il tuo sito non usa cookie analitici (es. Google Analytics)") ?></p>
             </div>
             <div>
-              <label class="form-label">Nome Categoria</label>
+              <label class="form-label"><?= __("Nome Categoria") ?></label>
               <input name="cookie_analytics_name" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_analytics_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div>
-              <label class="form-label">__("Descrizione")</label>
+              <label class="form-label"><?= __("Descrizione") ?></label>
               <textarea name="cookie_analytics_description" class="form-input" rows="2"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_analytics_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
             <div class="bg-blue-50 p-4 rounded border border-blue-200">
               <p class="text-sm text-blue-900 font-medium mb-2">
-                <i class="fas fa-info-circle mr-2"></i>Codice JavaScript Analytics
+                <i class="fas fa-info-circle mr-2"></i><?= __("Codice JavaScript Analytics") ?>
               </p>
               <p class="text-xs text-blue-800">
-                Per inserire il codice JavaScript Analytics (Google Analytics, Matomo, ecc.),
-                vai su <a href="/admin/settings?tab=advanced#advanced" class="underline font-semibold hover:text-blue-900">Impostazioni → Avanzate</a>
-                nella sezione "JavaScript Analitici".
+                <?= __("Per inserire il codice JavaScript Analytics (Google Analytics, Matomo, ecc.), vai su <a href=\"/admin/settings?tab=advanced#advanced\" class=\"underline font-semibold hover:text-blue-900\">Impostazioni → Avanzate</a> nella sezione \"JavaScript Analitici\".") ?>
               </p>
             </div>
           </div>
 
           <!-- Marketing Cookies Section -->
           <div class="space-y-4">
-            <h3 class="font-semibold text-gray-800 border-b pb-2">Cookie di Marketing</h3>
+            <h3 class="font-semibold text-gray-800 border-b pb-2"><?= __("Cookie di Marketing") ?></h3>
             <div class="p-3 bg-blue-50 border border-blue-200 rounded">
               <label class="inline-flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" name="show_marketing" value="1" <?php echo (($cfg['cookie_banner']['show_marketing'] ?? true) ? 'checked' : ''); ?> />
-                <span class="font-medium text-blue-900">Mostra categoria "Cookie di Marketing"</span>
+                <span class="font-medium text-blue-900"><?= __("Mostra categoria \"Cookie di Marketing\"") ?></span>
               </label>
-              <p class="text-xs text-blue-700 mt-1">Disabilita se il tuo sito non usa cookie di marketing/advertising</p>
+              <p class="text-xs text-blue-700 mt-1"><?= __("Disabilita se il tuo sito non usa cookie di marketing/advertising") ?></p>
             </div>
             <div>
-              <label class="form-label">Nome Categoria</label>
+              <label class="form-label"><?= __("Nome Categoria") ?></label>
               <input name="cookie_marketing_name" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_marketing_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div>
-              <label class="form-label">__("Descrizione")</label>
+              <label class="form-label"><?= __("Descrizione") ?></label>
               <textarea name="cookie_marketing_description" class="form-input" rows="2"><?php echo htmlspecialchars((string)($cfg['cookie_banner']['cookie_marketing_description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
             </div>
           </div>
@@ -304,7 +302,7 @@ php cron/automatic-notifications.php
           <!-- Save Button -->
           <div class="flex justify-end pt-4 border-t">
             <button type="submit" class="btn-primary">
-              <i class="fas fa-save mr-2"></i>Salva Testi Cookie Banner
+              <i class="fas fa-save mr-2"></i><?= __("Salva Testi Cookie Banner") ?>
             </button>
           </div>
         </div>
@@ -316,14 +314,14 @@ php cron/automatic-notifications.php
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-envelope-open text-blue-600"></i>
-            Template Email
+            <?= __("Template Email") ?>
           </h2>
         </div>
         <div class="card-body">
           <div class="mb-4">
-            <label class="form-label">Seleziona Template</label>
+            <label class="form-label"><?= __("Seleziona Template") ?></label>
             <select id="template-selector" class="form-input">
-              <option value="">-- Seleziona un template --</option>
+              <option value=""><?= __("-- Seleziona un template --") ?></option>
               <?php
               use App\Support\SettingsMailTemplates;
               foreach (SettingsMailTemplates::keys() as $key):
@@ -340,23 +338,23 @@ php cron/automatic-notifications.php
               <input type="hidden" id="template-name" name="template-name" value="">
 
               <div class="mb-4">
-                <label class="form-label">Soggetto Email</label>
-                <input type="text" id="template-subject" name="subject" class="form-input" placeholder="Oggetto dell'email">
+                <label class="form-label"><?= __("Soggetto Email") ?></label>
+                <input type="text" id="template-subject" name="subject" class="form-input" placeholder="<?= __("Oggetto dell'email") ?>">
               </div>
 
               <div class="mb-4">
-                <label class="form-label">Corpo Email</label>
+                <label class="form-label"><?= __("Corpo Email") ?></label>
                 <textarea id="template-body" name="body" class="form-input" style="min-height: 400px; display: none;"></textarea>
               </div>
 
               <div class="bg-blue-50 p-4 rounded border border-blue-200 mb-4">
-                <h4 class="font-medium text-blue-900 mb-2"><i class="fas fa-info-circle mr-2"></i>Variabili disponibili:</h4>
+                <h4 class="font-medium text-blue-900 mb-2"><i class="fas fa-info-circle mr-2"></i><?= __("Variabili disponibili:") ?></h4>
                 <div id="template-placeholders" class="text-sm text-blue-700"></div>
               </div>
 
               <div class="flex gap-2">
-                <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i>Salva Template</button>
-                <button type="button" onclick="closeTemplateEditor()" class="btn-secondary"><i class="fas fa-times mr-2"></i>__("Annulla")</button>
+                <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i><?= __("Salva Template") ?></button>
+                <button type="button" onclick="closeTemplateEditor()" class="btn-secondary"><i class="fas fa-times mr-2"></i><?= __("Annulla") ?></button>
               </div>
             </form>
           </div>
@@ -364,7 +362,7 @@ php cron/automatic-notifications.php
       </div>
 
       <div class="flex justify-end">
-        <button class="btn-primary"><i class="fas fa-save mr-2"></i>Salva Impostazioni</button>
+        <button class="btn-primary"><i class="fas fa-save mr-2"></i><?= __("Salva Impostazioni") ?></button>
       </div>
     </form>
   </div>
@@ -397,13 +395,13 @@ tinymce.init({
   branding: false,
   relative_urls: false,
   style_formats: [
-    { title: __('Paragraph'), format: 'p' },
-    { title: __('Heading 1'), format: 'h1' },
-    { title: __('Heading 2'), format: 'h2' },
-    { title: __('Heading 3'), format: 'h3' },
-    { title: __('Heading 4'), format: 'h4' },
-    { title: __('Heading 5'), format: 'h5' },
-    { title: __('Heading 6'), format: 'h6' }
+    { title: '<?= addslashes(__("Paragraph")) ?>', format: 'p' },
+    { title: '<?= addslashes(__("Heading 1")) ?>', format: 'h1' },
+    { title: '<?= addslashes(__("Heading 2")) ?>', format: 'h2' },
+    { title: '<?= addslashes(__("Heading 3")) ?>', format: 'h3' },
+    { title: '<?= addslashes(__("Heading 4")) ?>', format: 'h4' },
+    { title: '<?= addslashes(__("Heading 5")) ?>', format: 'h5' },
+    { title: '<?= addslashes(__("Heading 6")) ?>', format: 'h6' }
   ],
   setup: function(editor) {
     editor.on('init', function() {
@@ -485,14 +483,14 @@ document.getElementById('template-form').addEventListener('submit', async functi
     });
 
     if (response.ok) {
-      alert(__('Template aggiornato con successo!'));
+      alert('<?= addslashes(__("Template aggiornato con successo!")) ?>');
       closeTemplateEditor();
     } else {
-      alert('Errore nell\'aggiornamento del template');
+      alert('<?= addslashes(__("Errore nell'aggiornamento del template")) ?>');
     }
   } catch (error) {
     console.error('Error:', error);
-    alert('Errore: ' + error.message);
+    alert('<?= addslashes(__("Errore: ")) ?>' + error.message);
   }
 });
 
