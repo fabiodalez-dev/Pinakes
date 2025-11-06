@@ -1203,20 +1203,20 @@ if (!function_exists('assetUrl')) {
                     </a>
                     <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                     <a href="<?= absoluteUrl('/admin/dashboard') ?>" class="mobile-nav-link">
-                        <i class="fas fa-user-shield me-2"></i>Admin
+                        <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
                     </a>
                     <?php else: ?>
                     <a href="<?= absoluteUrl('/profilo') ?>" class="mobile-nav-link">
-                        <i class="fas fa-user me-2"></i>Profilo
+                        <i class="fas fa-user me-2"></i><?= __("Profilo") ?>
                     </a>
                     <?php endif; ?>
                     <?php else: ?>
                     <hr class="mobile-menu-divider">
                     <a href="<?= absoluteUrl('/login') ?>" class="mobile-nav-link">
-                        <i class="fas fa-sign-in-alt me-2"></i>Accedi
+                        <i class="fas fa-sign-in-alt me-2"></i><?= __("Accedi") ?>
                     </a>
                     <a href="<?= absoluteUrl('/register') ?>" class="mobile-nav-link">
-                        <i class="fas fa-user-plus me-2"></i>Registrati
+                        <i class="fas fa-user-plus me-2"></i><?= __("Registrati") ?>
                     </a>
                     <?php endif; ?>
                 </nav>
@@ -1242,25 +1242,25 @@ if (!function_exists('assetUrl')) {
                     <p><?= HtmlHelper::e($footerDescription) ?></p>
                 </div>
                 <div class="col-lg-3">
-                    <h5>Menu</h5>
+                    <h5><?= __("Menu") ?></h5>
                     <ul class="list-unstyled">
-                        <li><a href="<?= absoluteUrl('/chi-siamo') ?>">Chi Siamo</a></li>
-                        <li><a href="<?= absoluteUrl('/contatti') ?>">Contatti</a></li>
-                        <li><a href="<?= absoluteUrl('/privacy-policy') ?>">Privacy Policy</a></li>
-                        <li><a href="<?= absoluteUrl('/cookies') ?>">Cookies</a></li>
+                        <li><a href="<?= absoluteUrl('/chi-siamo') ?>"><?= __("Chi Siamo") ?></a></li>
+                        <li><a href="<?= absoluteUrl('/contatti') ?>"><?= __("Contatti") ?></a></li>
+                        <li><a href="<?= absoluteUrl('/privacy-policy') ?>"><?= __("Privacy Policy") ?></a></li>
+                        <li><a href="<?= absoluteUrl('/cookies') ?>"><?= __("Cookies") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
-                    <h5>Account</h5>
+                    <h5><?= __("Account") ?></h5>
                     <ul class="list-unstyled">
-                        <li><a href="<?= absoluteUrl('/user/dashboard') ?>">Dashboard</a></li>
-                        <li><a href="<?= absoluteUrl('/profilo') ?>">Profilo</a></li>
-                        <li><a href="<?= absoluteUrl('/wishlist') ?>">Wishlist</a></li>
-                        <li><a href="<?= absoluteUrl('/prenotazioni') ?>">Prenotazioni</a></li>
+                        <li><a href="<?= absoluteUrl('/user/dashboard') ?>"><?= __("Dashboard") ?></a></li>
+                        <li><a href="<?= absoluteUrl('/profilo') ?>"><?= __("Profilo") ?></a></li>
+                        <li><a href="<?= absoluteUrl('/wishlist') ?>"><?= __("Wishlist") ?></a></li>
+                        <li><a href="<?= absoluteUrl('/prenotazioni') ?>"><?= __("Prenotazioni") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
-                    <h5>Seguici</h5>
+                    <h5><?= __("Seguici") ?></h5>
                     <div class="d-flex gap-3 social-links">
                         <?php if ($socialFacebook !== ''): ?>
                             <a href="<?= HtmlHelper::e($socialFacebook) ?>" target="_blank" rel="noopener noreferrer"><i class="fab fa-facebook"></i></a>
