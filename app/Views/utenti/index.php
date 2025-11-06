@@ -49,7 +49,7 @@
       <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
         <div class="flex items-center gap-2">
           <i class="fas fa-check-circle"></i>
-          <span>Utente creato con successo!</span>
+          <span><?= __("Utente creato con successo!") ?></span>
         </div>
       </div>
     <?php endif; ?>
@@ -57,7 +57,7 @@
       <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
         <div class="flex items-center gap-2">
           <i class="fas fa-check-circle"></i>
-          <span>Utente aggiornato con successo!</span>
+          <span><?= __("Utente aggiornato con successo!") ?></span>
         </div>
       </div>
     <?php endif; ?>
@@ -67,15 +67,15 @@
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-filter text-gray-600"></i>
-          Filtri di Ricerca
+          <?= __("Filtri di Ricerca") ?>
         </h2>
         <div class="flex items-center gap-2">
           <button id="btn-pending-approvals" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
-            <i class="fas fa-user-clock mr-2"></i> Solo sospesi
+            <i class="fas fa-user-clock mr-2"></i> <?= __("Solo sospesi") ?>
           </button>
           <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
             <i class="fas fa-chevron-up"></i>
-            <span>Nascondi filtri</span>
+            <span><?= __("Nascondi filtri") ?></span>
           </button>
         </div>
       </div>
@@ -84,7 +84,7 @@
           <div>
             <label class="form-label">
               <i class="fas fa-search mr-1"></i>
-              Cerca testo
+              <?= __("Cerca testo") ?>
             </label>
             <input id="search_text" placeholder="<?= __('Nome, cognome, email...') ?>" class="form-input" />
           </div>
@@ -92,11 +92,11 @@
           <div>
             <label class="form-label">
               <i class="fas fa-user-tag mr-1"></i>
-              Ruolo
+              <?= __("Ruolo") ?>
             </label>
             <select id="role_filter" class="form-input">
-              <option value="">Tutti i ruoli</option>
-              <option value="admin">Amministratore</option>
+              <option value=""><?= __("Tutti i ruoli") ?></option>
+              <option value="admin"><?= __("Amministratore") ?></option>
               <option value="staff">Staff</option>
               <option value="premium">Premium</option>
               <option value="standard">Standard</option>
@@ -106,12 +106,12 @@
           <div>
             <label class="form-label">
               <i class="fas fa-info-circle mr-1"></i>
-              Stato
+              <?= __("Stato") ?>
             </label>
             <select id="status_filter" class="form-input">
-              <option value="">Tutti gli stati</option>
+              <option value=""><?= __("Tutti gli stati") ?></option>
               <option value="attivo"><?= __("Attivo") ?></option>
-              <option value="sospeso">Sospeso</option>
+              <option value="sospeso"><?= __("Sospeso") ?></option>
               <option value="scaduto"><?= __("Scaduto") ?></option>
             </select>
           </div>
@@ -119,7 +119,7 @@
           <div>
             <label class="form-label">
               <i class="fas fa-calendar mr-1"></i>
-              Registrato da
+              <?= __("Registrato da") ?>
             </label>
             <input id="created_from" type="date" class="form-input" />
           </div>
@@ -128,11 +128,11 @@
         <div class="flex justify-between items-center pt-4 border-t border-gray-200">
           <div class="flex items-center gap-2 text-sm text-gray-500">
             <i class="fas fa-info-circle"></i>
-            <span>I filtri vengono applicati automaticamente mentre digiti</span>
+            <span><?= __("I filtri vengono applicati automaticamente mentre digiti") ?></span>
           </div>
           <button id="clear-filters" class="btn-secondary">
             <i class="fas fa-times mr-2"></i>
-            Cancella filtri
+            <?= __("Cancella filtri") ?>
           </button>
         </div>
       </div>
@@ -143,21 +143,21 @@
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-table text-primary"></i>
-          Elenco Utenti
+          <?= __("Elenco Utenti") ?>
           <span id="total-count" class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"></span>
         </h2>
         <div id="export-buttons" class="flex items-center space-x-2">
-          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta CSV (formato compatibile per import)">
+          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Esporta CSV (formato compatibile per import)") ?>">
             <i class="fas fa-file-csv mr-1"></i>
             CSV
           </button>
-          <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta PDF">
+          <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Esporta PDF") ?>">
             <i class="fas fa-file-pdf mr-1"></i>
             PDF
           </button>
-          <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Stampa">
+          <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Stampa") ?>">
             <i class="fas fa-print mr-1"></i>
-            Stampa
+            <?= __("Stampa") ?>
           </button>
         </div>
       </div>
@@ -183,6 +183,23 @@
 
 <!-- Modern DataTables with Advanced Features -->
 <script>
+// i18n translations for JavaScript
+const i18nTranslations = <?= json_encode([
+    'utenti' => __("utenti"),
+    'Mostra filtri' => __("Mostra filtri"),
+    'Nascondi filtri' => __("Nascondi filtri"),
+    'Filtri cancellati' => __("Filtri cancellati"),
+    'Tutti i filtri sono stati rimossi' => __("Tutti i filtri sono stati rimossi"),
+    'Esportazione di %d utenti filtrati su %d totali' => __("Exporting %d filtered users out of %d total"),
+    'Esportazione di tutti i %d utenti' => __("Exporting all %d users"),
+    'Totale utenti:' => __("Total users:"),
+], JSON_UNESCAPED_UNICODE) ?>;
+
+// Global translation function for JavaScript
+window.__ = function(key) {
+    return i18nTranslations[key] || key;
+};
+
 // Set current locale for DataTables language selection
 window.i18nLocale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>';
 
@@ -216,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
       dataSrc: function(json) {
         // Update total count
         const totalCount = json.recordsTotal || 0;
-        $('#total-count').text(totalCount.toLocaleString() + ' utenti');
+        $('#total-count').text(totalCount.toLocaleString() + ' ' + __('utenti'));
         return json.data;
       }
     },
@@ -365,10 +382,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (filtersVisible) {
           icon.className = 'fas fa-chevron-up';
-          text.textContent = 'Nascondi filtri';
+          text.textContent = __('Nascondi filtri');
         } else {
           icon.className = 'fas fa-chevron-down';
-          text.textContent = 'Mostra filtri';
+          text.textContent = __('Mostra filtri');
         }
       });
     }
