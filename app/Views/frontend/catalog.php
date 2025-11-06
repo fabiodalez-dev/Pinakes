@@ -1409,44 +1409,48 @@ $initialPaginationConfig = [
 $initialPaginationJson = json_encode($initialPaginationConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $currentYear = (int)date('Y');
 
+// Create i18n translations object for JavaScript
+$i18nTranslations = [
+    // Filter labels
+    'search' => __('Ricerca'),
+    'genere' => __('Genere'),
+    'editore' => __('Editore'),
+    'disponibilita' => __('Disponibilità'),
+    'anno_min' => __('Anno min'),
+    'anno_max' => __('Anno max'),
+    'sort' => __('Ordinamento'),
+
+    // Sort labels
+    'newest' => __('Più recenti'),
+    'oldest' => __('Più vecchi'),
+    'title_asc' => __('Titolo A-Z'),
+    'title_desc' => __('Titolo Z-A'),
+    'author_asc' => __('Autore A-Z'),
+    'author_desc' => __('Autore Z-A'),
+
+    // Status labels
+    'disponibile' => __('Disponibile'),
+    'in_prestito' => __('In prestito'),
+
+    // Actions
+    'rimuovi_filtro' => __('Rimuovi filtro'),
+    'pagina_precedente' => __('Pagina precedente'),
+    'pagina_successiva' => __('Pagina successiva'),
+    'torna_categoria_superiore' => __('Torna alla categoria superiore'),
+
+    // Plurals
+    'libro_trovato' => __('libro trovato'),
+    'libri_trovati' => __('libri trovati'),
+
+    // Errors
+    'errore_caricamento' => __('Errore nel caricamento. Riprova.')
+];
+$i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
 $additional_js = <<<JS
 <script>
 // Translations object (PHP-rendered for JavaScript)
-const i18n = {
-    // Filter labels
-    search: <?= json_encode(__('Ricerca')) ?>,
-    genere: <?= json_encode(__('Genere')) ?>,
-    editore: <?= json_encode(__('Editore')) ?>,
-    disponibilita: <?= json_encode(__('Disponibilità')) ?>,
-    anno_min: <?= json_encode(__('Anno min')) ?>,
-    anno_max: <?= json_encode(__('Anno max')) ?>,
-    sort: <?= json_encode(__('Ordinamento')) ?>,
-
-    // Sort labels
-    newest: <?= json_encode(__('Più recenti')) ?>,
-    oldest: <?= json_encode(__('Più vecchi')) ?>,
-    title_asc: <?= json_encode(__('Titolo A-Z')) ?>,
-    title_desc: <?= json_encode(__('Titolo Z-A')) ?>,
-    author_asc: <?= json_encode(__('Autore A-Z')) ?>,
-    author_desc: <?= json_encode(__('Autore Z-A')) ?>,
-
-    // Status labels
-    disponibile: <?= json_encode(__('Disponibile')) ?>,
-    in_prestito: <?= json_encode(__('In prestito')) ?>,
-
-    // Actions
-    rimuovi_filtro: <?= json_encode(__('Rimuovi filtro')) ?>,
-    pagina_precedente: <?= json_encode(__('Pagina precedente')) ?>,
-    pagina_successiva: <?= json_encode(__('Pagina successiva')) ?>,
-    torna_categoria_superiore: <?= json_encode(__('Torna alla categoria superiore')) ?>,
-
-    // Plurals
-    libro_trovato: <?= json_encode(__('libro trovato')) ?>,
-    libri_trovati: <?= json_encode(__('libri trovati')) ?>,
-
-    // Errors
-    errore_caricamento: <?= json_encode(__('Errore nel caricamento. Riprova.')) ?>
-};
+const i18n = {$i18nJson};
 
 let currentFilters = {};
 let searchTimeout;
