@@ -4,13 +4,13 @@
   <div class="mb-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Notifiche</h1>
-        <p class="text-sm text-gray-600 mt-1">Tutte le notifiche del sistema</p>
+        <h1 class="text-2xl font-bold text-gray-900"><?= __("Notifiche") ?></h1>
+        <p class="text-sm text-gray-600 mt-1"><?= __("Tutte le notifiche del sistema") ?></p>
       </div>
       <div class="flex gap-2">
         <button onclick="markAllAsRead()" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
           <i class="fas fa-check-double"></i>
-          Segna tutte come lette
+          <?= __("Segna tutte come lette") ?>
         </button>
       </div>
     </div>
@@ -21,7 +21,7 @@
     <?php if (empty($notifications)): ?>
     <div class="bg-white border border-gray-200 rounded-2xl p-12 text-center">
       <i class="fas fa-bell-slash text-5xl text-gray-300 mb-4"></i>
-      <p class="text-gray-500">Nessuna notifica</p>
+      <p class="text-gray-500"><?= __("Nessuna notifica") ?></p>
     </div>
     <?php else: ?>
       <?php foreach ($notifications as $notification): ?>
@@ -69,7 +69,7 @@
                   <?php echo HtmlHelper::e($notification['title']); ?>
                   <?php if (!$notification['is_read']): ?>
                   <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                    Nuovo
+                    <?= __("Nuovo") ?>
                   </span>
                   <?php endif; ?>
                 </h3>
@@ -87,15 +87,15 @@
                     if ($diff->days == 0) {
                         if ($diff->h == 0) {
                             if ($diff->i == 0) {
-                                echo 'Adesso';
+                                echo __('Adesso');
                             } else {
-                                echo $diff->i . ' minut' . ($diff->i == 1 ? 'o' : 'i') . ' fa';
+                                echo __n('%d minuto fa', '%d minuti fa', $diff->i, $diff->i);
                             }
                         } else {
-                            echo $diff->h . ' or' . ($diff->h == 1 ? 'a' : 'e') . ' fa';
+                            echo __n('%d ora fa', '%d ore fa', $diff->h, $diff->h);
                         }
                     } elseif ($diff->days == 1) {
-                        echo 'Ieri alle ' . $date->format('H:i');
+                        echo __('Ieri alle %s', $date->format('H:i'));
                     } else {
                         echo $date->format('d/m/Y H:i');
                     }
@@ -104,7 +104,7 @@
                   <?php if (!empty($notification['link'])): ?>
                   <a href="<?php echo HtmlHelper::e($notification['link']); ?>" class="text-xs text-gray-900 hover:text-gray-700 font-medium">
                     <i class="fas fa-arrow-right mr-1"></i>
-                    Vai
+                    <?= __("Vai") ?>
                   </a>
                   <?php endif; ?>
                 </div>
@@ -113,11 +113,11 @@
               <!-- Actions -->
               <div class="flex items-center gap-2">
                 <?php if (!$notification['is_read']): ?>
-                <button onclick="markAsRead(<?php echo $notification['id']; ?>)" class="text-gray-400 hover:text-gray-900 p-2" title="Segna come letto">
+                <button onclick="markAsRead(<?php echo $notification['id']; ?>)" class="text-gray-400 hover:text-gray-900 p-2" title="<?= __("Segna come letto") ?>">
                   <i class="fas fa-check"></i>
                 </button>
                 <?php endif; ?>
-                <button onclick="deleteNotification(<?php echo $notification['id']; ?>)" class="text-gray-400 hover:text-red-600 p-2" title="Elimina">
+                <button onclick="deleteNotification(<?php echo $notification['id']; ?>)" class="text-gray-400 hover:text-red-600 p-2" title="<?= __("Elimina") ?>">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
@@ -132,7 +132,7 @@
   <?php if ($unreadCount > 0): ?>
   <div class="mt-6 text-center">
     <p class="text-sm text-gray-600">
-      <?php echo $unreadCount; ?> notific<?php echo $unreadCount == 1 ? 'a' : 'he'; ?> non lett<?php echo $unreadCount == 1 ? 'a' : 'e'; ?>
+      <?php echo __n('%d notifica non letta', '%d notifiche non lette', $unreadCount, $unreadCount); ?>
     </p>
   </div>
   <?php endif; ?>
@@ -162,7 +162,7 @@ function markAllAsRead() {
 }
 
 function deleteNotification(id) {
-  if (confirm(__('Sei sicuro di voler eliminare questa notifica?'))) {
+  if (confirm('<?= addslashes(__("Sei sicuro di voler eliminare questa notifica?")) ?>')) {
     csrfFetch(`/admin/notifications/${id}`, { method: 'DELETE' })
       .then(response => response.json())
       .then(data => {
