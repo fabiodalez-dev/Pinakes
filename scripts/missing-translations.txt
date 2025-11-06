@@ -1,10 +1,11 @@
 Missing Translations Report
-Generated: 2025-11-06 13:57:44
-Total missing: 584
+Generated: 2025-11-06 14:02:14
+Total missing: 578
 ================================================================================
 
 [ 10x] $1
 [  5x] $2
+[  5x] Admin
 [  4x] Il nome dell\
 [  2x] Generi
 [  2x] Editori
@@ -20,9 +21,6 @@ Total missing: 584
 [  2x] Recensioni
 [  2x] Errore di sicurezza. Riprova.
 [  2x] Search
-[  2x] Prenotazioni
-[  2x] Admin
-[  2x] Accedi
 [  2x] Collocazione
 [  2x] Nessun prestito attivo
 [  2x] Non specificata
@@ -201,7 +199,6 @@ Total missing: 584
 [  1x] Invio in corso...
 [  1x] Toggle search
 [  1x] Toggle menu
-[  1x] Preferiti
 [  1x] Close menu
 [  1x] Chi Siamo
 [  1x] Contatti
@@ -466,8 +463,6 @@ Total missing: 584
 [  1x] Danneggiato
 [  1x] Nessun prestito disponibile per generare il grafico
 [  1x] Tutte le notifiche del sistema
-[  1x] Segna tutte come lette
-[  1x] Nessuna notifica
 [  1x] Adesso
 [  1x] Vai
 [  1x] Segna come letto
@@ -516,7 +511,6 @@ Total missing: 584
 [  1x] Sei sicuro di voler rimuovere questo libro dalla tua wishlist?
 [  1x] Sì, rimuovi
 [  1x] Si è verificato un errore nella rimozione. Riprova.
-[  1x] Il mio profilo
 [  1x] Password aggiornata con successo.
 [  1x] Profilo aggiornato con successo.
 [  1x] Nome e cognome sono obbligatori.

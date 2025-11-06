@@ -5,14 +5,14 @@
       <div>
         <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-inbox text-gray-500"></i>
-          Messaggi di Contatto
+          <?= __("Messaggi di Contatto") ?>
         </h2>
-        <p class="text-sm text-gray-600 mt-1">Tutti i messaggi ricevuti tramite il form contatti</p>
+        <p class="text-sm text-gray-600 mt-1"><?= __("Tutti i messaggi ricevuti tramite il form contatti") ?></p>
       </div>
       <div class="flex gap-2">
         <button onclick="markAllAsRead()" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
           <i class="fas fa-check-double"></i>
-          Segna tutti come letti
+          <?= __("Segna tutti come letti") ?>
         </button>
       </div>
     </div>
@@ -26,8 +26,8 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <input type="checkbox" id="select-all-messages" class="rounded border-gray-300">
               </th>
-              <th><?= __("$1") ?></th>
-              <th><?= __("$1") ?></th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Mittente") ?></th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Mittente") ?></th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Data") ?></th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Stato") ?></th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
@@ -38,7 +38,7 @@
             <tr>
               <td colspan="6" class="px-6 py-12 text-center text-gray-500">
                 <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i>
-                <p>Nessun messaggio ricevuto</p>
+                <p><?= __("Nessun messaggio ricevuto") ?></p>
               </td>
             </tr>
             <?php else: ?>
@@ -52,7 +52,7 @@
                     <?php echo HtmlHelper::e($message['nome'] . ' ' . $message['cognome']); ?>
                     <?php if (!$message['is_read']): ?>
                     <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                      Nuovo
+                      <?= __("Nuovo") ?>
                     </span>
                     <?php endif; ?>
                   </div>
@@ -109,7 +109,7 @@
 <div id="message-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
   <div class="bg-white rounded-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
     <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-      <h3 class="text-xl font-semibold text-gray-900">Dettagli Messaggio</h3>
+      <h3 class="text-xl font-semibold text-gray-900"><?= __("Dettagli Messaggio") ?></h3>
       <button onclick="closeMessageModal()" class="text-gray-400 hover:text-gray-600">
         <i class="fas fa-times text-xl"></i>
       </button>
@@ -132,7 +132,7 @@ function viewMessage(id) {
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-sm font-medium text-gray-500">Da</label>
+              <label class="text-sm font-medium text-gray-500"><?= __("Da") ?></label>
               <p class="mt-1 text-sm text-gray-900">${escapeHtml(data.nome)} ${escapeHtml(data.cognome)}</p>
             </div>
             <div>
@@ -159,18 +159,18 @@ function viewMessage(id) {
             </div>
           </div>
           <div>
-            <label class="text-sm font-medium text-gray-500">Messaggio</label>
+            <label class="text-sm font-medium text-gray-500"><?= __("Messaggio") ?></label>
             <div class="mt-2 p-4 bg-gray-50 rounded-xl text-sm text-gray-900 whitespace-pre-wrap">${escapeHtml(data.messaggio)}</div>
           </div>
           <div class="flex gap-2 pt-4">
             <button onclick="replyToMessage('${escapeHtml(data.email)}')" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
               <i class="fas fa-reply"></i>
-              Rispondi
+              <?= __("Rispondi") ?>
             </button>
             ${!data.is_archived ? `
             <button onclick="archiveMessage(${data.id})" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-archive"></i>
-              Archivia
+              <?= __("Archivia") ?>
             </button>
             ` : ''}
           </div>

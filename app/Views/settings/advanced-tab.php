@@ -10,9 +10,9 @@ use App\Support\HtmlHelper;
       <div class="flex items-start gap-3">
         <i class="fas fa-info-circle text-blue-600 text-xl mt-0.5"></i>
         <div class="flex-1">
-          <h3 class="text-sm font-semibold text-blue-900 mb-2">Gestione JavaScript Personalizzati basata su Cookie</h3>
+          <h3 class="text-sm font-semibold text-blue-900 mb-2"><?= __("Gestione JavaScript Personalizzati basata su Cookie") ?></h3>
           <div class="text-xs text-blue-800 space-y-2">
-            <p>Gli script JavaScript sono divisi in 3 categorie in base alla tipologia di cookie:</p>
+            <p><?= __("Gli script JavaScript sono divisi in 3 categorie in base alla tipologia di cookie:") ?></p>
             <ul class="list-disc pl-5 space-y-1">
               <li><strong><?= __("Essenziali:") ?></strong> <?= __("Si caricano sempre, indipendentemente dal consenso cookie") ?></li>
               <li><strong><?= __("Analitici:") ?></strong> <?= __("Si caricano solo se l'utente accetta i cookie Analytics nel banner") ?></li>
@@ -342,7 +342,7 @@ use App\Support\HtmlHelper;
 
       <!-- Cron Configuration -->
       <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-        <div class="$1"><?= __("$2") ?></div>
+        <div class="flex items-center gap-2"><i class="fas fa-terminal text-gray-600"></i><strong><?= __("Configurazione Cron Job") ?></strong></div>
         <code class="block text-xs bg-gray-900 text-green-400 border border-gray-800 rounded-lg p-3 overflow-x-auto"><?php echo HtmlHelper::e($cronExample); ?></code>
         <p class="text-xs text-gray-600">Esegue la rigenerazione ogni giorno alle 02:00 e registra il log in <code class="bg-gray-100 px-1 py-0.5 rounded">storage/logs/sitemap.log</code>.</p>
       </div>
@@ -374,7 +374,7 @@ use App\Support\HtmlHelper;
           </button>
         </form>
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-600 space-y-2 mt-4">
-          <div class="$1"><?= __("$2") ?></div>
+          <div class="flex items-center gap-2"><i class="fas fa-terminal text-gray-600"></i><strong><?= __("Configurazione Cron Job") ?></strong></div>
           <ul class="list-disc pl-5 space-y-1">
             <li>Il file generato si trova in <code class="bg-gray-100 px-1 py-0.5 rounded">public/sitemap.xml</code></li>
             <li>Il cron utilizza gli stessi permessi dell'utente di sistema che lo esegue</li>
