@@ -50,7 +50,7 @@ class AuthMiddleware implements MiddlewareInterface
 
         if (str_starts_with($request->getUri()->getPath(), '/api/')) {
             $res->getBody()->write(json_encode([
-                'error' => 'Insufficient privileges',
+                'error' => __('Insufficient privileges'),
                 'code' => 'FORBIDDEN'
             ], JSON_UNESCAPED_UNICODE));
             return $res->withHeader('Content-Type', 'application/json');

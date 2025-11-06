@@ -46,14 +46,14 @@ class CsrfMiddleware implements MiddlewareInterface
                 // Messaggio user-friendly per sessione scaduta
                 if ($csrfValidation['reason'] === 'session_expired') {
                     $response->getBody()->write(json_encode([
-                        'error' => 'La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso',
+                        'error' => __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso'),
                         'code' => 'SESSION_EXPIRED',
                         'redirect' => '/login?error=session_expired'
                     ], JSON_UNESCAPED_UNICODE));
                 } else {
                     // Altri errori CSRF
                     $response->getBody()->write(json_encode([
-                        'error' => 'Errore di sicurezza. Ricarica la pagina e riprova',
+                        'error' => __('Errore di sicurezza. Ricarica la pagina e riprova'),
                         'code' => 'CSRF_INVALID'
                     ], JSON_UNESCAPED_UNICODE));
                 }

@@ -36,8 +36,8 @@ class RateLimitMiddleware implements MiddlewareInterface
                 ->withHeader('Content-Type', 'application/json')
                 ->withHeader('Retry-After', (string)$this->window)
                 ->withBody(\Slim\Psr7\Stream::create(json_encode([
-                    'error' => 'Too many requests',
-                    'message' => 'Rate limit exceeded. Please try again later.'
+                    'error' => __('Too many requests'),
+                    'message' => __('Rate limit exceeded. Please try again later.')
                 ])));
         }
 
