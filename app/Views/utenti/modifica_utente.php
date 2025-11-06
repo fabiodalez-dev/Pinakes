@@ -85,7 +85,7 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
           <div>
             <label for="sesso" class="block text-sm font-medium text-gray-700">Sesso</label>
             <select id="sesso" name="sesso" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
-              <option value="">-- Seleziona --</option>
+              <option><?= __("-- Seleziona --") ?></option>
               <option value="M" <?= $sesso === 'M' ? 'selected' : ''; ?>>Maschio</option>
               <option value="F" <?= $sesso === 'F' ? 'selected' : ''; ?>>Femmina</option>
               <option value="Altro" <?= $sesso === 'Altro' ? 'selected' : ''; ?>>Altro</option>

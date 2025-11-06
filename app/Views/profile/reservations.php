@@ -662,7 +662,7 @@
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Valutazione *</label>
         <select id="review-stelle" name="stelle" required aria-required="true" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px;">
-          <option value="">Seleziona</option>
+          <option value=""><?= __("Seleziona") ?></option>
           <option value="5">★★★★★ - Eccellente</option>
           <option value="4">★★★★☆ - Molto buono</option>
           <option value="3">★★★☆☆ - Buono</option>

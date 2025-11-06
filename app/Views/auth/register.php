@@ -181,7 +181,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               name="sesso"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             >
-              <option value="">-- Seleziona --</option>
+              <option><?= __("-- Seleziona --") ?></option>
               <option value="M">Maschio</option>
               <option value="F">Femmina</option>
               <option value="Altro">Altro</option>
@@ -203,7 +203,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             style="text-transform: uppercase;"
             value="<?php echo htmlspecialchars($_GET['cod_fiscale'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Opzionale</p>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400"><?= __("Opzionale") ?></p>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

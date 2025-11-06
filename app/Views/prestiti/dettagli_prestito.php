@@ -32,7 +32,7 @@ function formatLoanStatus($status) {
       <li>
         <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
       </li>
-      <li class="text-gray-900 font-medium">Dettagli</li>
+      <li class="text-gray-900 font-medium"><?= __("Dettagli") ?></li>
     </ol>
   </nav>
   <div class="flex items-center justify-between">

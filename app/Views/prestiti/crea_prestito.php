@@ -144,7 +144,7 @@
 
         const renderSuggestions = (items) => {
           if (!items || items.length === 0) {
-            suggestEl.innerHTML = "<div class='suggestion-item suggestion-empty'>Nessun risultato</div>";
+            suggestEl.innerHTML = "<div class='suggestion-item suggestion-empty'><?= __("Nessun risultato") ?></div>";
             suggestEl.style.display = 'block';
             return;
           }

@@ -787,7 +787,7 @@ $csrfToken = Csrf::ensureToken();
       <div class="review-modal__field">
         <label class="review-modal__label" for="review-stelle">Valutazione *</label>
         <select id="review-stelle" name="stelle" class="review-modal__select" required aria-required="true">
-          <option value="">Seleziona</option>
+          <option value=""><?= __("Seleziona") ?></option>
           <option value="5">★★★★★ - Eccellente</option>
           <option value="4">★★★★☆ - Molto buono</option>
           <option value="3">★★★☆☆ - Buono</option>

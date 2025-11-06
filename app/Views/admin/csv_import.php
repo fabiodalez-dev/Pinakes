@@ -207,7 +207,7 @@ ob_start();
                                 <tbody class="divide-y divide-gray-100">
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">titolo</code></td>
-                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded">Sì</span></td>
+                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded"><?= __("Sì") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600">Titolo del libro</td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">Il nome della rosa</td>
                                     </tr>
@@ -219,25 +219,25 @@ ob_start();
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">editore</code></td>
-                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">No</span></td>
+                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600">Nome dell'editore</td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">Mondadori</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">isbn13</code></td>
-                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">No</span></td>
+                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600">ISBN a 13 cifre (univoco)</td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">9788804562627</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">anno_pubblicazione</code></td>
-                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">No</span></td>
+                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600">Anno (YYYY)</td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">1980</td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">categoria</code></td>
-                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">No</span></td>
+                                        <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600">Nome categoria esistente</td>
                                         <td class="px-4 py-3 text-gray-500 text-xs">Narrativa</td>
                                     </tr>

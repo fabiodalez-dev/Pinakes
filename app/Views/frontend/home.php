@@ -515,7 +515,7 @@ ob_start();
                 <div class="hero-stat">
                     <span class="hero-stat-number" id="total-books">
                         <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
-                            <span class="visually-hidden">Caricamento...</span>
+                            <span class="visually-hidden"><?= __("Caricamento...") ?></span>
                         </div>
                     </span>
                     <span class="hero-stat-label">Libri Totali</span>
@@ -523,7 +523,7 @@ ob_start();
                 <div class="hero-stat">
                     <span class="hero-stat-number" id="available-books">
                         <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
-                            <span class="visually-hidden">Caricamento...</span>
+                            <span class="visually-hidden"><?= __("Caricamento...") ?></span>
                         </div>
                     </span>
                     <span class="hero-stat-label">Disponibili</span>
@@ -596,7 +596,7 @@ ob_start();
         <div id="latest-books-grid">
             <div class="loading-placeholder">
                 <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Caricamento...</span>
+                    <span class="visually-hidden"><?= __("Caricamento...") ?></span>
                 </div>
                 <p class="mt-3">Caricamento libri...</p>
             </div>
@@ -619,7 +619,7 @@ ob_start();
 <div id="categories-sections">
     <div class="loading-placeholder">
         <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Caricamento...</span>
+            <span class="visually-hidden"><?= __("Caricamento...") ?></span>
         </div>
         <p class="mt-3">Caricamento categorie...</p>
     </div>
@@ -690,7 +690,7 @@ function loadLatestBooks(page = 1) {
     if (!grid) return;
 
     if (page === 1) {
-        grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"spinner-border text-primary\" role=\"status\"><span class=\"visually-hidden\">Caricamento...</span></div><p class=\"mt-3\">Caricamento libri...</p></div>';
+        grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"spinner-border text-primary\" role=\"status\"><span class=\"visually-hidden\"><?= __("Caricamento...") ?></span></div><p class=\"mt-3\">Caricamento libri...</p></div>';
     }
 
     fetch('/api/home/latest?page=' + page)

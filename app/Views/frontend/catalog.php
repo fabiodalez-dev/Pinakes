@@ -1375,7 +1375,7 @@ ob_start();
                     <!-- Loading State -->
                     <div id="loading-state" style="display: none;" class="text-center py-5">
                         <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Caricamento...</span>
+                            <span class="visually-hidden"><?= __("Caricamento...") ?></span>
                         </div>
                     </div>
 

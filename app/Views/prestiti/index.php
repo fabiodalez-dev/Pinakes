@@ -191,7 +191,7 @@ function getStatusBadge($status) {
               <button data-status="in_corso" class="status-filter-btn btn-secondary px-3 py-1.5">In corso</button>
               <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5">In ritardo</button>
               <button data-status="restituito" class="status-filter-btn btn-secondary px-3 py-1.5">Restituito</button>
-              <button data-status="" class="status-filter-btn btn-primary px-3 py-1.5">Tutti</button>
+              <button data-status="" class="status-filter-btn btn-primary px-3 py-1.5"><?= __("Tutti") ?></button>
             </div>
         </div>
 
