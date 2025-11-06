@@ -2,7 +2,7 @@
 /**
  * @var array $data { editori: array }
  */
-$title = "Editori";
+$title = __("Editori");
 $editori = $data['editori'];
 ?>
 <!-- Modern Publishers Management Interface -->
@@ -13,7 +13,7 @@ $editori = $data['editori'];
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
@@ -21,7 +21,7 @@ $editori = $data['editori'];
         </li>
         <li class="text-gray-900 font-medium">
           <a href="/admin/editori" class="text-gray-900 hover:text-gray-900">
-            <i class="fas fa-building mr-1"></i>Editori
+            <i class="fas fa-building mr-1"></i><?= __("Editori") ?>
           </a>
         </li>
       </ol>
@@ -33,9 +33,9 @@ $editori = $data['editori'];
         <div>
           <h1 class="text-3xl font-bold text-gray-900 flex items-center">
             <i class="fas fa-building text-gray-800 mr-3"></i>
-            Gestione Editori
+            <?= __("Gestione Editori") ?>
           </h1>
-          <p class="text-sm text-gray-600 mt-1">Esplora e gestisci gli editori della biblioteca</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Esplora e gestisci gli editori della biblioteca") ?></p>
         </div>
         <div class="hidden md:flex items-center gap-3">
           <div class="hidden md:block">
@@ -43,14 +43,14 @@ $editori = $data['editori'];
           </div>
           <a href="/admin/editori/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-plus mr-2"></i>
-            Nuovo Editore
+            <?= __("Nuovo Editore") ?>
           </a>
         </div>
       </div>
       <div class="flex md:hidden mb-3">
         <a href="/admin/editori/crea" class="w-full px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center">
           <i class="fas fa-plus mr-2"></i>
-          Nuovo Editore
+          <?= __("Nuovo Editore") ?>
         </a>
       </div>
     </div>
@@ -60,7 +60,7 @@ $editori = $data['editori'];
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-filter text-gray-600 mr-2"></i>
-          Filtri di Ricerca
+          <?= __("Filtri di Ricerca") ?>
         </h2>
         <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
           <i class="fas fa-chevron-up"></i>
@@ -72,7 +72,7 @@ $editori = $data['editori'];
           <div>
             <label for="search_nome" class="form-label">
               <i class="fas fa-search mr-1 text-gray-700"></i>
-              Nome editore
+              <?= __("Nome editore") ?>
             </label>
             <input id="search_nome" placeholder="<?= __('Cerca per nome...') ?>" class="form-input" />
           </div>
@@ -80,7 +80,7 @@ $editori = $data['editori'];
           <div>
             <label for="search_sito" class="form-label">
               <i class="fas fa-globe mr-1 text-gray-700"></i>
-              Sito web
+              <?= __("Sito web") ?>
             </label>
             <input id="search_sito" placeholder="<?= __('URL sito web...') ?>" class="form-input" />
           </div>
@@ -88,15 +88,15 @@ $editori = $data['editori'];
           <div>
             <label for="search_libri" class="form-label">
               <i class="fas fa-book mr-1 text-gray-700"></i>
-              Numero di libri
+              <?= __("Numero di libri") ?>
             </label>
             <select id="search_libri" class="form-input">
               <option value=""><?= __("Tutti gli editori") ?></option>
-              <option value="0-10">0-10 libri</option>
-              <option value="11-50">11-50 libri</option>
-              <option value="51-100">51-100 libri</option>
-              <option value="101-500">101-500 libri</option>
-              <option value="501+">Più di 500 libri</option>
+              <option value="0-10"><?= __("0-10 libri") ?></option>
+              <option value="11-50"><?= __("11-50 libri") ?></option>
+              <option value="51-100"><?= __("51-100 libri") ?></option>
+              <option value="101-500"><?= __("101-500 libri") ?></option>
+              <option value="501+"><?= __("Più di 500 libri") ?></option>
             </select>
           </div>
         </div>
@@ -104,11 +104,11 @@ $editori = $data['editori'];
         <div class="flex justify-between items-center pt-4 border-t border-gray-200">
           <div class="flex items-center text-sm text-gray-500">
             <i class="fas fa-info-circle text-gray-700 mr-2"></i>
-            <span>I filtri vengono applicati automaticamente mentre digiti</span>
+            <span><?= __("I filtri vengono applicati automaticamente mentre digiti") ?></span>
           </div>
           <button id="clear-filters" class="btn-secondary">
             <i class="fas fa-times mr-2"></i>
-            Cancella filtri
+            <?= __("Cancella filtri") ?>
           </button>
         </div>
       </div>
@@ -119,21 +119,21 @@ $editori = $data['editori'];
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-table text-gray-800 mr-2"></i>
-          Elenco Editori
+          <?= __("Elenco Editori") ?>
           <span id="total-count" class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"></span>
         </h2>
         <div id="export-buttons" class="flex items-center gap-2">
-          <button id="export-excel" class="btn-outline inline-flex items-center px-3 py-1.5 text-sm" title="Esporta Excel">
+          <button id="export-excel" class="btn-outline inline-flex items-center px-3 py-1.5 text-sm" title="<?= __("Esporta Excel") ?>">
             <i class="fas fa-file-excel mr-1"></i>
-            Excel
+            <?= __("Excel") ?>
           </button>
-          <button id="export-pdf" class="btn-outline inline-flex items-center px-3 py-1.5 text-sm" title="Esporta PDF">
+          <button id="export-pdf" class="btn-outline inline-flex items-center px-3 py-1.5 text-sm" title="<?= __("Esporta PDF") ?>">
             <i class="fas fa-file-pdf mr-1"></i>
-            PDF
+            <?= __("PDF") ?>
           </button>
-          <button id="print-table" class="btn-outline inline-flex items-center px-3 py-1.5 text-sm" title="Stampa">
+          <button id="print-table" class="btn-outline inline-flex items-center px-3 py-1.5 text-sm" title="<?= __("Stampa") ?>">
             <i class="fas fa-print mr-1"></i>
-            Stampa
+            <?= __("Stampa") ?>
           </button>
         </div>
       </div>
@@ -158,6 +158,41 @@ $editori = $data['editori'];
 
 <!-- Modern DataTables with Advanced Features -->
 <script>
+// i18n translations for JavaScript
+const i18nTranslations = <?= json_encode([
+    'Editore sconosciuto' => __("Editore sconosciuto"),
+    'Visualizza dettagli' => __("Visualizza dettagli"),
+    'Modifica' => __("Modifica"),
+    'Elimina' => __("Elimina"),
+    'Tutti' => __("Tutti"),
+    'Nascondi filtri' => __("Nascondi filtri"),
+    'Mostra filtri' => __("Mostra filtri"),
+    'Errore' => __("Errore"),
+    'Impossibile caricare gli editori. Controlla la console per i dettagli.' => __("Impossibile caricare gli editori. Controlla la console per i dettagli."),
+    'editori' => __("editori"),
+    'Filtri cancellati' => __("Filtri cancellati"),
+    'Tutti i filtri sono stati rimossi' => __("Tutti i filtri sono stati rimossi"),
+    'Nessun dato' => __("Nessun dato"),
+    'Non ci sono dati da esportare' => __("Non ci sono dati da esportare"),
+    'Elenco Editori - Biblioteca' => __("Elenco Editori - Biblioteca"),
+    'Generato il:' => __("Generato il:"),
+    'Totale editori:' => __("Totale editori:"),
+    'Nome' => __("Nome"),
+    'Sito Web' => __("Sito Web"),
+    'Indirizzo' => __("Indirizzo"),
+    'Città' => __("Città"),
+    'Sei sicuro?' => __("Sei sicuro?"),
+    'Questa azione non può essere annullata!' => __("Questa azione non può essere annullata!"),
+    'Sì, elimina!' => __("Sì, elimina!"),
+    'Annulla' => __("Annulla"),
+    'Sei sicuro di voler eliminare questo editore?' => __("Sei sicuro di voler eliminare questo editore?"),
+], JSON_UNESCAPED_UNICODE) ?>;
+
+// Global translation function for JavaScript
+window.__ = function(key) {
+    return i18nTranslations[key] || key;
+};
+
 document.addEventListener('DOMContentLoaded', function() {
 
   // Check if DataTables is available
@@ -197,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
       dataSrc: function(json) {
         // Update total count
         const totalCount = json.recordsTotal || 0;
-        document.getElementById('total-count').textContent = totalCount.toLocaleString() + ' editori';
+        document.getElementById('total-count').textContent = totalCount.toLocaleString() + ' ' + __('editori');
         return json.data;
       }
     },
@@ -205,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function() {
       {
         data: null, className: 'all',
         render: function(_, type, row) {
-          const nome = row.nome || 'Editore sconosciuto';
+          const nome = row.nome || __('Editore sconosciuto');
           
           return `<div>
             <div class="font-medium text-blue-600 hover:text-blue-800 transition">
@@ -280,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function() {
     pageLength: 25,
     lengthMenu: [
       [10, 25, 50, 100, -1],
-      [10, 25, 50, 100, "Tutti"]
+      [10, 25, 50, 100, __("Tutti")]
     ],
     language: window.DT_LANG_IT,
     drawCallback: function(settings) {
@@ -364,10 +399,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (filtersVisible) {
           icon.className = 'fas fa-chevron-up';
-          text.textContent = 'Nascondi filtri';
+          text.textContent = __('Nascondi filtri');
         } else {
           icon.className = 'fas fa-chevron-down';
-          text.textContent = 'Mostra filtri';
+          text.textContent = __('Mostra filtri');
         }
       });
     }
@@ -469,13 +504,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const doc = new jsPDF();
     
     doc.setFontSize(18);
-    doc.text('Elenco Editori - Biblioteca', 14, 22);
+    doc.text(__('Elenco Editori - Biblioteca'), 14, 22);
     doc.setFontSize(11);
-    doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
-    doc.text(`Totale editori: ${data.length}`, 14, 38);
+    doc.text(`${__('Generato il:')} ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
+    doc.text(`${__('Totale editori:')} ${data.length}`, 14, 38);
     doc.setFontSize(10);
     
-    const headers = ['Nome', 'Sito Web', 'Indirizzo', 'Città'];
+    const headers = [__('Nome'), __('Sito Web'), __('Indirizzo'), __('Città')];
     const colWidths = [50, 50, 60, 30];
     const startX = 14;
     let yPos = 50;
