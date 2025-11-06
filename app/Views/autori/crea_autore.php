@@ -20,16 +20,16 @@
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
-        <li class="text-gray-900 font-medium">Nuovo</li>
+        <li class="text-gray-900 font-medium"><?= __("Nuovo") ?></li>
       </ol>
     </nav>
     <!-- Header -->
     <div class="mb-8 fade-in">
       <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
         <i class="fas fa-user-plus text-blue-600"></i>
-        Aggiungi Nuovo Autore
+        <?= __("Aggiungi Nuovo Autore") ?>
       </h1>
-      <p class="text-gray-600">Compila i dettagli dell'autore per aggiungerlo alla biblioteca</p>
+      <p class="text-gray-600"><?= __("Compila i dettagli dell'autore per aggiungerlo alla biblioteca") ?></p>
     </div>
 
     <!-- Main Form -->
@@ -41,44 +41,44 @@
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-user text-primary"></i>
-            Informazioni Base
+            <?= __("Informazioni Base") ?>
           </h2>
         </div>
         <div class="card-body form-section">
           <div class="form-grid-2">
             <div>
               <label for="nome" class="form-label">
-                Nome completo <span class="text-red-500">*</span>
+                <?= __("Nome completo") ?> <span class="text-red-500">*</span>
               </label>
               <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= __('Nome e cognome dell\'autore') ?>" />
             </div>
             <div>
-              <label for="pseudonimo" class="form-label">Pseudonimo</label>
+              <label for="pseudonimo" class="form-label"><?= __("Pseudonimo") ?></label>
               <input id="pseudonimo" name="pseudonimo" class="form-input" placeholder="<?= __('Nome d\'arte o pseudonimo') ?>" />
             </div>
           </div>
 
           <div class="form-grid-2">
             <div>
-              <label for="data_nascita" class="form-label">Data di nascita</label>
+              <label for="data_nascita" class="form-label"><?= __("Data di nascita") ?></label>
               <input type="date" id="data_nascita" name="data_nascita" class="form-input" />
             </div>
             <div>
-              <label for="data_morte" class="form-label">Data di morte</label>
+              <label for="data_morte" class="form-label"><?= __("Data di morte") ?></label>
               <input type="date" id="data_morte" name="data_morte" class="form-input" />
-              <p class="text-xs text-gray-500 mt-1">Lascia vuoto se l'autore è vivente</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Lascia vuoto se l'autore è vivente") ?></p>
             </div>
           </div>
 
           <div>
-            <label for="nazionalita" class="form-label">Nazionalità</label>
+            <label for="nazionalita" class="form-label"><?= __("Nazionalità") ?></label>
             <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= __('Es. Italiana, Americana, Francese...') ?>" />
           </div>
 
           <div>
-            <label for="sito_web" class="form-label">Sito Web</label>
+            <label for="sito_web" class="form-label"><?= __("Sito Web") ?></label>
             <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= __('https://www.esempio.com') ?>" />
-            <p class="text-xs text-gray-500 mt-1">Sito web ufficiale dell'autore (se disponibile)</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Sito web ufficiale dell'autore (se disponibile)") ?></p>
           </div>
         </div>
       </div>
@@ -88,14 +88,14 @@
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-book-open text-primary"></i>
-            Biografia
+            <?= __("Biografia") ?>
           </h2>
         </div>
         <div class="card-body form-section">
           <div>
-            <label for="biografia" class="form-label">Biografia dell'autore</label>
+            <label for="biografia" class="form-label"><?= __("Biografia dell'autore") ?></label>
             <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci $1") ?>"></textarea>
-            <p class="text-xs text-gray-500 mt-1">Una descrizione completa aiuta gli utenti a conoscere meglio l'autore</p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Una descrizione completa aiuta gli utenti a conoscere meglio l'autore") ?></p>
           </div>
         </div>
       </div>
@@ -104,11 +104,11 @@
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
         <a href="/admin/autori" class="btn-secondary order-2 sm:order-1 text-center">
           <i class="fas fa-times mr-2"></i>
-          Annulla
+          <?= __("Annulla") ?>
         </a>
         <button type="submit" class="btn-primary order-1 sm:order-2">
           <i class="fas fa-save mr-2"></i>
-          Salva Autore
+          <?= __("Salva Autore") ?>
         </button>
       </div>
     </form>

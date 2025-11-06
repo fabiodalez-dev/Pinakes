@@ -65,10 +65,10 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             <?php if ($dataNascita || $dataMorte || $nazionalita): ?>
               <p class="mt-3 text-gray-900 text-sm sm:text-base flex flex-wrap gap-4">
                 <?php if ($dataNascita): ?>
-                  <span><i class="fas fa-birthday-cake mr-2"></i>Nato il <?php echo HtmlHelper::e($dataNascita); ?></span>
+                  <span><i class="fas fa-birthday-cake mr-2"></i><?= sprintf(__("Nato il %s"), HtmlHelper::e($dataNascita)) ?></span>
                 <?php endif; ?>
                 <?php if ($dataMorte): ?>
-                  <span><i class="fas fa-book-dead mr-2"></i>Deceduto il <?php echo HtmlHelper::e($dataMorte); ?></span>
+                  <span><i class="fas fa-book-dead mr-2"></i><?= sprintf(__("Deceduto il %s"), HtmlHelper::e($dataMorte)) ?></span>
                 <?php endif; ?>
                 <?php if ($nazionalita): ?>
                   <span><i class="fas fa-flag mr-2"></i><?php echo HtmlHelper::e($nazionalita); ?></span>
@@ -158,36 +158,36 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
         </h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
           <div>
-            <dt class="text-gray-500 uppercase tracking-wide text-xs">Nome completo</dt>
+            <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Nome completo") ?></dt>
             <dd class="text-gray-900 font-medium mt-1"><?php echo $nomeAutore; ?></dd>
           </div>
           <?php if ($pseudonimo): ?>
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Pseudonimo</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Pseudonimo") ?></dt>
               <dd class="text-gray-900 font-medium mt-1"><?php echo HtmlHelper::e($pseudonimo); ?></dd>
             </div>
           <?php endif; ?>
           <?php if ($dataNascita): ?>
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Data di nascita</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Data di nascita") ?></dt>
               <dd class="text-gray-900 font-medium mt-1"><?php echo HtmlHelper::e($dataNascita); ?></dd>
             </div>
           <?php endif; ?>
           <?php if ($dataMorte): ?>
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Data di morte</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Data di morte") ?></dt>
               <dd class="text-gray-900 font-medium mt-1"><?php echo HtmlHelper::e($dataMorte); ?></dd>
             </div>
           <?php endif; ?>
           <?php if ($nazionalita): ?>
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Nazionalità</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Nazionalità") ?></dt>
               <dd class="text-gray-900 font-medium mt-1"><?php echo HtmlHelper::e($nazionalita); ?></dd>
             </div>
           <?php endif; ?>
           <?php if ($sitoWeb): ?>
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Sito web</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Sito web") ?></dt>
               <dd class="text-gray-900 font-medium mt-1 truncate">
                 <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-gray-600 hover:text-gray-800 underline decoration-gray-400">
                   <?php echo HtmlHelper::e($sitoWeb); ?>
@@ -197,13 +197,13 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
           <?php endif; ?>
           <?php if ($createdAt): ?>
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Creato il</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Creato il") ?></dt>
               <dd class="text-gray-900 font-medium mt-1"><?php echo date('d/m/Y H:i', strtotime($createdAt)); ?></dd>
             </div>
           <?php endif; ?>
           <?php if ($updatedAt): ?>
             <div>
-              <dt class="text-gray-500 uppercase tracking-wide text-xs">Ultimo aggiornamento</dt>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Ultimo aggiornamento") ?></dt>
               <dd class="text-gray-900 font-medium mt-1"><?php echo date('d/m/Y H:i', strtotime($updatedAt)); ?></dd>
             </div>
           <?php endif; ?>
@@ -230,7 +230,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             <i class="fas fa-book text-gray-600"></i>
             Catalogo libri
             <span class="bg-gray-200 text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full">
-              <?php echo $totalBooks; ?> titoli
+              <?= sprintf(__("%d titoli"), $totalBooks) ?>
             </span>
           </h2>
           <a href="/admin/libri/crea"
@@ -244,8 +244,8 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             <div class="mx-auto mb-4 w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
               <i class="fas fa-book text-gray-500 text-2xl"></i>
             </div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-1">Nessun libro trovato</h3>
-            <p class="text-sm text-gray-500">Questo autore non ha ancora libri registrati nella biblioteca.</p>
+            <h3 class="text-lg font-semibold text-gray-900 mb-1"><?= __("Nessun libro trovato") ?></h3>
+            <p class="text-sm text-gray-500"><?= __("Questo autore non ha ancora libri registrati nella biblioteca.") ?></p>
           </div>
         <?php else: ?>
           <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
@@ -269,17 +269,17 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
                       <a href="/admin/libri/<?php echo (int)$libro['id']; ?>"><?php echo HtmlHelper::e($libro['titolo'] ?? 'Titolo non disponibile'); ?></a>
                     </h3>
                     <?php if (!empty($libro['editore_nome'])): ?>
-                      <p class="text-sm text-gray-500 mt-1">Editore: <?php echo HtmlHelper::e($libro['editore_nome']); ?></p>
+                      <p class="text-sm text-gray-500 mt-1"><?= sprintf(__("Editore: %s"), HtmlHelper::e($libro['editore_nome'])) ?></p>
                     <?php endif; ?>
                   </div>
                   <div class="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">
-                    <span>ISBN13: <?php echo HtmlHelper::e($libro['isbn13'] ?? 'N/D'); ?></span>
+                    <span><?= sprintf(__("ISBN13: %s"), HtmlHelper::e($libro['isbn13'] ?? 'N/D')) ?></span>
                     <span><?php echo HtmlHelper::e($libro['stato'] ?? ''); ?></span>
                   </div>
                   <div class="flex gap-2 pt-3 items-center">
                     <a href="/admin/libri/<?php echo (int)$libro['id']; ?>"
                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white text-sm font-medium px-3 h-11 hover:bg-gray-800 transition whitespace-nowrap">
-                      <i class="fas fa-eye"></i>Dettagli
+                      <i class="fas fa-eye"></i><?= __("Dettagli") ?>
                     </a>
                     <a href="/admin/libri/modifica/<?php echo (int)$libro['id']; ?>"
                        class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-medium h-11 hover:bg-gray-50 transition"
