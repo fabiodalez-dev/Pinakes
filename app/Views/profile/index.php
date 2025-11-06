@@ -243,11 +243,11 @@
         <dd><?php echo App\Support\HtmlHelper::e($user['codice_tessera'] ?? ''); ?></dd>
       </div>
       <div class="info-item">
-        <dt>__("Email")</dt>
+        <dt><?= __("Email") ?></dt>
         <dd><?php echo App\Support\HtmlHelper::e($user['email'] ?? ''); ?></dd>
       </div>
       <div class="info-item">
-        <dt>__("Stato")</dt>
+        <dt><?= __("Stato") ?></dt>
         <dd>
           <?php
             $stato = $user['stato'] ?? 'attivo';
@@ -293,7 +293,7 @@
 
       <div class="form-grid">
         <div class="form-group">
-          <label for="telefono" class="form-label">__("Telefono")</label>
+          <label for="telefono" class="form-label"><?= __("Telefono") ?></label>
           <input type="tel" id="telefono" name="telefono" class="form-input"
                  value="<?php echo App\Support\HtmlHelper::e($user['telefono'] ?? ''); ?>">
         </div>
@@ -322,7 +322,7 @@
       </div>
 
       <div class="form-group">
-        <label for="indirizzo" class="form-label">__("Indirizzo")</label>
+        <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?></label>
         <input type="text" id="indirizzo" name="indirizzo" class="form-input"
                value="<?php echo App\Support\HtmlHelper::e($user['indirizzo'] ?? ''); ?>">
       </div>
