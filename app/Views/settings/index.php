@@ -22,39 +22,39 @@ $activeTab = $activeTab ?? 'general';
     <div class="border-b border-gray-200 px-6 py-4 flex flex-wrap gap-3">
       <button type="button" data-settings-tab="general" class="settings-tab <?php echo $activeTab === 'general' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-building text-sm mr-2"></i>
-        Identità
+        <?= __("Identità") ?>
       </button>
       <button type="button" data-settings-tab="email" class="settings-tab <?php echo $activeTab === 'email' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-envelope text-sm mr-2"></i>
-        Email
+        <?= __("Email") ?>
       </button>
       <button type="button" data-settings-tab="templates" class="settings-tab <?php echo $activeTab === 'templates' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-file-alt text-sm mr-2"></i>
-        Template
+        <?= __("Template") ?>
       </button>
       <button type="button" data-settings-tab="cms" class="settings-tab <?php echo $activeTab === 'cms' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-edit text-sm mr-2"></i>
-        CMS
+        <?= __("CMS") ?>
       </button>
       <button type="button" data-settings-tab="contacts" class="settings-tab <?php echo $activeTab === 'contacts' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-envelope text-sm mr-2"></i>
-        Contatti
+        <?= __("Contatti") ?>
       </button>
       <button type="button" data-settings-tab="privacy" class="settings-tab <?php echo $activeTab === 'privacy' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-shield-alt text-sm mr-2"></i>
-        Privacy
+        <?= __("Privacy") ?>
       </button>
       <button type="button" data-settings-tab="messages" class="settings-tab <?php echo $activeTab === 'messages' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-inbox text-sm mr-2"></i>
-        Messaggi
+        <?= __("Messaggi") ?>
       </button>
       <button type="button" data-settings-tab="labels" class="settings-tab <?php echo $activeTab === 'labels' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-barcode text-sm mr-2"></i>
-        Etichette
+        <?= __("Etichette") ?>
       </button>
       <button type="button" data-settings-tab="advanced" class="settings-tab <?php echo $activeTab === 'advanced' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-cogs text-sm mr-2"></i>
-        Avanzate
+        <?= __("Avanzate") ?>
       </button>
     </div>
 
@@ -69,11 +69,11 @@ $activeTab = $activeTab ?? 'general';
                 <i class="fas fa-id-card-alt text-gray-500"></i>
                 Identità Applicazione
               </h2>
-              <p class="text-sm text-gray-600">Imposta il nome mostrato nel backend e il logo utilizzato nel layout.</p>
+              <p class="text-sm text-gray-600"><?= __("Imposta il nome mostrato nel backend e il logo utilizzato nel layout.") ?></p>
             </div>
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
               <div>
-                <label for="app_name" class="block text-sm font-medium text-gray-700">Nome applicazione</label>
+                <label for="app_name" class="block text-sm font-medium text-gray-700"><?= __("Nome applicazione") ?></label>
                 <input type="text"
                        id="app_name"
                        name="app_name"
@@ -83,7 +83,7 @@ $activeTab = $activeTab ?? 'general';
 
               <div class="space-y-3">
                 <div class="flex items-center justify-between">
-                  <label class="block text-sm font-medium text-gray-700">Logo</label>
+                  <label class="block text-sm font-medium text-gray-700"><?= __("Logo") ?></label>
                   <?php if (!empty($appSettings['logo'])): ?>
                     <label class="inline-flex items-center gap-2 text-xs text-red-600 cursor-pointer">
                       <input type="checkbox" name="remove_logo" value="1" class="rounded border-gray-300">
