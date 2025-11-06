@@ -258,6 +258,9 @@ $libri = $data['libri'];
 
 <!-- Modern DataTables with Advanced Features -->
 <script>
+// Set current locale for DataTables language selection
+window.i18nLocale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>';
+
 document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);
   const initialGenere = parseInt(urlParams.get('genere') || urlParams.get('genere_filter') || '0', 10) || 0;
@@ -527,28 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
       [10, 25, 50, 100, 250],
       [10, 25, 50, 100, 250]
     ],
-    language: {
-      processing: "<div class='flex items-center gap-3'><div class='animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900'></div><span class='font-medium'>Caricamento libri...</span></div>",
-      search: "Cerca:",
-      lengthMenu: "Mostra _MENU_ libri",
-      info: "Visualizzazione da _START_ a _END_ di _TOTAL_ libri",
-      infoEmpty: "Nessun libro trovato",
-      infoFiltered: "(filtrati da _MAX_ libri totali)",
-      infoPostFix: "",
-      loadingRecords: "Caricamento...",
-      zeroRecords: "<div class='text-center py-8'><i class='fas fa-book text-4xl text-gray-300 mb-4'></i><h3 class='text-lg font-medium text-gray-900 mb-2'><?= __("Nessun libro trovato") ?></h3><p class='text-gray-500'>Prova a modificare i filtri di ricerca</p></div>",
-      emptyTable: "<div class='text-center py-12'><i class='fas fa-book-open text-6xl text-gray-300 mb-6'></i><h3 class='text-xl font-medium text-gray-900 mb-3'>Nessun libro nel database</h3><p class='text-gray-500 mb-4'>Inizia aggiungendo il primo libro alla collezione</p><a href='/admin/libri/crea' class='inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors'><i class='fas fa-plus mr-2'></i>Aggiungi primo libro</a></div>",
-      paginate: {
-        first: "Primo",
-        previous: "Precedente",
-        next: "Successivo",
-        last: "Ultimo"
-      },
-      aria: {
-        sortAscending: ": attiva per ordinare la colonna in ordine crescente",
-        sortDescending: ": attiva per ordinare la colonna in ordine decrescente"
-      }
-    },
+    language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
     drawCallback: function(settings) {
       // Hide pagination if there's only one page
       const api = this.api();
