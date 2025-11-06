@@ -216,6 +216,29 @@ $containerBuilder->addDefinitions($containerDefinitions ?? []);
 $container = $containerBuilder->build();
 AppFactory::setContainer($container);
 
+// Load locale from database for logged-in users (overrides session)
+if (!$isCli && isset($_SESSION['user']['id'])) {
+    try {
+        $db = $container->get('db');
+        $userId = (int)$_SESSION['user']['id'];
+        $stmt = $db->prepare("SELECT locale FROM utenti WHERE id = ?");
+        if ($stmt) {
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $userLocale = $row['locale'] ?? 'it_IT';
+                $_SESSION['locale'] = $userLocale;
+                \App\Support\I18n::setLocale($userLocale);
+            }
+            $stmt->close();
+        }
+    } catch (Exception $e) {
+        // Fallback to session locale if database query fails
+        // This prevents errors if the locale column doesn't exist yet
+    }
+}
+
 // Initialize Hook System
 \App\Support\Hooks::init($container->get('hookManager'));
 

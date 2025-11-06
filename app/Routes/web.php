@@ -1564,6 +1564,6 @@ $app->get('/catalogo', function ($request, $response) use ($app) {
     // Language switcher (no auth required - available to all users)
     $app->get('/language/{locale}', function ($request, $response, $args) use ($app) {
         $controller = new LanguageController();
-        return $controller->switchLanguage($request, $response, $args);
+        return $controller->switchLanguage($request, $response, $app->getContainer()->get('db'), $args);
     });
 };

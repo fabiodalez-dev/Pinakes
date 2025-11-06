@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\I18n;
@@ -12,7 +13,7 @@ class LanguageController
     /**
      * Switch language
      */
-    public function switchLanguage(Request $request, Response $response, array $args): Response
+    public function switchLanguage(Request $request, Response $response, mysqli $db, array $args): Response
     {
         $locale = $args['locale'] ?? 'it_IT';
 
@@ -30,6 +31,17 @@ class LanguageController
             session_start();
         }
         $_SESSION['locale'] = $locale;
+
+        // Save to database if user is logged in
+        if (isset($_SESSION['user']['id'])) {
+            $userId = (int)$_SESSION['user']['id'];
+            $stmt = $db->prepare("UPDATE utenti SET locale = ? WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param('si', $locale, $userId);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
 
         // Get referrer to redirect back
         $referrer = $request->getServerParams()['HTTP_REFERER'] ?? '/';
