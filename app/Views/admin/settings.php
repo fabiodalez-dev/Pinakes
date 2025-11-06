@@ -45,7 +45,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div id="smtp-config-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="form-label"><?= __("SMTP Host") ?></label>
               <input name="smtp_host" class="form-input" value="<?php echo htmlspecialchars((string)($cfg['mail']['smtp']['host'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
@@ -503,4 +503,36 @@ function closeTemplateEditor() {
   }
   document.getElementById('template-subject').value = '';
 }
+
+// Global __ function for JavaScript (fallback if not defined)
+if (typeof window.__ === 'undefined') {
+  window.__ = function(key) {
+    return key; // Return key as-is if translation not available
+  };
+}
+
+// Show/Hide SMTP configuration based on mail driver selection
+document.addEventListener('DOMContentLoaded', function() {
+  const mailDriverSelect = document.querySelector('select[name="mail_driver"]');
+  const smtpContainer = document.getElementById('smtp-config-fields');
+
+  function toggleSmtpFields() {
+    if (!mailDriverSelect || !smtpContainer) {
+      return;
+    }
+
+    const driver = mailDriverSelect.value;
+
+    if (driver === 'smtp' || driver === 'phpmailer') {
+      smtpContainer.style.display = 'grid';
+    } else {
+      smtpContainer.style.display = 'none';
+    }
+  }
+
+  if (mailDriverSelect && smtpContainer) {
+    mailDriverSelect.addEventListener('change', toggleSmtpFields);
+    toggleSmtpFields(); // Call on page load
+  }
+});
 </script>
