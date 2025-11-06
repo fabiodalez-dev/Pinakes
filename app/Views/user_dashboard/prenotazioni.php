@@ -816,6 +816,13 @@ $csrfToken = Csrf::ensureToken();
 
 <script src="/assets/star-rating/dist/star-rating.js"></script>
 <script>
+// Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
+if (typeof window.__ === 'undefined') {
+  window.__ = function(key) {
+    return key; // Return key as-is if translation not available
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('reviewModal');
   const form = document.getElementById('reviewForm');
