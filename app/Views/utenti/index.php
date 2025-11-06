@@ -166,10 +166,10 @@
           <table id="utenti-table" class="display responsive nowrap" style="width:100%">
             <thead>
               <tr>
-                <th><?= __("$1") ?></th>
+                <th><?= __("Nome") ?></th>
                 <th><?= __("Email") ?></th>
                 <th><?= __("Telefono") ?></th>
-                <th><?= __("$1") ?></th>
+                <th><?= __("Tipo Utente") ?></th>
                 <th><?= __("Stato") ?></th>
                 <th class="all"><?= __("Azioni") ?></th>
               </tr>

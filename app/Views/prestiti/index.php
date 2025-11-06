@@ -4,14 +4,14 @@ function getStatusBadge($status) {
     $baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
     switch ($status) {
         case 'in_corso':
-            return "<span class='$baseClasses bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>In Corso</span>";
+            return "<span class='$baseClasses bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>" . __("In Corso") . "</span>";
         case 'in_ritardo':
-            return "<span class='$baseClasses bg-yellow-100 text-yellow-800'><i class='fas fa-exclamation-triangle mr-2'></i>In Ritardo</span>";
+            return "<span class='$baseClasses bg-yellow-100 text-yellow-800'><i class='fas fa-exclamation-triangle mr-2'></i>" . __("In Ritardo") . "</span>";
         case 'restituito':
-            return "<span class='$baseClasses bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i>Restituito</span>";
+            return "<span class='$baseClasses bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i>" . __("Restituito") . "</span>";
         case 'perso':
         case 'danneggiato':
-            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . ucfirst($status) . "</span>";
+            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . ucfirst(__(ucfirst($status))) . "</span>";
         default:
             return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . ucfirst($status) . "</span>";
     }
@@ -26,7 +26,7 @@ function getStatusBadge($status) {
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
@@ -34,7 +34,7 @@ function getStatusBadge($status) {
         </li>
         <li class="text-gray-900 font-medium">
           <a href="/admin/prestiti" class="text-gray-900 hover:text-gray-900">
-            <i class="fas fa-handshake mr-1"></i>Prestiti
+            <i class="fas fa-handshake mr-1"></i><?= __("Prestiti") ?>
           </a>
         </li>
       </ol>
@@ -45,13 +45,13 @@ function getStatusBadge($status) {
         <div>
           <h1 class="text-3xl font-bold text-gray-900 flex items-center">
             <i class="fas fa-handshake text-yellow-600 mr-3"></i>
-            Gestione Prestiti
+            <?= __("Gestione Prestiti") ?>
           </h1>
-          <p class="text-sm text-gray-600 mt-1">Visualizza e gestisci tutti i prestiti della biblioteca</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Visualizza e gestisci tutti i prestiti della biblioteca") ?></p>
         </div>
         <a href="/admin/prestiti/crea" class="hidden md:inline-flex btn-primary items-center">
             <i class="fas fa-plus mr-2"></i>
-            Nuovo Prestito
+            <?= __("Nuovo Prestito") ?>
         </a>
       </div>
       <div class="flex md:hidden mb-3">
@@ -67,7 +67,7 @@ function getStatusBadge($status) {
       <div class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg border border-green-200 slide-in-up">
         <div class="flex items-center gap-2">
           <i class="fas fa-check-circle"></i>
-          <span>Prestito creato con successo!</span>
+          <span><?= __("Prestito creato con successo!") ?></span>
         </div>
       </div>
     <?php endif; ?>
@@ -75,7 +75,7 @@ function getStatusBadge($status) {
       <div class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg border border-green-200 slide-in-up">
         <div class="flex items-center gap-2">
           <i class="fas fa-check-circle"></i>
-          <span>Prestito aggiornato con successo!</span>
+          <span><?= __("Prestito aggiornato con successo!") ?></span>
         </div>
       </div>
     <?php endif; ?>
@@ -86,7 +86,7 @@ function getStatusBadge($status) {
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-clock text-orange-600 mr-2"></i>
-          Richieste di Prestito in Attesa (<?= count($pending_loans) ?>)
+          <?= __("Richieste di Prestito in Attesa") ?> (<?= count($pending_loans) ?>)
         </h2>
       </div>
       <div class="p-6">
@@ -112,26 +112,26 @@ function getStatusBadge($status) {
                 <div class="mt-3 grid grid-cols-1 gap-1 text-xs text-gray-500">
                   <span class="flex items-center">
                     <i class="fas fa-play mr-2 text-green-500"></i>
-                    Inizio: <?= date('d-m-Y', strtotime($loan['data_prestito'])) ?>
+                    <?= __("Inizio:") ?> <?= date('d-m-Y', strtotime($loan['data_prestito'])) ?>
                   </span>
                   <span class="flex items-center">
                     <i class="fas fa-stop mr-2 text-red-500"></i>
-                    Fine: <?= date('d-m-Y', strtotime($loan['data_scadenza'])) ?>
+                    <?= __("Fine:") ?> <?= date('d-m-Y', strtotime($loan['data_scadenza'])) ?>
                   </span>
                 </div>
               </div>
             </div>
             <div class="mt-4 flex gap-3">
               <button type="button" class="flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm" data-loan-id="<?= (int)$loan['id'] ?>">
-                <i class="fas fa-check mr-2"></i>Approva
+                <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
               </button>
               <button type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors reject-btn shadow-sm" data-loan-id="<?= (int)$loan['id'] ?>">
-                <i class="fas fa-times mr-2"></i>Rifiuta
+                <i class="fas fa-times mr-2"></i><?= __("Rifiuta") ?>
               </button>
             </div>
             <div class="mt-3 text-xs text-gray-400 flex items-center">
               <i class="fas fa-clock mr-2"></i>
-              Richiesto il <?= date('d-m-Y H:i', strtotime($loan['created_at'])) ?>
+              <?= __("Richiesto il") ?> <?= date('d-m-Y H:i', strtotime($loan['created_at'])) ?>
             </div>
           </div>
           <?php endforeach; ?>
@@ -145,26 +145,26 @@ function getStatusBadge($status) {
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-filter text-yellow-600 mr-2"></i>
-          Filtri di Ricerca
+          <?= __("Filtri di Ricerca") ?>
         </h2>
       </div>
       <div class="card-body" id="filters-container">
         <form method="get" action="/admin/prestiti">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div>
-                <label class="form-label">Cerca Utente</label>
+                <label class="form-label"><?= __("Cerca Utente") ?></label>
                 <input name="utente" placeholder="<?= __('Nome, cognome, email...') ?>" class="form-input" />
               </div>
               <div>
-                <label class="form-label">Cerca Libro</label>
+                <label class="form-label"><?= __("Cerca Libro") ?></label>
                 <input name="libro" placeholder="<?= __('Titolo...') ?>" class="form-input" />
               </div>
               <div>
-                <label class="form-label">Data prestito (Da)</label>
+                <label class="form-label"><?= __("Data prestito (Da)") ?></label>
                 <input name="from_date" type="date" class="form-input" />
               </div>
               <div>
-                <label class="form-label">Data prestito (A)</label>
+                <label class="form-label"><?= __("Data prestito (A)") ?></label>
                 <input name="to_date" type="date" class="form-input" />
               </div>
             </div>
@@ -172,11 +172,11 @@ function getStatusBadge($status) {
             <div class="flex justify-between items-center pt-4 border-t border-gray-200">
               <a href="/admin/prestiti" class="text-sm text-gray-600 hover:text-gray-800">
                 <i class="fas fa-times mr-2"></i>
-                Cancella filtri
+                <?= __("Cancella filtri") ?>
               </a>
               <button type="submit" class="btn-primary">
                 <i class="fas fa-search mr-2"></i>
-                Applica Filtri
+                <?= __("Applica Filtri") ?>
               </button>
             </div>
         </form>
@@ -186,11 +186,11 @@ function getStatusBadge($status) {
     <!-- Loans Table Card -->
     <div class="bg-white shadow-sm rounded-2xl border border-slate-200">
         <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-            <h2 class="text-lg font-semibold text-gray-800">Elenco Prestiti</h2>
+            <h2 class="text-lg font-semibold text-gray-800"><?= __("Elenco Prestiti") ?></h2>
             <div class="flex flex-wrap items-center gap-2 text-sm">
-              <button data-status="in_corso" class="status-filter-btn btn-secondary px-3 py-1.5">In corso</button>
-              <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5">In ritardo</button>
-              <button data-status="restituito" class="status-filter-btn btn-secondary px-3 py-1.5">Restituito</button>
+              <button data-status="in_corso" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In corso") ?></button>
+              <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In ritardo") ?></button>
+              <button data-status="restituito" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Restituito") ?></button>
               <button data-status="" class="status-filter-btn btn-primary px-3 py-1.5"><?= __("Tutti") ?></button>
             </div>
         </div>
@@ -211,7 +211,7 @@ function getStatusBadge($status) {
                         <tr>
                             <td colspan="5" class="text-center py-10 text-gray-500">
                                 <i class="fas fa-folder-open fa-2x mb-2"></i>
-                                <p>Nessun prestito trovato.</p>
+                                <p><?= __("Nessun prestito trovato.") ?></p>
                             </td>
                         </tr>
                     <?php else: ?>
@@ -219,7 +219,7 @@ function getStatusBadge($status) {
                             <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="font-semibold text-gray-900"><?php echo htmlspecialchars($prestito['libro_titolo'] ?? 'N/D'); ?></div>
-                                    <div class="text-gray-500">ID Prestito: <?php echo $prestito['id']; ?></div>
+                                    <div class="text-gray-500"><?= __("ID Prestito:") ?> <?php echo $prestito['id']; ?></div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="font-semibold text-gray-900"><?php echo htmlspecialchars($prestito['utente_nome'] ?? 'N/D'); ?></div>
@@ -227,10 +227,10 @@ function getStatusBadge($status) {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-gray-700">
                                     <div>
-                                        <span class="font-semibold">Prestito:</span> <?php echo date("d/m/Y", strtotime($prestito['data_prestito'])); ?>
+                                        <span class="font-semibold"><?= __("Prestito:") ?></span> <?php echo date("d/m/Y", strtotime($prestito['data_prestito'])); ?>
                                     </div>
                                     <div>
-                                        <span class="font-semibold">Scadenza:</span> <?php echo date("d/m/Y", strtotime($prestito['data_scadenza'])); ?>
+                                        <span class="font-semibold"><?= __("Scadenza:") ?></span> <?php echo date("d/m/Y", strtotime($prestito['data_scadenza'])); ?>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
@@ -242,7 +242,7 @@ function getStatusBadge($status) {
                                             <i class="fas fa-eye w-4 h-4"></i>
                                         </a>
                                         <?php if ($prestito['attivo']): ?>
-                                            <a href="/admin/prestiti/restituito/<?php echo $prestito['id']; ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="Registra Restituzione">
+                                            <a href="/admin/prestiti/restituito/<?php echo $prestito['id']; ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="<?= __("Registra Restituzione") ?>">
                                                 <i class="fas fa-undo-alt w-4 h-4"></i>
                                             </a>
                                         <?php endif; ?>
