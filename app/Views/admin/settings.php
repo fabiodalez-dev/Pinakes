@@ -370,6 +370,13 @@ php cron/automatic-notifications.php
 
 <script src="/assets/tinymce/tinymce.min.js"></script>
 <script>
+// Global __ function for JavaScript (MUST be defined before DOM elements use it)
+if (typeof window.__ === 'undefined') {
+  window.__ = function(key) {
+    return key; // Return key as-is if translation not available
+  };
+}
+
 // Wait for TinyMCE to be available
 var tinymceRetries = 0;
 var tinymceCheckInterval = setInterval(function() {
@@ -502,13 +509,6 @@ function closeTemplateEditor() {
     editor.setContent('');
   }
   document.getElementById('template-subject').value = '';
-}
-
-// Global __ function for JavaScript (fallback if not defined)
-if (typeof window.__ === 'undefined') {
-  window.__ = function(key) {
-    return key; // Return key as-is if translation not available
-  };
 }
 
 // Show/Hide SMTP configuration based on mail driver selection
