@@ -1958,11 +1958,11 @@ function initializeFormValidation() {
         }
 
         // Show confirmation dialog
-        const confirmTitle = FORM_MODE === 'edit' ? 'Conferma Aggiornamento' : 'Conferma Salvataggio';
+        const confirmTitle = FORM_MODE === 'edit' ? __('Conferma Aggiornamento') : __('Conferma Salvataggio');
         const confirmText = FORM_MODE === 'edit'
-            ? `Vuoi aggiornare il libro "${title}"?`
-            : `Sei sicuro di voler salvare il libro "${title}"?`;
-        const confirmButton = FORM_MODE === 'edit' ? 'Sì, Aggiorna' : 'Sì, Salva';
+            ? __('Vuoi aggiornare il libro "%s"?').replace('%s', title)
+            : __('Sei sicuro di voler salvare il libro "%s"?').replace('%s', title);
+        const confirmButton = FORM_MODE === 'edit' ? __('Sì, Aggiorna') : __('Sì, Salva');
 
         const result = await Swal.fire({
             title: confirmTitle,
@@ -1977,7 +1977,7 @@ function initializeFormValidation() {
         if (result.isConfirmed) {
             // Show loading
             Swal.fire({
-                title: FORM_MODE === 'edit' ? __("Aggiornamento in corso...") : __("Salvataggio in corso..."),
+                title: FORM_MODE === 'edit' ? __('Aggiornamento in corso...') : __('Salvataggio in corso...').
                 text: __('Attendere prego'),
                 allowOutsideClick: false,
                 showConfirmButton: false,
@@ -2045,7 +2045,7 @@ function initializeIsbnImport() {
         
         // Show loading state
         btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${FORM_MODE === 'edit' ? 'Aggiornamento...' : 'Importazione...'}`;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${FORM_MODE === 'edit' ? __('Aggiornamento...') : __('Importazione...')}`;
         
         try {
             
