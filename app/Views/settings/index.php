@@ -202,7 +202,7 @@ $activeTab = $activeTab ?? 'general';
                   </div>
                 </div>
                 <p class="text-xs text-gray-500 mt-2">
-                  <i class="fas fa-info-circle"></i> Lascia vuoto per nascondere il social dal footer
+                  <i class="fas fa-info-circle"></i> <?= __("Lascia vuoto per nascondere il social dal footer") ?>
                 </p>
               </div>
             </div>
@@ -482,12 +482,12 @@ $activeTab = $activeTab ?? 'general';
                 $currentFormat = "{$currentWidth}x{$currentHeight}";
 
                 $labelFormats = [
-                  ['width' => 25, 'height' => 38, 'name' => '25×38mm', 'desc' => '<?= __("Standard dorso libri (più comune)") ?>'],
-                  ['width' => 50, 'height' => 25, 'name' => '50×25mm', 'desc' => '<?= __("Formato orizzontale per dorso") ?>'],
-                  ['width' => 70, 'height' => 36, 'name' => '70×36mm', 'desc' => '<?= __("Etichette interne grandi (Herma 4630, Avery 3490)") ?>'],
-                  ['width' => 25, 'height' => 40, 'name' => '25×40mm', 'desc' => '<?= __("Standard Tirrenia catalogazione") ?>'],
-                  ['width' => 34, 'height' => 48, 'name' => '34×48mm', 'desc' => '<?= __("Formato quadrato Tirrenia") ?>'],
-                  ['width' => 52, 'height' => 30, 'name' => '52×30mm', 'desc' => '<?= __("Formato biblioteche scolastiche (compatibile A4)") ?>'],
+                  ['width' => 25, 'height' => 38, 'name' => '25×38mm', 'desc' => __("Standard dorso libri (più comune)")],
+                  ['width' => 50, 'height' => 25, 'name' => '50×25mm', 'desc' => __("Formato orizzontale per dorso")],
+                  ['width' => 70, 'height' => 36, 'name' => '70×36mm', 'desc' => __("Etichette interne grandi (Herma 4630, Avery 3490)")],
+                  ['width' => 25, 'height' => 40, 'name' => '25×40mm', 'desc' => __("Standard Tirrenia catalogazione")],
+                  ['width' => 34, 'height' => 48, 'name' => '34×48mm', 'desc' => __("Formato quadrato Tirrenia")],
+                  ['width' => 52, 'height' => 30, 'name' => '52×30mm', 'desc' => __("Formato biblioteche scolastiche (compatibili A4)")],
                 ];
                 ?>
 
@@ -504,7 +504,7 @@ $activeTab = $activeTab ?? 'general';
                              <?php echo $isSelected ? 'checked' : ''; ?>
                              class="mt-1 w-4 h-4 aspect-square flex-shrink-0 text-gray-900 focus:ring-gray-500">
                       <div class="flex-1">
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-col md:flex-row items-start md:items-center gap-2">
                           <span class="font-semibold text-gray-900"><?php echo HtmlHelper::e($format['name']); ?></span>
                           <span class="text-xs text-gray-500">(<?php echo $format['width']; ?>×<?php echo $format['height']; ?>mm)</span>
                         </div>
