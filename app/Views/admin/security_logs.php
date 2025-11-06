@@ -2,7 +2,7 @@
 /**
  * @var array $data { logs: array, total_lines: int }
  */
-$title = "Log di Sicurezza";
+$title = __("Log di Sicurezza");
 $logs = $data['logs'] ?? [];
 $totalLines = $data['total_lines'] ?? 0;
 ?>
@@ -14,14 +14,14 @@ $totalLines = $data['total_lines'] ?? 0;
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <i class="fas fa-shield-alt mr-1"></i>Log di Sicurezza
+          <i class="fas fa-shield-alt mr-1"></i><?= __("Log di Sicurezza") ?>
         </li>
       </ol>
     </nav>
@@ -32,19 +32,19 @@ $totalLines = $data['total_lines'] ?? 0;
         <div>
           <h1 class="text-3xl font-bold text-gray-900 flex items-center">
             <i class="fas fa-shield-alt text-red-600 mr-3"></i>
-            Log di Sicurezza
+            <?= __("Log di Sicurezza") ?>
           </h1>
           <p class="text-sm text-gray-600 mt-1">
-            Monitora tentativi di login e eventi di sicurezza
+            <?= __("Monitora tentativi di login e eventi di sicurezza") ?>
             <span class="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
-              Totale: <?= number_format($totalLines) ?> righe
+              <?= __("Totale: %s righe", number_format($totalLines)) ?>
             </span>
           </p>
         </div>
         <div class="flex items-center gap-3">
           <button id="refresh-logs" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-sync-alt mr-2"></i>
-            Aggiorna
+            <?= __("Aggiorna") ?>
           </button>
         </div>
       </div>
@@ -57,33 +57,33 @@ $totalLines = $data['total_lines'] ?? 0;
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-search mr-1 text-gray-500"></i>
-              Filtra per tipo
+              <?= __("Filtra per tipo") ?>
             </label>
             <select id="filter-type" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full">
-              <option value="">Tutti gli eventi</option>
-              <option value="csrf_failed">CSRF Fallito</option>
-              <option value="invalid_credentials">Credenziali Errate</option>
-              <option value="email_not_verified">Email Non Verificata</option>
-              <option value="account_suspended">Account Sospeso</option>
-              <option value="account_pending">Account In Attesa</option>
-              <option value="success">Login Riuscito</option>
+              <option value=""><?= __("Tutti gli eventi") ?></option>
+              <option value="csrf_failed"><?= __("CSRF Fallito") ?></option>
+              <option value="invalid_credentials"><?= __("Credenziali Errate") ?></option>
+              <option value="email_not_verified"><?= __("Email Non Verificata") ?></option>
+              <option value="account_suspended"><?= __("Account Sospeso") ?></option>
+              <option value="account_pending"><?= __("Account In Attesa") ?></option>
+              <option value="success"><?= __("Login Riuscito") ?></option>
             </select>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-envelope mr-1 text-gray-500"></i>
-              Email utente
+              <?= __("Email utente") ?>
             </label>
-            <input id="filter-email" type="text" placeholder="Cerca email..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="filter-email" type="text" placeholder="<?= __("Cerca email...") ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-network-wired mr-1 text-gray-500"></i>
-              IP Address
+              <?= __("IP Address") ?>
             </label>
-            <input id="filter-ip" type="text" placeholder="Cerca IP..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="filter-ip" type="text" placeholder="<?= __("Cerca IP...") ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
         </div>
       </div>
@@ -94,9 +94,9 @@ $totalLines = $data['total_lines'] ?? 0;
       <div class="p-6 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-list text-gray-600 mr-2"></i>
-          Eventi Recenti
+          <?= __("Eventi Recenti") ?>
           <span id="filtered-count" class="ml-2 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
-            <?= count($logs) ?> eventi
+            <?= __n('%d evento', '%d eventi', count($logs), count($logs)) ?>
           </span>
         </h2>
       </div>
@@ -105,11 +105,11 @@ $totalLines = $data['total_lines'] ?? 0;
           <table id="logs-table" class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th>__("$1")</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">__("Tipo")</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">__("Email")</th>
-                <th>__("$1")</th>
-                <th>__("$1")</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase"><?= __("Timestamp") ?></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase"><?= __("Tipo") ?></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase"><?= __("Email") ?></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase"><?= __("IP") ?></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase"><?= __("Dettagli") ?></th>
               </tr>
             </thead>
             <tbody id="logs-body" class="divide-y divide-gray-100">
@@ -117,7 +117,7 @@ $totalLines = $data['total_lines'] ?? 0;
                 <tr>
                   <td colspan="5" class="px-4 py-8 text-center text-gray-500">
                     <i class="fas fa-inbox text-4xl mb-2"></i>
-                    <p>Nessun log disponibile</p>
+                    <p><?= __("Nessun log disponibile") ?></p>
                   </td>
                 </tr>
               <?php else: ?>
@@ -129,14 +129,14 @@ $totalLines = $data['total_lines'] ?? 0;
                     <td class="px-4 py-3">
                       <?php
                       $badges = [
-                        'csrf_failed' => ['bg-red-100 text-red-800', 'CSRF'],
-                        'invalid_credentials' => ['bg-orange-100 text-orange-800', 'Credenziali'],
-                        'email_not_verified' => ['bg-yellow-100 text-yellow-800', 'Email'],
-                        'account_suspended' => ['bg-purple-100 text-purple-800', 'Sospeso'],
-                        'account_pending' => ['bg-blue-100 text-blue-800', 'In Attesa'],
-                        'success' => ['bg-green-100 text-green-800', 'OK']
+                        'csrf_failed' => ['bg-red-100 text-red-800', __('CSRF')],
+                        'invalid_credentials' => ['bg-orange-100 text-orange-800', __('Credenziali')],
+                        'email_not_verified' => ['bg-yellow-100 text-yellow-800', __('Email')],
+                        'account_suspended' => ['bg-purple-100 text-purple-800', __('Sospeso')],
+                        'account_pending' => ['bg-blue-100 text-blue-800', __('In Attesa')],
+                        'success' => ['bg-green-100 text-green-800', __('OK')]
                       ];
-                      $badgeInfo = $badges[$log['type']] ?? ['bg-gray-100 text-gray-800', 'Altro'];
+                      $badgeInfo = $badges[$log['type']] ?? ['bg-gray-100 text-gray-800', __('Altro')];
                       ?>
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?= $badgeInfo[0] ?>">
                         <?= $badgeInfo[1] ?>
@@ -151,7 +151,7 @@ $totalLines = $data['total_lines'] ?? 0;
                     <td class="px-4 py-3 text-sm text-gray-600">
                       <details>
                         <summary class="cursor-pointer text-blue-600 hover:text-blue-800">
-                          <i class="fas fa-eye mr-1"></i>Mostra
+                          <i class="fas fa-eye mr-1"></i><?= __("Mostra") ?>
                         </summary>
                         <pre class="mt-2 p-2 bg-gray-50 rounded text-xs overflow-x-auto"><?= htmlspecialchars(json_encode($log['data'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></pre>
                       </details>
@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    filteredCount.textContent = `${visibleCount} eventi`;
+    filteredCount.textContent = visibleCount === 1 ? '<?= addslashes(__("1 evento")) ?>' : visibleCount + ' <?= addslashes(__("eventi")) ?>';
   }
 
   filterType.addEventListener('change', applyFilters);
