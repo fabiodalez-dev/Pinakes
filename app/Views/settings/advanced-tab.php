@@ -18,8 +18,8 @@ use App\Support\HtmlHelper;
               <li><strong><?= __("Analitici:") ?></strong> <?= __("Si caricano solo se l'utente accetta i cookie Analytics nel banner") ?></li>
               <li><strong><?= __("Marketing:") ?></strong> <?= __("Si caricano solo se l'utente accetta i cookie Marketing nel banner") ?></li>
             </ul>
-            <p class="mt-3"><strong>⚙️ Comportamento Automatico:</strong> Se inserisci codice in "<?= __("JavaScript Analitici") ?>" o "<?= __("JavaScript Marketing") ?>", i rispettivi toggle in <a href="/admin/settings?tab=privacy#privacy" class="underline font-semibold">Impostazioni Privacy</a> verranno automaticamente selezionati.</p>
-            <p class="mt-2"><strong>📋 Importante:</strong> Devi elencare manualmente i cookie tracciati da questi script nella <a href="/cookies" target="_blank" class="underline font-semibold">Pagina Cookie</a> per conformità GDPR.</p>
+            <p class="mt-3"><strong>⚙️ <?= __("Comportamento Automatico:") ?></strong> <?= __("Se inserisci codice in") ?> "<?= __("JavaScript Analitici") ?>" <?= __("o") ?> "<?= __("JavaScript Marketing") ?>", <?= __("i rispettivi toggle in") ?> <a href="/admin/settings?tab=privacy#privacy" class="underline font-semibold"><?= __("Impostazioni Privacy") ?></a> <?= __("verranno automaticamente selezionati.") ?></p>
+            <p class="mt-2"><strong>📋 <?= __("Importante:") ?></strong> <?= __("Devi elencare manualmente i cookie tracciati da questi script nella") ?> <a href="/cookies" target="_blank" class="underline font-semibold"><?= __("Pagina Cookie") ?></a> <?= __("per conformità GDPR.") ?></p>
           </div>
         </div>
       </div>
@@ -350,7 +350,7 @@ use App\Support\HtmlHelper;
       <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
         <p class="text-xs text-gray-600">
           <i class="fas fa-info-circle mr-1"></i>
-          Lo script CLI utilizza il valore di <code class="bg-gray-100 px-1 py-0.5 rounded">APP_CANONICAL_URL</code>. Assicurati che sia configurato correttamente per evitare URL duplicati.
+          <?= __("Lo script CLI utilizza il valore di") ?> <code class="bg-gray-100 px-1 py-0.5 rounded">APP_CANONICAL_URL</code>. <?= __("Assicurati che sia configurato correttamente per evitare URL duplicati.") ?>
         </p>
       </div>
 
