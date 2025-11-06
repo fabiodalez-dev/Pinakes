@@ -11,10 +11,10 @@ $activeTab = $activeTab ?? 'general';
       <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gray-100 text-gray-700">
         <i class="fas fa-sliders-h"></i>
       </span>
-      Centro Impostazioni
+      <?= __("Centro Impostazioni") ?>
     </h1>
     <p class="mt-2 text-sm text-gray-600">
-      Configura l'identità dell'applicazione, i metodi di invio email e personalizza i template delle notifiche automatiche.
+      <?= __("Configura l'identità dell'applicazione, i metodi di invio email e personalizza i template delle notifiche automatiche.") ?>
     </p>
   </div>
 
@@ -67,7 +67,7 @@ $activeTab = $activeTab ?? 'general';
             <div class="space-y-4">
               <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-id-card-alt text-gray-500"></i>
-                Identità Applicazione
+                <?= __("Identità Applicazione") ?>
               </h2>
               <p class="text-sm text-gray-600"><?= __("Imposta il nome mostrato nel backend e il logo utilizzato nel layout.") ?></p>
             </div>
@@ -87,7 +87,7 @@ $activeTab = $activeTab ?? 'general';
                   <?php if (!empty($appSettings['logo'])): ?>
                     <label class="inline-flex items-center gap-2 text-xs text-red-600 cursor-pointer">
                       <input type="checkbox" name="remove_logo" value="1" class="rounded border-gray-300">
-                      Rimuovi logo attuale
+                      <?= __("Rimuovi logo attuale") ?>
                     </label>
                   <?php endif; ?>
                 </div>
@@ -124,7 +124,7 @@ $activeTab = $activeTab ?? 'general';
             <div class="space-y-4">
               <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-file-alt text-gray-500"></i>
-                Footer
+                <?= __("Footer") ?>
               </h2>
               <p class="text-sm text-gray-600"><?= __("Personalizza il testo descrittivo e i link ai social media nel footer del sito") ?></p>
             </div>
@@ -142,7 +142,7 @@ $activeTab = $activeTab ?? 'general';
 
               <div class="border-t border-gray-200 pt-4">
                 <label class="block text-sm font-medium text-gray-700 mb-3">
-                  <i class="fab fa-facebook-square mr-1"></i> Link Social Media
+                  <i class="fab fa-facebook-square mr-1"></i> <?= __("Link Social Media") ?>
                 </label>
                 <div class="space-y-3">
                   <div>
@@ -211,7 +211,7 @@ $activeTab = $activeTab ?? 'general';
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>
-              Salva identità
+              <?= __("Salva identità") ?>
             </button>
           </div>
         </form>
@@ -226,7 +226,7 @@ $activeTab = $activeTab ?? 'general';
             <div class="space-y-4">
               <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-paper-plane text-gray-500"></i>
-                Configurazione invio
+                <?= __("Configurazione invio") ?>
               </h2>
               <p class="text-sm text-gray-600"><?= __("Scegli come inviare le email dal sistema. Puoi usare la funzione PHP <code class=\"text-xs bg-gray-100 px-1 py-0.5 rounded\">mail()</code>, PHPMailer o un server SMTP esterno.") ?></p>
             </div>
@@ -274,7 +274,7 @@ $activeTab = $activeTab ?? 'general';
                 <input type="text" id="smtp_username" name="smtp_username" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_username'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
               </div>
               <div>
-                <label for="smtp_password" class="block text-sm font-medium text-gray-700">Password</label>
+                <label for="smtp_password" class="block text-sm font-medium text-gray-700"><?= __("Password") ?></label>
                 <input type="password" id="smtp_password" autocomplete="off" name="smtp_password" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_password'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
               </div>
               <div>
@@ -302,7 +302,7 @@ $activeTab = $activeTab ?? 'general';
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>
-              Salva impostazioni email
+              <?= __("Salva impostazioni email") ?>
             </button>
           </div>
         </form>
@@ -315,12 +315,12 @@ $activeTab = $activeTab ?? 'general';
             <div>
               <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-envelope-open-text text-gray-500"></i>
-                Template email
+                <?= __("Template email") ?>
               </h2>
               <p class="text-sm text-gray-600"><?= __("Personalizza il contenuto delle mail automatiche con l'editor TinyMCE. Usa i segnaposto <code class=\"text-xs bg-gray-100 px-1 py-0.5 rounded\">{{variabile}}</code> per inserire dati dinamici.") ?></p>
             </div>
             <div class="text-xs text-gray-500 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-              Segnaposto disponibili mostrati in ciascun template.
+              <?= __("Segnaposto disponibili mostrati in ciascun template.") ?>
             </div>
           </div>
 
@@ -359,7 +359,7 @@ $activeTab = $activeTab ?? 'general';
                   <div class="flex justify-end">
                     <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
                       <i class="fas fa-save"></i>
-                      Salva template
+                      <?= __("Salva template") ?>
                     </button>
                   </div>
                 </form>
@@ -376,7 +376,7 @@ $activeTab = $activeTab ?? 'general';
             <div>
               <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-file-alt text-gray-500"></i>
-                Gestione Contenuti (CMS)
+                <?= __("Gestione Contenuti (CMS)") ?>
               </h2>
               <p class="text-sm text-gray-600 mt-1"><?= __("Modifica le pagine statiche del sito") ?></p>
             </div>
@@ -402,7 +402,7 @@ $activeTab = $activeTab ?? 'general';
               <div class="mt-4">
                 <a href="/admin/cms/home" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
-                  Modifica Homepage
+                  <?= __("Modifica Homepage") ?>
                 </a>
               </div>
             </div>
@@ -426,7 +426,7 @@ $activeTab = $activeTab ?? 'general';
               <div class="mt-4">
                 <a href="/admin/cms/chi-siamo" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
-                  Modifica Chi Siamo
+                  <?= __("Modifica Chi Siamo") ?>
                 </a>
               </div>
             </div>
@@ -462,18 +462,18 @@ $activeTab = $activeTab ?? 'general';
             <div class="space-y-4">
               <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-barcode text-gray-500"></i>
-                Configurazione Etichette Libri
+                <?= __("Configurazione Etichette Libri") ?>
               </h2>
               <p class="text-sm text-gray-600">
-                Seleziona il formato delle etichette da stampare per i libri.
-                Il formato scelto verrà utilizzato per generare i PDF delle etichette con codice a barre.
+                <?= __("Seleziona il formato delle etichette da stampare per i libri.") ?>
+                <?= __("Il formato scelto verrà utilizzato per generare i PDF delle etichette con codice a barre.") ?>
               </p>
             </div>
 
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
               <div>
                 <label for="label_format" class="block text-sm font-medium text-gray-700 mb-3">
-                  Formato Etichetta
+                  <?= __("Formato Etichetta") ?>
                 </label>
 
                 <?php
@@ -520,8 +520,8 @@ $activeTab = $activeTab ?? 'general';
                   <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
                   <div class="text-sm text-blue-800">
                     <p class="font-medium mb-1"><?= __("Nota:") ?></p>
-                    <p>Il formato selezionato verrà applicato a tutte le etichette generate dal sistema.
-                    Assicurati che corrisponda al tipo di carta per etichette che utilizzi.</p>
+                    <p><?= __("Il formato selezionato verrà applicato a tutte le etichette generate dal sistema.") ?>
+                    <?= __("Assicurati che corrisponda al tipo di carta per etichette che utilizzi.") ?></p>
                   </div>
                 </div>
               </div>
@@ -531,7 +531,7 @@ $activeTab = $activeTab ?? 'general';
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>
-              Salva impostazioni etichette
+              <?= __("Salva impostazioni etichette") ?>
             </button>
           </div>
         </form>
