@@ -79,10 +79,15 @@ class EmailService {
 
     /**
      * Send email using template
+     *
+     * @param string $to Recipient email
+     * @param string $templateName Template name
+     * @param array $variables Variables to replace in template
+     * @param string|null $locale Locale (it_IT, en_US). If null, uses current user's locale
      */
-    public function sendTemplate(string $to, string $templateName, array $variables = []): bool {
+    public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null): bool {
         try {
-            $template = $this->getEmailTemplate($templateName);
+            $template = $this->getEmailTemplate($templateName, $locale);
             if (!$template) {
                 throw new Exception("Template '{$templateName}' not found");
             }
@@ -144,16 +149,38 @@ class EmailService {
 
     /**
      * Get email template from database
+     *
+     * @param string $templateName Template name
+     * @param string|null $locale Locale (it_IT, en_US). If null, uses current user's locale from I18n
+     * @return array|null Array with 'subject' and 'body' keys, or null if not found
      */
-    private function getEmailTemplate(string $templateName): ?array {
+    private function getEmailTemplate(string $templateName, ?string $locale = null): ?array {
         try {
-            $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND active = 1");
-            $stmt->bind_param('s', $templateName);
+            // Use current user's locale if not specified
+            if ($locale === null) {
+                $locale = \App\Support\I18n::getLocale();
+            }
+
+            // Try to get template in requested locale
+            $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = ? AND active = 1");
+            $stmt->bind_param('ss', $templateName, $locale);
             $stmt->execute();
             $result = $stmt->get_result();
 
             if ($row = $result->fetch_assoc()) {
                 return $row;
+            }
+
+            // Fallback to Italian if requested locale not found
+            if ($locale !== 'it_IT') {
+                $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = 'it_IT' AND active = 1");
+                $stmt->bind_param('s', $templateName);
+                $stmt->execute();
+                $result = $stmt->get_result();
+
+                if ($row = $result->fetch_assoc()) {
+                    return $row;
+                }
             }
 
             // Fallback to default templates
