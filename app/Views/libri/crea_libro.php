@@ -11,7 +11,7 @@ $csrfToken = Csrf::ensureToken();
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
@@ -19,22 +19,22 @@ $csrfToken = Csrf::ensureToken();
         </li>
         <li>
           <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-book mr-1"></i>Libri
+            <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
           </a>
         </li>
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          Nuovo
+          <?= __("Nuovo") ?>
         </li>
       </ol>
     </nav>
 
     <!-- Header -->
     <div class="mb-8 fade-in">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2">Aggiungi Nuovo Libro</h1>
-      <p class="text-gray-600">Compila i dettagli del libro per aggiungerlo alla biblioteca</p>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2"><?= __("Aggiungi Nuovo Libro") ?></h1>
+      <p class="text-gray-600"><?= __("Compila i dettagli del libro per aggiungerlo alla biblioteca") ?></p>
     </div>
 
     <!-- ISBN Import Card -->
@@ -42,20 +42,20 @@ $csrfToken = Csrf::ensureToken();
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-barcode text-primary"></i>
-          Importa da ISBN
+          <?= __("Importa da ISBN") ?>
         </h2>
-        <p class="text-sm text-gray-600 mt-1">Usa i servizi online per precompilare automaticamente i dati del libro</p>
+        <p class="text-sm text-gray-600 mt-1"><?= __("Usa i servizi online per precompilare automaticamente i dati del libro") ?></p>
       </div>
       <div class="card-body">
         <div class="form-grid-2">
           <div>
-            <label class="form-label">Codice ISBN o EAN</label>
+            <label class="form-label"><?= __("Codice ISBN o EAN") ?></label>
             <input id="importIsbn" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" />
           </div>
           <div class="flex items-end">
             <button type="button" id="btnImportIsbn" class="btn-primary w-full">
               <i class="fas fa-download mr-2"></i>
-              Importa Dati
+              <?= __("Importa Dati") ?>
             </button>
           </div>
         </div>

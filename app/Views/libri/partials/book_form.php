@@ -102,11 +102,11 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           
           <div class="form-grid-3">
             <div>
-              <label for="isbn10" class="form-label">ISBN 10</label>
+              <label for="isbn10" class="form-label"><?= __("ISBN 10") ?></label>
               <input id="isbn10" name="isbn10" type="text" class="form-input" placeholder="<?= __('es. 8842935786') ?>" value="<?php echo HtmlHelper::e($book['isbn10'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="isbn13" class="form-label">ISBN 13</label>
+              <label for="isbn13" class="form-label"><?= __("ISBN 13") ?></label>
               <input id="isbn13" name="isbn13" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['isbn13'] ?? ''); ?>" />
             </div>
             <div>
@@ -131,9 +131,9 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <div class="form-grid-2">
             <div>
-              <label for="ean" class="form-label">EAN</label>
+              <label for="ean" class="form-label"><?= __("EAN") ?></label>
               <input id="ean" name="ean" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['ean'] ?? ''); ?>" />
-              <p class="text-xs text-gray-500 mt-1">European Article Number (opzionale)</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("European Article Number (opzionale)") ?></p>
             </div>
             <div>
               <label for="lingua" class="form-label"><?= __("Lingua") ?></label>
@@ -258,13 +258,13 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <select id="sottogenere_select" name="sottogenere_id" class="form-input" disabled data-initial-sottogenere="<?php echo (int)$initialData['sottogenere_id']; ?>">
                 <option value="0"><?= __("Seleziona prima un genere...") ?></option>
               </select>
-              <p class="text-xs text-gray-500 mt-1" id="sottogenere_hint">Sottogenere specifico (opzionale)</p>
+              <p class="text-xs text-gray-500 mt-1" id="sottogenere_hint"><?= __("Sottogenere specifico (opzionale)") ?></p>
             </div>
           </div>
 
           <!-- Keywords -->
           <div class="mt-4">
-            <label for="parole_chiave" class="form-label">Parole Chiave</label>
+            <label for="parole_chiave" class="form-label"><?= __("Parole Chiave") ?></label>
             <input id="parole_chiave" name="parole_chiave" type="text" class="form-input" placeholder="<?= __('es. romanzo, fantasy, avventura (separare con virgole)') ?>" value="<?php echo HtmlHelper::e($book['parole_chiave'] ?? ''); ?>" />
             <p class="text-xs text-gray-500 mt-1"><?= __("Inserisci parole chiave separate da virgole per facilitare la ricerca") ?></p>
           </div>
@@ -311,11 +311,11 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <input id="formato" name="formato" type="text" class="form-input" placeholder="<?= __('es. Copertina rigida, Brossura') ?>" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="numero_pagine" class="form-label">Numero Pagine</label>
+              <label for="numero_pagine" class="form-label"><?= __("Numero Pagine") ?></label>
               <input id="numero_pagine" name="numero_pagine" type="number" class="form-input" placeholder="<?= __('es. 320') ?>" value="<?php echo HtmlHelper::e($book['numero_pagine'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="peso" class="form-label">Peso (kg)</label>
+              <label for="peso" class="form-label"><?= __("Peso (kg)") ?></label>
               <input id="peso" name="peso" type="number" step="0.001" class="form-input" placeholder="<?= __('es. 0.450') ?>" value="<?php echo HtmlHelper::e($book['peso'] ?? ''); ?>" />
             </div>
           </div>
@@ -327,7 +327,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           
           <div class="form-grid-3">
             <div>
-              <label for="copie_totali" class="form-label">Copie Totali <span class="text-xs text-gray-500">(Le copie disponibili vengono calcolate automaticamente)</span></label>
+              <label for="copie_totali" class="form-label"><?= __("Copie Totali") ?> <span class="text-xs text-gray-500">(<?= __("Le copie disponibili vengono calcolate automaticamente") ?>)</span></label>
               <input id="copie_totali" name="copie_totali" type="number" class="form-input" value="<?php echo (int)($book['copie_totali'] ?? 1); ?>" min="<?php echo $mode === 'edit' ? (int)($book['copie_totali'] ?? 1) : 1; ?>" />
               <?php if ($mode === 'edit'): ?>
               <p class="text-xs text-gray-600 mt-1">
@@ -350,7 +350,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-body form-section">
           <div class="form-grid-3">
             <div>
-              <label for="numero_inventario" class="form-label">Numero Inventario</label>
+              <label for="numero_inventario" class="form-label"><?= __("Numero Inventario") ?></label>
               <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
             </div>
             <div>
@@ -358,25 +358,25 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= __('es. I Classici') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="numero_serie" class="form-label">Numero Serie</label>
+              <label for="numero_serie" class="form-label"><?= __("Numero Serie") ?></label>
               <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= __('es. 15') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
             </div>
           </div>
 
           <div class="form-grid-2">
             <div>
-              <label for="file_url" class="form-label">File URL</label>
+              <label for="file_url" class="form-label"><?= __("File URL") ?></label>
               <input id="file_url" name="file_url" type="text" class="form-input" placeholder="<?= __('Link al file digitale (se disponibile)') ?>" value="<?php echo HtmlHelper::e($book['file_url'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="audio_url" class="form-label">Audio URL</label>
+              <label for="audio_url" class="form-label"><?= __("Audio URL") ?></label>
               <input id="audio_url" name="audio_url" type="text" class="form-input" placeholder="<?= __('Link all\'audiolibro (se disponibile)') ?>" value="<?php echo HtmlHelper::e($book['audio_url'] ?? ''); ?>" />
             </div>
           </div>
 
           <!-- Notes -->
           <div>
-            <label for="note_varie" class="form-label">Note Varie</label>
+            <label for="note_varie" class="form-label"><?= __("Note Varie") ?></label>
             <textarea id="note_varie" name="note_varie" rows="3" class="form-input" placeholder="<?= __('Note aggiuntive o osservazioni particolari...') ?>"><?php echo HtmlHelper::e($book['note_varie'] ?? ''); ?></textarea>
           </div>
         </div>
@@ -532,11 +532,11 @@ const i18nTranslations = <?= json_encode([
     'Seleziona prima una radice...' => __("Seleziona prima una radice..."),
     'Seleziona genere...' => __("Seleziona genere..."),
     'Seleziona prima un genere...' => __("Seleziona prima un genere..."),
-    'Errore caricamento classificazione Dewey' => __("Errore caricamento classificazione Dewey"),
+    '<?= __("Errore caricamento classificazione Dewey") ?>' => __("Errore caricamento classificazione Dewey"),
     'Rimuovi editore' => __("Rimuovi editore"),
     'Livello' => __("Livello"),
-    'Seleziona mensola...' => __("Seleziona mensola..."),
-    'Seleziona prima uno scaffale...' => __("Seleziona prima uno scaffale..."),
+    '<?= __("Seleziona mensola...") ?>' => __("Seleziona mensola..."),
+    '<?= __("Seleziona prima uno scaffale...") ?>' => __("Seleziona prima uno scaffale..."),
     'Aggiornamento in corso...' => __("Aggiornamento in corso..."),
     'Salvataggio in corso...' => __("Salvataggio in corso..."),
     'Generazione...' => __("Generazione..."),
@@ -618,11 +618,11 @@ function initializeUppy() {
 
         uppy.use(UppyDragDrop, {
             target: '#uppy-upload',
-            note: 'Trascina qui la copertina del libro o clicca per selezionare',
+            note: '<?= __("Trascina qui la copertina del libro o clicca per selezionare") ?>',
             locale: {
                 strings: {
-                    dropPasteFiles: 'Trascina qui la copertina del libro o %{browse}',
-                    browse: 'seleziona file'
+                    dropPasteFiles: '<?= __("Trascina qui la copertina del libro o %{browse}") ?>',
+                    browse: '<?= __("seleziona file") ?>'
                 }
             }
         });
@@ -746,9 +746,9 @@ function initializeChoicesJS() {
             addItems: true,
             duplicateItemsAllowed: false,
             placeholder: true,
-            placeholderValue: 'Cerca autori esistenti o aggiungine di nuovi...',
-            noChoicesText: 'Nessun autore trovato, premi Invio per aggiungerne uno nuovo',
-            itemSelectText: 'Clicca per selezionare',
+            placeholderValue: '<?= __("Cerca autori esistenti o aggiungine di nuovi...") ?>',
+            noChoicesText: '<?= __("Nessun autore trovato, premi Invio per aggiungerne uno nuovo") ?>',
+            itemSelectText: '<?= __("Clicca per selezionare") ?>',
             addItemText: (value) => `<?= __('Aggiungi') ?> <b>"${value}"</b> <?= __('come nuovo autore') ?>`,
             maxItemText: (maxItemCount) => `Solo ${maxItemCount} autori possono essere aggiunti`,
             shouldSort: false,
@@ -982,7 +982,7 @@ async function initializeDewey() {
     if (!cats || cats.length === 0) {
       const warn = document.createElement('div');
       warn.className = 'text-xs text-red-600 mt-2';
-      warn.textContent = 'Errore caricamento classificazione Dewey';
+      warn.textContent = '<?= __("Errore caricamento classificazione Dewey") ?>';
       l1.parentElement.appendChild(warn);
       return;
     }
@@ -996,7 +996,7 @@ async function initializeDewey() {
     console.error('Dewey L1 error', e);
     const warn = document.createElement('div');
     warn.className = 'text-xs text-red-600 mt-2';
-    warn.textContent = 'Errore caricamento classificazione Dewey';
+    warn.textContent = '<?= __("Errore caricamento classificazione Dewey") ?>';
     l1.parentElement.appendChild(warn);
   }
 
@@ -1242,13 +1242,13 @@ function initializeAutocomplete() {
         if (isNew) {
             chip.classList.add('bg-primary-600', 'text-white', 'border-primary-500');
             if (editoreHint) {
-                editoreHint.textContent = `Nuovo editore: ${displayLabel}`;
+                editoreHint.textContent = `<?= __("Nuovo editore:") ?> ${displayLabel}`;
             }
         } else {
             chip.classList.add('bg-slate-900', 'text-slate-100', 'border-slate-700');
             if (editoreHint) {
                 const suffix = publisherId ? ` (ID: ${publisherId})` : '';
-                editoreHint.textContent = `Editore selezionato: ${displayLabel}${suffix}`;
+                editoreHint.textContent = `<?= __("Editore selezionato:") ?> ${displayLabel}${suffix}`;
             }
         }
 
@@ -1262,7 +1262,7 @@ function initializeAutocomplete() {
 
         const badge = document.createElement('span');
         badge.className = `text-xs px-2 py-0.5 rounded-full ${isNew ? 'bg-primary-700 text-primary-100' : 'bg-slate-700 text-slate-200'}`;
-        badge.textContent = isNew ? 'Da creare' : 'Esistente';
+        badge.textContent = isNew ? '<?= __("Da creare") ?>' : '<?= __("Esistente") ?>';
         labelContainer.appendChild(badge);
 
         chip.appendChild(labelContainer);
@@ -1306,7 +1306,7 @@ function initializeAutocomplete() {
         },
         (query) => {
             if (editoreHint) {
-                editoreHint.textContent = `Nessun editore trovato per "${query}" — premi Invio per crearne uno nuovo.`;
+                editoreHint.textContent = `<?= __("Nessun editore trovato per") ?> "${query}" — <?= __("premi Invio per crearne uno nuovo.") ?>`;
             }
         },
         (rawValue) => {
@@ -1480,11 +1480,11 @@ function initializeSuggestCollocazione() {
         info.textContent = data.collocazione ? `Suggerito: ${data.collocazione}` : `Suggerito scaffale #${data.scaffale_id}`;
         if (window.Toast) Toast.fire({icon: 'success', title: __('Collocazione suggerita') });
       } else {
-        info.textContent = 'Nessun suggerimento disponibile';
+        info.textContent = '<?= __("Nessun suggerimento disponibile") ?>';
         if (window.Toast) Toast.fire({icon: 'info', title: __('Nessun suggerimento') });
       }
     } catch (e) {
-      info.textContent = 'Errore suggerimento';
+      info.textContent = '<?= __("Errore suggerimento") ?>';
     }
   });
 }
@@ -1544,7 +1544,7 @@ function initializeCollocationFilters() {
           collocazionePreview.value = data.collocazione;
         }
       } catch (error) {
-        console.error('Impossibile aggiornare la posizione automatica', error);
+        console.error('<?= __("Impossibile aggiornare la posizione automatica") ?>', error);
       }
     } else {
       if (!posizioneInput.dataset.manual || force) {
@@ -1601,11 +1601,11 @@ function initializeCollocationFilters() {
     const sid = normalizeNumber(scaffaleSel.value);
     if (sid > 0) {
       const ms = MENSOLE.filter(m => m.scaffale_id === sid);
-      fillOptions(mensolaSel, ms, 'Seleziona mensola...', m => `Livello ${m.numero_livello}`);
+      fillOptions(mensolaSel, ms, '<?= __("Seleziona mensola...") ?>', m => `<?= __("Livello") ?> ${m.numero_livello}`);
       mensolaSel.disabled = false;
       mensolaSel.removeAttribute('disabled');
     } else {
-      fillOptions(mensolaSel, [], 'Seleziona prima uno scaffale...', null);
+      fillOptions(mensolaSel, [], '<?= __("Seleziona prima uno scaffale...") ?>', null);
       mensolaSel.disabled = true;
       mensolaSel.setAttribute('disabled', 'disabled');
     }
@@ -1763,7 +1763,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                 if (combined.length === 0) {
                     const emptyLi = document.createElement('li');
                     emptyLi.className = 'px-4 py-2 text-gray-500';
-                    emptyLi.textContent = 'Nessun risultato trovato';
+                    emptyLi.textContent = '<?= __("Nessun risultato trovato") ?>';
                     suggestions.appendChild(emptyLi);
                 } else {
                     combined.forEach((item, index) => {
@@ -1784,7 +1784,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
 
                         const text = document.createElement('span');
                         text.textContent = item.isCreate
-                            ? `Crea nuovo "${item.label}"`
+                            ? `<?= __("Crea nuovo") ?> "${item.label}"`
                             : item.label || '';
 
                         li.appendChild(icon);
@@ -1820,7 +1820,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                     li.appendChild(icon);
 
                     const text = document.createElement('span');
-                    text.textContent = `Crea nuovo "${fallback}"`;
+                    text.textContent = `<?= __("Crea nuovo") ?> "${fallback}"`;
                     li.appendChild(text);
 
                     li.addEventListener('click', () => {
@@ -2301,7 +2301,7 @@ function displayScrapedCover(imageUrl) {
     }
 
     img.src = imageSrc;
-    img.alt = 'Copertina recuperata automaticamente';
+    img.alt = '<?= __("Copertina recuperata automaticamente") ?>';
     img.className = 'max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm';
     
     img.onload = function() {
