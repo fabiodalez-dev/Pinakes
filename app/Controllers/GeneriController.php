@@ -69,7 +69,7 @@ class GeneriController
     {
         $data = $request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', '/admin/generi/crea')->withStatus(302);
         }
         $repo = new GenereRepository($db);
@@ -80,7 +80,7 @@ class GeneriController
                 'parent_id' => !empty($data['parent_id']) ? (int)$data['parent_id'] : null
             ]);
 
-            $_SESSION['success_message'] = 'Genere creato con successo!';
+            $_SESSION['success_message'] = __('Genere creato con successo!');
             return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
 
         } catch (\Exception $e) {

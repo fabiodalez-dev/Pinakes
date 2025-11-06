@@ -37,26 +37,26 @@ class CollocazioneController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
         $codice = strtoupper(trim((string)($data['codice'] ?? '')));
         $nome = trim((string)($data['nome'] ?? ''));
         $ordine = (int)($data['ordine'] ?? 0);
-        if ($codice === '') { $_SESSION['error_message'] = 'Codice scaffale obbligatorio'; return $response->withHeader('Location', '/admin/collocazione')->withStatus(302); }
+        if ($codice === '') { $_SESSION['error_message'] = __('Codice scaffale obbligatorio'); return $response->withHeader('Location', '/admin/collocazione')->withStatus(302); }
         try {
             (new \App\Models\CollocationRepository($db))->createScaffale(['codice' => $codice, 'nome' => $nome, 'ordine' => $ordine]);
-            $_SESSION['success_message'] = 'Scaffale creato';
+            $_SESSION['success_message'] = __('Scaffale creato');
         } catch (\mysqli_sql_exception $e) {
             // Check if it's a duplicate entry error (errno 1062)
             if ($e->getCode() === 1062 || stripos($e->getMessage(), 'Duplicate entry') !== false) {
                 $_SESSION['error_message'] = "Il codice scaffale '{$codice}' esiste già. Usa un codice diverso.";
             } else {
-                $_SESSION['error_message'] = 'Impossibile creare lo scaffale. Riprova più tardi.';
+                $_SESSION['error_message'] = __('Impossibile creare lo scaffale. Riprova più tardi.');
             }
             error_log("Scaffale creation failed: " . $e->getMessage());
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = 'Impossibile creare lo scaffale. Riprova più tardi.';
+            $_SESSION['error_message'] = __('Impossibile creare lo scaffale. Riprova più tardi.');
             error_log("Scaffale creation failed: " . $e->getMessage());
         }
         return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
@@ -66,14 +66,14 @@ class CollocazioneController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
         $scaffale_id = (int)($data['scaffale_id'] ?? 0);
         $numero_livello = (int)($data['numero_livello'] ?? 1);
         $ordine = (int)($data['ordine'] ?? 0);
         $genera_n = max(0, (int)($data['genera_posizioni'] ?? 0));
-        if ($scaffale_id <= 0) { $_SESSION['error_message'] = 'Scaffale obbligatorio'; return $response->withHeader('Location', '/admin/collocazione')->withStatus(302); }
+        if ($scaffale_id <= 0) { $_SESSION['error_message'] = __('Scaffale obbligatorio'); return $response->withHeader('Location', '/admin/collocazione')->withStatus(302); }
         try {
             $repo = new \App\Models\CollocationRepository($db);
             $mensola_id = $repo->createMensola(['scaffale_id' => $scaffale_id, 'numero_livello' => $numero_livello, 'ordine' => $ordine]);
@@ -84,11 +84,11 @@ class CollocazioneController
             if ($e->getCode() === 1062 || stripos($e->getMessage(), 'Duplicate entry') !== false) {
                 $_SESSION['error_message'] = "Una mensola con livello {$numero_livello} esiste già in questo scaffale. Usa un livello diverso.";
             } else {
-                $_SESSION['error_message'] = 'Impossibile creare la mensola. Riprova più tardi.';
+                $_SESSION['error_message'] = __('Impossibile creare la mensola. Riprova più tardi.');
             }
             error_log("Mensola creation failed: " . $e->getMessage());
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = 'Impossibile creare la mensola. Riprova più tardi.';
+            $_SESSION['error_message'] = __('Impossibile creare la mensola. Riprova più tardi.');
             error_log("Mensola creation failed: " . $e->getMessage());
         }
         return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
@@ -98,7 +98,7 @@ class CollocazioneController
     {
         $token = (string)($request->getParsedBody()['csrf_token'] ?? '');
         if (!Csrf::validate($token)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
         // Check if scaffale has mensole
@@ -109,7 +109,7 @@ class CollocazioneController
         $row = $result->fetch_assoc();
 
         if ((int)$row['cnt'] > 0) {
-            $_SESSION['error_message'] = 'Impossibile eliminare: lo scaffale contiene mensole';
+            $_SESSION['error_message'] = __('Impossibile eliminare: lo scaffale contiene mensole');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
 
@@ -121,7 +121,7 @@ class CollocazioneController
         $row = $result->fetch_assoc();
 
         if ((int)$row['cnt'] > 0) {
-            $_SESSION['error_message'] = 'Impossibile eliminare: lo scaffale contiene libri';
+            $_SESSION['error_message'] = __('Impossibile eliminare: lo scaffale contiene libri');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
 
@@ -130,7 +130,7 @@ class CollocazioneController
         $stmt->bind_param('i', $id);
         $stmt->execute();
 
-        $_SESSION['success_message'] = 'Scaffale eliminato';
+        $_SESSION['success_message'] = __('Scaffale eliminato');
         return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
     }
 
@@ -138,7 +138,7 @@ class CollocazioneController
     {
         $token = (string)($request->getParsedBody()['csrf_token'] ?? '');
         if (!Csrf::validate($token)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
         // Check if mensola has books
@@ -149,7 +149,7 @@ class CollocazioneController
         $row = $result->fetch_assoc();
 
         if ((int)$row['cnt'] > 0) {
-            $_SESSION['error_message'] = 'Impossibile eliminare: la mensola contiene libri';
+            $_SESSION['error_message'] = __('Impossibile eliminare: la mensola contiene libri');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
 
@@ -158,7 +158,7 @@ class CollocazioneController
         $stmt->bind_param('i', $id);
         $stmt->execute();
 
-        $_SESSION['success_message'] = 'Mensola eliminata';
+        $_SESSION['success_message'] = __('Mensola eliminata');
         return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
     }
 

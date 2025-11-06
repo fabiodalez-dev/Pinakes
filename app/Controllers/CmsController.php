@@ -92,7 +92,7 @@ class CmsController
 
         // SECURITY FIX: Validate CSRF first, before processing data
         if (!is_array($data) || !isset($data['csrf_token']) || !\App\Support\Csrf::validate($data['csrf_token'])) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $response->withHeader('Location', '/admin/cms/home')->withStatus(302);
         }
 
@@ -379,7 +379,7 @@ class CmsController
         if (!empty($errors)) {
             $_SESSION['error_message'] = implode('<br>', $errors);
         } else {
-            $_SESSION['success_message'] = 'Contenuti homepage aggiornati con successo!';
+            $_SESSION['success_message'] = __('Contenuti homepage aggiornati con successo!');
         }
 
         return $response->withHeader('Location', '/admin/cms/home')->withStatus(302);

@@ -126,7 +126,7 @@ class LibriController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', '/admin/libri/crea')->withStatus(302);
         }
         
@@ -434,7 +434,7 @@ class LibriController
         (new \App\Models\BookRepository($db))->updateOptionals($id, $data);
 
         // Set a success message in the session
-        $_SESSION['success_message'] = 'Libro aggiunto con successo!';
+        $_SESSION['success_message'] = __('Libro aggiunto con successo!');
 
         return $response->withHeader('Location', '/admin/libri/'.$id)->withStatus(302);
     }
@@ -467,7 +467,7 @@ class LibriController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', '/admin/libri/modifica/'.$id)->withStatus(302);
         }
         $repo = new \App\Models\BookRepository($db);
@@ -826,7 +826,7 @@ class LibriController
         (new \App\Models\BookRepository($db))->updateOptionals($id, $data);
 
         // Set a success message in the session
-        $_SESSION['success_message'] = 'Libro aggiornato con successo!';
+        $_SESSION['success_message'] = __('Libro aggiornato con successo!');
 
         return $response->withHeader('Location', '/admin/libri/'.$id)->withStatus(302);
     }

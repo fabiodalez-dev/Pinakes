@@ -124,7 +124,7 @@ class AutoriController
 
         $repo->delete($id);
         if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
-        $_SESSION['success_message'] = 'Autore eliminato con successo.';
+        $_SESSION['success_message'] = __('Autore eliminato con successo.');
         return $response->withHeader('Location', '/admin/autori')->withStatus(302);
     }
 }

@@ -106,7 +106,7 @@ class EditorsController
 
         $repo->delete($id);
         if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
-        $_SESSION['success_message'] = 'Editore eliminato con successo.';
+        $_SESSION['success_message'] = __('Editore eliminato con successo.');
         return $response->withHeader('Location', '/admin/editori')->withStatus(302);
     }
 }

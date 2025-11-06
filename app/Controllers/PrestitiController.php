@@ -414,7 +414,7 @@ class PrestitiController
             }
 
             $db->commit();
-            $_SESSION['success_message'] = 'Prestito aggiornato correttamente.';
+            $_SESSION['success_message'] = __('Prestito aggiornato correttamente.');
             $successUrl = $redirectTo ?? '/admin/prestiti?updated=1';
             return $response->withHeader('Location', $successUrl)->withStatus(302);
 

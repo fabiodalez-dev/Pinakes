@@ -347,12 +347,12 @@ class UsersController
             
             // Validate password complexity
             if (strlen($newPassword) < 8) {
-                $_SESSION['error_message'] = 'La password deve essere lunga almeno 8 caratteri.';
+                $_SESSION['error_message'] = __('La password deve essere lunga almeno 8 caratteri.');
                 return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=password_too_short')->withStatus(302);
             }
             
             if (!preg_match('/[A-Z]/', $newPassword) || !preg_match('/[a-z]/', $newPassword) || !preg_match('/[0-9]/', $newPassword)) {
-                $_SESSION['error_message'] = 'La password deve contenere almeno una lettera maiuscola, una minuscola e un numero.';
+                $_SESSION['error_message'] = __('La password deve contenere almeno una lettera maiuscola, una minuscola e un numero.');
                 return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=password_needs_upper_lower_number')->withStatus(302);
             }
             
@@ -506,7 +506,7 @@ class UsersController
             ]);
         }
 
-        $_SESSION['success_message'] = 'Utente eliminato con successo.';
+        $_SESSION['success_message'] = __('Utente eliminato con successo.');
         return $response->withHeader('Location', '/admin/utenti')->withStatus(302);
     }
 

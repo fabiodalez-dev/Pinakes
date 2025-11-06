@@ -69,7 +69,7 @@ class ProfileController
         $stmt->bind_param('si', $hash, $uid);
         $stmt->execute();
         $stmt->close();
-        $_SESSION['success_message'] = 'Password aggiornata con successo.';
+        $_SESSION['success_message'] = __('Password aggiornata con successo.');
         return $response->withHeader('Location', '/profile')->withStatus(302);
     }
 
@@ -122,7 +122,7 @@ class ProfileController
         if ($stmt->execute()) {
             // Log the update for debugging
             error_log("Profile update for user $uid: data_nascita=$data_nascita");
-            $_SESSION['success_message'] = 'Profilo aggiornato con successo.';
+            $_SESSION['success_message'] = __('Profilo aggiornato con successo.');
             // Update session data
             $_SESSION['user']['name'] = $nome . ' ' . $cognome;
         } else {
