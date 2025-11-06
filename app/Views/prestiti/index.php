@@ -238,7 +238,7 @@ function getStatusBadge($status) {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
                                     <div class="flex items-center justify-end space-x-2">
-                                        <a href="/admin/prestiti/dettagli/<?php echo $prestito['id']; ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="Dettagli">
+                                        <a href="/admin/prestiti/dettagli/<?php echo $prestito['id']; ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
                                             <i class="fas fa-eye w-4 h-4"></i>
                                         </a>
                                         <?php if ($prestito['attivo']): ?>
@@ -344,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 orderable: false,
                 render: function(data, type, row) {
                     let actions = `<div class="flex items-center justify-end space-x-2">
-                        <a href="/admin/prestiti/dettagli/${row.id}" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="Dettagli">
+                        <a href="/admin/prestiti/dettagli/${row.id}" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
                     if (row.attivo === 1) {

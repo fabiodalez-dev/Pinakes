@@ -64,7 +64,7 @@ $editori = $data['editori'];
         </h2>
         <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
           <i class="fas fa-chevron-up"></i>
-          <span>Nascondi filtri</span>
+          <span><?= __("Nascondi filtri") ?></span>
         </button>
       </div>
       <div class="p-6" id="filters-container">
@@ -91,7 +91,7 @@ $editori = $data['editori'];
               Numero di libri
             </label>
             <select id="search_libri" class="form-input">
-              <option value="">Tutti gli editori</option>
+              <option value=""><?= __("Tutti gli editori") ?></option>
               <option value="0-10">0-10 libri</option>
               <option value="11-50">11-50 libri</option>
               <option value="51-100">51-100 libri</option>
@@ -264,12 +264,12 @@ document.addEventListener('DOMContentLoaded', function() {
               </a>
               <a href="/admin/editori/modifica/${data}"
                  class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200"
-                 title="Modifica">
+                 title="<?= __("Modifica") ?>">
                 <i class="fas fa-edit text-sm"></i>
               </a>
               <button onclick="deletePublisher(${data})"
                       class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                      title="Elimina">
+                      title="<?= __("Elimina") ?>">
                 <i class="fas fa-trash text-sm"></i>
               </button>
             </div>`;

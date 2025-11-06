@@ -218,7 +218,7 @@
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Ordine: <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
                           <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(__('Eliminare questo scaffale? (Solo se vuoto)'));">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="Elimina"><i class="fas fa-trash"></i></button>
+                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
                         </div>
                       </div>
@@ -298,7 +298,7 @@
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">ID: <?php echo (int)$m['id']; ?></span>
                           <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(__('Eliminare questa mensola? (Solo se vuota)'));">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="Elimina"><i class="fas fa-trash"></i></button>
+                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
                         </div>
                       </div>
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <td class="px-4 py-3 text-gray-700 text-xs">${book.autori || '-'}</td>
         <td class="px-4 py-3 text-gray-600 text-xs">${book.editore || '-'}</td>
         <td class="px-4 py-3 text-center">
-          <a href="/admin/libri/modifica/${book.id}" class="text-gray-600 hover:text-gray-900" title="Modifica">
+          <a href="/admin/libri/modifica/${book.id}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>">
             <i class="fas fa-edit"></i>
           </a>
         </td>

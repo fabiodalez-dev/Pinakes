@@ -34,13 +34,13 @@ $libri = $data['libri'];
             <i class="fas fa-book text-gray-600 mr-3"></i>
             Gestione Libri
           </h1>
-          <p class="text-sm text-gray-600 mt-1">Esplora e gestisci la collezione della biblioteca</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Esplora e gestisci la collezione della biblioteca") ?></p>
         </div>
         <div class="hidden md:flex items-center gap-3">
           <div class="hidden md:block">
             <input id="global_search" type="text" placeholder="<?= __('Cerca rapido...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-64" />
           </div>
-          <a href="/admin/libri/import" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300" title="Import massivo da CSV">
+          <a href="/admin/libri/import" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300" title="<?= __("Import massivo da CSV") ?>">
             <i class="fas fa-file-csv mr-2"></i>
             Import CSV
           </a>
@@ -51,7 +51,7 @@ $libri = $data['libri'];
         </div>
       </div>
       <div class="flex md:hidden gap-3 mb-3">
-        <a href="/admin/libri/import" class="flex-1 px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300" title="Import massivo da CSV">
+        <a href="/admin/libri/import" class="flex-1 px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300" title="<?= __("Import massivo da CSV") ?>">
           <i class="fas fa-file-csv mr-2"></i>
           Import CSV
         </a>
@@ -71,7 +71,7 @@ $libri = $data['libri'];
         </h2>
         <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
           <i class="fas fa-chevron-up"></i>
-          <span>Nascondi filtri</span>
+          <span><?= __("Nascondi filtri") ?></span>
         </button>
       </div>
       <div class="p-6" id="filters-container">
@@ -98,7 +98,7 @@ $libri = $data['libri'];
               Stato
             </label>
             <select id="stato_filter" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full">
-              <option value="">Tutti gli stati</option>
+              <option value=""><?= __("Tutti gli stati") ?></option>
               <option value="Disponibile"><?= __("Disponibile") ?></option>
               <option value="Prestato">Prestato</option>
               <option value="Riservato">Riservato</option>
@@ -509,12 +509,12 @@ document.addEventListener('DOMContentLoaded', function() {
               </a>
               <a href="/admin/libri/modifica/${data}"
                  class="inline-flex items-center justify-center w-8 h-8 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-all duration-200"
-                 title="Modifica">
+                 title="<?= __("Modifica") ?>">
                 <i class="fas fa-edit text-sm"></i>
               </a>
               <button onclick="deleteBook(${data})"
                       class="inline-flex items-center justify-center w-8 h-8 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                      title="Elimina">
+                      title="<?= __("Elimina") ?>">
                 <i class="fas fa-trash text-sm"></i>
               </button>
             </div>`;
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', function() {
       infoFiltered: "(filtrati da _MAX_ libri totali)",
       infoPostFix: "",
       loadingRecords: "Caricamento...",
-      zeroRecords: "<div class='text-center py-8'><i class='fas fa-book text-4xl text-gray-300 mb-4'></i><h3 class='text-lg font-medium text-gray-900 mb-2'>Nessun libro trovato</h3><p class='text-gray-500'>Prova a modificare i filtri di ricerca</p></div>",
+      zeroRecords: "<div class='text-center py-8'><i class='fas fa-book text-4xl text-gray-300 mb-4'></i><h3 class='text-lg font-medium text-gray-900 mb-2'><?= __("Nessun libro trovato") ?></h3><p class='text-gray-500'>Prova a modificare i filtri di ricerca</p></div>",
       emptyTable: "<div class='text-center py-12'><i class='fas fa-book-open text-6xl text-gray-300 mb-6'></i><h3 class='text-xl font-medium text-gray-900 mb-3'>Nessun libro nel database</h3><p class='text-gray-500 mb-4'>Inizia aggiungendo il primo libro alla collezione</p><a href='/admin/libri/crea' class='inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors'><i class='fas fa-plus mr-2'></i>Aggiungi primo libro</a></div>",
       paginate: {
         first: "Primo",

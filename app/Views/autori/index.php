@@ -63,7 +63,7 @@ $autori = $data['autori'];
         </h2>
         <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
           <i class="fas fa-chevron-up"></i>
-          <span>Nascondi filtri</span>
+          <span><?= __("Nascondi filtri") ?></span>
         </button>
       </div>
       <div class="p-6" id="filters-container">
@@ -296,12 +296,12 @@ document.addEventListener('DOMContentLoaded', function() {
               </a>
               <a href="/admin/autori/modifica/${data}"
                  class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-600 hover:text-green-600 hover:bg-green-50 transition-all duration-200"
-                 title="Modifica">
+                 title="<?= __("Modifica") ?>">
                 <i class="fas fa-edit text-sm"></i>
               </a>
               <button onclick="deleteAuthor(${data})"
                       class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
-                      title="Elimina">
+                      title="<?= __("Elimina") ?>">
                 <i class="fas fa-trash text-sm"></i>
               </button>
             </div>`;
