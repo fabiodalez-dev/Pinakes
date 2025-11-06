@@ -369,7 +369,7 @@ ob_start();
         <?php if (isset($_GET['success'])): ?>
             <div class="alert alert-success">
                 <i class="fas fa-check-circle"></i>
-                <span>Messaggio inviato con successo! Ti risponderemo al più presto.</span>
+                <span><?= __("Messaggio inviato con successo! Ti risponderemo al più presto.") ?></span>
             </div>
         <?php endif; ?>
 
@@ -379,13 +379,13 @@ ob_start();
                 <span>
                     <?php
                     $errorMsg = match($_GET['error']) {
-                        'csrf' => 'Errore di sicurezza. Riprova.',
-                        'recaptcha' => 'Verifica reCAPTCHA fallita. Riprova.',
-                        'required' => 'Compila tutti i campi obbligatori.',
-                        'email' => 'Inserisci un\'email valida.',
-                        'privacy' => 'Devi accettare l\'informativa sulla privacy.',
-                        'db' => 'Errore di salvataggio. Riprova più tardi.',
-                        default => 'Si è verificato un errore. Riprova.'
+                        'csrf' => __('Errore di sicurezza. Riprova.'),
+                        'recaptcha' => __('Verifica reCAPTCHA fallita. Riprova.'),
+                        'required' => __('Compila tutti i campi obbligatori.'),
+                        'email' => __('Inserisci un\'email valida.'),
+                        'privacy' => __('Devi accettare l\'informativa sulla privacy.'),
+                        'db' => __('Errore di salvataggio. Riprova più tardi.'),
+                        default => __('Si è verificato un errore. Riprova.')
                     };
                     echo htmlspecialchars($errorMsg);
                     ?>
@@ -398,7 +398,7 @@ ob_start();
             <div>
                 <?php if (!empty($contactEmail) || !empty($contactPhone)): ?>
                 <div class="contact-info-section">
-                    <h2 class="contact-info-title">Informazioni di contatto</h2>
+                    <h2 class="contact-info-title"><?= __("Informazioni di contatto") ?></h2>
 
                     <?php if (!empty($contactEmail)): ?>
                     <div class="contact-info-item">
@@ -406,7 +406,7 @@ ob_start();
                             <i class="fas fa-envelope"></i>
                         </div>
                         <div class="contact-info-content">
-                            <h$1><?= __("$2") ?></h$1>
+                            <h4><?= __("Email") ?></h4>
                             <p><a href="mailto:<?= htmlspecialchars($contactEmail) ?>"><?= htmlspecialchars($contactEmail) ?></a></p>
                         </div>
                     </div>
@@ -418,7 +418,7 @@ ob_start();
                             <i class="fas fa-phone"></i>
                         </div>
                         <div class="contact-info-content">
-                            <h$1><?= __("$2") ?></h$1>
+                            <h4><?= __("Telefono") ?></h4>
                             <p><a href="tel:<?= htmlspecialchars($contactPhone) ?>"><?= htmlspecialchars($contactPhone) ?></a></p>
                         </div>
                     </div>
@@ -433,13 +433,13 @@ ob_start();
                         <div class="map-blocked-icon">
                             <i class="fas fa-map-marked-alt"></i>
                         </div>
-                        <p class="map-blocked-title" role="status">Mappa non disponibile</p>
+                        <p class="map-blocked-title" role="status"><?= __("Mappa non disponibile") ?></p>
                         <p class="map-blocked-description">
-                            Per visualizzare la mappa, accetta i cookie di Analytics nelle preferenze cookie.
+                            <?= __("Per visualizzare la mappa, accetta i cookie di Analytics nelle preferenze cookie.") ?>
                         </p>
                         <button type="button" class="map-blocked-button" onclick="if(window.CookieControl) window.CookieControl.open();">
                             <i class="fas fa-cookie-bite"></i>
-                            Gestisci preferenze cookie
+                            <?= __("Gestisci preferenze cookie") ?>
                         </button>
                     </div>
 
@@ -454,7 +454,7 @@ ob_start();
 
             <!-- Form -->
             <div class="contact-form-section">
-                <h2 class="contact-info-title">Inviaci un messaggio</h2>
+                <h2 class="contact-info-title"><?= __("Inviaci un messaggio") ?></h2>
 
                 <form method="post" action="/contatti/invia" id="contact-form">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
@@ -462,35 +462,35 @@ ob_start();
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="nome" class="form-label">__("Nome")<span class="required">*</span></label>
+                            <label for="nome" class="form-label"><?= __("Nome") ?><span class="required">*</span></label>
                             <input type="text" id="nome" name="nome" class="form-input" required aria-required="true" aria-describedby="nome-error">
                             <span id="nome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
                         </div>
                         <div class="form-group">
-                            <label for="cognome" class="form-label">Cognome<span class="required">*</span></label>
+                            <label for="cognome" class="form-label"><?= __("Cognome") ?><span class="required">*</span></label>
                             <input type="text" id="cognome" name="cognome" class="form-input" required aria-required="true" aria-describedby="cognome-error">
                             <span id="cognome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label for="email" class="form-label">__("Email")<span class="required">*</span></label>
+                        <label for="email" class="form-label"><?= __("Email") ?><span class="required">*</span></label>
                         <input type="email" id="email" name="email" class="form-input" required aria-required="true" aria-describedby="email-error">
                         <span id="email-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
                     </div>
 
                     <div class="form-group">
-                        <label for="telefono" class="form-label">__("Telefono")</label>
+                        <label for="telefono" class="form-label"><?= __("Telefono") ?></label>
                         <input type="tel" id="telefono" name="telefono" class="form-input">
                     </div>
 
                     <div class="form-group">
-                        <label for="indirizzo" class="form-label">__("Indirizzo")</label>
+                        <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?></label>
                         <input type="text" id="indirizzo" name="indirizzo" class="form-input">
                     </div>
 
                     <div class="form-group">
-                        <label for="messaggio" class="form-label">Messaggio<span class="required">*</span></label>
+                        <label for="messaggio" class="form-label"><?= __("Messaggio") ?><span class="required">*</span></label>
                         <textarea id="messaggio" name="messaggio" class="form-textarea" required aria-required="true" aria-describedby="messaggio-error"></textarea>
                         <span id="messaggio-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
                     </div>
@@ -503,7 +503,7 @@ ob_start();
 
                     <button type="submit" class="btn-submit">
                         <i class="fas fa-paper-plane"></i>
-                        <span>Invia messaggio</span>
+                        <span><?= __("Invia messaggio") ?></span>
                     </button>
                 </form>
             </div>
@@ -520,7 +520,7 @@ document.getElementById('contact-form').addEventListener('submit', function(e) {
     const submitBtn = form.querySelector('.btn-submit');
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Invio in corso...</span>';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span><?= addslashes(__("Invio in corso...")) ?></span>';
 
     grecaptcha.ready(function() {
         grecaptcha.execute('<?= htmlspecialchars($recaptchaSiteKey) ?>', {action: 'contact_form'}).then(function(token) {
