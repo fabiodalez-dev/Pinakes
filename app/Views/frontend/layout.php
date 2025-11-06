@@ -1196,10 +1196,10 @@ if (!function_exists('assetUrl')) {
                         <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                     </a>
                     <a href="<?= absoluteUrl('/prenotazioni') ?>" class="mobile-nav-link">
-                        <i class="fas fa-bookmark me-2"></i>Prenotazioni
+                        <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                     </a>
                     <a href="<?= absoluteUrl('/wishlist') ?>" class="mobile-nav-link">
-                        <i class="fas fa-heart me-2"></i>Preferiti
+                        <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                     </a>
                     <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                     <a href="<?= absoluteUrl('/admin/dashboard') ?>" class="mobile-nav-link">

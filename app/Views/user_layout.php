@@ -692,17 +692,17 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                             <div class="d-flex align-items-center gap-2">
                                 <a class="btn btn-outline-header" href="/prenotazioni">
                                     <i class="fas fa-bookmark"></i>
-                                    <span class="d-none d-sm-inline">Prenotazioni</span>
+                                    <span class="d-none d-sm-inline"><?= __("Prenotazioni") ?></span>
                                     <span id="nav-res-count" class="badge-notification d-none">0</span>
                                 </a>
                                 <a class="btn btn-outline-header" href="/wishlist">
                                     <i class="fas fa-heart"></i>
-                                    <span class="d-none d-sm-inline">Preferiti</span>
+                                    <span class="d-none d-sm-inline"><?= __("Preferiti") ?></span>
                                 </a>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                                 <a class="btn btn-primary-header" href="/admin/dashboard">
                                     <i class="fas fa-user-shield"></i>
-                                    <span class="d-none d-md-inline">Admin</span>
+                                    <span class="d-none d-md-inline"><?= __("Admin") ?></span>
                                 </a>
                                 <?php else: ?>
                                 <a class="btn btn-primary-header" href="/profilo">
@@ -715,11 +715,11 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                             <div class="d-flex align-items-center gap-2">
                                 <a class="btn btn-outline-header" href="/login">
                                     <i class="fas fa-sign-in-alt"></i>
-                                    <span class="d-none d-sm-inline">Accedi</span>
+                                    <span class="d-none d-sm-inline"><?= __("Accedi") ?></span>
                                 </a>
                                 <a class="btn btn-primary-header" href="/register">
                                     <i class="fas fa-user-plus"></i>
-                                    <span class="d-none d-sm-inline">Registrati</span>
+                                    <span class="d-none d-sm-inline"><?= __("Registrati") ?></span>
                                 </a>
                             </div>
                         <?php endif; ?>
@@ -751,14 +751,14 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                         <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                     </a>
                     <a href="/prenotazioni" class="mobile-nav-link">
-                        <i class="fas fa-bookmark me-2"></i>Prenotazioni
+                        <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                     </a>
                     <a href="/wishlist" class="mobile-nav-link">
-                        <i class="fas fa-heart me-2"></i>Preferiti
+                        <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                     </a>
                     <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                     <a href="/admin/dashboard" class="mobile-nav-link">
-                        <i class="fas fa-user-shield me-2"></i>Admin
+                        <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
                     </a>
                     <?php else: ?>
                     <a href="/profilo" class="mobile-nav-link">
@@ -768,10 +768,10 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                     <?php else: ?>
                     <hr class="mobile-menu-divider">
                     <a href="/login" class="mobile-nav-link">
-                        <i class="fas fa-sign-in-alt me-2"></i>Accedi
+                        <i class="fas fa-sign-in-alt me-2"></i><?= __("Accedi") ?>
                     </a>
                     <a href="/register" class="mobile-nav-link">
-                        <i class="fas fa-user-plus me-2"></i>Registrati
+                        <i class="fas fa-user-plus me-2"></i><?= __("Registrati") ?>
                     </a>
                     <?php endif; ?>
                 </nav>
@@ -832,8 +832,8 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                     <ul class="list-unstyled">
                         <li><a href="/user/dashboard">Dashboard</a></li>
                         <li><a href="/profilo">Profilo</a></li>
-                        <li><a href="/wishlist">Wishlist</a></li>
-                        <li><a href="/prenotazioni">Prenotazioni</a></li>
+                        <li><a href="/wishlist"><?= __("Preferiti") ?></a></li>
+                        <li><a href="/prenotazioni"><?= __("Prenotazioni") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">

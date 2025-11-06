@@ -1,11 +1,13 @@
 Missing Translations Report
-Generated: 2025-11-06 13:42:20
-Total missing: 593
+Generated: 2025-11-06 13:57:44
+Total missing: 584
 ================================================================================
 
 [ 10x] $1
 [  5x] $2
 [  4x] Il nome dell\
+[  2x] Generi
+[  2x] Editori
 [  2x] Titolo A-Z
 [  2x] Titolo Z-A
 [  2x] Nessun libro trovato
@@ -15,11 +17,13 @@ Total missing: 593
 [  2x] Caricamento libri...
 [  2x] Caricamento categorie...
 [  2x] Biblioteca
+[  2x] Recensioni
 [  2x] Errore di sicurezza. Riprova.
 [  2x] Search
 [  2x] Prenotazioni
 [  2x] Admin
 [  2x] Accedi
+[  2x] Collocazione
 [  2x] Nessun prestito attivo
 [  2x] Non specificata
 [  2x] Annullare questa prenotazione?
@@ -41,10 +45,8 @@ Total missing: 593
 [  2x] Conferma Salvataggio
 [  2x] Sì, Salva
 [  2x] Salvataggio in corso...
-[  2x] Approva
 [  2x] Importazione in corso...
 [  2x] CSRF non valido.
-[  2x] Sei sicuro di voler approvare questo prestito?
 [  2x] Installa Plugin
 [  2x] Carica %{smart_count} file
 [  2x] Statistiche Prestiti
@@ -117,8 +119,6 @@ Total missing: 593
 [  1x] Scopri migliaia di titoli nella nostra collezione digitale
 [  1x] Filtri
 [  1x] Cerca titoli, autori, ISBN...
-[  1x] Generi
-[  1x] Editori
 [  1x] Tutti i libri
 [  1x] Disponibili e in prestito
 [  1x] Pronti per il prestito
@@ -177,7 +177,6 @@ Total missing: 593
 [  1x] Dimensioni
 [  1x] Peso
 [  1x] Numero Inventario
-[  1x] Recensioni
 [  1x] recensioni
 [  1x] Accesso Richiesto
 [  1x] Vai al Login
@@ -212,8 +211,6 @@ Total missing: 593
 [  1x] Editore:
 [  1x] Eliminare questo scaffale? (Solo se vuoto)
 [  1x] Eliminare questa mensola? (Solo se vuota)
-[  1x] Collocazione
-[  1x] Autori
 [  1x] Richieste in sospeso
 [  1x] In attesa di approvazione
 [  1x] Prestiti attivi
@@ -394,9 +391,6 @@ Total missing: 593
 [  1x] Approva o rifiuta le richieste degli utenti
 [  1x] Nessuna richiesta in attesa
 [  1x] Non ci sono richieste di prestito in attesa di approvazione.
-[  1x] Inizio:
-[  1x] Fine:
-[  1x] Motivo del rifiuto (opzionale):
 [  1x] Gestione Plugin
 [  1x] Plugin Totali
 [  1x] Plugin Attivi
@@ -517,7 +511,6 @@ Total missing: 593
 [  1x] Modifica utente
 [  1x] Aggiorna le informazioni del profilo selezionato.
 [  1x] Lascia vuoto per non modificare
-[  1x] Approva Prestiti
 [  1x] fas fa-users
 [  1x] Rimuovere dalla wishlist?
 [  1x] Sei sicuro di voler rimuovere questo libro dalla tua wishlist?
@@ -543,8 +536,6 @@ Total missing: 593
 [  1x] Ripeti la password
 [  1x] Aggiorna password
 [  1x] Richieste in Sospeso
-[  1x] Prestiti in Corso
-[  1x] Nessun prestito in corso
 [  1x] Prenotazioni Attive
 [  1x] Nessuna prenotazione attiva
 [  1x] Nessuno storico

@@ -262,8 +262,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
               <i class="fas fa-user text-gray-600 text-sm"></i>
             </div>
             <div class="flex-1">
-              <div class="text-sm font-medium text-gray-900">Admin</div>
-              <div class="text-xs text-gray-500">Sistema attivo</div>
+              <div class="text-sm font-medium text-gray-900"><?= __("Admin") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Sistema attivo") ?></div>
             </div>
             <a href="/admin/settings" class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="<?= __('Impostazioni') ?>">
               <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
@@ -294,7 +294,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <?php endif; ?>
                   <div class="hidden sm:block">
                     <span class="font-bold text-lg text-gray-900"><?php echo HtmlHelper::e($appName); ?></span>
-                    <div class="text-xs text-gray-500">Sistema</div>
+                    <div class="text-xs text-gray-500"><?= __("Sistema") ?></div>
                   </div>
                 </div>
               </div>
@@ -305,7 +305,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-opacity duration-200">
                     <div class="flex items-center space-x-2">
                       <i class="fas fa-search text-gray-400 group-focus-within:text-gray-600 transition-colors"></i>
-                      <span class="hidden sm:inline text-xs text-gray-400 group-focus-within:text-gray-600 transition-colors">Cerca libri, autori, editori, utenti...</span>
+                      <span class="hidden sm:inline text-xs text-gray-400 group-focus-within:text-gray-600 transition-colors"><?= __("Cerca libri, autori, editori, utenti...") ?></span>
                     </div>
                   </div>
                   <input type="text" id="global-search"
@@ -329,7 +329,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
               <div class="flex items-center gap-1 sm:gap-2">
 
                 <!-- Mobile Search Button -->
-                <button id="mobile-search-button" class="lg:hidden p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="Cerca">
+                <button id="mobile-search-button" class="lg:hidden p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="<?= __("Cerca") ?>">
                   <i class="fas fa-search text-lg text-gray-600"></i>
                 </button>
 
@@ -355,7 +355,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <!-- Notifications Dropdown -->
                   <div id="notifications-dropdown" class="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
                     <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-                      <h3 class="text-lg font-semibold text-gray-900">Notifiche</h3>
+                      <h3 class="text-lg font-semibold text-gray-900"><?= __("Notifiche") ?></h3>
                       <button onclick="markAllNotificationsAsRead()" class="text-xs text-gray-900 hover:text-gray-700 font-medium">
                         Segna tutte come lette
                       </button>
@@ -363,7 +363,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     <div class="max-h-96 overflow-y-auto" id="notifications-list">
                       <div id="notifications-empty" class="p-8 text-center text-sm text-gray-500">
                         <i class="fas fa-bell-slash text-3xl mb-2 text-gray-300"></i>
-                        <p>Nessuna notifica</p>
+                        <p><?= __("Nessuna notifica") ?></p>
                       </div>
                     </div>
                     <div class="p-4 border-t border-gray-200 flex items-center justify-between">
@@ -434,7 +434,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                         </a>
                         <a href="/wishlist" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
                           <i class="fas fa-heart w-4 h-4"></i>
-                          <span class="text-sm">Preferiti</span>
+                          <span class="text-sm"><?= __("Preferiti") ?></span>
                         </a>
                         <a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
                           <i class="fas fa-cog w-4 h-4"></i>
@@ -455,10 +455,10 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     </div>
                   <?php else: ?>
                     <a href="/login" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 hidden sm:inline-flex items-center">
-                      <i class="fas fa-sign-in-alt mr-2"></i> Accedi
+                      <i class="fas fa-sign-in-alt mr-2"></i> <?= __("Accedi") ?>
                     </a>
                     <a href="/register" class="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 ml-2 hidden sm:inline-flex items-center">
-                      <i class="fas fa-user-plus mr-2"></i> Registrati
+                      <i class="fas fa-user-plus mr-2"></i> <?= __("Registrati") ?>
                     </a>
                     <div class="sm:hidden">
                       <a href="/login" class="p-2 rounded-xl hover:bg-gray-100"><i class="fas fa-sign-in-alt"></i></a>
