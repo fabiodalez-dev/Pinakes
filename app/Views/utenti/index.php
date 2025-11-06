@@ -25,21 +25,21 @@
         <div>
           <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
             <i class="fas fa-users text-gray-600"></i>
-            Gestione Utenti
+            <?= __("Gestione Utenti") ?>
           </h1>
-          <p class="text-gray-600">Esplora e gestisci gli utenti registrati alla biblioteca</p>
+          <p class="text-gray-600"><?= __("Esplora e gestisci gli utenti registrati alla biblioteca") ?></p>
         </div>
         <div class="hidden md:flex items-center gap-3">
           <a href="/admin/utenti/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-user-plus mr-2"></i>
-            Nuovo Utente
+            <?= __("Nuovo Utente") ?>
           </a>
         </div>
       </div>
       <div class="flex md:hidden mb-4">
         <a href="/admin/utenti/crea" class="w-full px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center">
           <i class="fas fa-user-plus mr-2"></i>
-          Nuovo Utente
+          <?= __("Nuovo Utente") ?>
         </a>
       </div>
     </div>

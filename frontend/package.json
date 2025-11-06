@@ -27,6 +27,7 @@
     "@uppy/progress-bar": "^4.3.2",
     "@uppy/xhr-upload": "^4.4.2",
     "bootstrap": "^5.3.8",
+    "chart.js": "^4.5.1",
     "choices.js": "^11.1.0",
     "datatables.net": "^2.3.4",
     "datatables.net-buttons": "^3.2.5",

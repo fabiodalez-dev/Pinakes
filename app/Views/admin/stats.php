@@ -26,7 +26,7 @@
   </div>
 
   <!-- Summary Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
       <div class="flex items-center justify-between">
         <div>
@@ -275,8 +275,7 @@
   </div>
 </section>
 
-<!-- Chart.js -->
-<script src="/assets/js/chart.umd.min.js"></script>
+<!-- Chart.js is loaded from vendor.bundle.js (window.Chart) -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   // Loans Per Month Chart

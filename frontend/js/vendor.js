@@ -22,6 +22,9 @@ import 'choices.js/public/assets/styles/choices.min.css';
 import Swal from 'sweetalert2';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
+// Chart.js - charting library (self-hosted, no CDN)
+import Chart from 'chart.js/auto';
+
 // DataTables and extensions
 import DataTable from 'datatables.net';
 import 'datatables.net-dt/css/dataTables.dataTables.min.css';
@@ -59,6 +62,7 @@ window.UppyProgressBar = ProgressBar.default || ProgressBar;
 window.UppyXHRUpload = XHRUpload.default || XHRUpload;
 window.Choices = Choices;
 window.Swal = Swal;
+window.Chart = Chart;
 
 // Flatpickr with Italian localization
 window.flatpickr = flatpickr;
