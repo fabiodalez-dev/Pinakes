@@ -29,14 +29,43 @@ final class I18n
     ];
 
     /**
-     * Translation cache (for future use with gettext)
+     * Translation cache
      */
     private static array $translations = [];
 
     /**
+     * Flag to track if translations have been loaded
+     */
+    private static bool $translationsLoaded = false;
+
+    /**
+     * Load translations from JSON file for current locale
+     */
+    private static function loadTranslations(): void
+    {
+        if (self::$translationsLoaded) {
+            return;
+        }
+
+        $locale = self::$locale;
+        $translationFile = __DIR__ . '/../../locale/' . $locale . '.json';
+
+        if (file_exists($translationFile)) {
+            $json = file_get_contents($translationFile);
+            $decoded = json_decode($json, true);
+
+            if (is_array($decoded)) {
+                self::$translations = $decoded;
+            }
+        }
+
+        self::$translationsLoaded = true;
+    }
+
+    /**
      * Translate a string
      *
-     * This is the main translation function. Currently returns the original string.
+     * This is the main translation function. Looks up translations from JSON files.
      *
      * Usage:
      *   I18n::translate('Hello World');
@@ -45,18 +74,22 @@ final class I18n
      *
      * @param string $message The message to translate
      * @param mixed ...$args Optional arguments for sprintf formatting
-     * @return string Translated message (currently returns original)
+     * @return string Translated message
      */
     public static function translate(string $message, ...$args): string
     {
-        // TODO: Implement gettext integration
-        // For now, just return the original message with sprintf formatting if args provided
+        // Load translations if not already loaded
+        self::loadTranslations();
 
+        // Look for translation in current locale
+        $translated = self::$translations[$message] ?? $message;
+
+        // Apply sprintf formatting if args provided
         if (empty($args)) {
-            return $message;
+            return $translated;
         }
 
-        return sprintf($message, ...$args);
+        return sprintf($translated, ...$args);
     }
 
     /**
@@ -73,11 +106,9 @@ final class I18n
 
         self::$locale = $locale;
 
-        // TODO: Configure gettext with new locale
-        // putenv("LC_ALL={$locale}");
-        // setlocale(LC_ALL, $locale);
-        // bindtextdomain('pinakes', __DIR__ . '/../../locale');
-        // textdomain('pinakes');
+        // Reset translations cache to force reload for new locale
+        self::$translations = [];
+        self::$translationsLoaded = false;
 
         return true;
     }
