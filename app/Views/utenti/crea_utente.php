@@ -175,7 +175,7 @@ $errorKey = (string)($_GET['error'] ?? '');
     const isAdmin = roleField.value === 'admin';
     if (phoneField) {
       phoneField.required = !isAdmin;
-      phoneField.placeholder = isAdmin ? __('Opzionale per amministratori') : '+39 123 456 7890';
+      phoneField.placeholder = isAdmin ? __('Opzionale per amministratori') : __('+39 123 456 7890');
     }
 
     adminBlocks.forEach((section) => {

@@ -26,16 +26,16 @@ $hasMapIframe = !empty(ConfigStore::get('contacts.google_maps_embed'));
 $showAnalytics = (bool)ConfigStore::get('cookie_banner.show_analytics', true) || $hasAnalyticsCode || $hasMapIframe;
 $showMarketing = (bool)ConfigStore::get('cookie_banner.show_marketing', true);
 $cookieBannerTexts = [
-    'banner_description' => (string)ConfigStore::get('cookie_banner.banner_description', '<p>Utilizziamo i cookie per migliorare la tua esperienza. Continuando a visitare questo sito, accetti il nostro uso dei cookie.</p>'),
-    'accept_all_text' => (string)ConfigStore::get('cookie_banner.accept_all_text', 'Accetta tutti'),
-    'reject_non_essential_text' => (string)ConfigStore::get('cookie_banner.reject_non_essential_text', 'Rifiuta non essenziali'),
-    'save_selected_text' => (string)ConfigStore::get('cookie_banner.save_selected_text', 'Accetta selezionati'),
-    'preferences_button_text' => (string)ConfigStore::get('cookie_banner.preferences_button_text', 'Preferenze'),
-    'preferences_title' => (string)ConfigStore::get('cookie_banner.preferences_title', 'Personalizza le tue preferenze sui cookie'),
-    'preferences_description' => (string)ConfigStore::get('cookie_banner.preferences_description', '<p>Rispettiamo il tuo diritto alla privacy. Puoi scegliere di non consentire alcuni tipi di cookie. Le tue preferenze si applicheranno all\'intero sito web.</p>'),
-    'cookie_essential_name' => (string)ConfigStore::get('cookie_banner.cookie_essential_name', 'Cookie Essenziali'),
-    'cookie_essential_description' => (string)ConfigStore::get('cookie_banner.cookie_essential_description', 'Questi cookie sono necessari per il funzionamento del sito e non possono essere disabilitati.'),
-    'cookie_analytics_name' => (string)ConfigStore::get('cookie_banner.cookie_analytics_name', 'Cookie Analitici'),
+    'banner_description' => (string)ConfigStore::get('cookie_banner.banner_description', '<p>' . __("Utilizziamo i cookie per migliorare la tua esperienza. Continuando a visitare questo sito, accetti il nostro uso dei cookie.") . '</p>'),
+    'accept_all_text' => (string)ConfigStore::get('cookie_banner.accept_all_text', __("Accetta tutti")),
+    'reject_non_essential_text' => (string)ConfigStore::get('cookie_banner.reject_non_essential_text', __("Rifiuta non essenziali")),
+    'save_selected_text' => (string)ConfigStore::get('cookie_banner.save_selected_text', __("Accetta selezionati")),
+    'preferences_button_text' => (string)ConfigStore::get('cookie_banner.preferences_button_text', __("Preferenze")),
+    'preferences_title' => (string)ConfigStore::get('cookie_banner.preferences_title', __("Personalizza le tue preferenze sui cookie")),
+    'preferences_description' => (string)ConfigStore::get('cookie_banner.preferences_description', '<p>' . __("Rispettiamo il tuo diritto alla privacy. Puoi scegliere di non consentire alcuni tipi di cookie. Le tue preferenze si applicheranno all'intero sito web.") . '</p>'),
+    'cookie_essential_name' => (string)ConfigStore::get('cookie_banner.cookie_essential_name', __("Cookie Essenziali")),
+    'cookie_essential_description' => (string)ConfigStore::get('cookie_banner.cookie_essential_description', __("Questi cookie sono necessari per il funzionamento del sito e non possono essere disabilitati.")),
+    'cookie_analytics_name' => (string)ConfigStore::get('cookie_banner.cookie_analytics_name', __("Cookie Analitici")),
     'cookie_analytics_description' => (string)ConfigStore::get('cookie_banner.cookie_analytics_description', 'Questi cookie ci aiutano a capire come i visitatori interagiscono con il sito web.'),
     'cookie_marketing_name' => (string)ConfigStore::get('cookie_banner.cookie_marketing_name', 'Cookie di Marketing'),
     'cookie_marketing_description' => (string)ConfigStore::get('cookie_banner.cookie_marketing_description', 'Questi cookie vengono utilizzati per fornire annunci personalizzati.'),
@@ -1447,7 +1447,7 @@ if (!function_exists('assetUrl')) {
 
             function displaySearchResults(results, container) {
                 if (results.length === 0) {
-                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: #9ca3af;">Nessun risultato trovato</div>';
+                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: #9ca3af;">' + __('Nessun risultato trovato') + '</div>';
                     container.style.display = 'block';
                     return;
                 }
@@ -1461,7 +1461,7 @@ if (!function_exists('assetUrl')) {
 
                 // Books section
                 if (books.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">Libri</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Libri') + '</h6>';
                     books.forEach(book => {
                         const bookUrl = sanitizeUrl(book.url ?? '#');
                         const coverUrl = sanitizeUrl(book.cover ?? '');
@@ -1483,11 +1483,11 @@ if (!function_exists('assetUrl')) {
 
                 // Authors section
                 if (authors.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">Autori</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Autori') + '</h6>';
                     authors.forEach(author => {
                         const authorUrl = sanitizeUrl(author.url ?? '#');
                         const authorName = escapeHtml(author.name ?? '');
-                        const authorBooks = escapeHtml(author.book_count ?? '0') + ' libri';
+                        const authorBooks = escapeHtml(author.book_count ?? '0') + __(' libri');
                         const authorBio = escapeHtml(author.biography ?? '');
 
                         html += '<a href="' + authorUrl + '" class="search-result-item author-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
@@ -1504,11 +1504,11 @@ if (!function_exists('assetUrl')) {
 
                 // Publishers section
                 if (publishers.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">Editori</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Editori') + '</h6>';
                     publishers.forEach(publisher => {
                         const publisherUrl = sanitizeUrl(publisher.url ?? '#');
                         const publisherName = escapeHtml(publisher.name ?? '');
-                        const publisherBooks = escapeHtml(publisher.book_count ?? '0') + ' libri';
+                        const publisherBooks = escapeHtml(publisher.book_count ?? '0') + __(' libri');
                         const publisherDesc = escapeHtml(publisher.description ?? '');
 
                         html += '<a href="' + publisherUrl + '" class="search-result-item publisher-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
