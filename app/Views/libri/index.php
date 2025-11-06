@@ -13,7 +13,7 @@ $libri = $data['libri'];
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
@@ -21,7 +21,7 @@ $libri = $data['libri'];
         </li>
         <li class="text-gray-900 font-medium">
           <a href="/admin/libri" class="text-gray-900 hover:text-gray-700">
-            <i class="fas fa-book mr-1"></i>Libri
+            <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
           </a>
         </li>
       </ol>
@@ -32,7 +32,7 @@ $libri = $data['libri'];
         <div>
           <h1 class="text-3xl font-bold text-gray-900 flex items-center">
             <i class="fas fa-book text-gray-600 mr-3"></i>
-            Gestione Libri
+            <?= __("Gestione Libri") ?>
           </h1>
           <p class="text-sm text-gray-600 mt-1"><?= __("Esplora e gestisci la collezione della biblioteca") ?></p>
         </div>
@@ -42,22 +42,22 @@ $libri = $data['libri'];
           </div>
           <a href="/admin/libri/import" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300" title="<?= __("Import massivo da CSV") ?>">
             <i class="fas fa-file-csv mr-2"></i>
-            Import CSV
+            <?= __("Import CSV") ?>
           </a>
           <a href="/admin/libri/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-plus mr-2"></i>
-            Nuovo Libro
+            <?= __("Nuovo Libro") ?>
           </a>
         </div>
       </div>
       <div class="flex md:hidden gap-3 mb-3">
         <a href="/admin/libri/import" class="flex-1 px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300" title="<?= __("Import massivo da CSV") ?>">
           <i class="fas fa-file-csv mr-2"></i>
-          Import CSV
+          <?= __("Import CSV") ?>
         </a>
         <a href="/admin/libri/crea" class="flex-1 px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center">
           <i class="fas fa-plus mr-2"></i>
-          Nuovo Libro
+          <?= __("Nuovo Libro") ?>
         </a>
       </div>
     </div>
@@ -67,7 +67,7 @@ $libri = $data['libri'];
       <div class="p-6 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-filter text-gray-600 mr-2"></i>
-          Filtri di Ricerca
+          <?= __("Filtri di Ricerca") ?>
         </h2>
         <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
           <i class="fas fa-chevron-up"></i>
@@ -79,7 +79,7 @@ $libri = $data['libri'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-search mr-1 text-gray-500"></i>
-              Cerca testo
+              <?= __("Cerca testo") ?>
             </label>
             <input id="search_text" placeholder="<?= __('Titolo, sottotitolo, descrizione...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -100,18 +100,18 @@ $libri = $data['libri'];
             <select id="stato_filter" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full">
               <option value=""><?= __("Tutti gli stati") ?></option>
               <option value="Disponibile"><?= __("Disponibile") ?></option>
-              <option value="Prestato">Prestato</option>
-              <option value="Riservato">Riservato</option>
-              <option value="Danneggiato">Danneggiato</option>
-              <option value="Perso">Perso</option>
-              <option value="In Riparazione">In Riparazione</option>
+              <option value="Prestato"><?= __("Prestato") ?></option>
+              <option value="Riservato"><?= __("Riservato") ?></option>
+              <option value="Danneggiato"><?= __("Danneggiato") ?></option>
+              <option value="Perso"><?= __("Perso") ?></option>
+              <option value="In Riparazione"><?= __("In Riparazione") ?></option>
             </select>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Data acquisizione da
+              <?= __("Data acquisizione da") ?>
             </label>
             <input id="acq_from" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -121,7 +121,7 @@ $libri = $data['libri'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Data acquisizione a
+              <?= __("Data acquisizione a") ?>
             </label>
             <input id="acq_to" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -129,7 +129,7 @@ $libri = $data['libri'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>
-              Data pubblicazione da
+              <?= __("Data pubblicazione da") ?>
             </label>
             <input id="pub_from" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -137,7 +137,7 @@ $libri = $data['libri'];
           <div class="relative">
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-user-edit mr-1 text-gray-500"></i>
-              Autore
+              <?= __("Autore") ?>
             </label>
             <input id="filter_autore" placeholder="<?= __('Cerca autore...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_autore_suggest" class="autocomplete-suggestions"></ul>
@@ -147,7 +147,7 @@ $libri = $data['libri'];
           <div class="relative">
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-building mr-1 text-gray-500"></i>
-              Editore
+              <?= __("Editore") ?>
             </label>
             <input id="filter_editore" placeholder="<?= __('Cerca editore...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_editore_suggest" class="autocomplete-suggestions"></ul>
@@ -159,7 +159,7 @@ $libri = $data['libri'];
           <div class="relative">
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-tags mr-1 text-gray-500"></i>
-              Genere
+              <?= __("Genere") ?>
             </label>
             <input id="filter_genere" placeholder="<?= __('Cerca genere...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_genere_suggest" class="autocomplete-suggestions"></ul>
@@ -169,7 +169,7 @@ $libri = $data['libri'];
           <div class="relative">
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-map-marker-alt mr-1 text-gray-500"></i>
-              Posizione
+              <?= __("Posizione") ?>
             </label>
             <input id="filter_posizione" placeholder="<?= __('Cerca posizione...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_posizione_suggest" class="autocomplete-suggestions"></ul>
@@ -179,7 +179,7 @@ $libri = $data['libri'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Anno pubblicazione da
+              <?= __("Anno pubblicazione da") ?>
             </label>
             <input id="anno_from" type="number" placeholder="<?= __('es. 2020') ?>" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -187,7 +187,7 @@ $libri = $data['libri'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Anno pubblicazione a
+              <?= __("Anno pubblicazione a") ?>
             </label>
             <input id="anno_to" type="number" placeholder="<?= __('es. 2024') ?>" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -196,16 +196,16 @@ $libri = $data['libri'];
         <div class="flex justify-between items-center pt-4 border-t border-gray-200">
           <div class="flex items-center text-sm text-gray-500">
             <i class="fas fa-info-circle text-gray-400 mr-2"></i>
-            <span>I filtri vengono applicati automaticamente mentre digiti</span>
+            <span><?= __("I filtri vengono applicati automaticamente mentre digiti") ?></span>
           </div>
           <div class="flex items-center gap-2">
             <button id="save-filters" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 text-sm" title="Salva filtri correnti">
               <i class="fas fa-save mr-2"></i>
-              Salva
+              <?= __("Salva") ?>
             </button>
             <button id="clear-filters" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
               <i class="fas fa-times mr-2"></i>
-              Cancella filtri
+              <?= __("Cancella filtri") ?>
             </button>
           </div>
         </div>
@@ -217,21 +217,21 @@ $libri = $data['libri'];
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-table text-gray-600 mr-2"></i>
-          Elenco Libri
+          <?= __("Elenco Libri") ?>
           <span id="total-count" class="ml-2 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"></span>
         </h2>
         <div id="export-buttons" class="flex items-center space-x-2">
           <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta CSV (formato compatibile per import)">
             <i class="fas fa-file-csv mr-1"></i>
-            CSV
+            <?= __("CSV") ?>
           </button>
           <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta PDF">
             <i class="fas fa-file-pdf mr-1"></i>
-            PDF
+            <?= __("PDF") ?>
           </button>
           <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Stampa">
             <i class="fas fa-print mr-1"></i>
-            Stampa
+            <?= __("Stampa") ?>
           </button>
         </div>
       </div>
@@ -597,13 +597,13 @@ document.addEventListener('DOMContentLoaded', function() {
       if (initialGenere) {
         const b = document.createElement('span');
         b.className = 'px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700';
-        b.textContent = 'Filtro genere attivo';
+        b.textContent = '<?= __("Filtro genere attivo") ?>';
         filterBar.appendChild(b);
       }
       if (initialSottogenere) {
         const b2 = document.createElement('span');
         b2.className = 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-700';
-        b2.textContent = 'Filtro sottogenere attivo';
+        b2.textContent = '<?= __("Filtro sottogenere attivo") ?>';
         filterBar.appendChild(b2);
       }
       if (filterBar.children.length) {
@@ -670,7 +670,7 @@ document.addEventListener('DOMContentLoaded', function() {
           suggestions.innerHTML = '';
 
           if (data.length === 0) {
-            suggestions.innerHTML = '<li class="px-3 py-2 text-gray-500 text-sm">Nessun risultato trovato</li>';
+            suggestions.innerHTML = '<li class="px-3 py-2 text-gray-500 text-sm"><?= __("Nessun risultato trovato") ?></li>';
           } else {
             data.slice(0, 8).forEach(item => {
               const li = document.createElement('li');
@@ -742,10 +742,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (filtersVisible) {
           icon.className = 'fas fa-chevron-up';
-          text.textContent = 'Nascondi filtri';
+          text.textContent = '<?= __("Nascondi filtri") ?>';
         } else {
           icon.className = 'fas fa-chevron-down';
-          text.textContent = 'Mostra filtri';
+          text.textContent = '<?= __("Mostra filtri") ?>';
         }
       });
     }
