@@ -111,3 +111,25 @@ window.DT_LANG_IT = {
   buttons: { copy: "Copia", colvis: "Visibilità colonne", excel: "Excel", pdf: "PDF", print: "Stampa", collection: "Collezione" },
   select: { rows: { _: "%d righe selezionate", 1: "1 riga selezionata" } }
 };
+
+// English translations for DataTables
+window.DT_LANG_EN = {
+  decimal: ".",
+  thousands: ",",
+  emptyTable: "No data available in table",
+  info: "Showing _START_ to _END_ of _TOTAL_ entries",
+  infoEmpty: "No entries available",
+  infoFiltered: "(filtered from _MAX_ total entries)",
+  lengthMenu: "Show _MENU_ entries",
+  loadingRecords: "Loading...",
+  processing: "Processing...",
+  search: "Search:",
+  zeroRecords: "No matching records found",
+  paginate: { first: "First", last: "Last", next: "Next", previous: "Previous" },
+  aria: {
+    sortAscending: ": activate to sort column ascending",
+    sortDescending: ": activate to sort column descending"
+  },
+  buttons: { copy: "Copy", colvis: "Column visibility", excel: "Excel", pdf: "PDF", print: "Print", collection: "Collection" },
+  select: { rows: { _: "%d rows selected", 1: "1 row selected" } }
+};
