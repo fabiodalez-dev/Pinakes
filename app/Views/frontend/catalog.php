@@ -1411,6 +1411,43 @@ $currentYear = (int)date('Y');
 
 $additional_js = <<<JS
 <script>
+// Translations object (PHP-rendered for JavaScript)
+const i18n = {
+    // Filter labels
+    search: <?= json_encode(__('Ricerca')) ?>,
+    genere: <?= json_encode(__('Genere')) ?>,
+    editore: <?= json_encode(__('Editore')) ?>,
+    disponibilita: <?= json_encode(__('Disponibilità')) ?>,
+    anno_min: <?= json_encode(__('Anno min')) ?>,
+    anno_max: <?= json_encode(__('Anno max')) ?>,
+    sort: <?= json_encode(__('Ordinamento')) ?>,
+
+    // Sort labels
+    newest: <?= json_encode(__('Più recenti')) ?>,
+    oldest: <?= json_encode(__('Più vecchi')) ?>,
+    title_asc: <?= json_encode(__('Titolo A-Z')) ?>,
+    title_desc: <?= json_encode(__('Titolo Z-A')) ?>,
+    author_asc: <?= json_encode(__('Autore A-Z')) ?>,
+    author_desc: <?= json_encode(__('Autore Z-A')) ?>,
+
+    // Status labels
+    disponibile: <?= json_encode(__('Disponibile')) ?>,
+    in_prestito: <?= json_encode(__('In prestito')) ?>,
+
+    // Actions
+    rimuovi_filtro: <?= json_encode(__('Rimuovi filtro')) ?>,
+    pagina_precedente: <?= json_encode(__('Pagina precedente')) ?>,
+    pagina_successiva: <?= json_encode(__('Pagina successiva')) ?>,
+    torna_categoria_superiore: <?= json_encode(__('Torna alla categoria superiore')) ?>,
+
+    // Plurals
+    libro_trovato: <?= json_encode(__('libro trovato')) ?>,
+    libri_trovati: <?= json_encode(__('libri trovati')) ?>,
+
+    // Errors
+    errore_caricamento: <?= json_encode(__('Errore nel caricamento. Riprova.')) ?>
+};
+
 let currentFilters = {};
 let searchTimeout;
 let loadingTimeout;
@@ -1530,22 +1567,22 @@ function updateActiveFiltersDisplay() {
     let hasActiveFilters = false;
 
     const filterLabels = {
-        search: __('Ricerca'),
-        genere: __('Genere'),
-        editore: __('Editore'),
-        disponibilita: __('Disponibilità'),
-        anno_min: __('Anno min'),
-        anno_max: __('Anno max'),
-        sort: __('Ordinamento'),
+        search: i18n.search,
+        genere: i18n.genere,
+        editore: i18n.editore,
+        disponibilita: i18n.disponibilita,
+        anno_min: i18n.anno_min,
+        anno_max: i18n.anno_max,
+        sort: i18n.sort,
     };
 
     const sortLabels = {
-        newest: __('Più recenti'),
-        oldest: __('Più vecchi'),
-        title_asc: __('Titolo A-Z'),
-        title_desc: __('Titolo Z-A'),
-        author_asc: __('Autore A-Z'),
-        author_desc: __('Autore Z-A'),
+        newest: i18n.newest,
+        oldest: i18n.oldest,
+        title_asc: i18n.title_asc,
+        title_desc: i18n.title_desc,
+        author_asc: i18n.author_asc,
+        author_desc: i18n.author_desc,
     };
 
     Object.keys(currentFilters).forEach((filterKey) => {
@@ -1564,7 +1601,7 @@ function updateActiveFiltersDisplay() {
         if (filterKey === 'sort') {
             displayValue = sortLabels[value] || value;
         } else if (filterKey === 'disponibilita') {
-            displayValue = value === 'disponibile' ? __('Disponibile') : __('In prestito');
+            displayValue = value === 'disponibile' ? i18n.disponibile : i18n.in_prestito;
         }
 
         const tag = document.createElement('span');
@@ -1574,7 +1611,7 @@ function updateActiveFiltersDisplay() {
         const closeBtn = document.createElement('span');
         closeBtn.className = 'filter-tag-remove';
         closeBtn.innerHTML = '&times;';
-        closeBtn.title = __('Rimuovi filtro');
+        closeBtn.title = i18n.rimuovi_filtro;
         closeBtn.addEventListener('click', () => removeFilter(filterKey));
 
         tag.appendChild(closeBtn);
@@ -1617,7 +1654,7 @@ function loadBooks() {
             const resultsText = document.getElementById('results-text');
             if (totalCount && resultsText && data.pagination) {
                 totalCount.textContent = data.pagination.total_books.toLocaleString();
-                resultsText.textContent = data.pagination.total_books === 1 ? __('libro trovato') : __('libri trovati');
+                resultsText.textContent = data.pagination.total_books === 1 ? i18n.libro_trovato : i18n.libri_trovati;
             }
 
             // Update filter options if provided
@@ -1631,7 +1668,7 @@ function loadBooks() {
             console.error('Error loading books:', error);
             loading.style.display = 'none';
             container.style.display = 'grid';
-            container.innerHTML = '<div class="col-12"><div class="alert alert-danger">' + __('Errore nel caricamento. Riprova.') + '</div></div>';
+            container.innerHTML = '<div class="col-12"><div class="alert alert-danger">' + i18n.errore_caricamento + '</div></div>';
         });
 }
 
@@ -1652,7 +1689,7 @@ function updatePagination(pagination) {
     let html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center">';
 
     if (current > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="' + __('Pagina precedente') + '"><i class="fas fa-chevron-left"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';
     }
 
     const visiblePages = 5;
@@ -1684,7 +1721,7 @@ function updatePagination(pagination) {
     }
 
     if (current < total) {
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current + 1) + ')" title="' + __('Pagina successiva') + '"><i class="fas fa-chevron-right"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current + 1) + ')" title="' + i18n.pagina_successiva + '"><i class="fas fa-chevron-right"></i></a></li>';
     }
 
     html += '</ul></nav>';
@@ -1713,9 +1750,9 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 const backValue = genreDisplay.level === 1 ? '' : (genreDisplay.parent?.nome || '');
                 const backEscaped = backValue.replace(/'/g, "\\'");
                 html += '<div class="filter-back-container">';
-                html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere\', \'' + backEscaped + '\'); return false;" title="' + __('Torna alla categoria superiore') + '">';
+                html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere\', \'' + backEscaped + '\'); return false;" title="' + i18n.torna_categoria_superiore + '">';
                 html += '<i class="fas fa-arrow-left"></i>';
-                html += '<span>' + __('Torna alla categoria superiore') + '</span>';
+                html += '<span>' + i18n.torna_categoria_superiore + '</span>';
                 html += '</a>';
                 html += '</div>';
             }
