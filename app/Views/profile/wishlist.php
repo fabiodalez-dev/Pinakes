@@ -266,8 +266,8 @@ $pendingCount = $totalItems - $availableCount;
 
 <section class="wishlist-hero">
   <div class="container text-center">
-    <h1 class="hero-title">I tuoi preferiti</h1>
-    <p class="hero-subtitle">Una panoramica dei libri che hai salvato per non perderli di vista.</p>
+    <h1 class="hero-title"><?= __("I tuoi preferiti") ?></h1>
+    <p class="hero-subtitle"><?= __("Una panoramica dei libri che hai salvato per non perderli di vista.") ?></p>
   </div>
 </section>
 
@@ -275,18 +275,18 @@ $pendingCount = $totalItems - $availableCount;
   <div class="wishlist-info-card">
     <div class="row g-4 align-items-center">
       <div class="col-md-6">
-        <h2 class="h4 fw-bold mb-2">Riepilogo wishlist</h2>
-        <p class="text-muted mb-0">Gestisci i tuoi titoli preferiti, scopri quando tornano disponibili e accedi rapidamente ai dettagli del libro.</p>
+        <h2 class="h4 fw-bold mb-2"><?= __("Riepilogo wishlist") ?></h2>
+        <p class="text-muted mb-0"><?= __("Gestisci i tuoi titoli preferiti, scopri quando tornano disponibili e accedi rapidamente ai dettagli del libro.") ?></p>
         <div class="wishlist-stat-badges">
-          <span class="wishlist-stat"><i class="fas fa-heart"></i> <span id="wishlist-total-count"><?= $totalItems; ?></span> preferiti</span>
-          <span class="wishlist-stat"><i class="fas fa-bolt"></i> <span id="wishlist-available-count"><?= $availableCount; ?></span> disponibili ora</span>
-          <span class="wishlist-stat"><i class="fas fa-clock"></i> <span id="wishlist-pending-count"><?= max($pendingCount, 0); ?></span> in attesa</span>
+          <span class="wishlist-stat"><i class="fas fa-heart"></i> <span id="wishlist-total-count"><?= $totalItems; ?></span> <?= __("preferiti") ?></span>
+          <span class="wishlist-stat"><i class="fas fa-bolt"></i> <span id="wishlist-available-count"><?= $availableCount; ?></span> <?= __("disponibili ora") ?></span>
+          <span class="wishlist-stat"><i class="fas fa-clock"></i> <span id="wishlist-pending-count"><?= max($pendingCount, 0); ?></span> <?= __("in attesa") ?></span>
         </div>
       </div>
       <div class="col-md-6 text-md-end">
         <div class="wishlist-actions justify-content-md-end">
-          <a href="/catalogo" class="btn-outline"><i class="fas fa-search me-2"></i>Esplora catalogo</a>
-          <a href="/prenotazioni" class="btn-outline"><i class="fas fa-bookmark me-2"></i>Prenotazioni</a>
+          <a href="/catalogo" class="btn-outline"><i class="fas fa-search me-2"></i><?= __("Esplora catalogo") ?></a>
+          <a href="/prenotazioni" class="btn-outline"><i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?></a>
         </div>
       </div>
     </div>
@@ -296,10 +296,10 @@ $pendingCount = $totalItems - $availableCount;
 <section class="container">
   <div class="wishlist-filter-card d-flex flex-column flex-md-row align-items-md-center justify-content-md-between gap-3">
     <div class="flex-grow-1">
-      <label for="wishlist_search" class="mb-2">Ricerca rapida</label>
+      <label for="wishlist_search" class="mb-2"><?= __("Ricerca rapida") ?></label>
       <input id="wishlist_search" type="search" class="form-control" placeholder="<?= __('Cerca per titolo o stato (es. disponibile)') ?>">
     </div>
-    <button id="clear-search" type="button" class="text-uppercase">Pulisci filtro</button>
+    <button id="clear-search" type="button" class="text-uppercase"><?= __("Pulisci filtro") ?></button>
   </div>
 </section>
 
@@ -309,18 +309,18 @@ $pendingCount = $totalItems - $availableCount;
       <div class="wishlist-empty-icon">
         <i class="fas fa-heart-broken"></i>
       </div>
-      <h2 class="h4 fw-bold mb-2">La tua wishlist è vuota</h2>
-      <p class="text-muted mb-4">Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.</p>
+      <h2 class="h4 fw-bold mb-2"><?= __("La tua wishlist è vuota") ?></h2>
+      <p class="text-muted mb-4"><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
       <div class="wishlist-actions justify-content-center">
-        <a href="/catalogo" class="btn-outline"><i class="fas fa-compass me-2"></i>Cerca titoli</a>
-        <a href="/dashboard" class="btn-outline"><i class="fas fa-arrow-left me-2"></i>Torna alla dashboard</a>
+        <a href="/catalogo" class="btn-outline"><i class="fas fa-compass me-2"></i><?= __("Cerca titoli") ?></a>
+        <a href="/dashboard" class="btn-outline"><i class="fas fa-arrow-left me-2"></i><?= __("Torna alla dashboard") ?></a>
       </div>
     </div>
   </section>
 <?php else: ?>
   <section class="container mb-5">
     <div id="wishlist-no-results" role="alert">
-      <i class="fas fa-info-circle me-2"></i>Nessun titolo corrisponde al filtro corrente.
+      <i class="fas fa-info-circle me-2"></i><?= __("Nessun titolo corrisponde al filtro corrente.") ?>
     </div>
     <div class="row g-4" id="wishlist-grid">
       <?php foreach ($items as $it):
@@ -338,18 +338,18 @@ $pendingCount = $totalItems - $availableCount;
         <div class="col-xl-4 col-md-6">
           <article class="wishlist-card" data-libro-id="<?= (int)$it['id']; ?>" data-title="<?= $dataTitle; ?>" data-status="<?= $statusLabel; ?>">
             <div class="wishlist-card-cover">
-              <img src="<?= HtmlHelper::e($cover); ?>" alt="Copertina" onerror="this.src='/uploads/copertine/placeholder.jpg'">
+              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= __("Copertina") ?>" onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </div>
             <div class="wishlist-card-body">
               <span class="wishlist-status <?= $available ? 'available' : 'pending'; ?>">
                 <i class="fas <?= $available ? 'fa-check-circle' : 'fa-clock'; ?>"></i>
-                <?= $available ? 'Disponibile ora' : 'In attesa'; ?>
+                <?= $available ? __("Disponibile ora") : __("In attesa"); ?>
               </span>
               <h3 class="wishlist-card-title mb-0"><?= HtmlHelper::e($it['titolo'] ?? ''); ?></h3>
-              <p class="text-muted small mb-0">Copie disponibili: <?= (int)($it['copie_disponibili'] ?? 0); ?></p>
+              <p class="text-muted small mb-0"><?= __("Copie disponibili:") ?> <?= (int)($it['copie_disponibili'] ?? 0); ?></p>
               <div class="wishlist-card-footer">
                 <a href="/libro/<?= (int)$it['id']; ?>" class="btn btn-outline-dark"><i class="fas fa-book-open me-2"></i><?= __("Dettagli") ?></a>
-                <button type="button" class="btn btn-light remove-fav-btn" title="Rimuovi dalla wishlist">
+                <button type="button" class="btn btn-light remove-fav-btn" title="<?= __("Rimuovi dalla wishlist") ?>">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
