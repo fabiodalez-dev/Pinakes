@@ -18,7 +18,7 @@ class CopyController
         $data = (array)$request->getParsedBody();
 
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
         }
 
@@ -28,7 +28,7 @@ class CopyController
         // Validazione stato
         $statiValidi = ['disponibile', 'prestato', 'manutenzione', 'danneggiato', 'perso'];
         if (!in_array($stato, $statiValidi)) {
-            $_SESSION['error_message'] = 'Stato non valido.';
+            $_SESSION['error_message'] = __('Stato non valido.');
             return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
         }
 
@@ -41,7 +41,7 @@ class CopyController
         $stmt->close();
 
         if (!$copy) {
-            $_SESSION['error_message'] = 'Copia non trovata.';
+            $_SESSION['error_message'] = __('Copia non trovata.');
             return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
         }
 
@@ -63,7 +63,7 @@ class CopyController
         // GESTIONE CAMBIO STATO -> "PRESTATO"
         // Non permettere cambio diretto a "prestato", deve usare il sistema prestiti
         if ($stato === 'prestato' && $statoCorrente !== 'prestato') {
-            $_SESSION['error_message'] = 'Per prestare una copia, utilizza il sistema Prestiti dalla sezione dedicata. Non è possibile impostare manualmente lo stato "Prestato".';
+            $_SESSION['error_message'] = __('Per prestare una copia, utilizza il sistema Prestiti dalla sezione dedicata. Non è possibile impostare manualmente lo stato "Prestato".');
             return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
         }
 
@@ -85,13 +85,13 @@ class CopyController
             $stmt->execute();
             $stmt->close();
 
-            $_SESSION['success_message'] = 'Prestito chiuso automaticamente. La copia è ora disponibile.';
+            $_SESSION['success_message'] = __('Prestito chiuso automaticamente. La copia è ora disponibile.');
         }
 
         // GESTIONE ALTRI STATI
         // Blocca modifiche se c'è un prestito attivo (eccetto cambio a disponibile già gestito)
         if ($prestito && !($statoCorrente === 'prestato' && $stato === 'disponibile')) {
-            $_SESSION['error_message'] = 'Impossibile modificare una copia attualmente in prestito. Prima termina il prestito o imposta lo stato su "Disponibile" per chiuderlo automaticamente.';
+            $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente in prestito. Prima termina il prestito o imposta lo stato su "Disponibile" per chiuderlo automaticamente.');
             return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
         }
 
@@ -105,7 +105,7 @@ class CopyController
         $integrity = new \App\Support\DataIntegrity($db);
         $integrity->recalculateBookAvailability($libroId);
 
-        $_SESSION['success_message'] = 'Stato della copia aggiornato con successo.';
+        $_SESSION['success_message'] = __('Stato della copia aggiornato con successo.');
         return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
     }
 
@@ -117,7 +117,7 @@ class CopyController
         $data = (array)$request->getParsedBody();
 
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Sessione scaduta. Riprova.';
+            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
             return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
         }
 
@@ -130,7 +130,7 @@ class CopyController
         $stmt->close();
 
         if (!$copy) {
-            $_SESSION['error_message'] = 'Copia non trovata.';
+            $_SESSION['error_message'] = __('Copia non trovata.');
             return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
         }
 
@@ -150,13 +150,13 @@ class CopyController
         $stmt->close();
 
         if ($hasPrestito) {
-            $_SESSION['error_message'] = 'Impossibile eliminare una copia attualmente in prestito.';
+            $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente in prestito.');
             return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
         }
 
         // Permetti eliminazione solo per copie perse, danneggiate o in manutenzione
         if (!in_array($stato, ['perso', 'danneggiato', 'manutenzione'])) {
-            $_SESSION['error_message'] = 'Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.';
+            $_SESSION['error_message'] = __('Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.');
             return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
         }
 
@@ -170,7 +170,7 @@ class CopyController
         $integrity = new \App\Support\DataIntegrity($db);
         $integrity->recalculateBookAvailability($libroId);
 
-        $_SESSION['success_message'] = 'Copia eliminata con successo.';
+        $_SESSION['success_message'] = __('Copia eliminata con successo.');
         return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
     }
 }
