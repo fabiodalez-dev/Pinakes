@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
     data: {
       labels: monthLabels,
       datasets: [{
-        label: __('Prestiti'),
+        label: '<?= addslashes(__("Prestiti")) ?>',
         data: monthValues,
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -345,11 +345,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const loansByStatusData = <?php echo json_encode($loansByStatus); ?>;
   const statusLabels = loansByStatusData.map(item => {
     const labels = {
-      'in_corso': __('In Corso'),
-      'pendente': __('Pendente'),
-      'in_ritardo': __('In Ritardo'),
-      'perso': __('Perso'),
-      'danneggiato': __('Danneggiato')
+      'in_corso': '<?= addslashes(__("In Corso")) ?>',
+      'pendente': '<?= addslashes(__("Pendente")) ?>',
+      'in_ritardo': '<?= addslashes(__("In Ritardo")) ?>',
+      'perso': '<?= addslashes(__("Perso")) ?>',
+      'danneggiato': '<?= addslashes(__("Danneggiato")) ?>'
     };
     return labels[item.stato] || item.stato;
   });
@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loansByStatusWrapper.innerHTML = `
       <div class="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-400">
         <i class="fas fa-chart-pie text-4xl"></i>
-        <p class="text-sm">${__('Nessun prestito disponibile per generare il grafico')}</p>
+        <p class="text-sm"><?= addslashes(__("Nessun prestito disponibile per generare il grafico")) ?></p>
       </div>
     `;
   } else if (loansByStatusCanvas) {
