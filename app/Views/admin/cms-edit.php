@@ -6,22 +6,22 @@
           <?= htmlspecialchars($title) ?>
         </h1>
         <a href="/admin/settings" class="btn-secondary">
-          <i class="fas fa-arrow-left mr-2"></i>Torna alle Impostazioni
+          <i class="fas fa-arrow-left mr-2"></i><?= __("Torna alle Impostazioni") ?>
         </a>
       </div>
 
       <?php if(isset($_GET['saved'])): ?>
         <div class="mt-3 p-3 bg-green-50 text-green-800 border border-green-200 rounded" role="alert">
-          <i class="fas fa-check-circle mr-2"></i>Pagina aggiornata con successo.
+          <i class="fas fa-check-circle mr-2"></i><?= __("Pagina aggiornata con successo.") ?>
         </div>
       <?php endif; ?>
       <?php if(isset($_GET['error']) && $_GET['error']==='csrf'): ?>
         <div class="mt-3 p-3 bg-red-50 text-red-800 border border-red-200 rounded" role="alert">
-          <i class="fas fa-exclamation-triangle mr-2"></i>CSRF non valido.
+          <i class="fas fa-exclamation-triangle mr-2"></i><?= __("CSRF non valido.") ?>
         </div>
       <?php elseif(isset($_GET['error'])): ?>
         <div class="mt-3 p-3 bg-red-50 text-red-800 border border-red-200 rounded" role="alert">
-          <i class="fas fa-exclamation-triangle mr-2"></i>Errore durante il salvataggio.
+          <i class="fas fa-exclamation-triangle mr-2"></i><?= __("Errore durante il salvataggio.") ?>
         </div>
       <?php endif; ?>
     </div>
@@ -34,7 +34,7 @@
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-heading text-blue-600"></i>
-            Titolo Pagina
+            <?= __("Titolo Pagina") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -44,7 +44,7 @@
             class="form-input w-full text-lg"
             value="<?= htmlspecialchars($pageData['title']) ?>"
             required
-            placeholder="<?= __("Inserisci $1") ?>">
+            placeholder="<?= __("Inserisci il titolo") ?>">
         </div>
       </div>
 
@@ -53,7 +53,7 @@
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-image text-blue-600"></i>
-            Immagine
+            <?= __("Immagine") ?>
           </h2>
         </div>
         <div class="card-body space-y-4">
@@ -68,7 +68,7 @@
               type="button"
               id="remove-image-btn"
               class="mt-2 text-red-600 hover:text-red-800 text-sm">
-              <i class="fas fa-trash mr-1"></i>Rimuovi immagine
+              <i class="fas fa-trash mr-1"></i><?= __("Rimuovi immagine") ?>
             </button>
           </div>
 
@@ -82,7 +82,7 @@
 
           <p class="text-sm text-gray-500">
             <i class="fas fa-info-circle mr-1"></i>
-            Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: 5MB
+            <?= __("Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: 5MB") ?>
           </p>
         </div>
       </div>
@@ -92,7 +92,7 @@
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-align-left text-blue-600"></i>
-            Contenuto
+            <?= __("Contenuto") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -108,7 +108,7 @@
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-search text-blue-600"></i>
-            SEO - Meta Description
+            <?= __("SEO - Meta Description") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -116,9 +116,9 @@
             name="meta_description"
             class="form-input w-full"
             rows="3"
-            placeholder="Breve descrizione per i motori di ricerca (max 160 caratteri)"><?= htmlspecialchars($pageData['meta_description'] ?? '') ?></textarea>
+            placeholder="<?= __("Breve descrizione per i motori di ricerca (max 160 caratteri)") ?>"><?= htmlspecialchars($pageData['meta_description'] ?? '') ?></textarea>
           <p class="text-sm text-gray-500 mt-1">
-            Questa descrizione apparirà nei risultati di ricerca di Google
+            <?= __("Questa descrizione apparirà nei risultati di ricerca di Google") ?>
           </p>
         </div>
       </div>
@@ -128,7 +128,7 @@
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-toggle-on text-blue-600"></i>
-            Stato
+            <?= __("Stato") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -138,7 +138,7 @@
               name="is_active"
               value="1"
               <?= $pageData['is_active'] ? 'checked' : '' ?>>
-            <span>Pagina attiva (visibile sul sito)</span>
+            <span><?= __("Pagina attiva (visibile sul sito)") ?></span>
           </label>
         </div>
       </div>
@@ -146,10 +146,10 @@
       <!-- Pulsanti -->
       <div class="flex items-center justify-between">
         <a href="/chi-siamo" target="_blank" class="btn-secondary">
-          <i class="fas fa-eye mr-2"></i>Anteprima
+          <i class="fas fa-eye mr-2"></i><?= __("Anteprima") ?>
         </a>
         <button type="submit" class="btn-primary">
-          <i class="fas fa-save mr-2"></i>Salva Modifiche
+          <i class="fas fa-save mr-2"></i><?= __("Salva Modifiche") ?>
         </button>
       </div>
     </form>
@@ -172,13 +172,13 @@ document.addEventListener('DOMContentLoaded', function() {
      ],
      toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | removeformat | help',
      style_formats: [
-       { title: __('Paragraph'), format: 'p' },
-       { title: __('Heading 1'), format: 'h1' },
-       { title: __('Heading 2'), format: 'h2' },
-       { title: __('Heading 3'), format: 'h3' },
-       { title: __('Heading 4'), format: 'h4' },
-       { title: __('Heading 5'), format: 'h5' },
-       { title: __('Heading 6'), format: 'h6' }
+       { title: '<?= addslashes(__("Paragraph")) ?>', format: 'p' },
+       { title: '<?= addslashes(__("Heading 1")) ?>', format: 'h1' },
+       { title: '<?= addslashes(__("Heading 2")) ?>', format: 'h2' },
+       { title: '<?= addslashes(__("Heading 3")) ?>', format: 'h3' },
+       { title: '<?= addslashes(__("Heading 4")) ?>', format: 'h4' },
+       { title: '<?= addslashes(__("Heading 5")) ?>', format: 'h5' },
+       { title: '<?= addslashes(__("Heading 6")) ?>', format: 'h6' }
      ],
      content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
      branding: false,
@@ -210,11 +210,11 @@ document.addEventListener('DOMContentLoaded', function() {
     proudlyDisplayPoweredByUppy: false,
     locale: {
       strings: {
-        dropPasteImport: 'Trascina qui l\'immagine, %{browse} o importa da',
-        browse: 'sfoglia',
+        dropPasteImport: '<?= addslashes(__("Trascina qui l'immagine, %{browse} o importa da")) ?>',
+        browse: '<?= addslashes(__("sfoglia")) ?>',
         uploadXFiles: {
-          0: 'Carica %{smart_count} file',
-          1: 'Carica %{smart_count} file'
+          0: '<?= addslashes(__("Carica %{smart_count} file")) ?>',
+          1: '<?= addslashes(__("Carica %{smart_count} file")) ?>'
         }
       }
     }
