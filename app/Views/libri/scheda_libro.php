@@ -502,11 +502,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numero Inventario</th>
+                <th>__("$1")</th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">__("Stato")</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prestito Attivo</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utente</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scadenza</th>
+                <th>__("$1")</th>
+                <th>__("$1")</th>
+                <th>__("$1")</th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">__("Note")</th>
                 <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">__("Azioni")</th>
               </tr>
@@ -631,13 +631,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utente</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Prestito</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Scadenza</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Restituzione</th>
+                <th>__("$1")</th>
+                <th>__("$1")</th>
+                <th>__("$1")</th>
+                <th>__("$1")</th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">__("Stato")</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rinnovi</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gestito da</th>
+                <th>__("$1")</th>
+                <th>__("$1")</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -790,12 +790,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($bookPath ?? ('/admin/libri/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
             <div>
-              <div class="text-xs uppercase text-gray-500">Utente</div>
+              <div class="$1"><?= __("$2") ?></div>
               <div class="font-medium"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? 'Sconosciuto'); ?></div>
               <div class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_email'] ?? ''); ?></div>
             </div>
             <div>
-              <div class="text-xs uppercase text-gray-500">Prestito</div>
+              <div class="$1"><?= __("$2") ?></div>
               <div class="font-medium">Dal <?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></div>
               <?php $modalLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
               <div class="text-xs <?php echo $modalLate ? 'text-red-600 font-semibold' : 'text-gray-500'; ?>">
@@ -884,7 +884,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </select>
           <p class="text-xs text-gray-600 mt-1">
             <i class="fas fa-info-circle text-blue-500 mr-1"></i>
-            <strong>Nota:</strong> Per prestare una copia, usa la sezione Prestiti. Imposta "Disponibile" per chiudere un prestito attivo.
+            <strong><?= __("$1") ?></strong> Per prestare una copia, usa la sezione Prestiti. Imposta "Disponibile" per chiudere un prestito attivo.
           </p>
         </div>
 

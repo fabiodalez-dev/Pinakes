@@ -199,9 +199,9 @@ function getStatusBadge($status) {
             <table id="prestiti-table" class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-slate-600">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left font-medium">Libro</th>
-                        <th scope="col" class="px-6 py-3 text-left font-medium">Utente</th>
-                        <th scope="col" class="px-6 py-3 text-left font-medium">Date</th>
+                        <th>__("$1")</th>
+                        <th>__("$1")</th>
+                        <th>__("$1")</th>
                         <th scope="col" class="px-6 py-3 text-center font-medium">__("Stato")</th>
                         <th scope="col" class="px-6 py-3 text-right font-medium">__("Azioni")</th>
                     </tr>

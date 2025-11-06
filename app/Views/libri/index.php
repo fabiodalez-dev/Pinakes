@@ -241,11 +241,11 @@ $libri = $data['libri'];
                 <thead>
                   <tr>
                     <th style="width:40px">__("Stato")</th>
-                    <th style="width:70px">Copertina</th>
-                    <th style="width:40%">Informazioni Principali</th>
-                    <th style="width:15%">Genere</th>
-                    <th style="width:10%">Posizione</th>
-                    <th style="width:8%">Anno</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
                     <th style="width:12%">__("Azioni")</th>
                   </tr>
                 </thead>

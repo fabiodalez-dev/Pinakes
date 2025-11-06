@@ -97,7 +97,7 @@
                   class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono text-xs"
                   placeholder='<iframe src="https://www.google.com/maps/embed?pb=..." ...></iframe>'><?php echo HtmlHelper::e($contactSettings['google_maps_embed'] ?? ''); ?></textarea>
         <div class="mt-2 text-xs text-gray-500 space-y-1">
-          <p><i class="fas fa-info-circle mr-1"></i><strong>Provider supportati:</strong></p>
+          <p><i class="fas fa-info-circle mr-1"></i><strong><?= __("$1") ?></strong></p>
           <ul class="ml-4 space-y-1">
             <li>• <a href="https://www.google.com/maps" target="_blank" class="text-blue-600 hover:underline">Google Maps</a>: https://www.google.com/maps/embed?pb=...</li>
             <li>• <a href="https://www.openstreetmap.org/" target="_blank" class="text-blue-600 hover:underline">OpenStreetMap</a>: https://www.openstreetmap.org/export/embed.html?bbox=...</li>

@@ -563,7 +563,7 @@ function createBookUrl($book) {
         <?php else: ?>
             <div class="empty-state">
                 <i class="fas fa-book-open"></i>
-                <h5>Nessun libro trovato</h5>
+                <h$1><?= __("$2") ?></h$1>
                 <p>
                     <?php if ($archive_type === 'autore'): ?>
                         Non sono stati trovati libri di questo autore.

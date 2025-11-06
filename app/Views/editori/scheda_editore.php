@@ -88,21 +88,21 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
 
         <div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">Libri pubblicati</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-2xl font-bold text-gray-900"><?php echo number_format($totalBooks, 0, ',', '.'); ?></div>
           </div>
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">Autori associati</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-2xl font-bold text-gray-900"><?php echo number_format($totalAuthors, 0, ',', '.'); ?></div>
           </div>
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">Ultimo aggiornamento</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-base font-semibold text-gray-900">
               <?php echo HtmlHelper::e($editore['updated_at'] ?? 'N/D'); ?>
             </div>
           </div>
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">ID Interno</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-base font-semibold text-gray-900">#<?php echo (int)($editore['id'] ?? 0); ?></div>
           </div>
         </div>

@@ -2079,7 +2079,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 title: __('Richiesta Inviata!'),
                 html: `Richiesta di prestito dal <strong>${formatDateIT(formValues.startDate)}</strong>` +
                       (formValues.endDate ? ` al <strong>${formatDateIT(formValues.endDate)}</strong>` : ' per 1 mese') +
-                      `<br><small class="text-muted">La richiesta è in attesa di approvazione dall'amministratore.</small>`
+                      `<br><small><?= __("$1") ?></small>`
               });
               return;
             } else {

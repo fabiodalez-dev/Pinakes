@@ -105,11 +105,11 @@ $totalLines = $data['total_lines'] ?? 0;
           <table id="logs-table" class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Timestamp</th>
+                <th>__("$1")</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">__("Tipo")</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">__("Email")</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">IP</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Dettagli</th>
+                <th>__("$1")</th>
+                <th>__("$1")</th>
               </tr>
             </thead>
             <tbody id="logs-body" class="divide-y divide-gray-100">

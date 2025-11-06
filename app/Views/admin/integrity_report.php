@@ -40,27 +40,27 @@
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div class="bg-gray-50 dark:bg-gray-900/20 p-4 rounded-lg border border-gray-200">
                     <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"><?= $report['statistics']['total_books'] ?></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Libri Totali</div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </div>
                 <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200" role="alert">
                     <div class="text-2xl font-bold text-green-700 dark:text-green-400"><?= $report['statistics']['books_available'] ?></div>
-                    <div class="text-sm text-green-600 dark:text-green-400">Libri Disponibili</div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </div>
                 <div class="bg-gray-50 dark:bg-gray-900/20 p-4 rounded-lg border border-gray-200">
                     <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"><?= $report['statistics']['books_unavailable'] ?></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Libri Non Disponibili</div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </div>
                 <div class="bg-gray-50 dark:bg-gray-900/20 p-4 rounded-lg border border-gray-200">
                     <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"><?= $report['statistics']['active_loans'] ?></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Prestiti Attivi</div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </div>
                 <div class="bg-gray-50 dark:bg-gray-900/20 p-4 rounded-lg border border-gray-200">
                     <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"><?= $report['statistics']['overdue_loans'] ?></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Prestiti Scaduti</div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </div>
                 <div class="bg-gray-50 dark:bg-gray-900/20 p-4 rounded-lg border border-gray-200">
                     <div class="text-2xl font-bold text-gray-900 dark:text-gray-100"><?= $report['statistics']['total_loans'] ?></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Prestiti Totali</div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </div>
             </div>
         </div>
@@ -126,7 +126,7 @@
                         <div class="flex items-center">
                             <i class="fas fa-info-circle text-yellow-600 dark:text-yellow-400 mr-3"></i>
                             <div>
-                                <div class="font-medium text-yellow-800 dark:text-yellow-200">Azione Consigliata</div>
+                                <div class="$1"><?= __("$2") ?></div>
                                 <div class="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                                     Clicca su "Esegui Manutenzione" per correggere automaticamente i problemi riparabili.
                                 </div>
@@ -144,20 +144,20 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <button onclick="recalculateAvailability()" class="p-4 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                     <i class="fas fa-calculator text-blue-500 text-2xl mb-2"></i>
-                    <div class="font-medium text-gray-900 dark:text-white">Ricalcola Disponibilità</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Aggiorna copie disponibili per tutti i libri</div>
+                    <div class="$1"><?= __("$2") ?></div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </button>
 
                 <button onclick="fixIssues()" class="p-4 border-2 border-dashed border-green-300 dark:border-green-700 rounded-lg hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
                     <i class="fas fa-wrench text-green-500 text-2xl mb-2"></i>
-                    <div class="font-medium text-gray-900 dark:text-white">Correggi Problemi</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Risolve automaticamente le inconsistenze</div>
+                    <div class="$1"><?= __("$2") ?></div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </button>
 
                 <button onclick="performMaintenance()" class="p-4 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-lg hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
                     <i class="fas fa-magic text-purple-500 text-2xl mb-2"></i>
-                    <div class="font-medium text-gray-900 dark:text-white">Manutenzione Completa</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Esegue tutte le correzioni disponibili</div>
+                    <div class="$1"><?= __("$2") ?></div>
+                    <div class="$1"><?= __("$2") ?></div>
                 </button>
             </div>
         </div>

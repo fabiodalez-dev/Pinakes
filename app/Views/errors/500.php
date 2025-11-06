@@ -229,7 +229,7 @@ ob_start();
         <div class="error-500-info">
             <i class="fas fa-lightbulb"></i>
             <div class="error-500-info-text">
-                <strong>Cosa puoi fare:</strong><br>
+                <strong><?= __("$1") ?></strong><br>
                 Prova a ricaricare la pagina o torna alla home. Se il problema persiste, riprova tra qualche minuto.
             </div>
         </div>

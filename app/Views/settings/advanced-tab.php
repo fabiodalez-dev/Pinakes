@@ -14,9 +14,9 @@ use App\Support\HtmlHelper;
           <div class="text-xs text-blue-800 space-y-2">
             <p>Gli script JavaScript sono divisi in 3 categorie in base alla tipologia di cookie:</p>
             <ul class="list-disc pl-5 space-y-1">
-              <li><strong>Essenziali:</strong> Si caricano sempre, indipendentemente dal consenso cookie</li>
-              <li><strong>Analitici:</strong> Si caricano solo se l'utente accetta i cookie Analytics nel banner</li>
-              <li><strong>Marketing:</strong> Si caricano solo se l'utente accetta i cookie Marketing nel banner</li>
+              <li><strong><?= __("$1") ?></strong> Si caricano sempre, indipendentemente dal consenso cookie</li>
+              <li><strong><?= __("$1") ?></strong> Si caricano solo se l'utente accetta i cookie Analytics nel banner</li>
+              <li><strong><?= __("$1") ?></strong> Si caricano solo se l'utente accetta i cookie Marketing nel banner</li>
             </ul>
             <p class="mt-3"><strong>⚙️ Comportamento Automatico:</strong> Se inserisci codice in "JavaScript Analitici" o "JavaScript Marketing", i rispettivi toggle in <a href="/admin/settings?tab=privacy#privacy" class="underline font-semibold">Impostazioni Privacy</a> verranno automaticamente selezionati.</p>
             <p class="mt-2"><strong>📋 Importante:</strong> Devi elencare manualmente i cookie tracciati da questi script nella <a href="/cookies" target="_blank" class="underline font-semibold">Pagina Cookie</a> per conformità GDPR.</p>
@@ -37,7 +37,7 @@ use App\Support\HtmlHelper;
           <div class="flex items-start gap-2">
             <i class="fas fa-bolt text-gray-600 mt-0.5"></i>
             <div class="text-xs text-gray-700">
-              <strong>Comportamento:</strong> Questi script si caricano <strong>sempre</strong>, senza richiedere consenso cookie.
+              <strong><?= __("$1") ?></strong> Questi script si caricano <strong>sempre</strong>, senza richiedere consenso cookie.
             </div>
           </div>
         </div>
@@ -45,7 +45,7 @@ use App\Support\HtmlHelper;
           <div class="flex items-start gap-2">
             <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5"></i>
             <div class="text-xs text-yellow-800">
-              <strong>Attenzione:</strong> Inserisci solo script che NON tracciano utenti. Per analytics/marketing usa le sezioni dedicate.
+              <strong><?= __("$1") ?></strong> Inserisci solo script che NON tracciano utenti. Per analytics/marketing usa le sezioni dedicate.
             </div>
           </div>
         </div>
@@ -78,7 +78,7 @@ use App\Support\HtmlHelper;
           <div class="flex items-start gap-2">
             <i class="fas fa-cookie-bite text-blue-600 mt-0.5"></i>
             <div class="text-xs text-blue-800">
-              <strong>Comportamento:</strong> Questi script si caricano <strong>solo se</strong> l'utente accetta i cookie Analytics nel banner.
+              <strong><?= __("$1") ?></strong> Questi script si caricano <strong>solo se</strong> l'utente accetta i cookie Analytics nel banner.
             </div>
           </div>
         </div>
@@ -124,7 +124,7 @@ use App\Support\HtmlHelper;
           <div class="flex items-start gap-2">
             <i class="fas fa-cookie-bite text-purple-600 mt-0.5"></i>
             <div class="text-xs text-purple-800">
-              <strong>Comportamento:</strong> Questi script si caricano <strong>solo se</strong> l'utente accetta i cookie Marketing nel banner.
+              <strong><?= __("$1") ?></strong> Questi script si caricano <strong>solo se</strong> l'utente accetta i cookie Marketing nel banner.
             </div>
           </div>
         </div>
@@ -171,7 +171,7 @@ use App\Support\HtmlHelper;
           <div class="flex items-start gap-2">
             <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
             <div class="text-xs text-gray-700">
-              <strong>Suggerimento:</strong> Usa questo campo per personalizzare lo stile del sito senza modificare i file di tema.
+              <strong><?= __("$1") ?></strong> Usa questo campo per personalizzare lo stile del sito senza modificare i file di tema.
             </div>
           </div>
         </div>
@@ -204,7 +204,7 @@ use App\Support\HtmlHelper;
           <div class="flex items-start gap-2">
             <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
             <div class="text-xs text-gray-700">
-              <strong>Funzionamento:</strong> Il sistema invierà automaticamente una email di promemoria agli utenti prima della scadenza del prestito. Il valore predefinito è 3 giorni.
+              <strong><?= __("$1") ?></strong> Il sistema invierà automaticamente una email di promemoria agli utenti prima della scadenza del prestito. Il valore predefinito è 3 giorni.
             </div>
           </div>
         </div>
@@ -231,7 +231,7 @@ use App\Support\HtmlHelper;
         </div>
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-3">
           <div class="text-xs text-gray-700">
-            <strong>Esempio:</strong> Con valore 3, un prestito che scade il 15 Gennaio riceverà l'avviso il 12 Gennaio
+            <strong><?= __("$1") ?></strong> Con valore 3, un prestito che scade il 15 Gennaio riceverà l'avviso il 12 Gennaio
           </div>
         </div>
       </div>
@@ -342,7 +342,7 @@ use App\Support\HtmlHelper;
 
       <!-- Cron Configuration -->
       <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-        <div class="text-sm font-semibold text-gray-900">Cron consigliato</div>
+        <div class="$1"><?= __("$2") ?></div>
         <code class="block text-xs bg-gray-900 text-green-400 border border-gray-800 rounded-lg p-3 overflow-x-auto"><?php echo HtmlHelper::e($cronExample); ?></code>
         <p class="text-xs text-gray-600">Esegue la rigenerazione ogni giorno alle 02:00 e registra il log in <code class="bg-gray-100 px-1 py-0.5 rounded">storage/logs/sitemap.log</code>.</p>
       </div>
@@ -374,7 +374,7 @@ use App\Support\HtmlHelper;
           </button>
         </form>
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-600 space-y-2 mt-4">
-          <div class="font-semibold text-gray-700 text-sm">Promemoria</div>
+          <div class="$1"><?= __("$2") ?></div>
           <ul class="list-disc pl-5 space-y-1">
             <li>Il file generato si trova in <code class="bg-gray-100 px-1 py-0.5 rounded">public/sitemap.xml</code></li>
             <li>Il cron utilizza gli stessi permessi dell'utente di sistema che lo esegue</li>
@@ -677,7 +677,7 @@ use App\Support\HtmlHelper;
           <div class="flex items-start gap-2">
             <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5"></i>
             <p class="text-xs text-yellow-800">
-              <strong>Attenzione:</strong> Salva la API key in un luogo sicuro. Non sarà possibile visualizzarla nuovamente dopo la creazione.
+              <strong><?= __("$1") ?></strong> Salva la API key in un luogo sicuro. Non sarà possibile visualizzarla nuovamente dopo la creazione.
             </p>
           </div>
         </div>

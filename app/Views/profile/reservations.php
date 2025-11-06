@@ -318,7 +318,7 @@
       <i class="fas fa-hourglass-half" style="color: white;"></i>
     </div>
     <div class="section-title">
-      <h2>Richieste di prestito in attesa</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?php echo count($pendingRequests); ?> richiesta<?php echo count($pendingRequests) !== 1 ? 'e' : ''; ?> in sospeso</p>
     </div>
   </div>
@@ -368,7 +368,7 @@
       <i class="fas fa-book-reader"></i>
     </div>
     <div class="section-title">
-      <h2>Prestiti in corso</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?php echo count($activePrestiti); ?> prestito<?php echo count($activePrestiti) !== 1 ? 'i' : ''; ?> attivo<?php echo count($activePrestiti) !== 1 ? 'i' : ''; ?></p>
     </div>
   </div>
@@ -376,7 +376,7 @@
   <?php if (empty($activePrestiti)): ?>
     <div class="empty-state">
       <i class="fas fa-book-open empty-state-icon"></i>
-      <h3>Nessun prestito attivo</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai libri in prestito al momento</p>
     </div>
   <?php else: ?>
@@ -436,7 +436,7 @@
       <i class="fas fa-bookmark"></i>
     </div>
     <div class="section-title">
-      <h2>Prenotazioni attive</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?php echo count($items); ?> prenotazione<?php echo count($items) !== 1 ? 'i' : ''; ?> attiva<?php echo count($items) !== 1 ? 'e' : ''; ?></p>
     </div>
   </div>
@@ -444,7 +444,7 @@
   <?php if (empty($items)): ?>
     <div class="empty-state">
       <i class="fas fa-calendar-times empty-state-icon"></i>
-      <h3>Nessuna prenotazione</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai prenotazioni attive al momento</p>
     </div>
   <?php else: ?>
@@ -497,7 +497,7 @@
       <i class="fas fa-history"></i>
     </div>
     <div class="section-title">
-      <h2>Storico prestiti</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?php echo count($pastPrestiti); ?> prestito<?php echo count($pastPrestiti) !== 1 ? 'i' : ''; ?> passat<?php echo count($pastPrestiti) !== 1 ? 'i' : 'o'; ?></p>
     </div>
   </div>
@@ -505,7 +505,7 @@
   <?php if (empty($pastPrestiti)): ?>
     <div class="empty-state">
       <i class="fas fa-archive empty-state-icon"></i>
-      <h3>Nessuno storico</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai prestiti passati</p>
     </div>
   <?php else: ?>
@@ -574,7 +574,7 @@
       <i class="fas fa-star"></i>
     </div>
     <div class="section-title">
-      <h2>Le mie recensioni</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?php echo isset($myReviews) ? count($myReviews) : 0; ?> recensione<?php echo (isset($myReviews) && count($myReviews) !== 1) ? 'i' : ''; ?></p>
     </div>
   </div>
@@ -582,7 +582,7 @@
   <?php if (empty($myReviews)): ?>
     <div class="empty-state">
       <i class="fas fa-star empty-state-icon"></i>
-      <h3>Nessuna recensione</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai ancora lasciato recensioni</p>
     </div>
   <?php else: ?>

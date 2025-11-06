@@ -196,7 +196,7 @@
     <div class="profile-header-icon">
       <i class="fas fa-user"></i>
     </div>
-    <h1>Il mio profilo</h1>
+    <h$1><?= __("$2") ?></h$1>
   </div>
 
   <?php if (!empty($_GET['success'])): ?>
@@ -351,9 +351,7 @@
           <label for="password" class="form-label">Nuova password</label>
           <input type="password" id="password" name="password" class="form-input" autocomplete="new-password" required aria-required="true" aria-describedby="password-error"
                  minlength="8" placeholder="Minimo 8 caratteri">
-          <small style="color: #6b7280; font-size: 0.75rem; margin-top: 0.25rem; display: block;">
-            Deve contenere maiuscole, minuscole e numeri
-          </small>
+          <small><?= __("$1") ?></small>
           <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
         <div class="form-group">

@@ -406,7 +406,7 @@ ob_start();
                             <i class="fas fa-envelope"></i>
                         </div>
                         <div class="contact-info-content">
-                            <h3>__("Email")</h3>
+                            <h$1><?= __("$2") ?></h$1>
                             <p><a href="mailto:<?= htmlspecialchars($contactEmail) ?>"><?= htmlspecialchars($contactEmail) ?></a></p>
                         </div>
                     </div>
@@ -418,7 +418,7 @@ ob_start();
                             <i class="fas fa-phone"></i>
                         </div>
                         <div class="contact-info-content">
-                            <h3>__("Telefono")</h3>
+                            <h$1><?= __("$2") ?></h$1>
                             <p><a href="tel:<?= htmlspecialchars($contactPhone) ?>"><?= htmlspecialchars($contactPhone) ?></a></p>
                         </div>
                     </div>

@@ -198,10 +198,10 @@ ob_start();
                             <table class="w-full text-sm">
                                 <thead class="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th class="px-4 py-2 text-left font-semibold text-gray-700">Campo</th>
-                                        <th class="px-4 py-2 text-left font-semibold text-gray-700">Obbligatorio</th>
+                                        <th>__("$1")</th>
+                                        <th>__("$1")</th>
                                         <th class="px-4 py-2 text-left font-semibold text-gray-700">__("Descrizione")</th>
-                                        <th class="px-4 py-2 text-left font-semibold text-gray-700">Esempio</th>
+                                        <th>__("$1")</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
@@ -215,7 +215,7 @@ ob_start();
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">autori</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded">Consigliato</span></td>
                                         <td class="px-4 py-3 text-gray-600">Autori multipli separati da <code>|</code></td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">Umberto Eco<br><small class="text-gray-400">Multipli: "Eco|Fellini"</small></td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs">Umberto Eco<br><small><?= __("$1") ?></small></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">editore</code></td>

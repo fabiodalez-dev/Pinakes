@@ -36,12 +36,12 @@
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
-            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">ID</th>
-            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Libro</th>
-            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Utente</th>
-            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Inizio</th>
-            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Fine</th>
-            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Coda</th>
+            <th>__("$1")</th>
+            <th>__("$1")</th>
+            <th>__("$1")</th>
+            <th>__("$1")</th>
+            <th>__("$1")</th>
+            <th>__("$1")</th>
             <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">__("Stato")</th>
             <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600">__("Azioni")</th>
           </tr>

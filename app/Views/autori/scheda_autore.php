@@ -111,11 +111,11 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
 
         <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">Libri in catalogo</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-2xl font-bold text-gray-900"><?php echo number_format($totalBooks, 0, ',', '.'); ?></div>
           </div>
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">Anni attivi</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-base font-semibold text-gray-900">
               <?php
                 if ($dataNascita && $dataMorte) {
@@ -131,11 +131,11 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             </div>
           </div>
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">Nazionalità</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-base font-semibold text-gray-900"><?php echo $nazionalita ? HtmlHelper::e($nazionalita) : 'N/D'; ?></div>
           </div>
           <div class="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
-            <div class="text-xs uppercase tracking-wide text-gray-500">Sito Web</div>
+            <div class="$1"><?= __("$2") ?></div>
             <div class="mt-1 text-base font-semibold text-gray-900 truncate">
               <?php if ($sitoWeb): ?>
                 <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="underline decoration-gray-400 hover:decoration-gray-600">

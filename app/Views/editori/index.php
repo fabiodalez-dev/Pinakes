@@ -142,10 +142,10 @@ $editori = $data['editori'];
               <table id="editori-table" class="display responsive nowrap" style="width:100%">
                 <thead>
                   <tr>
-                    <th style="width:30%">Nome Casa Editrice</th>
-                    <th style="width:20%">Sito Web</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
                     <th style="width:25%">__("Indirizzo")</th>
-                    <th style="width:15%">Città</th>
+                    <th>__("$1")</th>
                     <th style="width:10%" class="text-center">__("Azioni")</th>
                   </tr>
                 </thead>

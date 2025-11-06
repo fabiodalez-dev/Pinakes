@@ -446,7 +446,7 @@ $csrfToken = Csrf::ensureToken();
         <i class="fas fa-hourglass-half" aria-hidden="true"></i>
       </div>
       <div class="section-title">
-        <h2>Richieste di prestito in attesa</h2>
+        <h$1><?= __("$2") ?></h$1>
         <p><?= count($pendingRequests); ?> richiesta<?= count($pendingRequests) !== 1 ? 'e' : ''; ?> in sospeso</p>
       </div>
     </div>
@@ -500,7 +500,7 @@ $csrfToken = Csrf::ensureToken();
       <i class="fas fa-book-reader" aria-hidden="true"></i>
     </div>
     <div class="section-title">
-      <h2>Prestiti in corso</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?= count($activePrestiti); ?> prestito<?= count($activePrestiti) !== 1 ? 'i' : ''; ?> attivo<?= count($activePrestiti) !== 1 ? 'i' : ''; ?></p>
     </div>
   </div>
@@ -508,7 +508,7 @@ $csrfToken = Csrf::ensureToken();
   <?php if (empty($activePrestiti)): ?>
     <div class="empty-state">
       <i class="fas fa-book-open empty-state-icon" aria-hidden="true"></i>
-      <h3>Nessun prestito attivo</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai libri in prestito al momento</p>
     </div>
   <?php else: ?>
@@ -563,7 +563,7 @@ $csrfToken = Csrf::ensureToken();
       <i class="fas fa-bookmark" aria-hidden="true"></i>
     </div>
     <div class="section-title">
-      <h2>Prenotazioni attive</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?= count($items); ?> prenotazione<?= count($items) !== 1 ? 'i' : ''; ?> attiva<?= count($items) !== 1 ? 'e' : ''; ?></p>
     </div>
   </div>
@@ -571,7 +571,7 @@ $csrfToken = Csrf::ensureToken();
   <?php if (empty($items)): ?>
     <div class="empty-state">
       <i class="fas fa-calendar-times empty-state-icon" aria-hidden="true"></i>
-      <h3>Nessuna prenotazione</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai prenotazioni attive al momento</p>
     </div>
   <?php else: ?>
@@ -625,7 +625,7 @@ $csrfToken = Csrf::ensureToken();
       <i class="fas fa-history" aria-hidden="true"></i>
     </div>
     <div class="section-title">
-      <h2>Storico prestiti</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?= count($pastPrestiti); ?> prestito<?= count($pastPrestiti) !== 1 ? 'i' : ''; ?> passat<?= count($pastPrestiti) !== 1 ? 'i' : 'o'; ?></p>
     </div>
   </div>
@@ -633,7 +633,7 @@ $csrfToken = Csrf::ensureToken();
   <?php if (empty($pastPrestiti)): ?>
     <div class="empty-state">
       <i class="fas fa-archive empty-state-icon" aria-hidden="true"></i>
-      <h3>Nessuno storico</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai prestiti passati</p>
     </div>
   <?php else: ?>
@@ -695,7 +695,7 @@ $csrfToken = Csrf::ensureToken();
       <i class="fas fa-star" aria-hidden="true"></i>
     </div>
     <div class="section-title">
-      <h2>Le mie recensioni</h2>
+      <h$1><?= __("$2") ?></h$1>
       <p><?= count($myReviews); ?> recensione<?= count($myReviews) !== 1 ? 'i' : ''; ?></p>
     </div>
   </div>
@@ -703,7 +703,7 @@ $csrfToken = Csrf::ensureToken();
   <?php if (empty($myReviews)): ?>
     <div class="empty-state">
       <i class="fas fa-star empty-state-icon" aria-hidden="true"></i>
-      <h3>Nessuna recensione</h3>
+      <h$1><?= __("$2") ?></h$1>
       <p>Non hai ancora lasciato recensioni</p>
     </div>
   <?php else: ?>

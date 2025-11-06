@@ -511,7 +511,7 @@ async function showPluginDetails(pluginId) {
             let metadata = '';
 
             if (plugin.metadata && Object.keys(plugin.metadata).length > 0) {
-                metadata = '<div class="mt-4 text-sm"><strong>Metadata:</strong><pre class="bg-gray-100 p-2 rounded mt-2 text-xs overflow-auto">' +
+                metadata = '<div class="mt-4 text-sm"><strong><?= __("$1") ?></strong><pre class="bg-gray-100 p-2 rounded mt-2 text-xs overflow-auto">' +
                            JSON.stringify(plugin.metadata, null, 2) + '</pre></div>';
             }
 
@@ -519,14 +519,14 @@ async function showPluginDetails(pluginId) {
                 title: plugin.display_name,
                 html: `
                     <div class="text-left text-sm space-y-2">
-                        <p><strong>Nome:</strong> ${plugin.name}</p>
-                        <p><strong>Versione:</strong> ${plugin.version}</p>
-                        ${plugin.author ? `<p><strong>Autore:</strong> ${plugin.author}</p>` : ''}
-                        ${plugin.description ? `<p><strong>Descrizione:</strong> ${plugin.description}</p>` : ''}
-                        ${plugin.requires_php ? `<p><strong>Richiede PHP:</strong> ${plugin.requires_php}+</p>` : ''}
-                        ${plugin.requires_app ? `<p><strong>Richiede App:</strong> ${plugin.requires_app}+</p>` : ''}
-                        <p><strong>File principale:</strong> ${plugin.main_file}</p>
-                        <p><strong>Percorso:</strong> ${plugin.path}</p>
+                        <p><strong><?= __("$1") ?></strong> ${plugin.name}</p>
+                        <p><strong><?= __("$1") ?></strong> ${plugin.version}</p>
+                        ${plugin.author ? `<p><strong><?= __("$1") ?></strong> ${plugin.author}</p>` : ''}
+                        ${plugin.description ? `<p><strong><?= __("$1") ?></strong> ${plugin.description}</p>` : ''}
+                        ${plugin.requires_php ? `<p><strong><?= __("$1") ?></strong> ${plugin.requires_php}+</p>` : ''}
+                        ${plugin.requires_app ? `<p><strong><?= __("$1") ?></strong> ${plugin.requires_app}+</p>` : ''}
+                        <p><strong><?= __("$1") ?></strong> ${plugin.main_file}</p>
+                        <p><strong><?= __("$1") ?></strong> ${plugin.path}</p>
                         ${metadata}
                     </div>
                 `,

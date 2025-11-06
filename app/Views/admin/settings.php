@@ -145,21 +145,21 @@
 
               <div class="space-y-3">
                 <div>
-                  <p class="text-sm text-gray-600 mb-1"><strong>Opzione A:</strong> Esecuzione ogni ora (8:00-20:00)</p>
+                  <p class="text-sm text-gray-600 mb-1"><strong><?= __("$1") ?></strong> Esecuzione ogni ora (8:00-20:00)</p>
                   <code class="block bg-gray-800 text-green-400 p-2 rounded text-sm break-all">
 0 8-20 * * * /usr/bin/php <?php echo __DIR__; ?>/../../../cron/automatic-notifications.php >> <?php echo __DIR__; ?>/../../../logs/cron.log 2>&1
                   </code>
                 </div>
 
                 <div>
-                  <p class="text-sm text-gray-600 mb-1"><strong>Opzione B:</strong> Ogni 15 minuti nei giorni lavorativi (8:00-18:00)</p>
+                  <p class="text-sm text-gray-600 mb-1"><strong><?= __("$1") ?></strong> Ogni 15 minuti nei giorni lavorativi (8:00-18:00)</p>
                   <code class="block bg-gray-800 text-green-400 p-2 rounded text-sm break-all">
 */15 8-18 * * 1-5 /usr/bin/php <?php echo __DIR__; ?>/../../../cron/automatic-notifications.php >> <?php echo __DIR__; ?>/../../../logs/cron.log 2>&1
                   </code>
                 </div>
 
                 <div>
-                  <p class="text-sm text-gray-600 mb-1"><strong>Opzione C:</strong> Esecuzione ogni 30 minuti (consigliato)</p>
+                  <p class="text-sm text-gray-600 mb-1"><strong><?= __("$1") ?></strong> Esecuzione ogni 30 minuti (consigliato)</p>
                   <code class="block bg-gray-800 text-green-400 p-2 rounded text-sm break-all">
 */30 * * * * /usr/bin/php <?php echo __DIR__; ?>/../../../cron/automatic-notifications.php >> <?php echo __DIR__; ?>/../../../logs/cron.log 2>&1
                   </code>

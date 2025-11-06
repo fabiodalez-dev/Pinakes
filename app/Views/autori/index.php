@@ -176,10 +176,10 @@ $autori = $data['autori'];
               <table id="autori-table" class="display responsive nowrap" style="width:100%">
                 <thead>
                   <tr>
-                    <th style="width:35%">Nome e Cognome</th>
-                    <th style="width:20%">Pseudonimo</th>
-                    <th style="width:15%" class="text-center">Nazionalità</th>
-                    <th style="width:15%" class="text-center">Numero Libri</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
+                    <th>__("$1")</th>
                     <th style="width:15%" class="text-center">__("Azioni")</th>
                   </tr>
                 </thead>
