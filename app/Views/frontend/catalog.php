@@ -1,5 +1,5 @@
 <?php
-$title = "Catalogo Libri - Biblioteca";
+$title = __("Catalogo Libri - Biblioteca");
 if (!isset($filters)) {
     $filters = [];
 }
@@ -8,11 +8,11 @@ if (!isset($filters)) {
 $searchQuery = $filters['search'] ?? '';
 if ($searchQuery) {
     $sanitizedSearchQuery = htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8');
-    $seoTitle = "Risultati per '{$sanitizedSearchQuery}' - Catalogo Biblioteca";
-    $seoDescription = "Scopri tutti i libri che contengono '{$sanitizedSearchQuery}' nel nostro catalogo. Trova autori, titoli e argomenti correlati alla tua ricerca.";
+    $seoTitle = __("Risultati per '%s' - Catalogo Biblioteca", $sanitizedSearchQuery);
+    $seoDescription = __("Scopri tutti i libri che contengono '%s' nel nostro catalogo. Trova autori, titoli e argomenti correlati alla tua ricerca.", $sanitizedSearchQuery);
 } else {
-    $seoTitle = "Catalogo Completo Libri - Biblioteca Digitale";
-    $seoDescription = "Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.";
+    $seoTitle = __("Catalogo Completo Libri - Biblioteca Digitale");
+    $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
 $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/catalogo';
 $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
@@ -26,7 +26,7 @@ $seoSchema = json_encode([
     "url" => $seoCanonical,
     "isPartOf" => [
         "@type" => "Library",
-        "name" => "Biblioteca Digitale",
+        "name" => __("Biblioteca Digitale"),
         "url" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/'
     ],
     "potentialAction" => [
@@ -1118,15 +1118,15 @@ ob_start();
 <section class="catalog-header">
     <div class="container">
         <div class="catalog-header-content text-center">
-            <h1 class="catalog-title">Catalogo Libri</h1>
-            <p class="catalog-subtitle">Scopri migliaia di titoli nella nostra collezione digitale</p>
+            <h1 class="catalog-title"><?= __("Catalogo Libri") ?></h1>
+            <p class="catalog-subtitle"><?= __("Scopri migliaia di titoli nella nostra collezione digitale") ?></p>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb justify-content-center bg-transparent p-0 mb-0">
                     <li class="breadcrumb-item">
-                        <a href="/" class="text-white opacity-75">Home</a>
+                        <a href="/" class="text-white opacity-75"><?= __("Home") ?></a>
                     </li>
                     <li class="breadcrumb-item text-white active" aria-current="page">
-                        Catalogo
+                        <?= __("Catalogo") ?>
                     </li>
                 </ol>
             </nav>
@@ -1144,7 +1144,7 @@ ob_start();
                     <div class="filters-header">
                         <h5 class="filters-title">
                             <i class="fas fa-filter"></i>
-                            Filtri
+                            <?= __("Filtri") ?>
                         </h5>
                     </div>
 
@@ -1153,12 +1153,12 @@ ob_start();
                         <div class="filter-section">
                         <div class="filter-title">
                             <i class="fas fa-search"></i>
-                            Ricerca
+                            <?= __("Ricerca") ?>
                         </div>
                         <div class="search-box">
                             <input type="text"
                                    id="search-input"
-                                   placeholder="Cerca titoli, autori, ISBN..."
+                                   placeholder="<?= __("Cerca titoli, autori, ISBN...") ?>"
                                    value="<?= htmlspecialchars($filters['search'] ?? '') ?>"
                                    onkeyup="debounceSearch(this.value)">
                             <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true">
@@ -1171,13 +1171,13 @@ ob_start();
                     <div class="filter-section">
                         <div class="filter-title">
                             <i class="fas fa-tags"></i>
-                            Generi
+                            <?= __("Generi") ?>
                         </div>
                         <?php if($genre_display['level'] > 0): ?>
                             <div class="filter-back-container">
-                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere', '<?= $genre_display['level'] === 1 ? '' : addslashes($genre_display['parent']['nome'] ?? '') ?>'); return false;" title="Torna alla categoria superiore">
+                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere', '<?= $genre_display['level'] === 1 ? '' : addslashes($genre_display['parent']['nome'] ?? '') ?>'); return false;" title="<?= __("Torna alla categoria superiore") ?>">
                                     <i class="fas fa-arrow-left"></i>
-                                    <span>Torna alla categoria superiore</span>
+                                    <span><?= __("Torna alla categoria superiore") ?></span>
                                 </a>
                             </div>
                         <?php endif; ?>
@@ -1219,7 +1219,7 @@ ob_start();
                     <div class="filter-section">
                         <div class="filter-title">
                             <i class="fas fa-building"></i>
-                            Editori
+                            <?= __("Editori") ?>
                         </div>
                         <div class="filter-options" id="publishers-filter">
                             <?php foreach($filter_options['editori'] as $editore): ?>
@@ -1237,7 +1237,7 @@ ob_start();
                     <div class="filter-section">
                         <div class="filter-title">
                             <i class="fas fa-bookmark"></i>
-                            Disponibilità
+                            <?= __("Disponibilità") ?>
                         </div>
                         <div class="availability-options">
                         <div class="availability-option <?= empty($filters['disponibilita']) ? 'active' : '' ?>"
@@ -1247,8 +1247,8 @@ ob_start();
                                     <i class="fas fa-th-large"></i>
                                 </div>
                                 <div class="availability-text">
-                                    <div class="availability-title">Tutti i libri</div>
-                                    <div class="availability-desc">Disponibili e in prestito</div>
+                                    <div class="availability-title"><?= __("Tutti i libri") ?></div>
+                                    <div class="availability-desc"><?= __("Disponibili e in prestito") ?></div>
                                 </div>
                                 <div class="availability-count" id="total-books-count">
                                     <?= number_format($filter_options['availability_stats']['total'] ?? $total_books) ?>
@@ -1262,8 +1262,8 @@ ob_start();
                                     <i class="fas fa-check-circle"></i>
                                 </div>
                                 <div class="availability-text">
-                                    <div class="availability-title">Disponibili</div>
-                                    <div class="availability-desc">Pronti per il prestito</div>
+                                    <div class="availability-title"><?= __("Disponibili") ?></div>
+                                    <div class="availability-desc"><?= __("Pronti per il prestito") ?></div>
                                 </div>
                                 <div class="availability-count" id="available-books-count">
                                     <?= number_format($filter_options['availability_stats']['available'] ?? 0) ?>
@@ -1277,8 +1277,8 @@ ob_start();
                                     <i class="fas fa-clock"></i>
                                 </div>
                                 <div class="availability-text">
-                                    <div class="availability-title">__("In prestito")</div>
-                                    <div class="availability-desc">Attualmente prestati</div>
+                                    <div class="availability-title"><?= __("In prestito") ?></div>
+                                    <div class="availability-desc"><?= __("Attualmente prestati") ?></div>
                                 </div>
                                 <div class="availability-count" id="borrowed-books-count">
                                     <?= number_format($filter_options['availability_stats']['borrowed'] ?? 0) ?>
@@ -1291,7 +1291,7 @@ ob_start();
                     <div class="filter-section">
                         <div class="filter-title">
                             <i class="fas fa-calendar-alt"></i>
-                            Anno di pubblicazione
+                            <?= __("Anno di pubblicazione") ?>
                         </div>
                         <div class="year-range">
                             <div class="year-range-label">
@@ -1317,7 +1317,7 @@ ob_start();
                             </div>
                             <div class="year-values">
                                 <span class="year-value" id="year-min-value"><?= $filters['anno_min'] ?? 1900 ?></span>
-                                <button type="button" class="year-reset" onclick="resetYearRange()" title="Reset anni">
+                                <button type="button" class="year-reset" onclick="resetYearRange()" title="<?= __("Reset anni") ?>">
                                     <i class="fas fa-undo"></i>
                                 </button>
                                 <span class="year-value" id="year-max-value"><?= $filters['anno_max'] ?? date('Y') ?></span>
@@ -1329,7 +1329,7 @@ ob_start();
                     <div class="filter-section">
                         <button class="clear-all-btn" onclick="clearAllFilters()">
                             <i class="fas fa-times"></i>
-                            Pulisci tutti i filtri
+                            <?= __("Pulisci tutti i filtri") ?>
                         </button>
                     </div>
                     </div><!-- /filters-content -->
@@ -1340,7 +1340,7 @@ ob_start();
             <div class="col-lg-9">
                 <!-- Active Filters Display -->
                 <div id="active-filters" class="active-filters" style="display: none;">
-                    <div class="active-filters-title">Filtri attivi:</div>
+                    <div class="active-filters-title"><?= __("Filtri attivi:") ?></div>
                     <div class="filter-tags" id="active-filters-list"></div>
                 </div>
 
@@ -1348,20 +1348,20 @@ ob_start();
                 <div class="results-header">
                     <div class="results-info">
                         <strong id="total-count"><?= number_format($total_books) ?></strong>
-                        <span id="results-text"><?= $total_books == 1 ? 'libro trovato' : 'libri trovati' ?></span>
+                        <span id="results-text"><?= $total_books == 1 ? __('libro trovato') : __('libri trovati') ?></span>
                     </div>
                     <div style="display: flex; gap: 0.75rem; align-items: center;">
-                        <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="Rimuovi tutti i filtri">
+                        <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= __("Rimuovi tutti i filtri") ?>">
                             <i class="fas fa-filter-circle-xmark"></i>
-                            <span class="clear-filters-text">Pulisci filtri</span>
+                            <span class="clear-filters-text"><?= __("Pulisci filtri") ?></span>
                         </button>
                         <select class="sort-select" onchange="updateFilter('sort', this.value)" id="sort-select">
-                            <option value="newest" <?= ($filters['sort'] ?? 'newest') === 'newest' ? 'selected' : '' ?>>Più recenti</option>
-                            <option value="oldest" <?= ($filters['sort'] ?? 'newest') === 'oldest' ? 'selected' : '' ?>>Più vecchi</option>
-                            <option value="title_asc" <?= ($filters['sort'] ?? 'newest') === 'title_asc' ? 'selected' : '' ?>>Titolo A-Z</option>
-                            <option value="title_desc" <?= ($filters['sort'] ?? 'newest') === 'title_desc' ? 'selected' : '' ?>>Titolo Z-A</option>
-                            <option value="author_asc" <?= ($filters['sort'] ?? 'newest') === 'author_asc' ? 'selected' : '' ?>>Autore A-Z</option>
-                            <option value="author_desc" <?= ($filters['sort'] ?? 'newest') === 'author_desc' ? 'selected' : '' ?>>Autore Z-A</option>
+                            <option value="newest" <?= ($filters['sort'] ?? 'newest') === 'newest' ? 'selected' : '' ?>><?= __("Più recenti") ?></option>
+                            <option value="oldest" <?= ($filters['sort'] ?? 'newest') === 'oldest' ? 'selected' : '' ?>><?= __("Più vecchi") ?></option>
+                            <option value="title_asc" <?= ($filters['sort'] ?? 'newest') === 'title_asc' ? 'selected' : '' ?>><?= __("Titolo A-Z") ?></option>
+                            <option value="title_desc" <?= ($filters['sort'] ?? 'newest') === 'title_desc' ? 'selected' : '' ?>><?= __("Titolo Z-A") ?></option>
+                            <option value="author_asc" <?= ($filters['sort'] ?? 'newest') === 'author_asc' ? 'selected' : '' ?>><?= __("Autore A-Z") ?></option>
+                            <option value="author_desc" <?= ($filters['sort'] ?? 'newest') === 'author_desc' ? 'selected' : '' ?>><?= __("Autore Z-A") ?></option>
                         </select>
                     </div>
                 </div>
@@ -1382,11 +1382,11 @@ ob_start();
                     <!-- Empty State -->
                     <div id="empty-state" style="display: none;" class="empty-state">
                         <i class="fas fa-search empty-state-icon"></i>
-                        <h4 class="empty-state-title">Nessun libro trovato</h4>
-                        <p class="empty-state-text">Prova a modificare i filtri o la tua ricerca</p>
+                        <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
+                        <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
                         <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
                             <i class="fas fa-redo me-2"></i>
-                            Pulisci filtri
+                            <?= __("Pulisci filtri") ?>
                         </button>
                     </div>
                 </div>
@@ -1530,22 +1530,22 @@ function updateActiveFiltersDisplay() {
     let hasActiveFilters = false;
 
     const filterLabels = {
-        search: 'Ricerca',
-        genere: 'Genere',
-        editore: 'Editore',
-        disponibilita: 'Disponibilità',
-        anno_min: 'Anno min',
-        anno_max: 'Anno max',
-        sort: 'Ordinamento',
+        search: __('Ricerca'),
+        genere: __('Genere'),
+        editore: __('Editore'),
+        disponibilita: __('Disponibilità'),
+        anno_min: __('Anno min'),
+        anno_max: __('Anno max'),
+        sort: __('Ordinamento'),
     };
 
     const sortLabels = {
-        newest: 'Più recenti',
-        oldest: 'Più vecchi',
-        title_asc: 'Titolo A-Z',
-        title_desc: 'Titolo Z-A',
-        author_asc: 'Autore A-Z',
-        author_desc: 'Autore Z-A',
+        newest: __('Più recenti'),
+        oldest: __('Più vecchi'),
+        title_asc: __('Titolo A-Z'),
+        title_desc: __('Titolo Z-A'),
+        author_asc: __('Autore A-Z'),
+        author_desc: __('Autore Z-A'),
     };
 
     Object.keys(currentFilters).forEach((filterKey) => {
@@ -1564,7 +1564,7 @@ function updateActiveFiltersDisplay() {
         if (filterKey === 'sort') {
             displayValue = sortLabels[value] || value;
         } else if (filterKey === 'disponibilita') {
-            displayValue = value === 'disponibile' ? 'Disponibile' : 'In prestito';
+            displayValue = value === 'disponibile' ? __('Disponibile') : __('In prestito');
         }
 
         const tag = document.createElement('span');
@@ -1574,7 +1574,7 @@ function updateActiveFiltersDisplay() {
         const closeBtn = document.createElement('span');
         closeBtn.className = 'filter-tag-remove';
         closeBtn.innerHTML = '&times;';
-        closeBtn.title = 'Rimuovi filtro';
+        closeBtn.title = __('Rimuovi filtro');
         closeBtn.addEventListener('click', () => removeFilter(filterKey));
 
         tag.appendChild(closeBtn);
@@ -1617,7 +1617,7 @@ function loadBooks() {
             const resultsText = document.getElementById('results-text');
             if (totalCount && resultsText && data.pagination) {
                 totalCount.textContent = data.pagination.total_books.toLocaleString();
-                resultsText.textContent = data.pagination.total_books === 1 ? 'libro trovato' : 'libri trovati';
+                resultsText.textContent = data.pagination.total_books === 1 ? __('libro trovato') : __('libri trovati');
             }
 
             // Update filter options if provided
@@ -1631,7 +1631,7 @@ function loadBooks() {
             console.error('Error loading books:', error);
             loading.style.display = 'none';
             container.style.display = 'grid';
-            container.innerHTML = '<div class="col-12"><div class="alert alert-danger">Errore nel caricamento. Riprova.</div></div>';
+            container.innerHTML = '<div class="col-12"><div class="alert alert-danger">' + __('Errore nel caricamento. Riprova.') + '</div></div>';
         });
 }
 
@@ -1652,7 +1652,7 @@ function updatePagination(pagination) {
     let html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center">';
 
     if (current > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="Pagina precedente"><i class="fas fa-chevron-left"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="' + __('Pagina precedente') + '"><i class="fas fa-chevron-left"></i></a></li>';
     }
 
     const visiblePages = 5;
@@ -1684,7 +1684,7 @@ function updatePagination(pagination) {
     }
 
     if (current < total) {
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current + 1) + ')" title="Pagina successiva"><i class="fas fa-chevron-right"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current + 1) + ')" title="' + __('Pagina successiva') + '"><i class="fas fa-chevron-right"></i></a></li>';
     }
 
     html += '</ul></nav>';
@@ -1713,9 +1713,9 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 const backValue = genreDisplay.level === 1 ? '' : (genreDisplay.parent?.nome || '');
                 const backEscaped = backValue.replace(/'/g, "\\'");
                 html += '<div class="filter-back-container">';
-                html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere\', \'' + backEscaped + '\'); return false;" title="Torna alla categoria superiore">';
+                html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere\', \'' + backEscaped + '\'); return false;" title="' + __('Torna alla categoria superiore') + '">';
                 html += '<i class="fas fa-arrow-left"></i>';
-                html += '<span>Torna alla categoria superiore</span>';
+                html += '<span>' + __('Torna alla categoria superiore') + '</span>';
                 html += '</a>';
                 html += '</div>';
             }
