@@ -1706,12 +1706,12 @@ ob_start();
                 <!-- Book Info Card -->
                 <div class="card mb-4" style="position: relative; z-index: 100;" id="book-info-card">
                     <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informazioni Libro</h6>
+                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i><?= __("Informazioni Libro") ?></h6>
                     </div>
                     <div class="card-body">
                         <?php if (!empty($book['editore'])): ?>
                         <div class="meta-item">
-                            <div class="meta-label">Editore</div>
+                            <div class="meta-label"><?= __("Editore") ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['editore'] ?? '') ?></div>
                         </div>
                         <?php endif; ?>
@@ -1720,7 +1720,7 @@ ob_start();
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
                                 <span class="badge <?= ($book['copie_disponibili'] > 0) ? 'bg-success' : 'bg-danger' ?>">
-                                    <?= ($book['copie_disponibili'] > 0) ? 'Disponibile' : 'Non Disponibile' ?>
+                                    <?= ($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non Disponibile") ?>
                                 </span>
                             </div>
                         </div>
@@ -1828,7 +1828,7 @@ ob_start();
                         <div class="related-book-actions">
                             <a href="/libro/<?= (int)$related['id'] ?>/<?= urlencode(strtolower(str_replace(' ', '-', $related['titolo']))) ?>"
                                class="btn-related-view">
-                                <i class="fas fa-eye me-2"></i>Vedi Dettagli
+                                <i class="fas fa-eye me-2"></i><?= __("Vedi Dettagli") ?>
                             </a>
                         </div>
                     </div>
@@ -1869,11 +1869,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isFav) {
       favBtn.classList.remove('btn-outline-secondary');
       favBtn.classList.add('btn-danger');
-      span.textContent = 'Rimuovi dai Preferiti';
+      span.textContent = __('Rimuovi dai Preferiti');
     } else {
       favBtn.classList.add('btn-outline-secondary');
       favBtn.classList.remove('btn-danger');
-      span.textContent = 'Aggiungi ai Preferiti';
+      span.textContent = __('Aggiungi ai Preferiti');
     }
   }
 
