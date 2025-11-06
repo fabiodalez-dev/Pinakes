@@ -18,7 +18,7 @@ $cta = $sections['cta'] ?? null;
       <div>
         <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
           <i class="fas fa-home text-blue-600"></i>
-          Modifica Homepage
+          <?= __("Modifica Homepage") ?>
         </h1>
         <p class="mt-1 text-sm text-gray-600">
           Personalizza tutti i contenuti della homepage del sito
@@ -53,7 +53,7 @@ $cta = $sections['cta'] ?? null;
       <div class="border-b border-gray-200 px-6 py-4">
         <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-star text-yellow-500"></i>
-          Sezione Hero (Testata principale)
+          <?= __("Sezione Hero (Testata principale)") ?>
         </h2>
         <p class="text-sm text-gray-600 mt-1">La sezione principale che appare per prima sulla home</p>
       </div>
@@ -118,7 +118,7 @@ $cta = $sections['cta'] ?? null;
         <div>
           <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-th text-purple-500"></i>
-            Sezione Caratteristiche
+            <?= __("Sezione Caratteristiche") ?>
           </h2>
           <p class="text-sm text-gray-600 mt-1">Titolo della sezione e le 4 card con le caratteristiche</p>
         </div>
@@ -206,7 +206,7 @@ $cta = $sections['cta'] ?? null;
         <div>
           <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-align-left text-indigo-500"></i>
-            Sezione Testo Libero
+            <?= __("Sezione Testo Libero") ?>
           </h2>
           <p class="text-sm text-gray-600 mt-1">Contenuto testuale HTML con editor avanzato</p>
         </div>
@@ -244,7 +244,7 @@ $cta = $sections['cta'] ?? null;
         <div>
           <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-book text-green-500"></i>
-            Sezione Ultimi Libri
+            <?= __("Sezione Ultimi Libri") ?>
           </h2>
           <p class="text-sm text-gray-600 mt-1">Mostra gli ultimi libri aggiunti al catalogo</p>
         </div>
@@ -279,7 +279,7 @@ $cta = $sections['cta'] ?? null;
         <div>
           <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-bullhorn text-red-500"></i>
-            Call to Action (CTA)
+            <?= __("Call to Action (CTA)") ?>
           </h2>
           <p class="text-sm text-gray-600 mt-1">L'ultima sezione che invita all'azione</p>
         </div>

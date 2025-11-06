@@ -154,7 +154,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
       <div>
         <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <i class="fas fa-id-card text-gray-600"></i>
-          Profilo professionale
+          <?= __("Profilo professionale") ?>
         </h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
           <div>
@@ -214,7 +214,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
         <div>
           <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <i class="fas fa-feather text-gray-600"></i>
-            Biografia
+            <?= __("Biografia") ?>
           </h2>
           <div class="text-gray-700 leading-relaxed">
             <div class="prose prose-sm max-w-none">

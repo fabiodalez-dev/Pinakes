@@ -475,7 +475,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-sticky-note text-primary"></i>
-            Note
+            <?= __("Note") ?>
           </h2>
         </div>
         <div class="card-body text-gray-700">

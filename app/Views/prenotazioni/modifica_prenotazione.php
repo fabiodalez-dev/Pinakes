@@ -10,7 +10,7 @@
       </ol>
     </nav>
     <div class="bg-white border border-gray-200 rounded-2xl shadow p-6">
-      <h1 class="text-2xl font-bold text-gray-900 mb-4">Modifica Prenotazione #<?php echo (int)$p['id']; ?></h1>
+      <h1 class="text-2xl font-bold text-gray-900 mb-4"><?= sprintf(__("Modifica Prenotazione #%s"), (int)$p['id']) ?></h1>
       <div class="text-sm text-gray-600 mb-4">
         <i class="fas fa-book mr-1"></i><?= __("Libro:") ?><strong><?php echo App\Support\HtmlHelper::e($p['libro_titolo'] ?? ''); ?></strong><br>
         <i class="fas fa-user mr-1"></i><?= __("Utente:") ?><strong><?php echo App\Support\HtmlHelper::e($p['utente_nome'] ?? ''); ?></strong>

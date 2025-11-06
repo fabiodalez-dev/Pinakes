@@ -49,7 +49,7 @@
         <div class="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <i class="fas fa-sitemap text-primary"></i>
-            Sottogeneri
+            <?= __("Sottogeneri") ?>
           </h2>
         </div>
         <div class="p-6">
@@ -75,7 +75,7 @@
         <div class="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <i class="fas fa-plus text-primary"></i>
-            Aggiungi Sottogenere
+            <?= __("Aggiungi Sottogenere") ?>
           </h2>
         </div>
         <form method="post" action="/admin/generi/crea" class="p-6 space-y-4">

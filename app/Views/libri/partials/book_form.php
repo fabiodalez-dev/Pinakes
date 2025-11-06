@@ -83,7 +83,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-book text-primary"></i>
-            Informazioni Base
+            <?= __("Informazioni Base") ?>
           </h2>
         </div>
         <div class="card-body form-section">
@@ -301,7 +301,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-ruler text-primary"></i>
-            Dettagli Fisici
+            <?= __("Dettagli Fisici") ?>
           </h2>
         </div>
         <div class="card-body form-section">
@@ -344,7 +344,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-warehouse text-primary"></i>
-            Gestione Biblioteca
+            <?= __("Gestione Biblioteca") ?>
           </h2>
         </div>
         <div class="card-body form-section">
@@ -387,7 +387,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-image text-primary"></i>
-            Copertina del Libro
+            <?= __("Copertina del Libro") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -426,7 +426,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-map-marker-alt text-primary"></i>
-            Posizione Fisica nella Biblioteca
+            <?= __("Posizione Fisica nella Biblioteca") ?>
           </h2>
         </div>
         <div class="card-body form-section">

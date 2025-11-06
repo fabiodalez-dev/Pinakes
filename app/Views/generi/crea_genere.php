@@ -27,7 +27,7 @@
       <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60 p-6">
         <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
           <i class="fas fa-tags text-blue-600"></i>
-          Crea Nuovo Genere
+          <?= __("Crea Nuovo Genere") ?>
         </h1>
         <p class="text-gray-600 dark:text-gray-300">Aggiungi un genere o un sottogenere alla struttura.</p>
       </div>

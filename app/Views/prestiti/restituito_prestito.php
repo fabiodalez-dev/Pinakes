@@ -28,7 +28,7 @@ $csrfToken = Csrf::ensureToken();
             <p class="text-xs uppercase tracking-[0.3em] text-gray-500"><?= __("Gestione prestiti") ?></p>
             <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
                 <i class="fas fa-undo-alt text-gray-600"></i>
-                Restituzione prestito #<?= (int)($prestito['id'] ?? 0); ?>
+                <?= sprintf(__("Restituzione prestito #%s"), (int)($prestito['id'] ?? 0)) ?>
             </h1>
         </div>
         <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 whitespace-nowrap">
