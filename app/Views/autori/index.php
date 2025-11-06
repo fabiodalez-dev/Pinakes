@@ -2,7 +2,7 @@
 /**
  * @var array $data { autori: array }
  */
-$title = "Autori";
+$title = __("Autori");
 $autori = $data['autori'];
 ?>
 <!-- Modern Authors Management Interface -->
@@ -13,7 +13,7 @@ $autori = $data['autori'];
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
@@ -21,7 +21,7 @@ $autori = $data['autori'];
         </li>
         <li class="text-gray-900 font-medium">
           <a href="/admin/autori" class="text-gray-900 hover:text-gray-900">
-            <i class="fas fa-user-edit mr-1"></i>Autori
+            <i class="fas fa-user-edit mr-1"></i><?= __("Autori") ?>
           </a>
         </li>
       </ol>
@@ -32,9 +32,9 @@ $autori = $data['autori'];
         <div>
           <h1 class="text-3xl font-bold text-gray-900 flex items-center">
             <i class="fas fa-user-edit text-gray-800 mr-3"></i>
-            Gestione Autori
+            <?= __("Gestione Autori") ?>
           </h1>
-          <p class="text-sm text-gray-600 mt-1">Esplora e gestisci gli autori della biblioteca</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Esplora e gestisci gli autori della biblioteca") ?></p>
         </div>
         <div class="hidden md:flex items-center gap-3">
           <div class="hidden md:block">
@@ -42,7 +42,7 @@ $autori = $data['autori'];
           </div>
           <a href="/admin/autori/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-plus mr-2"></i>
-            Nuovo Autore
+            <?= __("Nuovo Autore") ?>
           </a>
         </div>
       </div>
@@ -59,7 +59,7 @@ $autori = $data['autori'];
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-filter text-gray-600 mr-2"></i>
-          Filtri di Ricerca
+          <?= __("Filtri di Ricerca") ?>
         </h2>
         <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
           <i class="fas fa-chevron-up"></i>
@@ -71,7 +71,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-search mr-1 text-gray-500"></i>
-              Nome autore
+              <?= __("Nome autore") ?>
             </label>
             <input id="search_nome" placeholder="<?= __('Cerca per nome...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -79,7 +79,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-id-card mr-1 text-gray-500"></i>
-              Pseudonimo
+              <?= __("Pseudonimo") ?>
             </label>
             <input id="search_pseudonimo" placeholder="<?= __('Cerca per pseudonimo...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -87,7 +87,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-flag mr-1 text-gray-500"></i>
-              Nazionalità
+              <?= __("Nazionalità") ?>
             </label>
             <input id="search_nazionalita" placeholder="<?= __('Es. Italiana, Americana...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -95,7 +95,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-globe mr-1 text-gray-500"></i>
-              Sito web
+              <?= __("Sito web") ?>
             </label>
             <input id="search_sito" placeholder="<?= __('URL sito web...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -105,7 +105,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Data nascita da
+              <?= __("Data nascita da") ?>
             </label>
             <input id="nascita_from" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -113,7 +113,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Data nascita a
+              <?= __("Data nascita a") ?>
             </label>
             <input id="nascita_to" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -121,7 +121,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Data morte da
+              <?= __("Data morte da") ?>
             </label>
             <input id="morte_from" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -129,7 +129,7 @@ $autori = $data['autori'];
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              Data morte a
+              <?= __("Data morte a") ?>
             </label>
             <input id="morte_to" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
@@ -138,11 +138,11 @@ $autori = $data['autori'];
         <div class="flex justify-between items-center pt-4 border-t border-gray-200">
           <div class="flex items-center text-sm text-gray-500">
             <i class="fas fa-info-circle text-gray-400 mr-2"></i>
-            <span>I filtri vengono applicati automaticamente mentre digiti</span>
+            <span><?= __("I filtri vengono applicati automaticamente mentre digiti") ?></span>
           </div>
           <button id="clear-filters" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
             <i class="fas fa-times mr-2"></i>
-            Cancella filtri
+            <?= __("Cancella filtri") ?>
           </button>
         </div>
       </div>
@@ -153,21 +153,21 @@ $autori = $data['autori'];
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-table text-gray-600 mr-2"></i>
-          Elenco Autori
+          <?= __("Elenco Autori") ?>
           <span id="total-count" class="ml-2 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"></span>
         </h2>
         <div id="export-buttons" class="flex items-center space-x-2">
-          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta Excel">
+          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Esporta Excel") ?>">
             <i class="fas fa-file-excel mr-1"></i>
-            Excel
+            <?= __("Excel") ?>
           </button>
-          <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Esporta PDF">
+          <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Esporta PDF") ?>">
             <i class="fas fa-file-pdf mr-1"></i>
-            PDF
+            <?= __("PDF") ?>
           </button>
-          <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="Stampa">
+          <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Stampa") ?>">
             <i class="fas fa-print mr-1"></i>
-            Stampa
+            <?= __("Stampa") ?>
           </button>
         </div>
       </div>
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
       {
         data: null, className: 'all',
         render: function(_, type, row) {
-          const nome = row.nome || 'Autore sconosciuto';
+          const nome = row.nome || __('Autore sconosciuto');
           const nazionalita = row.nazionalita ? `<div class="text-xs text-gray-500 mt-1">${row.nazionalita}</div>` : '';
 
           return `<div>
@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="flex items-center justify-center space-x-1">
               <a href="/admin/autori/${data}"
                  class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"
-                 title="Visualizza dettagli">
+                 title="<?= __("Visualizza dettagli") ?>">
                 <i class="fas fa-eye text-sm"></i>
               </a>
               <a href="/admin/autori/modifica/${data}"
@@ -312,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
     pageLength: 25,
     lengthMenu: [
       [10, 25, 50, 100, -1],
-      [10, 25, 50, 100, "Tutti"]
+      [10, 25, 50, 100, __("Tutti")]
     ],
     language: window.DT_LANG_IT,
     drawCallback: function(settings) {
@@ -396,10 +396,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (filtersVisible) {
           icon.className = 'fas fa-chevron-up';
-          text.textContent = 'Nascondi filtri';
+          text.textContent = __('Nascondi filtri');
         } else {
           icon.className = 'fas fa-chevron-down';
-          text.textContent = 'Mostra filtri';
+          text.textContent = __('Mostra filtri');
         }
       });
     }
@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
     doc.text(`Totale autori: ${data.length}`, 14, 38);
     
     // Table headers
-    const headers = ['Nome', 'Pseudonimo', 'Nazionalità', 'Libri'];
+    const headers = [__('Nome'), __('Pseudonimo'), __('Nazionalità'), __('Libri')];
     let yPos = 50;
     
     // Set font for table
