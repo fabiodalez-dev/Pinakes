@@ -441,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function() {
         responsivePriority: 3,
         render: function(data, type, row) {
           if (!data || data.trim() === '') {
-            return '<span class="text-gray-400 italic">Non specificato</span>';
+            return '<span class="text-gray-400 italic"><?= __("Non specificato") ?></span>';
           }
           const genres = data.split(' / ');
           let html = '';
@@ -460,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
         responsivePriority: 4,
         render: function(data, type, row) {
           if (!data || data.trim() === '' || data === 'N/D') {
-            return '<span class="text-gray-400 italic text-xs">Non assegnata</span>';
+            return '<span class="text-gray-400 italic text-xs"><?= __("Non assegnata") ?></span>';
           }
 
           // Parse the position string to separate components
