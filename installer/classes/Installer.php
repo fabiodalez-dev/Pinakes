@@ -17,7 +17,7 @@ class Installer {
     /**
      * Create .env file with database configuration
      */
-    public function createEnvFile($host, $user, $password, $database, $port = 3306, $socket = '') {
+    public function createEnvFile($host, $user, $password, $database, $port = 3306, $socket = '', $locale = 'it') {
         $envPath = $this->baseDir . '/.env';
 
         $envContent = "# Environment Configuration - Sistema Biblioteca\n";
@@ -35,6 +35,10 @@ class Installer {
         $envContent .= "# Application Environment\n";
         $envContent .= "# Set to 'production' for live environments, 'development' for local dev\n";
         $envContent .= "APP_ENV=production\n\n";
+
+        $envContent .= "# Application Language\n";
+        $envContent .= "# Default language for the entire application (it = Italian, en = English)\n";
+        $envContent .= "APP_LOCALE={$locale}\n\n";
 
         $envContent .= "# Debug Mode\n";
         $envContent .= "# MUST be false in production for security reasons\n";

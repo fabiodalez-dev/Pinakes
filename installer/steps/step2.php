@@ -68,8 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             }
         }
 
-        // Create .env file
-        if ($installer->createEnvFile($finalHost, $username, $password, $database, $port, $socket)) {
+        // Get selected language from session (default to Italian if not set)
+        $locale = $_SESSION['app_locale'] ?? 'it';
+
+        // Create .env file with language setting
+        if ($installer->createEnvFile($finalHost, $username, $password, $database, $port, $socket, $locale)) {
             $_SESSION['db_config'] = compact('finalHost', 'username', 'database', 'port', 'socket');
             completeStep(2);
             header('Location: index.php?step=3');

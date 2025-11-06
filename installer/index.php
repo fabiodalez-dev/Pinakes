@@ -4,8 +4,8 @@
  * Main Router
  */
 
-// Reset session if requested OR if starting from step 1
-if (isset($_GET['reset']) || (!isset($_GET['step']) || $_GET['step'] == 1)) {
+// Reset session if requested OR if starting from step 0 (language selection)
+if (isset($_GET['reset']) || (!isset($_GET['step']) || $_GET['step'] == 0)) {
     session_start();
     // Only destroy if reset is explicitly requested OR if there's an old installation_complete flag
     if (isset($_GET['reset']) || isset($_SESSION['installation_complete'])) {
@@ -146,17 +146,17 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
     ');
 }
 
-// Get current step
-$step = isset($_GET['step']) ? (int)$_GET['step'] : 1;
+// Get current step (start from 0 for language selection)
+$step = isset($_GET['step']) ? (int)$_GET['step'] : 0;
 
 // Validate step progression (prevent skipping steps)
 if (!isset($_SESSION['completed_steps'])) {
     $_SESSION['completed_steps'] = [];
 }
 
-// If trying to access step > 1, check if previous steps are completed
-if ($step > 1 && !in_array($step - 1, $_SESSION['completed_steps'])) {
-    $step = 1; // Force back to step 1
+// If trying to access step > 0, check if previous steps are completed
+if ($step > 0 && !in_array($step - 1, $_SESSION['completed_steps'])) {
+    $step = 0; // Force back to step 0 (language selection)
 }
 
 // Maximum steps
@@ -174,6 +174,7 @@ function completeStep($stepNumber) {
 // Helper function to render header
 function renderHeader($currentStep, $stepTitle) {
     $steps = [
+        0 => 'Lingua',
         1 => 'Benvenuto',
         2 => 'Database',
         3 => 'Installazione',

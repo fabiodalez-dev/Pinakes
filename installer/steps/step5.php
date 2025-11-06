@@ -21,6 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Save app name
             $installer->saveSetting('app', 'name', $appName);
 
+            // Save app language (from session, set in step 0)
+            $locale = $_SESSION['app_locale'] ?? 'it';
+            $installer->saveSetting('app', 'locale', $locale);
+
             // Handle logo upload (optional)
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['error'] !== UPLOAD_ERR_NO_FILE) {
                 if ($validator->validateFileUpload($_FILES['logo_file'])) {
