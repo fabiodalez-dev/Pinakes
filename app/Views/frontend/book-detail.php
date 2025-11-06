@@ -1394,9 +1394,9 @@ ob_start();
                             <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?> me-2"></i>
                             <?= ($book['copie_disponibili'] > 0)
                                 ? ($book['copie_totali'] > 1
-                                    ? "{$book['copie_disponibili']}/{$book['copie_totali']} Disponibili"
-                                    : 'Disponibile')
-                                : 'Non Disponibile' ?>
+                                    ? "{$book['copie_disponibili']}/{$book['copie_totali']} " . __("Disponibili")
+                                    : __("Disponibile"))
+                                : __("Non Disponibile") ?>
                         </span>
                     </div>
 
@@ -1726,19 +1726,19 @@ ob_start();
                         </div>
 
                         <div class="meta-item">
-                            <div class="meta-label">Copie Disponibili</div>
+                            <div class="meta-label"><?= __("Copie Disponibili") ?></div>
                             <div class="meta-value"><?= $book['copie_disponibili'] ?> / <?= $book['copie_totali'] ?></div>
                         </div>
 
                         <?php if (!empty($book['collocazione'])): ?>
                         <div class="meta-item">
-                            <div class="meta-label">Collocazione</div>
+                            <div class="meta-label"><?= __("Collocazione") ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['collocazione']) ?></div>
                         </div>
                         <?php endif; ?>
 
                         <div class="meta-item">
-                            <div class="meta-label">Aggiunto il</div>
+                            <div class="meta-label"><?= __("Aggiunto il") ?></div>
                             <div class="meta-value"><?= date('d/m/Y', strtotime($book['created_at'])) ?></div>
                         </div>
                     </div>
@@ -1747,24 +1747,24 @@ ob_start();
                 <!-- Share Card -->
                 <div class="card" id="book-share-card">
                     <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i>Condividi</h6>
+                        <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i><?= __("Condividi") ?></h6>
                     </div>
                     <div class="card-body">
                         <div class="d-flex justify-content-around">
                             <!-- Facebook Share -->
-                            <a href="#" class="social-icon-link" id="share-facebook" title="Condividi su Facebook" target="_blank" rel="noopener noreferrer">
+                            <a href="#" class="social-icon-link" id="share-facebook" title="<?= __("Condividi su Facebook") ?>" target="_blank" rel="noopener noreferrer">
                                 <i class="fab fa-facebook"></i>
                             </a>
                             <!-- Twitter/X Share -->
-                            <a href="#" class="social-icon-link" id="share-twitter" title="Condividi su Twitter" target="_blank" rel="noopener noreferrer">
+                            <a href="#" class="social-icon-link" id="share-twitter" title="<?= __("Condividi su Twitter") ?>" target="_blank" rel="noopener noreferrer">
                                 <i class="fab fa-twitter"></i>
                             </a>
                             <!-- WhatsApp Share -->
-                            <a href="#" class="social-icon-link" id="share-whatsapp" title="Condividi su WhatsApp" target="_blank" rel="noopener noreferrer">
+                            <a href="#" class="social-icon-link" id="share-whatsapp" title="<?= __("Condividi su WhatsApp") ?>" target="_blank" rel="noopener noreferrer">
                                 <i class="fab fa-whatsapp"></i>
                             </a>
                             <!-- Copy Link -->
-                            <button type="button" class="social-icon-link" id="copy-link" title="Copia link negli appunti" style="border: none; background: none; padding: 0; cursor: pointer;">
+                            <button type="button" class="social-icon-link" id="copy-link" title="<?= __("Copia link negli appunti") ?>" style="border: none; background: none; padding: 0; cursor: pointer;">
                                 <i class="fas fa-link"></i>
                             </button>
                         </div>
@@ -1779,7 +1779,7 @@ ob_start();
 <?php if (!empty($related_books) && count($related_books) > 0): ?>
 <section class="py-5" style="background: #f9fafb; margin-top: 3rem;">
     <div class="container">
-        <h3 class="text-center mb-5" style="font-weight: 700; font-size: 2rem; color: #1a1a1a;">Potrebbero interessarti</h3>
+        <h3 class="text-center mb-5" style="font-weight: 700; font-size: 2rem; color: #1a1a1a;"><?= __("Potrebbero interessarti") ?></h3>
         <div class="row g-4">
             <?php foreach($related_books as $related): ?>
             <div class="col-lg-4 col-md-6">
@@ -1802,7 +1802,7 @@ ob_start();
                         }
                         $relatedCoverAlt = trim(implode(' ', $relatedAltParts));
                         if ($relatedCoverAlt === '') {
-                            $relatedCoverAlt = 'Copertina del libro';
+                            $relatedCoverAlt = __("Copertina del libro");
                         }
                         ?>
                         <a href="/libro/<?= (int)$related['id'] ?>/<?= urlencode(strtolower(str_replace(' ', '-', $related['titolo']))) ?>">
@@ -1929,7 +1929,7 @@ document.addEventListener('DOMContentLoaded', function() {
           Swal.fire({
             icon: 'warning',
             title: __('Accesso Richiesto'),
-            html: '<p class="mb-3">Per richiedere un prestito devi effettuare il login.</p>',
+            html: '<p class="mb-3">' + __('Per richiedere un prestito devi effettuare il login.') + '</p>',
             confirmButtonText: __('Vai al Login'),
             cancelButtonText: __('Annulla'),
             showCancelButton: true,
@@ -1988,13 +1988,13 @@ document.addEventListener('DOMContentLoaded', function() {
           title: __('Richiesta Prestito'),
           html:
             `<div class="text-start">`+
-            `<label class="form-label">Quando vuoi iniziare il prestito?</label>`+
+            `<label class="form-label">${__('Quando vuoi iniziare il prestito?')}</label>`+
             `<input id="swal-date-start" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="<?= __('Data inizio') ?>">`+
-            `<label class="form-label mt-3">Fino a quando? (opzionale):</label>`+
+            `<label class="form-label mt-3">${__('Fino a quando? (opzionale):')}</label>`+
             `<input id="swal-date-end" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="<?= __('Lascia vuoto per 1 mese') ?>">`+
             `<div class="text-muted mt-2 small">`+
             `<i class="fas fa-info-circle me-1"></i>`+
-            `Le date rosse non sono disponibili. La richiesta verrà valutata da un amministratore.`+
+            `${__('Le date rosse non sono disponibili. La richiesta verrà valutata da un amministratore.')}`+
             `</div>`+
             `</div>`,
           focusConfirm: false,
@@ -2044,7 +2044,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const endDate = (document.getElementById('swal-date-end').value || '').trim();
 
             if (!startDate) {
-              Swal.showValidationMessage('Seleziona una data di inizio');
+              Swal.showValidationMessage(__('Seleziona una data di inizio'));
               return false;
             }
             return { startDate, endDate };
@@ -2078,7 +2078,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 icon: 'success',
                 title: __('Richiesta Inviata!'),
                 html: `Richiesta di prestito dal <strong>${formatDateIT(formValues.startDate)}</strong>` +
-                      (formValues.endDate ? ` al <strong>${formatDateIT(formValues.endDate)}</strong>` : ' per 1 mese') +
+                      (formValues.endDate ? ` al <strong>${formatDateIT(formValues.endDate)}</strong>` : __(' per 1 mese')) +
                       `<br><small><?= __("$1") ?></small>`
               });
               return;
@@ -2086,7 +2086,7 @@ document.addEventListener('DOMContentLoaded', function() {
               Swal.fire({
                 icon: 'error',
                 title: __('Errore'),
-                text: result.message || 'Impossibile creare la prenotazione'
+                text: result.message || __('Impossibile creare la prenotazione')
               });
             }
           } catch(e) {
@@ -2096,7 +2096,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       } else {
         // Fallback for browsers without SweetAlert
-        const date = prompt('Inserisci la data di inizio (YYYY-MM-DD)', suggestedDate);
+        const date = prompt(__('Inserisci la data di inizio (YYYY-MM-DD)'), suggestedDate);
         if (date) {
           try {
             const res = await fetch(`/api/libro/${libroId}/reservation`, {
@@ -2111,9 +2111,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await res.json();
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              alert('Prenotazione effettuata per ' + date);
+              alert(__('Prenotazione effettuata per ') + date);
             } else {
-              alert('Errore: ' + (result.message || 'Impossibile creare la prenotazione'));
+              alert(__('Errore: ') + (result.message || __('Impossibile creare la prenotazione')));
             }
           } catch(_) {
             alert(__('Errore nella prenotazione'));

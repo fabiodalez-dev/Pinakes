@@ -478,9 +478,9 @@ ob_start();
 <section class="hero-section" style="background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), url('<?php echo htmlspecialchars($homeContent['hero']['background_image'] ?? '/uploads/assets/books.jpg', ENT_QUOTES, 'UTF-8'); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;">
     <div class="container">
         <div class="hero-content text-center">
-            <h1 class="hero-title"><?php echo htmlspecialchars($homeContent['hero']['title'] ?? 'La Tua Biblioteca Digitale', ENT_QUOTES, 'UTF-8'); ?></h1>
+            <h1 class="hero-title"><?php echo htmlspecialchars($homeContent['hero']['title'] ?? __("La Tua Biblioteca Digitale"), ENT_QUOTES, 'UTF-8'); ?></h1>
             <p class="hero-subtitle">
-                <?php echo htmlspecialchars($homeContent['hero']['subtitle'] ?? 'Scopri, prenota e gestisci i tuoi libri preferiti con la nostra piattaforma elegante e moderna.', ENT_QUOTES, 'UTF-8'); ?>
+                <?php echo htmlspecialchars($homeContent['hero']['subtitle'] ?? __("Scopri, prenota e gestisci i tuoi libri preferiti con la nostra piattaforma elegante e moderna."), ENT_QUOTES, 'UTF-8'); ?>
             </p>
 
             <!-- Hero Search Bar -->
@@ -545,15 +545,15 @@ ob_start();
 <?php if (!empty($homeContent['features_title'])): ?>
 <section class="section section-alt">
     <div class="container">
-        <h2 class="section-title"><?php echo htmlspecialchars($homeContent['features_title']['title'] ?? 'Perché Scegliere la Nostra Biblioteca', ENT_QUOTES, 'UTF-8'); ?></h2>
+        <h2 class="section-title"><?php echo htmlspecialchars($homeContent['features_title']['title'] ?? __("Perché Scegliere la Nostra Biblioteca"), ENT_QUOTES, 'UTF-8'); ?></h2>
         <p class="section-subtitle">
-            <?php echo htmlspecialchars($homeContent['features_title']['subtitle'] ?? 'Un\'esperienza di lettura moderna, intuitiva e sempre a portata di mano', ENT_QUOTES, 'UTF-8'); ?>
+            <?php echo htmlspecialchars($homeContent['features_title']['subtitle'] ?? __("Un'esperienza di lettura moderna, intuitiva e sempre a portata di mano"), ENT_QUOTES, 'UTF-8'); ?>
         </p>
         <div class="feature-grid">
             <?php for ($i = 1; $i <= 4; $i++):
                 $feature = $homeContent["feature_{$i}"] ?? [];
                 $icon = $feature['content'] ?? 'fas fa-star';
-                $title = $feature['title'] ?? "Feature {$i}";
+                $title = $feature['title'] ?? sprintf(__("Feature %d"), $i);
                 $desc = $feature['subtitle'] ?? '';
             ?>
             <div class="feature-card">
@@ -589,9 +589,9 @@ ob_start();
 <?php if (!empty($homeContent['latest_books_title'])): ?>
 <section id="latest-books" class="section">
     <div class="container">
-        <h2 class="section-title"><?php echo htmlspecialchars($homeContent['latest_books_title']['title'] ?? 'Ultimi Libri Aggiunti', ENT_QUOTES, 'UTF-8'); ?></h2>
+        <h2 class="section-title"><?php echo htmlspecialchars($homeContent['latest_books_title']['title'] ?? __("Ultimi Libri Aggiunti"), ENT_QUOTES, 'UTF-8'); ?></h2>
         <p class="section-subtitle">
-            <?php echo htmlspecialchars($homeContent['latest_books_title']['subtitle'] ?? 'Scopri le ultime novità della nostra collezione', ENT_QUOTES, 'UTF-8'); ?>
+            <?php echo htmlspecialchars($homeContent['latest_books_title']['subtitle'] ?? __("Scopri le ultime novità della nostra collezione"), ENT_QUOTES, 'UTF-8'); ?>
         </p>
         <div id="latest-books-grid">
             <div class="loading-placeholder">
@@ -630,14 +630,14 @@ ob_start();
 <section class="cta-section">
     <div class="container">
         <div class="cta-content">
-            <h2 class="cta-title"><?php echo htmlspecialchars($homeContent['cta']['title'] ?? 'Inizia la Tua Avventura Letteraria', ENT_QUOTES, 'UTF-8'); ?></h2>
+            <h2 class="cta-title"><?php echo htmlspecialchars($homeContent['cta']['title'] ?? __("Inizia la Tua Avventura Letteraria"), ENT_QUOTES, 'UTF-8'); ?></h2>
             <p class="cta-subtitle">
-                <?php echo htmlspecialchars($homeContent['cta']['subtitle'] ?? 'Unisciti alla nostra community di lettori e scopri il piacere della lettura con la nostra piattaforma moderna.', ENT_QUOTES, 'UTF-8'); ?>
+                <?php echo htmlspecialchars($homeContent['cta']['subtitle'] ?? __("Unisciti alla nostra community di lettori e scopri il piacere della lettura con la nostra piattaforma moderna."), ENT_QUOTES, 'UTF-8'); ?>
             </p>
             <div class="d-flex justify-content-center gap-3 flex-wrap">
                 <a href="<?php echo htmlspecialchars($homeContent['cta']['button_link'] ?? '/register', ENT_QUOTES, 'UTF-8'); ?>" class="btn-cta">
                     <i class="fas fa-user-plus"></i>
-                    <?php echo htmlspecialchars($homeContent['cta']['button_text'] ?? 'Registrati Ora', ENT_QUOTES, 'UTF-8'); ?>
+                    <?php echo htmlspecialchars($homeContent['cta']['button_text'] ?? __("Registrati Ora"), ENT_QUOTES, 'UTF-8'); ?>
                 </a>
                 <a href="/contatti" class="btn-cta">
                     <i class="fas fa-envelope"></i>
