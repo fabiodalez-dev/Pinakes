@@ -3,9 +3,9 @@
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
         <i class="fas fa-key text-blue-600"></i>
-        Password dimenticata
+        <?= __('Password dimenticata') ?>
       </h1>
-      <p class="text-gray-600">Inserisci la tua email per ricevere il link di reset.</p>
+      <p class="text-gray-600"><?= __('Inserisci la tua email per ricevere il link di reset.') ?></p>
     </div>
 
     <?php if (!empty($_GET['sent'])): ?>
@@ -21,10 +21,10 @@
         <input type="email" autocomplete="email" name="email" required aria-required="true" class="form-input" />
       </div>
       <div class="flex items-center justify-between">
-        <a href="/login" class="text-sm text-blue-600 hover:underline">Torna al login</a>
+        <a href="/login" class="text-sm text-blue-600 hover:underline"><?= __('Torna al login') ?></a>
         <button type="submit" class="btn-primary inline-flex items-center">
           <i class="fas fa-paper-plane mr-2"></i>
-          Invia link
+          <?= __('Invia link') ?>
         </button>
       </div>
     </form>

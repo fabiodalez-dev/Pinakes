@@ -3,9 +3,9 @@
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
         <i class="fas fa-unlock-alt text-blue-600"></i>
-        Reimposta password
+        <?= __('Reimposta password') ?>
       </h1>
-      <p class="text-gray-600">Scegli una nuova password per il tuo account.</p>
+      <p class="text-gray-600"><?= __('Scegli una nuova password per il tuo account.') ?></p>
     </div>
 
     <?php if (!empty($_GET['error'])): ?>
@@ -22,18 +22,18 @@
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="token" value="<?php echo htmlspecialchars((string)($token ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
       <div>
-        <label class="form-label">Nuova password</label>
+        <label class="form-label"><?= __('Nuova password') ?></label>
         <input type="password" name="password" autocomplete="new-password" required aria-required="true" class="form-input" />
       </div>
       <div>
-        <label class="form-label">Conferma password</label>
+        <label class="form-label"><?= __('Conferma password') ?></label>
         <input type="password" name="password_confirm" autocomplete="new-password" required aria-required="true" class="form-input" />
       </div>
       <div class="flex items-center justify-between">
         <a href="/login" class="text-sm text-blue-600 hover:underline">Torna al login</a>
         <button type="submit" class="btn-primary inline-flex items-center">
           <i class="fas fa-save mr-2"></i>
-          Salva
+          <?= __('Salva') ?>
         </button>
       </div>
     </form>

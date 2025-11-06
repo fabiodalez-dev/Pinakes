@@ -26,7 +26,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
         <i class="fas fa-book-open text-white text-3xl"></i>
       </div>
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
-      <p class="text-gray-600 dark:text-gray-400">Crea un nuovo account</p>
+      <p class="text-gray-600 dark:text-gray-400"><?= __('Crea un nuovo account') ?></p>
     </div>
 
     <!-- Registration Form -->
@@ -40,17 +40,17 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               <i class="fas fa-exclamation-circle text-red-500 dark:text-red-400 mr-3"></i>
               <div class="text-red-700 dark:text-red-300 text-sm">
                 <?php if ($_GET['error'] === 'session_expired'): ?>
-                  La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina e riprova
+                  <?= __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina e riprova') ?>
                 <?php elseif ($_GET['error'] === '1'): ?>
-                  Errore durante la registrazione
+                  <?= __('Errore durante la registrazione') ?>
                 <?php elseif ($_GET['error'] === 'csrf'): ?>
-                  Errore di sicurezza, riprova
+                  <?= __('Errore di sicurezza, riprova') ?>
                 <?php elseif ($_GET['error'] === 'email_exists'): ?>
-                  Email già registrata
+                  <?= __('Email già registrata') ?>
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
                   Compila tutti i campi richiesti
                 <?php else: ?>
-                  Errore durante la registrazione
+                  <?= __('Errore durante la registrazione') ?>
                 <?php endif; ?>
               </div>
             </div>
@@ -63,9 +63,9 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               <i class="fas fa-check-circle text-green-500 dark:text-green-400 mr-3"></i>
               <div class="text-green-700 dark:text-green-300 text-sm">
                 <?php if ($_GET['success'] === 'registered'): ?>
-                  Account creato con successo! Verifica la tua email.
+                  <?= __('Account creato con successo! Verifica la tua email.') ?>
                 <?php elseif ($_GET['success'] === 'pending_approval'): ?>
-                  Account creato! In attesa di approvazione da parte dell'amministratore.
+                  <?= __('Account creato! In attesa di approvazione da parte dell\'amministratore.') ?>
                 <?php endif; ?>
               </div>
             </div>
@@ -75,7 +75,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label for="nome" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Nome
+              <?= __('Nome') ?>
             </label>
             <input
               type="text"
@@ -92,7 +92,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
           <div>
             <label for="cognome" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Cognome
+              <?= __('Cognome') ?>
             </label>
             <input
               type="text"
@@ -110,7 +110,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Email *
+            <?= __('Email *') ?>
           </label>
           <input
             type="email" autocomplete="email"
@@ -127,7 +127,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
         <div>
           <label for="telefono" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Telefono *
+            <?= __('Telefono *') ?>
           </label>
           <input
             type="tel"
@@ -144,7 +144,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
         <div>
           <label for="indirizzo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Indirizzo completo *
+            <?= __('Indirizzo completo *') ?>
           </label>
           <textarea
             id="indirizzo"
@@ -161,7 +161,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label for="data_nascita" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Data di nascita
+              <?= __('Data di nascita') ?>
             </label>
             <input
               type="date"
@@ -174,7 +174,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
           <div>
             <label for="sesso" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Sesso
+              <?= __('Sesso') ?>
             </label>
             <select
               id="sesso"
@@ -182,16 +182,16 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             >
               <option><?= __("-- Seleziona --") ?></option>
-              <option value="M">Maschio</option>
-              <option value="F">Femmina</option>
-              <option value="Altro">Altro</option>
+              <option value="M"><?= __('Maschio') ?></option>
+              <option value="F"><?= __('Femmina') ?></option>
+              <option value="<?= __('Altro') ?>"><?= __('Altro') ?></option>
             </select>
           </div>
         </div>
 
         <div>
           <label for="cod_fiscale" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Codice Fiscale
+            <?= __('Codice Fiscale') ?>
           </label>
           <input
             type="text"
@@ -255,7 +255,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
           </div>
           <div class="ml-2">
             <label for="privacy_acceptance" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Accetto la <a href="/privacy-policy" class="text-gray-600 hover:underline dark:text-gray-400">Privacy Policy</a>.
+              <?= __('Accetto la') ?> <a href="/privacy-policy" class="text-gray-600 hover:underline dark:text-gray-400">Privacy Policy</a>.
             </label>
             <span id="privacy_acceptance-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden block" role="alert" aria-live="polite"></span>
           </div>
@@ -273,7 +273,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
       <div class="mt-6 text-center">
         <p class="text-gray-600 dark:text-gray-400 text-sm">
-          Hai già un account? 
+          <?= __('Hai già un account?') ?> 
           <a href="/login" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
             Accedi
           </a>

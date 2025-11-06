@@ -434,8 +434,8 @@ $csrfToken = Csrf::ensureToken();
         <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
       </div>
       <div class="alert-overdue-content">
-        <h3>Attenzione: <?= $overdueCount; ?> prestito<?= $overdueCount !== 1 ? 'i' : ''; ?> in ritardo</h3>
-        <p>Hai libri che dovevano essere restituiti. Restituiscili al più presto per evitare sanzioni.</p>
+        <h3><?= __n('Attenzione: %d prestito in ritardo', 'Attenzione: %d prestiti in ritardo', $overdueCount, $overdueCount) ?></h3>
+        <p><?= __('Hai libri che dovevano essere restituiti. Restituiscili al più presto per evitare sanzioni.') ?></p>
       </div>
     </div>
   <?php endif; ?>
@@ -536,18 +536,18 @@ $csrfToken = Csrf::ensureToken();
               <div class="item-badges">
                 <div class="badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar" aria-hidden="true"></i>
-                  <span><?= $isOverdue ? 'In ritardo' : 'Scadenza'; ?>: <?= $scadenza ? date('d/m/Y', strtotime($scadenza)) : 'N/D'; ?></span>
+                  <span><?= $isOverdue ? __('In ritardo') : __('Scadenza'); ?>: <?= $scadenza ? date('d/m/Y', strtotime($scadenza)) : __('N/D'); ?></span>
                 </div>
                 <?php if ($startDate): ?>
                   <div class="badge badge-date">
                     <i class="fas fa-clock" aria-hidden="true"></i>
-                    <span>Dal <?= date('d/m/Y', strtotime($startDate)); ?></span>
+                    <span><?= __('Dal') ?> <?= date('d/m/Y', strtotime($startDate)); ?></span>
                   </div>
                 <?php endif; ?>
               </div>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
                 <i class="fas fa-star" aria-hidden="true"></i>
-                <span><?= $hasReview ? 'Già recensito' : 'Lascia una recensione'; ?></span>
+                <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione'); ?>; ?></span>
               </button>
             </div>
           </div>
@@ -647,12 +647,12 @@ $csrfToken = Csrf::ensureToken();
             $cover = '/uploads/copertine/placeholder.jpg';
         }
         $statusLabels = [
-          'restituito' => 'Restituito',
-          'in_ritardo' => 'Restituito in ritardo',
-          'perso' => 'Perso',
-          'danneggiato' => 'Danneggiato',
-          'prestato' => 'Prestato',
-          'in_corso' => 'In corso',
+          'restituito' => __('Restituito'),
+          'in_ritardo' => __('Restituito in ritardo'),
+          'perso' => __('Perso'),
+          'danneggiato' => __('Danneggiato'),
+          'prestato' => __('Prestato'),
+          'in_corso' => __('In corso'),
         ];
         $statusLabel = $statusLabels[$loan['stato']] ?? ucfirst(str_replace('_', ' ', (string)$loan['stato']));
         $hasReview = !empty($loan['has_review']);
@@ -679,7 +679,7 @@ $csrfToken = Csrf::ensureToken();
               </div>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
                 <i class="fas fa-star" aria-hidden="true"></i>
-                <span><?= $hasReview ? 'Già recensito' : 'Lascia una recensione'; ?></span>
+                <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione'); ?>; ?></span>
               </button>
             </div>
           </div>
@@ -717,9 +717,9 @@ $csrfToken = Csrf::ensureToken();
             $cover = '/uploads/copertine/placeholder.jpg';
         }
         $statusLabels = [
-          'pendente' => 'In attesa di approvazione',
-          'approvata' => 'Approvata',
-          'rifiutata' => 'Rifiutata',
+          'pendente' => __('In attesa di approvazione'),
+          'approvata' => __('Approvata'),
+          'rifiutata' => __('Rifiutata'),
         ];
         $statusColors = [
           'pendente' => 'background: #fef3c7; color: #78350f;',
@@ -775,9 +775,9 @@ $csrfToken = Csrf::ensureToken();
     <div class="review-modal__header">
       <h3 class="review-modal__title">
         <i class="fas fa-star" aria-hidden="true" style="color: #f59e0b; margin-right: 0.5rem;"></i>
-        Lascia una recensione
+        <?= __('Lascia una recensione') ?>
       </h3>
-      <button type="button" class="review-modal__close" aria-label="Chiudi" data-review-modal-close>&times;</button>
+      <button type="button" class="review-modal__close" aria-label="<?= __('Chiudi') ?>" data-review-modal-close>&times;</button>
     </div>
     <div id="reviewBookTitle" class="review-modal__subtitle"></div>
     <form id="reviewForm">
@@ -785,30 +785,30 @@ $csrfToken = Csrf::ensureToken();
       <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
 
       <div class="review-modal__field">
-        <label class="review-modal__label" for="review-stelle">Valutazione *</label>
+        <label class="review-modal__label" for="review-stelle"><?= __('Valutazione *') ?></label>
         <select id="review-stelle" name="stelle" class="review-modal__select" required aria-required="true">
           <option value=""><?= __("Seleziona") ?></option>
-          <option value="5">★★★★★ - Eccellente</option>
-          <option value="4">★★★★☆ - Molto buono</option>
-          <option value="3">★★★☆☆ - Buono</option>
-          <option value="2">★★☆☆☆ - Mediocre</option>
-          <option value="1">★☆☆☆☆ - Scarso</option>
+          <option value="5">★★★★★ - <?= __('Eccellente') ?></option>
+          <option value="4">★★★★☆ - <?= __('Molto buono') ?></option>
+          <option value="3">★★★☆☆ - <?= __('Buono') ?></option>
+          <option value="2">★★☆☆☆ - <?= __('Mediocre') ?></option>
+          <option value="1">★☆☆☆☆ - <?= __('Scarso') ?></option>
         </select>
       </div>
 
       <div class="review-modal__field">
-        <label class="review-modal__label" for="review-titolo">Titolo (opzionale)</label>
+        <label class="review-modal__label" for="review-titolo"><?= __('Titolo (opzionale)') ?></label>
         <input type="text" id="review-titolo" name="titolo" maxlength="255" class="review-modal__input" placeholder="<?= __('Es. Un libro straordinario!') ?>">
       </div>
 
       <div class="review-modal__field">
-        <label class="review-modal__label" for="review-descrizione">Recensione (opzionale)</label>
+        <label class="review-modal__label" for="review-descrizione"><?= __('Recensione (opzionale)') ?></label>
         <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" class="review-modal__textarea" placeholder="<?= __('Condividi la tua opinione su questo libro...') ?>"></textarea>
       </div>
 
       <div class="review-modal__actions">
         <button type="button" class="review-modal__button review-modal__button--secondary" data-review-modal-close><?= __("Annulla") ?></button>
-        <button type="submit" class="review-modal__button review-modal__button--primary">Invia recensione</button>
+        <button type="submit" class="review-modal__button review-modal__button--primary"><?= __('Invia recensione') ?></button>
       </div>
     </form>
   </div>
@@ -844,7 +844,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       clearable: false,
       maxStars: 5,
-      tooltip: 'Seleziona la valutazione'
+      tooltip: '<?= __('Seleziona la valutazione') ?>'
     });
   }
 

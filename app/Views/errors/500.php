@@ -216,28 +216,28 @@ ob_start();
             <i class="fas fa-exclamation-triangle"></i>
         </div>
 
-        <h1 class="error-500-title">Ops, qualcosa è andato storto</h1>
+        <h1 class="error-500-title"><?= __('Ops, qualcosa è andato storto') ?></h1>
 
         <p class="error-500-description">
-            Si è verificato un errore imprevisto sul server.
+            <?= __('Si è verificato un errore imprevisto sul server.') ?>
         </p>
 
         <p class="error-500-subdescription">
-            Il nostro team è stato notificato e sta lavorando per risolvere il problema.
+            <?= __('Il nostro team è stato notificato e sta lavorando per risolvere il problema.') ?>
         </p>
 
         <div class="error-500-info">
             <i class="fas fa-lightbulb"></i>
             <div class="error-500-info-text">
                 <strong><?= __("$1") ?></strong><br>
-                Prova a ricaricare la pagina o torna alla home. Se il problema persiste, riprova tra qualche minuto.
+                <?= __('Prova a ricaricare la pagina o torna alla home. Se il problema persiste, riprova tra qualche minuto.') ?>
             </div>
         </div>
 
         <div class="error-500-actions">
             <button onclick="location.reload()" class="error-500-btn error-500-btn-secondary">
                 <i class="fas fa-sync-alt"></i>
-                Ricarica Pagina
+                <?= __('Ricarica Pagina') ?>
             </button>
             <a href="/" class="error-500-btn error-500-btn-primary">
                 <i class="fas fa-home"></i>
@@ -248,15 +248,15 @@ ob_start();
         <div class="error-500-links">
             <a href="/catalogo" class="error-500-link">
                 <i class="fas fa-book"></i>
-                <span>Catalogo</span>
+                <span><?= __('Catalogo') ?></span>
             </a>
             <a href="/contatti" class="error-500-link">
                 <i class="fas fa-envelope"></i>
-                <span>Contatti</span>
+                <span><?= __('Contatti') ?></span>
             </a>
             <a href="/supporto" class="error-500-link">
                 <i class="fas fa-question-circle"></i>
-                <span>Supporto</span>
+                <span><?= __('Supporto') ?></span>
             </a>
         </div>
     </div>

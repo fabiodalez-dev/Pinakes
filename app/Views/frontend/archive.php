@@ -456,11 +456,11 @@ ob_start();
         <div class="books-section-header">
             <h2 class="section-title">
                 <?php if ($archive_type === 'autore'): ?>
-                    Opere
+                    <?= __('Opere') ?>
                 <?php elseif ($archive_type === 'editore'): ?>
-                    Pubblicazioni
+                    <?= __('Pubblicazioni') ?>
                 <?php else: ?>
-                    Libri
+                    <?= __('Libri') ?>
                 <?php endif; ?>
             </h2>
         </div>
@@ -488,7 +488,7 @@ function createBookUrl($book) {
                             </a>
                             <span class="book-status-badge <?= ($book['copie_disponibili'] > 0) ? 'status-available' : 'status-borrowed' ?>">
                                 <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?>"></i>
-                                <?= ($book['copie_disponibili'] > 0) ? 'Disponibile' : 'Prestato' ?>
+                                <?= ($book['copie_disponibili'] > 0) ? __('Disponibile') : __('Prestato') ?>
                             </span>
                         </div>
                         <div class="book-content">
@@ -521,7 +521,7 @@ function createBookUrl($book) {
                             <div class="book-actions">
                                 <a href="<?= createBookUrl($book) ?>" class="btn-view">
                                     <i class="fas fa-eye"></i>
-                                    <span>Vedi dettagli</span>
+                                    <span><?= __('Vedi dettagli') ?></span>
                                 </a>
                             </div>
                         </div>
@@ -575,7 +575,7 @@ function createBookUrl($book) {
                 </p>
                 <a href="/catalogo" class="btn-catalog">
                     <i class="fas fa-search"></i>
-                    <span>Esplora Catalogo</span>
+                    <span><?= __('Esplora Catalogo') ?></span>
                 </a>
             </div>
         <?php endif; ?>

@@ -8,7 +8,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resetta Password - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
+    <title><?= __('Resetta Password') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     
     <link href="/assets/vendor.css" rel="stylesheet">
     <link href="/assets/main.css" rel="stylesheet">
@@ -25,8 +25,8 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
       <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
         <i class="fas fa-key text-white text-3xl"></i>
       </div>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Resetta Password</h1>
-      <p class="text-gray-600 dark:text-gray-400">Inserisci la tua nuova password</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= __('<?= __('Resetta Password') ?>') ?></h1>
+      <p class="text-gray-600 dark:text-gray-400"><?= __('Inserisci la tua nuova password') ?></p>
     </div>
 
     <!-- Reset Password Form -->
@@ -64,10 +64,10 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             </div>
             <div class="ml-3">
               <p class="text-sm font-medium text-green-800 dark:text-green-200">
-                Password resettata con successo!
+                <?= __('Password resettata con successo!') ?>
               </p>
               <p class="mt-2 text-sm text-green-700 dark:text-green-300">
-                Ora puoi accedere con la tua nuova password.
+                <?= __('Ora puoi accedere con la tua nuova password.') ?>
               </p>
               <div class="mt-4">
                 <a href="/login" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
@@ -86,7 +86,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
           <div>
             <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Nuova Password
+              <?= __('Nuova Password') ?>
             </label>
             <input
               type="password" autocomplete="new-password"
@@ -99,14 +99,14 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               minlength="8"
             />
             <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Minimo 8 caratteri, con lettere maiuscole, minuscole e numeri
+              <?= __('Minimo 8 caratteri, con lettere maiuscole, minuscole e numeri') ?>
             </p>
             <span id="password-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>
 
           <div>
             <label for="password_confirm" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Conferma Password
+              <?= __('Conferma Password') ?>
             </label>
             <input
               type="password" autocomplete="new-password"
@@ -136,7 +136,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               type="submit"
               class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
             >
-              Resetta Password
+              <?= __('Resetta Password') ?>
             </button>
           </div>
         </form>

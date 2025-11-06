@@ -25,8 +25,8 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
       <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
         <i class="fas fa-lock text-white text-3xl"></i>
       </div>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Recupera Password</h1>
-      <p class="text-gray-600 dark:text-gray-400">Inserisci la tua email per ricevere un link di reset</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= __('Recupera Password') ?></h1>
+      <p class="text-gray-600 dark:text-gray-400"><?= __('Inserisci la tua email per ricevere un link di reset') ?></p>
     </div>
 
     <!-- Forgot Password Form -->
@@ -62,10 +62,10 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             </div>
             <div class="ml-3">
               <p class="text-sm font-medium text-green-800 dark:text-green-200">
-                Email di recupero inviata con successo!
+                <?= __('Email di recupero inviata con successo!') ?>
               </p>
               <p class="mt-2 text-sm text-green-700 dark:text-green-300">
-                Controlla la tua casella di posta e clicca sul link per resettare la password. Il link sarà valido per 2 ore.
+                <?= __('Controlla la tua casella di posta e clicca sul link per resettare la password. Il link sarà valido per 2 ore.') ?>
               </p>
             </div>
           </div>
@@ -77,7 +77,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Email associata al tuo account
+            <?= __('Email associata al tuo account') ?>
           </label>
           <input
             type="email" autocomplete="email"
@@ -90,7 +90,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Riceverai un link di reset via email. Il link sarà valido per 24 ore.
+            <?= __('Riceverai un link di reset via email. Il link sarà valido per 24 ore.') ?>
           </p>
           <span id="email-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
@@ -100,14 +100,14 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             type="submit"
             class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
           >
-            Invia link di reset
+            <?= __('Invia link di reset') ?>
           </button>
         </div>
       </form>
 
       <div class="mt-6 text-center">
         <p class="text-gray-600 dark:text-gray-400 text-sm">
-          Ricordi la password?
+          <?= __('Ricordi la password?') ?>
           <a href="/login" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
             Accedi
           </a>

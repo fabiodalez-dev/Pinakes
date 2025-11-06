@@ -26,7 +26,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
         <i class="fas fa-book-open text-white text-3xl"></i>
       </div>
       <h1 class="text-3xl font-bold text-gray-900 mb-2"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
-      <p class="text-gray-600">Accedi al tuo account</p>
+      <p class="text-gray-600"><?= __('Accedi al tuo account') ?></p>
     </div>
 
     <!-- Login Form -->
@@ -43,25 +43,25 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
               <div class="text-red-700 text-sm">
                 <?php if ($_GET['error'] === 'invalid_credentials'): ?>
-                  Email o password non corretti. Verifica le credenziali e riprova
+                  <?= __('Email o password non corretti. Verifica le credenziali e riprova') ?>
                 <?php elseif ($_GET['error'] === 'session_expired'): ?>
-                  La tua sessione è scaduta. Per motivi di sicurezza, effettua nuovamente l'accesso
+                  <?= __('La tua sessione è scaduta. Per motivi di sicurezza, effettua nuovamente l\'accesso') ?>
                 <?php elseif ($_GET['error'] === 'csrf'): ?>
-                  Errore di sicurezza. Aggiorna la pagina e riprova
+                  <?= __('Errore di sicurezza. Aggiorna la pagina e riprova') ?>
                 <?php elseif ($_GET['error'] === 'account_suspended'): ?>
-                  Il tuo account è stato sospeso. Contatta l'amministratore per maggiori informazioni
+                  <?= __('Il tuo account è stato sospeso. Contatta l\'amministratore per maggiori informazioni') ?>
                 <?php elseif ($_GET['error'] === 'account_pending'): ?>
-                  Il tuo account è in attesa di approvazione. Riceverai un'email quando sarà attivato
+                  <?= __('Il tuo account è in attesa di approvazione. Riceverai un\'email quando sarà attivato') ?>
                 <?php elseif ($_GET['error'] === 'email_not_verified'): ?>
-                  Email non verificata. Controlla la tua casella di posta e clicca sul link di verifica
+                  <?= __('Email non verificata. Controlla la tua casella di posta e clicca sul link di verifica') ?>
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
-                  Compila tutti i campi richiesti
+                  <?= __('Compila tutti i campi richiesti') ?>
                 <?php elseif ($_GET['error'] === 'token_expired'): ?>
-                  Sessione scaduta, ti preghiamo di rifare il login
+                  <?= __('Sessione scaduta, ti preghiamo di rifare il login') ?>
                 <?php elseif ($_GET['error'] === 'auth_required'): ?>
-                  Sessione scaduta, ti preghiamo di rifare il login
+                  <?= __('Sessione scaduta, ti preghiamo di rifare il login') ?>
                 <?php else: ?>
-                  Si è verificato un errore durante l'accesso. Riprova
+                  <?= __('Si è verificato un errore durante l\'accesso. Riprova') ?>
                 <?php endif; ?>
               </div>
             </div>
@@ -74,9 +74,9 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               <i class="fas fa-check-circle text-green-500 mr-3"></i>
               <div class="text-green-700 text-sm">
                 <?php if ($_GET['success'] === 'logout'): ?>
-                  Logout effettuato con successo
+                  <?= __('Logout effettuato con successo') ?>
                 <?php elseif ($_GET['success'] === 'registered'): ?>
-                  Registrazione completata! Effettua l'accesso
+                  <?= __('Registrazione completata! Effettua l\'accesso') ?>
                 <?php endif; ?>
               </div>
             </div>
@@ -85,7 +85,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
-            Email
+            <?= __('Email') ?>
           </label>
           <input
             type="email" autocomplete="email"
@@ -102,7 +102,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
         <div>
           <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
-            Password
+            <?= __('Password') ?>
           </label>
           <input
             type="password"
@@ -126,11 +126,11 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               class="w-4 h-4 text-black bg-gray-100 border-gray-300 rounded focus:ring-black"
             />
             <label for="remember_me" class="ml-2 text-sm font-medium text-gray-700">
-              Ricordami
+              <?= __('Ricordami') ?>
             </label>
           </div>
           <a href="/forgot-password" class="text-sm font-medium text-gray-600 hover:text-black transition-colors whitespace-nowrap">
-            Password dimenticata?
+            <?= __('Password') ?> dimenticata?
           </a>
         </div>
 
@@ -144,16 +144,16 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
             type="submit"
             class="w-full bg-black hover:bg-gray-900 text-white font-medium py-3 px-4 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5"
           >
-            Accedi
+            <?= __('Accedi') ?>
           </button>
         </div>
       </form>
 
       <div class="mt-6 text-center">
         <p class="text-gray-600 text-sm">
-          Non hai un account?
+          <?= __('Non hai un account?') ?>
           <a href="/register" class="font-medium text-gray-600 hover:text-black transition-colors">
-            Registrati
+            <?= __('Registrati') ?>
           </a>
         </p>
       </div>
@@ -227,7 +227,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
         return false;
     }
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Accesso in corso...';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= __('Accesso in corso...') ?>';
 });
 </script>
 

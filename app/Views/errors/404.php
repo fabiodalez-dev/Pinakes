@@ -196,10 +196,10 @@ ob_start();
             <i class="fas fa-search"></i>
         </div>
 
-        <h1 class="error-404-title">Pagina Non Trovata</h1>
+        <h1 class="error-404-title"><?= __('Pagina Non Trovata') ?></h1>
 
         <p class="error-404-description">
-            La pagina che stai cercando non esiste o è stata spostata.
+            <?= __('La pagina che stai cercando non esiste o è stata spostata.') ?>
         </p>
 
         <?php if (!empty($requestedPath) && $requestedPath !== '/'): ?>
@@ -212,26 +212,26 @@ ob_start();
         <div class="error-404-actions">
             <button onclick="history.back()" class="error-404-btn error-404-btn-secondary">
                 <i class="fas fa-arrow-left"></i>
-                Torna Indietro
+                <?= __('Torna Indietro') ?>
             </button>
             <a href="/" class="error-404-btn error-404-btn-primary">
                 <i class="fas fa-home"></i>
-                Vai alla Home
+                <?= __('Vai alla Home') ?>
             </a>
         </div>
 
         <div class="error-404-links">
             <a href="/catalogo" class="error-404-link">
                 <i class="fas fa-book"></i>
-                <span>Catalogo</span>
+                <span><?= __('Catalogo') ?></span>
             </a>
             <a href="/wishlist" class="error-404-link">
                 <i class="fas fa-heart"></i>
-                <span>Preferiti</span>
+                <span><?= __('Preferiti') ?></span>
             </a>
             <a href="/prenotazioni" class="error-404-link">
                 <i class="fas fa-bookmark"></i>
-                <span>Prenotazioni</span>
+                <span><?= __('Prenotazioni') ?></span>
             </a>
         </div>
     </div>

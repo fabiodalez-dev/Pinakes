@@ -20,8 +20,8 @@
       <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
         <i class="fas fa-book-open text-white text-3xl"></i>
       </div>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Biblioteca</h1>
-      <p class="text-gray-600 dark:text-gray-400">Registrazione completata</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= htmlspecialchars($appName ?? 'Biblioteca', ENT_QUOTES, 'UTF-8') ?></h1>
+      <p class="text-gray-600 dark:text-gray-400"><?= __('Registrazione completata') ?></p>
     </div>
 
     <!-- Success Message -->
@@ -30,10 +30,10 @@
         <div class="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
           <i class="fas fa-envelope-open-text text-green-600 dark:text-green-400 text-2xl"></i>
         </div>
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Conferma la tua email</h2>
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4"><?= __('Conferma la tua email') ?></h2>
         <p class="text-gray-600 dark:text-gray-400 mb-6">
-          Ti abbiamo inviato un'email con il link per confermare l'indirizzo.
-          Dopo la conferma, un amministratore approverà la tua iscrizione.
+          <?= __('Ti abbiamo inviato un\'email con il link per confermare l\'indirizzo.') ?>
+          <?= __('Dopo la conferma, un amministratore approverà la tua iscrizione.') ?>
         </p>
         <div class="space-y-4">
           <a
@@ -41,7 +41,7 @@
             class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center"
           >
             <i class="fas fa-sign-in-alt mr-2"></i>
-            Vai al login
+            <?= __('Vai al login') ?>
           </a>
         </div>
       </div>
