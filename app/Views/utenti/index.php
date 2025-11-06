@@ -97,9 +97,9 @@
             <select id="role_filter" class="form-input">
               <option value=""><?= __("Tutti i ruoli") ?></option>
               <option value="admin"><?= __("Amministratore") ?></option>
-              <option value="staff">Staff</option>
-              <option value="premium">Premium</option>
-              <option value="standard">Standard</option>
+              <option value="staff"><?= __("Staff") ?></option>
+              <option value="premium"><?= __("Premium") ?></option>
+              <option value="standard"><?= __("Standard") ?></option>
             </select>
           </div>
           

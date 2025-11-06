@@ -30,9 +30,9 @@
               <label class="form-label"><?= __("Driver") ?></label>
               <select name="mail_driver" class="form-input">
                 <?php $drv = (string)($cfg['mail']['driver'] ?? 'mail'); ?>
-                <option value="mail" <?php echo $drv==='mail'?'selected':''; ?>>PHP mail()</option>
-                <option value="smtp" <?php echo $drv==='smtp'?'selected':''; ?>>SMTP (custom)</option>
-                <option value="phpmailer" <?php echo $drv==='phpmailer'?'selected':''; ?>>PHPMailer</option>
+                <option value="mail" <?php echo $drv==='mail'?'selected':''; ?>><?= __("PHP mail()") ?></option>
+                <option value="smtp" <?php echo $drv==='smtp'?'selected':''; ?>><?= __("SMTP (custom)") ?></option>
+                <option value="phpmailer" <?php echo $drv==='phpmailer'?'selected':''; ?>><?= __("PHPMailer") ?></option>
               </select>
             </div>
             <div>
@@ -66,8 +66,8 @@
               <label class="form-label"><?= __("Encryption") ?></label>
               <select name="smtp_encryption" class="form-input">
                 <?php $enc = (string)($cfg['mail']['smtp']['encryption'] ?? 'tls'); ?>
-                <option value="tls" <?php echo $enc==='tls'?'selected':''; ?>>TLS</option>
-                <option value="ssl" <?php echo $enc==='ssl'?'selected':''; ?>>SSL</option>
+                <option value="tls" <?php echo $enc==='tls'?'selected':''; ?>><?= __("TLS") ?></option>
+                <option value="ssl" <?php echo $enc==='ssl'?'selected':''; ?>><?= __("SSL") ?></option>
                 <option value="none" <?php echo $enc==='none'?'selected':''; ?>><?= __("Nessuna") ?></option>
               </select>
             </div>
@@ -137,7 +137,7 @@
             <div class="bg-gray-100 p-4 rounded border">
               <h4 class="font-medium text-gray-800 mb-2"><?= __("1. Accesso al server") ?></h4>
               <p class="text-sm text-gray-600 mb-2"><?= __("Accedi al server tramite SSH e modifica il crontab:") ?></p>
-              <code class="block bg-gray-800 text-green-400 p-2 rounded text-sm">crontab -e</code>
+              <code class="block bg-gray-800 text-green-400 p-2 rounded text-sm"><?= __("crontab -e") ?></code>
             </div>
 
             <div class="bg-gray-100 p-4 rounded border">

@@ -209,19 +209,19 @@ ob_start();
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">titolo</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded"><?= __("Sì") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600"><?= __("Titolo del libro") ?></td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">Il nome della rosa</td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs"><?= __("Il nome della rosa") ?></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">autori</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded"><?= __("Consigliato") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600"><?= __("Autori multipli separati da %s", '<code>|</code>') ?></td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">Umberto Eco<br><small><?= __("o multipli separati da |") ?></small></td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs"><?= __("Umberto Eco") ?><br><small><?= __("o multipli separati da |") ?></small></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">editore</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600"><?= __("Nome dell'editore") ?></td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">Mondadori</td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs"><?= __("Mondadori") ?></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">isbn13</code></td>
@@ -239,7 +239,7 @@ ob_start();
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">categoria</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"><?= __("No") ?></span></td>
                                         <td class="px-4 py-3 text-gray-600"><?= __("Nome categoria esistente") ?></td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">Narrativa</td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs"><?= __("Narrativa") ?></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3 text-gray-500 text-xs italic" colspan="4">

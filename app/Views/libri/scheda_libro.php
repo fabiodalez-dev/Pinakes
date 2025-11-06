@@ -277,19 +277,19 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <?php if (!empty($libro['isbn10'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">ISBN10</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("ISBN10") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['isbn10']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['isbn13'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">ISBN13</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("ISBN13") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['isbn13']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['ean'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">EAN</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("EAN") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['ean']); ?></dd>
             </div>
             <?php endif; ?>
@@ -349,7 +349,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php if (!empty($libro['peso'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Peso") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo htmlspecialchars((string)$libro['peso'], ENT_QUOTES, 'UTF-8'); ?> kg</dd>
+              <dd class="text-gray-900 font-medium"><?php echo htmlspecialchars((string)$libro['peso'], ENT_QUOTES, 'UTF-8'); ?> <?= __("kg") ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['prezzo'])): ?>
@@ -813,7 +813,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             </select>
           </div>
           <div>
-            <label for="modal-note" class="form-label">Note (opzionali)</label>
+            <label for="modal-note" class="form-label"><?= __("Note") ?> (<?= __("opzionali") ?>)</label>
             <textarea id="modal-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
           </div>
           <div class="flex items-center justify-end gap-3 pt-2">

@@ -184,14 +184,14 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <?php $statoCorrente = $book['stato'] ?? ''; ?>
             <select id="stato" name="stato" class="form-input">
               <option value="Disponibile" <?php echo strcasecmp($statoCorrente, 'Disponibile') === 0 ? 'selected' : ''; ?>><?= __("Disponibile") ?></option>
-              <option value="Non Disponibile" <?php echo strcasecmp($statoCorrente, 'Non Disponibile') === 0 ? 'selected' : ''; ?>>Non Disponibile</option>
+              <option value="Non Disponibile" <?php echo strcasecmp($statoCorrente, 'Non Disponibile') === 0 ? 'selected' : ''; ?>><?= __("Non Disponibile") ?></option>
               <option value="Prestato" <?php echo strcasecmp($statoCorrente, 'Prestato') === 0 ? 'selected' : ''; ?>><?= __("Prestato") ?></option>
               <option value="Riservato" <?php echo strcasecmp($statoCorrente, 'Riservato') === 0 ? 'selected' : ''; ?>><?= __("Riservato") ?></option>
               <option value="Danneggiato" <?php echo strcasecmp($statoCorrente, 'Danneggiato') === 0 ? 'selected' : ''; ?>><?= __("Danneggiato") ?></option>
               <option value="Perso" <?php echo strcasecmp($statoCorrente, 'Perso') === 0 ? 'selected' : ''; ?>><?= __("Perso") ?></option>
-              <option value="In Riparazione" <?php echo strcasecmp($statoCorrente, 'In Riparazione') === 0 ? 'selected' : ''; ?>>In Riparazione</option>
-              <option value="Fuori Catalogo" <?php echo strcasecmp($statoCorrente, 'Fuori Catalogo') === 0 ? 'selected' : ''; ?>>Fuori Catalogo</option>
-              <option value="Da Inventariare" <?php echo strcasecmp($statoCorrente, 'Da Inventariare') === 0 ? 'selected' : ''; ?>>Da Inventariare</option>
+              <option value="In Riparazione" <?php echo strcasecmp($statoCorrente, 'In Riparazione') === 0 ? 'selected' : ''; ?>><?= __("In Riparazione") ?></option>
+              <option value="Fuori Catalogo" <?php echo strcasecmp($statoCorrente, 'Fuori Catalogo') === 0 ? 'selected' : ''; ?>><?= __("Fuori Catalogo") ?></option>
+              <option value="Da Inventariare" <?php echo strcasecmp($statoCorrente, 'Da Inventariare') === 0 ? 'selected' : ''; ?>><?= __("Da Inventariare") ?></option>
             </select>
             <p class="text-xs text-gray-500 mt-1"><?= __("Status attuale di questa copia del libro") ?></p>
           </div>
@@ -2315,7 +2315,7 @@ function displayScrapedCover(imageUrl) {
                     <i class="fas fa-image text-3xl"></i>
                 </div>
                 <p class="text-sm text-gray-600 mb-2"><?= __("Anteprima non disponibile") ?></p>
-                <p class="text-xs text-gray-500 mb-3">L'immagine verrà scaricata al salvataggio</p>
+                <p class="text-xs text-gray-500 mb-3"><?= __("L'immagine verrà scaricata al salvataggio") ?></p>
                 <a href="${imageSrc}" target="_blank" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${imageUrl}</a>
             </div>
         `;
