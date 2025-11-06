@@ -1,9 +1,9 @@
 <?php
-$title = "Biblioteca Digitale - La tua biblioteca online";
+$title = __("Biblioteca Digitale - La tua biblioteca online");
 
 // SEO Variables
-$seoTitle = "Biblioteca Digitale - Scopri e Prenota i Tuoi Libri Preferiti";
-$seoDescription = "Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture. Sistema di prestito moderno e intuitivo con ricerca avanzata e categorie organizzate.";
+$seoTitle = __("Biblioteca Digitale - Scopri e Prenota i Tuoi Libri Preferiti");
+$seoDescription = __("Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture. Sistema di prestito moderno e intuitivo con ricerca avanzata e categorie organizzate.");
 $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
 $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
 
@@ -11,7 +11,7 @@ $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HT
 $seoSchema = json_encode([
     "@context" => "https://schema.org",
     "@type" => "Library",
-    "name" => "Biblioteca Digitale",
+    "name" => __("Biblioteca Digitale"),
     "description" => $seoDescription,
     "url" => $seoCanonical,
     "image" => $seoImage,
@@ -491,10 +491,10 @@ ob_start();
                         <input type="search"
                                name="q"
                                class="hero-search-input search-input"
-                               placeholder="Cerca libri, autori, editori..."
-                               aria-label="Cerca nella biblioteca">
+                               placeholder="<?= __("Cerca libri, autori, editori...") ?>"
+                               aria-label="<?= __("Cerca nella biblioteca") ?>">
                         <button type="submit" class="hero-search-button">
-                            Cerca
+                            <?= __("Cerca") ?>
                         </button>
                     </div>
                 </form>
@@ -503,11 +503,11 @@ ob_start();
                 <div class="hero-quick-links">
                     <a href="#latest-books" class="hero-quick-link">
                         <i class="fas fa-book"></i>
-                        Ultimi Arrivi
+                        <?= __("Ultimi Arrivi") ?>
                     </a>
                     <a href="/catalogo" class="hero-quick-link">
                         <i class="fas fa-list"></i>
-                        Sfoglia Catalogo
+                        <?= __("Sfoglia Catalogo") ?>
                     </a>
                 </div>
             </div>
@@ -518,7 +518,7 @@ ob_start();
                             <span class="visually-hidden"><?= __("Caricamento...") ?></span>
                         </div>
                     </span>
-                    <span class="hero-stat-label">Libri Totali</span>
+                    <span class="hero-stat-label"><?= __("Libri Totali") ?></span>
                 </div>
                 <div class="hero-stat">
                     <span class="hero-stat-number" id="available-books">
@@ -526,15 +526,15 @@ ob_start();
                             <span class="visually-hidden"><?= __("Caricamento...") ?></span>
                         </div>
                     </span>
-                    <span class="hero-stat-label">Disponibili</span>
+                    <span class="hero-stat-label"><?= __("Disponibili") ?></span>
                 </div>
                 <div class="hero-stat">
                     <span class="hero-stat-number">12</span>
-                    <span class="hero-stat-label">Categorie</span>
+                    <span class="hero-stat-label"><?= __("Categorie") ?></span>
                 </div>
                 <div class="hero-stat">
                     <span class="hero-stat-number">24/7</span>
-                    <span class="hero-stat-label">Sempre Online</span>
+                    <span class="hero-stat-label"><?= __("Sempre Online") ?></span>
                 </div>
             </div>
         </div>
@@ -598,17 +598,17 @@ ob_start();
                 <div class="spinner-border" role="status">
                     <span class="visually-hidden"><?= __("Caricamento...") ?></span>
                 </div>
-                <p class="mt-3">Caricamento libri...</p>
+                <p class="mt-3"><?= __("Caricamento libri...") ?></p>
             </div>
         </div>
         <div class="text-center mt-5">
             <button id="load-more-latest" class="btn-cta me-3" style="display: none;" type="button">
                 <i class="fas fa-plus"></i>
-                Carica Altri
+                <?= __("Carica Altri") ?>
             </button>
             <a href="/catalogo.php" class="btn-cta">
                 <i class="fas fa-th-large"></i>
-                Visualizza Tutto il Catalogo
+                <?= __("Visualizza Tutto il Catalogo") ?>
             </a>
         </div>
     </div>
@@ -621,7 +621,7 @@ ob_start();
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden"><?= __("Caricamento...") ?></span>
         </div>
-        <p class="mt-3">Caricamento categorie...</p>
+        <p class="mt-3"><?= __("Caricamento categorie...") ?></p>
     </div>
 </div>
 
@@ -641,7 +641,7 @@ ob_start();
                 </a>
                 <a href="/contatti" class="btn-cta">
                     <i class="fas fa-envelope"></i>
-                    Contattaci
+                    <?= __("Contattaci") ?>
                 </a>
             </div>
         </div>
@@ -652,6 +652,16 @@ ob_start();
 <?php
 $additional_js = "
 <script>
+// Traduzioni per JavaScript
+const i18n = {
+    loading: '" . addslashes(__("Caricamento...")) . "',
+    loadingBooks: '" . addslashes(__("Caricamento libri...")) . "',
+    loadingCategories: '" . addslashes(__("Caricamento categorie...")) . "',
+    errorLoadingBooks: '" . addslashes(__("Errore nel caricamento dei libri")) . "',
+    exploreByCategory: '" . addslashes(__("Esplora per Categoria")) . "',
+    viewAllCategories: '" . addslashes(__("Visualizza Tutte le Categorie")) . "'
+};
+
 let currentLatestPage = 1;
 let hasMoreLatestBooks = true;
 
@@ -690,7 +700,7 @@ function loadLatestBooks(page = 1) {
     if (!grid) return;
 
     if (page === 1) {
-        grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"spinner-border text-primary\" role=\"status\"><span class=\"visually-hidden\"><?= __("Caricamento...") ?></span></div><p class=\"mt-3\">Caricamento libri...</p></div>';
+        grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"spinner-border text-primary\" role=\"status\"><span class=\"visually-hidden\">' + i18n.loading + '</span></div><p class=\"mt-3\">' + i18n.loadingBooks + '</p></div>';
     }
 
     fetch('/api/home/latest?page=' + page)
@@ -716,7 +726,7 @@ function loadLatestBooks(page = 1) {
         })
         .catch(error => {
             console.error('Error loading latest books:', error);
-            grid.innerHTML = '<div class=\"col-12 text-center py-4\"><div class=\"alert alert-danger\">Errore nel caricamento dei libri</div></div>';
+            grid.innerHTML = '<div class=\"col-12 text-center py-4\"><div class=\"alert alert-danger\">' + i18n.errorLoadingBooks + '</div></div>';
         });
 }
 
@@ -729,7 +739,7 @@ function loadCategories() {
     fetch('/api/catalogo')
         .then(response => response.json())
         .then(data => {
-            container.innerHTML = '<section class=\"py-5\" style=\"background: var(--light-bg);\"><div class=\"container\"><h2 class=\"section-title\">Esplora per Categoria</h2><div class=\"text-center\"><a href=\"/catalogo.php\" class=\"btn-cta btn-cta-lg\"><i class=\"fas fa-th-large me-2\"></i>Visualizza Tutte le Categorie</a></div></div></section>';
+            container.innerHTML = '<section class=\"py-5\" style=\"background: var(--light-bg);\"><div class=\"container\"><h2 class=\"section-title\">' + i18n.exploreByCategory + '</h2><div class=\"text-center\"><a href=\"/catalogo.php\" class=\"btn-cta btn-cta-lg\"><i class=\"fas fa-th-large me-2\"></i>' + i18n.viewAllCategories + '</a></div></div></section>';
         })
         .catch(error => {
             console.error('Error loading categories:', error);
