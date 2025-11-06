@@ -8,12 +8,12 @@
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
         <li class="text-gray-900 font-medium">
-          <i class="fas fa-warehouse mr-1"></i>Collocazione
+          <i class="fas fa-warehouse mr-1"></i><?= __("Collocazione") ?>
         </li>
       </ol>
     </nav>
@@ -24,9 +24,9 @@
         <div>
           <h1 class="text-3xl font-bold text-gray-900 flex items-center">
             <i class="fas fa-warehouse text-gray-600 mr-3"></i>
-            Gestione Collocazione
+            <?= __("Gestione Collocazione") ?>
           </h1>
-          <p class="text-sm text-gray-600 mt-1">Organizza scaffali, mensole e posizioni per la biblioteca fisica</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Organizza scaffali, mensole e posizioni per la biblioteca fisica") ?></p>
         </div>
       </div>
     </div>
@@ -65,15 +65,15 @@
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
               <i class="fas fa-question-circle text-gray-600 mr-2"></i>
-              Cos'è la Collocazione?
+              <?= __("Cos'è la Collocazione?") ?>
             </h3>
             <p class="text-sm text-gray-700 mb-3">
-              La collocazione è l'<strong>indirizzo fisico</strong> che identifica dove si trova un libro nella biblioteca.
+              <?= __("La collocazione è l'indirizzo fisico che identifica dove si trova un libro nella biblioteca.") ?>
             </p>
             <div class="space-y-2 text-sm text-gray-600">
               <div class="flex items-start">
                 <i class="fas fa-bookmark text-gray-400 mr-2 mt-0.5"></i>
-                <span>Esempio: <code class="bg-gray-100 px-2 py-0.5 rounded">A.2.15</code></span>
+                <span><?= __("Esempio:") ?> <code class="bg-gray-100 px-2 py-0.5 rounded">A.2.15</code></span>
               </div>
               <div class="ml-6 text-xs space-y-1">
                 <div>• <strong>A</strong> = Scaffale A</div>
@@ -86,20 +86,20 @@
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
               <i class="fas fa-cogs text-gray-600 mr-2"></i>
-              Come Funziona
+              <?= __("Come Funziona") ?>
             </h3>
             <ol class="space-y-2 text-sm text-gray-700">
               <li class="flex items-start">
                 <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">1</span>
-                <span>Crea gli <strong>scaffali</strong> (es: A, B, C)</span>
+                <span><?= __("Crea gli scaffali (es: A, B, C)") ?></span>
               </li>
               <li class="flex items-start">
                 <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">2</span>
-                <span>Aggiungi le <strong>mensole</strong> (livelli) a ogni scaffale</span>
+                <span><?= __("Aggiungi le mensole (livelli) a ogni scaffale") ?></span>
               </li>
               <li class="flex items-start">
                 <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">3</span>
-                <span>La <strong>posizione</strong> viene assegnata automaticamente</span>
+                <span><?= __("La posizione viene assegnata automaticamente") ?></span>
               </li>
             </ol>
           </div>
@@ -107,20 +107,20 @@
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
               <i class="fas fa-lightbulb text-gray-600 mr-2"></i>
-              Suggerimenti
+              <?= __("Suggerimenti") ?>
             </h3>
             <ul class="space-y-2 text-sm text-gray-700">
               <li class="flex items-start">
                 <i class="fas fa-check text-green-600 mr-2 mt-0.5"></i>
-                <span>Usa codici semplici (A, B, C...)</span>
+                <span><?= __("Usa codici semplici (A, B, C...)") ?></span>
               </li>
               <li class="flex items-start">
                 <i class="fas fa-check text-green-600 mr-2 mt-0.5"></i>
-                <span>Riordina trascinando gli elementi</span>
+                <span><?= __("Riordina trascinando gli elementi") ?></span>
               </li>
               <li class="flex items-start">
                 <i class="fas fa-check text-green-600 mr-2 mt-0.5"></i>
-                <span>Le posizioni si generano automaticamente</span>
+                <span><?= __("Le posizioni si generano automaticamente") ?></span>
               </li>
             </ul>
           </div>
@@ -132,7 +132,7 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-gray-600">Scaffali</p>
+              <p class="text-sm text-gray-600"><?= __("Scaffali") ?></p>
               <p class="text-2xl font-bold text-gray-900"><?php echo count($scaffali); ?></p>
             </div>
             <i class="fas fa-layer-group text-3xl text-gray-300"></i>
@@ -141,7 +141,7 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-gray-600">Mensole</p>
+              <p class="text-sm text-gray-600"><?= __("Mensole") ?></p>
               <p class="text-2xl font-bold text-gray-900"><?php echo count($mensole); ?></p>
             </div>
             <i class="fas fa-grip-lines text-3xl text-gray-300"></i>
@@ -150,7 +150,7 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-gray-600">Posizioni usate</p>
+              <p class="text-sm text-gray-600"><?= __("Posizioni usate") ?></p>
               <p class="text-2xl font-bold text-gray-900"><?php echo count($posizioni); ?></p>
             </div>
             <i class="fas fa-bookmark text-3xl text-gray-300"></i>
@@ -168,9 +168,9 @@
           <div class="px-6 py-4 border-b border-gray-200">
             <h2 class="text-xl font-semibold text-gray-900 flex items-center">
               <i class="fas fa-layer-group text-gray-600 mr-2"></i>
-              Scaffali
+              <?= __("Scaffali") ?>
             </h2>
-            <p class="text-sm text-gray-600 mt-1">I contenitori fisici principali dove sono organizzati i libri</p>
+            <p class="text-sm text-gray-600 mt-1"><?= __("I contenitori fisici principali dove sono organizzati i libri") ?></p>
           </div>
           <div class="p-6">
 
@@ -179,7 +179,7 @@
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label class="text-sm font-medium text-gray-700 mb-1 block">Codice *</label>
+                  <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Codice *") ?></label>
                   <input name="codice" maxlength="20" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= __('A') ?>" required aria-required="true">
                 </div>
                 <div class="md:col-span-2">
@@ -189,7 +189,7 @@
                 <div class="flex items-end">
                   <button type="submit" class="px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors w-full">
                     <i class="fas fa-plus mr-2"></i>
-                    Aggiungi
+                    <?= __("Aggiungi") ?>
                   </button>
                 </div>
               </div>
@@ -201,7 +201,7 @@
                 <?php if (empty($scaffali)): ?>
                   <li class="p-4 text-center text-gray-500 text-sm">
                     <i class="fas fa-inbox mb-2 text-2xl"></i>
-                    <p>Nessuno scaffale. Creane uno per iniziare!</p>
+                    <p><?= __("Nessuno scaffale. Creane uno per iniziare!") ?></p>
                   </li>
                 <?php else: ?>
                   <?php foreach ($scaffali as $s): ?>
@@ -215,8 +215,8 @@
                           </div>
                         </div>
                         <div class="flex items-center gap-2">
-                          <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Ordine: <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
-                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(__('Eliminare questo scaffale? (Solo se vuoto)'));">
+                          <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><?= __("Ordine:") ?> <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
+                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(__('<?= __("Eliminare questo scaffale? (Solo se vuoto)") ?>'));">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                             <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
@@ -230,7 +230,7 @@
 
             <p class="text-xs text-gray-500 mt-3">
               <i class="fas fa-hand-pointer mr-1"></i>
-              Trascina per riordinare • Il codice deve essere univoco
+              <?= __("Trascina per riordinare • Il codice deve essere univoco") ?>
             </p>
 
           </div>
@@ -241,9 +241,9 @@
           <div class="px-6 py-4 border-b border-gray-200">
             <h2 class="text-xl font-semibold text-gray-900 flex items-center">
               <i class="fas fa-grip-lines text-gray-600 mr-2"></i>
-              Mensole
+              <?= __("Mensole") ?>
             </h2>
-            <p class="text-sm text-gray-600 mt-1">I livelli (ripiani) all'interno di ogni scaffale</p>
+            <p class="text-sm text-gray-600 mt-1"><?= __("I livelli (ripiani) all'interno di ogni scaffale") ?></p>
           </div>
           <div class="p-6">
 
@@ -252,9 +252,9 @@
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="md:col-span-2">
-                  <label class="text-sm font-medium text-gray-700 mb-1 block">Scaffale *</label>
+                  <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Scaffale *") ?></label>
                   <select name="scaffale_id" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" required aria-required="true">
-                    <option value="">Seleziona...</option>
+                    <option value=""><?= __("Seleziona...") ?></option>
                     <?php foreach ($scaffali as $s): ?>
                       <option value="<?php echo (int)$s['id']; ?>">
                         <?php echo htmlspecialchars('['.((string)($s['codice'] ?? '')).'] '.((string)($s['nome'] ?? ''))); ?>
@@ -263,13 +263,13 @@
                   </select>
                 </div>
                 <div>
-                  <label class="text-sm font-medium text-gray-700 mb-1 block">Livello *</label>
+                  <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Livello *") ?></label>
                   <input name="numero_livello" type="number" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" value="1" min="1">
                 </div>
                 <div class="flex items-end">
                   <button type="submit" class="px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors w-full">
                     <i class="fas fa-plus mr-2"></i>
-                    Aggiungi
+                    <?= __("Aggiungi") ?>
                   </button>
                 </div>
               </div>
@@ -281,7 +281,7 @@
                 <?php if (empty($mensole)): ?>
                   <li class="p-4 text-center text-gray-500 text-sm">
                     <i class="fas fa-inbox mb-2 text-2xl"></i>
-                    <p>Nessuna mensola. Creane una per iniziare!</p>
+                    <p><?= __("Nessuna mensola. Creane una per iniziare!") ?></p>
                   </li>
                 <?php else: ?>
                   <?php foreach ($mensole as $m): ?>
@@ -291,12 +291,12 @@
                           <i class="fas fa-grip-vertical text-gray-400"></i>
                           <div>
                             <span class="inline-block px-2 py-1 bg-gray-700 text-white text-xs font-mono rounded"><?php echo htmlspecialchars((string)($m['scaffale_codice'] ?? '')); ?></span>
-                            <span class="text-gray-700 ml-2">Livello <?php echo (int)$m['numero_livello']; ?></span>
+                            <span class="text-gray-700 ml-2"><?= __("Livello") ?> <?php echo (int)$m['numero_livello']; ?></span>
                           </div>
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">ID: <?php echo (int)$m['id']; ?></span>
-                          <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(__('Eliminare questa mensola? (Solo se vuota)'));">
+                          <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(__('<?= __("Eliminare questa mensola? (Solo se vuota)") ?>'));">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                             <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
@@ -310,7 +310,7 @@
 
             <p class="text-xs text-gray-500 mt-3">
               <i class="fas fa-hand-pointer mr-1"></i>
-              Trascina per riordinare • Ogni scaffale + livello deve essere univoco
+              <?= __("Trascina per riordinare • Ogni scaffale + livello deve essere univoco") ?>
             </p>
 
           </div>
@@ -323,13 +323,13 @@
               <div>
                 <h2 class="text-xl font-semibold text-gray-900 flex items-center">
                   <i class="fas fa-bookmark text-gray-600 mr-2"></i>
-                  Libri per Collocazione
+                  <?= __("Libri per Collocazione") ?>
                 </h2>
-                <p class="text-sm text-gray-600 mt-1">Visualizza e esporta l'elenco dei libri per posizione fisica</p>
+                <p class="text-sm text-gray-600 mt-1"><?= __("Visualizza e esporta l'elenco dei libri per posizione fisica") ?></p>
               </div>
               <button onclick="exportCollocationCSV()" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center border border-gray-300">
                 <i class="fas fa-file-csv mr-2"></i>
-                Esporta CSV
+                <?= __("Esporta CSV") ?>
               </button>
             </div>
           </div>
@@ -337,18 +337,18 @@
             <!-- Filtri -->
             <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="text-sm font-medium text-gray-700 mb-1 block">Filtra per Scaffale</label>
+                <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Filtra per Scaffale") ?></label>
                 <select id="filter-scaffale" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400">
-                  <option value="">Tutti gli scaffali</option>
+                  <option value=""><?= __("Tutti gli scaffali") ?></option>
                   <?php foreach ($scaffali as $s): ?>
                     <option value="<?php echo (int)$s['id']; ?>"><?php echo htmlspecialchars((string)$s['codice']); ?> - <?php echo htmlspecialchars((string)$s['nome']); ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
               <div>
-                <label class="text-sm font-medium text-gray-700 mb-1 block">Filtra per Mensola</label>
+                <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Filtra per Mensola") ?></label>
                 <select id="filter-mensola" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400">
-                  <option value="">Tutte le mensole</option>
+                  <option value=""><?= __("Tutte le mensole") ?></option>
                   <?php foreach ($mensole as $m): ?>
                     <option value="<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars((string)($m['scaffale_codice'] ?? '')); ?> - Livello <?php echo (int)$m['numero_livello']; ?></option>
                   <?php endforeach; ?>
@@ -372,7 +372,7 @@
                   <tbody class="divide-y divide-gray-100" id="collocation-tbody">
                     <tr>
                       <td colspan="5" class="px-4 py-8 text-center text-gray-500">
-                        <i class="fas fa-spinner fa-spin mr-2"></i>Caricamento...
+                        <i class="fas fa-spinner fa-spin mr-2"></i><?= __("Caricamento...") ?>
                       </td>
                     </tr>
                   </tbody>
@@ -382,7 +382,7 @@
 
             <p class="text-xs text-gray-500 mt-3">
               <i class="fas fa-info-circle mr-1"></i>
-              La collocazione può essere assegnata automaticamente o inserita manualmente durante la creazione/modifica del libro
+              <?= __("La collocazione può essere assegnata automaticamente o inserita manualmente durante la creazione/modifica del libro") ?>
             </p>
           </div>
         </div>
@@ -477,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('collocation-tbody');
 
     if (books.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-inbox mr-2"></i>Nessun libro con collocazione trovato</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-inbox mr-2"></i>' + __('Nessun libro con collocazione trovato') + '</td></tr>';
       return;
     }
 

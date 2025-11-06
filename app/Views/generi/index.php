@@ -6,7 +6,7 @@
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
         <li>
@@ -14,7 +14,7 @@
         </li>
         <li class="text-gray-900 font-medium">
           <a href="/admin/generi" class="text-gray-900 hover:text-gray-900">
-            <i class="fas fa-tags mr-1"></i>Generi
+            <i class="fas fa-tags mr-1"></i><?= __("Generi") ?>
           </a>
         </li>
       </ol>
@@ -24,9 +24,9 @@
       <div>
         <h1 class="text-3xl font-bold text-gray-900 flex items-center">
           <i class="fas fa-tags text-blue-600 mr-3"></i>
-          Gestione Generi e Sottogeneri
+          <?= __("Gestione Generi e Sottogeneri") ?>
         </h1>
-        <p class="text-sm text-gray-600 mt-2">Organizza e gestisci i generi letterari della biblioteca</p>
+        <p class="text-sm text-gray-600 mt-2"><?= __("Organizza e gestisci i generi letterari della biblioteca") ?></p>
       </div>
     </div>
 
@@ -54,7 +54,7 @@
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-plus text-primary"></i>
-          Aggiungi Genere Rapido
+          <?= __("Aggiungi Genere Rapido") ?>
         </h2>
       </div>
       <div class="card-body">
@@ -66,9 +66,9 @@
             <input id="nome_genere" name="nome" class="form-input" placeholder="<?= __('es. Noir mediterraneo') ?>" required aria-required="true">
           </div>
           <div>
-            <label for="parent_id_genere" class="form-label">Genere padre (opz.)</label>
+            <label for="parent_id_genere" class="form-label"><?= __("Genere padre (opz.)") ?></label>
             <select id="parent_id_genere" name="parent_id" class="form-input">
-              <option value="">– Nessuno –</option>
+              <option value=""><?= __("– Nessuno –") ?></option>
               <?php foreach ($generiPrincipali as $g): ?>
                 <option value="<?php echo (int)$g['id']; ?>"><?php echo htmlspecialchars($g['nome']); ?></option>
               <?php endforeach; ?>
@@ -77,7 +77,7 @@
           <div class="md:col-span-3 flex justify-end">
             <button type="submit" class="btn-primary">
               <i class="fas fa-save mr-2"></i>
-              Salva
+              <?= __("Salva") ?>
             </button>
           </div>
         </form>
@@ -89,7 +89,7 @@
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Generi Principali</p>
+            <p class="text-sm font-medium text-gray-600"><?= __("Generi Principali") ?></p>
             <p class="text-2xl font-bold text-gray-900"><?php echo count($generiPrincipali); ?></p>
           </div>
           <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -101,7 +101,7 @@
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Sottogeneri</p>
+            <p class="text-sm font-medium text-gray-600"><?= __("Sottogeneri") ?></p>
             <p class="text-2xl font-bold text-gray-900"><?php echo $totalGeneri - count($generiPrincipali); ?></p>
           </div>
           <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -113,7 +113,7 @@
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">Totale Generi</p>
+            <p class="text-sm font-medium text-gray-600"><?= __("Totale Generi") ?></p>
             <p class="text-2xl font-bold text-gray-900"><?php echo $totalGeneri; ?></p>
           </div>
           <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -127,23 +127,23 @@
     <div class="mb-6">
       <a href="/admin/generi/crea" class="btn-primary inline-flex items-center">
         <i class="fas fa-plus mr-2"></i>
-        Crea Nuovo Genere
+        <?= __("Crea Nuovo Genere") ?>
       </a>
     </div>
 
     <!-- Generi List Card -->
     <div class="card">
-      <p class="text-sm text-gray-600">Visualizzazione gerarchica di generi e sottogeneri</p>
+      <p class="text-sm text-gray-600"><?= __("Visualizzazione gerarchica di generi e sottogeneri") ?></p>
           </div>
           <div class="card-body">
             <?php if (empty($generiPrincipali)): ?>
               <div class="text-center py-12">
                 <i class="fas fa-tags text-6xl text-gray-300 mb-4"></i>
                 <h3 class="text-xl font-medium text-gray-900 mb-2"><?= __("Nessun genere trovato") ?></h3>
-                <p class="text-gray-600 mb-6">Inizia creando il primo genere letterario</p>
+                <p class="text-gray-600 mb-6"><?= __("Inizia creando il primo genere letterario") ?></p>
                 <a href="/admin/generi/crea" class="btn-primary inline-flex items-center">
                   <i class="fas fa-plus mr-2"></i>
-              Crea Primo Genere
+              <?= __("Crea Primo Genere") ?>
             </a>
           </div>
         <?php else: ?>
@@ -161,14 +161,14 @@
                         <?php echo htmlspecialchars($genere['nome']); ?>
                       </h3>
                       <p class="text-sm text-gray-500">
-                        Genere principale • <?php echo $genere['children_count']; ?> sottogeneri
+                        <?= __("Genere principale") ?> • <?php echo $genere['children_count']; ?> <?= __("sottogeneri") ?>
                       </p>
                     </div>
                   </div>
                   <div class="flex items-center space-x-2">
                     <a href="/admin/generi/<?php echo $genere['id']; ?>" class="btn-outline btn-sm">
                       <i class="fas fa-eye mr-1"></i>
-                      Dettagli
+                      <?= __("Dettagli") ?>
                     </a>
                   </div>
                 </div>
@@ -186,7 +186,7 @@
                             </span>
                           </div>
                           <a href="/admin/generi/<?php echo $sottogenere['id']; ?>" class="btn-outline btn-sm">
-                            <i class="fas fa-external-link-alt mr-1"></i>Dettagli
+                            <i class="fas fa-external-link-alt mr-1"></i><?= __("Dettagli") ?>
                           </a>
                         </div>
                       <?php endforeach; ?>
@@ -194,7 +194,7 @@
                   </div>
                 <?php else: ?>
                   <div class="p-4 text-center text-gray-500 text-sm">
-                    Nessun sottogenere definito
+                    <?= __("Nessun sottogenere definito") ?>
                   </div>
                 <?php endif; ?>
               </div>
