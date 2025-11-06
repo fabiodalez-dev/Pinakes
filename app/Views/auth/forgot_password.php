@@ -17,7 +17,7 @@
     <form method="post" action="/forgot-password" class="space-y-4 bg-white p-6 rounded-2xl border border-gray-200 shadow">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
       <div>
-        <label class="form-label">__("Email")</label>
+        <label class="form-label"><?= __("Email") ?></label>
         <input type="email" autocomplete="email" name="email" required aria-required="true" class="form-input" />
       </div>
       <div class="flex items-center justify-between">

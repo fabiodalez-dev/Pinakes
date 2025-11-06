@@ -65,13 +65,13 @@
               <input id="email" name="email" type="email" class="form-input" placeholder="<?= __('info@editore.com') ?>" />
             </div>
             <div>
-              <label for="telefono" class="form-label">__("Telefono")</label>
+              <label for="telefono" class="form-label"><?= __("Telefono") ?></label>
               <input id="telefono" name="telefono" type="tel" class="form-input" placeholder="<?= __('+39 02 1234567') ?>" />
             </div>
           </div>
 
           <div>
-            <label for="indirizzo" class="form-label">__("Indirizzo")</label>
+            <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?></label>
             <textarea id="indirizzo" name="indirizzo" rows="3" class="form-input" placeholder="<?= __('Via Roma 123, 00100 Roma RM, Italia') ?>"></textarea>
           </div>
         </div>

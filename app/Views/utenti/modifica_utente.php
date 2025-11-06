@@ -55,11 +55,11 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
             <p class="text-xs text-gray-500 mt-1" id="role-hint"><?= __("Definisce i privilegi dell'utente.") ?></p>
           </div>
           <div>
-            <label for="stato" class="block text-sm font-medium text-gray-700">__("Stato")</label>
+            <label for="stato" class="block text-sm font-medium text-gray-700"><?= __("Stato") ?></label>
             <select id="stato" name="stato" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
-              <option value="attivo" <?= $stato === 'attivo' ? 'selected' : ''; ?>>__("Attivo")</option>
+              <option value="attivo" <?= $stato === 'attivo' ? 'selected' : ''; ?>><?= __("Attivo") ?></option>
               <option value="sospeso" <?= $stato === 'sospeso' ? 'selected' : ''; ?>><?= __("Sospeso") ?></option>
-              <option value="scaduto" <?= $stato === 'scaduto' ? 'selected' : ''; ?>>__("Scaduto")</option>
+              <option value="scaduto" <?= $stato === 'scaduto' ? 'selected' : ''; ?>><?= __("Scaduto") ?></option>
             </select>
           </div>
         </div>
@@ -111,7 +111,7 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
             <input type="email" id="email" name="email" value="<?= $email; ?>" required class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
           </div>
           <div>
-            <label for="telefono" class="block text-sm font-medium text-gray-700">__("Telefono")</label>
+            <label for="telefono" class="block text-sm font-medium text-gray-700"><?= __("Telefono") ?></label>
             <input type="text" id="telefono" name="telefono" value="<?= $telefono; ?>" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __('+39 123 456 7890') ?>">
             <p class="text-xs text-gray-500 mt-1"><?= __("Obbligatorio per utenti non amministratori.") ?></p>
           </div>
@@ -142,7 +142,7 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
       </section>
 
       <div class="flex items-center justify-end gap-3">
-        <a href="/admin/utenti" class="btn-secondary">__("Annulla")</a>
+        <a href="/admin/utenti" class="btn-secondary"><?= __("Annulla") ?></a>
         <button type="submit" class="btn-primary"><?= __("Salva modifiche") ?></button>
       </div>
     </form>

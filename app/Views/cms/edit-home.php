@@ -183,13 +183,13 @@ $cta = $sections['cta'] ?? null;
                   </div>
                 </div>
                 <div>
-                  <label for="feature<?php echo $num; ?>_title" class="block text-xs font-medium text-gray-700 mb-1">__("Titolo")</label>
+                  <label for="feature<?php echo $num; ?>_title" class="block text-xs font-medium text-gray-700 mb-1"><?= __("Titolo") ?></label>
                   <input type="text" id="feature<?php echo $num; ?>_title" name="feature_<?php echo $num; ?>[title]"
                          value="<?php echo HtmlHelper::e($feature['title'] ?? $defaultFeatures[$num]['title']); ?>"
                          class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3">
                 </div>
                 <div>
-                  <label for="feature<?php echo $num; ?>_subtitle" class="block text-xs font-medium text-gray-700 mb-1">__("Descrizione")</label>
+                  <label for="feature<?php echo $num; ?>_subtitle" class="block text-xs font-medium text-gray-700 mb-1"><?= __("Descrizione") ?></label>
                   <textarea id="feature<?php echo $num; ?>_subtitle" name="feature_<?php echo $num; ?>[subtitle]" rows="2"
                             class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"><?php echo HtmlHelper::e($feature['subtitle'] ?? $defaultFeatures[$num]['desc']); ?></textarea>
                 </div>

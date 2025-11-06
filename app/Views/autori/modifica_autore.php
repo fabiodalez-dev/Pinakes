@@ -27,7 +27,7 @@ $title = "Modifica Autore: " . ($autore['nome'] ?? 'N/D');
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
-        <li class="text-gray-900 font-medium">__("Modifica")</li>
+        <li class="text-gray-900 font-medium"><?= __("Modifica") ?></li>
       </ol>
     </nav>
     <!-- Header -->

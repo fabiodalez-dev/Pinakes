@@ -183,7 +183,7 @@
                   <input name="codice" maxlength="20" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= __('A') ?>" required aria-required="true">
                 </div>
                 <div class="md:col-span-2">
-                  <label class="text-sm font-medium text-gray-700 mb-1 block">__("Nome")</label>
+                  <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Nome") ?></label>
                   <input name="nome" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= __('Scaffale Narrativa') ?>">
                 </div>
                 <div class="flex items-end">

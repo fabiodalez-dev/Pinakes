@@ -62,7 +62,7 @@
         <form method="post" action="/admin/generi/crea" class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
           <div class="md:col-span-2">
-            <label for="nome_genere" class="form-label">__("Nome")</label>
+            <label for="nome_genere" class="form-label"><?= __("Nome") ?></label>
             <input id="nome_genere" name="nome" class="form-input" placeholder="<?= __('es. Noir mediterraneo') ?>" required aria-required="true">
           </div>
           <div>

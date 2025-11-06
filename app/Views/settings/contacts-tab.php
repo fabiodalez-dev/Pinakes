@@ -55,7 +55,7 @@
         </div>
 
         <div>
-          <label for="contact_phone" class="block text-sm font-medium text-gray-700">__("Telefono")</label>
+          <label for="contact_phone" class="block text-sm font-medium text-gray-700"><?= __("Telefono") ?></label>
           <input type="tel"
                  id="contact_phone"
                  name="contact_phone"

@@ -110,9 +110,9 @@
             </label>
             <select id="status_filter" class="form-input">
               <option value="">Tutti gli stati</option>
-              <option value="attivo">__("Attivo")</option>
+              <option value="attivo"><?= __("Attivo") ?></option>
               <option value="sospeso">Sospeso</option>
-              <option value="scaduto">__("Scaduto")</option>
+              <option value="scaduto"><?= __("Scaduto") ?></option>
             </select>
           </div>
           
@@ -166,12 +166,12 @@
           <table id="utenti-table" class="display responsive nowrap" style="width:100%">
             <thead>
               <tr>
-                <th>__("$1")</th>
-                <th>__("Email")</th>
-                <th>__("Telefono")</th>
-                <th>__("$1")</th>
-                <th>__("Stato")</th>
-                <th class="all">__("Azioni")</th>
+                <th><?= __("$1") ?></th>
+                <th><?= __("Email") ?></th>
+                <th><?= __("Telefono") ?></th>
+                <th><?= __("$1") ?></th>
+                <th><?= __("Stato") ?></th>
+                <th class="all"><?= __("Azioni") ?></th>
               </tr>
             </thead>
           </table>

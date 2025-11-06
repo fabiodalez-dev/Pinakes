@@ -807,7 +807,7 @@ $csrfToken = Csrf::ensureToken();
       </div>
 
       <div class="review-modal__actions">
-        <button type="button" class="review-modal__button review-modal__button--secondary" data-review-modal-close>__("Annulla")</button>
+        <button type="button" class="review-modal__button review-modal__button--secondary" data-review-modal-close><?= __("Annulla") ?></button>
         <button type="submit" class="review-modal__button review-modal__button--primary">Invia recensione</button>
       </div>
     </form>

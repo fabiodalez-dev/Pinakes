@@ -26,11 +26,11 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <input type="checkbox" id="select-all-messages" class="rounded border-gray-300">
               </th>
-              <th>__("$1")</th>
-              <th>__("$1")</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">__("Data")</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">__("Stato")</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">__("Azioni")</th>
+              <th><?= __("$1") ?></th>
+              <th><?= __("$1") ?></th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Data") ?></th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Stato") ?></th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200" id="messages-tbody">
@@ -136,25 +136,25 @@ function viewMessage(id) {
               <p class="mt-1 text-sm text-gray-900">${escapeHtml(data.nome)} ${escapeHtml(data.cognome)}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-gray-500">__("Email")</label>
+              <label class="text-sm font-medium text-gray-500"><?= __("Email") ?></label>
               <p class="mt-1 text-sm text-gray-900">
                 <a href="mailto:${escapeHtml(data.email)}" class="text-gray-900 hover:underline">${escapeHtml(data.email)}</a>
               </p>
             </div>
             ${data.telefono ? `
             <div>
-              <label class="text-sm font-medium text-gray-500">__("Telefono")</label>
+              <label class="text-sm font-medium text-gray-500"><?= __("Telefono") ?></label>
               <p class="mt-1 text-sm text-gray-900">${escapeHtml(data.telefono)}</p>
             </div>
             ` : ''}
             ${data.indirizzo ? `
             <div>
-              <label class="text-sm font-medium text-gray-500">__("Indirizzo")</label>
+              <label class="text-sm font-medium text-gray-500"><?= __("Indirizzo") ?></label>
               <p class="mt-1 text-sm text-gray-900">${escapeHtml(data.indirizzo)}</p>
             </div>
             ` : ''}
             <div>
-              <label class="text-sm font-medium text-gray-500">__("Data")</label>
+              <label class="text-sm font-medium text-gray-500"><?= __("Data") ?></label>
               <p class="mt-1 text-sm text-gray-900">${new Date(data.created_at).toLocaleString('it-IT')}</p>
             </div>
           </div>

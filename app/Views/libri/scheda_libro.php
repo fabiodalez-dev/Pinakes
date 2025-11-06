@@ -222,7 +222,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <?php endif; ?>
           <?php if (!empty($activeLoan['note'])): ?>
           <div>
-            <span class="font-medium">__("Note")</span>
+            <span class="font-medium"><?= __("Note") ?></span>
             <p class="mt-1 text-gray-600"><?php echo App\Support\HtmlHelper::e($activeLoan['note']); ?></p>
           </div>
           <?php endif; ?>
@@ -427,7 +427,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['stato'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">__("Stato")</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Stato") ?></dt>
               <dd>
                 <?php $st = strtolower((string)($libro['stato'])); $cls = 'bg-gray-100 text-gray-800';
                   if ($st === 'disponibile') $cls = 'bg-green-500 text-white';
@@ -601,7 +601,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     </button>
                     <?php endif; ?>
                     <?php if (!$canEdit): ?>
-                    <span class="text-gray-400 text-xs">__("In prestito")</span>
+                    <span class="text-gray-400 text-xs"><?= __("In prestito") ?></span>
                     <?php endif; ?>
                   </div>
                 </td>
@@ -817,7 +817,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <textarea id="modal-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
           </div>
           <div class="flex items-center justify-end gap-3 pt-2">
-            <button type="button" id="close-return-modal-secondary" class="btn-secondary">__("Annulla")</button>
+            <button type="button" id="close-return-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
             <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
               <i class="fas fa-check mr-2"></i>Conferma restituzione
             </button>
@@ -876,7 +876,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div>
           <label for="edit-copy-stato" class="form-label">Stato della copia</label>
           <select id="edit-copy-stato" name="stato" class="form-input" required aria-required="true">
-            <option value="disponibile">__("Disponibile")</option>
+            <option value="disponibile"><?= __("Disponibile") ?></option>
             <option value="prestato" disabled>Prestato (usa il sistema Prestiti)</option>
             <option value="manutenzione">In manutenzione</option>
             <option value="danneggiato">Danneggiato</option>
@@ -894,7 +894,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-2">
-          <button type="button" id="close-edit-copy-modal-secondary" class="btn-secondary">__("Annulla")</button>
+          <button type="button" id="close-edit-copy-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
           <button type="submit" class="<?php echo $btnPrimary ?? 'btn-primary'; ?> justify-center">
             <i class="fas fa-save mr-2"></i>Salva Modifiche
           </button>

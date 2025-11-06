@@ -99,7 +99,7 @@ $libri = $data['libri'];
             </label>
             <select id="stato_filter" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full">
               <option value="">Tutti gli stati</option>
-              <option value="Disponibile">__("Disponibile")</option>
+              <option value="Disponibile"><?= __("Disponibile") ?></option>
               <option value="Prestato">Prestato</option>
               <option value="Riservato">Riservato</option>
               <option value="Danneggiato">Danneggiato</option>

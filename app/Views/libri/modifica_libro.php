@@ -34,7 +34,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
           <li>
             <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
           </li>
-          <li class="text-gray-900 font-medium">__("Modifica")</li>
+          <li class="text-gray-900 font-medium"><?= __("Modifica") ?></li>
         </ol>
       </nav>
       
