@@ -31,18 +31,18 @@ ob_start();
 
         <!-- Header -->
         <div class="mb-6 fade-in">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-col gap-4">
+                <h1 class="text-3xl font-bold text-gray-900 flex items-center">
+                    <i class="fas fa-file-csv text-gray-600 mr-3"></i>
+                    <?= __("Import Massivo Libri") ?>
+                </h1>
+                <p class="text-sm text-gray-600"><?= __("Carica un file CSV per importare più libri contemporaneamente") ?></p>
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-                        <i class="fas fa-file-csv text-gray-600 mr-3"></i>
-                        <?= __("Import Massivo Libri") ?>
-                    </h1>
-                    <p class="text-sm text-gray-600 mt-1"><?= __("Carica un file CSV per importare più libri contemporaneamente") ?></p>
+                    <a href="/admin/libri" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        <?= __("Torna ai Libri") ?>
+                    </a>
                 </div>
-                <a href="/admin/libri" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center">
-                    <i class="fas fa-arrow-left mr-2"></i>
-                    <?= __("Torna ai Libri") ?>
-                </a>
             </div>
         </div>
 
