@@ -12,7 +12,7 @@
         </h2>
         <p class="text-sm text-gray-600"><?= __("Personalizza il titolo e il contenuto della pagina privacy policy") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
         <div>
           <label for="privacy_page_title" class="block text-sm font-medium text-gray-700"><?= __("Titolo pagina") ?></label>
           <input type="text"
@@ -42,7 +42,7 @@
         </h2>
         <p class="text-sm text-gray-600"><?= __("Contenuto della pagina /cookies accessibile dal banner") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
         <div>
           <label for="cookie_policy_content" class="block text-sm font-medium text-gray-700"><?= __("Contenuto Cookie Policy") ?></label>
           <textarea id="cookie_policy_content"
@@ -63,7 +63,7 @@
         </h2>
         <p class="text-sm text-gray-600"><?= __("Configurazione del banner cookie") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
         <div class="flex items-center justify-between">
           <label for="cookie_banner_enabled" class="text-sm font-medium text-gray-700"><?= __("Abilita Cookie Banner") ?></label>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -145,7 +145,7 @@
         </h2>
         <p class="text-sm text-gray-600"><?= __("Gestisci la visibilità delle categorie di cookie nel banner. I cookie essenziali sono sempre visibili e obbligatori.") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
         <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl">
           <div class="flex-1">
             <label for="show_analytics" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
@@ -198,12 +198,12 @@
       </div>
     </div>
 
-    <div class="flex justify-end gap-3">
-      <a href="/privacy-policy" target="_blank" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+    <div class="flex justify-end gap-2 md:gap-3">
+      <a href="/privacy-policy" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
         <i class="fas fa-eye"></i>
         <?= __("Anteprima") ?>
       </a>
-      <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+      <button type="submit" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
         <i class="fas fa-save"></i>
         <?= __("Salva Privacy Policy") ?>
       </button>
