@@ -39,7 +39,7 @@ $editori = $data['editori'];
         </div>
         <div class="hidden md:flex items-center gap-3">
           <div class="hidden md:block">
-            <input id="global_search" type="text" placeholder="Cerca rapido..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-64" />
+            <input id="global_search" type="text" placeholder="<?= __('Cerca rapido...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-64" />
           </div>
           <a href="/admin/editori/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-plus mr-2"></i>
@@ -74,7 +74,7 @@ $editori = $data['editori'];
               <i class="fas fa-search mr-1 text-gray-700"></i>
               Nome editore
             </label>
-            <input id="search_nome" placeholder="Cerca per nome..." class="form-input" />
+            <input id="search_nome" placeholder="<?= __('Cerca per nome...') ?>" class="form-input" />
           </div>
 
           <div>
@@ -82,7 +82,7 @@ $editori = $data['editori'];
               <i class="fas fa-globe mr-1 text-gray-700"></i>
               Sito web
             </label>
-            <input id="search_sito" placeholder="URL sito web..." class="form-input" />
+            <input id="search_sito" placeholder="<?= __('URL sito web...') ?>" class="form-input" />
           </div>
 
           <div>

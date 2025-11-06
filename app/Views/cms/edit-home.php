@@ -63,13 +63,13 @@ $cta = $sections['cta'] ?? null;
             <label for="hero_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo principale (H1)</label>
             <input type="text" id="hero_title" name="hero[title]" value="<?php echo HtmlHelper::e($hero['title'] ?? 'La Tua Biblioteca Digitale'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="Es. La Tua Biblioteca Digitale">
+                   placeholder="<?= __('Es. La Tua Biblioteca Digitale') ?>">
           </div>
           <div>
             <label for="hero_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo</label>
             <input type="text" id="hero_subtitle" name="hero[subtitle]" value="<?php echo HtmlHelper::e($hero['subtitle'] ?? 'Esplora, prenota e gestisci la tua collezione di libri'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="Descrizione breve">
+                   placeholder="<?= __('Descrizione breve') ?>">
           </div>
         </div>
 
@@ -106,7 +106,7 @@ $cta = $sections['cta'] ?? null;
             <label for="hero_button_link" class="block text-sm font-medium text-gray-700 mb-2">Link pulsante</label>
             <input type="text" id="hero_button_link" name="hero[button_link]" value="<?php echo HtmlHelper::e($hero['button_link'] ?? '/catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="/catalogo">
+                   placeholder="<?= __('/catalogo') ?>">
           </div>
         </div>
       </div>
@@ -170,7 +170,7 @@ $cta = $sections['cta'] ?? null;
                     <input type="text" id="feature<?php echo $num; ?>_icon" name="feature_<?php echo $num; ?>[content]"
                            value="<?php echo HtmlHelper::e($feature['content'] ?? $defaultFeatures[$num]['icon']); ?>"
                            class="block flex-1 rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="fas fa-users">
+                           placeholder="<?= __('fas fa-users') ?>">
                     <button type="button" onclick="openIconPicker('feature<?php echo $num; ?>_icon')"
                             class="inline-flex items-center gap-1 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">
                       <i class="fas fa-icons"></i>
@@ -226,7 +226,7 @@ $cta = $sections['cta'] ?? null;
           <input type="text" id="text_content_title" name="text_content[title]"
                  value="<?php echo HtmlHelper::e($textContent['title'] ?? ''); ?>"
                  class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="Lascia vuoto per nascondere il titolo">
+                 placeholder="<?= __('Lascia vuoto per nascondere il titolo') ?>">
         </div>
         <div>
           <label for="text_content_body" class="block text-sm font-medium text-gray-700 mb-2">Contenuto</label>
@@ -446,7 +446,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <!-- Search -->
         <div class="px-6 py-4 border-b border-gray-200">
             <div class="relative">
-                <input type="text" id="iconSearch" placeholder="Cerca icona... (es. user, home, book)"
+                <input type="text" id="iconSearch" placeholder="<?= __('Cerca icona... (es. user, home, book)') ?>"
                        class="w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 pl-10 pr-4 py-2 text-sm"
                        oninput="filterIcons(this.value)">
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>

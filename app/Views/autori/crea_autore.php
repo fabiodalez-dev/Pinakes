@@ -50,11 +50,11 @@
               <label for="nome" class="form-label">
                 Nome completo <span class="text-red-500">*</span>
               </label>
-              <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="Nome e cognome dell'autore" />
+              <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= __('Nome e cognome dell\'autore') ?>" />
             </div>
             <div>
               <label for="pseudonimo" class="form-label">Pseudonimo</label>
-              <input id="pseudonimo" name="pseudonimo" class="form-input" placeholder="Nome d'arte o pseudonimo" />
+              <input id="pseudonimo" name="pseudonimo" class="form-input" placeholder="<?= __('Nome d\'arte o pseudonimo') ?>" />
             </div>
           </div>
 
@@ -72,12 +72,12 @@
 
           <div>
             <label for="nazionalita" class="form-label">Nazionalità</label>
-            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="Es. Italiana, Americana, Francese..." />
+            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= __('Es. Italiana, Americana, Francese...') ?>" />
           </div>
 
           <div>
             <label for="sito_web" class="form-label">Sito Web</label>
-            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="https://www.esempio.com" />
+            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= __('https://www.esempio.com') ?>" />
             <p class="text-xs text-gray-500 mt-1">Sito web ufficiale dell'autore (se disponibile)</p>
           </div>
         </div>

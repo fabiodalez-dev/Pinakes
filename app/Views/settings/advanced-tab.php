@@ -56,9 +56,9 @@ use App\Support\HtmlHelper;
                   name="custom_js_essential"
                   rows="10"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="// Script essenziali (es. chat, accessibility)
+                  placeholder="<?= __('// Script essenziali (es. chat, accessibility)
 // Esempio:
-// console.log('Essential JS loaded');"><?php echo HtmlHelper::e($advancedSettings['custom_js_essential'] ?? ''); ?></textarea>
+// console.log(\'Essential JS loaded\');') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_essential'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           Non includere tag &lt;script&gt;&lt;/script&gt;
@@ -97,14 +97,14 @@ use App\Support\HtmlHelper;
                   name="custom_js_analytics"
                   rows="10"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="// Script analytics (es. Google Analytics)
+                  placeholder="<?= __('// Script analytics (es. Google Analytics)
 // Esempio Google Analytics 4:
-// (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+// (function(i,s,o,g,r,a,m){i[\'GoogleAnalyticsObject\']=r;i[r]=i[r]||function(){
 // (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
 // m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-// })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-// ga('create', 'UA-XXXXX-Y', 'auto');
-// ga('send', 'pageview');"><?php echo HtmlHelper::e($advancedSettings['custom_js_analytics'] ?? ''); ?></textarea>
+// })(window,document,\'script\',\'https://www.google-analytics.com/analytics.js\',\'ga\');
+// ga(\'create\', \'UA-XXXXX-Y\', \'auto\');
+// ga(\'send\', \'pageview\');') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_analytics'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           Non includere tag &lt;script&gt;&lt;/script&gt;
@@ -143,15 +143,15 @@ use App\Support\HtmlHelper;
                   name="custom_js_marketing"
                   rows="10"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="// Script marketing (es. Facebook Pixel)
+                  placeholder="<?= __('// Script marketing (es. Facebook Pixel)
 // Esempio Facebook Pixel:
 // !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 // n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-// n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+// n.push=n;n.loaded=!0;n.version=\'2.0\';n.queue=[];t=b.createElement(e);t.async=!0;
 // t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
-// document,'script','https://connect.facebook.net/en_US/fbevents.js');
-// fbq('init', 'YOUR_PIXEL_ID');
-// fbq('track', 'PageView');"><?php echo HtmlHelper::e($advancedSettings['custom_js_marketing'] ?? ''); ?></textarea>
+// document,\'script\',\'https://connect.facebook.net/en_US/fbevents.js\');
+// fbq(\'init\', \'YOUR_PIXEL_ID\');
+// fbq(\'track\', \'PageView\');') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_marketing'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           Non includere tag &lt;script&gt;&lt;/script&gt;
@@ -182,9 +182,9 @@ use App\Support\HtmlHelper;
                   name="custom_header_css"
                   rows="12"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="/* Inserisci il tuo codice CSS qui */
+                  placeholder="<?= __('/* Inserisci il tuo codice CSS qui */
 /* Esempio: */
-/* body { font-size: 16px; } */"><?php echo HtmlHelper::e($advancedSettings['custom_header_css'] ?? ''); ?></textarea>
+/* body { font-size: 16px; } */') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_header_css'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           Il codice verrà inserito in un tag &lt;style&gt; nell'header. Non includere i tag &lt;style&gt;&lt;/style&gt;
@@ -663,7 +663,7 @@ use App\Support\HtmlHelper;
                  name="name"
                  required aria-required="true"
                  class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="es. Integrazione Sito Web">
+                 placeholder="<?= __('es. Integrazione Sito Web') ?>">
         </div>
         <div>
           <label for="api_key_description" class="block text-sm font-medium text-gray-700 mb-1">__("Descrizione")</label>
@@ -671,7 +671,7 @@ use App\Support\HtmlHelper;
                     name="description"
                     rows="3"
                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                    placeholder="Descrivi l'utilizzo di questa API key..."></textarea>
+                    placeholder="<?= __('Descrivi l\'utilizzo di questa API key...') ?>"></textarea>
         </div>
         <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
           <div class="flex items-start gap-2">

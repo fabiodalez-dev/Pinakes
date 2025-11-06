@@ -673,12 +673,12 @@
 
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Titolo (opzionale)</label>
-        <input type="text" id="review-titolo" name="titolo" maxlength="255" placeholder="Es. Un libro fantastico!" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px;">
+        <input type="text" id="review-titolo" name="titolo" maxlength="255" placeholder="<?= __('Es. Un libro fantastico!') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px;">
       </div>
 
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Recensione (opzionale)</label>
-        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" placeholder="Cosa ne pensi di questo libro?" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px; resize: vertical;"></textarea>
+        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" placeholder="<?= __('Cosa ne pensi di questo libro?') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px; resize: vertical;"></textarea>
       </div>
 
       <div style="display: flex; gap: 1rem;">

@@ -50,7 +50,7 @@ $csrfToken = Csrf::ensureToken();
         <div class="form-grid-2">
           <div>
             <label class="form-label">Codice ISBN o EAN</label>
-            <input id="importIsbn" type="text" class="form-input" placeholder="es. 9788842935780" />
+            <input id="importIsbn" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" />
           </div>
           <div class="flex items-end">
             <button type="button" id="btnImportIsbn" class="btn-primary w-full">

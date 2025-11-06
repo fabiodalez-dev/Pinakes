@@ -83,7 +83,7 @@
           <input type="hidden" name="parent_id" value="<?php echo (int)($genere['id'] ?? 0); ?>">
           <div>
             <label for="nome_sottogenere" class="form-label">Nome sottogenere</label>
-            <input id="nome_sottogenere" name="nome" class="form-input" placeholder="es. Urban fantasy" required aria-required="true">
+            <input id="nome_sottogenere" name="nome" class="form-input" placeholder="<?= __('es. Urban fantasy') ?>" required aria-required="true">
           </div>
           <div class="flex justify-end">
             <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i>__("Salva")</button>

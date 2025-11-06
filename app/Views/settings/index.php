@@ -136,7 +136,7 @@ $activeTab = $activeTab ?? 'general';
                   name="footer_description"
                   rows="3"
                   class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                  placeholder="La tua biblioteca digitale..."><?php echo HtmlHelper::e((string)($appSettings['footer_description'] ?? '')); ?></textarea>
+                  placeholder="<?= __('La tua biblioteca digitale...') ?>"><?php echo HtmlHelper::e((string)($appSettings['footer_description'] ?? '')); ?></textarea>
                 <p class="text-xs text-gray-500 mt-1">Testo che apparirà nel footer del sito</p>
               </div>
 
@@ -154,7 +154,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_facebook"
                            value="<?php echo HtmlHelper::e((string)($appSettings['social_facebook'] ?? '')); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="https://facebook.com/tuapagina">
+                           placeholder="<?= __('https://facebook.com/tuapagina') ?>">
                   </div>
                   <div>
                     <label for="social_twitter" class="block text-xs text-gray-600 mb-1">
@@ -165,7 +165,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_twitter"
                            value="<?php echo HtmlHelper::e((string)($appSettings['social_twitter'] ?? '')); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="https://twitter.com/tuoprofilo">
+                           placeholder="<?= __('https://twitter.com/tuoprofilo') ?>">
                   </div>
                   <div>
                     <label for="social_instagram" class="block text-xs text-gray-600 mb-1">
@@ -176,7 +176,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_instagram"
                            value="<?php echo HtmlHelper::e((string)($appSettings['social_instagram'] ?? '')); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="https://instagram.com/tuoprofilo">
+                           placeholder="<?= __('https://instagram.com/tuoprofilo') ?>">
                   </div>
                   <div>
                     <label for="social_linkedin" class="block text-xs text-gray-600 mb-1">
@@ -187,7 +187,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_linkedin"
                            value="<?php echo HtmlHelper::e((string)($appSettings['social_linkedin'] ?? '')); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="https://linkedin.com/company/tuaazienda">
+                           placeholder="<?= __('https://linkedin.com/company/tuaazienda') ?>">
                   </div>
                   <div>
                     <label for="social_bluesky" class="block text-xs text-gray-600 mb-1">
@@ -198,7 +198,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_bluesky"
                            value="<?php echo HtmlHelper::e((string)($appSettings['social_bluesky'] ?? '')); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="https://bsky.app/profile/tuoprofilo">
+                           placeholder="<?= __('https://bsky.app/profile/tuoprofilo') ?>">
                   </div>
                 </div>
                 <p class="text-xs text-gray-500 mt-2">
@@ -245,11 +245,11 @@ $activeTab = $activeTab ?? 'general';
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label for="from_email" class="block text-sm font-medium text-gray-700">Mittente (email)</label>
-                  <input type="email" id="from_email" name="from_email" value="<?php echo HtmlHelper::e((string)($emailSettings['from_email'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="es. noreply@biblioteca.local">
+                  <input type="email" id="from_email" name="from_email" value="<?php echo HtmlHelper::e((string)($emailSettings['from_email'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('es. noreply@biblioteca.local') ?>">
                 </div>
                 <div>
                   <label for="from_name" class="block text-sm font-medium text-gray-700">Mittente (nome)</label>
-                  <input type="text" id="from_name" name="from_name" value="<?php echo HtmlHelper::e((string)($emailSettings['from_name'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="es. Biblioteca Civica">
+                  <input type="text" id="from_name" name="from_name" value="<?php echo HtmlHelper::e((string)($emailSettings['from_name'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('es. Biblioteca Civica') ?>">
                 </div>
               </div>
             </div>
@@ -263,7 +263,7 @@ $activeTab = $activeTab ?? 'general';
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label for="smtp_host" class="block text-sm font-medium text-gray-700">Host</label>
-                <input type="text" id="smtp_host" name="smtp_host" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_host'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="smtp.example.com">
+                <input type="text" id="smtp_host" name="smtp_host" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_host'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('smtp.example.com') ?>">
               </div>
               <div>
                 <label for="smtp_port" class="block text-sm font-medium text-gray-700">Porta</label>

@@ -798,12 +798,12 @@ $csrfToken = Csrf::ensureToken();
 
       <div class="review-modal__field">
         <label class="review-modal__label" for="review-titolo">Titolo (opzionale)</label>
-        <input type="text" id="review-titolo" name="titolo" maxlength="255" class="review-modal__input" placeholder="Es. Un libro straordinario!">
+        <input type="text" id="review-titolo" name="titolo" maxlength="255" class="review-modal__input" placeholder="<?= __('Es. Un libro straordinario!') ?>">
       </div>
 
       <div class="review-modal__field">
         <label class="review-modal__label" for="review-descrizione">Recensione (opzionale)</label>
-        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" class="review-modal__textarea" placeholder="Condividi la tua opinione su questo libro..."></textarea>
+        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" class="review-modal__textarea" placeholder="<?= __('Condividi la tua opinione su questo libro...') ?>"></textarea>
       </div>
 
       <div class="review-modal__actions">

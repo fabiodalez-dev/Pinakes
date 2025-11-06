@@ -814,7 +814,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </div>
           <div>
             <label for="modal-note" class="form-label">Note (opzionali)</label>
-            <textarea id="modal-note" name="note" rows="3" class="form-input" placeholder="Aggiungi eventuali note..."></textarea>
+            <textarea id="modal-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
           </div>
           <div class="flex items-center justify-end gap-3 pt-2">
             <button type="button" id="close-return-modal-secondary" class="btn-secondary">__("Annulla")</button>
@@ -890,7 +890,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
         <div>
           <label for="edit-copy-note" class="form-label">Note (opzionale)</label>
-          <textarea id="edit-copy-note" name="note" rows="3" class="form-input" placeholder="Aggiungi eventuali note..."></textarea>
+          <textarea id="edit-copy-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-2">

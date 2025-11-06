@@ -63,7 +63,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
         </h3>
         <div class="flex gap-2">
           <input id="importIsbn" class="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm" 
-                 placeholder="es. 978-88-429-3578-0" 
+                 placeholder="<?= __('es. 978-88-429-3578-0') ?>" 
                  value="<?php echo HtmlHelper::e($book['isbn13'] ?? $book['isbn10'] ?? ''); ?>" />
           <button type="button" id="btnImportIsbn" class="px-4 py-2 bg-gray-900 text-white rounded-md text-sm hover:bg-blue-700 transition">
             <i class="fas fa-sync-alt mr-1"></i>

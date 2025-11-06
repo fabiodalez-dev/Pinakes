@@ -20,7 +20,7 @@
                  name="page_title"
                  value="<?php echo HtmlHelper::e($contactSettings['page_title'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="Contattaci" />
+                 placeholder="<?= __('Contattaci') ?>" />
         </div>
 
         <div>
@@ -50,7 +50,7 @@
                  name="contact_email"
                  value="<?php echo HtmlHelper::e($contactSettings['contact_email'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="info@biblioteca.it" />
+                 placeholder="<?= __('info@biblioteca.it') ?>" />
           <p class="mt-1 text-xs text-gray-500">Visibile pubblicamente sulla pagina contatti</p>
         </div>
 
@@ -61,7 +61,7 @@
                  name="contact_phone"
                  value="<?php echo HtmlHelper::e($contactSettings['contact_phone'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="+39 049 123 4567" />
+                 placeholder="<?= __('+39 049 123 4567') ?>" />
         </div>
 
         <div>
@@ -71,7 +71,7 @@
                  name="notification_email"
                  value="<?php echo HtmlHelper::e($contactSettings['notification_email'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="admin@biblioteca.it" />
+                 placeholder="<?= __('admin@biblioteca.it') ?>" />
           <p class="mt-1 text-xs text-gray-500">Email dove ricevere i messaggi dal form contatti</p>
         </div>
       </div>

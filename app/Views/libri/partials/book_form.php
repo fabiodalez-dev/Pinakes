@@ -92,26 +92,26 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <label for="titolo" class="form-label">
                 Titolo <span class="text-red-500">*</span>
               </label>
-              <input id="titolo" name="titolo" type="text" required aria-required="true" class="form-input" placeholder="es. La morale anarchica" value="<?php echo HtmlHelper::e($book['titolo'] ?? ''); ?>" />
+              <input id="titolo" name="titolo" type="text" required aria-required="true" class="form-input" placeholder="<?= __('es. La morale anarchica') ?>" value="<?php echo HtmlHelper::e($book['titolo'] ?? ''); ?>" />
             </div>
             <div>
               <label for="sottotitolo" class="form-label">Sottotitolo</label>
-              <input id="sottotitolo" name="sottotitolo" type="text" class="form-input" placeholder="Sottotitolo del libro (opzionale)" value="<?php echo HtmlHelper::e($book['sottotitolo'] ?? ''); ?>" />
+              <input id="sottotitolo" name="sottotitolo" type="text" class="form-input" placeholder="<?= __('Sottotitolo del libro (opzionale)') ?>" value="<?php echo HtmlHelper::e($book['sottotitolo'] ?? ''); ?>" />
             </div>
           </div>
           
           <div class="form-grid-3">
             <div>
               <label for="isbn10" class="form-label">ISBN 10</label>
-              <input id="isbn10" name="isbn10" type="text" class="form-input" placeholder="es. 8842935786" value="<?php echo HtmlHelper::e($book['isbn10'] ?? ''); ?>" />
+              <input id="isbn10" name="isbn10" type="text" class="form-input" placeholder="<?= __('es. 8842935786') ?>" value="<?php echo HtmlHelper::e($book['isbn10'] ?? ''); ?>" />
             </div>
             <div>
               <label for="isbn13" class="form-label">ISBN 13</label>
-              <input id="isbn13" name="isbn13" type="text" class="form-input" placeholder="es. 9788842935780" value="<?php echo HtmlHelper::e($book['isbn13'] ?? ''); ?>" />
+              <input id="isbn13" name="isbn13" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['isbn13'] ?? ''); ?>" />
             </div>
             <div>
               <label for="edizione" class="form-label">Edizione</label>
-              <input id="edizione" name="edizione" type="text" class="form-input" placeholder="es. Prima edizione" value="<?php echo HtmlHelper::e($book['edizione'] ?? ''); ?>" />
+              <input id="edizione" name="edizione" type="text" class="form-input" placeholder="<?= __('es. Prima edizione') ?>" value="<?php echo HtmlHelper::e($book['edizione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1">Numero o descrizione dell'edizione</p>
             </div>
           </div>
@@ -119,12 +119,12 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <div class="form-grid-2">
             <div>
               <label for="data_pubblicazione" class="form-label">Data di Pubblicazione</label>
-              <input id="data_pubblicazione" name="data_pubblicazione" type="text" class="form-input" placeholder="es. 26 agosto 2025" value="<?php echo HtmlHelper::e($book['data_pubblicazione'] ?? ''); ?>" />
+              <input id="data_pubblicazione" name="data_pubblicazione" type="text" class="form-input" placeholder="<?= __('es. 26 agosto 2025') ?>" value="<?php echo HtmlHelper::e($book['data_pubblicazione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1">Data originale di pubblicazione (formato italiano)</p>
             </div>
             <div>
               <label for="anno_pubblicazione" class="form-label">Anno di Pubblicazione</label>
-              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="1000" max="2100" class="form-input" placeholder="es. 2025" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
+              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="1000" max="2100" class="form-input" placeholder="<?= __('es. 2025') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1">Anno numerico (usato per filtri e ordinamento)</p>
             </div>
           </div>
@@ -132,12 +132,12 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <div class="form-grid-2">
             <div>
               <label for="ean" class="form-label">EAN</label>
-              <input id="ean" name="ean" type="text" class="form-input" placeholder="es. 9788842935780" value="<?php echo HtmlHelper::e($book['ean'] ?? ''); ?>" />
+              <input id="ean" name="ean" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['ean'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1">European Article Number (opzionale)</p>
             </div>
             <div>
               <label for="lingua" class="form-label">Lingua</label>
-              <input id="lingua" name="lingua" type="text" class="form-input" placeholder="es. Italiano, Inglese" value="<?php echo HtmlHelper::e($book['lingua'] ?? ''); ?>" />
+              <input id="lingua" name="lingua" type="text" class="form-input" placeholder="<?= __('es. Italiano, Inglese') ?>" value="<?php echo HtmlHelper::e($book['lingua'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1">Lingua originale del libro</p>
             </div>
           </div>
@@ -153,7 +153,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 <div class="choices__inner form-input pr-10 flex flex-wrap items-center gap-2">
                   <div id="editore_chip_list" class="choices__list choices__list--multiple flex flex-wrap items-center gap-2"></div>
                   <input id="editore_search" name="editore_search_display" type="text"
-                         placeholder="Cerca editore esistente o inserisci nuovo..."
+                         placeholder="<?= __('Cerca editore esistente o inserisci nuovo...') ?>"
                          class="choices__input choices__input--cloned flex-1 bg-transparent focus:outline-none border-none outline-none"
                          style="min-width: 140px; flex: 1 1 140px;"
                          autocomplete="off"
@@ -171,7 +171,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <!-- Authors with Choices.js -->
           <div>
             <label for="autori_select" class="form-label">Autori</label>
-            <select id="autori_select" name="autori_select[]" multiple placeholder="Cerca autori esistenti o aggiungine di nuovi..." data-initial-authors="<?php echo $initialAuthorsJson; ?>">
+            <select id="autori_select" name="autori_select[]" multiple placeholder="<?= __('Cerca autori esistenti o aggiungine di nuovi...') ?>" data-initial-authors="<?php echo $initialAuthorsJson; ?>">
               <!-- Options will be populated dynamically -->
             </select>
             <div id="autori_hidden"></div>
@@ -199,7 +199,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <!-- Description -->
           <div>
             <label for="descrizione" class="form-label">__("Descrizione")</label>
-            <textarea id="descrizione" name="descrizione" rows="4" class="form-input" placeholder="Descrizione del libro..."><?php echo HtmlHelper::e($book['descrizione'] ?? ''); ?></textarea>
+            <textarea id="descrizione" name="descrizione" rows="4" class="form-input" placeholder="<?= __('Descrizione del libro...') ?>"><?php echo HtmlHelper::e($book['descrizione'] ?? ''); ?></textarea>
           </div>
         </div>
       </div>
@@ -265,7 +265,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <!-- Keywords -->
           <div class="mt-4">
             <label for="parole_chiave" class="form-label">Parole Chiave</label>
-            <input id="parole_chiave" name="parole_chiave" type="text" class="form-input" placeholder="es. romanzo, fantasy, avventura (separare con virgole)" value="<?php echo HtmlHelper::e($book['parole_chiave'] ?? ''); ?>" />
+            <input id="parole_chiave" name="parole_chiave" type="text" class="form-input" placeholder="<?= __('es. romanzo, fantasy, avventura (separare con virgole)') ?>" value="<?php echo HtmlHelper::e($book['parole_chiave'] ?? ''); ?>" />
             <p class="text-xs text-gray-500 mt-1">Inserisci parole chiave separate da virgole per facilitare la ricerca</p>
           </div>
         </div>
@@ -286,11 +286,11 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
             <div>
               <label for="tipo_acquisizione" class="form-label">Tipo Acquisizione</label>
-              <input id="tipo_acquisizione" name="tipo_acquisizione" type="text" class="form-input" placeholder="es. Acquisto, Donazione, Prestito" value="<?php echo HtmlHelper::e($book['tipo_acquisizione'] ?? ''); ?>" />
+              <input id="tipo_acquisizione" name="tipo_acquisizione" type="text" class="form-input" placeholder="<?= __('es. Acquisto, Donazione, Prestito') ?>" value="<?php echo HtmlHelper::e($book['tipo_acquisizione'] ?? ''); ?>" />
             </div>
             <div>
               <label for="prezzo" class="form-label">Prezzo (€)</label>
-              <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="es. 19.90" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
+              <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="<?= __('es. 19.90') ?>" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
             </div>
           </div>
         </div>
@@ -308,21 +308,21 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <div class="form-grid-3">
             <div>
               <label for="formato" class="form-label">Formato</label>
-              <input id="formato" name="formato" type="text" class="form-input" placeholder="es. Copertina rigida, Brossura" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
+              <input id="formato" name="formato" type="text" class="form-input" placeholder="<?= __('es. Copertina rigida, Brossura') ?>" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
             </div>
             <div>
               <label for="numero_pagine" class="form-label">Numero Pagine</label>
-              <input id="numero_pagine" name="numero_pagine" type="number" class="form-input" placeholder="es. 320" value="<?php echo HtmlHelper::e($book['numero_pagine'] ?? ''); ?>" />
+              <input id="numero_pagine" name="numero_pagine" type="number" class="form-input" placeholder="<?= __('es. 320') ?>" value="<?php echo HtmlHelper::e($book['numero_pagine'] ?? ''); ?>" />
             </div>
             <div>
               <label for="peso" class="form-label">Peso (kg)</label>
-              <input id="peso" name="peso" type="number" step="0.001" class="form-input" placeholder="es. 0.450" value="<?php echo HtmlHelper::e($book['peso'] ?? ''); ?>" />
+              <input id="peso" name="peso" type="number" step="0.001" class="form-input" placeholder="<?= __('es. 0.450') ?>" value="<?php echo HtmlHelper::e($book['peso'] ?? ''); ?>" />
             </div>
           </div>
 
           <div>
             <label for="dimensioni" class="form-label">Dimensioni</label>
-            <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="es. 21x14 cm" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
+            <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= __('es. 21x14 cm') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
           
           <div class="form-grid-3">
@@ -351,33 +351,33 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <div class="form-grid-3">
             <div>
               <label for="numero_inventario" class="form-label">Numero Inventario</label>
-              <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="es. INV-2024-001" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
+              <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
             </div>
             <div>
               <label for="collana" class="form-label">Collana</label>
-              <input id="collana" name="collana" type="text" class="form-input" placeholder="es. I Classici" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
+              <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= __('es. I Classici') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
             </div>
             <div>
               <label for="numero_serie" class="form-label">Numero Serie</label>
-              <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="es. 15" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
+              <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= __('es. 15') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
             </div>
           </div>
 
           <div class="form-grid-2">
             <div>
               <label for="file_url" class="form-label">File URL</label>
-              <input id="file_url" name="file_url" type="text" class="form-input" placeholder="Link al file digitale (se disponibile)" value="<?php echo HtmlHelper::e($book['file_url'] ?? ''); ?>" />
+              <input id="file_url" name="file_url" type="text" class="form-input" placeholder="<?= __('Link al file digitale (se disponibile)') ?>" value="<?php echo HtmlHelper::e($book['file_url'] ?? ''); ?>" />
             </div>
             <div>
               <label for="audio_url" class="form-label">Audio URL</label>
-              <input id="audio_url" name="audio_url" type="text" class="form-input" placeholder="Link all'audiolibro (se disponibile)" value="<?php echo HtmlHelper::e($book['audio_url'] ?? ''); ?>" />
+              <input id="audio_url" name="audio_url" type="text" class="form-input" placeholder="<?= __('Link all\'audiolibro (se disponibile)') ?>" value="<?php echo HtmlHelper::e($book['audio_url'] ?? ''); ?>" />
             </div>
           </div>
 
           <!-- Notes -->
           <div>
             <label for="note_varie" class="form-label">Note Varie</label>
-            <textarea id="note_varie" name="note_varie" rows="3" class="form-input" placeholder="Note aggiuntive o osservazioni particolari..."><?php echo HtmlHelper::e($book['note_varie'] ?? ''); ?></textarea>
+            <textarea id="note_varie" name="note_varie" rows="3" class="form-input" placeholder="<?= __('Note aggiuntive o osservazioni particolari...') ?>"><?php echo HtmlHelper::e($book['note_varie'] ?? ''); ?></textarea>
           </div>
         </div>
       </div>
@@ -472,7 +472,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div>
               <label for="posizione_progressiva_input" class="form-label">Posizione progressiva</label>
               <div class="flex flex-col gap-2">
-                <input type="number" min="1" name="posizione_progressiva" id="posizione_progressiva_input" class="form-input" value="<?php echo $initialPosizioneProgressiva ?: ''; ?>" placeholder="Auto" />
+                <input type="number" min="1" name="posizione_progressiva" id="posizione_progressiva_input" class="form-input" value="<?php echo $initialPosizioneProgressiva ?: ''; ?>" placeholder="<?= __('Auto') ?>" />
                 <button type="button" id="btnAutoPosition" class="btn-outline w-full sm:w-auto"><i class="fas fa-sync mr-2"></i>Genera automaticamente</button>
                 <p class="text-xs text-gray-500">Lascia vuoto o usa "Genera" per assegnare automaticamente la prossima posizione disponibile.</p>
               </div>

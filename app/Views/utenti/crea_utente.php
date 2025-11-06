@@ -99,7 +99,7 @@ $errorKey = (string)($_GET['error'] ?? '');
           </div>
           <div>
             <label for="telefono" class="block text-sm font-medium text-gray-700">__("Telefono")</label>
-            <input type="text" id="telefono" name="telefono" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="+39 123 456 7890">
+            <input type="text" id="telefono" name="telefono" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __('+39 123 456 7890') ?>">
             <p class="text-xs text-gray-500 mt-1"><?= __("Obbligatorio per utenti non amministratori.") ?></p>
           </div>
         </div>

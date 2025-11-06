@@ -153,11 +153,11 @@ function getStatusBadge($status) {
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div>
                 <label class="form-label">Cerca Utente</label>
-                <input name="utente" placeholder="Nome, cognome, email..." class="form-input" />
+                <input name="utente" placeholder="<?= __('Nome, cognome, email...') ?>" class="form-input" />
               </div>
               <div>
                 <label class="form-label">Cerca Libro</label>
-                <input name="libro" placeholder="Titolo..." class="form-input" />
+                <input name="libro" placeholder="<?= __('Titolo...') ?>" class="form-input" />
               </div>
               <div>
                 <label class="form-label">Data prestito (Da)</label>

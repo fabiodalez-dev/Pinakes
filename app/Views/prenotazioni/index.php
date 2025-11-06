@@ -15,13 +15,13 @@
       <form method="get" class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
         <div class="relative">
           <label class="form-label">Filtro Libro</label>
-          <input type="text" id="admin_filter_libro" name="q_libro" class="form-input" placeholder="Titolo libro" value="<?php echo htmlspecialchars((string)($q_libro ?? ''), ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off">
+          <input type="text" id="admin_filter_libro" name="q_libro" class="form-input" placeholder="<?= __('Titolo libro') ?>" value="<?php echo htmlspecialchars((string)($q_libro ?? ''), ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off">
           <ul id="admin_filter_libro_suggest" class="autocomplete-suggestions"></ul>
           <input type="hidden" id="libro_id" name="libro_id" value="<?php echo (int)($libro_id ?? 0); ?>">
         </div>
         <div class="relative">
           <label class="form-label">Filtro Utente</label>
-          <input type="text" id="admin_filter_utente" name="q_utente" class="form-input" placeholder="Nome Cognome" value="<?php echo htmlspecialchars((string)($q_utente ?? ''), ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off">
+          <input type="text" id="admin_filter_utente" name="q_utente" class="form-input" placeholder="<?= __('Nome Cognome') ?>" value="<?php echo htmlspecialchars((string)($q_utente ?? ''), ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off">
           <ul id="admin_filter_utente_suggest" class="autocomplete-suggestions"></ul>
           <input type="hidden" id="utente_id" name="utente_id" value="<?php echo (int)($utente_id ?? 0); ?>">
         </div>

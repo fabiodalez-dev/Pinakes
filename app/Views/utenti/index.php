@@ -86,7 +86,7 @@
               <i class="fas fa-search mr-1"></i>
               Cerca testo
             </label>
-            <input id="search_text" placeholder="Nome, cognome, email..." class="form-input" />
+            <input id="search_text" placeholder="<?= __('Nome, cognome, email...') ?>" class="form-input" />
           </div>
           
           <div>

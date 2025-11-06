@@ -742,7 +742,7 @@ if (!function_exists('assetUrl')) {
                     </button>
 
                     <form class="search-form d-none d-md-block" action="/catalogo" method="get">
-                        <input class="search-input" type="search" name="q" placeholder="Cerca libri, autori..." aria-label="Search">
+                        <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori...') ?>" aria-label="Search">
                     </form>
 
                     <div class="user-menu d-none d-md-flex">
@@ -786,7 +786,7 @@ if (!function_exists('assetUrl')) {
                     </div>
 
                     <form class="search-form d-md-none w-100" action="/catalogo" method="get">
-                        <input class="search-input" type="search" name="q" placeholder="Cerca libri..." aria-label="Search">
+                        <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>" aria-label="Search">
                     </form>
                 </div>
             </div>

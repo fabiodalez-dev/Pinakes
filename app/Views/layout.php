@@ -443,7 +443,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <i class="fas fa-search text-gray-400"></i>
                 </div>
-                <input type="text" id="mobile-global-search" class="w-full pl-14 pr-12 py-3 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all" placeholder="Cerca libri, autori, editori, utenti..." autocomplete="off">
+                <input type="text" id="mobile-global-search" class="w-full pl-14 pr-12 py-3 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all" placeholder="<?= __('Cerca libri, autori, editori, utenti...') ?>" autocomplete="off">
                 <button id="mobile-search-close" class="absolute inset-y-0 right-0 pr-4 flex items-center">
                   <i class="fas fa-times text-gray-400 hover:text-gray-600"></i>
                 </button>

@@ -20,7 +20,7 @@
                  name="page_title"
                  value="<?php echo HtmlHelper::e($privacySettings['page_title'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="Privacy Policy" />
+                 placeholder="<?= __('Privacy Policy') ?>" />
         </div>
 
         <div>
@@ -107,7 +107,7 @@
                    value="<?php echo HtmlHelper::e($privacySettings['cookie_banner_country'] ?? 'it'); ?>"
                    maxlength="2"
                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 uppercase"
-                   placeholder="IT" />
+                   placeholder="<?= __('IT') ?>" />
             <p class="mt-1 text-xs text-gray-500">Codice ISO 2 lettere (es: IT, FR, GB)</p>
           </div>
         </div>
@@ -119,7 +119,7 @@
                  name="cookie_statement_link"
                  value="<?php echo HtmlHelper::e($privacySettings['cookie_statement_link'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="https://esempio.com/cookie-policy" />
+                 placeholder="<?= __('https://esempio.com/cookie-policy') ?>" />
           <p class="mt-1 text-xs text-gray-500">URL della pagina con la cookie policy</p>
         </div>
 
@@ -130,7 +130,7 @@
                  name="cookie_technologies_link"
                  value="<?php echo HtmlHelper::e($privacySettings['cookie_technologies_link'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="https://esempio.com/tecnologie-cookie" />
+                 placeholder="<?= __('https://esempio.com/tecnologie-cookie') ?>" />
           <p class="mt-1 text-xs text-gray-500">URL della pagina con le tecnologie dei cookie</p>
         </div>
       </div>

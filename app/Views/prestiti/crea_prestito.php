@@ -59,7 +59,7 @@
     <!-- Ricerca Utente -->
     <div class="relative">
       <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium">Ricerca Utente *</label>
-      <input type="text" id="utente_search" placeholder="Cerca per nome, cognome, telefono, email o tessera" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
       <div id="utente_suggest" class="suggestions-box"></div>
       <input type="hidden" name="utente_id" id="utente_id" value="0" />
     </div>
@@ -67,7 +67,7 @@
     <!-- Ricerca Libro -->
     <div class="relative">
       <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium">Ricerca Libro *</label>
-      <input type="text" id="libro_search" placeholder="Cerca per titolo o sottotitolo" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+      <input type="text" id="libro_search" placeholder="<?= __('Cerca per titolo o sottotitolo') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
       <div id="libro_suggest" class="suggestions-box"></div>
       <input type="hidden" name="libro_id" id="libro_id" value="0" />
     </div>
@@ -89,7 +89,7 @@
     <!-- Note sul prestito -->
     <div>
       <label for="note" class="block text-gray-700 dark:text-gray-300 font-medium">Note (opzionali)</label>
-      <textarea id="note" name="note" rows="4" placeholder="Aggiungi eventuali note sul prestito" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"></textarea>
+      <textarea id="note" name="note" rows="4" placeholder="<?= __('Aggiungi eventuali note sul prestito') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"></textarea>
     </div>
 
     <!-- Pulsanti -->

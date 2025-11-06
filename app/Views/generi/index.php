@@ -63,7 +63,7 @@
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
           <div class="md:col-span-2">
             <label for="nome_genere" class="form-label">__("Nome")</label>
-            <input id="nome_genere" name="nome" class="form-input" placeholder="es. Noir mediterraneo" required aria-required="true">
+            <input id="nome_genere" name="nome" class="form-input" placeholder="<?= __('es. Noir mediterraneo') ?>" required aria-required="true">
           </div>
           <div>
             <label for="parent_id_genere" class="form-label">Genere padre (opz.)</label>

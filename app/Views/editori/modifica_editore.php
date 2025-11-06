@@ -58,11 +58,11 @@ $title = "Modifica Editore: " . ($editore['nome'] ?? 'N/D');
               <label for="nome" class="form-label">
                 Nome Editore <span class="text-red-500">*</span>
               </label>
-              <input id="nome" name="nome" value="<?php echo App\Support\HtmlHelper::e($editore['nome'] ?? ''); ?>" required class="form-input" placeholder="Nome della casa editrice" />
+              <input id="nome" name="nome" value="<?php echo App\Support\HtmlHelper::e($editore['nome'] ?? ''); ?>" required class="form-input" placeholder="<?= __('Nome della casa editrice') ?>" />
             </div>
             <div>
               <label for="sito_web" class="form-label">Sito Web</label>
-              <input id="sito_web" name="sito_web" value="<?php echo App\Support\HtmlHelper::e($editore['sito_web'] ?? ''); ?>" type="url" class="form-input" placeholder="https://www.editore.com" />
+              <input id="sito_web" name="sito_web" value="<?php echo App\Support\HtmlHelper::e($editore['sito_web'] ?? ''); ?>" type="url" class="form-input" placeholder="<?= __('https://www.editore.com') ?>" />
               <p class="text-xs text-gray-500 mt-1">Sito web ufficiale dell'editore</p>
             </div>
           </div>
@@ -70,17 +70,17 @@ $title = "Modifica Editore: " . ($editore['nome'] ?? 'N/D');
           <div class="form-grid-2">
             <div>
               <label for="email" class="form-label">Email Contatto</label>
-              <input id="email" name="email" value="<?php echo App\Support\HtmlHelper::e($editore['email'] ?? ''); ?>" type="email" class="form-input" placeholder="info@editore.com" />
+              <input id="email" name="email" value="<?php echo App\Support\HtmlHelper::e($editore['email'] ?? ''); ?>" type="email" class="form-input" placeholder="<?= __('info@editore.com') ?>" />
             </div>
             <div>
               <label for="telefono" class="form-label">__("Telefono")</label>
-              <input id="telefono" name="telefono" value="<?php echo App\Support\HtmlHelper::e($editore['telefono'] ?? ''); ?>" type="tel" class="form-input" placeholder="+39 02 1234567" />
+              <input id="telefono" name="telefono" value="<?php echo App\Support\HtmlHelper::e($editore['telefono'] ?? ''); ?>" type="tel" class="form-input" placeholder="<?= __('+39 02 1234567') ?>" />
             </div>
           </div>
 
           <div>
             <label for="indirizzo" class="form-label">__("Indirizzo")</label>
-            <textarea id="indirizzo" name="indirizzo" rows="3" class="form-input" placeholder="Via Roma 123, 00100 Roma RM, Italia"><?php echo App\Support\HtmlHelper::e($editore['indirizzo'] ?? ''); ?></textarea>
+            <textarea id="indirizzo" name="indirizzo" rows="3" class="form-input" placeholder="<?= __('Via Roma 123, 00100 Roma RM, Italia') ?>"><?php echo App\Support\HtmlHelper::e($editore['indirizzo'] ?? ''); ?></textarea>
           </div>
         </div>
       </div>
@@ -97,22 +97,22 @@ $title = "Modifica Editore: " . ($editore['nome'] ?? 'N/D');
           <div class="form-grid-3">
             <div>
               <label for="referente_nome" class="form-label">Nome Referente</label>
-              <input id="referente_nome" name="referente_nome" value="<?php echo App\Support\HtmlHelper::e($editore['referente_nome'] ?? ''); ?>" class="form-input" placeholder="Nome e cognome del referente" />
+              <input id="referente_nome" name="referente_nome" value="<?php echo App\Support\HtmlHelper::e($editore['referente_nome'] ?? ''); ?>" class="form-input" placeholder="<?= __('Nome e cognome del referente') ?>" />
               <p class="text-xs text-gray-500 mt-1">Persona di riferimento presso l'editore</p>
             </div>
             <div>
               <label for="referente_telefono" class="form-label">Telefono Referente</label>
-              <input id="referente_telefono" name="referente_telefono" value="<?php echo App\Support\HtmlHelper::e($editore['referente_telefono'] ?? ''); ?>" type="tel" class="form-input" placeholder="+39 02 1234567" />
+              <input id="referente_telefono" name="referente_telefono" value="<?php echo App\Support\HtmlHelper::e($editore['referente_telefono'] ?? ''); ?>" type="tel" class="form-input" placeholder="<?= __('+39 02 1234567') ?>" />
             </div>
             <div>
               <label for="referente_email" class="form-label">Email Referente</label>
-              <input id="referente_email" name="referente_email" value="<?php echo App\Support\HtmlHelper::e($editore['referente_email'] ?? ''); ?>" type="email" class="form-input" placeholder="referente@editore.com" />
+              <input id="referente_email" name="referente_email" value="<?php echo App\Support\HtmlHelper::e($editore['referente_email'] ?? ''); ?>" type="email" class="form-input" placeholder="<?= __('referente@editore.com') ?>" />
             </div>
           </div>
 
           <div>
             <label for="codice_fiscale" class="form-label">Codice Fiscale</label>
-            <input id="codice_fiscale" name="codice_fiscale" value="<?php echo App\Support\HtmlHelper::e($editore['codice_fiscale'] ?? ''); ?>" type="text" maxlength="16" class="form-input" placeholder="es. RSSMRA80A01H501U" />
+            <input id="codice_fiscale" name="codice_fiscale" value="<?php echo App\Support\HtmlHelper::e($editore['codice_fiscale'] ?? ''); ?>" type="text" maxlength="16" class="form-input" placeholder="<?= __('es. RSSMRA80A01H501U') ?>" />
             <p class="text-xs text-gray-500 mt-1">Codice fiscale dell'editore (opzionale)</p>
           </div>
         </div>

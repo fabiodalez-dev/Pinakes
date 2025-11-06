@@ -57,11 +57,11 @@ $title = "Modifica Autore: " . ($autore['nome'] ?? 'N/D');
               <label for="nome" class="form-label">
                 Nome completo <span class="text-red-500">*</span>
               </label>
-              <input id="nome" name="nome" value="<?php echo App\Support\HtmlHelper::e($autore['nome'] ?? ''); ?>" required class="form-input" placeholder="Nome e cognome dell'autore" />
+              <input id="nome" name="nome" value="<?php echo App\Support\HtmlHelper::e($autore['nome'] ?? ''); ?>" required class="form-input" placeholder="<?= __('Nome e cognome dell\'autore') ?>" />
             </div>
             <div>
               <label for="pseudonimo" class="form-label">Pseudonimo</label>
-              <input id="pseudonimo" name="pseudonimo" value="<?php echo App\Support\HtmlHelper::e($autore['pseudonimo'] ?? ''); ?>" class="form-input" placeholder="Nome d'arte o pseudonimo" />
+              <input id="pseudonimo" name="pseudonimo" value="<?php echo App\Support\HtmlHelper::e($autore['pseudonimo'] ?? ''); ?>" class="form-input" placeholder="<?= __('Nome d\'arte o pseudonimo') ?>" />
             </div>
           </div>
 
@@ -79,12 +79,12 @@ $title = "Modifica Autore: " . ($autore['nome'] ?? 'N/D');
 
           <div>
             <label for="nazionalita" class="form-label">Nazionalità</label>
-            <input id="nazionalita" name="nazionalita" value="<?php echo App\Support\HtmlHelper::e($autore['nazionalità'] ?? ''); ?>" class="form-input" placeholder="Es. Italiana, Americana, Francese..." />
+            <input id="nazionalita" name="nazionalita" value="<?php echo App\Support\HtmlHelper::e($autore['nazionalità'] ?? ''); ?>" class="form-input" placeholder="<?= __('Es. Italiana, Americana, Francese...') ?>" />
           </div>
 
           <div>
             <label for="sito_web" class="form-label">Sito Web</label>
-            <input type="url" id="sito_web" name="sito_web" value="<?php echo App\Support\HtmlHelper::e($autore['sito_web'] ?? ''); ?>" class="form-input" placeholder="https://www.esempio.com" />
+            <input type="url" id="sito_web" name="sito_web" value="<?php echo App\Support\HtmlHelper::e($autore['sito_web'] ?? ''); ?>" class="form-input" placeholder="<?= __('https://www.esempio.com') ?>" />
             <p class="text-xs text-gray-500 mt-1">Sito web ufficiale dell'autore (se disponibile)</p>
           </div>
         </div>

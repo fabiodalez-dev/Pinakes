@@ -1989,9 +1989,9 @@ document.addEventListener('DOMContentLoaded', function() {
           html:
             `<div class="text-start">`+
             `<label class="form-label">Quando vuoi iniziare il prestito?</label>`+
-            `<input id="swal-date-start" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="Data inizio">`+
+            `<input id="swal-date-start" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="<?= __('Data inizio') ?>">`+
             `<label class="form-label mt-3">Fino a quando? (opzionale):</label>`+
-            `<input id="swal-date-end" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="Lascia vuoto per 1 mese">`+
+            `<input id="swal-date-end" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="<?= __('Lascia vuoto per 1 mese') ?>">`+
             `<div class="text-muted mt-2 small">`+
             `<i class="fas fa-info-circle me-1"></i>`+
             `Le date rosse non sono disponibili. La richiesta verrà valutata da un amministratore.`+

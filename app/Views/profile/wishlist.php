@@ -297,7 +297,7 @@ $pendingCount = $totalItems - $availableCount;
   <div class="wishlist-filter-card d-flex flex-column flex-md-row align-items-md-center justify-content-md-between gap-3">
     <div class="flex-grow-1">
       <label for="wishlist_search" class="mb-2">Ricerca rapida</label>
-      <input id="wishlist_search" type="search" class="form-control" placeholder="Cerca per titolo o stato (es. disponibile)">
+      <input id="wishlist_search" type="search" class="form-control" placeholder="<?= __('Cerca per titolo o stato (es. disponibile)') ?>">
     </div>
     <button id="clear-search" type="button" class="text-uppercase">Pulisci filtro</button>
   </div>

@@ -38,7 +38,7 @@ $libri = $data['libri'];
         </div>
         <div class="hidden md:flex items-center gap-3">
           <div class="hidden md:block">
-            <input id="global_search" type="text" placeholder="Cerca rapido..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-64" />
+            <input id="global_search" type="text" placeholder="<?= __('Cerca rapido...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-64" />
           </div>
           <a href="/admin/libri/import" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300" title="Import massivo da CSV">
             <i class="fas fa-file-csv mr-2"></i>
@@ -81,7 +81,7 @@ $libri = $data['libri'];
               <i class="fas fa-search mr-1 text-gray-500"></i>
               Cerca testo
             </label>
-            <input id="search_text" placeholder="Titolo, sottotitolo, descrizione..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="search_text" placeholder="<?= __('Titolo, sottotitolo, descrizione...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
 
           <div>
@@ -89,7 +89,7 @@ $libri = $data['libri'];
               <i class="fas fa-barcode mr-1 text-gray-500"></i>
               ISBN
             </label>
-            <input id="search_isbn" placeholder="ISBN10 o ISBN13" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="search_isbn" placeholder="<?= __('ISBN10 o ISBN13') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
 
           <div>
@@ -139,7 +139,7 @@ $libri = $data['libri'];
               <i class="fas fa-user-edit mr-1 text-gray-500"></i>
               Autore
             </label>
-            <input id="filter_autore" placeholder="Cerca autore..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
+            <input id="filter_autore" placeholder="<?= __('Cerca autore...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_autore_suggest" class="autocomplete-suggestions"></ul>
             <input type="hidden" id="autore_id" />
           </div>
@@ -149,7 +149,7 @@ $libri = $data['libri'];
               <i class="fas fa-building mr-1 text-gray-500"></i>
               Editore
             </label>
-            <input id="filter_editore" placeholder="Cerca editore..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
+            <input id="filter_editore" placeholder="<?= __('Cerca editore...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_editore_suggest" class="autocomplete-suggestions"></ul>
             <input type="hidden" id="editore_filter" />
           </div>
@@ -161,7 +161,7 @@ $libri = $data['libri'];
               <i class="fas fa-tags mr-1 text-gray-500"></i>
               Genere
             </label>
-            <input id="filter_genere" placeholder="Cerca genere..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
+            <input id="filter_genere" placeholder="<?= __('Cerca genere...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_genere_suggest" class="autocomplete-suggestions"></ul>
             <input type="hidden" id="genere_id" />
           </div>
@@ -171,7 +171,7 @@ $libri = $data['libri'];
               <i class="fas fa-map-marker-alt mr-1 text-gray-500"></i>
               Posizione
             </label>
-            <input id="filter_posizione" placeholder="Cerca posizione..." class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
+            <input id="filter_posizione" placeholder="<?= __('Cerca posizione...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
             <ul id="filter_posizione_suggest" class="autocomplete-suggestions"></ul>
             <input type="hidden" id="posizione_id" />
           </div>
@@ -181,7 +181,7 @@ $libri = $data['libri'];
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
               Anno pubblicazione da
             </label>
-            <input id="anno_from" type="number" placeholder="es. 2020" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="anno_from" type="number" placeholder="<?= __('es. 2020') ?>" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
 
           <div>
@@ -189,7 +189,7 @@ $libri = $data['libri'];
               <i class="fas fa-calendar mr-1 text-gray-500"></i>
               Anno pubblicazione a
             </label>
-            <input id="anno_to" type="number" placeholder="es. 2024" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="anno_to" type="number" placeholder="<?= __('es. 2024') ?>" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
         </div>
 
