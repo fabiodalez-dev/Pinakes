@@ -334,7 +334,7 @@ use App\Support\HtmlHelper;
           <i class="fas fa-times-circle text-red-500 mt-0.5"></i>
           <div>
             <span class="text-red-700 font-medium"><?= __("File sitemap non trovato") ?></span>
-            <span class="text-xs text-gray-500 ml-2"><?= __("Usa il pulsante \"<?= __("Rigenera adesso") ?>\" per crearla") ?></span>
+            <span class="text-xs text-gray-500 ml-2"><?= sprintf(__("Usa il pulsante \"%s\" per crearla"), __("Rigenera adesso")) ?></span>
           </div>
         </div>
         <?php endif; ?>
@@ -403,7 +403,7 @@ use App\Support\HtmlHelper;
       error_log('Failed to get API keys: ' . $e->getMessage());
     }
     $apiEnabled = ($advancedSettings['api_enabled'] ?? '0') === '1';
-    $api<?= __("Endpoint") ?> = \App\Controllers\SeoController::resolveBaseUrl() . '/api/public/books/search';
+    $apiEndpoint = \App\Controllers\SeoController::resolveBaseUrl() . '/api/public/books/search';
   ?>
 
   <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6">
@@ -554,9 +554,9 @@ use App\Support\HtmlHelper;
           <div>
             <h5 class="text-sm font-semibold text-gray-900 mb-2"><?= __("Endpoint") ?></h5>
             <div class="bg-gray-900 rounded-xl p-4">
-              <code class="text-sm text-green-400 font-mono break-all"><?php echo HtmlHelper::e($api<?= __("Endpoint") ?>); ?></code>
+              <code class="text-sm text-green-400 font-mono break-all"><?php echo HtmlHelper::e($apiEndpoint); ?></code>
               <button type="button"
-                      onclick="copyToClipboard('<?php echo HtmlHelper::e($api<?= __("Endpoint") ?>); ?>', this)"
+                      onclick="copyToClipboard('<?php echo HtmlHelper::e($apiEndpoint); ?>', this)"
                       class="ml-2 text-xs text-gray-300 hover:text-white">
                 <i class="fas fa-copy"></i> <?= __("Copia") ?>
               </button>
@@ -604,7 +604,7 @@ use App\Support\HtmlHelper;
           <div>
             <h5 class="text-sm font-semibold text-gray-900 mb-2"><?= __("Esempio di Chiamata") ?></h5>
             <div class="bg-gray-900 rounded-xl p-4 overflow-x-auto">
-              <pre class="text-xs text-green-400 font-mono"><code>curl -X GET "<?php echo HtmlHelper::e($api<?= __("Endpoint") ?>); ?>?isbn13=9788804668619" \
+              <pre class="text-xs text-green-400 font-mono"><code>curl -X GET "<?php echo HtmlHelper::e($apiEndpoint); ?>?isbn13=9788804668619" \
   -H "X-API-Key: your-api-key-here"</code></pre>
             </div>
           </div>
