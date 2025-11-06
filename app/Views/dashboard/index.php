@@ -98,12 +98,12 @@
 
     <!-- Pending Loans Section -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
-      <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+      <div class="p-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center">
           <i class="fas fa-clock text-gray-600 mr-2"></i>
           <?= __("Richieste di Prestito in Attesa") ?>
         </h2>
-        <a href="/admin/loans/pending" class="px-3 py-1.5 text-sm bg-gray-900 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200">
+        <a href="/admin/loans/pending" class="px-3 py-1.5 text-sm bg-gray-900 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 whitespace-nowrap">
           <i class="fas fa-external-link-alt mr-1"></i>
           <?= __("Gestisci tutte") ?>
         </a>
