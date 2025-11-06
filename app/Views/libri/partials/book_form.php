@@ -90,7 +90,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <div class="form-grid-2">
             <div>
               <label for="titolo" class="form-label">
-                Titolo <span class="text-red-500">*</span>
+                <?= __("Titolo") ?> <span class="text-red-500">*</span>
               </label>
               <input id="titolo" name="titolo" type="text" required aria-required="true" class="form-input" placeholder="<?= __('es. La morale anarchica') ?>" value="<?php echo HtmlHelper::e($book['titolo'] ?? ''); ?>" />
             </div>
@@ -112,20 +112,20 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div>
               <label for="edizione" class="form-label"><?= __("Edizione") ?></label>
               <input id="edizione" name="edizione" type="text" class="form-input" placeholder="<?= __('es. Prima edizione') ?>" value="<?php echo HtmlHelper::e($book['edizione'] ?? ''); ?>" />
-              <p class="text-xs text-gray-500 mt-1">Numero o descrizione dell'edizione</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Numero o descrizione dell'edizione") ?></p>
             </div>
           </div>
 
           <div class="form-grid-2">
             <div>
-              <label for="data_pubblicazione" class="form-label">Data di Pubblicazione</label>
+              <label for="data_pubblicazione" class="form-label"><?= __("Data di Pubblicazione") ?></label>
               <input id="data_pubblicazione" name="data_pubblicazione" type="text" class="form-input" placeholder="<?= __('es. 26 agosto 2025') ?>" value="<?php echo HtmlHelper::e($book['data_pubblicazione'] ?? ''); ?>" />
-              <p class="text-xs text-gray-500 mt-1">Data originale di pubblicazione (formato italiano)</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Data originale di pubblicazione (formato italiano)") ?></p>
             </div>
             <div>
-              <label for="anno_pubblicazione" class="form-label">Anno di Pubblicazione</label>
+              <label for="anno_pubblicazione" class="form-label"><?= __("Anno di Pubblicazione") ?></label>
               <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="1000" max="2100" class="form-input" placeholder="<?= __('es. 2025') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
-              <p class="text-xs text-gray-500 mt-1">Anno numerico (usato per filtri e ordinamento)</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Anno numerico (usato per filtri e ordinamento)") ?></p>
             </div>
           </div>
 
@@ -208,33 +208,33 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-tags text-primary"></i>
-            Classificazione Dewey
+            <?= __("Classificazione Dewey") ?>
           </h2>
         </div>
         <div class="card-body form-section">
           <input type="hidden" name="classificazione_dowey" id="classificazione_dowey" value="<?php echo HtmlHelper::e($book['classificazione_dowey'] ?? ''); ?>" />
           <div class="form-grid-3">
             <div>
-              <label for="dewey_l1" class="form-label">Classe (000-900)</label>
+              <label for="dewey_l1" class="form-label"><?= __("Classe (000-900)") ?></label>
               <select id="dewey_l1" name="dewey_l1" class="form-input">
-                <option value="">Seleziona classe...</option>
+                <option value=""><?= __("Seleziona classe...") ?></option>
               </select>
             </div>
             <div>
-              <label for="dewey_l2" class="form-label">Divisione (010-990)</label>
+              <label for="dewey_l2" class="form-label"><?= __("Divisione (010-990)") ?></label>
               <select id="dewey_l2" name="dewey_l2" class="form-input" disabled>
-                <option value="">Seleziona divisione...</option>
+                <option value=""><?= __("Seleziona divisione...") ?></option>
               </select>
             </div>
             <div>
               <label for="dewey_l3" class="form-label"><?= __("Sezione") ?></label>
               <select id="dewey_l3" name="dewey_l3" class="form-input" disabled>
-                <option value="">Seleziona sezione...</option>
+                <option value=""><?= __("Seleziona sezione...") ?></option>
               </select>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mt-2">Codice Dewey selezionato: <span id="dewey_code" class="font-mono font-semibold text-gray-900">-</span></p>
-          <p class="text-xs text-gray-500 mt-1">La classificazione Dewey è utilizzata per organizzare i libri per argomento secondo standard internazionali</p>
+          <p class="text-xs text-gray-500 mt-2"><?= __("Codice Dewey selezionato:") ?> <span id="dewey_code" class="font-mono font-semibold text-gray-900">-</span></p>
+          <p class="text-xs text-gray-500 mt-1"><?= __("La classificazione Dewey è utilizzata per organizzare i libri per argomento secondo standard internazionali") ?></p>
 
           <h3 class="text-lg font-semibold text-gray-900 mt-6 mb-4"><?= __("Genere") ?></h3>
 
@@ -242,21 +242,21 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div>
               <label for="radice_select" class="form-label"><?= __("Radice") ?></label>
               <select id="radice_select" name="radice_id" class="form-input" data-initial-radice="<?php echo (int)$initialData['radice_id']; ?>">
-                <option value="0">Seleziona radice...</option>
+                <option value="0"><?= __("Seleziona radice...") ?></option>
               </select>
-              <p class="text-xs text-gray-500 mt-1">Livello principale (es. Prosa, Poesia, Teatro)</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Livello principale (es. Prosa, Poesia, Teatro)") ?></p>
             </div>
             <div>
               <label for="genere_select" class="form-label"><?= __("Genere") ?></label>
               <select id="genere_select" name="genere_id" class="form-input" disabled data-initial-genere="<?php echo (int)$initialData['genere_id']; ?>">
-                <option value="0">Seleziona prima una radice...</option>
+                <option value="0"><?= __("Seleziona prima una radice...") ?></option>
               </select>
               <p class="text-xs text-gray-500 mt-1" id="genere_hint"><?= __("Genere letterario del libro") ?></p>
             </div>
             <div>
               <label for="sottogenere_select" class="form-label"><?= __("Sottogenere") ?></label>
               <select id="sottogenere_select" name="sottogenere_id" class="form-input" disabled data-initial-sottogenere="<?php echo (int)$initialData['sottogenere_id']; ?>">
-                <option value="0">Seleziona prima un genere...</option>
+                <option value="0"><?= __("Seleziona prima un genere...") ?></option>
               </select>
               <p class="text-xs text-gray-500 mt-1" id="sottogenere_hint">Sottogenere specifico (opzionale)</p>
             </div>
@@ -275,21 +275,21 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
             <i class="fas fa-shopping-cart text-primary"></i>
-            Dettagli Acquisizione
+            <?= __("Dettagli Acquisizione") ?>
           </h2>
         </div>
         <div class="card-body form-section">
           <div class="form-grid-3">
             <div>
-              <label for="tipo_acquisizione" class="form-label">Data Acquisizione</label>
+              <label for="tipo_acquisizione" class="form-label"><?= __("Data Acquisizione") ?></label>
               <input type="date" name="data_acquisizione" class="form-input" value="<?php echo HtmlHelper::e($book['data_acquisizione'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="tipo_acquisizione" class="form-label">Tipo Acquisizione</label>
+              <label for="tipo_acquisizione" class="form-label"><?= __("Tipo Acquisizione") ?></label>
               <input id="tipo_acquisizione" name="tipo_acquisizione" type="text" class="form-input" placeholder="<?= __('es. Acquisto, Donazione, Prestito') ?>" value="<?php echo HtmlHelper::e($book['tipo_acquisizione'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="prezzo" class="form-label">Prezzo (€)</label>
+              <label for="prezzo" class="form-label"><?= __("Prezzo (€)") ?></label>
               <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="<?= __('es. 19.90') ?>" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
             </div>
           </div>
@@ -434,7 +434,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div>
               <label for="scaffale_id" class="form-label"><?= __("Scaffale") ?></label>
               <select id="scaffale_id" name="scaffale_id" class="form-input">
-                <option value="0">Seleziona scaffale...</option>
+                <option value="0"><?= __("Seleziona scaffale...") ?></option>
                 <?php foreach ($scaffali as $s): ?>
                   <option value="<?php echo (int)$s['id']; ?>" <?php echo ((int)$s['id'] === (int)($book['scaffale_id'] ?? 0)) ? 'selected' : ''; ?>><?php echo htmlspecialchars('['.($s['codice'] ?? '').'] '.($s['nome'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></option>
                 <?php endforeach; ?>
@@ -456,12 +456,12 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               ?>
               <select id="mensola_select" name="mensola_id" class="form-input" <?php echo $selectedMensola ? '' : 'disabled'; ?> data-initial-mensola="<?php echo $selectedMensola; ?>">
                 <?php if (!$mensoleOptions): ?>
-                  <option value="0">Seleziona prima uno scaffale...</option>
+                  <option value="0"><?= __("Seleziona prima uno scaffale...") ?></option>
                 <?php else: ?>
-                  <option value="0">Seleziona mensola...</option>
+                  <option value="0"><?= __("Seleziona mensola...") ?></option>
                   <?php foreach ($mensoleOptions as $mensola): ?>
                     <option value="<?php echo (int)$mensola['id']; ?>" <?php echo ((int)$mensola['id'] === $selectedMensola) ? 'selected' : ''; ?>>
-                      <?php echo HtmlHelper::e('Livello ' . ($mensola['numero_livello'] ?? '')); ?>
+                      <?php echo HtmlHelper::e(__('Livello') . ' ' . ($mensola['numero_livello'] ?? '')); ?>
                     </option>
                   <?php endforeach; ?>
                 <?php endif; ?>
@@ -474,16 +474,16 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <div class="flex flex-col gap-2">
                 <input type="number" min="1" name="posizione_progressiva" id="posizione_progressiva_input" class="form-input" value="<?php echo $initialPosizioneProgressiva ?: ''; ?>" placeholder="<?= __('Auto') ?>" />
                 <button type="button" id="btnAutoPosition" class="btn-outline w-full sm:w-auto"><i class="fas fa-sync mr-2"></i><?= __("Genera automaticamente") ?></button>
-                <p class="text-xs text-gray-500">Lascia vuoto o usa "Genera" per assegnare automaticamente la prossima posizione disponibile.</p>
+                <p class="text-xs text-gray-500"><?= __("Lascia vuoto o usa \"Genera\" per assegnare automaticamente la prossima posizione disponibile.") ?></p>
               </div>
             </div>
             <div>
               <label for="collocazione_preview" class="form-label"><?= __("Collocazione calcolata") ?></label>
               <input type="text" id="collocazione_preview" name="collocazione_preview" class="form-input bg-slate-900/20 text-slate-100" value="<?php echo HtmlHelper::e($initialCollocazione); ?>" readonly />
-              <p class="text-xs text-gray-500 mt-1">Aggiornata in base a scaffale, mensola e posizione.</p>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Aggiornata in base a scaffale, mensola e posizione.") ?></p>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mt-2">La posizione fisica è indipendente dalla classificazione Dewey e indica dove si trova il libro sugli scaffali.</p>
+          <p class="text-xs text-gray-500 mt-2"><?= __("La posizione fisica è indipendente dalla classificazione Dewey e indica dove si trova il libro sugli scaffali.") ?></p>
           <div class="mt-3">
             <button type="button" id="btnSuggestCollocazione" class="btn-outline"><i class="fas fa-magic mr-2"></i><?= __("Suggerisci collocazione") ?></button>
             <span id="suggest_info" class="ml-2 text-xs text-gray-500"></span>
@@ -502,11 +502,11 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
         <button type="button" id="btnCancel" class="btn-secondary order-2 sm:order-1">
           <i class="fas fa-times mr-2"></i>
-          Annulla
+          <?= __("Annulla") ?>
         </button>
         <button type="submit" class="btn-primary order-1 sm:order-2">
           <i class="fas fa-save mr-2"></i>
-          <?php echo $mode === 'edit' ? 'Salva Modifiche' : 'Salva Libro'; ?>
+          <?php echo $mode === 'edit' ? __('Salva Modifiche') : __('Salva Libro'); ?>
         </button>
       </div>
     </form>
@@ -519,6 +519,50 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 <script>
 const FORM_MODE = <?php echo json_encode($mode); ?>;
 const INITIAL_BOOK = <?php echo $initialDataJsonRaw; ?>;
+
+// i18n translations for JavaScript - Inject PHP translations into JS
+const i18nTranslations = <?= json_encode([
+    'Nessun sottogenere' => __("Nessun sottogenere"),
+    'Ricerca in corso...' => __("Ricerca in corso..."),
+    'Errore nella ricerca' => __("Errore nella ricerca"),
+    'Seleziona classe...' => __("Seleziona classe..."),
+    'Seleziona divisione...' => __("Seleziona divisione..."),
+    'Seleziona sezione...' => __("Seleziona sezione..."),
+    'Seleziona radice...' => __("Seleziona radice..."),
+    'Seleziona prima una radice...' => __("Seleziona prima una radice..."),
+    'Seleziona genere...' => __("Seleziona genere..."),
+    'Seleziona prima un genere...' => __("Seleziona prima un genere..."),
+    'Errore caricamento classificazione Dewey' => __("Errore caricamento classificazione Dewey"),
+    'Rimuovi editore' => __("Rimuovi editore"),
+    'Livello' => __("Livello"),
+    'Seleziona mensola...' => __("Seleziona mensola..."),
+    'Seleziona prima uno scaffale...' => __("Seleziona prima uno scaffale..."),
+    'Aggiornamento in corso...' => __("Aggiornamento in corso..."),
+    'Salvataggio in corso...' => __("Salvataggio in corso..."),
+    'Generazione...' => __("Generazione..."),
+    'Genera automaticamente' => __("Genera automaticamente"),
+    'Immagine Caricata!' => __("Immagine Caricata!"),
+    'Aggiungi' => __("Aggiungi"),
+    'come nuovo autore' => __("come nuovo autore"),
+    'Rimuovi' => __("Rimuovi"),
+    'Conferma Aggiornamento' => __("Conferma Aggiornamento"),
+    'Conferma Salvataggio' => __("Conferma Salvataggio"),
+    'Sì, Aggiorna' => __("Sì, Aggiorna"),
+    'Sì, Salva' => __("Sì, Salva")
+], JSON_UNESCAPED_UNICODE) ?>;
+
+// Global translation function for JavaScript
+window.__ = function(key) {
+    return i18nTranslations[key] || key;
+};
+
+// Convenience object for direct access
+const bookFormI18n = {
+    noSubgenre: __("Nessun sottogenere"),
+    searching: __("Ricerca in corso..."),
+    searchError: __("Errore nella ricerca")
+};
+
 // Global variables
 let authorsChoice = null;
 let uppy = null;
@@ -600,7 +644,7 @@ function initializeUppy() {
             
             Swal.fire({
                 icon: 'success',
-                title: __('Immagine Caricata!'),
+                title: __("Immagine Caricata!"),
                 text: `File "${file.name}" pronto per l'upload`,
                 timer: 2000,
                 showConfirmButton: false
@@ -705,7 +749,7 @@ function initializeChoicesJS() {
             placeholderValue: 'Cerca autori esistenti o aggiungine di nuovi...',
             noChoicesText: 'Nessun autore trovato, premi Invio per aggiungerne uno nuovo',
             itemSelectText: 'Clicca per selezionare',
-            addItemText: (value) => `Aggiungi <b>"${value}"</b> come nuovo autore`,
+            addItemText: (value) => `<?= __('Aggiungi') ?> <b>"${value}"</b> <?= __('come nuovo autore') ?>`,
             maxItemText: (maxItemCount) => `Solo ${maxItemCount} autori possono essere aggiunti`,
             shouldSort: false,
             searchResultLimit: 50,
@@ -943,7 +987,7 @@ async function initializeDewey() {
       return;
     }
     
-    fill(l1, cats, 'Seleziona classe...');
+    fill(l1, cats, __('Seleziona classe...'));
     if (initialParts[0]) {
       l1.value = initialParts[0];
       l1.dispatchEvent(new Event('change'));
@@ -959,8 +1003,8 @@ async function initializeDewey() {
   l1.addEventListener('change', async () => {
     l2.disabled = true; 
     l3.disabled = true; 
-    fill(l2, [], 'Seleziona divisione...'); 
-    fill(l3, [], 'Seleziona sezione...');
+    fill(l2, [], __('Seleziona divisione...')); 
+    fill(l3, [], __('Seleziona sezione...'));
     updateHidden();
     
     const code = l1.value;
@@ -969,7 +1013,7 @@ async function initializeDewey() {
     try {
       const divs = await fetch(`/api/dewey/divisions?category_id=${encodeURIComponent(code)}`).then(r => r.json());
       if (divs && divs.length > 0) {
-        fill(l2, divs, 'Seleziona divisione...'); 
+        fill(l2, divs, __('Seleziona divisione...')); 
         l2.disabled = false;
         if (initialParts[1] && !appliedL2) {
           l2.value = initialParts[1];
@@ -984,7 +1028,7 @@ async function initializeDewey() {
 
   l2.addEventListener('change', async () => {
     l3.disabled = true; 
-    fill(l3, [], 'Seleziona sezione...');
+    fill(l3, [], __('Seleziona sezione...'));
     updateHidden();
     
     const code = l2.value;
@@ -993,7 +1037,7 @@ async function initializeDewey() {
     try {
       const specs = await fetch(`/api/dewey/specifics?division_id=${encodeURIComponent(code)}`).then(r => r.json());
       if (specs && specs.length > 0) {
-        fill(l3, specs, 'Seleziona sezione...'); 
+        fill(l3, specs, __('Seleziona sezione...')); 
         l3.disabled = false;
         if (initialParts[2] && !appliedL3) {
           l3.value = initialParts[2];
@@ -1226,7 +1270,7 @@ function initializeAutocomplete() {
         const removeButton = document.createElement('button');
         removeButton.type = 'button';
         removeButton.className = 'ml-2 text-white hover:text-red-300 text-lg font-bold leading-none w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-600 transition-colors';
-        removeButton.setAttribute('aria-label', 'Rimuovi editore');
+        removeButton.setAttribute('aria-label', __("Rimuovi editore"));
         removeButton.innerHTML = '<i class="fas fa-times text-xs"></i>';
         removeButton.addEventListener('click', () => {
             chip.remove();
@@ -1332,7 +1376,7 @@ function initializeGeneriDropdowns() {
   fetch('/api/generi?only_parents=1&limit=500')
     .then(r => r.json())
     .then(items => {
-      radiceSelect.innerHTML = '<option value="0">Seleziona radice...</option>';
+      radiceSelect.innerHTML = `<option value="0">${__('Seleziona radice...')}</option>`;
       (items || []).forEach(it => {
         const opt = document.createElement('option');
         opt.value = it.id;
@@ -1348,13 +1392,13 @@ function initializeGeneriDropdowns() {
   // 2) Cambio radice => carica generi (figli della radice)
   radiceSelect.addEventListener('change', async function() {
     const rootId = parseInt(this.value || '0', 10);
-    resetGenere('Seleziona prima una radice...');
-    resetSottogenere('Seleziona prima un genere...');
+    resetGenere(__('Seleziona prima una radice...'));
+    resetSottogenere(__('Seleziona prima un genere...'));
     if (rootId > 0) {
       try {
         const res = await fetch(`/api/generi/sottogeneri?parent_id=${encodeURIComponent(rootId)}`);
         const data = await res.json();
-        genereSelect.innerHTML = '<option value="0">Seleziona genere...</option>';
+        genereSelect.innerHTML = `<option value="0">${__("Seleziona genere...")}</option>`;
         data.forEach(g => {
           const opt = document.createElement('option');
           opt.value = g.id;
@@ -1376,12 +1420,12 @@ function initializeGeneriDropdowns() {
   // 3) Cambio genere => carica sottogeneri
   genereSelect.addEventListener('change', async function() {
     const parentId = parseInt(this.value || '0', 10);
-    resetSottogenere('Seleziona prima un genere...');
+    resetSottogenere(__('Seleziona prima un genere...'));
     if (parentId > 0) {
       try {
         const res = await fetch(`/api/generi/sottogeneri?parent_id=${encodeURIComponent(parentId)}`);
         const data = await res.json();
-        sottogenereSelect.innerHTML = '<option value="0"><?= __("Nessun sottogenere") ?></option>';
+        sottogenereSelect.innerHTML = `<option value="0">${bookFormI18n.noSubgenre}</option>`;
         data.forEach(sg => {
           const opt = document.createElement('option');
           opt.value = sg.id;
@@ -1535,14 +1579,14 @@ function initializeCollocationFilters() {
 
       // Show loading state
       autoBtn.disabled = true;
-      autoBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generazione...';
+      autoBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${__("Generazione...")}`;
 
       delete posizioneInput.dataset.manual;
       await updateAutoPosition(true);
 
       // Restore button state
       autoBtn.disabled = false;
-      autoBtn.innerHTML = '<i class="fas fa-sync mr-2"></i>Genera automaticamente';
+      autoBtn.innerHTML = `<i class="fas fa-sync mr-2"></i>${__("Genera automaticamente")}`;
 
       if (window.Toast && posizioneInput.value) {
         window.Toast.fire({
@@ -1678,7 +1722,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
         }
         
         // Show loading state
-        suggestions.innerHTML = '<li class="px-4 py-2 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Ricerca in corso...</li>';
+        suggestions.innerHTML = `<li class="px-4 py-2 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>${bookFormI18n.searching}</li>`;
         suggestions.classList.remove('hidden');
         
         timeout = setTimeout(async () => {
@@ -1793,7 +1837,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                     suggestions.classList.remove('hidden');
                     safeOnEmpty(fallback);
                 } else {
-                    suggestions.innerHTML = '<li class="px-4 py-2 text-red-500"><?= __("Errore nella ricerca") ?></li>';
+                    suggestions.innerHTML = `<li class="px-4 py-2 text-red-500">${bookFormI18n.searchError}</li>`;
                     lastResults = [];
                     highlightedIndex = -1;
                     suggestions.classList.remove('hidden');
@@ -1933,7 +1977,7 @@ function initializeFormValidation() {
         if (result.isConfirmed) {
             // Show loading
             Swal.fire({
-                title: FORM_MODE === 'edit' ? 'Aggiornamento in corso...' : 'Salvataggio in corso...',
+                title: FORM_MODE === 'edit' ? __("Aggiornamento in corso...") : __("Salvataggio in corso..."),
                 text: __('Attendere prego'),
                 allowOutsideClick: false,
                 showConfirmButton: false,
@@ -2224,7 +2268,7 @@ function initializeIsbnImport() {
             console.error('ISBN import error:', error);
             Toast.fire({
                 icon: 'error',
-                title: __('Errore durante l\')importazione dati'
+                title: __("Errore durante l'importazione dati")
             });
         } finally {
             btn.disabled = false;
