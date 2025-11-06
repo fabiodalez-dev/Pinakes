@@ -30,7 +30,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <ol class="flex items-center space-x-2 text-sm">
       <li>
         <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-          <i class="fas fa-home mr-1"></i>Home
+          <i class="fas fa-home mr-1"></i><?= __("Home") ?>
         </a>
       </li>
       <li>
@@ -38,7 +38,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       </li>
       <li>
         <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
-          <i class="fas fa-book mr-1"></i>Libri
+          <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
         </a>
       </li>
       <li>
@@ -70,12 +70,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <!-- Stampa etichetta -->
           <a href="/api/libri/<?php echo (int)$libro['id']; ?>/etichetta-pdf" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-barcode"></i>
-            Stampa etichetta
+            <?= __("Stampa etichetta") ?>
           </a>
           <!-- Visualizza nel frontend -->
           <a href="/libro/<?php echo (int)$libro['id']; ?>" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-eye"></i>
-            Visualizza
+            <?= __("Visualizza") ?>
           </a>
         </div>
 
@@ -83,19 +83,19 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div class="flex gap-3 w-full lg:w-auto">
           <a href="/admin/libri/modifica/<?php echo (int)$libro['id']; ?>" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-edit"></i>
-            Modifica
+            <?= __("Modifica") ?>
           </a>
           <?php if (!empty($activeLoan) && (int)($activeLoan['attivo'] ?? 0) === 1): ?>
           <button type="button" id="open-return-modal" class="<?php echo $btnPrimary; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-undo"></i>
-            Restituzione
+            <?= __("Restituzione") ?>
           </button>
           <?php endif; ?>
           <form id="delete-book" method="post" action="/admin/libri/delete/<?php echo (int)$libro['id']; ?>" onsubmit="return confirmDeleteBook(event);" class="flex-1 lg:flex-none">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
             <button type="submit" class="<?php echo $btnDanger; ?> w-full">
               <i class="fas fa-trash"></i>
-              Elimina
+              <?= __("Elimina") ?>
             </button>
           </form>
         </div>
@@ -131,12 +131,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <?php endif; ?>
           <div class="text-base text-gray-600">
             <i class="fas fa-building text-gray-400 mr-2"></i>
-            <span class="font-medium">Editore:</span>
-            <?php echo App\Support\HtmlHelper::e($libro['editore_nome'] ?? 'Non specificato'); ?>
+            <span class="font-medium"><?= __("Editore:") ?></span>
+            <?php echo App\Support\HtmlHelper::e($libro['editore_nome'] ?? __('Non specificato')); ?>
           </div>
           <div class="text-base text-gray-600">
             <i class="fas fa-users text-gray-400 mr-2"></i>
-            <span class="font-medium">Autori:</span>
+            <span class="font-medium"><?= __("Autori:") ?></span>
             <div class="mt-2 flex flex-wrap gap-2">
               <?php
                 $autori = $libro['autori'] ?? [];
@@ -150,13 +150,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <i class="fas fa-user mr-1"></i><?php echo App\Support\HtmlHelper::e($label); ?>
                 </a>
              <?php endforeach; else: ?>
-                <span class="text-gray-400">Non specificato</span>
+                <span class="text-gray-400"><?= __("Non specificato") ?></span>
               <?php endif; ?>
             </div>
           </div>
           <div class="text-base text-gray-600">
             <i class="fas fa-layer-group text-gray-400 mr-2"></i>
-            <span class="font-medium">Genere:</span>
+            <span class="font-medium"><?= __("Genere:") ?></span>
             <?php
               $pathParts = [];
               if (!empty($libro['radice_nome'])) $pathParts[] = (string)$libro['radice_nome'];
@@ -172,13 +172,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               $path = implode(' → ', array_map('App\\Support\\HtmlHelper::e', $pathParts));
             ?>
             <a href="/admin/generi/<?php echo !empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']); ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
-              <?php echo $path !== '' ? $path : 'Non specificato'; ?>
+              <?php echo $path !== '' ? $path : __('Non specificato'); ?>
             </a>
           </div>
           <div class="text-base text-gray-600">
             <i class="fas fa-barcode text-gray-400 mr-2"></i>
-            <span class="font-medium">ISBN:</span>
-            <?php echo App\Support\HtmlHelper::e(($libro['isbn13'] ?? '') ?: ($libro['isbn10'] ?? 'Non specificato')); ?>
+            <span class="font-medium"><?= __("ISBN") ?>:</span>
+            <?php echo App\Support\HtmlHelper::e(($libro['isbn13'] ?? '') ?: ($libro['isbn10'] ?? __('Non specificato'))); ?>
           </div>
       </div>
     </div>
@@ -187,28 +187,28 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div class="card-header">
           <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-clock text-yellow-600"></i>
-            Prestito attivo
+            <?= __("Prestito attivo") ?>
           </h3>
         </div>
         <div class="card-body space-y-3 text-sm text-gray-700">
           <div class="flex items-center justify-between">
-            <span class="font-medium">Utente</span>
+            <span class="font-medium"><?= __("Utente") ?></span>
             <span class="text-right">
-              <?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? 'Sconosciuto'); ?><br>
+              <?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? __('Sconosciuto')); ?><br>
               <span class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_email'] ?? ''); ?></span>
             </span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="font-medium">Dal</span>
+            <span class="font-medium"><?= __("Dal") ?></span>
             <span><?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="font-medium">Scadenza</span>
+            <span class="font-medium"><?= __("Scadenza") ?></span>
             <?php $isLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
             <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e($activeLoan['data_scadenza'] ?? ''); ?></span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="font-medium">Rinnovi effettuati</span>
+            <span class="font-medium"><?= __("Rinnovi effettuati") ?></span>
             <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-800">
               <i class="fas fa-redo-alt mr-1 text-xs"></i>
               <?php echo (int)($activeLoan['renewals'] ?? 0); ?> / 3
@@ -216,7 +216,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </div>
           <?php if (!empty($activeLoan['processed_by_name'])): ?>
           <div class="flex items-center justify-between">
-            <span class="font-medium">Gestito da</span>
+            <span class="font-medium"><?= __("Gestito da") ?></span>
             <span><?php echo App\Support\HtmlHelper::e($activeLoan['processed_by_name']); ?></span>
           </div>
           <?php endif; ?>
@@ -239,23 +239,23 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars('/admin/libri/' . (int)($libro['id'] ?? 0), ENT_QUOTES, 'UTF-8'); ?>">
               <button type="submit" class="<?php echo $btnPrimary; ?> w-full justify-center">
-                <i class="fas fa-redo-alt"></i> Rinnova prestito (+14 giorni)
+                <i class="fas fa-redo-alt"></i> <?= __("Rinnova prestito (+14 giorni)") ?>
               </button>
             </form>
             <?php elseif ($isLate): ?>
             <div class="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs text-center" role="alert">
               <i class="fas fa-exclamation-triangle mr-1"></i>
-              Non rinnovabile: prestito in ritardo
+              <?= __("Non rinnovabile: prestito in ritardo") ?>
             </div>
             <?php elseif ($currentRenewals >= $maxRenewals): ?>
             <div class="px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs text-center" role="alert">
               <i class="fas fa-info-circle mr-1"></i>
-              Limite massimo rinnovi raggiunto (<?php echo $maxRenewals; ?>)
+              <?= __("Limite massimo rinnovi raggiunto") ?> (<?php echo $maxRenewals; ?>)
             </div>
             <?php endif; ?>
 
             <button type="button" id="open-return-modal-secondary" class="<?php echo $btnPrimary; ?> w-full justify-center">
-              <i class="fas fa-undo mr-2"></i>Registra restituzione
+              <i class="fas fa-undo mr-2"></i><?= __("Registra restituzione") ?>
             </button>
           </div>
         </div>
@@ -270,7 +270,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-info-circle text-primary"></i>
-            Dettagli Libro
+            <?= __("Dettagli Libro") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -295,25 +295,25 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['edizione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Edizione</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Edizione") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['edizione']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['anno_pubblicazione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Anno pubblicazione</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Anno pubblicazione") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['anno_pubblicazione']; ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['data_pubblicazione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Data di pubblicazione</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Data di pubblicazione") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['data_pubblicazione']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['collana'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Collana</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Collana") ?></dt>
               <dd class="text-gray-900 font-medium">
                 <a href="/admin/libri?collana=<?php echo urlencode($libro['collana']); ?>"
                    class="text-gray-700 hover:text-gray-900 hover:underline transition-colors">
@@ -324,37 +324,37 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['numero_serie'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Numero serie</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Numero serie") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['numero_serie']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['numero_pagine'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Pagine</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Pagine") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['numero_pagine']; ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['dimensioni'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Dimensioni</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Dimensioni") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['dimensioni']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['formato'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Formato</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Formato") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['formato']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['peso'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Peso</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Peso") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo htmlspecialchars((string)$libro['peso'], ENT_QUOTES, 'UTF-8'); ?> kg</dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['prezzo'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Prezzo</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Prezzo") ?></dt>
               <dd class="text-gray-900 font-medium">€ <?php echo htmlspecialchars(number_format((float)$libro['prezzo'], 2, ',', '.'), ENT_QUOTES, 'UTF-8'); ?></dd>
             </div>
             <?php endif; ?>
@@ -367,18 +367,18 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             ?>
             <?php if (!empty($libro['data_acquisizione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Data acquisizione</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Data acquisizione") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($fmtDate($libro['data_acquisizione'])); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['tipo_acquisizione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Tipo acquisizione</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Tipo acquisizione") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['tipo_acquisizione']); ?></dd>
             </div>
             <?php endif; ?>
             <div class="sm:col-span-2">
-              <dt class="text-xs uppercase text-gray-500">Classificazione Dewey</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Classificazione Dewey") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dowey'] ?? ''); ?></dd>
             </div>
             <?php 
@@ -393,24 +393,24 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               } elseif ($scCod !== '') {
                 $parts = ['['.$scCod.']'];
                 if ($scNome !== '') { $parts[] = $scNome; }
-                if ($msLvl !== '') { $parts[] = 'Mensola '.$msLvl; }
-                if ($posProgressiva > 0) { $parts[] = 'Pos '.str_pad((string)$posProgressiva, 2, '0', STR_PAD_LEFT); }
+                if ($msLvl !== '') { $parts[] = __('Mensola').' '.$msLvl; }
+                if ($posProgressiva > 0) { $parts[] = __('Pos').' '.str_pad((string)$posProgressiva, 2, '0', STR_PAD_LEFT); }
                 $posLabel = implode(' — ', $parts);
               }
             ?>
             <div class="sm:col-span-2">
-              <dt class="text-xs uppercase text-gray-500">Collocazione</dt>
-              <dd class="text-gray-900 font-medium"><?php echo $posLabel !== '' ? App\Support\HtmlHelper::e($posLabel) : 'Non specificato'; ?></dd>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Collocazione") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo $posLabel !== '' ? App\Support\HtmlHelper::e($posLabel) : __('Non specificato'); ?></dd>
             </div>
             <?php if (!empty($libro['numero_inventario'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Numero inventario</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Numero inventario") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['numero_inventario']); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['parole_chiave'])): ?>
             <div class="sm:col-span-2">
-              <dt class="text-xs uppercase text-gray-500">Parole chiave</dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Parole chiave") ?></dt>
               <dd class="text-gray-900 font-medium">
                 <?php
                   $keywords = array_map('trim', explode(',', $libro['parole_chiave']));
@@ -433,20 +433,20 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   if ($st === 'disponibile') $cls = 'bg-green-500 text-white';
                   elseif (in_array($st, ['prestato','in_ritardo'])) $cls = 'bg-red-100 text-red-800';
                   elseif (in_array($st, ['danneggiato','perso'])) $cls = 'bg-yellow-100 text-yellow-800'; ?>
-                <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $cls; ?>"><?php echo App\Support\HtmlHelper::e($libro['stato'] ?? 'Non specificato'); ?></span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $cls; ?>"><?php echo App\Support\HtmlHelper::e($libro['stato'] ?? __('Non specificato')); ?></span>
               </dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['file_url'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">File</dt>
-              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['file_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener">Apri</a></dd>
+              <dt class="text-xs uppercase text-gray-500"><?= __("File") ?></dt>
+              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['file_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><?= __("Apri") ?></a></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['audio_url'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500">Audio</dt>
-              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['audio_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener">Apri</a></dd>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Audio") ?></dt>
+              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['audio_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><?= __("Apri") ?></a></dd>
             </div>
             <?php endif; ?>
           </dl>
@@ -459,7 +459,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-align-left text-primary"></i>
-            Descrizione
+            <?= __("Descrizione") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -493,8 +493,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-clone text-primary"></i>
-          Copie Fisiche
-          <span class="ml-2 text-sm font-normal text-gray-500">(<?php echo count($copie); ?> copi<?php echo count($copie) > 1 ? 'e' : 'a'; ?>)</span>
+          <?= __("Copie Fisiche") ?>
+          <span class="ml-2 text-sm font-normal text-gray-500">(<?php echo count($copie); ?> <?= count($copie) > 1 ? __("copie") : __("copia") ?>)</span>
         </h2>
       </div>
       <div class="card-body p-0">
@@ -622,8 +622,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-history text-primary"></i>
-          Storico Prestiti
-          <span class="ml-2 text-sm font-normal text-gray-500">(<?php echo count($loanHistory); ?> prestiti totali)</span>
+          <?= __("Storico Prestiti") ?>
+          <span class="ml-2 text-sm font-normal text-gray-500">(<?php echo count($loanHistory); ?> <?= __("prestiti totali") ?>)</span>
         </h2>
       </div>
       <div class="card-body p-0">
@@ -675,7 +675,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     <i class="fas fa-check-circle text-green-500 mr-1"></i>
                     <?php echo App\Support\HtmlHelper::e(date('d/m/Y', strtotime($loan['data_restituzione']))); ?>
                   <?php else: ?>
-                    <span class="text-gray-400 italic">In corso</span>
+                    <span class="text-gray-400 italic"><?= __("In corso") ?></span>
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -749,7 +749,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     function confirmDeleteBook(e){
       if (window.Swal){
         e.preventDefault();
-        Swal.fire({title: __('Sei sicuro?'), text: __('Questa azione non può essere annullata'), icon:'warning', showCancelButton:true, confirmButtonText: __('Elimina'), confirmButtonColor:'#d33'}).then(r=>{ if(r.isConfirmed) e.target.submit(); });
+        Swal.fire({title: __('Sei sicuro?'), text: __('Questa azione non può essere annullata'), icon:'warning', showCancelButton:true, confirmButtonText: __('Elimina'), cancelButtonText: __('Annulla'), confirmButtonColor:'#d33'}).then(r=>{ if(r.isConfirmed) e.target.submit(); });
         return false;
       }
       return confirm(__('Eliminare il libro?'));
@@ -779,7 +779,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 class="text-lg font-semibold text-gray-900">
             <i class="fas fa-undo text-gray-600 mr-2"></i>
-            Registra restituzione prestito #<?php echo (int)$activeLoan['id']; ?>
+            <?= __("Registra restituzione prestito") ?> #<?php echo (int)$activeLoan['id']; ?>
           </h3>
           <button type="button" id="close-return-modal" class="text-gray-500 hover:text-gray-700">
             <i class="fas fa-times"></i>
@@ -790,26 +790,26 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($bookPath ?? ('/admin/libri/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
             <div>
-              <div class="$1"><?= __("$2") ?></div>
-              <div class="font-medium"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? 'Sconosciuto'); ?></div>
+              <div class="text-xs text-gray-500 uppercase"><?= __("Utente") ?></div>
+              <div class="font-medium"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? __('Sconosciuto')); ?></div>
               <div class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_email'] ?? ''); ?></div>
             </div>
             <div>
-              <div class="$1"><?= __("$2") ?></div>
-              <div class="font-medium">Dal <?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></div>
+              <div class="text-xs text-gray-500 uppercase"><?= __("Prestito") ?></div>
+              <div class="font-medium"><?= __("Dal") ?> <?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></div>
               <?php $modalLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
               <div class="text-xs <?php echo $modalLate ? 'text-red-600 font-semibold' : 'text-gray-500'; ?>">
-                Scadenza <?php echo App\Support\HtmlHelper::e($activeLoan['data_scadenza'] ?? ''); ?>
+                <?= __("Scadenza") ?> <?php echo App\Support\HtmlHelper::e($activeLoan['data_scadenza'] ?? ''); ?>
               </div>
             </div>
           </div>
           <div>
-            <label for="modal-stato" class="form-label">Esito restituzione</label>
+            <label for="modal-stato" class="form-label"><?= __("Esito restituzione") ?></label>
             <select id="modal-stato" name="stato" class="form-input" required aria-required="true">
-              <option value="restituito" selected>Restituito</option>
-              <option value="in_ritardo">Mantieni in ritardo</option>
-              <option value="danneggiato">Danneggiato</option>
-              <option value="perso">Perso</option>
+              <option value="restituito" selected><?= __("Restituito") ?></option>
+              <option value="in_ritardo"><?= __("Mantieni in ritardo") ?></option>
+              <option value="danneggiato"><?= __("Danneggiato") ?></option>
+              <option value="perso"><?= __("Perso") ?></option>
             </select>
           </div>
           <div>
@@ -819,7 +819,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <div class="flex items-center justify-end gap-3 pt-2">
             <button type="button" id="close-return-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
             <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
-              <i class="fas fa-check mr-2"></i>Conferma restituzione
+              <i class="fas fa-check mr-2"></i><?= __("Conferma restituzione") ?>
             </button>
           </div>
         </form>
@@ -863,7 +863,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
         <h3 class="text-lg font-semibold text-gray-900">
           <i class="fas fa-edit text-gray-600 mr-2"></i>
-          Modifica Stato Copia
+          <?= __("Modifica Stato Copia") ?>
         </h3>
         <button type="button" id="close-edit-copy-modal" class="text-gray-500 hover:text-gray-700">
           <i class="fas fa-times"></i>
@@ -874,13 +874,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <input type="hidden" name="copy_id" id="edit-copy-id" value="">
 
         <div>
-          <label for="edit-copy-stato" class="form-label">Stato della copia</label>
+          <label for="edit-copy-stato" class="form-label"><?= __("Stato della copia") ?></label>
           <select id="edit-copy-stato" name="stato" class="form-input" required aria-required="true">
             <option value="disponibile"><?= __("Disponibile") ?></option>
-            <option value="prestato" disabled>Prestato (usa il sistema Prestiti)</option>
-            <option value="manutenzione">In manutenzione</option>
-            <option value="danneggiato">Danneggiato</option>
-            <option value="perso">Perso</option>
+            <option value="prestato" disabled><?= __("Prestato (usa il sistema Prestiti)") ?></option>
+            <option value="manutenzione"><?= __("In manutenzione") ?></option>
+            <option value="danneggiato"><?= __("Danneggiato") ?></option>
+            <option value="perso"><?= __("Perso") ?></option>
           </select>
           <p class="text-xs text-gray-600 mt-1">
             <i class="fas fa-info-circle text-blue-500 mr-1"></i>
@@ -889,14 +889,14 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
 
         <div>
-          <label for="edit-copy-note" class="form-label">Note (opzionale)</label>
+          <label for="edit-copy-note" class="form-label"><?= __("Note") ?> (<?= __("opzionale") ?>)</label>
           <textarea id="edit-copy-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-2">
           <button type="button" id="close-edit-copy-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
           <button type="submit" class="<?php echo $btnPrimary ?? 'btn-primary'; ?> justify-center">
-            <i class="fas fa-save mr-2"></i>Salva Modifiche
+            <i class="fas fa-save mr-2"></i><?= __("Salva Modifiche") ?>
           </button>
         </div>
       </form>
@@ -918,10 +918,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       // Se lo stato corrente è "prestato", riabilita l'opzione per poterla selezionare
       if (currentStato === 'prestato') {
         prestatoOption.disabled = false;
-        prestatoOption.textContent = 'Prestato (imposta "Disponibile" per chiudere il prestito)';
+        prestatoOption.textContent = __('Prestato (imposta "Disponibile" per chiudere il prestito)');
       } else {
         prestatoOption.disabled = true;
-        prestatoOption.textContent = 'Prestato (usa il sistema Prestiti)';
+        prestatoOption.textContent = __('Prestato (usa il sistema Prestiti)');
       }
 
       statoSelect.value = currentStato;
@@ -971,7 +971,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       if (window.Swal) {
         Swal.fire({
           title: __('Elimina copia'),
-          html: `Sei sicuro di voler eliminare la copia <strong>${numeroInventario}</strong>?<br><span class="text-sm text-gray-600">Questa azione non può essere annullata.</span>`,
+          html: `${__('Sei sicuro di voler eliminare la copia')} <strong>${numeroInventario}</strong>?<br><span class="text-sm text-gray-600">${__('Questa azione non può essere annullata.')}</span>`,
           icon: 'warning',
           showCancelButton: true,
           confirmButtonText: __('Sì, elimina'),
@@ -994,7 +994,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           }
         });
       } else {
-        if (confirm(`Sei sicuro di voler eliminare la copia ${numeroInventario}? Questa azione non può essere annullata.`)) {
+        if (confirm(`${__('Sei sicuro di voler eliminare la copia')} ${numeroInventario}? ${__('Questa azione non può essere annullata.')}`)) {
           const form = document.createElement('form');
           form.method = 'POST';
           form.action = `/admin/libri/copie/${copyId}/delete`;
