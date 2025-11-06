@@ -124,7 +124,7 @@
                     <img
                       src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                       alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
-                      class="w-20 h-28 object-cover rounded-lg shadow-sm"
+                      class="w-full md:w-20 h-auto md:h-28 object-cover rounded-lg shadow-sm"
                       onerror="this.src='/uploads/copertine/placeholder.jpg'"
                     >
                   </div>
