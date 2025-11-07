@@ -119,12 +119,12 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
     if (!empty($triggerWarnings)):
     ?>
         <div class="alert alert-warning" style="margin-top: 20px;">
-            <h4 style="margin-bottom: 10px;"><i class="fas fa-exclamation-triangle"></i> <?= __("Attenzione: Azione Manuale Richiesta") ?></h4>
-            <p><?= __("L'utente del database non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.") ?>< non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.</p>
-            <p style="margin-top: 10px;"><strong><?= __("Azione richiesta:") ?></strong> <?= __("Chiedi al tuo amministratore di database di eseguire i comandi contenuti nel file") ?> di database di eseguire i comandi contenuti nel file <code>installer/database/triggers.sql</code>.</p>
+            <h4 style="margin-bottom: 10px;"><i class="fas fa-exclamation-triangle"></i> Attenzione: Azione Manuale Richiesta</h4>
+            <p>L'utente del database non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.</p>
+            <p style="margin-top: 10px;"><strong>Azione richiesta:</strong> Chiedi al tuo amministratore di database di eseguire i comandi contenuti nel file <code>installer/database/triggers.sql</code>.</p>
         </div>
     <?php endif; ?>
-<h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;"><?= __("Riepilogo Installazione") ?></h3>
+<h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;">Riepilogo Installazione</h3>
 <ul class="summary-list">
     <li><i class="fas fa-check-circle"></i> Database installato (30 tabelle)</li>
     <li><i class="fas fa-check-circle"></i> Trigger database configurati</li>
@@ -141,43 +141,43 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
 <?php if ($adminUser): ?>
 <div class="alert alert-info" style="margin-top: 30px;">
     <i class="fas fa-info-circle"></i>
-    <strong><?= __("Credenziali Admin:") ?></strong><br>
-    <?= __("Email:") ?> <strong><?= htmlspecialchars($adminUser['email']) ?></strong><br>
-    <?= __("Codice Tessera:") ?> <strong><?= htmlspecialchars($adminUser['codice_tessera']) ?></strong><br>
-    <small style="opacity: 0.8;"><?= __("Conserva queste informazioni in un luogo sicuro!") ?> in un luogo sicuro!</small>
+    <strong>Credenziali Admin:</strong><br>
+    Email: <strong><?= htmlspecialchars($adminUser['email']) ?></strong><br>
+    Codice Tessera: <strong><?= htmlspecialchars($adminUser['codice_tessera']) ?></strong><br>
+    <small style="opacity: 0.8;">Conserva queste informazioni in un luogo sicuro!</small>
 </div>
 <?php endif; ?>
 
-<h3 style="margin-top: 40px; margin-bottom: 15px; color: #2d3748;"><?= __("Prossimi Passi") ?></h3>
+<h3 style="margin-top: 40px; margin-bottom: 15px; color: #2d3748;">Prossimi Passi</h3>
 <ol style="list-style: decimal; margin-left: 20px; color: #4a5568;">
-    <li style="margin-bottom: 10px;"><?= __("Accedi all'area admin con le credenziali sopra indicate") ?> con le credenziali sopra indicate</li>
-    <li style="margin-bottom: 10px;"><?= __("Configura le impostazioni rimanenti (privacy, contatti, etc.)") ?> (privacy, contatti, etc.)</li>
-    <li style="margin-bottom: 10px;"><?= __("Aggiungi scaffali e mensole per la tua biblioteca") ?> per la tua biblioteca</li>
-    <li style="margin-bottom: 10px;"><?= __("Inizia ad aggiungere libri al catalogo") ?> al catalogo</li>
-    <li style="margin-bottom: 10px;"><?= __("Invita gli utenti a registrarsi") ?></li>
+    <li style="margin-bottom: 10px;">Accedi all'area admin con le credenziali sopra indicate</li>
+    <li style="margin-bottom: 10px;">Configura le impostazioni rimanenti (privacy, contatti, etc.)</li>
+    <li style="margin-bottom: 10px;">Aggiungi scaffali e mensole per la tua biblioteca</li>
+    <li style="margin-bottom: 10px;">Inizia ad aggiungere libri al catalogo</li>
+    <li style="margin-bottom: 10px;">Invita gli utenti a registrarsi</li>
 </ol>
 
 <div style="margin-top: 40px; padding: 20px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #16a34a;">
-    <h4 style="margin-bottom: 10px; color: #2d3748;"><?= __("🔒 Sicurezza Importante") ?></h4>
+    <h4 style="margin-bottom: 10px; color: #2d3748;">🔒 Sicurezza Importante</h4>
     <p style="color: #4a5568; margin-bottom: 15px;">
-        <?= __("Per motivi di sicurezza, è") ?> <strong><?= __("altamente consigliato") ?></strong> eliminare la cartella <code>installer/</code> <?= __("dopo aver completato l'installazione.") ?>
+        Per motivi di sicurezza, è <strong>altamente consigliato</strong> eliminare la cartella <code>installer/</code> dopo aver completato l'installazione.
     </p>
     <?php if (!$vendorExists): ?>
         <div class="alert alert-warning" style="margin-bottom: 15px;">
             <i class="fas fa-exclamation-triangle"></i>
-            <strong><?= __("Non puoi eliminare l'installer finché non completi l'installazione delle dipendenze PHP.") ?></strong><br>
-            <small><?= __("Esegui") ?> <code>composer install</code> <?= __("prima di procedere.") ?></small>
+            <strong>Non puoi eliminare l'installer finché non completi l'installazione delle dipendenze PHP.</strong><br>
+            <small>Esegui <code>composer install</code> prima di procedere.</small>
         </div>
         <button type="button" class="btn btn-secondary" disabled style="opacity: 0.5; cursor: not-allowed;">
-            <i class="fas fa-trash"></i> <?= __("Elimina Installer (Richiede Composer)") ?>
+            <i class="fas fa-trash"></i> Elimina Installer (Richiede Composer)
         </button>
     <?php else: ?>
         <form method="POST" action="index.php?step=7&action=delete_installer" onsubmit="return confirmDeleteInstaller();" style="margin-top: 10px;">
             <button type="submit" class="btn btn-secondary">
-                <i class="fas fa-trash"></i> <?= __("Elimina Installer") ?>
+                <i class="fas fa-trash"></i> Elimina Installer
             </button>
             <small style="display: block; margin-top: 8px; color: #718096;">
-                <?= __("Questa azione rimuoverà completamente la cartella installer per sicurezza.") ?>
+                Questa azione rimuoverà completamente la cartella installer per sicurezza.
             </small>
         </form>
     <?php endif; ?>
@@ -190,19 +190,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_installer' && $_SERVER
     if (!$vendorExists) {
         echo '<div class="alert alert-error" style="margin-top: 20px;">
             <i class="fas fa-exclamation-triangle"></i>
-            ' . __("Impossibile eliminare l'installer: devi prima installare le dipendenze PHP con") . ' <code>composer install</code>.
+            Impossibile eliminare l\'installer: devi prima installare le dipendenze PHP con <code>composer install</code>.
         </div>';
     } else {
         try {
             if ($installer->deleteInstaller()) {
                 echo '<div class="alert alert-success" style="margin-top: 20px;">
-                    <i class="fas fa-check-circle"></i> ' . __("Installer eliminato con successo!") . '
+                    <i class="fas fa-check-circle"></i> Installer eliminato con successo!
                 </div>';
                 echo '<script>setTimeout(() => { window.location.href = "/"; }, 2000);</script>';
             }
         } catch (Exception $e) {
             echo '<div class="alert alert-error" style="margin-top: 20px;">
-                ' . __("Impossibile eliminare l'installer:") . ' ' . htmlspecialchars($e->getMessage()) . '
+                Impossibile eliminare l\'installer: ' . htmlspecialchars($e->getMessage()) . '
             </div>';
         }
     }
@@ -211,16 +211,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_installer' && $_SERVER
 
 <div style="margin-top: 40px; text-align: center;">
     <a href="/" class="btn btn-primary" style="min-width: 250px; font-size: 16px;">
-        <i class="fas fa-sign-in-alt"></i> <?= __("Vai all'Applicazione") ?>
+        <i class="fas fa-sign-in-alt"></i> Vai all'Applicazione
     </a>
 </div>
 
 <div style="margin-top: 30px; text-align: center; padding: 20px; background: #f7fafc; border-radius: 8px;">
     <p style="color: #718096; margin-bottom: 10px;">
-        <?= __("Grazie per aver scelto il Sistema Biblioteca!") ?>
+        Grazie per aver scelto il Sistema Biblioteca!
     </p>
     <p style="color: #a0aec0; font-size: 14px;">
-        <?= __("Versione Installer:") ?> 1.0 | Data: <?= date('Y-m-d') ?>
+        Versione Installer: 1.0 | Data: <?= date('Y-m-d') ?>
     </p>
 </div>
 

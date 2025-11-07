@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
 
         } catch (Exception $e) {
-            $error = "Errore durante la creazione dell'utente: " . $e->getMessage();
+            $error = __("Errore durante la creazione dell'utente:") . " " . $e->getMessage();
         }
     } else {
         $error = $validator->getFirstError();
@@ -54,12 +54,12 @@ $nome = $_POST['nome'] ?? '';
 $cognome = $_POST['cognome'] ?? '';
 $email = $_POST['email'] ?? '';
 
-renderHeader(4, 'Crea Utente Admin');
+renderHeader(4, __('Crea Utente Admin'));
 ?>
 
-<h2 class="step-title">👤 Crea Utente Amministratore</h2>
+<h2 class="step-title">👤 <?= __("Crea Utente Amministratore") ?></h2>
 <p class="step-description">
-    Crea il primo utente amministratore. Questo account avrà accesso completo a tutte le funzionalità del sistema.
+    <?= __("Crea il primo utente amministratore. Questo account avrà accesso completo a tutte le funzionalità del sistema.") ?>
 </p>
 
 <?php if ($error): ?>
@@ -69,46 +69,46 @@ renderHeader(4, 'Crea Utente Admin');
 <form method="POST" action="index.php?step=4">
     <div class="form-row">
         <div class="form-group">
-            <label class="form-label">Nome *</label>
+            <label class="form-label"><?= __("Nome") ?> *</label>
             <input type="text" name="nome" class="form-input" value="<?= htmlspecialchars($nome) ?>" required>
         </div>
 
         <div class="form-group">
-            <label class="form-label">Cognome *</label>
+            <label class="form-label"><?= __("Cognome") ?> *</label>
             <input type="text" name="cognome" class="form-input" value="<?= htmlspecialchars($cognome) ?>" required>
         </div>
     </div>
 
     <div class="form-group">
-        <label class="form-label">Email *</label>
+        <label class="form-label"><?= __("Email") ?> *</label>
         <input type="email" name="email" class="form-input" value="<?= htmlspecialchars($email) ?>" required>
-        <small style="color: #718096;">Sarà utilizzata per accedere al sistema</small>
+        <small style="color: #718096;"><?= __("Sarà utilizzata per accedere al sistema") ?></small>
     </div>
 
     <div class="form-row">
         <div class="form-group">
-            <label class="form-label">Password *</label>
+            <label class="form-label"><?= __("Password") ?> *</label>
             <input type="password" id="password" name="password" class="form-input" minlength="8" required>
-            <small style="color: #718096;">Minimo 8 caratteri</small>
+            <small style="color: #718096;"><?= __("Minimo 8 caratteri") ?></small>
         </div>
 
         <div class="form-group">
-            <label class="form-label">Conferma Password *</label>
+            <label class="form-label"><?= __("Conferma Password") ?> *</label>
             <input type="password" id="password_confirm" name="password_confirm" class="form-input" minlength="8" required>
         </div>
     </div>
 
     <div class="alert alert-info" style="margin-top: 20px;">
         <i class="fas fa-info-circle"></i>
-        <strong>Nota:</strong> Il codice tessera sarà generato automaticamente (formato: ADMIN-YYYYMMDD-XXX).
+        <strong><?= __("Nota:") ?></strong> <?= __("Il codice tessera sarà generato automaticamente (formato: ADMIN-YYYYMMDD-XXX).") ?>
     </div>
 
     <div style="margin-top: 40px; display: flex; justify-content: space-between;">
         <a href="index.php?step=3" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Indietro
+            <i class="fas fa-arrow-left"></i> <?= __("Indietro") ?>
         </a>
         <button type="submit" class="btn btn-primary">
-            Crea Admin <i class="fas fa-arrow-right"></i>
+            <?= __("Crea Admin") ?> <i class="fas fa-arrow-right"></i>
         </button>
     </div>
 </form>

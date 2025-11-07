@@ -63,13 +63,13 @@ $directories = [
 
 $allRequirementsMet = !in_array(false, array_merge($requirements, $directories), true);
 
-renderHeader(1, 'Benvenuto');
+renderHeader(1, __('Benvenuto'));
 ?>
 
-<h2 class="step-title">👋 Benvenuto nell'Installer</h2>
+<h2 class="step-title">👋 <?= __("Benvenuto nell'Installer") ?></h2>
 <p class="step-description">
-    Questo installer ti guiderà attraverso la configurazione del Sistema Biblioteca.
-    Prima di iniziare, verifichiamo che il tuo server soddisfi tutti i requisiti necessari.
+    <?= __("Questo installer ti guiderà attraverso la configurazione del Sistema Biblioteca.") ?>
+    <?= __("Prima di iniziare, verifichiamo che il tuo server soddisfi tutti i requisiti necessari.") ?>
 </p>
 
 <?php if ($fixAttempted): ?>
@@ -79,27 +79,27 @@ renderHeader(1, 'Benvenuto');
     ?>
     <?php if ($failCount === 0): ?>
         <div class="alert alert-success">
-            ✓ Permessi corretti con successo! (<?= $successCount ?>/<?= count($fixResults) ?> directory)
+            ✓ <?= __("Permessi corretti con successo!") ?> (<?= $successCount ?>/<?= count($fixResults) ?> <?= __("directory") ?>)
         </div>
     <?php else: ?>
         <div class="alert alert-warning">
-            ⚠ Correzione parziale: <?= $successCount ?> OK, <?= $failCount ?> fallite.
-            <br><small>Vedi istruzioni sotto per correggere manualmente.</small>
+            ⚠ <?= __("Correzione parziale:") ?> <?= $successCount ?> <?= __("OK") ?>, <?= $failCount ?> <?= __("fallite.") ?>
+            <br><small><?= __("Vedi istruzioni sotto per correggere manualmente.") ?></small>
         </div>
     <?php endif; ?>
 <?php endif; ?>
 
 <?php if ($allRequirementsMet): ?>
     <div class="alert alert-success">
-        ✓ Tutti i requisiti sono soddisfatti! Puoi procedere con l'installazione.
+        ✓ <?= __("Tutti i requisiti sono soddisfatti! Puoi procedere con l'installazione.") ?>
     </div>
 <?php else: ?>
     <div class="alert alert-error">
-        ✗ Alcuni requisiti non sono soddisfatti. Risolvi i problemi prima di continuare.
+        ✗ <?= __("Alcuni requisiti non sono soddisfatti. Risolvi i problemi prima di continuare.") ?>
     </div>
 <?php endif; ?>
 
-<h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;">Requisiti di Sistema</h3>
+<h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;"><?= __("Requisiti di Sistema") ?></h3>
 <ul class="requirements-list">
     <?php foreach ($requirements as $req => $met): ?>
         <li class="<?= $met ? 'met' : 'not-met' ?>">
@@ -109,12 +109,12 @@ renderHeader(1, 'Benvenuto');
     <?php endforeach; ?>
 </ul>
 
-<h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;">Permessi Directory</h3>
+<h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;"><?= __("Permessi Directory") ?></h3>
 <ul class="requirements-list">
     <?php foreach ($directories as $dir => $writable): ?>
         <li class="<?= $writable ? 'met' : 'not-met' ?>">
             <span><?= htmlspecialchars($dir) ?></span>
-            <span class="requirement-status"><?= $writable ? '✓ Scrivibile' : '✗ Non scrivibile' ?></span>
+            <span class="requirement-status"><?= $writable ? '✓ ' . __("Scrivibile") : '✗ ' . __("Non scrivibile") ?></span>
         </li>
     <?php endforeach; ?>
 </ul>
@@ -122,20 +122,20 @@ renderHeader(1, 'Benvenuto');
 <!-- Auto-fix permissions button -->
 <?php if (!$allRequirementsMet && !empty(array_filter($directories, fn($w) => !$w))): ?>
     <div style="margin-top: 30px; padding: 20px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-        <h4 style="margin-top: 0; color: #856404;">🔧 Correzione Automatica Permessi</h4>
+        <h4 style="margin-top: 0; color: #856404;">🔧 <?= __("Correzione Automatica Permessi") ?></h4>
         <p style="color: #856404; margin-bottom: 15px;">
-            Puoi tentare di correggere automaticamente i permessi delle directory cliccando il pulsante sotto.
-            Questo funziona se PHP ha i privilegi sufficienti sul server.
+            <?= __("Puoi tentare di correggere automaticamente i permessi delle directory cliccando il pulsante sotto.") ?>
+            <?= __("Questo funziona se PHP ha i privilegi sufficienti sul server.") ?>
         </p>
         <form method="POST" action="index.php?step=1" style="margin-bottom: 15px;">
             <button type="submit" name="fix_permissions" class="btn btn-warning" style="min-width: 250px;">
-                <i class="fas fa-tools"></i> Correggi Permessi Automaticamente
+                <i class="fas fa-tools"></i> <?= __("Correggi Permessi Automaticamente") ?>
             </button>
         </form>
 
         <details style="margin-top: 15px;">
             <summary style="cursor: pointer; color: #856404; font-weight: 600;">
-                📋 Correzione Manuale via SSH (se automatica fallisce)
+                📋 <?= __("Correzione Manuale via SSH (se automatica fallisce)") ?>
             </summary>
             <div style="margin-top: 15px; padding: 15px; background-color: #2d3748; color: #fff; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 13px; overflow-x: auto;">
                 <pre style="margin: 0; color: #fff;"># Collegati al server via SSH, poi esegui:
@@ -162,7 +162,7 @@ ls -la uploads backups storage
         <form method="GET" action="index.php">
             <input type="hidden" name="step" value="2">
             <button type="submit" class="btn btn-primary" style="min-width: 200px;">
-                Inizia Installazione <i class="fas fa-arrow-right"></i>
+                <?= __("Inizia Installazione") ?> <i class="fas fa-arrow-right"></i>
             </button>
         </form>
         <?php
@@ -171,10 +171,10 @@ ls -la uploads backups storage
         ?>
     <?php else: ?>
         <p style="color: #e53e3e; margin-bottom: 15px;">
-            Risolvi i problemi indicati sopra e ricarica la pagina.
+            <?= __("Risolvi i problemi indicati sopra e ricarica la pagina.") ?>
         </p>
         <button class="btn btn-secondary" onclick="location.reload()">
-            <i class="fas fa-sync-alt"></i> Ricarica Pagina
+            <i class="fas fa-sync-alt"></i> <?= __("Ricarica Pagina") ?>
         </button>
     <?php endif; ?>
 </div>

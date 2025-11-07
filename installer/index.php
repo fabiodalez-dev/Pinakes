@@ -16,6 +16,33 @@ if (isset($_GET['reset']) || (!isset($_GET['step']) || $_GET['step'] == 0)) {
     session_start();
 }
 
+// Simple translation function for installer
+function __($key) {
+    static $translations = null;
+
+    // Get locale from session (defaults to Italian)
+    $locale = $_SESSION['app_locale'] ?? 'it';
+
+    // Italian is the default - return key as-is
+    if ($locale === 'it') {
+        return $key;
+    }
+
+    // Load English translations only when needed
+    if ($translations === null && $locale === 'en_US') {
+        $translationFile = dirname(__DIR__) . '/locale/en_US.json';
+        if (file_exists($translationFile)) {
+            $json = file_get_contents($translationFile);
+            $translations = json_decode($json, true) ?? [];
+        } else {
+            $translations = [];
+        }
+    }
+
+    // Return translation if exists, otherwise return original key (Italian)
+    return $translations[$key] ?? $key;
+}
+
 // Load helper classes
 require_once __DIR__ . '/classes/Installer.php';
 require_once __DIR__ . '/classes/Validator.php';
@@ -72,40 +99,40 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Errore Installazione</title>
+                <title>' . __("Errore Installazione") . '</title>
                 <link rel="stylesheet" href="/installer/assets/style.css">
             </head>
             <body>
                 <div class="installer-container">
                     <div class="installer-header">
-                        <h1>⚠️ Errore nella Verifica dell\'Installazione</h1>
+                        <h1>⚠️ ' . __("Errore nella Verifica dell'Installazione") . '</h1>
                     </div>
                     <div class="installer-body">
                         <div class="alert alert-danger">
-                            <strong>L\'installazione non è completa o valida.</strong>
+                            <strong>' . __("L'installazione non è completa o valida.") . '</strong>
                         </div>
 
-                        <h3>Stato dell\'installazione:</h3>
+                        <h3>' . __("Stato dell'installazione:") . '</h3>
                         <ul>
-                            <li>File .env: ' . ($installationStatus['env_exists'] ? '✓ Trovato' : '✗ Mancante') . '</li>
-                            <li>File .installed: ' . ($installationStatus['lock_exists'] ? '✓ Trovato' : '✗ Mancante') . '</li>
-                            <li>Database: ' . ($installationStatus['db_verified'] ? '✓ Verificato' : '✗ Errore') . '</li>
+                            <li>' . __("File .env:") . ' ' . ($installationStatus['env_exists'] ? '✓ ' . __("Trovato") : '✗ ' . __("Mancante")) . '</li>
+                            <li>' . __("File .installed:") . ' ' . ($installationStatus['lock_exists'] ? '✓ ' . __("Trovato") : '✗ ' . __("Mancante")) . '</li>
+                            <li>' . __("Database:") . ' ' . ($installationStatus['db_verified'] ? '✓ ' . __("Verificato") : '✗ ' . __("Errore")) . '</li>
                         </ul>
 
-                        ' . (!empty($installationStatus['db_error']) ? '<div class="alert alert-warning mt-3"><strong>Errore database:</strong><br><code>' . htmlspecialchars($installationStatus['db_error']) . '</code></div>' : '') . '
+                        ' . (!empty($installationStatus['db_error']) ? '<div class="alert alert-warning mt-3"><strong>' . __("Errore database:") . '</strong><br><code>' . htmlspecialchars($installationStatus['db_error']) . '</code></div>' : '') . '
 
                         <p class="mt-4">
-                            <strong>Possibili soluzioni:</strong>
+                            <strong>' . __("Possibili soluzioni:") . '</strong>
                         </p>
                         <ul>
-                            <li>Verifica che il database sia accessibile e configurato correttamente nel file <code>.env</code></li>
-                            <li>Verifica che le credenziali del database nel file <code>.env</code> siano corrette</li>
-                            <li>Se hai modificato il database manualmente, elimina il file <code>.installed</code> (nella root del progetto) e prova di nuovo da zero</li>
+                            <li>' . __("Verifica che il database sia accessibile e configurato correttamente nel file .env") . '</li>
+                            <li>' . __("Verifica che le credenziali del database nel file .env siano corrette") . '</li>
+                            <li>' . __("Se hai modificato il database manualmente, elimina il file .installed (nella root del progetto) e prova di nuovo da zero") . '</li>
                         </ul>
 
                         <p class="text-center mt-4">
-                            <a href="?force=1" class="btn btn-warning">Reinstalla da Capo</a>
-                            <a href="/" class="btn btn-secondary">Torna all\'Applicazione</a>
+                            <a href="?force=1" class="btn btn-warning">' . __("Reinstalla da Capo") . '</a>
+                            <a href="/" class="btn btn-secondary">' . __("Torna all'Applicazione") . '</a>
                         </p>
                     </div>
                 </div>
@@ -119,25 +146,25 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Già Installato</title>
+            <title>' . __("Già Installato") . '</title>
             <link rel="stylesheet" href="/installer/assets/style.css">
         </head>
         <body>
             <div class="installer-container">
                 <div class="installer-header">
-                    <h1>✓ Applicazione Già Installata</h1>
+                    <h1>✓ ' . __("Applicazione Già Installata") . '</h1>
                 </div>
                 <div class="installer-body">
                     <div class="alert alert-success">
-                        L\'applicazione è stata installata correttamente e tutte le verifiche sono andate a buon fine.
+                        ' . __("L'applicazione è stata installata correttamente e tutte le verifiche sono andate a buon fine.") . '
                     </div>
-                    <p class="mt-4">Se desideri reinstallare, puoi farlo in due modi:</p>
+                    <p class="mt-4">' . __("Se desideri reinstallare, puoi farlo in due modi:") . '</p>
                     <ol>
-                        <li>Elimina il file <code>.installed</code> dalla root del progetto e riprova</li>
-                        <li>Accedi a <code>/installer/?force=1</code> per forzare una reinstallazione</li>
+                        <li>' . __("Elimina il file .installed dalla root del progetto e riprova") . '</li>
+                        <li>' . __("Accedi a /installer/?force=1 per forzare una reinstallazione") . '</li>
                     </ol>
                     <p class="text-center mt-4">
-                        <a href="/" class="btn btn-primary">Vai all\'Applicazione</a>
+                        <a href="/" class="btn btn-primary">' . __("Vai all'Applicazione") . '</a>
                     </p>
                 </div>
             </div>
@@ -174,30 +201,33 @@ function completeStep($stepNumber) {
 // Helper function to render header
 function renderHeader($currentStep, $stepTitle) {
     $steps = [
-        0 => 'Lingua',
-        1 => 'Benvenuto',
-        2 => 'Database',
-        3 => 'Installazione',
-        4 => 'Admin',
-        5 => 'Impostazioni',
-        6 => 'Email',
-        7 => 'Completato'
+        0 => __('Lingua'),
+        1 => __('Benvenuto'),
+        2 => __('Database'),
+        3 => __('Installazione'),
+        4 => __('Admin'),
+        5 => __('Impostazioni'),
+        6 => __('Email'),
+        7 => __('Completato')
     ];
+
+    $lang = $_SESSION['app_locale'] ?? 'it';
+    $htmlLang = $lang === 'en_US' ? 'en' : 'it';
     ?>
     <!DOCTYPE html>
-    <html lang="it">
+    <html lang="<?= $htmlLang ?>">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title><?= htmlspecialchars($stepTitle) ?> - Installer Sistema Biblioteca</title>
+        <title><?= htmlspecialchars($stepTitle) ?> - <?= __("Installer Sistema Biblioteca") ?></title>
         <link rel="stylesheet" href="/installer/assets/style.css">
         <link rel="stylesheet" href="/assets/vendor.css">
     </head>
     <body>
         <div class="installer-container">
             <div class="installer-header">
-                <h1>📚 Sistema Pinakes</h1>
-                <p>Installazione Guidata</p>
+                <h1>📚 <?= __("Sistema Pinakes") ?></h1>
+                <p><?= __("Installazione Guidata") ?></p>
             </div>
 
             <div class="installer-progress">

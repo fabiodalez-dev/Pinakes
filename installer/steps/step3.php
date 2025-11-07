@@ -22,43 +22,43 @@ if (true) {
     $_SESSION['installation_started'] = true;
 
     try {
-        $debug[] = "Inizio installazione...";
+        $debug[] = __("Inizio installazione...");
 
         // Load .env configuration
-        $debug[] = "Caricamento .env...";
+        $debug[] = __("Caricamento .env...");
         $installer->loadEnvConfig();
-        $debug[] = ".env caricato OK";
+        $debug[] = __(".env caricato OK");
 
         // Import database schema
-        $debug[] = "Import schema in corso...";
+        $debug[] = __("Import schema in corso...");
         $installer->importSchema();
         $_SESSION['schema_imported'] = true;
-        $debug[] = "Schema importato OK";
+        $debug[] = __("Schema importato OK");
 
         // Import initial data (classificazione, generi, email_templates)
-        $debug[] = "Import dati iniziali...";
+        $debug[] = __("Import dati iniziali...");
         $installer->importData();
         $_SESSION['data_imported'] = true;
-        $debug[] = "Dati iniziali importati OK";
+        $debug[] = __("Dati iniziali importati OK");
 
         // Import triggers
-        $debug[] = "Import trigger...";
+        $debug[] = __("Import trigger...");
         $installer->importTriggers();
         $_SESSION['trigger_warnings'] = $installer->getTriggerWarnings();
         $triggerWarnings = $_SESSION['trigger_warnings'];
 
         if (!empty($triggerWarnings)) {
             foreach ($triggerWarnings as $warning) {
-                $debug[] = "AVVISO Trigger: " . $warning;
+                $debug[] = __("AVVISO Trigger:") . " " . $warning;
             }
         } else {
-            $debug[] = "Trigger importati OK";
+            $debug[] = __("Trigger importati OK");
         }
 
         // Verify installation
-        $debug[] = "Verifica installazione...";
+        $debug[] = __("Verifica installazione...");
         $installer->verifyInstallation();
-        $debug[] = "Verifica completata OK";
+        $debug[] = __("Verifica completata OK");
 
         // Mark step as completed
         completeStep(3);
@@ -72,15 +72,15 @@ if (true) {
 
     } catch (Exception $e) {
         $error = $e->getMessage();
-        $debug[] = "ERRORE: " . $e->getMessage();
-        $debug[] = "File: " . $e->getFile() . " linea " . $e->getLine();
+        $debug[] = __("ERRORE:") . " " . $e->getMessage();
+        $debug[] = __("File:") . " " . $e->getFile() . " " . __("linea") . " " . $e->getLine();
         $_SESSION['debug_log'] = $debug;
         unset($_SESSION['installation_started']); // Allow retry
         $installing = false;
     } catch (Error $e) {
-        $error = "Fatal Error: " . $e->getMessage();
-        $debug[] = "FATAL ERROR: " . $e->getMessage();
-        $debug[] = "File: " . $e->getFile() . " linea " . $e->getLine();
+        $error = __("Fatal Error:") . " " . $e->getMessage();
+        $debug[] = __("FATAL ERROR:") . " " . $e->getMessage();
+        $debug[] = __("File:") . " " . $e->getFile() . " " . __("linea") . " " . $e->getLine();
         $_SESSION['debug_log'] = $debug;
         unset($_SESSION['installation_started']); // Allow retry
         $installing = false;
@@ -92,23 +92,23 @@ if (isset($_SESSION['debug_log'])) {
     $debug = $_SESSION['debug_log'];
 }
 
-renderHeader(3, 'Installazione Database');
+renderHeader(3, __('Installazione Database'));
 ?>
 
-<h2 class="step-title">⚙️ Installazione Database</h2>
+<h2 class="step-title">⚙️ <?= __("Installazione Database") ?></h2>
 <p class="step-description">
-    Installazione delle tabelle del database e configurazione iniziale...
+    <?= __("Installazione delle tabelle del database e configurazione iniziale...") ?>
 </p>
 
 <?php if ($error): ?>
     <div class="alert alert-error">
-        <strong>Errore durante l'installazione:</strong><br>
+        <strong><?= __("Errore durante l'installazione:") ?></strong><br>
         <?= htmlspecialchars($error) ?>
     </div>
 
     <?php if (!empty($debug)): ?>
     <div style="margin-top: 20px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto;">
-        <strong>🐛 Debug Log:</strong><br><br>
+        <strong>🐛 <?= __("Debug Log:") ?></strong><br><br>
         <?php foreach ($debug as $line): ?>
             <?= htmlspecialchars($line) ?><br>
         <?php endforeach; ?>
@@ -117,10 +117,10 @@ renderHeader(3, 'Installazione Database');
 
     <p style="margin-top: 20px;">
         <a href="index.php?step=2" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Torna alla Configurazione Database
+            <i class="fas fa-arrow-left"></i> <?= __("Torna alla Configurazione Database") ?>
         </a>
         <a href="index.php?step=3" class="btn btn-primary" style="margin-left: 10px;">
-            <i class="fas fa-redo"></i> Riprova
+            <i class="fas fa-redo"></i> <?= __("Riprova") ?>
         </a>
     </p>
 <?php else: ?>
@@ -130,7 +130,7 @@ renderHeader(3, 'Installazione Database');
 
     <p style="text-align: center; margin-top: 30px; color: #6b7280;">
         <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i><br>
-        <span style="margin-top: 10px; display: block;">Installazione in corso...</span>
+        <span style="margin-top: 10px; display: block;"><?= __("Installazione in corso...") ?></span>
     </p>
 
     <script>

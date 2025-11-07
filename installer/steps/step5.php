@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
         } catch (Exception $e) {
-            $error = "Errore durante il salvataggio delle impostazioni: " . $e->getMessage();
+            $error = __("Errore durante il salvataggio delle impostazioni:") . " " . $e->getMessage();
         }
     }
 }
@@ -51,12 +51,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Default values
 $appName = $_POST['app_name'] ?? 'Pinakes';
 
-renderHeader(5, 'Impostazioni Applicazione');
+renderHeader(5, __('Impostazioni Applicazione'));
 ?>
 
-<h2 class="step-title">⚙️ Impostazioni Applicazione</h2>
+<h2 class="step-title">⚙️ <?= __("Impostazioni Applicazione") ?></h2>
 <p class="step-description">
-    Personalizza il nome dell'applicazione e carica un logo opzionale.
+    <?= __("Personalizza il nome dell'applicazione e carica un logo opzionale.") ?>
 </p>
 
 <?php if ($error): ?>
@@ -65,19 +65,19 @@ renderHeader(5, 'Impostazioni Applicazione');
 
 <form method="POST" action="index.php?step=5" enctype="multipart/form-data">
     <div class="form-group">
-        <label class="form-label">Nome Applicazione *</label>
+        <label class="form-label"><?= __("Nome Applicazione") ?> *</label>
         <input type="text" name="app_name" class="form-input" value="<?= htmlspecialchars($appName) ?>" required>
-        <small style="color: #718096;">Sarà visualizzato nell'header e in tutto il sito</small>
+        <small style="color: #718096;"><?= __("Sarà visualizzato nell'header e in tutto il sito") ?></small>
     </div>
 
     <div class="form-group" style="margin-top: 30px;">
-        <label class="form-label">Logo Applicazione (opzionale)</label>
+        <label class="form-label"><?= __("Logo Applicazione (opzionale)") ?></label>
         <div class="file-upload-wrapper">
             <input type="file" id="logo_file" name="logo_file" accept="image/jpeg,image/png,image/gif,image/webp">
             <label for="logo_file" class="file-upload-label">
                 <i class="fas fa-cloud-upload-alt"></i>
-                <div>Clicca o trascina per caricare un logo</div>
-                <small style="color: #a0aec0;">JPG, PNG, GIF, WEBP - Max 5MB</small>
+                <div><?= __("Clicca o trascina per caricare un logo") ?></div>
+                <small style="color: #a0aec0;"><?= __("JPG, PNG, GIF, WEBP - Max 5MB") ?></small>
             </label>
         </div>
         <div id="logo-preview" style="margin-top: 15px; text-align: center;"></div>
@@ -85,15 +85,15 @@ renderHeader(5, 'Impostazioni Applicazione');
 
     <div class="alert alert-info" style="margin-top: 30px;">
         <i class="fas fa-info-circle"></i>
-        <strong>Suggerimento:</strong> Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.
+        <strong><?= __("Suggerimento:") ?></strong> <?= __("Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.") ?>
     </div>
 
     <div style="margin-top: 40px; display: flex; justify-content: space-between;">
         <a href="index.php?step=4" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Indietro
+            <i class="fas fa-arrow-left"></i> <?= __("Indietro") ?>
         </a>
         <button type="submit" class="btn btn-primary">
-            Continua <i class="fas fa-arrow-right"></i>
+            <?= __("Continua") ?> <i class="fas fa-arrow-right"></i>
         </button>
     </div>
 </form>

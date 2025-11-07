@@ -24,9 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             echo json_encode(['success' => false, 'error' => $validator->getFirstError()]);
         }
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Errore: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => __('Errore:') . ' ' . $e->getMessage()]);
     } catch (Error $e) {
-        echo json_encode(['success' => false, 'error' => 'Fatal Error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => __('Fatal Error:') . ' ' . $e->getMessage()]);
     }
     exit;
 }
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             header('Location: index.php?step=3');
             exit;
         } else {
-            $error = "Impossibile creare il file .env. Verifica i permessi.";
+            $error = __("Impossibile creare il file .env. Verifica i permessi.");
         }
     } else {
         $error = $validator->getFirstError();
@@ -93,12 +93,12 @@ $dbDatabase = $_POST['db_database'] ?? '';
 $dbPort = $_POST['db_port'] ?? 3306;
 $dbSocket = $_POST['db_socket'] ?? '';
 
-renderHeader(2, 'Configurazione Database');
+renderHeader(2, __('Configurazione Database'));
 ?>
 
-<h2 class="step-title">🗄️ Configurazione Database</h2>
+<h2 class="step-title">🗄️ <?= __("Configurazione Database") ?></h2>
 <p class="step-description">
-    Inserisci le credenziali del tuo database MySQL. Assicurati che il database sia già stato creato e sia vuoto.
+    <?= __("Inserisci le credenziali del tuo database MySQL. Assicurati che il database sia già stato creato e sia vuoto.") ?>
 </p>
 
 <?php if ($error): ?>
@@ -111,45 +111,45 @@ renderHeader(2, 'Configurazione Database');
 
 <form method="POST" action="index.php?step=2">
     <div class="form-group">
-        <label class="form-label">Host Database *</label>
+        <label class="form-label"><?= __("Host Database") ?> *</label>
         <input type="text" id="db_host" name="db_host" class="form-input" value="<?= htmlspecialchars($dbHost) ?>" required>
-        <small style="color: #718096;">Usa 'localhost' (raccomandato, rileva automaticamente TCP/socket). Puoi forzare '127.0.0.1' per TCP.</small>
+        <small style="color: #718096;"><?= __("Usa 'localhost' (raccomandato, rileva automaticamente TCP/socket). Puoi forzare '127.0.0.1' per TCP.") ?></small>
     </div>
 
     <div class="form-row">
         <div class="form-group">
-            <label class="form-label">Username *</label>
+            <label class="form-label"><?= __("Username") ?> *</label>
             <input type="text" id="db_username" name="db_username" class="form-input" value="<?= htmlspecialchars($dbUsername) ?>" required>
         </div>
 
         <div class="form-group">
-            <label class="form-label">Password</label>
+            <label class="form-label"><?= __("Password") ?></label>
             <input type="password" id="db_password" name="db_password" class="form-input" value="<?= htmlspecialchars($dbPassword) ?>">
         </div>
     </div>
 
     <div class="form-row">
         <div class="form-group">
-            <label class="form-label">Nome Database *</label>
+            <label class="form-label"><?= __("Nome Database") ?> *</label>
             <input type="text" id="db_database" name="db_database" class="form-input" value="<?= htmlspecialchars($dbDatabase) ?>" required>
-            <small style="color: #718096;">Il database deve essere vuoto.</small>
+            <small style="color: #718096;"><?= __("Il database deve essere vuoto.") ?></small>
         </div>
 
         <div class="form-group">
-            <label class="form-label">Porta</label>
+            <label class="form-label"><?= __("Porta") ?></label>
             <input type="number" id="db_port" name="db_port" class="form-input" value="<?= htmlspecialchars((string)$dbPort) ?>" required>
         </div>
     </div>
 
     <div class="form-group">
-        <label class="form-label">Socket MySQL (opzionale)</label>
-        <input type="text" id="db_socket" name="db_socket" class="form-input" value="<?= htmlspecialchars($dbSocket) ?>" placeholder="Auto-detect se vuoto">
-        <small style="color: #718096;">Lascia vuoto per auto-rilevamento. Necessario solo su macOS/Linux con socket personalizzati.</small>
+        <label class="form-label"><?= __("Socket MySQL (opzionale)") ?></label>
+        <input type="text" id="db_socket" name="db_socket" class="form-input" value="<?= htmlspecialchars($dbSocket) ?>" placeholder="<?= __("Auto-detect se vuoto") ?>">
+        <small style="color: #718096;"><?= __("Lascia vuoto per auto-rilevamento. Necessario solo su macOS/Linux con socket personalizzati.") ?></small>
     </div>
 
     <div style="margin-top: 30px;">
         <button type="button" id="test-connection-btn" class="btn btn-secondary" onclick="testDatabaseConnection()">
-            <i class="fas fa-plug"></i> Test Connessione
+            <i class="fas fa-plug"></i> <?= __("Test Connessione") ?>
         </button>
 
         <div id="connection-result" style="display: none; margin-top: 15px;"></div>
@@ -157,7 +157,7 @@ renderHeader(2, 'Configurazione Database');
 
     <div style="margin-top: 30px; text-align: right;">
         <button type="submit" id="continue-btn" class="btn btn-primary" disabled>
-            Continua <i class="fas fa-arrow-right"></i>
+            <?= __("Continua") ?> <i class="fas fa-arrow-right"></i>
         </button>
     </div>
 </form>

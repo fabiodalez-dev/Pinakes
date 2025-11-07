@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
 
         } catch (Exception $e) {
-            $error = "Errore durante il salvataggio: " . $e->getMessage();
+            $error = __("Errore durante il salvataggio:") . " " . $e->getMessage();
         }
     } else {
         $error = $validator->getFirstError();
@@ -67,12 +67,12 @@ $smtpUsername = $_POST['smtp_username'] ?? '';
 $smtpPassword = $_POST['smtp_password'] ?? '';
 $smtpEncryption = $_POST['smtp_encryption'] ?? 'tls';
 
-renderHeader(6, 'Configurazione Email');
+renderHeader(6, __('Configurazione Email'));
 ?>
 
-<h2 class="step-title">✉️ Configurazione Email</h2>
+<h2 class="step-title">✉️ <?= __("Configurazione Email") ?></h2>
 <p class="step-description">
-    Configura le impostazioni email per l'invio di notifiche agli utenti.
+    <?= __("Configura le impostazioni email per l'invio di notifiche agli utenti.") ?>
 </p>
 
 <?php if ($error): ?>
@@ -81,75 +81,75 @@ renderHeader(6, 'Configurazione Email');
 
 <form method="POST" action="index.php?step=6">
     <div class="form-group">
-        <label class="form-label">Driver Email *</label>
+        <label class="form-label"><?= __("Driver Email") ?> *</label>
         <select name="email_driver" id="email_driver" class="form-select" onchange="toggleSmtpFields()">
-            <option value="mail" <?= $driver === 'mail' ? 'selected' : '' ?>>PHP mail() - Predefinito</option>
+            <option value="mail" <?= $driver === 'mail' ? 'selected' : '' ?>><?= __("PHP mail() - Predefinito") ?></option>
             <option value="phpmailer" <?= $driver === 'phpmailer' ? 'selected' : '' ?>>PHPMailer</option>
-            <option value="smtp" <?= $driver === 'smtp' ? 'selected' : '' ?>>SMTP Personalizzato</option>
+            <option value="smtp" <?= $driver === 'smtp' ? 'selected' : '' ?>><?= __("SMTP Personalizzato") ?></option>
         </select>
-        <small style="color: #718096;">Consigliato: PHP mail() per semplicità, SMTP per maggiore controllo</small>
+        <small style="color: #718096;"><?= __("Consigliato: PHP mail() per semplicità, SMTP per maggiore controllo") ?></small>
     </div>
 
     <div class="form-row">
         <div class="form-group">
-            <label class="form-label">From Email *</label>
+            <label class="form-label"><?= __("From Email") ?> *</label>
             <input type="email" name="from_email" class="form-input" value="<?= htmlspecialchars($fromEmail) ?>" required>
         </div>
 
         <div class="form-group">
-            <label class="form-label">From Name *</label>
+            <label class="form-label"><?= __("From Name") ?> *</label>
             <input type="text" name="from_name" class="form-input" value="<?= htmlspecialchars($fromName) ?>" required>
         </div>
     </div>
 
     <div id="smtp-fields" style="display: <?= $driver === 'smtp' ? 'block' : 'none' ?>;">
-        <h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;">Configurazione SMTP</h3>
+        <h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;"><?= __("Configurazione SMTP") ?></h3>
 
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label">SMTP Host</label>
+                <label class="form-label"><?= __("SMTP Host") ?></label>
                 <input type="text" name="smtp_host" class="form-input" value="<?= htmlspecialchars($smtpHost) ?>">
             </div>
 
             <div class="form-group">
-                <label class="form-label">SMTP Port</label>
+                <label class="form-label"><?= __("SMTP Port") ?></label>
                 <input type="number" name="smtp_port" class="form-input" value="<?= htmlspecialchars((string)$smtpPort) ?>">
             </div>
         </div>
 
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label">SMTP Username</label>
+                <label class="form-label"><?= __("SMTP Username") ?></label>
                 <input type="text" name="smtp_username" class="form-input" value="<?= htmlspecialchars($smtpUsername) ?>">
             </div>
 
             <div class="form-group">
-                <label class="form-label">SMTP Password</label>
+                <label class="form-label"><?= __("SMTP Password") ?></label>
                 <input type="password" name="smtp_password" class="form-input" value="<?= htmlspecialchars($smtpPassword) ?>">
             </div>
         </div>
 
         <div class="form-group">
-            <label class="form-label">Encryption</label>
+            <label class="form-label"><?= __("Encryption") ?></label>
             <select name="smtp_encryption" class="form-select">
                 <option value="tls" <?= $smtpEncryption === 'tls' ? 'selected' : '' ?>>TLS</option>
                 <option value="ssl" <?= $smtpEncryption === 'ssl' ? 'selected' : '' ?>>SSL</option>
-                <option value="none" <?= $smtpEncryption === 'none' ? 'selected' : '' ?>>Nessuna</option>
+                <option value="none" <?= $smtpEncryption === 'none' ? 'selected' : '' ?>><?= __("Nessuna") ?></option>
             </select>
         </div>
     </div>
 
     <div class="alert alert-info" style="margin-top: 30px;">
         <i class="fas fa-info-circle"></i>
-        <strong>Nota:</strong> Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.
+        <strong><?= __("Nota:") ?></strong> <?= __("Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.") ?>
     </div>
 
     <div style="margin-top: 40px; display: flex; justify-content: space-between;">
         <a href="index.php?step=5" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Indietro
+            <i class="fas fa-arrow-left"></i> <?= __("Indietro") ?>
         </a>
         <button type="submit" class="btn btn-primary">
-            Continua <i class="fas fa-arrow-right"></i>
+            <?= __("Continua") ?> <i class="fas fa-arrow-right"></i>
         </button>
     </div>
 </form>
