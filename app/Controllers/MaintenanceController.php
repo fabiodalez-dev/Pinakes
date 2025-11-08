@@ -45,7 +45,7 @@ class MaintenanceController {
 
             $result = [
                 'success' => true,
-                'message' => "Correzioni applicate: {$fixResult['fixed']} record aggiornati",
+                'message' => sprintf(__("Correzioni applicate: %d record aggiornati"), $fixResult['fixed']),
                 'details' => $fixResult,
                 'report' => $report
             ];
@@ -53,7 +53,7 @@ class MaintenanceController {
         } catch (Exception $e) {
             $result = [
                 'success' => false,
-                'message' => 'Errore durante la correzione: ' . $e->getMessage(),
+                'message' => __("Errore durante la correzione:") . ' ' . $e->getMessage(),
                 'details' => []
             ];
         }
@@ -76,14 +76,14 @@ class MaintenanceController {
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => "Aggiornate {$result['updated']} righe",
+                'message' => sprintf(__("Aggiornate %d righe"), $result['updated']),
                 'details' => $result
             ]));
 
         } catch (Exception $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Errore durante il ricalcolo: ' . $e->getMessage()
+                'message' => __("Errore durante il ricalcolo:") . ' ' . $e->getMessage()
             ]));
         }
 
@@ -114,11 +114,11 @@ class MaintenanceController {
             $results['final_report'] = $report;
 
             $totalFixed = $availabilityResult['updated'] + $fixResult['fixed'];
-            $message = "Manutenzione completata: {$totalFixed} record corretti";
+            $message = sprintf(__("Manutenzione completata: %d record corretti"), $totalFixed);
 
             if (!empty($report['consistency_issues'])) {
                 $issueCount = count($report['consistency_issues']);
-                $message .= ", {$issueCount} problemi rilevati";
+                $message .= ", " . sprintf(__("%d problemi rilevati"), $issueCount);
             }
 
             $response->getBody()->write(json_encode([
@@ -130,7 +130,7 @@ class MaintenanceController {
         } catch (Exception $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Errore durante la manutenzione: ' . $e->getMessage(),
+                'message' => __("Errore durante la manutenzione:") . ' ' . $e->getMessage(),
                 'results' => $results
             ]));
         }
