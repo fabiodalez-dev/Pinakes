@@ -423,11 +423,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyHero.use(UppyDragDrop, {
             target: '#uppy-hero-upload',
-            note: 'Immagini JPG, PNG o WebP (max 5MB)',
+            note: '<?= addslashes(__("Immagini JPG, PNG o WebP (max 5MB)")) ?>',
             locale: {
                 strings: {
-                    dropPasteFiles: 'Trascina qui l\'immagine di sfondo o %{browse}',
-                    browse: 'seleziona file'
+                    dropPasteFiles: '<?= addslashes(__("Trascina qui l\'immagine di sfondo o %{browse}")) ?>',
+                    browse: '<?= addslashes(__("seleziona file")) ?>'
                 }
             }
         });

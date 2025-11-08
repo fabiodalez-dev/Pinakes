@@ -5,7 +5,7 @@
 use App\Support\Csrf;
 $csrf = Csrf::ensureToken();
 $editore = $data['editore'];
-$title = "Modifica <?= __("Editore:") ?> " . ($editore['nome'] ?? 'N/D');
+$title = "Modifica " . __("Editore:") . " " . ($editore['nome'] ?? 'N/D');
 ?>
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
