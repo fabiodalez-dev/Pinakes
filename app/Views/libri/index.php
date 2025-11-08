@@ -1033,7 +1033,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="flex items-start gap-2 mb-2">
             <i class="fas fa-user text-gray-400 mt-1"></i>
             <div>
-              <span class="text-xs text-gray-500">Autore/i:</span>
+              <span class="text-xs text-gray-500">${window.__('Autore/i:')}</span>
               <span class="text-sm text-gray-700 font-medium ml-2">${bookData.autori}</span>
             </div>
           </div>
@@ -1045,7 +1045,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="flex items-start gap-2 mb-2">
             <i class="fas fa-building text-gray-400 mt-1"></i>
             <div>
-              <span class="text-xs text-gray-500">Editore:</span>
+              <span class="text-xs text-gray-500">${window.__('Editore:')}</span>
               <span class="text-sm text-gray-700 ml-2">${bookData.editore_nome}</span>
             </div>
           </div>
@@ -1057,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="flex items-start gap-2 mb-2">
             <i class="fas fa-calendar text-gray-400 mt-1"></i>
             <div>
-              <span class="text-xs text-gray-500">Anno:</span>
+              <span class="text-xs text-gray-500">${window.__('Anno:')}</span>
               <span class="text-sm text-gray-700 ml-2">${bookData.anno_pubblicazione_formatted}</span>
             </div>
           </div>
@@ -1070,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="flex items-start gap-2 mb-2">
             <i class="fas fa-barcode text-gray-400 mt-1"></i>
             <div>
-              <span class="text-xs text-gray-500">ISBN:</span>
+              <span class="text-xs text-gray-500">${window.__('ISBN:')}</span>
               <span class="text-sm text-gray-700 font-mono ml-2">${isbn}</span>
             </div>
           </div>
@@ -1082,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="flex items-start gap-2 mb-2">
             <i class="fas fa-tags text-gray-400 mt-1"></i>
             <div>
-              <span class="text-xs text-gray-500">Genere:</span>
+              <span class="text-xs text-gray-500">${window.__('Genere:')}</span>
               <span class="text-sm text-gray-700 ml-2">${bookData.genere_display.replace(' / ', ' → ')}</span>
             </div>
           </div>
@@ -1094,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="flex items-start gap-2 mb-2">
             <i class="fas fa-map-marker-alt text-gray-400 mt-1"></i>
             <div>
-              <span class="text-xs text-gray-500">Posizione:</span>
+              <span class="text-xs text-gray-500">${window.__('Posizione:')}</span>
               <span class="text-sm text-gray-700 ml-2">${bookData.posizione_display.replace(/ - /g, ' → ')}</span>
             </div>
           </div>
@@ -1109,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="flex items-start gap-2 mb-2">
             <i class="fas fa-info-circle text-gray-400 mt-1"></i>
             <div>
-              <span class="text-xs text-gray-500">Stato:</span>
+              <span class="text-xs text-gray-500">${window.__('Stato:')}</span>
               <span class="text-sm font-semibold ${statoClass} ml-2">${bookData.stato}</span>
             </div>
           </div>
@@ -1120,10 +1120,10 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
           <div class="flex gap-2 mt-4">
             <a href="/admin/libri/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors text-center text-sm">
-              <i class="fas fa-eye mr-2"></i>Visualizza dettagli
+              <i class="fas fa-eye mr-2"></i>${window.__('Visualizza dettagli')}
             </a>
             <a href="/admin/libri/modifica/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors text-center text-sm">
-              <i class="fas fa-edit mr-2"></i>Modifica
+              <i class="fas fa-edit mr-2"></i>${window.__('Modifica')}
             </a>
           </div>
         </div>
