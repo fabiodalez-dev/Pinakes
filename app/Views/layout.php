@@ -511,20 +511,25 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
         </header>
         
         <!-- Page Content -->
-        <main class="p-6">
-          <?php if (isset($_SESSION['error_message'])): ?>
-            <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">
-              <i class="fas fa-exclamation-circle mr-2"></i>
-              <?php echo App\Support\HtmlHelper::e($_SESSION['error_message']); ?>
-            </div>
-            <?php unset($_SESSION['error_message']); ?>
-          <?php endif; ?>
-          <?php if (isset($_SESSION['success_message'])): ?>
-            <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
-              <i class="fas fa-check-circle mr-2"></i>
-              <?php echo App\Support\HtmlHelper::e($_SESSION['success_message']); ?>
-            </div>
-            <?php unset($_SESSION['success_message']); ?>
+        <main>
+          <!-- Flash Messages -->
+          <?php if (isset($_SESSION['error_message']) || isset($_SESSION['success_message'])): ?>
+          <div class="px-4 sm:px-6 lg:px-8 pt-6">
+            <?php if (isset($_SESSION['error_message'])): ?>
+              <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">
+                <i class="fas fa-exclamation-circle mr-2"></i>
+                <?php echo App\Support\HtmlHelper::e($_SESSION['error_message']); ?>
+              </div>
+              <?php unset($_SESSION['error_message']); ?>
+            <?php endif; ?>
+            <?php if (isset($_SESSION['success_message'])): ?>
+              <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
+                <i class="fas fa-check-circle mr-2"></i>
+                <?php echo App\Support\HtmlHelper::e($_SESSION['success_message']); ?>
+              </div>
+              <?php unset($_SESSION['success_message']); ?>
+            <?php endif; ?>
+          </div>
           <?php endif; ?>
           <?php echo $content; ?>
         </main>
