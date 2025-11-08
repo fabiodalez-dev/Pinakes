@@ -547,7 +547,7 @@ $csrfToken = Csrf::ensureToken();
               </div>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
                 <i class="fas fa-star" aria-hidden="true"></i>
-                <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione'); ?>; ?></span>
+                <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
             </div>
           </div>
@@ -679,7 +679,7 @@ $csrfToken = Csrf::ensureToken();
               </div>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
                 <i class="fas fa-star" aria-hidden="true"></i>
-                <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione'); ?>; ?></span>
+                <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
             </div>
           </div>
@@ -956,7 +956,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Swal.fire({
           icon: 'error',
           title: __('Errore'),
-          text: result.message || 'Impossibile inviare la recensione.',
+          text: result.message || '<?= addslashes(__("Impossibile inviare la recensione.")) ?>',
           confirmButtonText: __('OK')
         });
       }

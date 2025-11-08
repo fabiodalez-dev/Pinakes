@@ -382,6 +382,63 @@ return function (App $app): void {
         return $controller->deleteApiKey($request, $response, $db, (int)$args['id']);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
+    // Language Management Routes (Admin Only)
+    $app->get('/admin/languages', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->index($request, $response, $db, []);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/languages/create', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->create($request, $response, $db, []);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/languages', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->store($request, $response, $db, []);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    // IMPORTANT: Static routes MUST come BEFORE dynamic routes with {code}
+    // to avoid FastRoute shadowing errors
+    $app->post('/admin/languages/refresh-stats', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->refreshStats($request, $response, $db, []);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/languages/{code}/edit', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->edit($request, $response, $db, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/languages/{code}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->update($request, $response, $db, $args);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/languages/{code}/delete', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->delete($request, $response, $db, $args);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/languages/{code}/toggle-active', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->toggleActive($request, $response, $db, $args);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/languages/{code}/set-default', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->setDefault($request, $response, $db, $args);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
     // Admin Messages API routes
     $app->get('/admin/messages', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -1561,9 +1618,4 @@ $app->get('/catalogo', function ($request, $response) use ($app) {
         return $controller->details($request, $response, $args);
     })->add(new AdminAuthMiddleware());
 
-    // Language switcher (no auth required - available to all users)
-    $app->get('/language/{locale}', function ($request, $response, $args) use ($app) {
-        $controller = new LanguageController();
-        return $controller->switchLanguage($request, $response, $app->getContainer()->get('db'), $args);
-    });
 };

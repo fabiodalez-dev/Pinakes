@@ -673,7 +673,7 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                     </a>
 
                     <ul class="nav-links d-none d-md-flex">
-                        <li><a href="/catalogo" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>">Catalogo</a></li>
+                        <li><a href="/catalogo" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a></li>
                     </ul>
 
                     <!-- Mobile Menu Toggle -->
@@ -743,12 +743,12 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                 </div>
                 <nav class="mobile-nav">
                     <a href="/catalogo" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>">
-                        <i class="fas fa-book me-2"></i>Catalogo
+                        <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
                     <?php if ($isLogged): ?>
                     <hr class="mobile-menu-divider">
                     <a href="/user/dashboard" class="mobile-nav-link">
-                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        <i class="fas fa-tachometer-alt me-2"></i><?= __("Dashboard") ?>
                     </a>
                     <a href="/prenotazioni" class="mobile-nav-link">
                         <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
@@ -762,7 +762,7 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                     </a>
                     <?php else: ?>
                     <a href="/profilo" class="mobile-nav-link">
-                        <i class="fas fa-user me-2"></i>Profilo
+                        <i class="fas fa-user me-2"></i><?= __("Profilo") ?>
                     </a>
                     <?php endif; ?>
                     <?php else: ?>
@@ -821,23 +821,23 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
                 <div class="col-lg-3">
                     <h5>Menu</h5>
                     <ul class="list-unstyled">
-                        <li><a href="/catalogo">Catalogo</a></li>
-                        <li><a href="/chi-siamo">Chi Siamo</a></li>
-                        <li><a href="/contatti">Contatti</a></li>
-                        <li><a href="/privacy-policy">Privacy Policy</a></li>
+                        <li><a href="/catalogo"><?= __("Catalogo") ?></a></li>
+                        <li><a href="/chi-siamo"><?= __("Chi Siamo") ?></a></li>
+                        <li><a href="/contatti"><?= __("Contatti") ?></a></li>
+                        <li><a href="/privacy-policy"><?= __("Privacy Policy") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
                     <h5>Account</h5>
                     <ul class="list-unstyled">
-                        <li><a href="/user/dashboard">Dashboard</a></li>
-                        <li><a href="/profilo">Profilo</a></li>
+                        <li><a href="/user/dashboard"><?= __("Dashboard") ?></a></li>
+                        <li><a href="/profilo"><?= __("Profilo") ?></a></li>
                         <li><a href="/wishlist"><?= __("Preferiti") ?></a></li>
                         <li><a href="/prenotazioni"><?= __("Prenotazioni") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
-                    <h5>Seguici</h5>
+                    <h5><?= __("Seguici") ?></h5>
                     <div class="d-flex gap-3 social-links">
                         <?php if ($socialFacebook !== ''): ?>
                             <a href="<?= HtmlHelper::e($socialFacebook) ?>" target="_blank" rel="noopener noreferrer"><i class="fab fa-facebook"></i></a>

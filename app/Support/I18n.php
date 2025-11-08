@@ -21,12 +21,22 @@ final class I18n
     private static string $locale = 'it_IT';
 
     /**
-     * Available locales
+     * Available locales (fallback/default when DB not available)
      */
     private static array $availableLocales = [
         'it_IT' => 'Italiano',
         'en_US' => 'English',
     ];
+
+    /**
+     * Languages cache loaded from database
+     */
+    private static ?array $languagesCache = null;
+
+    /**
+     * Flag to track if languages have been loaded from database
+     */
+    private static bool $languagesLoadedFromDb = false;
 
     /**
      * Translation cache
@@ -37,6 +47,65 @@ final class I18n
      * Flag to track if translations have been loaded
      */
     private static bool $translationsLoaded = false;
+
+    /**
+     * Load languages from database
+     *
+     * This method should be called during application bootstrap to load
+     * available languages from the database. Falls back to hardcoded locales
+     * if database is not available.
+     *
+     * @param \mysqli $db Database connection
+     * @return bool True if languages loaded successfully
+     */
+    public static function loadFromDatabase(\mysqli $db): bool
+    {
+        if (self::$languagesLoadedFromDb) {
+            return true; // Already loaded
+        }
+
+        try {
+            // Query active languages from database
+            $result = $db->query("
+                SELECT code, native_name, is_default
+                FROM languages
+                WHERE is_active = 1
+                ORDER BY is_default DESC, code ASC
+            ");
+
+            if (!$result) {
+                return false; // Query failed, use fallback
+            }
+
+            $languages = [];
+            $defaultLocale = null;
+
+            while ($row = $result->fetch_assoc()) {
+                $languages[$row['code']] = $row['native_name'];
+
+                if ($row['is_default']) {
+                    $defaultLocale = $row['code'];
+                }
+            }
+
+            if (!empty($languages)) {
+                self::$languagesCache = $languages;
+                self::$languagesLoadedFromDb = true;
+
+                // Set default locale from database
+                if ($defaultLocale) {
+                    self::$locale = $defaultLocale;
+                }
+
+                return true;
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            // If database query fails, fall back to hardcoded locales
+            return false;
+        }
+    }
 
     /**
      * Load translations from JSON file for current locale
@@ -100,7 +169,12 @@ final class I18n
      */
     public static function setLocale(string $locale): bool
     {
-        if (!isset(self::$availableLocales[$locale])) {
+        // Check against database languages if loaded, otherwise use fallback
+        $availableLocales = self::$languagesLoadedFromDb && self::$languagesCache !== null
+            ? self::$languagesCache
+            : self::$availableLocales;
+
+        if (!isset($availableLocales[$locale])) {
             return false;
         }
 
@@ -126,10 +200,17 @@ final class I18n
     /**
      * Get available locales
      *
+     * Returns languages from database if loaded, otherwise returns fallback locales.
+     *
      * @return array<string, string> Array of locale codes => language names
      */
     public static function getAvailableLocales(): array
     {
+        // Return database languages if loaded, otherwise use fallback
+        if (self::$languagesLoadedFromDb && self::$languagesCache !== null) {
+            return self::$languagesCache;
+        }
+
         return self::$availableLocales;
     }
 
@@ -150,12 +231,17 @@ final class I18n
         // TODO: Implement ngettext for proper plural handling
         // For now, simple singular/plural logic
 
+        // 1. Choose singular or plural form
         $message = ($count === 1) ? $singular : $plural;
 
+        // 2. Translate the chosen form
+        $translated = self::translate($message);
+
+        // 3. Format with sprintf
         if (empty($args)) {
-            return sprintf($message, $count);
+            return sprintf($translated, $count);
         }
 
-        return sprintf($message, $count, ...$args);
+        return sprintf($translated, $count, ...$args);
     }
 }

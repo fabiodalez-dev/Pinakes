@@ -111,11 +111,6 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
     session_start();
 
-    // Initialize locale from session
-    if (isset($_SESSION['locale'])) {
-        \App\Support\I18n::setLocale($_SESSION['locale']);
-    }
-
     // Regenera session ID periodicamente per prevenire session hijacking
     if (!isset($_SESSION['last_regeneration'])) {
         $_SESSION['last_regeneration'] = time();
@@ -216,26 +211,15 @@ $containerBuilder->addDefinitions($containerDefinitions ?? []);
 $container = $containerBuilder->build();
 AppFactory::setContainer($container);
 
-// Load locale from database for logged-in users (overrides session)
-if (!$isCli && isset($_SESSION['user']['id'])) {
+// Load available languages from database
+if (!$isCli) {
     try {
         $db = $container->get('db');
-        $userId = (int)$_SESSION['user']['id'];
-        $stmt = $db->prepare("SELECT locale FROM utenti WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param('i', $userId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($row = $result->fetch_assoc()) {
-                $userLocale = $row['locale'] ?? 'it_IT';
-                $_SESSION['locale'] = $userLocale;
-                \App\Support\I18n::setLocale($userLocale);
-            }
-            $stmt->close();
-        }
+        \App\Support\I18n::loadFromDatabase($db);
     } catch (Exception $e) {
-        // Fallback to session locale if database query fails
-        // This prevents errors if the locale column doesn't exist yet
+        // Fallback to hardcoded locales if database query fails
+        // This prevents errors during installation or if languages table doesn't exist yet
+        error_log("Failed to load languages from database: " . $e->getMessage());
     }
 }
 

@@ -727,7 +727,7 @@ function copyToClipboard(text, button) {
       button.innerHTML = originalHTML;
     }, 2000);
   }).catch(err => {
-    alert('Errore nella copia: ' + err);
+    alert('<?= addslashes(__("Errore nella copia:")) ?> ' + err);
   });
 }
 

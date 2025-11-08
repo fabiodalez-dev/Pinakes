@@ -229,7 +229,7 @@ ob_start();
         <div class="error-500-info">
             <i class="fas fa-lightbulb"></i>
             <div class="error-500-info-text">
-                <strong><?= __("$1") ?></strong><br>
+                <strong><?= __("Cosa fare:") ?></strong><br>
                 <?= __('Prova a ricaricare la pagina o torna alla home. Se il problema persiste, riprova tra qualche minuto.') ?>
             </div>
         </div>
@@ -241,7 +241,7 @@ ob_start();
             </button>
             <a href="/" class="error-500-btn error-500-btn-primary">
                 <i class="fas fa-home"></i>
-                Vai alla Home
+                <?= __('Vai alla Home') ?>
             </a>
         </div>
 
@@ -253,10 +253,6 @@ ob_start();
             <a href="/contatti" class="error-500-link">
                 <i class="fas fa-envelope"></i>
                 <span><?= __('Contatti') ?></span>
-            </a>
-            <a href="/supporto" class="error-500-link">
-                <i class="fas fa-question-circle"></i>
-                <span><?= __('Supporto') ?></span>
             </a>
         </div>
     </div>

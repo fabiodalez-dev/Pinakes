@@ -204,7 +204,7 @@ ob_start();
 
         <?php if (!empty($requestedPath) && $requestedPath !== '/'): ?>
         <div class="error-404-path">
-            <strong><?= __("$1") ?></strong>
+            <strong><?= __("Percorso richiesto:") ?></strong>
             <code><?php echo htmlspecialchars($requestedPath, ENT_QUOTES, 'UTF-8'); ?></code>
         </div>
         <?php endif; ?>

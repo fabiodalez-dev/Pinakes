@@ -217,6 +217,34 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             <?php endif; ?>
           </div>
 
+          <!-- System Configuration Section -->
+          <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
+          <div class="pt-6 mt-6 border-t border-gray-200">
+            <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Configurazione") ?></div>
+            <div class="space-y-1 mt-3">
+              <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900" href="/admin/settings">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+                  <i class="fas fa-cog text-gray-600"></i>
+                </div>
+                <div class="ml-3">
+                  <div class="font-medium"><?= __("Impostazioni") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Configurazione sistema") ?></div>
+                </div>
+              </a>
+
+              <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900" href="/admin/languages">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+                  <i class="fas fa-language text-gray-600"></i>
+                </div>
+                <div class="ml-3">
+                  <div class="font-medium"><?= __("Lingue") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Traduzioni e localizzazione") ?></div>
+                </div>
+              </a>
+            </div>
+          </div>
+          <?php endif; ?>
+
           <!-- Quick Actions Section -->
           <div class="pt-6 mt-6 border-t border-gray-200">
             <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?></div>
@@ -404,39 +432,6 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
                 </a>
 
-                <!-- Language Switcher -->
-                <div class="relative ml-2">
-                  <?php
-                    $currentLocale = $_SESSION['locale'] ?? 'it_IT';
-                    $localeLabels = [
-                      'it_IT' => ['name' => 'Italiano', 'flag' => '🇮🇹', 'code' => 'IT'],
-                      'en_US' => ['name' => 'English', 'flag' => '🇬🇧', 'code' => 'EN']
-                    ];
-                    $currentLocaleInfo = $localeLabels[$currentLocale] ?? $localeLabels['it_IT'];
-                  ?>
-                  <button id="language-menu-button" class="flex items-center gap-2 p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20" title="<?= __('Cambia lingua') ?>">
-                    <span class="text-xl"><?= $currentLocaleInfo['flag'] ?></span>
-                    <span class="hidden sm:inline text-sm font-medium text-gray-700"><?= $currentLocaleInfo['code'] ?></span>
-                    <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" id="language-menu-arrow"></i>
-                  </button>
-                  <div id="language-menu-dropdown" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
-                    <div class="p-2">
-                      <?php foreach ($localeLabels as $locale => $info): ?>
-                        <a href="/language/<?= $locale ?>" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors <?= $currentLocale === $locale ? 'bg-gray-50' : '' ?>">
-                          <span class="text-2xl"><?= $info['flag'] ?></span>
-                          <div class="flex-1">
-                            <div class="text-sm font-medium text-gray-900"><?= $info['name'] ?></div>
-                            <div class="text-xs text-gray-500"><?= $info['code'] ?></div>
-                          </div>
-                          <?php if ($currentLocale === $locale): ?>
-                            <i class="fas fa-check text-sm text-green-600"></i>
-                          <?php endif; ?>
-                        </a>
-                      <?php endforeach; ?>
-                    </div>
-                  </div>
-                </div>
-
                 <!-- Enhanced User Menu / Public Login -->
                 <div class="relative ml-2">
                   <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
@@ -455,7 +450,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                       <div class="p-2">
                         <a href="/profilo" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
                           <i class="fas fa-user-cog w-4 h-4"></i>
-                          <span class="text-sm">Profilo</span>
+                          <span class="text-sm"><?= __("Profilo") ?></span>
                         </a>
                         <a href="/wishlist" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
                           <i class="fas fa-heart w-4 h-4"></i>
@@ -796,27 +791,6 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             }
             // Close other dropdowns
             if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
-            if (languageMenuDropdown) languageMenuDropdown.classList.add('hidden');
-            if (languageMenuArrow) languageMenuArrow.classList.remove('rotate-180');
-          });
-        }
-
-        // Language menu dropdown
-        const languageMenuButton = document.getElementById('language-menu-button');
-        const languageMenuDropdown = document.getElementById('language-menu-dropdown');
-        const languageMenuArrow = document.getElementById('language-menu-arrow');
-
-        if (languageMenuButton && languageMenuDropdown) {
-          languageMenuButton.addEventListener('click', function(e) {
-            e.stopPropagation();
-            languageMenuDropdown.classList.toggle('hidden');
-            if (languageMenuArrow) {
-              languageMenuArrow.classList.toggle('rotate-180');
-            }
-            // Close other dropdowns
-            if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
-            if (userMenuDropdown) userMenuDropdown.classList.add('hidden');
-            if (userMenuArrow) userMenuArrow.classList.remove('rotate-180');
           });
         }
 
@@ -825,8 +799,6 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
           if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
           if (userMenuDropdown) userMenuDropdown.classList.add('hidden');
           if (userMenuArrow) userMenuArrow.classList.remove('rotate-180');
-          if (languageMenuDropdown) languageMenuDropdown.classList.add('hidden');
-          if (languageMenuArrow) languageMenuArrow.classList.remove('rotate-180');
         });
 
         // Mobile search functionality
@@ -1202,12 +1174,6 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             const userMenuDropdown = document.getElementById('user-menu-dropdown');
             if (userMenuDropdown && !userMenuDropdown.classList.contains('hidden')) {
               userMenuDropdown.classList.add('hidden');
-            }
-
-            // Close language menu dropdown
-            const languageMenuDropdown = document.getElementById('language-menu-dropdown');
-            if (languageMenuDropdown && !languageMenuDropdown.classList.contains('hidden')) {
-              languageMenuDropdown.classList.add('hidden');
             }
 
             // Blur focused input/button

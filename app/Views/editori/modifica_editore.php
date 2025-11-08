@@ -225,7 +225,7 @@ function initializeFormValidation() {
                 form.submit();
             }
         } else {
-            if (confirm(`Sei sicuro di voler aggiornare l'editore "${nome}"?`)) {
+            if (confirm('<?= addslashes(__("Sei sicuro di voler aggiornare l\'editore")) ?> "' + nome + '"?')) {
                 form.submit();
             }
         }

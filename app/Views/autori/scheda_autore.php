@@ -6,7 +6,7 @@ use App\Support\HtmlHelper;
  */
 $autore = $data['autore'];
 $libri = $data['libri'];
-$title = "Scheda Autore: " . ($autore['nome'] ?? 'N/D');
+$title = __("Scheda Autore:") . " " . ($autore['nome'] ?? 'N/D');
 
 $hasBooks = !empty($libri);
 $totalBooks = count($libri);

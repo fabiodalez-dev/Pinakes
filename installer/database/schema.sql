@@ -670,3 +670,24 @@ CREATE TABLE `wishlist` (
   CONSTRAINT `wishlist_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
   CONSTRAINT `wishlist_ibfk_2` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table: languages
+CREATE TABLE `languages` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Language code: it_IT, en_US, es_ES, fr_FR, de_DE, etc.',
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'English name: Italian, English, Spanish, French, German',
+  `native_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Native name: Italiano, English, Español, Français, Deutsch',
+  `flag_emoji` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT '🌐' COMMENT 'Flag emoji: 🇮🇹, 🇬🇧, 🇪🇸, 🇫🇷, 🇩🇪',
+  `is_default` tinyint(1) DEFAULT '0' COMMENT 'Is this the default language for new users?',
+  `is_active` tinyint(1) DEFAULT '1' COMMENT 'Is this language active and selectable?',
+  `translation_file` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path to translation file: locale/es_ES.json',
+  `total_keys` int DEFAULT '0' COMMENT 'Total translation keys in system',
+  `translated_keys` int DEFAULT '0' COMMENT 'Number of translated keys for this language',
+  `completion_percentage` decimal(5,2) DEFAULT '0.00' COMMENT 'Translation completion percentage',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_code` (`code`),
+  KEY `idx_is_active` (`is_active`),
+  KEY `idx_is_default` (`is_default`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores available languages for the application';

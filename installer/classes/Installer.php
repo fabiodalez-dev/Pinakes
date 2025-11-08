@@ -511,8 +511,8 @@ class Installer {
         $stmt = $pdo->query("SHOW TABLES");
         $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        if (count($tables) !== 35) {
-            throw new Exception("Installazione database non completa. Trovate " . count($tables) . " tabelle, attese 35");
+        if (count($tables) !== 36) {
+            throw new Exception("Installazione database non completa. Trovate " . count($tables) . " tabelle, attese 36");
         }
 
         // Check essential data

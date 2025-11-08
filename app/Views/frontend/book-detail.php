@@ -1893,7 +1893,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const data = await res.json();
       setFavUI(!!data.favorite);
     } catch (e) {
-      alert('Errore nell\'aggiornare i preferiti.');
+      alert('<?= addslashes(__("Errore nell\'aggiornare i preferiti.")) ?>');
     }
   });
 });
@@ -2176,7 +2176,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(pageUrl)
           .then(function() {
-            showCopyNotification(copyLinkBtn, 'Link copiato!');
+            showCopyNotification(copyLinkBtn, '<?= addslashes(__("Link copiato!")) ?>');
           })
           .catch(function(err) {
             console.error('Errore nella copia:', err);
@@ -2201,7 +2201,7 @@ document.addEventListener('DOMContentLoaded', function() {
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      showCopyNotification(button, 'Link copiato!');
+      showCopyNotification(button, '<?= addslashes(__("Link copiato!")) ?>');
     } catch (err) {
       console.error('Fallback copy error:', err);
       alert('Link: ' + text);

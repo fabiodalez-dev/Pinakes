@@ -733,7 +733,7 @@ if (!function_exists('assetUrl')) {
                     </a>
 
                     <ul class="nav-links d-none d-md-flex">
-                        <li><a href="/catalogo" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>">Catalogo</a></li>
+                        <li><a href="/catalogo" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a></li>
                     </ul>
 
                     <!-- Mobile Menu Toggle -->
@@ -803,34 +803,34 @@ if (!function_exists('assetUrl')) {
                 </div>
                 <nav class="mobile-nav">
                     <a href="/catalogo" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>">
-                        <i class="fas fa-book me-2"></i>Catalogo
+                        <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
                     <?php if ($isLogged): ?>
                     <hr class="mobile-menu-divider">
                     <a href="/user/dashboard" class="mobile-nav-link">
-                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        <i class="fas fa-tachometer-alt me-2"></i><?= __("Dashboard") ?>
                     </a>
                     <a href="/prenotazioni" class="mobile-nav-link">
-                        <i class="fas fa-bookmark me-2"></i>Prenotazioni
+                        <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                     </a>
                     <a href="/wishlist" class="mobile-nav-link">
-                        <i class="fas fa-heart me-2"></i>Preferiti
+                        <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                     </a>
                     <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                     <a href="/admin/dashboard" class="mobile-nav-link">
-                        <i class="fas fa-user-shield me-2"></i>Admin
+                        <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
                     </a>
                     <?php endif; ?>
                     <a href="/profilo" class="mobile-nav-link">
-                        <i class="fas fa-user me-2"></i>Profilo
+                        <i class="fas fa-user me-2"></i><?= __("Profilo") ?>
                     </a>
                     <?php else: ?>
                     <hr class="mobile-menu-divider">
                     <a href="/login" class="mobile-nav-link">
-                        <i class="fas fa-sign-in-alt me-2"></i>Accedi
+                        <i class="fas fa-sign-in-alt me-2"></i><?= __("Accedi") ?>
                     </a>
                     <a href="/register" class="mobile-nav-link">
-                        <i class="fas fa-user-plus me-2"></i>Registrati
+                        <i class="fas fa-user-plus me-2"></i><?= __("Registrati") ?>
                     </a>
                     <?php endif; ?>
                 </nav>
@@ -867,14 +867,14 @@ if (!function_exists('assetUrl')) {
                 <div class="col-lg-3">
                     <h5>Account</h5>
                     <ul class="list-unstyled">
-                        <li><a href="/user/dashboard">Dashboard</a></li>
-                        <li><a href="/profilo">Profilo</a></li>
-                        <li><a href="/wishlist">Wishlist</a></li>
-                        <li><a href="/prenotazioni">Prenotazioni</a></li>
+                        <li><a href="/user/dashboard"><?= __("Dashboard") ?></a></li>
+                        <li><a href="/profilo"><?= __("Profilo") ?></a></li>
+                        <li><a href="/wishlist"><?= __("Preferiti") ?></a></li>
+                        <li><a href="/prenotazioni"><?= __("Prenotazioni") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
-                    <h5>Seguici</h5>
+                    <h5><?= __("Seguici") ?></h5>
                     <div class="d-flex gap-3 social-links">
                         <?php if ($socialFacebook !== ''): ?>
                             <a href="<?= HtmlHelper::e($socialFacebook) ?>" target="_blank" rel="noopener noreferrer"><i class="fab fa-facebook"></i></a>

@@ -217,7 +217,7 @@ function initializeFormValidation() {
                 form.submit();
             }
         } else {
-            if (confirm(`Sei sicuro di voler salvare l'editore "${nome}"?`)) {
+            if (confirm('<?= addslashes(__("Sei sicuro di voler salvare l\'editore")) ?> "' + nome + '"?')) {
                 form.submit();
             }
         }
