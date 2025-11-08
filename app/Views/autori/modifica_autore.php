@@ -147,11 +147,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Campo Obbligatorio'),
-                    text: __('Il nome dell\')autore è obbligatorio.'
+                    title: '<?= addslashes(__("Campo Obbligatorio")) ?>',
+                    text: '<?= addslashes(__("Il nome dell\'autore è obbligatorio.")) ?>'
                 });
             } else {
-                alert('Il nome dell\'autore è obbligatorio.');
+                alert('<?= addslashes(__("Il nome dell\'autore è obbligatorio.")) ?>');
             }
             return;
         }
@@ -165,11 +165,11 @@ function initializeFormValidation() {
                 if (window.Swal) {
                     Swal.fire({
                         icon: 'error',
-                        title: __('Date Non Valide'),
-                        text: __('La data di nascita deve essere precedente alla data di morte.')
+                        title: '<?= addslashes(__("Date Non Valide")) ?>',
+                        text: '<?= addslashes(__("La data di nascita deve essere precedente alla data di morte.")) ?>'
                     });
                 } else {
-                    alert(__('La data di nascita deve essere precedente alla data di morte.'));
+                    alert('<?= addslashes(__("La data di nascita deve essere precedente alla data di morte.")) ?>');
                 }
                 return;
             }

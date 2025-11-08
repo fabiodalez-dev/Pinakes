@@ -158,11 +158,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Campo Obbligatorio'),
-                    text: __('Il nome dell\')editore è obbligatorio.'
+                    title: '<?= addslashes(__("Campo Obbligatorio")) ?>',
+                    text: '<?= addslashes(__("Il nome dell\'editore è obbligatorio.")) ?>'
                 });
             } else {
-                alert('Il nome dell\'editore è obbligatorio.');
+                alert('<?= addslashes(__("Il nome dell\'editore è obbligatorio.")) ?>');
             }
             return;
         }
@@ -173,11 +173,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('URL Non Valido'),
-                    text: __('Il sito web deve essere un URL valido (es. https://www.esempio.com).')
+                    title: '<?= addslashes(__("URL Non Valido")) ?>',
+                    text: '<?= addslashes(__("Il sito web deve essere un URL valido (es. https://www.esempio.com).")) ?>'
                 });
             } else {
-                alert(__('Il sito web deve essere un URL valido.'));
+                alert('<?= addslashes(__("Il sito web deve essere un URL valido.")) ?>');
             }
             return;
         }
@@ -188,11 +188,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Email Non Valida'),
-                    text: __('L\')indirizzo email deve essere valido.'
+                    title: '<?= addslashes(__("Email Non Valida")) ?>',
+                    text: '<?= addslashes(__("L\'indirizzo email deve essere valido.")) ?>'
                 });
             } else {
-                alert('L\'indirizzo email deve essere valido.');
+                alert('<?= addslashes(__("L\'indirizzo email deve essere valido.")) ?>');
             }
             return;
         }
@@ -200,20 +200,20 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: __('Conferma Aggiornamento'),
-                text: `Sei sicuro di voler aggiornare l'editore "${nome}"?`,
+                title: '<?= addslashes(__("Conferma Aggiornamento")) ?>',
+                text: '<?= addslashes(__("Sei sicuro di voler aggiornare l\'editore")) ?> "' + nome + '"?',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: __('Sì, Aggiorna'),
-                cancelButtonText: __('Annulla'),
+                confirmButtonText: '<?= addslashes(__("Sì, Aggiorna")) ?>',
+                cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
                 reverseButtons: true
             });
             
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: __('Aggiornamento in corso...'),
-                    text: __('Attendere prego'),
+                    title: '<?= addslashes(__("Aggiornamento in corso...")) ?>',
+                    text: '<?= addslashes(__("Attendere prego")) ?>',
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {
