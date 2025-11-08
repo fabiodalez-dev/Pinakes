@@ -170,6 +170,14 @@ use App\Support\HtmlHelper;
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div class="flex items-center justify-end gap-2">
+                                                <!-- Download JSON -->
+                                                <a href="/admin/languages/<?= urlencode($lang['code']) ?>/download"
+                                                   class="text-green-600 hover:text-green-900"
+                                                   title="<?= __("Scarica JSON") ?>"
+                                                   download>
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+
                                                 <!-- Edit -->
                                                 <a href="/admin/languages/<?= urlencode($lang['code']) ?>/edit"
                                                    class="text-blue-600 hover:text-blue-900"

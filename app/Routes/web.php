@@ -409,6 +409,12 @@ return function (App $app): void {
         return $controller->refreshStats($request, $response, $db, []);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
+    $app->get('/admin/languages/{code}/download', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->download($request, $response, $db, $args);
+    })->add(new AdminAuthMiddleware());
+
     $app->get('/admin/languages/{code}/edit', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();

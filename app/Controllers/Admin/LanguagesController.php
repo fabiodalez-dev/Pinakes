@@ -432,4 +432,61 @@ class LanguagesController
             ->withHeader('Location', '/admin/languages')
             ->withStatus(302);
     }
+
+    /**
+     * Download JSON translation file for a language
+     *
+     * GET /admin/languages/{code}/download
+     */
+    public function download(Request $request, Response $response, \mysqli $db, array $args): Response
+    {
+        $code = $args['code'] ?? '';
+        $languageModel = new Language($db);
+        $language = $languageModel->getByCode($code);
+
+        if (!$language) {
+            $_SESSION['flash_error'] = __("Lingua non trovata");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        // Get translation file path
+        $translationFile = __DIR__ . '/../../../locale/' . $code . '.json';
+
+        if (!file_exists($translationFile)) {
+            $_SESSION['flash_error'] = __("File di traduzione non trovato");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        // Read JSON content
+        $jsonContent = file_get_contents($translationFile);
+
+        // Validate JSON
+        $decoded = json_decode($jsonContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $_SESSION['flash_error'] = __("File JSON non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        // Pretty print JSON for download
+        $prettyJson = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        // Set headers for download
+        $filename = $code . '.json';
+        $response = $response
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Content-Length', (string)strlen($prettyJson))
+            ->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Expires', '0');
+
+        $response->getBody()->write($prettyJson);
+        return $response;
+    }
 }
