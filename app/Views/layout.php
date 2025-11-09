@@ -448,28 +448,28 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     </button>
                     <div id="user-menu-dropdown" class="absolute right-0 mt-2 w-56 sm:w-56 w-48 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50 max-w-[calc(100vw-2rem)]">
                       <div class="p-2">
-                        <a href="/profilo" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
+                        <a href="/profilo" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-user-cog w-4 h-4"></i>
                           <span class="text-sm"><?= __("Profilo") ?></span>
                         </a>
-                        <a href="/wishlist" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
+                        <a href="/wishlist" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-heart w-4 h-4"></i>
                           <span class="text-sm"><?= __("Preferiti") ?></span>
                         </a>
-                        <a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
+                        <a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-cog w-4 h-4"></i>
                           <span class="text-sm"><?= __("Impostazioni") ?></span>
                         </a>
                         <?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
-                        <a href="/admin/security-logs" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700">
+                        <a href="/admin/security-logs" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-shield-alt w-4 h-4 text-red-600"></i>
-                          <span class="text-sm">Log Sicurezza</span>
+                          <span class="text-sm"><?= __("Log Sicurezza") ?></span>
                         </a>
                         <?php endif; ?>
                         <hr class="my-2 border-gray-200">
-                        <a href="/logout" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600">
+                        <a href="/logout" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
                           <i class="fas fa-sign-out-alt w-4 h-4"></i>
-                          <span class="text-sm">Esci</span>
+                          <span class="text-sm"><?= __("Esci") ?></span>
                         </a>
                       </div>
                     </div>
