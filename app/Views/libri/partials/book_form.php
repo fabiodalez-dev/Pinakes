@@ -1977,7 +1977,7 @@ function initializeFormValidation() {
         if (result.isConfirmed) {
             // Show loading
             Swal.fire({
-                title: FORM_MODE === 'edit' ? __('Aggiornamento in corso...') : __('Salvataggio in corso...').
+                title: FORM_MODE === 'edit' ? __('Aggiornamento in corso...') : __('Salvataggio in corso...'),
                 text: __('Attendere prego'),
                 allowOutsideClick: false,
                 showConfirmButton: false,
