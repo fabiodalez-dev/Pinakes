@@ -579,4 +579,184 @@ class LanguagesController
             'translated_keys' => $translatedKeys,
         ];
     }
+
+    /**
+     * Show form to edit route translations for a language
+     *
+     * GET /admin/languages/{code}/edit-routes
+     */
+    public function editRoutes(Request $request, Response $response, \mysqli $db, array $args): Response
+    {
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        $languageModel = new Language($db);
+        $language = $languageModel->getByCode($code);
+
+        if (!$language) {
+            $_SESSION['flash_error'] = __("Lingua non trovata");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        // Load current routes for this language
+        $routesFilePath = $this->getRoutesFilePath($code);
+        $routes = [];
+
+        if (file_exists($routesFilePath)) {
+            $jsonContent = file_get_contents($routesFilePath);
+            $decoded = json_decode($jsonContent, true);
+            if (is_array($decoded)) {
+                $routes = $decoded;
+            }
+        }
+
+        // Get available route keys from RouteTranslator
+        $availableKeys = \App\Support\RouteTranslator::getAvailableKeys();
+
+        // Merge with fallback routes to ensure all keys are present
+        foreach ($availableKeys as $key) {
+            if (!isset($routes[$key])) {
+                $routes[$key] = \App\Support\RouteTranslator::route($key);
+            }
+        }
+
+        // Sort by key
+        ksort($routes);
+
+        // Render view content
+        ob_start();
+        require __DIR__ . '/../../Views/admin/languages/edit-routes.php';
+        $content = ob_get_clean();
+
+        // Render with admin layout
+        ob_start();
+        require __DIR__ . '/../../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
+    }
+
+    /**
+     * Update route translations for a language
+     *
+     * POST /admin/languages/{code}/update-routes
+     */
+    public function updateRoutes(Request $request, Response $response, \mysqli $db, array $args): Response
+    {
+        // CSRF validation
+        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages')) {
+            return $error;
+        }
+
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        $languageModel = new Language($db);
+        $language = $languageModel->getByCode($code);
+
+        if (!$language) {
+            $_SESSION['flash_error'] = __("Lingua non trovata");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        $data = $request->getParsedBody() ?? [];
+        $routes = $data['routes'] ?? [];
+
+        // Validate routes
+        $errors = [];
+        $validatedRoutes = [];
+
+        foreach ($routes as $key => $value) {
+            // Ensure value is a string and starts with /
+            if (!is_string($value) || trim($value) === '') {
+                $errors[] = __("La route") . " '$key' " . __("non può essere vuota");
+                continue;
+            }
+
+            $trimmedValue = trim($value);
+
+            if (!str_starts_with($trimmedValue, '/')) {
+                $errors[] = __("La route") . " '$key' " . __("deve iniziare con") . " '/'";
+                continue;
+            }
+
+            // No spaces allowed
+            if (preg_match('/\s/', $trimmedValue)) {
+                $errors[] = __("La route") . " '$key' " . __("non può contenere spazi");
+                continue;
+            }
+
+            $validatedRoutes[$key] = $trimmedValue;
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['flash_error'] = implode('<br>', $errors);
+            return $response
+                ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')
+                ->withStatus(302);
+        }
+
+        try {
+            // Backup existing routes file
+            $routesFilePath = $this->getRoutesFilePath($code);
+            if (file_exists($routesFilePath)) {
+                copy($routesFilePath, $routesFilePath . '.backup.' . time());
+            }
+
+            // Save routes to JSON file
+            $jsonToSave = json_encode($validatedRoutes, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            if (file_put_contents($routesFilePath, $jsonToSave, LOCK_EX) === false) {
+                throw new \Exception(__("Errore nel salvataggio del file route"));
+            }
+
+            // Clear RouteTranslator cache
+            \App\Support\RouteTranslator::clearCache();
+
+            $_SESSION['flash_success'] = __("Route aggiornate con successo");
+            return $response
+                ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')
+                ->withStatus(302);
+        } catch (\Exception $e) {
+            $_SESSION['flash_error'] = __("Errore nell'aggiornamento:") . " " . $e->getMessage();
+            return $response
+                ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')
+                ->withStatus(302);
+        }
+    }
+
+    /**
+     * Get file path for routes JSON
+     *
+     * @param string $code Locale code
+     * @return string File path
+     */
+    private function getRoutesFilePath(string $code): string
+    {
+        $baseDir = realpath(__DIR__ . '/../../../locale');
+
+        if ($baseDir === false) {
+            $baseDir = __DIR__ . '/../../../locale';
+            if (!is_dir($baseDir)) {
+                mkdir($baseDir, 0755, true);
+            }
+        }
+
+        return rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'routes_' . $code . '.json';
+    }
 }

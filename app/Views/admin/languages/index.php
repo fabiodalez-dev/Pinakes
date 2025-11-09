@@ -185,6 +185,13 @@ use App\Support\HtmlHelper;
                                                     <i class="fas fa-edit"></i>
                                                 </a>
 
+                                                <!-- Edit Routes -->
+                                                <a href="/admin/languages/<?= urlencode($lang['code']) ?>/edit-routes"
+                                                   class="text-purple-600 hover:text-purple-900"
+                                                   title="<?= __("Modifica Route") ?>">
+                                                    <i class="fas fa-route"></i>
+                                                </a>
+
                                                 <!-- Set as Default -->
                                                 <?php if (!$lang['is_default']): ?>
                                                     <form method="POST" action="/admin/languages/<?= urlencode($lang['code']) ?>/set-default" class="inline">

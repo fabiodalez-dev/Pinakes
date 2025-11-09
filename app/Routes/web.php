@@ -422,6 +422,19 @@ return function (App $app): void {
         return $controller->download($request, $response, $db, $args);
     })->add(new AdminAuthMiddleware());
 
+    // Route translation editor (must come before /admin/languages/{code}/edit)
+    $app->get('/admin/languages/{code}/edit-routes', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->editRoutes($request, $response, $db, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/languages/{code}/update-routes', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\LanguagesController();
+        return $controller->updateRoutes($request, $response, $db, $args);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
     $app->get('/admin/languages/{code}/edit', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
