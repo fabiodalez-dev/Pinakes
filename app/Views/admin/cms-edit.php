@@ -1,158 +1,169 @@
-<div class="max-w-5xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-    <div class="mb-6">
-      <div class="flex items-center justify-between">
-        <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+<div class="max-w-7xl mx-auto py-6 px-4">
+  <div class="mb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
           <i class="fas fa-file-alt text-blue-600"></i>
           <?= htmlspecialchars($title) ?>
         </h1>
-        <a href="/admin/settings" class="btn-secondary">
-          <i class="fas fa-arrow-left mr-2"></i><?= __("Torna alle Impostazioni") ?>
-        </a>
+        <p class="mt-1 text-sm text-gray-600">
+          <?= __("Modifica il contenuto e le impostazioni della pagina") ?>
+        </p>
       </div>
-
-      <?php if(isset($_GET['saved'])): ?>
-        <div class="mt-3 p-3 bg-green-50 text-green-800 border border-green-200 rounded" role="alert">
-          <i class="fas fa-check-circle mr-2"></i><?= __("Pagina aggiornata con successo.") ?>
-        </div>
-      <?php endif; ?>
-      <?php if(isset($_GET['error']) && $_GET['error']==='csrf'): ?>
-        <div class="mt-3 p-3 bg-red-50 text-red-800 border border-red-200 rounded" role="alert">
-          <i class="fas fa-exclamation-triangle mr-2"></i><?= __("CSRF non valido.") ?>
-        </div>
-      <?php elseif(isset($_GET['error'])): ?>
-        <div class="mt-3 p-3 bg-red-50 text-red-800 border border-red-200 rounded" role="alert">
-          <i class="fas fa-exclamation-triangle mr-2"></i><?= __("Errore durante il salvataggio.") ?>
-        </div>
-      <?php endif; ?>
+      <a href="/admin/settings?tab=cms" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
+        <i class="fas fa-arrow-left"></i>
+        <?= __("Torna alle Impostazioni") ?>
+      </a>
     </div>
 
-    <form method="post" action="/admin/cms/<?= htmlspecialchars($pageData['slug']) ?>/update" class="space-y-6">
-      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+    <?php if(isset($_GET['saved'])): ?>
+      <div class="mt-4 p-4 bg-green-50 text-green-800 border border-green-200 rounded-xl" role="alert">
+        <i class="fas fa-check-circle mr-2"></i><?= __("Pagina aggiornata con successo.") ?>
+      </div>
+    <?php endif; ?>
+    <?php if(isset($_GET['error']) && $_GET['error']==='csrf'): ?>
+      <div class="mt-4 p-4 bg-red-50 text-red-800 border border-red-200 rounded-xl" role="alert">
+        <i class="fas fa-exclamation-triangle mr-2"></i><?= __("CSRF non valido.") ?>
+      </div>
+    <?php elseif(isset($_GET['error'])): ?>
+      <div class="mt-4 p-4 bg-red-50 text-red-800 border border-red-200 rounded-xl" role="alert">
+        <i class="fas fa-exclamation-triangle mr-2"></i><?= __("Errore durante il salvataggio.") ?>
+      </div>
+    <?php endif; ?>
+  </div>
 
-      <!-- Titolo -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-heading text-blue-600"></i>
-            <?= __("Titolo Pagina") ?>
-          </h2>
+  <form method="post" action="/admin/cms/<?= htmlspecialchars($pageData['slug']) ?>/update" class="space-y-6">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+
+    <!-- Titolo -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-heading text-blue-600"></i>
+          <?= __("Titolo Pagina") ?>
+        </h2>
+        <p class="text-sm text-gray-600 mt-1"><?= __("Il titolo principale della pagina") ?></p>
+      </div>
+      <div class="p-6">
+        <input
+          type="text"
+          name="title"
+          class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+          value="<?= htmlspecialchars($pageData['title']) ?>"
+          required
+          placeholder="<?= __("Inserisci il titolo") ?>">
+      </div>
+    </div>
+
+    <!-- Immagine -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-image text-purple-600"></i>
+          <?= __("Immagine") ?>
+        </h2>
+        <p class="text-sm text-gray-600 mt-1"><?= __("Immagine di copertina della pagina (opzionale)") ?></p>
+      </div>
+      <div class="p-6 space-y-4">
+        <div id="image-preview" class="<?= !empty($pageData['image']) ? '' : 'hidden' ?>">
+          <img
+            id="preview-img"
+            src="<?= htmlspecialchars($pageData['image'] ?? '') ?>"
+            alt="<?= __("Anteprima") ?>"
+            class="max-w-full h-auto rounded-xl border border-gray-200"
+            style="max-height: 300px;">
+          <button
+            type="button"
+            id="remove-image-btn"
+            class="mt-3 inline-flex items-center gap-2 text-sm text-red-600 hover:text-red-800 transition-colors">
+            <i class="fas fa-trash"></i><?= __("Rimuovi immagine") ?>
+          </button>
         </div>
-        <div class="card-body">
+
+        <div id="uppy-container"></div>
+
+        <input
+          type="hidden"
+          name="image"
+          id="image-url"
+          value="<?= htmlspecialchars($pageData['image'] ?? '') ?>">
+
+        <p class="text-sm text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          <?= __("Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: 5MB") ?>
+        </p>
+      </div>
+    </div>
+
+    <!-- Contenuto -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-align-left text-green-600"></i>
+          <?= __("Contenuto") ?>
+        </h2>
+        <p class="text-sm text-gray-600 mt-1"><?= __("Usa l'editor per formattare il testo, aggiungere link, immagini e altro") ?></p>
+      </div>
+      <div class="p-6">
+        <textarea
+          name="content"
+          id="tinymce-editor"
+          class="w-full"><?= htmlspecialchars($pageData['content']) ?></textarea>
+      </div>
+    </div>
+
+    <!-- Meta Description -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-search text-orange-600"></i>
+          <?= __("SEO - Meta Description") ?>
+        </h2>
+      </div>
+      <div class="p-6 space-y-4">
+        <textarea
+          name="meta_description"
+          class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+          rows="3"
+          placeholder="<?= __("Breve descrizione per i motori di ricerca (max 160 caratteri)") ?>"><?= htmlspecialchars($pageData['meta_description'] ?? '') ?></textarea>
+        <p class="text-sm text-gray-500">
+          <i class="fas fa-lightbulb mr-1"></i>
+          <?= __("Questa descrizione apparirà nei risultati di ricerca di Google") ?>
+        </p>
+      </div>
+    </div>
+
+    <!-- Stato -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-toggle-on text-indigo-600"></i>
+          <?= __("Stato") ?>
+        </h2>
+      </div>
+      <div class="p-6">
+        <label class="inline-flex items-center gap-2 cursor-pointer">
           <input
-            type="text"
-            name="title"
-            class="form-input w-full text-lg"
-            value="<?= htmlspecialchars($pageData['title']) ?>"
-            required
-            placeholder="<?= __("Inserisci il titolo") ?>">
-        </div>
+            type="checkbox"
+            name="is_active"
+            value="1"
+            class="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+            <?= $pageData['is_active'] ? 'checked' : '' ?>>
+          <span class="text-sm text-gray-700"><?= __("Pagina attiva (visibile sul sito)") ?></span>
+        </label>
       </div>
+    </div>
 
-      <!-- Immagine -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-image text-blue-600"></i>
-            <?= __("Immagine") ?>
-          </h2>
-        </div>
-        <div class="card-body space-y-4">
-          <div id="image-preview" class="<?= !empty($pageData['image']) ? '' : 'hidden' ?>">
-            <img
-              id="preview-img"
-              src="<?= htmlspecialchars($pageData['image'] ?? '') ?>"
-              alt="<?= __("Anteprima") ?>"
-              class="max-w-full h-auto rounded border"
-              style="max-height: 300px;">
-            <button
-              type="button"
-              id="remove-image-btn"
-              class="mt-2 text-red-600 hover:text-red-800 text-sm">
-              <i class="fas fa-trash mr-1"></i><?= __("Rimuovi immagine") ?>
-            </button>
-          </div>
-
-          <div id="uppy-container"></div>
-
-          <input
-            type="hidden"
-            name="image"
-            id="image-url"
-            value="<?= htmlspecialchars($pageData['image'] ?? '') ?>">
-
-          <p class="text-sm text-gray-500">
-            <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: 5MB") ?>
-          </p>
-        </div>
-      </div>
-
-      <!-- Contenuto -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-align-left text-blue-600"></i>
-            <?= __("Contenuto") ?>
-          </h2>
-        </div>
-        <div class="card-body">
-          <textarea
-            name="content"
-            id="tinymce-editor"
-            class="w-full"><?= htmlspecialchars($pageData['content']) ?></textarea>
-        </div>
-      </div>
-
-      <!-- Meta Description -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-search text-blue-600"></i>
-            <?= __("SEO - Meta Description") ?>
-          </h2>
-        </div>
-        <div class="card-body">
-          <textarea
-            name="meta_description"
-            class="form-input w-full"
-            rows="3"
-            placeholder="<?= __("Breve descrizione per i motori di ricerca (max 160 caratteri)") ?>"><?= htmlspecialchars($pageData['meta_description'] ?? '') ?></textarea>
-          <p class="text-sm text-gray-500 mt-1">
-            <?= __("Questa descrizione apparirà nei risultati di ricerca di Google") ?>
-          </p>
-        </div>
-      </div>
-
-      <!-- Stato -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-toggle-on text-blue-600"></i>
-            <?= __("Stato") ?>
-          </h2>
-        </div>
-        <div class="card-body">
-          <label class="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="is_active"
-              value="1"
-              <?= $pageData['is_active'] ? 'checked' : '' ?>>
-            <span><?= __("Pagina attiva (visibile sul sito)") ?></span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Pulsanti -->
-      <div class="flex items-center justify-between">
-        <a href="/chi-siamo" target="_blank" class="btn-secondary">
-          <i class="fas fa-eye mr-2"></i><?= __("Anteprima") ?>
-        </a>
-        <button type="submit" class="btn-primary">
-          <i class="fas fa-save mr-2"></i><?= __("Salva Modifiche") ?>
-        </button>
-      </div>
-    </form>
+    <!-- Pulsanti -->
+    <div class="flex items-center justify-between">
+      <a href="/chi-siamo" target="_blank" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
+        <i class="fas fa-eye"></i><?= __("Anteprima") ?>
+      </a>
+      <button type="submit" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-white hover:bg-gray-800 text-sm font-medium transition-colors">
+        <i class="fas fa-save"></i><?= __("Salva Modifiche") ?>
+      </button>
+    </div>
+  </form>
 </div>
 
 <!-- TinyMCE -->
@@ -250,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <style>
 .uppy-Dashboard-inner {
   border: 2px dashed #d1d5db;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .uppy-Dashboard-AddFiles {
