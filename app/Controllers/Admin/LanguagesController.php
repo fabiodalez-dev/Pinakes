@@ -349,19 +349,6 @@ class LanguagesController
             return $error;
         }
 
-        // CRITICAL: Prevent changing default language after installation
-        // The app is single-language - language is fixed at installation time
-        // Changing default language would break routes and require .env update
-        $installedFile = __DIR__ . '/../../../.installed';
-        if (file_exists($installedFile)) {
-            $_SESSION['flash_error'] = __("Impossibile cambiare la lingua predefinita dopo l'installazione.") . " " .
-                __("La lingua dell'applicazione è fissa e determinata al momento dell'installazione.") . " " .
-                __("Cambiare la lingua di default richiederebbe una reinstallazione completa dell'applicazione.");
-            return $response
-                ->withHeader('Location', '/admin/languages')
-                ->withStatus(302);
-        }
-
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
         if ($code === null) {
             $_SESSION['flash_error'] = __("Codice lingua non valido");
