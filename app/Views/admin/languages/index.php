@@ -194,15 +194,25 @@ use App\Support\HtmlHelper;
 
                                                 <!-- Set as Default -->
                                                 <?php if (!$lang['is_default']): ?>
-                                                    <form method="POST" action="/admin/languages/<?= urlencode($lang['code']) ?>/set-default" class="inline">
-                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                                                        <button type="submit"
-                                                                class="text-yellow-600 hover:text-yellow-900"
-                                                                title="<?= __("Imposta come Predefinita") ?>"
-                                                                onclick="return confirm('<?= __("Impostare questa lingua come predefinita?\n\nQuesta diventerà la lingua dell\'intera applicazione per tutti gli utenti.") ?>')">
+                                                    <?php $installedFile = __DIR__ . '/../../../.installed'; ?>
+                                                    <?php if (!file_exists($installedFile)): ?>
+                                                        <!-- Allow changing default ONLY during installation (before .installed exists) -->
+                                                        <form method="POST" action="/admin/languages/<?= urlencode($lang['code']) ?>/set-default" class="inline">
+                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+                                                            <button type="submit"
+                                                                    class="text-yellow-600 hover:text-yellow-900"
+                                                                    title="<?= __("Imposta come Predefinita") ?>"
+                                                                    onclick="return confirm('<?= __("Impostare questa lingua come predefinita?\n\nQuesta diventerà la lingua dell\'intera applicazione per tutti gli utenti.") ?>')">
+                                                                <i class="fas fa-star"></i>
+                                                            </button>
+                                                        </form>
+                                                    <?php else: ?>
+                                                        <!-- After installation, default language is locked (routes are fixed) -->
+                                                        <span class="text-gray-400 cursor-not-allowed"
+                                                              title="<?= __("La lingua predefinita non può essere cambiata dopo l'installazione. Le route dell'app sono fisse.") ?>">
                                                             <i class="fas fa-star"></i>
-                                                        </button>
-                                                    </form>
+                                                        </span>
+                                                    <?php endif; ?>
                                                 <?php endif; ?>
 
                                                 <!-- Toggle Active -->
