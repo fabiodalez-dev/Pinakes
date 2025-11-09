@@ -195,18 +195,6 @@ return function (App $app): void {
         return $controller->reset($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(5, 300)); // 5 attempts per 5 minutes
 
-    // Profile (authenticated)
-    $app->get('/profile', function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new ProfileController();
-        return $controller->show($request, $response, $db);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
-    $app->post('/profile/password', function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new ProfileController();
-        return $controller->changePassword($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
-
     // Frontend user actions: loan/reserve
     $app->post('/user/loan', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
