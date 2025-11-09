@@ -175,7 +175,25 @@ class Installer {
      */
     public function importData() {
         $installerDir = dirname(__DIR__);
-        $dataFile = $installerDir . '/database/data.sql';
+
+        // Determine locale from APP_LOCALE config (set in .env during installation)
+        // Default to it_IT if not set
+        $locale = $this->config['APP_LOCALE'] ?? 'it';
+
+        // Convert short locale (it, en) to full locale (it_IT, en_US)
+        $localeMap = [
+            'it' => 'it_IT',
+            'en' => 'en_US',
+        ];
+        $fullLocale = $localeMap[$locale] ?? 'it_IT';
+
+        // Try locale-specific data file first (data_it_IT.sql or data_en_US.sql)
+        $dataFile = $installerDir . '/database/data_' . $fullLocale . '.sql';
+
+        // Fallback to generic data.sql if locale-specific file doesn't exist
+        if (!file_exists($dataFile)) {
+            $dataFile = $installerDir . '/database/data.sql';
+        }
 
         // Data file is optional - if missing, skip
         if (!file_exists($dataFile)) {
