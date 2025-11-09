@@ -15,6 +15,11 @@ use App\Support\HtmlHelper;
 // Get available locales from I18n (loads from database)
 $availableLocales = I18n::getAvailableLocales();
 $currentLocale = I18n::getLocale();
+$currentPath = $_SERVER['REQUEST_URI'] ?? '/';
+if (!is_string($currentPath) || $currentPath === '' || $currentPath[0] !== '/') {
+    $currentPath = '/';
+}
+$redirectParam = urlencode($currentPath);
 
 // Get current language details from database
 $currentLangName = $availableLocales[$currentLocale] ?? 'Italiano';
@@ -94,7 +99,7 @@ if (count($languagesData) <= 1) {
         <div class="py-1">
             <?php foreach ($languagesData as $code => $lang): ?>
                 <?php $isActive = $code === $currentLocale; ?>
-                <a href="/language/<?= urlencode($code) ?>"
+                <a href="/language/<?= urlencode($code) ?>?redirect=<?= $redirectParam ?>"
                    class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors <?= $isActive ? 'bg-blue-50 border-l-4 border-blue-600' : '' ?>"
                    role="menuitem">
                     <span class="text-xl leading-none"><?= HtmlHelper::e($lang['flag_emoji']) ?></span>

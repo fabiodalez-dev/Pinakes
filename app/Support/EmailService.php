@@ -10,6 +10,7 @@ use mysqli;
 use App\Support\ConfigStore;
 
 class EmailService {
+    private const RAW_HTML_VARIABLES = ['verify_section'];
     private PHPMailer $mailer;
     private mysqli $db;
 
@@ -398,7 +399,11 @@ class EmailService {
      */
     private function replaceVariables(string $content, array $variables): string {
         foreach ($variables as $key => $value) {
-            $content = str_replace('{{' . $key . '}}', (string)$value, $content);
+            $replacement = in_array($key, self::RAW_HTML_VARIABLES, true)
+                ? (string)$value
+                : htmlspecialchars((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+            $content = str_replace('{{' . $key . '}}', $replacement, $content);
         }
         return $content;
     }

@@ -259,7 +259,7 @@ $libri = $data['libri'];
 <!-- Modern DataTables with Advanced Features -->
 <script>
 // Set current locale for DataTables language selection
-window.i18nLocale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>';
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);

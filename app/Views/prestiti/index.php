@@ -273,7 +273,7 @@ function getStatusBadge($status) {
 
 <script>
 // Set current locale for DataTables language selection
-window.i18nLocale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>';
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof DataTable === 'undefined') {

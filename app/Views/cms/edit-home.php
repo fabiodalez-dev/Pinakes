@@ -21,12 +21,12 @@ $cta = $sections['cta'] ?? null;
           <?= __("Modifica Homepage") ?>
         </h1>
         <p class="mt-1 text-sm text-gray-600">
-          Personalizza tutti i contenuti della homepage del sito
+          <?= __("Personalizza tutti i contenuti della homepage del sito") ?>
         </p>
       </div>
       <a href="/admin/settings?tab=cms" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
         <i class="fas fa-arrow-left"></i>
-        Torna alle Impostazioni
+        <?= __("Torna alle Impostazioni") ?>
       </a>
     </div>
 
@@ -55,18 +55,18 @@ $cta = $sections['cta'] ?? null;
           <i class="fas fa-star text-yellow-500"></i>
           <?= __("Sezione Hero (Testata principale)") ?>
         </h2>
-        <p class="text-sm text-gray-600 mt-1">La sezione principale che appare per prima sulla home</p>
+        <p class="text-sm text-gray-600 mt-1"><?= __("La sezione principale che appare per prima sulla home") ?></p>
       </div>
       <div class="p-6 space-y-6">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
-            <label for="hero_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo principale (H1)</label>
+            <label for="hero_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo principale (H1)") ?></label>
             <input type="text" id="hero_title" name="hero[title]" value="<?php echo HtmlHelper::e($hero['title'] ?? 'La Tua Biblioteca Digitale'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= __('Es. La Tua Biblioteca Digitale') ?>">
           </div>
           <div>
-            <label for="hero_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo</label>
+            <label for="hero_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="hero_subtitle" name="hero[subtitle]" value="<?php echo HtmlHelper::e($hero['subtitle'] ?? 'Esplora, prenota e gestisci la tua collezione di libri'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= __('Descrizione breve') ?>">
@@ -74,17 +74,17 @@ $cta = $sections['cta'] ?? null;
         </div>
 
         <div class="space-y-3">
-          <label class="block text-sm font-medium text-gray-700">Immagine di sfondo Hero</label>
+          <label class="block text-sm font-medium text-gray-700"><?= __("Immagine di sfondo Hero") ?></label>
           <?php if (!empty($hero['background_image'])): ?>
             <div class="relative rounded-2xl overflow-hidden h-48 bg-gray-100">
               <img src="<?php echo HtmlHelper::e($hero['background_image']); ?>" alt="Sfondo hero" class="w-full h-full object-cover">
               <div class="absolute inset-0 flex items-center justify-center" style="background: rgba(0, 0, 0, 0.4);">
-                <span class="text-white text-sm font-medium">Immagine attuale</span>
+                <span class="text-white text-sm font-medium"><?= __("Immagine attuale") ?></span>
               </div>
             </div>
             <label class="inline-flex items-center gap-2 text-xs text-red-600 cursor-pointer">
               <input type="checkbox" name="hero[remove_background]" value="1" class="rounded border-gray-300">
-              Rimuovi immagine di sfondo attuale
+              <?= __("Rimuovi immagine di sfondo attuale") ?>
             </label>
           <?php endif; ?>
           <!-- Uppy Upload Area -->
@@ -93,17 +93,17 @@ $cta = $sections['cta'] ?? null;
           <!-- Fallback file input (hidden, used by Uppy) -->
           <input type="file" name="hero_background" accept="image/jpeg,image/jpg,image/png,image/webp"
                  style="display: none;" id="hero-background-input">
-          <p class="text-xs text-gray-500">Consigliato JPG o PNG ad alta risoluzione (min 1920x1080px). Max 5MB.</p>
+          <p class="text-xs text-gray-500"><?= __("Consigliato JPG o PNG ad alta risoluzione (min 1920x1080px). Max 5MB.") ?></p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <label for="hero_button_text" class="block text-sm font-medium text-gray-700 mb-2">Testo pulsante</label>
+            <label for="hero_button_text" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Testo pulsante") ?></label>
             <input type="text" id="hero_button_text" name="hero[button_text]" value="<?php echo HtmlHelper::e($hero['button_text'] ?? 'Esplora il Catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
-            <label for="hero_button_link" class="block text-sm font-medium text-gray-700 mb-2">Link pulsante</label>
+            <label for="hero_button_link" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Link pulsante") ?></label>
             <input type="text" id="hero_button_link" name="hero[button_link]" value="<?php echo HtmlHelper::e($hero['button_link'] ?? '/catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= __('/catalogo') ?>">
@@ -117,63 +117,62 @@ $cta = $sections['cta'] ?? null;
             <?= __("Ottimizzazione SEO (Meta Tags)") ?>
           </h3>
           <p class="text-sm text-gray-600 mb-4">
-            Personalizza i meta tag per i motori di ricerca e i social media. Se lasciati vuoti, verranno utilizzati i valori predefiniti.
+            <?= __("Personalizza i meta tag per i motori di ricerca e i social media. Se lasciati vuoti, verranno utilizzati i valori predefiniti.") ?>
           </p>
 
           <div class="space-y-4">
             <div>
               <label for="hero_seo_title" class="block text-sm font-medium text-gray-700 mb-2">
                 <?= __("Titolo SEO") ?>
-                <span class="text-xs text-gray-500 font-normal">(opzionale - max 60 caratteri)</span>
+                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 60 caratteri)") ?></span>
               </label>
               <input type="text" id="hero_seo_title" name="hero[seo_title]" maxlength="255"
                      value="<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                      placeholder="<?= __('Es. Biblioteca Digitale - Migliaia di libri da esplorare') ?>">
               <p class="mt-1 text-xs text-gray-500">
-                Apparirà nei risultati di ricerca Google. Se vuoto, usa il titolo hero o il nome dell'app.
+                <?= __("Apparirà nei risultati di ricerca Google. Se vuoto, usa il titolo hero o il nome dell'app.") ?>
               </p>
             </div>
 
             <div>
               <label for="hero_seo_description" class="block text-sm font-medium text-gray-700 mb-2">
                 <?= __("Descrizione SEO") ?>
-                <span class="text-xs text-gray-500 font-normal">(opzionale - max 160 caratteri)</span>
+                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 160 caratteri)") ?></span>
               </label>
               <textarea id="hero_seo_description" name="hero[seo_description]" rows="3" maxlength="500"
                         class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                         placeholder="<?= __('Es. Scopri il nostro catalogo digitale con migliaia di libri disponibili per il prestito. Registrati gratuitamente e inizia a leggere oggi stesso.') ?>"><?php echo HtmlHelper::e($hero['seo_description'] ?? ''); ?></textarea>
               <p class="mt-1 text-xs text-gray-500">
-                Apparirà sotto il titolo nei risultati di ricerca. Se vuoto, usa il sottotitolo hero o una descrizione generica.
+                <?= __("Apparirà sotto il titolo nei risultati di ricerca. Se vuoto, usa il sottotitolo hero o una descrizione generica.") ?>
               </p>
             </div>
 
             <div>
               <label for="hero_seo_keywords" class="block text-sm font-medium text-gray-700 mb-2">
                 <?= __("Parole Chiave SEO") ?>
-                <span class="text-xs text-gray-500 font-normal">(opzionale - separate da virgola)</span>
+                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - separate da virgola)") ?></span>
               </label>
               <input type="text" id="hero_seo_keywords" name="hero[seo_keywords]" maxlength="500"
                      value="<?php echo HtmlHelper::e($hero['seo_keywords'] ?? ''); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                      placeholder="<?= __('Es. biblioteca digitale, prestito libri, catalogo online, libri gratis') ?>">
               <p class="mt-1 text-xs text-gray-500">
-                Parole chiave per i motori di ricerca (impatto SEO limitato). Separate da virgola.
+                <?= __("Parole chiave per i motori di ricerca (impatto SEO limitato). Separate da virgola.") ?>
               </p>
             </div>
 
             <div>
               <label for="hero_og_image" class="block text-sm font-medium text-gray-700 mb-2">
                 <?= __("Immagine Open Graph") ?>
-                <span class="text-xs text-gray-500 font-normal">(opzionale - URL completo)</span>
+                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - URL completo)") ?></span>
               </label>
               <input type="text" id="hero_og_image" name="hero[og_image]" maxlength="500"
                      value="<?php echo HtmlHelper::e($hero['og_image'] ?? ''); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                      placeholder="<?= __('Es. https://tuosito.com/uploads/og-image.jpg') ?>">
               <p class="mt-1 text-xs text-gray-500">
-                Immagine mostrata quando condividi la pagina su social media (Facebook, Twitter, LinkedIn). Se vuoto, usa l'immagine hero di sfondo.
-                <br>Dimensioni consigliate: 1200x630px (rapporto 1.91:1).
+                <?= __("Immagine mostrata quando condividi la pagina su social media (Facebook, Twitter, LinkedIn). Se vuoto, usa l'immagine hero di sfondo. Dimensioni consigliate: 1200x630px (rapporto 1.91:1).") ?>
               </p>
             </div>
           </div>
@@ -189,10 +188,10 @@ $cta = $sections['cta'] ?? null;
             <i class="fas fa-th text-purple-500"></i>
             <?= __("Sezione Caratteristiche") ?>
           </h2>
-          <p class="text-sm text-gray-600 mt-1">Titolo della sezione e le 4 card con le caratteristiche</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Titolo della sezione e le 4 card con le caratteristiche") ?></p>
         </div>
         <div class="flex items-center gap-2">
-          <label for="features_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <label for="features_visible" class="text-sm font-medium text-gray-700"><?= __("Visibile") ?></label>
           <input type="checkbox" id="features_visible" name="features_title[is_active]" value="1"
                  <?php echo (!isset($featuresTitle['is_active']) || $featuresTitle['is_active'] == 1) ? 'checked' : ''; ?>
                  class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
@@ -201,15 +200,15 @@ $cta = $sections['cta'] ?? null;
       <div class="p-6 space-y-6">
         <!-- Features Title -->
         <div class="pb-4 border-b border-gray-200">
-          <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">Intestazione sezione</h3>
+          <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4"><?= __("Intestazione sezione") ?></h3>
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <label for="features_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo sezione</label>
+              <label for="features_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
               <input type="text" id="features_title" name="features_title[title]" value="<?php echo HtmlHelper::e($featuresTitle['title'] ?? 'Perché scegliere la nostra biblioteca'); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
             </div>
             <div>
-              <label for="features_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo sezione</label>
+              <label for="features_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo sezione") ?></label>
               <input type="text" id="features_subtitle" name="features_title[subtitle]" value="<?php echo HtmlHelper::e($featuresTitle['subtitle'] ?? 'Tutto ciò che ti serve per gestire la tua passione per la lettura'); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
             </div>
@@ -230,11 +229,11 @@ $cta = $sections['cta'] ?? null;
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5">
               <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <i class="<?php echo HtmlHelper::e($feature['content'] ?? 'fas fa-star'); ?> text-gray-600"></i>
-                Caratteristica <?php echo $num; ?>
+                <?= __("Caratteristica") ?> <?php echo $num; ?>
               </h3>
               <div class="space-y-3">
                 <div>
-                  <label for="feature<?php echo $num; ?>_icon" class="block text-xs font-medium text-gray-700 mb-1">Icona FontAwesome</label>
+                  <label for="feature<?php echo $num; ?>_icon" class="block text-xs font-medium text-gray-700 mb-1"><?= __("Icona FontAwesome") ?></label>
                   <div class="flex gap-2">
                     <input type="text" id="feature<?php echo $num; ?>_icon" name="feature_<?php echo $num; ?>[content]"
                            value="<?php echo HtmlHelper::e($feature['content'] ?? $defaultFeatures[$num]['icon']); ?>"
@@ -243,11 +242,11 @@ $cta = $sections['cta'] ?? null;
                     <button type="button" onclick="openIconPicker('feature<?php echo $num; ?>_icon')"
                             class="inline-flex items-center gap-1 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">
                       <i class="fas fa-icons"></i>
-                      Scegli
+                      <?= __("Scegli") ?>
                     </button>
                   </div>
                   <div class="mt-1 flex items-center gap-2">
-                    <span class="text-xs text-gray-500">Anteprima:</span>
+                    <span class="text-xs text-gray-500"><?= __("Anteprima:") ?></span>
                     <i class="<?php echo HtmlHelper::e($feature['content'] ?? $defaultFeatures[$num]['icon']); ?> text-lg" id="preview_feature<?php echo $num; ?>_icon"></i>
                   </div>
                 </div>
@@ -277,10 +276,10 @@ $cta = $sections['cta'] ?? null;
             <i class="fas fa-align-left text-indigo-500"></i>
             <?= __("Sezione Testo Libero") ?>
           </h2>
-          <p class="text-sm text-gray-600 mt-1">Contenuto testuale HTML con editor avanzato</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Contenuto testuale HTML con editor avanzato") ?></p>
         </div>
         <div class="flex items-center gap-2">
-          <label for="text_content_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <label for="text_content_visible" class="text-sm font-medium text-gray-700"><?= __("Visibile") ?></label>
           <input type="checkbox" id="text_content_visible" name="text_content[is_active]" value="1"
                  <?php
                  $textContent = $sections['text_content'] ?? null;
@@ -291,17 +290,17 @@ $cta = $sections['cta'] ?? null;
       </div>
       <div class="p-6 space-y-4">
         <div>
-          <label for="text_content_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo (opzionale)</label>
+          <label for="text_content_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo (opzionale)") ?></label>
           <input type="text" id="text_content_title" name="text_content[title]"
                  value="<?php echo HtmlHelper::e($textContent['title'] ?? ''); ?>"
                  class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                  placeholder="<?= __('Lascia vuoto per nascondere il titolo') ?>">
         </div>
         <div>
-          <label for="text_content_body" class="block text-sm font-medium text-gray-700 mb-2">Contenuto</label>
+          <label for="text_content_body" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Contenuto") ?></label>
           <textarea id="text_content_body" name="text_content[content]"><?php echo htmlspecialchars($textContent['content'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
           <p class="mt-2 text-xs text-gray-500">
-            <i class="fas fa-info-circle"></i> Usa l'editor per formattare il testo, aggiungere link, immagini e altro.
+            <i class="fas fa-info-circle"></i> <?= __("Usa l'editor per formattare il testo, aggiungere link, immagini e altro.") ?>
           </p>
         </div>
       </div>
@@ -315,10 +314,10 @@ $cta = $sections['cta'] ?? null;
             <i class="fas fa-book text-green-500"></i>
             <?= __("Sezione Ultimi Libri") ?>
           </h2>
-          <p class="text-sm text-gray-600 mt-1">Mostra gli ultimi libri aggiunti al catalogo</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Mostra gli ultimi libri aggiunti al catalogo") ?></p>
         </div>
         <div class="flex items-center gap-2">
-          <label for="latest_books_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <label for="latest_books_visible" class="text-sm font-medium text-gray-700"><?= __("Visibile") ?></label>
           <input type="checkbox" id="latest_books_visible" name="latest_books_title[is_active]" value="1"
                  <?php echo (!isset($latestBooksTitle['is_active']) || $latestBooksTitle['is_active'] == 1) ? 'checked' : ''; ?>
                  class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
@@ -327,13 +326,13 @@ $cta = $sections['cta'] ?? null;
       <div class="p-6 space-y-4">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <label for="latest_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo sezione</label>
+            <label for="latest_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
             <input type="text" id="latest_title" name="latest_books_title[title]"
                    value="<?php echo HtmlHelper::e($latestBooksTitle['title'] ?? 'Ultimi Arrivi'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
-            <label for="latest_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo</label>
+            <label for="latest_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="latest_subtitle" name="latest_books_title[subtitle]"
                    value="<?php echo HtmlHelper::e($latestBooksTitle['subtitle'] ?? 'Scopri le ultime novità aggiunte al catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
@@ -350,10 +349,10 @@ $cta = $sections['cta'] ?? null;
             <i class="fas fa-bullhorn text-red-500"></i>
             <?= __("Call to Action (CTA)") ?>
           </h2>
-          <p class="text-sm text-gray-600 mt-1">L'ultima sezione che invita all'azione</p>
+          <p class="text-sm text-gray-600 mt-1"><?= __("L'ultima sezione che invita all'azione") ?></p>
         </div>
         <div class="flex items-center gap-2">
-          <label for="cta_visible" class="text-sm font-medium text-gray-700">Visibile</label>
+          <label for="cta_visible" class="text-sm font-medium text-gray-700"><?= __("Visibile") ?></label>
           <input type="checkbox" id="cta_visible" name="cta[is_active]" value="1"
                  <?php echo (!isset($cta['is_active']) || $cta['is_active'] == 1) ? 'checked' : ''; ?>
                  class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
@@ -362,24 +361,24 @@ $cta = $sections['cta'] ?? null;
       <div class="p-6 space-y-4">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <label for="cta_title" class="block text-sm font-medium text-gray-700 mb-2">Titolo CTA</label>
+            <label for="cta_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo CTA") ?></label>
             <input type="text" id="cta_title" name="cta[title]" value="<?php echo HtmlHelper::e($cta['title'] ?? 'Pronto a iniziare?'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
-            <label for="cta_subtitle" class="block text-sm font-medium text-gray-700 mb-2">Sottotitolo CTA</label>
+            <label for="cta_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo CTA") ?></label>
             <input type="text" id="cta_subtitle" name="cta[subtitle]" value="<?php echo HtmlHelper::e($cta['subtitle'] ?? 'Registrati ora e inizia a esplorare il nostro catalogo'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <label for="cta_button_text" class="block text-sm font-medium text-gray-700 mb-2">Testo pulsante</label>
+            <label for="cta_button_text" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Testo pulsante") ?></label>
             <input type="text" id="cta_button_text" name="cta[button_text]" value="<?php echo HtmlHelper::e($cta['button_text'] ?? 'Registrati Ora'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
-            <label for="cta_button_link" class="block text-sm font-medium text-gray-700 mb-2">Link pulsante</label>
+            <label for="cta_button_link" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Link pulsante") ?></label>
             <input type="text" id="cta_button_link" name="cta[button_link]" value="<?php echo HtmlHelper::e($cta['button_link'] ?? '/registrati'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
@@ -391,11 +390,11 @@ $cta = $sections['cta'] ?? null;
     <div class="flex justify-end gap-3">
       <a href="/admin/settings?tab=cms" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-semibold transition-colors">
         <i class="fas fa-times"></i>
-        Annulla
+        <?= __("Annulla") ?>
       </a>
       <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
         <i class="fas fa-save"></i>
-        Salva modifiche Homepage
+        <?= __("Salva modifiche Homepage") ?>
       </button>
     </div>
   </form>
@@ -472,11 +471,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Errore Upload'),
+                    title: <?= json_encode(__('Errore Upload')) ?>,
                     text: error.message
                 });
             } else {
-                alert('Errore: ' + error.message);
+                alert(<?= json_encode(__('Errore')) ?> + ': ' + error.message);
             }
         });
 
@@ -506,7 +505,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900">Scegli Icona Font Awesome</h3>
+            <h3 class="text-lg font-semibold text-gray-900"><?= __("Scegli Icona Font Awesome") ?></h3>
             <button onclick="closeIconPicker()" class="text-gray-400 hover:text-gray-600 transition-colors">
                 <i class="fas fa-times text-xl"></i>
             </button>
@@ -520,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function() {
                        oninput="filterIcons(this.value)">
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
             </div>
-            <p class="mt-2 text-xs text-gray-500">Clicca su un'icona per selezionarla</p>
+            <p class="mt-2 text-xs text-gray-500"><?= __("Clicca su un'icona per selezionarla") ?></p>
         </div>
 
         <!-- Icons Grid -->
@@ -533,11 +532,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <!-- Footer -->
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
             <p class="text-xs text-gray-500">
-                <span id="iconCount">0</span> icone disponibili
+                <span id="iconCount">0</span> <?= __("icone disponibili") ?>
             </p>
             <button onclick="closeIconPicker()"
                     class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
-                Chiudi
+                <?= __("Chiudi") ?>
             </button>
         </div>
     </div>

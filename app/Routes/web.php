@@ -55,6 +55,13 @@ return function (App $app): void {
         return $controller->sitemap($request, $response, $db);
     });
 
+    // Public language switch endpoint
+    $app->get('/language/{locale}', function ($request, $response, $args) use ($app) {
+        $controller = new LanguageController();
+        $db = $app->getContainer()->get('db');
+        return $controller->switchLanguage($request, $response, $db, $args);
+    });
+
     // Admin area redirect
     $app->get('/admin', function ($request, $response) {
         // Redirect to dashboard if logged in; else to login

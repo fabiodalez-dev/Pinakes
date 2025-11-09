@@ -4,7 +4,6 @@
  */
 
 require __DIR__ . '/../vendor/autoload.php';
-require __DIR__ . '/../app/Support/i18n.php';
 
 session_start();
 
@@ -21,9 +20,10 @@ echo "<li><strong>Session Locale:</strong> " . ($_SESSION['locale'] ?? 'NOT SET'
 echo "<li><strong>Default Locale:</strong> it_IT</li>";
 echo "</ul>";
 
+$selfRedirect = urlencode('/test-locale.php');
 echo "<h2>Quick Actions:</h2>";
-echo "<p><a href='/locale/switch?locale=en_US&redirect=/test-locale.php' style='display:inline-block; padding:10px 20px; background:#111827; color:white; text-decoration:none; border-radius:8px; margin-right:10px;'>🇬🇧 Switch to English</a>";
-echo "<a href='/locale/switch?locale=it_IT&redirect=/test-locale.php' style='display:inline-block; padding:10px 20px; background:#059669; color:white; text-decoration:none; border-radius:8px;'>🇮🇹 Switch to Italian</a></p>";
+echo "<p><a href='/language/en_US?redirect={$selfRedirect}' style='display:inline-block; padding:10px 20px; background:#111827; color:white; text-decoration:none; border-radius:8px; margin-right:10px;'>🇬🇧 Switch to English</a>";
+echo "<a href='/language/it_IT?redirect={$selfRedirect}' style='display:inline-block; padding:10px 20px; background:#059669; color:white; text-decoration:none; border-radius:8px;'>🇮🇹 Switch to Italian</a></p>";
 
 echo "<h2>Translation Tests:</h2>";
 echo "<table border='1' cellpadding='10' style='border-collapse: collapse; width: 100%;'>";

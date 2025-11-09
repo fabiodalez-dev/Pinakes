@@ -7,6 +7,7 @@ namespace App\Controllers\Admin;
 use App\Models\Language;
 use App\Support\CsrfHelper;
 use App\Support\HtmlHelper;
+use App\Support\I18n;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -79,13 +80,15 @@ class LanguagesController
             return $error;
         }
 
-        $data = $request->getParsedBody();
+        $data = $request->getParsedBody() ?? [];
+        $data['code'] = I18n::normalizeLocaleCode((string)($data['code'] ?? ''));
+        unset($data['translation_file']);
         $languageModel = new Language($db);
 
         // Validate required fields
         $errors = [];
 
-        if (empty($data['code'])) {
+        if (empty($data['code']) || !I18n::isValidLocaleCode($data['code'])) {
             $errors[] = __("Il codice lingua è obbligatorio (es. it_IT, en_US)");
         }
 
@@ -100,35 +103,14 @@ class LanguagesController
         // Handle translation file upload
         $translationFile = null;
         if (isset($_FILES['translation_json']) && $_FILES['translation_json']['error'] === UPLOAD_ERR_OK) {
-            $uploadedFile = $_FILES['translation_json'];
+            $uploadResult = $this->processTranslationUpload($_FILES['translation_json'], $data['code']);
 
-            // Validate JSON file
-            if ($uploadedFile['type'] !== 'application/json' && pathinfo($uploadedFile['name'], PATHINFO_EXTENSION) !== 'json') {
-                $errors[] = __("Il file deve essere un JSON valido");
+            if (!$uploadResult['success']) {
+                $errors[] = $uploadResult['error'];
             } else {
-                // Verify JSON is valid
-                $jsonContent = file_get_contents($uploadedFile['tmp_name']);
-                $decoded = json_decode($jsonContent, true);
-
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    $errors[] = __("Il file JSON non è valido:") . " " . json_last_error_msg();
-                } else {
-                    // Move uploaded file to locale directory
-                    $targetPath = __DIR__ . '/../../../locale/' . $data['code'] . '.json';
-                    if (move_uploaded_file($uploadedFile['tmp_name'], $targetPath)) {
-                        $translationFile = 'locale/' . $data['code'] . '.json';
-
-                        // Calculate translation stats
-                        $totalKeys = count($decoded);
-                        $translatedKeys = count(array_filter($decoded, fn($v) => !empty($v)));
-
-                        $data['translation_file'] = $translationFile;
-                        $data['total_keys'] = $totalKeys;
-                        $data['translated_keys'] = $translatedKeys;
-                    } else {
-                        $errors[] = __("Errore nel caricamento del file JSON");
-                    }
-                }
+                $data['translation_file'] = $uploadResult['translation_file'];
+                $data['total_keys'] = $uploadResult['total_keys'];
+                $data['translated_keys'] = $uploadResult['translated_keys'];
             }
         }
 
@@ -165,7 +147,13 @@ class LanguagesController
      */
     public function edit(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        $code = $args['code'] ?? '';
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
         $languageModel = new Language($db);
         $language = $languageModel->getByCode($code);
 
@@ -202,8 +190,16 @@ class LanguagesController
             return $error;
         }
 
-        $code = $args['code'] ?? '';
-        $data = $request->getParsedBody();
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
+
+        $data = $request->getParsedBody() ?? [];
+        unset($data['translation_file']);
         $languageModel = new Language($db);
 
         $language = $languageModel->getByCode($code);
@@ -227,40 +223,14 @@ class LanguagesController
 
         // Handle translation file upload
         if (isset($_FILES['translation_json']) && $_FILES['translation_json']['error'] === UPLOAD_ERR_OK) {
-            $uploadedFile = $_FILES['translation_json'];
+            $uploadResult = $this->processTranslationUpload($_FILES['translation_json'], $code, true);
 
-            // Validate JSON file
-            if ($uploadedFile['type'] !== 'application/json' && pathinfo($uploadedFile['name'], PATHINFO_EXTENSION) !== 'json') {
-                $errors[] = __("Il file deve essere un JSON valido");
+            if (!$uploadResult['success']) {
+                $errors[] = $uploadResult['error'];
             } else {
-                // Verify JSON is valid
-                $jsonContent = file_get_contents($uploadedFile['tmp_name']);
-                $decoded = json_decode($jsonContent, true);
-
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    $errors[] = __("Il file JSON non è valido:") . " " . json_last_error_msg();
-                } else {
-                    // Move uploaded file to locale directory
-                    $targetPath = __DIR__ . '/../../../locale/' . $code . '.json';
-
-                    // Backup existing file if it exists
-                    if (file_exists($targetPath)) {
-                        copy($targetPath, $targetPath . '.backup.' . time());
-                    }
-
-                    if (move_uploaded_file($uploadedFile['tmp_name'], $targetPath)) {
-                        $data['translation_file'] = 'locale/' . $code . '.json';
-
-                        // Calculate translation stats
-                        $totalKeys = count($decoded);
-                        $translatedKeys = count(array_filter($decoded, fn($v) => !empty($v)));
-
-                        $data['total_keys'] = $totalKeys;
-                        $data['translated_keys'] = $translatedKeys;
-                    } else {
-                        $errors[] = __("Errore nel caricamento del file JSON");
-                    }
-                }
+                $data['translation_file'] = $uploadResult['translation_file'];
+                $data['total_keys'] = $uploadResult['total_keys'];
+                $data['translated_keys'] = $uploadResult['translated_keys'];
             }
         }
 
@@ -302,14 +272,20 @@ class LanguagesController
             return $error;
         }
 
-        $code = $args['code'] ?? '';
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
         $languageModel = new Language($db);
 
         try {
             $languageModel->delete($code);
 
             // Optionally delete translation file
-            $translationFile = __DIR__ . '/../../../locale/' . $code . '.json';
+            $translationFile = $this->getLocaleFilePath($code);
             if (file_exists($translationFile)) {
                 // Backup before deleting
                 copy($translationFile, $translationFile . '.deleted.' . time());
@@ -338,7 +314,13 @@ class LanguagesController
             return $error;
         }
 
-        $code = $args['code'] ?? '';
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
         $languageModel = new Language($db);
 
         try {
@@ -367,7 +349,13 @@ class LanguagesController
             return $error;
         }
 
-        $code = $args['code'] ?? '';
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
         $languageModel = new Language($db);
 
         try {
@@ -402,18 +390,24 @@ class LanguagesController
         $errors = [];
 
         foreach ($languages as $lang) {
-            $translationFile = __DIR__ . '/../../../' . $lang['translation_file'];
+            $code = I18n::normalizeLocaleCode((string)$lang['code']);
+            if (!I18n::isValidLocaleCode($code)) {
+                continue;
+            }
 
-            if (!empty($lang['translation_file']) && file_exists($translationFile)) {
+            $translationFile = $this->getLocaleFilePath($code);
+
+            if (file_exists($translationFile)) {
                 $jsonContent = file_get_contents($translationFile);
                 $decoded = json_decode($jsonContent, true);
 
                 if (json_last_error() === JSON_ERROR_NONE) {
-                    $totalKeys = count($decoded);
-                    $translatedKeys = count(array_filter($decoded, fn($v) => !empty($v)));
+                    $sanitized = $this->sanitizeTranslations($decoded);
+                    $totalKeys = count($sanitized);
+                    $translatedKeys = count(array_filter($sanitized, fn($v) => !empty($v)));
 
                     try {
-                        $languageModel->updateStats($lang['code'], $totalKeys, $translatedKeys);
+                        $languageModel->updateStats($code, $totalKeys, $translatedKeys);
                         $updated++;
                     } catch (\Exception $e) {
                         $errors[] = $lang['code'] . ': ' . $e->getMessage();
@@ -440,7 +434,13 @@ class LanguagesController
      */
     public function download(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        $code = $args['code'] ?? '';
+        $code = $this->normalizeRouteLocale($args['code'] ?? null);
+        if ($code === null) {
+            $_SESSION['flash_error'] = __("Codice lingua non valido");
+            return $response
+                ->withHeader('Location', '/admin/languages')
+                ->withStatus(302);
+        }
         $languageModel = new Language($db);
         $language = $languageModel->getByCode($code);
 
@@ -452,7 +452,7 @@ class LanguagesController
         }
 
         // Get translation file path
-        $translationFile = __DIR__ . '/../../../locale/' . $code . '.json';
+        $translationFile = $this->getLocaleFilePath($code);
 
         if (!file_exists($translationFile)) {
             $_SESSION['flash_error'] = __("File di traduzione non trovato");
@@ -488,5 +488,95 @@ class LanguagesController
 
         $response->getBody()->write($prettyJson);
         return $response;
+    }
+
+    private function normalizeRouteLocale($code): ?string
+    {
+        if (!is_string($code) || $code === '') {
+            return null;
+        }
+
+        $normalized = I18n::normalizeLocaleCode($code);
+        return I18n::isValidLocaleCode($normalized) ? $normalized : null;
+    }
+
+    private function getLocaleFilePath(string $code): string
+    {
+        $baseDir = realpath(__DIR__ . '/../../../locale');
+
+        if ($baseDir === false) {
+            $baseDir = __DIR__ . '/../../../locale';
+            if (!is_dir($baseDir)) {
+                mkdir($baseDir, 0755, true);
+            }
+        }
+
+        return rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $code . '.json';
+    }
+
+    private function sanitizeTranslations(array $translations): array
+    {
+        $sanitized = [];
+
+        foreach ($translations as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+
+            $scalarValue = is_scalar($value) ? (string)$value : '';
+            $scalarValue = trim($scalarValue);
+            $scalarValue = strip_tags($scalarValue);
+            $sanitized[$key] = $scalarValue;
+        }
+
+        return $sanitized;
+    }
+
+    private function processTranslationUpload(array $uploadedFile, string $code, bool $backupExisting = false): array
+    {
+        if ($uploadedFile['error'] !== UPLOAD_ERR_OK) {
+            return ['success' => false, 'error' => __("Errore nel caricamento del file JSON")];
+        }
+
+        $extension = strtolower(pathinfo($uploadedFile['name'] ?? '', PATHINFO_EXTENSION));
+        $mimeType = strtolower($uploadedFile['type'] ?? '');
+
+        if ($mimeType !== 'application/json' && $extension !== 'json') {
+            return ['success' => false, 'error' => __("Il file deve essere un JSON valido")];
+        }
+
+        if (empty($uploadedFile['tmp_name']) || !is_uploaded_file($uploadedFile['tmp_name'])) {
+            return ['success' => false, 'error' => __("Upload non valido")];
+        }
+
+        $jsonContent = file_get_contents($uploadedFile['tmp_name']);
+        $decoded = json_decode($jsonContent, true);
+
+        if (!is_array($decoded)) {
+            return ['success' => false, 'error' => __("Il file JSON non è valido:") . ' ' . json_last_error_msg()];
+        }
+
+        $sanitized = $this->sanitizeTranslations($decoded);
+        $targetPath = $this->getLocaleFilePath($code);
+
+        if ($backupExisting && file_exists($targetPath)) {
+            copy($targetPath, $targetPath . '.backup.' . time());
+        }
+
+        $jsonToSave = json_encode($sanitized, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        if (file_put_contents($targetPath, $jsonToSave, LOCK_EX) === false) {
+            return ['success' => false, 'error' => __("Errore nel salvataggio del file di traduzione")];
+        }
+
+        $totalKeys = count($sanitized);
+        $translatedKeys = count(array_filter($sanitized, fn($value) => $value !== ''));
+
+        return [
+            'success' => true,
+            'translation_file' => 'locale/' . $code . '.json',
+            'total_keys' => $totalKeys,
+            'translated_keys' => $translatedKeys,
+        ];
     }
 }

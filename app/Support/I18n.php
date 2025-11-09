@@ -15,6 +15,7 @@ namespace App\Support;
  */
 final class I18n
 {
+    private const LOCALE_PATTERN = '/^[a-z]{2}_[A-Z]{2}$/';
     /**
      * Current locale (default: Italian)
      */
@@ -81,10 +82,16 @@ final class I18n
             $defaultLocale = null;
 
             while ($row = $result->fetch_assoc()) {
-                $languages[$row['code']] = $row['native_name'];
+                $code = self::normalizeLocaleCode((string)$row['code']);
+
+                if (!self::isValidLocaleCode($code)) {
+                    continue; // Skip invalid locale codes to prevent injection
+                }
+
+                $languages[$code] = $row['native_name'];
 
                 if ($row['is_default']) {
-                    $defaultLocale = $row['code'];
+                    $defaultLocale = $code;
                 }
             }
 
@@ -169,6 +176,8 @@ final class I18n
      */
     public static function setLocale(string $locale): bool
     {
+        $locale = self::normalizeLocaleCode($locale);
+
         // Check against database languages if loaded, otherwise use fallback
         $availableLocales = self::$languagesLoadedFromDb && self::$languagesCache !== null
             ? self::$languagesCache
@@ -212,6 +221,33 @@ final class I18n
         }
 
         return self::$availableLocales;
+    }
+
+    /**
+     * Normalize locale codes to canonical format (xx_YY)
+     */
+    public static function normalizeLocaleCode(string $locale): string
+    {
+        $locale = trim(str_replace('-', '_', $locale));
+
+        if (preg_match('/^([a-zA-Z]{2})_([a-zA-Z]{2})$/', $locale, $matches)) {
+            return strtolower($matches[1]) . '_' . strtoupper($matches[2]);
+        }
+
+        return $locale;
+    }
+
+    /**
+     * Validate locale codes
+     */
+    public static function isValidLocaleCode(?string $locale): bool
+    {
+        if ($locale === null) {
+            return false;
+        }
+
+        $normalized = self::normalizeLocaleCode($locale);
+        return (bool)preg_match(self::LOCALE_PATTERN, $normalized);
     }
 
     /**

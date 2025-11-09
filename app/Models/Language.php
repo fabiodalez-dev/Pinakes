@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use mysqli;
+use App\Support\I18n;
 
 /**
  * Language Model
@@ -54,6 +55,8 @@ class Language
      */
     public function getByCode(string $code): ?array
     {
+        $code = $this->normalizeAndAssert($code);
+
         $stmt = $this->db->prepare("SELECT * FROM languages WHERE code = ?");
         $stmt->bind_param('s', $code);
         $stmt->execute();
@@ -105,13 +108,15 @@ class Language
             throw new \Exception("Required fields missing: code, name, native_name");
         }
 
+        $code = $this->normalizeAndAssert((string)$data['code']);
+        $data['code'] = $code;
+
         // Check if code already exists
-        if ($this->getByCode($data['code'])) {
-            throw new \Exception("Language code '{$data['code']}' already exists");
+        if ($this->getByCode($code)) {
+            throw new \Exception("Language code '{$code}' already exists");
         }
 
         // Prepare values with defaults
-        $code = $data['code'];
         $name = $data['name'];
         $nativeName = $data['native_name'];
         $flagEmoji = $data['flag_emoji'] ?? '🌐';
@@ -168,6 +173,8 @@ class Language
      */
     public function update(string $code, array $data): bool
     {
+        $code = $this->normalizeAndAssert($code);
+
         // Check if language exists
         if (!$this->getByCode($code)) {
             throw new \Exception("Language code '{$code}' not found");
@@ -231,6 +238,8 @@ class Language
      */
     public function delete(string $code): bool
     {
+        $code = $this->normalizeAndAssert($code);
+
         $language = $this->getByCode($code);
 
         if (!$language) {
@@ -263,6 +272,8 @@ class Language
      */
     public function setDefault(string $code): bool
     {
+        $code = $this->normalizeAndAssert($code);
+
         // Check if language exists
         if (!$this->getByCode($code)) {
             throw new \Exception("Language code '{$code}' not found");
@@ -298,6 +309,8 @@ class Language
      */
     public function toggleActive(string $code): bool
     {
+        $code = $this->normalizeAndAssert($code);
+
         $language = $this->getByCode($code);
 
         if (!$language) {
@@ -374,9 +387,25 @@ class Language
         $locales = [];
 
         foreach ($languages as $lang) {
-            $locales[$lang['code']] = $lang['native_name'];
+            $code = I18n::normalizeLocaleCode((string)$lang['code']);
+            if (!I18n::isValidLocaleCode($code)) {
+                continue;
+            }
+
+            $locales[$code] = $lang['native_name'];
         }
 
         return $locales;
+    }
+
+    private function normalizeAndAssert(string $code): string
+    {
+        $normalized = I18n::normalizeLocaleCode($code);
+
+        if (!I18n::isValidLocaleCode($normalized)) {
+            throw new \InvalidArgumentException('Invalid locale code provided');
+        }
+
+        return $normalized;
     }
 }

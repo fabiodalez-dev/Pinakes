@@ -211,7 +211,7 @@ $containerBuilder->addDefinitions($containerDefinitions ?? []);
 $container = $containerBuilder->build();
 AppFactory::setContainer($container);
 
-// Load available languages from database
+// Load available languages from database and restore session locale
 if (!$isCli) {
     try {
         $db = $container->get('db');
@@ -220,6 +220,13 @@ if (!$isCli) {
         // Fallback to hardcoded locales if database query fails
         // This prevents errors during installation or if languages table doesn't exist yet
         error_log("Failed to load languages from database: " . $e->getMessage());
+    }
+
+    if (!empty($_SESSION['locale'])) {
+        $sessionLocale = (string)$_SESSION['locale'];
+        if (!\App\Support\I18n::setLocale($sessionLocale)) {
+            unset($_SESSION['locale']);
+        }
     }
 }
 

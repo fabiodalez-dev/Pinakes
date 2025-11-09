@@ -209,7 +209,7 @@ const i18nTranslations = <?= json_encode([
 ], JSON_UNESCAPED_UNICODE) ?>;
 
 // Set current locale for DataTables language selection
-window.i18nLocale = '<?= $_SESSION['locale'] ?? 'it_IT' ?>';
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
 
 // Global translation function for JavaScript
 window.__ = function(key) {

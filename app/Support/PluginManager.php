@@ -214,38 +214,75 @@ class PluginManager
             return ['success' => false, 'message' => 'Directory plugin già esistente.', 'plugin_id' => null];
         }
 
-        // Extract files
-        if ($pluginRootDir) {
-            // Plugin files are in a subdirectory, extract only that subdirectory
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $filename = $zip->getNameIndex($i);
-                if (strpos($filename, $pluginRootDir . '/') === 0) {
-                    $relativePath = substr($filename, strlen($pluginRootDir) + 1);
-                    if ($relativePath) {
-                        $targetPath = $pluginPath . '/' . $relativePath;
-                        if (substr($filename, -1) === '/') {
-                            // Directory
-                            if (!is_dir($targetPath)) {
-                                mkdir($targetPath, 0755, true);
-                            }
-                        } else {
-                            // File
-                            $dir = dirname($targetPath);
-                            if (!is_dir($dir)) {
-                                mkdir($dir, 0755, true);
-                            }
-                            $content = $zip->getFromIndex($i);
-                            file_put_contents($targetPath, $content);
-                        }
-                    }
+        if (!mkdir($pluginPath, 0755, true)) {
+            $zip->close();
+            return ['success' => false, 'message' => 'Impossibile creare la directory del plugin.', 'plugin_id' => null];
+        }
+
+        $extractedFiles = false;
+        $pluginRootPrefix = $pluginRootDir ? rtrim($pluginRootDir, '/') . '/' : null;
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $filename = $zip->getNameIndex($i);
+
+            if ($pluginRootPrefix !== null) {
+                if ($filename === $pluginRootDir || $filename === $pluginRootPrefix) {
+                    continue; // skip directory root entry
                 }
+
+                if (strpos($filename, $pluginRootPrefix) !== 0) {
+                    continue;
+                }
+
+                $relativePath = substr($filename, strlen($pluginRootPrefix));
+            } else {
+                $relativePath = $filename;
             }
-        } else {
-            // Plugin files are in root, extract all
-            $zip->extractTo($pluginPath);
+
+            if ($relativePath === '' || $relativePath === false) {
+                continue;
+            }
+
+            $targetPath = $this->resolveExtractionPath($pluginPath, $relativePath);
+
+            if ($targetPath === null) {
+                $zip->close();
+                $this->deleteDirectory($pluginPath);
+                return ['success' => false, 'message' => 'Il pacchetto contiene percorsi non validi.', 'plugin_id' => null];
+            }
+
+            if (str_ends_with($filename, '/')) {
+                if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true)) {
+                    $zip->close();
+                    $this->deleteDirectory($pluginPath);
+                    return ['success' => false, 'message' => 'Impossibile creare la struttura del plugin.', 'plugin_id' => null];
+                }
+                continue;
+            }
+
+            $dir = dirname($targetPath);
+            if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+                $zip->close();
+                $this->deleteDirectory($pluginPath);
+                return ['success' => false, 'message' => 'Impossibile creare la struttura del plugin.', 'plugin_id' => null];
+            }
+
+            $content = $zip->getFromIndex($i);
+            if ($content === false || file_put_contents($targetPath, $content) === false) {
+                $zip->close();
+                $this->deleteDirectory($pluginPath);
+                return ['success' => false, 'message' => 'Errore durante l\'estrazione del plugin.', 'plugin_id' => null];
+            }
+
+            $extractedFiles = true;
         }
 
         $zip->close();
+
+        if (!$extractedFiles) {
+            $this->deleteDirectory($pluginPath);
+            return ['success' => false, 'message' => 'Il pacchetto non contiene file validi.', 'plugin_id' => null];
+        }
 
         // Verify main file exists
         $mainFilePath = $pluginPath . '/' . $pluginMeta['main_file'];
@@ -510,6 +547,39 @@ class PluginManager
             $className .= ucfirst($part);
         }
         return $className . 'Plugin';
+    }
+
+    /**
+     * Resolve a ZIP entry path inside the plugin directory and prevent traversal
+     */
+    private function resolveExtractionPath(string $baseDir, string $relativePath): ?string
+    {
+        $relativePath = str_replace('\\', '/', $relativePath);
+
+        if ($relativePath === '' || preg_match('#^(?:[A-Za-z]:)?/#', $relativePath)) {
+            return null;
+        }
+
+        $segments = explode('/', $relativePath);
+        $safeSegments = [];
+
+        foreach ($segments as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($safeSegments);
+                continue;
+            }
+            $safeSegments[] = $segment;
+        }
+
+        $fullPath = rtrim($baseDir, DIRECTORY_SEPARATOR);
+        if (!empty($safeSegments)) {
+            $fullPath .= DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $safeSegments);
+        }
+
+        return $fullPath;
     }
 
     /**
