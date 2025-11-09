@@ -1,4 +1,4 @@
-<section class="min-h-screen py-6">
+<section class="min-h-screen py-6 px-4">
   <!-- Header -->
   <div class="mb-6">
     <nav aria-label="breadcrumb" class="mb-4">
