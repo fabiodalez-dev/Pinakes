@@ -3,6 +3,10 @@
  * Schema colori: Nero, Bianco, Silver
  */
 
+const __swal = (typeof window !== 'undefined' && typeof window.__ === 'function')
+  ? (key, ...args) => window.__(key, ...args)
+  : (key) => key;
+
 // Configurazione default per tutti gli alert
 const SwalConfig = {
   // Colori tema app
@@ -21,8 +25,8 @@ const SwalConfig = {
   },
 
   // Pulsanti
-  confirmButtonText: 'Conferma',
-  cancelButtonText: 'Annulla',
+  confirmButtonText: __swal('Conferma'),
+  cancelButtonText: __swal('Annulla'),
 
   // Animazioni
   showClass: {
@@ -49,13 +53,13 @@ window.SwalApp = {
    */
   confirmDelete: function(options = {}) {
     return Swal.fire({
-      title: options.title || 'Sei sicuro?',
-      text: options.text || 'Questa azione non può essere annullata!',
+      title: options.title || __swal('Sei sicuro?'),
+      text: options.text || __swal('Questa azione non può essere annullata!'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626', // Rosso per delete
-      confirmButtonText: options.confirmText || 'Elimina',
-      cancelButtonText: 'Annulla',
+      confirmButtonText: options.confirmText || __swal('Elimina'),
+      cancelButtonText: __swal('Annulla'),
       reverseButtons: true
     });
   },
@@ -66,10 +70,10 @@ window.SwalApp = {
   success: function(title, text) {
     return Swal.fire({
       icon: 'success',
-      title: title || 'Successo!',
+      title: title || __swal('Successo!'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: 'OK'
+      confirmButtonText: __swal('OK')
     });
   },
 
@@ -79,10 +83,10 @@ window.SwalApp = {
   error: function(title, text) {
     return Swal.fire({
       icon: 'error',
-      title: title || 'Errore!',
+      title: title || __swal('Errore!'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: 'OK'
+      confirmButtonText: __swal('OK')
     });
   },
 
@@ -92,10 +96,10 @@ window.SwalApp = {
   info: function(title, text) {
     return Swal.fire({
       icon: 'info',
-      title: title || 'Informazione',
+      title: title || __swal('Informazione'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: 'OK'
+      confirmButtonText: __swal('OK')
     });
   },
 
@@ -105,10 +109,10 @@ window.SwalApp = {
   warning: function(title, text) {
     return Swal.fire({
       icon: 'warning',
-      title: title || 'Attenzione!',
+      title: title || __swal('Attenzione!'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: 'OK'
+      confirmButtonText: __swal('OK')
     });
   },
 
@@ -117,15 +121,15 @@ window.SwalApp = {
    */
   confirm: function(options = {}) {
     return Swal.fire({
-      title: options.title || 'Confermi?',
+      title: options.title || __swal('Confermi?'),
       text: options.text,
       html: options.html,
       icon: options.icon || 'question',
       showCancelButton: true,
       confirmButtonColor: '#111827',
       cancelButtonColor: '#9ca3af',
-      confirmButtonText: options.confirmText || 'Conferma',
-      cancelButtonText: 'Annulla',
+      confirmButtonText: options.confirmText || __swal('Conferma'),
+      cancelButtonText: __swal('Annulla'),
       reverseButtons: true
     });
   },
@@ -148,7 +152,7 @@ window.SwalApp = {
 
     return Toast.fire({
       icon: options.icon || 'success',
-      title: options.title || 'Operazione completata'
+      title: options.title || __swal('Operazione completata')
     });
   }
 };

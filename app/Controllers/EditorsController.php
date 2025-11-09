@@ -98,7 +98,7 @@ class EditorsController
         $repo = new \App\Models\PublisherRepository($db);
         if ($repo->countBooks($id) > 0) {
             if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
-            $_SESSION['error_message'] = 'Impossibile eliminare l\'editore: sono presenti libri associati.';
+            $_SESSION['error_message'] = __('Impossibile eliminare l\'editore: sono presenti libri associati.');
             $referer = $request->getHeaderLine('Referer');
             $target = (is_string($referer) && str_contains($referer, '/admin/editori')) ? $referer : '/admin/editori';
             return $response->withHeader('Location', $target)->withStatus(302);

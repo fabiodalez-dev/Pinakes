@@ -35,12 +35,12 @@ class CoverController
         
         // Validate input
         if (empty($coverUrl)) {
-            $response->getBody()->write(json_encode(['error' => 'cover_url non fornito']));
+            $response->getBody()->write(json_encode(['error' => __('Parametro cover_url mancante.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
-        
+
         if (!filter_var($coverUrl, FILTER_VALIDATE_URL)) {
-            $response->getBody()->write(json_encode(['error' => 'URL non valido']));
+            $response->getBody()->write(json_encode(['error' => __('URL non valido.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -49,7 +49,7 @@ class CoverController
         } catch (\RuntimeException $e) {
             // Log detailed error internally but don't expose to client
             error_log("Cover URL validation failed: " . $e->getMessage());
-            $response->getBody()->write(json_encode(['error' => 'URL non valido o non permesso']));
+            $response->getBody()->write(json_encode(['error' => __('URL non valido o non permesso.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -64,7 +64,7 @@ class CoverController
         $uploadDir = __DIR__ . '/../../storage/uploads/copertine/';
         if (!is_dir($uploadDir)) {
             if (!mkdir($uploadDir, 0755, true)) {
-                $response->getBody()->write(json_encode(['error' => 'Impossibile creare la cartella di upload']));
+                $response->getBody()->write(json_encode(['error' => __('Impossibile creare la cartella di upload.')]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
         }
@@ -73,18 +73,18 @@ class CoverController
         } catch (\RuntimeException $e) {
             // Log detailed error internally but don't expose to client
             error_log("Cover download failed: " . $e->getMessage());
-            $response->getBody()->write(json_encode(['error' => 'Errore nel download della copertina']));
+            $response->getBody()->write(json_encode(['error' => __('Errore nel download della copertina.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
         }
 
         if (strlen($imageData) > 5 * 1024 * 1024) {
-            $response->getBody()->write(json_encode(['error' => 'File troppo grande. Dimensione massima 5MB.']));
+            $response->getBody()->write(json_encode(['error' => __('File troppo grande. Dimensione massima 5MB.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         $imageInfo = @getimagesizefromstring($imageData);
         if ($imageInfo === false) {
-            $response->getBody()->write(json_encode(['error' => 'File non valido o corrotto.']));
+            $response->getBody()->write(json_encode(['error' => __('File non valido o corrotto.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -96,13 +96,13 @@ class CoverController
         };
 
         if ($extension === null) {
-            $response->getBody()->write(json_encode(['error' => 'Tipo di file non supportato. Solo JPEG e PNG sono consentiti.']));
+            $response->getBody()->write(json_encode(['error' => __('Tipo di file non supportato. Solo JPEG e PNG sono consentiti.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         $image = imagecreatefromstring($imageData);
         if ($image === false) {
-            $response->getBody()->write(json_encode(['error' => 'Impossibile processare l\'immagine.']));
+            $response->getBody()->write(json_encode(['error' => __('Impossibile processare l\'immagine.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -134,7 +134,7 @@ class CoverController
         imagedestroy($targetResource);
 
         if (!$saveResult) {
-            $response->getBody()->write(json_encode(['error' => 'Errore nel salvataggio dell\'immagine']));
+            $response->getBody()->write(json_encode(['error' => __('Errore nel salvataggio dell\'immagine.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
 

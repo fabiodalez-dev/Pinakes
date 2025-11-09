@@ -55,7 +55,7 @@ class DeweyApiController
         } catch (\Exception $e) {
             // Log detailed error internally but don't expose to client
             error_log("Dewey API categories error: " . $e->getMessage());
-            $response->getBody()->write(json_encode(['error' => 'Errore nel recupero delle categorie'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore nel recupero delle categorie.')], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }
@@ -67,7 +67,7 @@ class DeweyApiController
             $categoryId = $params['category_id'] ?? '';
             
             if (empty($categoryId)) {
-                $response->getBody()->write(json_encode(['error' => 'category_id parameter required'], JSON_UNESCAPED_UNICODE));
+                $response->getBody()->write(json_encode(['error' => __('Parametro category_id obbligatorio.')], JSON_UNESCAPED_UNICODE));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             
@@ -92,7 +92,7 @@ class DeweyApiController
         } catch (\Exception $e) {
             // Log detailed error internally but don't expose to client
             error_log("Dewey API divisions error: " . $e->getMessage());
-            $response->getBody()->write(json_encode(['error' => 'Errore nel recupero delle divisioni'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore nel recupero delle divisioni.')], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }
@@ -104,7 +104,7 @@ class DeweyApiController
             $divisionId = $params['division_id'] ?? '';
             
             if (empty($divisionId)) {
-                $response->getBody()->write(json_encode(['error' => 'division_id parameter required'], JSON_UNESCAPED_UNICODE));
+                $response->getBody()->write(json_encode(['error' => __('Parametro division_id obbligatorio.')], JSON_UNESCAPED_UNICODE));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             
@@ -135,7 +135,7 @@ class DeweyApiController
         } catch (\Exception $e) {
             // Log detailed error internally but don't expose to client
             error_log("Dewey API specifics error: " . $e->getMessage());
-            $response->getBody()->write(json_encode(['error' => 'Errore nel recupero delle specifiche'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore nel recupero delle specifiche.')], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }
@@ -144,7 +144,7 @@ class DeweyApiController
     {
         // Per compatibilità con il codice esistente, ma ora non fa nulla
         // perché i dati vengono dal JSON
-        $response->getBody()->write(json_encode(['success' => true, 'message' => 'Using JSON data, no seeding required'], JSON_UNESCAPED_UNICODE));
+        $response->getBody()->write(json_encode(['success' => true, 'message' => __('I dati provengono dal file JSON, nessun seeding necessario.')], JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
     }
 }

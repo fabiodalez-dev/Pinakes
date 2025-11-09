@@ -63,7 +63,7 @@ class MessagesController
         $stmt->close();
 
         if (!$message) {
-            $response->getBody()->write(json_encode(['error' => 'Message not found']));
+            $response->getBody()->write(json_encode(['error' => __('Messaggio non trovato.')]));
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
@@ -84,7 +84,7 @@ class MessagesController
     {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -100,7 +100,7 @@ class MessagesController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => 'Failed to delete']));
+        $response->getBody()->write(json_encode(['error' => __('Impossibile eliminare il messaggio.')]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 
@@ -111,7 +111,7 @@ class MessagesController
     {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -127,7 +127,7 @@ class MessagesController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => 'Failed to archive']));
+        $response->getBody()->write(json_encode(['error' => __('Impossibile archiviare il messaggio.')]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 
@@ -138,7 +138,7 @@ class MessagesController
     {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -149,7 +149,7 @@ class MessagesController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => 'Failed to mark all as read']));
+        $response->getBody()->write(json_encode(['error' => __('Impossibile segnare tutti i messaggi come letti.')]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 }

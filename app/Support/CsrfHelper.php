@@ -68,14 +68,14 @@ final class CsrfHelper
         if ($validation['reason'] === 'session_expired') {
             $body = json_encode([
                 'success' => false,
-                'error' => 'La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso',
+                'error' => __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso.'),
                 'code' => 'SESSION_EXPIRED',
                 'redirect' => '/login?error=session_expired'
             ], JSON_UNESCAPED_UNICODE);
         } else {
             $body = json_encode([
                 'success' => false,
-                'error' => 'Errore di sicurezza. Ricarica la pagina e riprova',
+                'error' => __('Errore di sicurezza. Ricarica la pagina e riprova.'),
                 'code' => 'CSRF_INVALID'
             ], JSON_UNESCAPED_UNICODE);
         }

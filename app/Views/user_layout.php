@@ -657,6 +657,9 @@ $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
 
         <?= $additional_css ?? '' ?>
     </style>
+    <script>
+        window.__ = window.__ || function(key) { return key; };
+    </script>
 </head>
 <body>
     <!-- Minimalist Header -->

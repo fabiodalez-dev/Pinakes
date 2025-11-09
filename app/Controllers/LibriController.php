@@ -555,7 +555,7 @@ class LibriController
 
             if ($requiredReduction > $removableCopies) {
                 $_SESSION['error_message'] = sprintf(
-                    'Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.',
+                    __('Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.'),
                     $newCopieCount,
                     $nonRemovableCopies,
                     $nonRemovableCopies

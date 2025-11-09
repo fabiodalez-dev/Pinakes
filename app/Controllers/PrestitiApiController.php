@@ -80,7 +80,7 @@ class PrestitiApiController
         $total_stmt = $db->prepare($total_sql);
         if (!$total_stmt) {
             AppLog::error('prestiti.total.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -93,7 +93,7 @@ class PrestitiApiController
         $count_stmt = $db->prepare($count_sql);
         if (!$count_stmt) {
             AppLog::error('prestiti.count.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -118,7 +118,7 @@ class PrestitiApiController
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {
             AppLog::error('prestiti.list.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
@@ -130,10 +130,10 @@ class PrestitiApiController
         $res = $stmt->get_result();
         $rows = [];
         while ($r = $res->fetch_assoc()) {
-            $actions = '<a class="text-blue-600" href="/prestiti/dettagli/'.(int)$r['id'].'">Dettagli</a>';
-            $actions .= ' | <a class="text-orange-600" href="/prestiti/modifica/'.(int)$r['id'].'">Modifica</a>';
+            $actions = '<a class="text-blue-600" href="/prestiti/dettagli/'.(int)$r['id'].'">'.__('Dettagli').'</a>';
+            $actions .= ' | <a class="text-orange-600" href="/prestiti/modifica/'.(int)$r['id'].'">'.__('Modifica').'</a>';
             if ((int)$r['attivo'] === 1) {
-                $actions .= ' | <a class="text-green-600" href="/prestiti/restituito/'.(int)$r['id'].'">Restituito</a>';
+                $actions .= ' | <a class="text-green-600" href="/prestiti/restituito/'.(int)$r['id'].'">'.__('Restituito').'</a>';
             }
             $rows[] = [
                 'id' => (int)$r['id'],

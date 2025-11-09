@@ -59,7 +59,7 @@ class GeneriApiController
     {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -68,7 +68,7 @@ class GeneriApiController
         $parent_id = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
 
         if (empty($nome)) {
-            $response->getBody()->write(json_encode(['error' => 'Nome genere richiesto']));
+            $response->getBody()->write(json_encode(['error' => __('Il nome del genere è obbligatorio.')]));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
@@ -103,7 +103,7 @@ class GeneriApiController
             return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => 'Errore nella creazione del genere']));
+        $response->getBody()->write(json_encode(['error' => __('Errore nella creazione del genere.')]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 

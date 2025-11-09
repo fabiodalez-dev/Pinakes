@@ -717,6 +717,9 @@ if (!function_exists('assetUrl')) {
 
     <!-- Silktide Consent Manager CSS -->
     <link rel="stylesheet" href="<?= assetUrl('/css/silktide-consent-manager.css') ?>">
+    <script>
+        window.__ = window.__ || function(key) { return key; };
+    </script>
 </head>
 <body>
     <!-- Minimalist Header -->

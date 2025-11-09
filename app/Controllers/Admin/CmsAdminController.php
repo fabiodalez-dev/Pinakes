@@ -50,13 +50,13 @@ class CmsAdminController
         $stmt->close();
 
         if (!$page) {
-            $response->getBody()->write('Pagina non trovata');
+            $response->getBody()->write(__('Pagina non trovata.'));
             return $response->withStatus(404);
         }
 
         // Passa i dati alla view
         $pageData = $page;
-        $title = 'Modifica ' . $page['title'];
+        $title = sprintf(__('Modifica %s'), $page['title']);
 
         ob_start();
         include __DIR__ . '/../../Views/admin/cms-edit.php';
@@ -108,7 +108,7 @@ class CmsAdminController
         $uploadedFiles = $request->getUploadedFiles();
 
         if (!isset($uploadedFiles['file'])) {
-            $payload = json_encode(['error' => 'No file uploaded']);
+            $payload = json_encode(['error' => __('Nessun file caricato.')]);
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -116,7 +116,7 @@ class CmsAdminController
         $uploadedFile = $uploadedFiles['file'];
 
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
-            $payload = json_encode(['error' => 'Upload error']);
+            $payload = json_encode(['error' => __('Errore durante il caricamento del file.')]);
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -127,14 +127,14 @@ class CmsAdminController
         $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
         if (!in_array($extension, $allowedExtensions)) {
-            $payload = json_encode(['error' => 'Invalid file extension']);
+            $payload = json_encode(['error' => __('Estensione del file non valida.')]);
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         // SECURITY: Validate file size (max 10MB for CMS images)
         if ($uploadedFile->getSize() > 10 * 1024 * 1024) {
-            $payload = json_encode(['error' => 'File too large. Max 10MB']);
+            $payload = json_encode(['error' => __('File troppo grande. Dimensione massima 10MB.')] );
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -146,7 +146,7 @@ class CmsAdminController
 
         $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         if (!in_array($mimeType, $allowedMimes)) {
-            $payload = json_encode(['error' => 'Invalid file type. File must be a real image']);
+            $payload = json_encode(['error' => __('Tipo di file non valido. Carica un\'immagine reale.')] );
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -155,7 +155,7 @@ class CmsAdminController
         $baseDir = realpath(__DIR__ . '/../../../storage/uploads');
         if ($baseDir === false) {
             error_log("Upload base directory not found");
-            $payload = json_encode(['error' => 'Server configuration error']);
+            $payload = json_encode(['error' => __('Errore di configurazione del server.')] );
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -172,7 +172,7 @@ class CmsAdminController
             $randomSuffix = bin2hex(random_bytes(16));
         } catch (\Exception $e) {
             error_log("CRITICAL: random_bytes() failed - system entropy exhausted");
-            $payload = json_encode(['error' => 'Server error. Try again later']);
+            $payload = json_encode(['error' => __('Errore del server. Riprova più tardi.')] );
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -186,7 +186,7 @@ class CmsAdminController
         $realUploadPath = realpath(dirname($targetPath));
         if ($realUploadPath === false || strpos($realUploadPath, $baseDir) !== 0) {
             error_log("Path traversal attempt detected");
-            $payload = json_encode(['error' => 'Invalid file path']);
+            $payload = json_encode(['error' => __('Percorso del file non valido.')] );
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -197,7 +197,7 @@ class CmsAdminController
             @chmod($targetPath, 0644);
         } catch (\Exception $e) {
             error_log("Image upload error: " . $e->getMessage());
-            $payload = json_encode(['error' => 'Upload failed. Try again']);
+            $payload = json_encode(['error' => __('Caricamento non riuscito. Riprova.')]);
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }

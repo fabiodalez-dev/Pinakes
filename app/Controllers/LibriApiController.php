@@ -125,7 +125,7 @@ class LibriApiController
         $total_stmt = $db->prepare($total_sql);
         if (!$total_stmt) {
             AppLog::error('libri.total.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -138,7 +138,7 @@ class LibriApiController
         $count_stmt = $db->prepare($count_sql);
         if (!$count_stmt) {
             AppLog::error('libri.count.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -199,7 +199,7 @@ class LibriApiController
         $stmt = $db->prepare($sql);
         if (!$stmt) {
             AppLog::error('libri.list.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         

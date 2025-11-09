@@ -12,7 +12,9 @@ class ScrapeController
     {
         $isbn = trim((string)($request->getQueryParams()['isbn'] ?? ''));
         if ($isbn === '') {
-            $response->getBody()->write(json_encode(['error' => 'Missing isbn']));
+            $response->getBody()->write(json_encode([
+                'error' => __('Parametro ISBN mancante.'),
+            ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         // SSRF Protection: Validate ISBN format before constructing URL
@@ -20,7 +22,9 @@ class ScrapeController
 
         // Validate ISBN format (ISBN-10 or ISBN-13)
         if (!$this->isValidIsbn($cleanIsbn)) {
-            $response->getBody()->write(json_encode(['error' => 'ISBN format invalido']));
+            $response->getBody()->write(json_encode([
+                'error' => __('Formato ISBN non valido.'),
+            ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
@@ -52,7 +56,12 @@ class ScrapeController
             if ($html === false || $html === '') {
                 $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
-                $response->getBody()->write(json_encode(['error' => $err, 'code' => $code, 'url' => $eff]));
+                $response->getBody()->write(json_encode([
+                    'error' => __('Impossibile contattare il servizio di scraping. Riprova più tardi.'),
+                    'details' => $err,
+                    'code' => $code,
+                    'url' => $eff,
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 return $response->withStatus(502)->withHeader('Content-Type', 'application/json');
             }
         }
@@ -62,7 +71,9 @@ class ScrapeController
         $finalHost = parse_url($finalUrl, PHP_URL_HOST) ?: '';
         if ($finalHost !== 'www.libreriauniversitaria.it' && $finalHost !== 'libreriauniversitaria.it') {
             curl_close($ch);
-            $response->getBody()->write(json_encode(['error' => 'Redirect to unauthorized domain blocked']));
+            $response->getBody()->write(json_encode([
+                'error' => __('Reindirizzamento verso dominio non autorizzato bloccato.'),
+            ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -198,7 +209,9 @@ class ScrapeController
 
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if ($json === false) {
-            $response->getBody()->write(json_encode(['error' => 'JSON encoding failed']));
+            $response->getBody()->write(json_encode([
+                'error' => __('Impossibile generare la risposta JSON.'),
+            ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 

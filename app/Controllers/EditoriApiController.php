@@ -60,7 +60,7 @@ class EditoriApiController
         $total_stmt = $db->prepare($total_sql);
         if (!$total_stmt) {
             AppLog::error('editori.total.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -73,7 +73,7 @@ class EditoriApiController
         $count_stmt = $db->prepare($count_sql);
         if (!$count_stmt) {
             AppLog::error('editori.count.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -97,7 +97,7 @@ class EditoriApiController
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {
             AppLog::error('editori.list.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 

@@ -78,7 +78,7 @@ class AutoriApiController
         $total_stmt = $db->query($total_sql);
         if (!$total_stmt) {
             AppLog::error('autori.total.query_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database query failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         $totalRow = $total_stmt->fetch_assoc();
@@ -90,7 +90,7 @@ class AutoriApiController
         $count_stmt = $db->prepare($count_sql);
         if (!$count_stmt) {
             AppLog::error('autori.count.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -119,7 +119,7 @@ class AutoriApiController
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {
             AppLog::error('autori.list.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 

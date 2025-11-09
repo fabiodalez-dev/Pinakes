@@ -50,7 +50,7 @@ class CollocazioneController
         } catch (\mysqli_sql_exception $e) {
             // Check if it's a duplicate entry error (errno 1062)
             if ($e->getCode() === 1062 || stripos($e->getMessage(), 'Duplicate entry') !== false) {
-                $_SESSION['error_message'] = "Il codice scaffale '{$codice}' esiste già. Usa un codice diverso.";
+                $_SESSION['error_message'] = sprintf(__('Il codice scaffale "%s" esiste già. Usa un codice diverso.'), $codice);
             } else {
                 $_SESSION['error_message'] = __('Impossibile creare lo scaffale. Riprova più tardi.');
             }
@@ -77,12 +77,16 @@ class CollocazioneController
         try {
             $repo = new \App\Models\CollocationRepository($db);
             $mensola_id = $repo->createMensola(['scaffale_id' => $scaffale_id, 'numero_livello' => $numero_livello, 'ordine' => $ordine]);
-            if ($genera_n > 0) { $repo->createPosizioni($scaffale_id, $mensola_id, $genera_n); }
-            $_SESSION['success_message'] = 'Mensola creata'.($genera_n>0?" e $genera_n posizioni generate":"");
+            if ($genera_n > 0) {
+                $repo->createPosizioni($scaffale_id, $mensola_id, $genera_n);
+                $_SESSION['success_message'] = sprintf(__('Mensola creata e %d posizioni generate.'), $genera_n);
+            } else {
+                $_SESSION['success_message'] = __('Mensola creata.');
+            }
         } catch (\mysqli_sql_exception $e) {
             // Check if it's a duplicate entry error (errno 1062)
             if ($e->getCode() === 1062 || stripos($e->getMessage(), 'Duplicate entry') !== false) {
-                $_SESSION['error_message'] = "Una mensola con livello {$numero_livello} esiste già in questo scaffale. Usa un livello diverso.";
+                $_SESSION['error_message'] = sprintf(__('Una mensola con livello %d esiste già in questo scaffale. Usa un livello diverso.'), $numero_livello);
             } else {
                 $_SESSION['error_message'] = __('Impossibile creare la mensola. Riprova più tardi.');
             }
@@ -167,7 +171,7 @@ class CollocazioneController
         $data = json_decode((string)$request->getBody(), true) ?: [];
         $csrfToken = $data['csrf_token'] ?? $request->getHeaderLine('X-CSRF-Token');
         if (!Csrf::validate($csrfToken ?: null)) {
-            $response->getBody()->write(json_encode(['error' => 'Token CSRF non valido'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
         $type = (string)($data['type'] ?? '');
@@ -184,7 +188,7 @@ class CollocazioneController
                 $repo->updateOrder('posizioni', $ids);
                 break;
             default:
-                $response->getBody()->write(json_encode(['error' => 'Tipo non valido'], JSON_UNESCAPED_UNICODE));
+                $response->getBody()->write(json_encode(['error' => __('Tipo non valido')], JSON_UNESCAPED_UNICODE));
                 return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         $response->getBody()->write(json_encode(['ok' => true], JSON_UNESCAPED_UNICODE));
@@ -210,9 +214,9 @@ class CollocazioneController
 
         if ($scaffaleId <= 0 || $mensolaId <= 0) {
             $response->getBody()->write(json_encode([
-                'error' => 'Parametri non validi'
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
+            'error' => __('Parametri non validi')
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
         }
 
         $repo = new \App\Models\CollocationRepository($db);
@@ -292,7 +296,7 @@ class CollocazioneController
 
         $stmt = $db->prepare($sql);
         if ($stmt === false) {
-            $response->getBody()->write(json_encode(['error' => 'Query error', 'detail' => $db->error], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore nella query.'), 'detail' => $db->error], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
@@ -362,7 +366,7 @@ class CollocazioneController
 
         $stmt = $db->prepare($sql);
         if ($stmt === false) {
-            $response->getBody()->write('Errore query');
+            $response->getBody()->write(__('Errore nella query.'));
             return $response->withStatus(500);
         }
 
@@ -375,7 +379,14 @@ class CollocazioneController
 
         // Prepare CSV
         $csv = [];
-        $csv[] = ['Collocazione', 'Titolo', 'Autori', 'Editore', 'ISBN', 'Anno'];
+        $csv[] = [
+            __('Collocazione'),
+            __('Titolo'),
+            __('Autori'),
+            __('Editore'),
+            'ISBN',
+            __('Anno')
+        ];
 
         while ($row = $result->fetch_assoc()) {
             $collocazione = '';

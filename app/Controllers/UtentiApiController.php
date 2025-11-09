@@ -59,7 +59,7 @@ class UtentiApiController
         $total_stmt = $db->prepare($total_sql);
         if (!$total_stmt) {
             AppLog::error('utenti.total.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -72,7 +72,7 @@ class UtentiApiController
         $count_stmt = $db->prepare($count_sql);
         if (!$count_stmt) {
             AppLog::error('utenti.count.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => 'Database prepare failed'], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         
@@ -102,11 +102,12 @@ class UtentiApiController
         $res = $stmt->get_result();
         $rows = [];
         while ($r = $res->fetch_assoc()) {
-            $actions = '<a class="text-blue-600" href="/utenti/dettagli/'.(int)$r['id'].'">Dettagli</a>';
-            $actions .= ' | <a class="text-orange-600" href="/utenti/modifica/'.(int)$r['id'].'">Modifica</a>';
-            $actions .= ' | <form method="post" action="/utenti/delete/'.(int)$r['id'].'" style="display:inline" onsubmit="return confirm(\'Eliminare utente?\')">'
+            $actions = '<a class="text-blue-600" href="/utenti/dettagli/'.(int)$r['id'].'">'.__('Dettagli').'</a>';
+            $actions .= ' | <a class="text-orange-600" href="/utenti/modifica/'.(int)$r['id'].'">'.__('Modifica').'</a>';
+            $confirmMessage = __('Eliminare l\'utente?');
+            $actions .= ' | <form method="post" action="/utenti/delete/'.(int)$r['id'].'" style="display:inline" onsubmit="return confirm(\'' . addslashes($confirmMessage) . '\')">'
                      . '<input type="hidden" name="csrf_token" value="'.htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8').'">'
-                     . '<button class="text-red-600">Elimina</button></form>';
+                     . '<button class="text-red-600">'.__('Elimina').'</button></form>';
                      
             $rows[] = [
                 'id' => (int)$r['id'],

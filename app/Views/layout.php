@@ -537,6 +537,13 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
     </div>
     
     <!-- Scripts -->
+    <script>
+      // Ensure translation helper exists before other bundles run
+      window.i18nTranslations = window.i18nTranslations || {};
+      window.__ = window.__ || function(key) {
+        return window.i18nTranslations[key] || key;
+      };
+    </script>
     <script src="/assets/vendor.bundle.js"></script>
     <script src="/assets/flatpickr-init.js"></script>
     <script src="/assets/main.bundle.js"></script>
@@ -549,12 +556,22 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
         'Segna tutte come lette' => __('Segna tutte come lette'),
         'Vedi tutte le notifiche' => __('Vedi tutte le notifiche'),
         'Nessuna notifica' => __('Nessuna notifica'),
+        'Ricerca in corso...' => __('Ricerca in corso...'),
+        'Nessun risultato trovato per' => __('Nessun risultato trovato per'),
+        'Nessun risultato trovato' => __('Nessun risultato trovato'),
+        'Errore durante la ricerca' => __('Errore durante la ricerca'),
       ], JSON_UNESCAPED_UNICODE) ?>;
 
       // Global __ function for JavaScript translations
       window.__ = function(key) {
         return window.i18nTranslations[key] || key;
       };
+
+      function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value ?? '';
+        return div.innerHTML;
+      }
 
       // Modern library management system initialization
       document.addEventListener('DOMContentLoaded', function() {
@@ -609,7 +626,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             }
 
             // Show loading state
-            resultsDiv.innerHTML = '<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">Ricerca in corso...</span></div>';
+            resultsDiv.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${window.__('Ricerca in corso...')}</span></div>`;
             resultsDiv.classList.remove('hidden');
 
             searchTimeout = setTimeout(async () => {
@@ -658,14 +675,15 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     </a>`;
                   });
                 } else {
-                  html = '<div class="p-4 text-center"><i class="fas fa-search text-gray-300 text-2xl mb-2"></i><div class="text-sm text-gray-500 dark:text-gray-400">Nessun risultato trovato per "<span class="font-medium">' + query + '</span>"</div></div>';
+                  const label = window.__('Nessun risultato trovato per');
+                  html = `<div class="p-4 text-center"><i class="fas fa-search text-gray-300 text-2xl mb-2"></i><div class="text-sm text-gray-500 dark:text-gray-400">${label} "<span class="font-medium">${escapeHtml(query)}</span>"</div></div>`;
                 }
 
                 resultsDiv.innerHTML = html;
                 resultsDiv.classList.remove('hidden');
               } catch (error) {
                 console.error('Search error:', error);
-                resultsDiv.innerHTML = '<div class="p-4 text-center text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>Errore durante la ricerca</div>';
+                resultsDiv.innerHTML = `<div class="p-4 text-center text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>${window.__('Errore durante la ricerca')}</div>`;
               }
             }, 300);
           });
@@ -842,7 +860,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             }
 
             // Show loading state
-            mobileSearchResults.innerHTML = '<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">Ricerca in corso...</span></div>';
+            mobileSearchResults.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${window.__('Ricerca in corso...')}</span></div>`;
             mobileSearchResults.classList.remove('hidden');
 
             mobileSearchTimeout = setTimeout(async () => {
@@ -892,13 +910,13 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     </a>`;
                   });
                 } else {
-                  html = '<div class="p-4 text-center text-sm text-gray-500">Nessun risultato trovato</div>';
+                  html = `<div class="p-4 text-center text-sm text-gray-500">${window.__('Nessun risultato trovato')}</div>`;
                 }
 
                 mobileSearchResults.innerHTML = html;
               } catch (error) {
                 console.error('Search error:', error);
-                mobileSearchResults.innerHTML = '<div class="p-4 text-center text-sm text-red-500">Errore durante la ricerca</div>';
+                mobileSearchResults.innerHTML = `<div class="p-4 text-center text-sm text-red-500">${window.__('Errore durante la ricerca')}</div>`;
               }
             }, 300);
           });

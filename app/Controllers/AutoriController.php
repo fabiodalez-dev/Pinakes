@@ -116,7 +116,7 @@ class AutoriController
         $repo = new \App\Models\AuthorRepository($db);
         if ($repo->countBooks($id) > 0) {
             if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
-            $_SESSION['error_message'] = 'Impossibile eliminare l\'autore: sono presenti libri associati.';
+            $_SESSION['error_message'] = __('Impossibile eliminare l\'autore: sono presenti libri associati.');
             $referer = $request->getHeaderLine('Referer');
             $target = (is_string($referer) && str_contains($referer, '/admin/autori')) ? $referer : '/admin/autori';
             return $response->withHeader('Location', $target)->withStatus(302);

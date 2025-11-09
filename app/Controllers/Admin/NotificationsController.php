@@ -58,7 +58,7 @@ class NotificationsController
     {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -71,7 +71,7 @@ class NotificationsController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => 'Failed to mark as read']));
+        $response->getBody()->write(json_encode(['error' => __('Impossibile segnare come letta la notifica.')]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 
@@ -82,7 +82,7 @@ class NotificationsController
     {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -93,7 +93,7 @@ class NotificationsController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => 'Failed to mark all as read']));
+        $response->getBody()->write(json_encode(['error' => __('Impossibile segnare tutte le notifiche come lette.')]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 
@@ -104,7 +104,7 @@ class NotificationsController
     {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -117,7 +117,7 @@ class NotificationsController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => 'Failed to delete']));
+        $response->getBody()->write(json_encode(['error' => __('Impossibile eliminare la notifica.')]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 
@@ -129,7 +129,7 @@ class NotificationsController
         $notifications = $this->notificationService->getRecentNotifications(50, false);
         $unreadCount = $this->notificationService->getUnreadCount();
 
-        $title = 'Notifiche';
+        $title = __('Notifiche');
 
         ob_start();
         include __DIR__ . '/../../Views/admin/notifications.php';
