@@ -14,7 +14,8 @@ $btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-30
 $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50';
 ?>
 
-<section class="min-h-screen py-6">
+<section class="min-h-screen bg-gray-50 py-6">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 <?php if (isset($_SESSION['success_message'])): ?>
   <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
     <i class="fas fa-check-circle mr-2"></i>
@@ -1011,4 +1012,5 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       }
     }
   </script>
+  </div>
 </section>
