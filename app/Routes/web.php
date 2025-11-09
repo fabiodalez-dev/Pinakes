@@ -111,85 +111,85 @@ return function (App $app): void {
         return $controller->logout($request, $response);
     });
 
-    // User profile
-    $app->get('/profilo', function ($request, $response) use ($app) {
+    // User profile (translated)
+    $app->get(RouteTranslator::route('profile'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ProfileController();
         return $controller->show($request, $response, $db);
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    $app->post('/profilo/update', function ($request, $response) use ($app) {
+    $app->post(RouteTranslator::route('profile_update'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ProfileController();
         return $controller->update($request, $response, $db);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // Redirect GET to /profilo/update to /profilo
-    $app->get('/profilo/update', function ($request, $response) {
-        return $response->withHeader('Location', '/profilo')->withStatus(302);
+    // Redirect GET to profile update to profile
+    $app->get(RouteTranslator::route('profile_update'), function ($request, $response) use ($app) {
+        return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    $app->post('/profilo/password', function ($request, $response) use ($app) {
+    $app->post(RouteTranslator::route('profile_password'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ProfileController();
         return $controller->changePassword($request, $response, $db);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // Redirect GET to /profilo/password to /profilo
-    $app->get('/profilo/password', function ($request, $response) {
-        return $response->withHeader('Location', '/profilo')->withStatus(302);
+    // Redirect GET to profile password to profile
+    $app->get(RouteTranslator::route('profile_password'), function ($request, $response) use ($app) {
+        return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // User wishlist
-    $app->get('/wishlist', function ($request, $response) use ($app) {
+    // User wishlist (translated)
+    $app->get(RouteTranslator::route('wishlist'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new UserWishlistController();
         return $controller->page($request, $response, $db);
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // User reservations (with loan history and reviews)
-    $app->get('/prenotazioni', function ($request, $response) use ($app) {
+    // User reservations (translated)
+    $app->get(RouteTranslator::route('reservations'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new UserDashboardController();
         return $controller->prenotazioni($request, $response, $db);
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // Public registration routes
-    $app->get('/register', function ($request, $response) use ($app) {
+    // Public registration routes (translated)
+    $app->get(RouteTranslator::route('register'), function ($request, $response) use ($app) {
         $controller = new RegistrationController();
         return $controller->form($request, $response);
     });
-    $app->post('/register', function ($request, $response) use ($app) {
+    $app->post(RouteTranslator::route('register'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->register($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(3, 3600)); // 3 attempts per hour
-    $app->get('/register/success', function ($request, $response) use ($app) {
+    $app->get(RouteTranslator::route('register_success'), function ($request, $response) use ($app) {
         $controller = new RegistrationController();
         return $controller->success($request, $response);
     });
-    $app->get('/verify-email', function ($request, $response) use ($app) {
+    $app->get(RouteTranslator::route('verify_email'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->verifyEmail($request, $response, $db);
     });
 
-    // Password reset public
-    $app->get('/forgot-password', function ($request, $response) use ($app) {
+    // Password reset public (translated)
+    $app->get(RouteTranslator::route('forgot_password'), function ($request, $response) use ($app) {
         $controller = new PasswordController();
         return $controller->forgotForm($request, $response);
     });
-    $app->post('/forgot-password', function ($request, $response) use ($app) {
+    $app->post(RouteTranslator::route('forgot_password'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->forgot($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(3, 900)); // 3 attempts per 15 minutes
-    $app->get('/reset-password', function ($request, $response) use ($app) {
+    $app->get(RouteTranslator::route('reset_password'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->resetForm($request, $response, $db);
     });
-    $app->post('/reset-password', function ($request, $response) use ($app) {
+    $app->post(RouteTranslator::route('reset_password'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->reset($request, $response, $db);
@@ -1332,112 +1332,116 @@ return function (App $app): void {
         return $controller->home($request, $response, $db);
     });
 
-$app->get('/catalogo.php', function ($request, $response) use ($app) {
-    // Redirect to /catalogo for SEO-friendly URL
-    return $response->withHeader('Location', '/catalogo')->withStatus(301);
+// Legacy redirect for backward compatibility
+$app->get(RouteTranslator::route('catalog_legacy'), function ($request, $response) use ($app) {
+    return $response->withHeader('Location', RouteTranslator::route('catalog'))->withStatus(301);
 });
 
-$app->get('/catalogo', function ($request, $response) use ($app) {
+// Catalog page (translated)
+$app->get(RouteTranslator::route('catalog'), function ($request, $response) use ($app) {
     $controller = new \App\Controllers\FrontendController();
     $db = $app->getContainer()->get('db');
     return $controller->catalog($request, $response, $db);
 });
 
-    $app->get('/scheda.php', function ($request, $response) use ($app) {
+    // Legacy book detail redirect
+    $app->get(RouteTranslator::route('book_legacy'), function ($request, $response) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->bookDetail($request, $response, $db);
     });
 
-    // SEO-friendly book detail URL
-    $app->get('/libro/{id:\d+}[/{slug}]', function ($request, $response, $args) use ($app) {
+    // SEO-friendly book detail URL (translated)
+    $app->get(RouteTranslator::route('book') . '/{id:\d+}[/{slug}]', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['slug'] ?? '');
     });
 
-    // API endpoints for book reservations
-    $app->get('/api/libro/{id:\d+}/availability', function ($request, $response, $args) use ($app) {
+    // API endpoints for book reservations (translated)
+    $app->get(RouteTranslator::route('api_book') . '/{id:\d+}/availability', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\ReservationsController($db);
         return $controller->getBookAvailability($request, $response, $args);
     });
 
-    $app->post('/api/libro/{id:\d+}/reservation', function ($request, $response, $args) use ($app) {
+    $app->post(RouteTranslator::route('api_book') . '/{id:\d+}/reservation', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\ReservationsController($db);
         return $controller->createReservation($request, $response, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // API endpoint for AJAX catalog filtering
-    $app->get('/api/catalogo', function ($request, $response) use ($app) {
+    // API endpoint for AJAX catalog filtering (translated)
+    $app->get(RouteTranslator::route('api_catalog'), function ($request, $response) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->catalogAPI($request, $response, $db);
     });
 
-    // API endpoint for home page sections
-    $app->get('/api/home/{section}', function ($request, $response, $args) use ($app) {
+    // API endpoint for home page sections (translated)
+    $app->get(RouteTranslator::route('api_home') . '/{section}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->homeAPI($request, $response, $db, $args['section']);
     });
 
-    // Author archive page by ID (public) - must come before name route
-    $app->get('/autore/{id:\d+}', function ($request, $response, $args) use ($app) {
+    // Author archive page by ID (public) - must come before name route (translated)
+    $app->get(RouteTranslator::route('author') . '/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->authorArchiveById($request, $response, $db, (int)$args['id']);
     });
 
-    // Author archive page by name (public)
-    $app->get('/autore/{name}', function ($request, $response, $args) use ($app) {
+    // Author archive page by name (public) (translated)
+    $app->get(RouteTranslator::route('author') . '/{name}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->authorArchive($request, $response, $db, $args['name']);
     });
 
-    // Publisher archive page (public)
-    $app->get('/editore/{name}', function ($request, $response, $args) use ($app) {
+    // Publisher archive page (public) (translated)
+    $app->get(RouteTranslator::route('publisher') . '/{name}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->publisherArchive($request, $response, $db, $args['name']);
     });
 
-    // Genre archive page (public)
-    $app->get('/genere/{name}', function ($request, $response, $args) use ($app) {
+    // Genre archive page (public) (translated)
+    $app->get(RouteTranslator::route('genre') . '/{name}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
         return $controller->genreArchive($request, $response, $db, $args['name']);
     });
 
-    // CMS pages (Chi Siamo, etc.)
-    $app->get('/chi-siamo', function ($request, $response, $args) use ($app) {
+    // CMS pages (Chi Siamo, etc.) (translated)
+    $app->get(RouteTranslator::route('about'), function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\CmsController();
-        return $controller->showPage($request, $response, $db, ['slug' => 'chi-siamo']);
+        // Derive slug from translated route (remove leading /)
+        $slug = ltrim(RouteTranslator::route('about'), '/');
+        return $controller->showPage($request, $response, $db, ['slug' => $slug]);
     });
 
-    // Contact page
-    $app->get('/contatti', function ($request, $response) use ($app) {
+    // Contact page (translated)
+    $app->get(RouteTranslator::route('contact'), function ($request, $response) use ($app) {
         $controller = new \App\Controllers\ContactController();
         return $controller->showPage($request, $response);
     });
 
-    $app->post('/contatti/invia', function ($request, $response) use ($app) {
+    $app->post(RouteTranslator::route('contact_submit'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\ContactController();
         return $controller->submitForm($request, $response, $db);
     })->add(new CsrfMiddleware($app->getContainer()));
 
-    // Privacy Policy page
-    $app->get('/privacy-policy', function ($request, $response) use ($app) {
+    // Privacy Policy page (translated)
+    $app->get(RouteTranslator::route('privacy'), function ($request, $response) use ($app) {
         $controller = new \App\Controllers\PrivacyController();
         return $controller->showPage($request, $response);
     });
 
-    // Cookie Policy page
-    $app->get('/cookies', function ($request, $response) use ($app) {
+    // Cookie Policy page (translated)
+    $app->get(RouteTranslator::route('cookies'), function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CookiesController();
         return $controller->showPage($request, $response);
     });

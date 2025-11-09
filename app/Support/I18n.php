@@ -22,6 +22,12 @@ final class I18n
     private static string $locale = 'it_IT';
 
     /**
+     * Installation locale (fixed at installation time, never changes)
+     * This is the default locale from the database (is_default=1)
+     */
+    private static string $installationLocale = 'it_IT';
+
+    /**
      * Available locales (fallback/default when DB not available)
      */
     private static array $availableLocales = [
@@ -99,9 +105,10 @@ final class I18n
                 self::$languagesCache = $languages;
                 self::$languagesLoadedFromDb = true;
 
-                // Set default locale from database
+                // Set default locale from database (installation locale)
                 if ($defaultLocale) {
                     self::$locale = $defaultLocale;
+                    self::$installationLocale = $defaultLocale;
                 }
 
                 return true;
@@ -204,6 +211,23 @@ final class I18n
     public static function getLocale(): string
     {
         return self::$locale;
+    }
+
+    /**
+     * Get installation locale (fixed at installation time)
+     *
+     * This returns the default locale from the database (is_default=1).
+     * This locale is set during installation and never changes,
+     * unlike getLocale() which can be overridden by session.
+     *
+     * Use this for route definitions and other system-level translations
+     * that should be fixed at installation time.
+     *
+     * @return string Installation locale code
+     */
+    public static function getInstallationLocale(): string
+    {
+        return self::$installationLocale;
     }
 
     /**

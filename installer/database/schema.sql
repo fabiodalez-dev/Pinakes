@@ -1,11 +1,16 @@
--- Pinakes Database Schema
--- Exported on: 2025-11-06 23:24:12
 
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-SET time_zone = "+00:00";
-
-
--- Table: admin_notifications
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!50503 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `admin_notifications` (
   `id` int NOT NULL AUTO_INCREMENT,
   `type` enum('new_message','new_reservation','new_user','overdue_loan','new_loan_request','new_review','general') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -20,8 +25,9 @@ CREATE TABLE `admin_notifications` (
   KEY `idx_type` (`type`),
   KEY `idx_created` (`created_at`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: api_keys
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `api_keys` (
   `id` int NOT NULL AUTO_INCREMENT,
   `api_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -36,8 +42,9 @@ CREATE TABLE `api_keys` (
   KEY `idx_api_key` (`api_key`),
   KEY `idx_is_active` (`is_active`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: autori
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `autori` (
   `id` int NOT NULL AUTO_INCREMENT,
   `data_nascita` date DEFAULT NULL,
@@ -51,8 +58,9 @@ CREATE TABLE `autori` (
   `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: classificazione
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `classificazione` (
   `id` int NOT NULL AUTO_INCREMENT,
   `parent_id` int DEFAULT NULL,
@@ -63,11 +71,13 @@ CREATE TABLE `classificazione` (
   KEY `parent_id` (`parent_id`),
   CONSTRAINT `classificazione_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `classificazione` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=1370 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: cms_pages
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cms_pages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `slug` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `locale` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'en_US',
   `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `image` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -78,10 +88,13 @@ CREATE TABLE `cms_pages` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `slug` (`slug`),
   KEY `idx_slug` (`slug`),
-  KEY `idx_active` (`is_active`)
+  KEY `idx_active` (`is_active`),
+  KEY `idx_cms_locale` (`locale`),
+  KEY `idx_cms_slug_locale` (`slug`,`locale`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: contact_messages
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `contact_messages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nome` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -103,8 +116,9 @@ CREATE TABLE `contact_messages` (
   KEY `idx_archived` (`is_archived`),
   KEY `idx_created` (`created_at`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: copie
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `copie` (
   `id` int NOT NULL AUTO_INCREMENT,
   `libro_id` int NOT NULL,
@@ -119,8 +133,9 @@ CREATE TABLE `copie` (
   KEY `idx_stato` (`stato`),
   CONSTRAINT `copie_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: donazioni
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `donazioni` (
   `id` int NOT NULL AUTO_INCREMENT,
   `donatore_id` int NOT NULL,
@@ -137,8 +152,9 @@ CREATE TABLE `donazioni` (
   KEY `idx_donazioni_tipo_donazione` (`tipo_donazione`),
   CONSTRAINT `donazioni_ibfk_1` FOREIGN KEY (`donatore_id`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: editori
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `editori` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -155,8 +171,9 @@ CREATE TABLE `editori` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `codice_fiscale` (`codice_fiscale`)
 ) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: email_templates
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `email_templates` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -170,8 +187,9 @@ CREATE TABLE `email_templates` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `name_locale` (`name`,`locale`)
 ) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: feedback
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `feedback` (
   `id` int NOT NULL AUTO_INCREMENT,
   `utente_id` int NOT NULL,
@@ -185,8 +203,9 @@ CREATE TABLE `feedback` (
   KEY `idx_feedback_tipo` (`tipo`),
   CONSTRAINT `feedback_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: generi
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `generi` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -199,8 +218,9 @@ CREATE TABLE `generi` (
   KEY `parent_id` (`parent_id`),
   CONSTRAINT `generi_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `generi` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=309 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: home_content
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `home_content` (
   `id` int NOT NULL AUTO_INCREMENT,
   `section_key` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Chiave sezione (hero, features, cta, etc)',
@@ -223,8 +243,31 @@ CREATE TABLE `home_content` (
   KEY `idx_active` (`is_active`),
   KEY `idx_order` (`display_order`)
 ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contenuti editabili homepage';
-
--- Table: libri
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `languages` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Language code: it_IT, en_US, es_ES, fr_FR, de_DE, etc.',
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'English name: Italian, English, Spanish, French, German',
+  `native_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Native name: Italiano, English, Español, Français, Deutsch',
+  `flag_emoji` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT 0xF09F8C90 COMMENT 'Flag emoji: ??, ??, ??, ??, ??',
+  `is_default` tinyint(1) DEFAULT '0' COMMENT 'Is this the default language for new users?',
+  `is_active` tinyint(1) DEFAULT '1' COMMENT 'Is this language active and selectable?',
+  `translation_file` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path to translation file: locale/es_ES.json',
+  `total_keys` int DEFAULT '0' COMMENT 'Total translation keys in system',
+  `translated_keys` int DEFAULT '0' COMMENT 'Number of translated keys for this language',
+  `completion_percentage` decimal(5,2) DEFAULT '0.00' COMMENT 'Translation completion percentage',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_code` (`code`),
+  KEY `idx_is_active` (`is_active`),
+  KEY `idx_is_default` (`is_default`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores available languages for the application';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `libri` (
   `id` int NOT NULL AUTO_INCREMENT,
   `isbn10` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -283,8 +326,9 @@ CREATE TABLE `libri` (
   CONSTRAINT `libri_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_5` FOREIGN KEY (`posizione_id`) REFERENCES `posizioni` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: libri_autori
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `libri_autori` (
   `libro_id` int NOT NULL,
   `autore_id` int NOT NULL,
@@ -296,8 +340,9 @@ CREATE TABLE `libri_autori` (
   CONSTRAINT `libri_autori_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
   CONSTRAINT `libri_autori_ibfk_2` FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: libri_donati
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `libri_donati` (
   `id` int NOT NULL AUTO_INCREMENT,
   `donazione_id` int NOT NULL,
@@ -313,8 +358,9 @@ CREATE TABLE `libri_donati` (
   CONSTRAINT `libri_donati_ibfk_1` FOREIGN KEY (`donazione_id`) REFERENCES `donazioni` (`id`),
   CONSTRAINT `libri_donati_ibfk_2` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: libri_tag
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `libri_tag` (
   `libro_id` int NOT NULL,
   `tag_id` int NOT NULL,
@@ -323,8 +369,9 @@ CREATE TABLE `libri_tag` (
   CONSTRAINT `libri_tag_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
   CONSTRAINT `libri_tag_ibfk_2` FOREIGN KEY (`tag_id`) REFERENCES `tag` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: log_modifiche
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `log_modifiche` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tabella` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -339,8 +386,9 @@ CREATE TABLE `log_modifiche` (
   KEY `idx_log_modifiche_tabella_record_id` (`tabella`,`record_id`),
   CONSTRAINT `log_modifiche_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: mensole
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `mensole` (
   `id` int NOT NULL AUTO_INCREMENT,
   `scaffale_id` int NOT NULL,
@@ -359,8 +407,9 @@ CREATE TABLE `mensole` (
   CONSTRAINT `mensole_ibfk_1` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE CASCADE,
   CONSTRAINT `mensole_ibfk_2` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: plugin_data
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `plugin_data` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
@@ -374,8 +423,9 @@ CREATE TABLE `plugin_data` (
   KEY `idx_plugin_id` (`plugin_id`),
   CONSTRAINT `fk_plugin_data_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generic plugin data storage';
-
--- Table: plugin_hooks
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `plugin_hooks` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
@@ -391,8 +441,9 @@ CREATE TABLE `plugin_hooks` (
   KEY `idx_active` (`is_active`),
   CONSTRAINT `fk_plugin_hooks_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin hooks registry';
-
--- Table: plugin_logs
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `plugin_logs` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `plugin_id` int unsigned DEFAULT NULL COMMENT 'Reference to plugin (NULL for system logs)',
@@ -405,9 +456,10 @@ CREATE TABLE `plugin_logs` (
   KEY `idx_level` (`level`),
   KEY `idx_created_at` (`created_at`),
   CONSTRAINT `fk_plugin_logs_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=43 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin activity and error logs';
-
--- Table: plugin_settings
+) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin activity and error logs';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `plugin_settings` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
@@ -422,8 +474,9 @@ CREATE TABLE `plugin_settings` (
   KEY `idx_autoload` (`autoload`),
   CONSTRAINT `fk_plugin_settings_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin-specific settings and configuration';
-
--- Table: plugins
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `plugins` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Plugin unique identifier',
@@ -447,8 +500,9 @@ CREATE TABLE `plugins` (
   KEY `idx_active` (`is_active`),
   KEY `idx_name` (`name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin registry and metadata';
-
--- Table: posizioni
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `posizioni` (
   `id` int NOT NULL AUTO_INCREMENT,
   `scaffale_id` int NOT NULL,
@@ -466,16 +520,18 @@ CREATE TABLE `posizioni` (
   CONSTRAINT `posizioni_ibfk_2` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE CASCADE,
   CONSTRAINT `posizioni_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: preferenze_notifica_utenti
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `preferenze_notifica_utenti` (
   `utente_id` int NOT NULL,
   `notifica_tipo` enum('email','sms','push') COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`utente_id`,`notifica_tipo`),
   CONSTRAINT `preferenze_notifica_utenti_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: prenotazioni
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `prenotazioni` (
   `id` int NOT NULL AUTO_INCREMENT,
   `libro_id` int NOT NULL,
@@ -496,8 +552,9 @@ CREATE TABLE `prenotazioni` (
   CONSTRAINT `prenotazioni_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prenotazioni_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: prestiti
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `prestiti` (
   `id` int NOT NULL AUTO_INCREMENT,
   `libro_id` int NOT NULL,
@@ -532,8 +589,9 @@ CREATE TABLE `prestiti` (
   CONSTRAINT `prestiti_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`),
   CONSTRAINT `prestiti_ibfk_3` FOREIGN KEY (`processed_by`) REFERENCES `staff` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: recensioni
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `recensioni` (
   `id` int NOT NULL AUTO_INCREMENT,
   `libro_id` int NOT NULL,
@@ -558,8 +616,9 @@ CREATE TABLE `recensioni` (
   CONSTRAINT `recensioni_ibfk_3` FOREIGN KEY (`approved_by`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
   CONSTRAINT `recensioni_chk_1` CHECK ((`stelle` between 1 and 5))
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: scaffali
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `scaffali` (
   `id` int NOT NULL AUTO_INCREMENT,
   `codice` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -576,8 +635,9 @@ CREATE TABLE `scaffali` (
   KEY `fk_scaffali_dowey` (`dowey_category_id`),
   CONSTRAINT `fk_scaffali_dowey` FOREIGN KEY (`dowey_category_id`) REFERENCES `classificazione` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: staff
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `staff` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -592,8 +652,9 @@ CREATE TABLE `staff` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: system_settings
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `system_settings` (
   `id` int NOT NULL AUTO_INCREMENT,
   `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -605,8 +666,9 @@ CREATE TABLE `system_settings` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_setting` (`category`,`setting_key`)
 ) ENGINE=InnoDB AUTO_INCREMENT=188 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: tag
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `tag` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nome` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -616,8 +678,9 @@ CREATE TABLE `tag` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `nome` (`nome`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: utenti
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `utenti` (
   `id` int NOT NULL AUTO_INCREMENT,
   `codice_tessera` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -655,8 +718,9 @@ CREATE TABLE `utenti` (
   KEY `idx_utenti_data_scadenza_tessera` (`data_scadenza_tessera`),
   KEY `idx_utenti_data_ultimo_accesso` (`data_ultimo_accesso`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table: wishlist
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `wishlist` (
   `id` int NOT NULL AUTO_INCREMENT,
   `utente_id` int NOT NULL,
@@ -670,24 +734,14 @@ CREATE TABLE `wishlist` (
   CONSTRAINT `wishlist_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
   CONSTRAINT `wishlist_ibfk_2` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
--- Table: languages
-CREATE TABLE `languages` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Language code: it_IT, en_US, es_ES, fr_FR, de_DE, etc.',
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'English name: Italian, English, Spanish, French, German',
-  `native_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Native name: Italiano, English, Español, Français, Deutsch',
-  `flag_emoji` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT '🌐' COMMENT 'Flag emoji: 🇮🇹, 🇬🇧, 🇪🇸, 🇫🇷, 🇩🇪',
-  `is_default` tinyint(1) DEFAULT '0' COMMENT 'Is this the default language for new users?',
-  `is_active` tinyint(1) DEFAULT '1' COMMENT 'Is this language active and selectable?',
-  `translation_file` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path to translation file: locale/es_ES.json',
-  `total_keys` int DEFAULT '0' COMMENT 'Total translation keys in system',
-  `translated_keys` int DEFAULT '0' COMMENT 'Number of translated keys for this language',
-  `completion_percentage` decimal(5,2) DEFAULT '0.00' COMMENT 'Translation completion percentage',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_code` (`code`),
-  KEY `idx_is_active` (`is_active`),
-  KEY `idx_is_default` (`is_default`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores available languages for the application';
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
