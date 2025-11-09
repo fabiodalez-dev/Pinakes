@@ -28,6 +28,7 @@ use App\Controllers\SettingsController;
 use App\Controllers\LanguageController;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminAuthMiddleware;
+use App\Support\RouteTranslator;
 
 return function (App $app): void {
     $app->get('/', function ($request, $response) use ($app) {
@@ -85,8 +86,8 @@ return function (App $app): void {
         return $controller->index($request, $response, $db);
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // Auth routes
-    $app->get('/login', function ($request, $response) use ($app) {
+    // Auth routes (translated based on installation locale)
+    $app->get(RouteTranslator::route('login'), function ($request, $response) use ($app) {
         // If already logged in, redirect appropriately
         if (!empty($_SESSION['user'])) {
             $userRole = $_SESSION['user']['tipo_utente'] ?? '';
@@ -100,12 +101,12 @@ return function (App $app): void {
         return $controller->loginForm($request, $response);
     });
 
-    $app->post('/login', function ($request, $response) use ($app) {
+    $app->post(RouteTranslator::route('login'), function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->login($request, $response, $app->getContainer()->get('db'));
     })->add(new \App\Middleware\RateLimitMiddleware(5, 300)); // 5 attempts per 5 minutes
 
-    $app->get('/logout', function ($request, $response) use ($app) {
+    $app->get(RouteTranslator::route('logout'), function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->logout($request, $response);
     });
