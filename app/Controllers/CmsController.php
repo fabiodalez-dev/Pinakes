@@ -15,13 +15,16 @@ class CmsController
 
         $slug = $args['slug'] ?? 'chi-siamo';
 
-        // Recupera la pagina dal database
+        // Get current locale for CMS pages
+        $currentLocale = \App\Support\I18n::getLocale();
+
+        // Recupera la pagina dal database (with locale support)
         $stmt = $db->prepare("
-            SELECT id, slug, title, content, image, meta_description
+            SELECT id, slug, title, content, image, meta_description, locale
             FROM cms_pages
-            WHERE slug = ? AND is_active = 1
+            WHERE slug = ? AND locale = ? AND is_active = 1
         ");
-        $stmt->bind_param('s', $slug);
+        $stmt->bind_param('ss', $slug, $currentLocale);
         $stmt->execute();
         $result = $stmt->get_result();
         $page = $result->fetch_assoc();
