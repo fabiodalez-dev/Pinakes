@@ -279,6 +279,7 @@ CREATE TABLE `libri` (
   `edizione` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `numero_pagine` int DEFAULT NULL,
   `genere_id` int DEFAULT NULL,
+  `sottogenere_id` int DEFAULT NULL,
   `scaffale_id` int DEFAULT NULL,
   `mensola_id` int DEFAULT NULL,
   `posizione_progressiva` int DEFAULT NULL,
@@ -312,6 +313,7 @@ CREATE TABLE `libri` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `isbn13` (`isbn13`),
   KEY `genere_id` (`genere_id`),
+  KEY `idx_libri_sottogenere` (`sottogenere_id`),
   KEY `posizione_id` (`posizione_id`),
   KEY `idx_libri_titolo_sottotitolo` (`titolo`,`sottotitolo`),
   KEY `editore_id` (`editore_id`),
@@ -324,6 +326,7 @@ CREATE TABLE `libri` (
   CONSTRAINT `fk_libri_scaffale` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_1` FOREIGN KEY (`editore_id`) REFERENCES `editori` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_libri_sottogenere` FOREIGN KEY (`sottogenere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_5` FOREIGN KEY (`posizione_id`) REFERENCES `posizioni` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
