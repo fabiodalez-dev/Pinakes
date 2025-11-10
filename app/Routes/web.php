@@ -128,6 +128,19 @@ return function (App $app): void {
     }
 
     // Auth routes (translated based on installation locale)
+    // Ensure legacy/common paths also work by redirecting them to the canonical translated routes
+
+    // Legacy Italian login URL -> redirect to current login route
+    $app->get('/login.php', function ($request, $response) {
+        return $response->withHeader('Location', \App\Support\RouteTranslator::route('login'))->withStatus(301);
+    });
+
+    // Legacy Italian register URL -> redirect to current register route (e.g. /registrati or /register)
+    $app->get('/registra', function ($request, $response) {
+        return $response->withHeader('Location', \App\Support\RouteTranslator::route('register'))->withStatus(301);
+    });
+
+    // Canonical login route
     $app->get(RouteTranslator::route('login'), function ($request, $response) use ($app) {
         // If already logged in, redirect appropriately
         if (!empty($_SESSION['user'])) {
@@ -1207,7 +1220,7 @@ return function (App $app): void {
         return $response->withHeader('Content-Type', 'application/json');
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // Endpoint di debug disabilitato per evitare esposizione accidentale di dati sensibili
+    // Debug endpoint intentionally removed to avoid accidental exposure of sensitive data
 
     // Editori (protected)
     $app->get('/admin/editori', function ($request, $response) use ($app) {

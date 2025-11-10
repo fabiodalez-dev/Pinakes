@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5d0c0969cc11543ea078231898a198de",
+    "content-hash": "886b624c7e6327d0152224038e9d8461",
     "packages": [
         {
             "name": "emleons/sim-rating",

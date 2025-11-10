@@ -330,6 +330,15 @@ body {
     width: 100%;
 }
 
+/* Radios inside language options (Step 0) */
+
+.language-radio {
+    width: 18px;
+    height: 18px;
+    accent-color: #16a34a; /* green used across installer */
+    cursor: pointer;
+}
+
 .file-upload-wrapper input[type=file] {
     position: absolute;
     left: -9999px;
@@ -394,7 +403,7 @@ body {
 }
 
 .language-option:hover {
-    border-color: #2563eb;
+    border-color: #16a34a;
     background: #f9fafb;
 }
 
@@ -412,13 +421,13 @@ body {
 }
 
 .language-option.selected {
-    border-color: #2563eb;
-    background: #eff6ff;
+    border-color: #16a34a;
+    background: #d1fae5;
 }
 
 .language-option.selected .language-check {
-    border-color: #2563eb;
-    background: #2563eb;
+    border-color: #16a34a;
+    background: #16a34a;
     color: #ffffff;
 }
 

@@ -18,6 +18,20 @@ class Installer {
      * Create .env file with database configuration
      */
     public function createEnvFile($host, $user, $password, $database, $port = 3306, $socket = '', $locale = 'it') {
+        // Normalize locale:
+        // - "it" or "it_IT" -> it_IT
+        // - "en" or "en_US" -> en_US
+        $normalizedLocale = strtolower((string)$locale);
+        if ($normalizedLocale === 'en' || $normalizedLocale === 'en_us') {
+            $normalizedLocale = 'en_US';
+        } elseif ($normalizedLocale === 'it' || $normalizedLocale === 'it_it') {
+            $normalizedLocale = 'it_IT';
+        }
+
+        // Fallback safety
+        if (!in_array($normalizedLocale, ['it_IT', 'en_US'], true)) {
+            $normalizedLocale = 'it_IT';
+        }
         $envPath = $this->baseDir . '/.env';
 
         $envContent = "# Environment Configuration - Sistema Biblioteca\n";
@@ -37,8 +51,8 @@ class Installer {
         $envContent .= "APP_ENV=production\n\n";
 
         $envContent .= "# Application Language\n";
-        $envContent .= "# Default language for the entire application (it = Italian, en = English)\n";
-        $envContent .= "APP_LOCALE={$locale}\n\n";
+        $envContent .= "# Default language for the entire application (e.g. it_IT, en_US)\n";
+        $envContent .= "APP_LOCALE={$normalizedLocale}\n\n";
 
         $envContent .= "# Debug Mode\n";
         $envContent .= "# MUST be false in production for security reasons\n";

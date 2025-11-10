@@ -52,48 +52,44 @@ renderHeader(0, 'Selezione Lingua');
         <div style="display: grid; gap: 20px; margin-bottom: 40px;">
             <!-- Italian Option -->
             <label class="language-option <?= $currentLanguage === 'it' ? 'selected' : '' ?>">
-                <input type="radio" name="language" value="it" <?= $currentLanguage === 'it' ? 'checked' : '' ?>
-                       style="display: none;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px;">🇮🇹</div>
+                    <input
+                        type="radio"
+                        name="language"
+                        value="it"
+                        <?= $currentLanguage === 'it' ? 'checked' : '' ?>
+                        class="language-radio"
+                    >
+                    <div style="font-size: 32px;">🇮🇹</div>
                     <div style="text-align: left; flex: 1;">
-                        <div style="font-size: 20px; font-weight: 600; color: #1e293b; margin-bottom: 5px;">
+                        <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
                             Italiano
                         </div>
-                        <div style="font-size: 14px; color: #64748b;">
+                        <div style="font-size: 13px; color: #64748b;">
                             Lingua predefinita per l'intera applicazione
                         </div>
                     </div>
-                    <div class="language-check">
-                        <?php if ($currentLanguage === 'it'): ?>
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                <path d="M11.6667 3.5L5.25 9.91667L2.33333 7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        <?php endif; ?>
-                    </div>
                 </div>
             </label>
-
+ 
             <!-- English Option -->
             <label class="language-option <?= $currentLanguage === 'en' ? 'selected' : '' ?>">
-                <input type="radio" name="language" value="en_US" <?= $currentLanguage === 'en' ? 'checked' : '' ?>
-                       style="display: none;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px;">🇬🇧</div>
+                    <input
+                        type="radio"
+                        name="language"
+                        value="en_US"
+                        <?= $currentLanguage === 'en' ? 'checked' : '' ?>
+                        class="language-radio"
+                    >
+                    <div style="font-size: 32px;">🇬🇧</div>
                     <div style="text-align: left; flex: 1;">
-                        <div style="font-size: 20px; font-weight: 600; color: #1e293b; margin-bottom: 5px;">
+                        <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
                             English
                         </div>
-                        <div style="font-size: 14px; color: #64748b;">
+                        <div style="font-size: 13px; color: #64748b;">
                             Default language for the entire application
                         </div>
-                    </div>
-                    <div class="language-check">
-                        <?php if ($currentLanguage === 'en'): ?>
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                <path d="M11.6667 3.5L5.25 9.91667L2.33333 7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        <?php endif; ?>
                     </div>
                 </div>
             </label>
@@ -106,20 +102,24 @@ renderHeader(0, 'Selezione Lingua');
 </div>
 
 <script>
-// Make entire card clickable and keep styles consistent via CSS classes
-document.querySelectorAll('.language-option').forEach(option => {
-    option.addEventListener('click', function() {
-        const radio = this.querySelector('input[type="radio"]');
-        if (!radio) return;
-        radio.checked = true;
+ // Make entire card clickable and keep styles consistent via CSS classes
+ document.querySelectorAll('.language-option').forEach(option => {
+     option.addEventListener('click', function (event) {
+         const radio = this.querySelector('.language-radio');
+         if (!radio) return;
 
-        document.querySelectorAll('.language-option').forEach(opt => {
-            opt.classList.remove('selected');
-        });
+         // Evita doppio toggle se clicchi direttamente sul radio
+         if (event.target !== radio) {
+             radio.checked = true;
+         }
 
-        this.classList.add('selected');
-    });
-});
+         document.querySelectorAll('.language-option').forEach(opt => {
+             opt.classList.remove('selected');
+         });
+
+         this.classList.add('selected');
+     });
+ });
 </script>
 
 <?php renderFooter(); ?>
