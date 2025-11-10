@@ -45,6 +45,12 @@ $socialTwitter = (string)ConfigStore::get('app.social_twitter', '');
 $socialInstagram = (string)ConfigStore::get('app.social_instagram', '');
 $socialLinkedin = (string)ConfigStore::get('app.social_linkedin', '');
 $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
+$catalogRoute = route_path('catalog');
+$reservationsRoute = route_path('reservations');
+$wishlistRoute = route_path('wishlist');
+$profileRoute = route_path('profile');
+$loginRoute = route_path('login');
+$registerRoute = route_path('register');
 
 // Helper function for absolute URLs
 if (!function_exists('absoluteUrl')) {
@@ -737,7 +743,7 @@ if (!function_exists('assetUrl')) {
                     </a>
 
                     <ul class="nav-links d-none d-md-flex">
-                        <li><a href="/catalogo" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a></li>
+                        <li><a href="<?= $catalogRoute ?>" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a></li>
                     </ul>
 
                     <!-- Mobile Menu Toggle -->
@@ -745,7 +751,7 @@ if (!function_exists('assetUrl')) {
                         <i class="fas fa-bars"></i>
                     </button>
 
-                    <form class="search-form d-none d-md-block" action="/catalogo" method="get">
+                    <form class="search-form d-none d-md-block" action="<?= $catalogRoute ?>" method="get">
                         <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori...') ?>" aria-label="Search">
                     </form>
 
@@ -754,14 +760,14 @@ if (!function_exists('assetUrl')) {
 
                         <?php if ($isLogged): ?>
                             <div class="d-flex align-items-center gap-2">
-                                <a class="btn btn-outline-header" href="/prenotazioni">
+                                <a class="btn btn-outline-header" href="<?= $reservationsRoute ?>">
                                     <i class="fas fa-bookmark"></i>
-                                    <span class="d-none d-sm-inline">Prenotazioni</span>
+                                    <span class="d-none d-sm-inline"><?= __('Prenotazioni') ?></span>
                                     <span id="nav-res-count" class="badge-notification d-none">0</span>
                                 </a>
-                                <a class="btn btn-outline-header" href="/wishlist">
+                                <a class="btn btn-outline-header" href="<?= $wishlistRoute ?>">
                                     <i class="fas fa-heart"></i>
-                                    <span class="d-none d-sm-inline">Preferiti</span>
+                                    <span class="d-none d-sm-inline"><?= __('Preferiti') ?></span>
                                 </a>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                                 <a class="btn btn-primary-header" href="/admin/dashboard">
@@ -769,27 +775,27 @@ if (!function_exists('assetUrl')) {
                                     <span class="d-none d-md-inline">Admin</span>
                                 </a>
                                 <?php else: ?>
-                                <a class="btn btn-primary-header" href="/profilo">
+                                <a class="btn btn-primary-header" href="<?= $profileRoute ?>">
                                     <i class="fas fa-user"></i>
-                                    <span class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? 'Profilo') ?></span>
+                                    <span class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
                                 </a>
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
                             <div class="d-flex align-items-center gap-2">
-                                <a class="btn btn-outline-header" href="/login">
+                                <a class="btn btn-outline-header" href="<?= $loginRoute ?>">
                                     <i class="fas fa-sign-in-alt"></i>
-                                    <span class="d-none d-sm-inline">Accedi</span>
+                                    <span class="d-none d-sm-inline"><?= __('Accedi') ?></span>
                                 </a>
-                                <a class="btn btn-primary-header" href="/register">
+                                <a class="btn btn-primary-header" href="<?= $registerRoute ?>">
                                     <i class="fas fa-user-plus"></i>
-                                    <span class="d-none d-sm-inline">Registrati</span>
+                                    <span class="d-none d-sm-inline"><?= __('Registrati') ?></span>
                                 </a>
                             </div>
                         <?php endif; ?>
                     </div>
 
-                    <form class="search-form d-md-none w-100" action="/catalogo" method="get">
+                    <form class="search-form d-md-none w-100" action="<?= $catalogRoute ?>" method="get">
                         <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>" aria-label="Search">
                     </form>
                 </div>
@@ -806,7 +812,7 @@ if (!function_exists('assetUrl')) {
                     </button>
                 </div>
                 <nav class="mobile-nav">
-                    <a href="/catalogo" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>">
+                    <a href="<?= $catalogRoute ?>" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
                     <?php if ($isLogged): ?>
@@ -814,10 +820,10 @@ if (!function_exists('assetUrl')) {
                     <a href="/user/dashboard" class="mobile-nav-link">
                         <i class="fas fa-tachometer-alt me-2"></i><?= __("Dashboard") ?>
                     </a>
-                    <a href="/prenotazioni" class="mobile-nav-link">
+                    <a href="<?= $reservationsRoute ?>" class="mobile-nav-link">
                         <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                     </a>
-                    <a href="/wishlist" class="mobile-nav-link">
+                    <a href="<?= $wishlistRoute ?>" class="mobile-nav-link">
                         <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                     </a>
                     <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
@@ -825,15 +831,15 @@ if (!function_exists('assetUrl')) {
                         <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
                     </a>
                     <?php endif; ?>
-                    <a href="/profilo" class="mobile-nav-link">
+                    <a href="<?= $profileRoute ?>" class="mobile-nav-link">
                         <i class="fas fa-user me-2"></i><?= __("Profilo") ?>
                     </a>
                     <?php else: ?>
                     <hr class="mobile-menu-divider">
-                    <a href="/login" class="mobile-nav-link">
+                    <a href="<?= $loginRoute ?>" class="mobile-nav-link">
                         <i class="fas fa-sign-in-alt me-2"></i><?= __("Accedi") ?>
                     </a>
-                    <a href="/register" class="mobile-nav-link">
+                    <a href="<?= $registerRoute ?>" class="mobile-nav-link">
                         <i class="fas fa-user-plus me-2"></i><?= __("Registrati") ?>
                     </a>
                     <?php endif; ?>
@@ -872,9 +878,9 @@ if (!function_exists('assetUrl')) {
                     <h5>Account</h5>
                     <ul class="list-unstyled">
                         <li><a href="/user/dashboard"><?= __("Dashboard") ?></a></li>
-                        <li><a href="/profilo"><?= __("Profilo") ?></a></li>
-                        <li><a href="/wishlist"><?= __("Preferiti") ?></a></li>
-                        <li><a href="/prenotazioni"><?= __("Prenotazioni") ?></a></li>
+                        <li><a href="<?= $profileRoute ?>"><?= __("Profilo") ?></a></li>
+                        <li><a href="<?= $wishlistRoute ?>"><?= __("Preferiti") ?></a></li>
+                        <li><a href="<?= $reservationsRoute ?>"><?= __("Prenotazioni") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
@@ -1044,7 +1050,7 @@ if (!function_exists('assetUrl')) {
             }
 
             html += '<div class="search-section" style="padding: 0.75rem 1rem;">' +
-                    '<a href="/catalogo?search=' + encodeURIComponent(currentSearchInput ? currentSearchInput.value : '') + '"' +
+                    '<a href="<?= $catalogRoute ?>?search=' + encodeURIComponent(currentSearchInput ? currentSearchInput.value : '') + '"' +
                        ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; background: #f3f4f6; border-radius: 0.375rem; text-decoration: none; color: #000000; font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#e5e7eb\'" onmouseout="this.style.backgroundColor=\'#f3f4f6\'">' +
                         'Vedi tutti i risultati <i class="fas fa-arrow-right" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>' +
                     '</a>' +

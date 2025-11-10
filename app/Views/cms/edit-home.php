@@ -10,6 +10,7 @@ $feature3 = $sections['feature_3'] ?? null;
 $feature4 = $sections['feature_4'] ?? null;
 $latestBooksTitle = $sections['latest_books_title'] ?? null;
 $cta = $sections['cta'] ?? null;
+$catalogRoute = route_path('catalog');
 ?>
 
 <div class="max-w-7xl mx-auto py-6 px-4">
@@ -104,9 +105,9 @@ $cta = $sections['cta'] ?? null;
           </div>
           <div>
             <label for="hero_button_link" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Link pulsante") ?></label>
-            <input type="text" id="hero_button_link" name="hero[button_link]" value="<?php echo HtmlHelper::e($hero['button_link'] ?? '/catalogo'); ?>"
+            <input type="text" id="hero_button_link" name="hero[button_link]" value="<?php echo HtmlHelper::e($hero['button_link'] ?? $catalogRoute); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="<?= __('/catalogo') ?>">
+                   placeholder="<?= HtmlHelper::e($catalogRoute) ?>">
           </div>
         </div>
       </div>

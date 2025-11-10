@@ -740,22 +740,30 @@ HTACCESS;
             ['registration', 'require_admin_approval', '1'],
 
             // Contacts (empty defaults)
-            ['contacts', 'page_title', 'Contattaci'],
-            ['contacts', 'page_content', '<p>Contattaci per qualsiasi informazione.</p>'],
             ['contacts', 'contact_email', ''],
             ['contacts', 'contact_phone', ''],
             ['contacts', 'notification_email', ''],
-            ['contacts', 'privacy_text', 'I tuoi dati sono protetti secondo la nostra privacy policy.'],
 
             // Privacy
-            ['privacy', 'page_title', 'Privacy Policy'],
-            ['privacy', 'page_content', '<p>Privacy policy...</p>'],
             ['privacy', 'cookie_banner_enabled', '0'],
-            ['privacy', 'cookie_banner_language', 'it']
         ];
 
         $locale = $this->getInstallerLocale();
-        foreach ($this->getCookieBannerInstallerTexts($locale) as $key => $value) {
+        $localized = $this->getLocaleDefaultTexts($locale);
+
+        foreach ($localized['app'] ?? [] as $key => $value) {
+            $defaults[] = ['app', $key, $value];
+        }
+
+        foreach ($localized['contacts'] ?? [] as $key => $value) {
+            $defaults[] = ['contacts', $key, $value];
+        }
+
+        foreach ($localized['privacy'] ?? [] as $key => $value) {
+            $defaults[] = ['privacy', $key, $value];
+        }
+
+        foreach ($localized['cookie_banner'] ?? [] as $key => $value) {
             $defaults[] = ['cookie_banner', $key, $value];
         }
 
@@ -819,51 +827,49 @@ HTACCESS;
 
     private function getInstallerLocale(): string
     {
-        $locale = $this->config['APP_LOCALE'] ?? 'it';
-        $localeMap = [
-            'it' => 'it_IT',
-            'en' => 'en_US',
-        ];
-
-        return $localeMap[$locale] ?? 'it_IT';
+        $locale = $this->config['APP_LOCALE'] ?? 'it_IT';
+        $locale = str_replace('-', '_', strtolower($locale));
+        if ($locale === 'en' || $locale === 'en_us') {
+            return 'en_US';
+        }
+        if ($locale === 'it' || $locale === 'it_it') {
+            return 'it_IT';
+        }
+        return 'it_IT';
     }
 
-    private function getCookieBannerInstallerTexts(string $locale): array
+    private function getLocaleDefaultTexts(string $locale): array
     {
-        $defaults = [
-            'it_IT' => [
-                'banner_description' => '<p>Utilizziamo i cookie per migliorare la tua esperienza. Continuando a visitare questo sito, accetti il nostro uso dei cookie.</p>',
-                'accept_all_text' => 'Accetta tutti',
-                'reject_non_essential_text' => 'Rifiuta non essenziali',
-                'preferences_button_text' => 'Preferenze',
-                'save_selected_text' => 'Accetta selezionati',
-                'preferences_title' => 'Personalizza le tue preferenze sui cookie',
-                'preferences_description' => '<p>Rispettiamo il tuo diritto alla privacy. Puoi scegliere di non consentire alcuni tipi di cookie. Le tue preferenze si applicheranno all\'intero sito web.</p>',
-                'cookie_essential_name' => 'Cookie Essenziali',
-                'cookie_essential_description' => 'Questi cookie sono necessari per il funzionamento del sito e non possono essere disabilitati.',
-                'cookie_analytics_name' => 'Cookie Analitici',
-                'cookie_analytics_description' => 'Questi cookie ci aiutano a capire come i visitatori interagiscono con il sito web.',
-                'cookie_marketing_name' => 'Cookie di Marketing',
-                'cookie_marketing_description' => 'Questi cookie vengono utilizzati per fornire annunci personalizzati.',
-            ],
-            'en_US' => [
-                'banner_description' => '<p>We use cookies to improve your experience. By continuing to browse this site, you agree to our use of cookies.</p>',
-                'accept_all_text' => 'Accept all',
-                'reject_non_essential_text' => 'Reject non-essential',
-                'preferences_button_text' => 'Preferences',
-                'save_selected_text' => 'Accept selected',
-                'preferences_title' => 'Customize your cookie preferences',
-                'preferences_description' => '<p>We respect your right to privacy. You can choose not to allow some types of cookies. Your preferences will apply across the entire website.</p>',
-                'cookie_essential_name' => 'Essential Cookies',
-                'cookie_essential_description' => 'These cookies are required for the website to function and cannot be disabled.',
-                'cookie_analytics_name' => 'Analytics Cookies',
-                'cookie_analytics_description' => 'These cookies help us understand how visitors interact with the website.',
-                'cookie_marketing_name' => 'Marketing Cookies',
-                'cookie_marketing_description' => 'These cookies are used to deliver personalized advertisements.',
-            ],
-        ];
+        static $texts = null;
 
-        return $defaults[$locale] ?? $defaults['it_IT'];
+        if ($texts === null) {
+            $path = $this->baseDir . '/config/default_texts.php';
+            if (is_file($path)) {
+                $texts = require $path;
+            } else {
+                $texts = [];
+            }
+        }
+
+        $fallback = $texts['it_IT'] ?? [];
+        if ($locale === 'it_IT' || !isset($texts[$locale])) {
+            return $fallback;
+        }
+
+        return $this->mergeLocaleDefaults($fallback, $texts[$locale]);
+    }
+
+    private function mergeLocaleDefaults(array $base, array $override): array
+    {
+        foreach ($override as $key => $value) {
+            if (is_array($value) && isset($base[$key]) && is_array($base[$key])) {
+                $base[$key] = $this->mergeLocaleDefaults($base[$key], $value);
+            } else {
+                $base[$key] = $value;
+            }
+        }
+
+        return $base;
     }
 
     /**

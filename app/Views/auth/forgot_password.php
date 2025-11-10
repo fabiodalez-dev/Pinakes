@@ -1,3 +1,4 @@
+<?php $forgotPasswordRoute = route_path('forgot_password'); ?>
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
     <div class="mb-6">
@@ -14,14 +15,14 @@
       <div class="mb-4 p-3 bg-red-50 text-red-700 rounded border border-red-200" role="alert">Richiesta non valida. Riprova.</div>
     <?php endif; ?>
 
-    <form method="post" action="/forgot-password" class="space-y-4 bg-white p-6 rounded-2xl border border-gray-200 shadow">
+    <form method="post" action="<?= $forgotPasswordRoute ?>" class="space-y-4 bg-white p-6 rounded-2xl border border-gray-200 shadow">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
       <div>
         <label class="form-label"><?= __("Email") ?></label>
         <input type="email" autocomplete="email" name="email" required aria-required="true" class="form-input" />
       </div>
       <div class="flex items-center justify-between">
-        <a href="/login" class="text-sm text-blue-600 hover:underline"><?= __('Torna al login') ?></a>
+        <a href="<?= route_path('login') ?>" class="text-sm text-blue-600 hover:underline"><?= __('Torna al login') ?></a>
         <button type="submit" class="btn-primary inline-flex items-center">
           <i class="fas fa-paper-plane mr-2"></i>
           <?= __('Invia link') ?>
@@ -30,4 +31,3 @@
     </form>
   </div>
 </div>
-

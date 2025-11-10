@@ -1,3 +1,9 @@
+<?php
+$legacyCatalogRoute = route_path('catalog_legacy');
+$profileRoute = route_path('profile');
+$reservationsRoute = route_path('reservations');
+$wishlistRoute = route_path('wishlist');
+?>
 <div class="container py-5">
   <div class="row">
     <div class="col-12">
@@ -123,7 +129,7 @@
                 <div class="text-center py-4">
                   <i class="fas fa-book-reader fa-3x text-muted mb-3"></i>
                   <p class="text-muted"><?= __("Nessun prestito attivo") ?></p>
-                  <a href="/catalogo.php" class="btn btn-outline-primary">
+                  <a href="<?= $legacyCatalogRoute ?>" class="btn btn-outline-primary">
                     <i class="fas fa-search me-2"></i>
                     <?= __("Esplora il catalogo") ?>
                   </a>
@@ -177,25 +183,25 @@
             <div class="card-body">
               <div class="row g-3">
                 <div class="col-md-3">
-                  <a href="/catalogo.php" class="btn btn-outline-primary w-100">
+                  <a href="<?= $legacyCatalogRoute ?>" class="btn btn-outline-primary w-100">
                     <i class="fas fa-search me-2"></i>
                     <?= __("Cerca Libri") ?>
                   </a>
                 </div>
                 <div class="col-md-3">
-                  <a href="/wishlist" class="btn btn-outline-danger w-100">
+                  <a href="<?= $wishlistRoute ?>" class="btn btn-outline-danger w-100">
                     <i class="fas fa-heart me-2"></i>
                     <?= __("I Miei Preferiti") ?>
                   </a>
                 </div>
                 <div class="col-md-3">
-                  <a href="/prenotazioni" class="btn btn-outline-info w-100">
+                  <a href="<?= $reservationsRoute ?>" class="btn btn-outline-info w-100">
                     <i class="fas fa-bookmark me-2"></i>
                     <?= __("Le Mie Prenotazioni") ?>
                   </a>
                 </div>
                 <div class="col-md-3">
-                  <a href="/profilo" class="btn btn-outline-secondary w-100">
+                  <a href="<?= $profileRoute ?>" class="btn btn-outline-secondary w-100">
                     <i class="fas fa-user me-2"></i>
                     <?= __("Il Mio Profilo") ?>
                   </a>

@@ -2,6 +2,7 @@
 use App\Support\ConfigStore;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
+$forgotPasswordRoute = route_path('forgot_password');
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -72,7 +73,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
         </div>
       <?php endif; ?>
 
-      <form method="post" action="/forgot-password" class="space-y-6">
+      <form method="post" action="<?= $forgotPasswordRoute ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
 
         <div>
@@ -108,7 +109,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
       <div class="mt-6 text-center">
         <p class="text-gray-600 dark:text-gray-400 text-sm">
           <?= __('Ricordi la password?') ?>
-          <a href="/login" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+          <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
             Accedi
           </a>
         </p>

@@ -97,6 +97,11 @@ final class ConfigStore
             ],
         ];
 
+        $localizedDefaults = self::getLocaleDefaultTexts();
+        if (!empty($localizedDefaults)) {
+            $defaults = self::mergeRecursiveDistinct($defaults, $localizedDefaults);
+        }
+
         if (is_file(self::FILE)) {
             $json = file_get_contents(self::FILE) ?: '{}';
             $stored = json_decode($json, true);
@@ -152,6 +157,59 @@ final class ConfigStore
         }
 
         return $base;
+    }
+
+    private static function getLocaleDefaultTexts(): array
+    {
+        $texts = self::loadLocaleDefaultsFile();
+        if (empty($texts)) {
+            return [];
+        }
+
+        $fallback = $texts['it_IT'] ?? [];
+        $locale = self::determineInstallationLocale();
+
+        if ($locale === 'it_IT' || !isset($texts[$locale])) {
+            return $fallback;
+        }
+
+        return self::mergeRecursiveDistinct($fallback, $texts[$locale]);
+    }
+
+    private static function loadLocaleDefaultsFile(): array
+    {
+        static $localized = null;
+        if ($localized !== null) {
+            return $localized;
+        }
+
+        $path = __DIR__ . '/../../config/default_texts.php';
+        if (is_file($path)) {
+            $localized = require $path;
+        } else {
+            $localized = [];
+        }
+
+        return $localized;
+    }
+
+    private static function determineInstallationLocale(): string
+    {
+        $envLocale = getenv('APP_LOCALE') ?: 'it_IT';
+        $normalized = self::normalizeLocale($envLocale);
+        if (!preg_match('/^[a-z]{2}_[A-Z]{2}$/', $normalized)) {
+            return 'it_IT';
+        }
+        return $normalized;
+    }
+
+    private static function normalizeLocale(string $locale): string
+    {
+        $locale = trim(str_replace('-', '_', $locale));
+        if (preg_match('/^([a-zA-Z]{2})_([a-zA-Z]{2})$/', $locale, $matches)) {
+            return strtolower($matches[1]) . '_' . strtoupper($matches[2]);
+        }
+        return $locale;
     }
 
     private static function loadDatabaseSettings(): array

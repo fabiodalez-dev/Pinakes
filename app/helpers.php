@@ -47,3 +47,16 @@ if (!function_exists('__n')) {
         return App\Support\I18n::translatePlural($singular, $plural, $count, ...$args);
     }
 }
+
+if (!function_exists('route_path')) {
+    /**
+     * Resolve a localized route path using RouteTranslator
+     *
+     * @param string $key Route key (e.g., 'catalog', 'login')
+     * @return string Localized route path starting with /
+     */
+    function route_path(string $key): string
+    {
+        return App\Support\RouteTranslator::route($key);
+    }
+}

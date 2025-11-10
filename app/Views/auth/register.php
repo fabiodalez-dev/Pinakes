@@ -2,6 +2,7 @@
 use App\Support\ConfigStore;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
+$registerRoute = route_path('register');
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -31,7 +32,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
     <!-- Registration Form -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
-      <form method="post" action="/register" class="space-y-6">
+      <form method="post" action="<?= $registerRoute ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
         
         <?php if (isset($_GET['error'])): ?>
@@ -274,7 +275,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
       <div class="mt-6 text-center">
         <p class="text-gray-600 dark:text-gray-400 text-sm">
           <?= __('Hai già un account?') ?> 
-          <a href="/login" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+          <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
             Accedi
           </a>
         </p>

@@ -6,9 +6,12 @@
  * Uses frontend layout with header and footer for consistency
  */
 
-$pageTitle = '404 - Pagina Non Trovata';
-$metaDescription = 'La pagina che stai cercando non esiste.';
+$pageTitle = '404 - ' . __('Pagina Non Trovata');
+$metaDescription = __('La pagina che stai cercando non esiste.');
 $requestedPath ??= $_SERVER['REQUEST_URI'] ?? '';
+$catalogRoute = route_path('catalog');
+$wishlistRoute = route_path('wishlist');
+$reservationsRoute = route_path('reservations');
 
 ob_start();
 ?>
@@ -221,15 +224,15 @@ ob_start();
         </div>
 
         <div class="error-404-links">
-            <a href="/catalogo" class="error-404-link">
+            <a href="<?= $catalogRoute ?>" class="error-404-link">
                 <i class="fas fa-book"></i>
                 <span><?= __('Catalogo') ?></span>
             </a>
-            <a href="/wishlist" class="error-404-link">
+            <a href="<?= $wishlistRoute ?>" class="error-404-link">
                 <i class="fas fa-heart"></i>
                 <span><?= __('Preferiti') ?></span>
             </a>
-            <a href="/prenotazioni" class="error-404-link">
+            <a href="<?= $reservationsRoute ?>" class="error-404-link">
                 <i class="fas fa-bookmark"></i>
                 <span><?= __('Prenotazioni') ?></span>
             </a>

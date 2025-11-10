@@ -14,7 +14,9 @@ if ($searchQuery) {
     $seoTitle = __("Catalogo Completo Libri - Biblioteca Digitale");
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
-$seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/catalogo';
+$catalogRoute = route_path('catalog');
+$apiCatalogRoute = route_path('api_catalog');
+$seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $catalogRoute;
 $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
 
 // Schema.org structured data
@@ -1533,7 +1535,7 @@ function syncAvailabilityActiveState() {
 function clearAllFilters() {
     // Simply redirect to catalog without any query parameters
     // This will reload the page and show all filter options
-    window.location.href = '/catalogo';
+    window.location.href = '<?= $catalogRoute ?>';
 }
 
 function removeFilter(key) {
@@ -1555,7 +1557,7 @@ function updateURL() {
     });
 
     const query = params.toString();
-    const newURL = '/catalogo' + (query ? '?' + query : '');
+    const newURL = '<?= $catalogRoute ?>' + (query ? '?' + query : '');
     window.history.replaceState({}, '', newURL);
 }
 
@@ -1640,7 +1642,7 @@ function loadBooks() {
 
     const params = new URLSearchParams(currentFilters);
 
-    fetch('/api/catalogo?' + params.toString())
+    fetch('<?= $apiCatalogRoute ?>?' + params.toString())
         .then((response) => response.json())
         .then((data) => {
             loading.style.display = 'none';

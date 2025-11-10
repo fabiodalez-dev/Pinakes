@@ -29,8 +29,29 @@ use App\Controllers\LanguageController;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminAuthMiddleware;
 use App\Support\RouteTranslator;
+use App\Support\I18n;
 
 return function (App $app): void {
+    $installationLocale = I18n::getInstallationLocale();
+    if ($installationLocale === 'en_US') {
+        $legacyRedirects = [
+            '/accedi' => RouteTranslator::route('login'),
+            '/registrati' => RouteTranslator::route('register'),
+            '/profilo' => RouteTranslator::route('profile'),
+            '/profilo/password' => RouteTranslator::route('profile_password'),
+            '/profilo/aggiorna' => RouteTranslator::route('profile_update'),
+            '/prenotazioni' => RouteTranslator::route('reservations'),
+            '/lista-desideri' => RouteTranslator::route('wishlist'),
+            '/catalogo' => RouteTranslator::route('catalog'),
+            '/catalogo.php' => RouteTranslator::route('catalog_legacy'),
+        ];
+
+        foreach ($legacyRedirects as $legacyPath => $targetPath) {
+            $app->get($legacyPath, function ($request, $response) use ($targetPath) {
+                return $response->withHeader('Location', $targetPath)->withStatus(302);
+            });
+        }
+    }
     // Supported locales for multi-language route variants
     // Content routes (book, author, publisher, genre) are registered
     // in all languages to support language switching without 404s

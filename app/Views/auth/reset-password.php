@@ -2,6 +2,7 @@
 use App\Support\ConfigStore;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
+$resetPasswordRoute = route_path('reset_password');
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -25,7 +26,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
       <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
         <i class="fas fa-key text-white text-3xl"></i>
       </div>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= __('<?= __('Resetta Password') ?>') ?></h1>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= __('Resetta Password') ?></h1>
       <p class="text-gray-600 dark:text-gray-400"><?= __('Inserisci la tua nuova password') ?></p>
     </div>
 
@@ -70,7 +71,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
                 <?= __('Ora puoi accedere con la tua nuova password.') ?>
               </p>
               <div class="mt-4">
-                <a href="/login" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                <a href="<?= route_path('login') ?>" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                   Accedi
                 </a>
               </div>
@@ -80,7 +81,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
       <?php endif; ?>
 
       <?php if (!isset($_GET['success'])): ?>
-        <form method="post" action="/reset-password" class="space-y-6">
+        <form method="post" action="<?= $resetPasswordRoute ?>" class="space-y-6">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
           <input type="hidden" name="token" value="<?php echo htmlspecialchars($token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
 

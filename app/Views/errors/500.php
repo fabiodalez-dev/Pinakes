@@ -6,8 +6,10 @@
  * Uses frontend layout with header and footer for consistency
  */
 
-$pageTitle = '500 - Errore del Server';
-$metaDescription = 'Si è verificato un errore imprevisto.';
+$pageTitle = '500 - ' . __('Errore del Server');
+$metaDescription = __('Si è verificato un errore imprevisto.');
+$catalogRoute = route_path('catalog');
+$contactRoute = route_path('contact');
 
 ob_start();
 ?>
@@ -246,11 +248,11 @@ ob_start();
         </div>
 
         <div class="error-500-links">
-            <a href="/catalogo" class="error-500-link">
+            <a href="<?= $catalogRoute ?>" class="error-500-link">
                 <i class="fas fa-book"></i>
                 <span><?= __('Catalogo') ?></span>
             </a>
-            <a href="/contatti" class="error-500-link">
+            <a href="<?= $contactRoute ?>" class="error-500-link">
                 <i class="fas fa-envelope"></i>
                 <span><?= __('Contatti') ?></span>
             </a>

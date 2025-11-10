@@ -1,4 +1,5 @@
 <?php
+$catalogRoute = route_path('catalog');
 $additional_css = "
 <style>
     .archive-hero {
@@ -573,7 +574,7 @@ function createBookUrl($book) {
                         Non sono stati trovati libri di questo genere.
                     <?php endif; ?>
                 </p>
-                <a href="/catalogo" class="btn-catalog">
+                <a href="<?= $catalogRoute ?>" class="btn-catalog">
                     <i class="fas fa-search"></i>
                     <span><?= __('Esplora Catalogo') ?></span>
                 </a>

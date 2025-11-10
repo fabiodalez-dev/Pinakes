@@ -448,11 +448,11 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                     </button>
                     <div id="user-menu-dropdown" class="absolute right-0 mt-2 w-56 sm:w-56 w-48 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50 max-w-[calc(100vw-2rem)]">
                       <div class="p-2">
-                        <a href="/profilo" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
+                        <a href="<?= route_path('profile') ?>" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-user-cog w-4 h-4"></i>
                           <span class="text-sm"><?= __("Profilo") ?></span>
                         </a>
-                        <a href="/wishlist" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
+                        <a href="<?= route_path('wishlist') ?>" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-heart w-4 h-4"></i>
                           <span class="text-sm"><?= __("Preferiti") ?></span>
                         </a>
@@ -474,14 +474,14 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                       </div>
                     </div>
                   <?php else: ?>
-                    <a href="/login" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 hidden sm:inline-flex items-center">
+                    <a href="<?= route_path('login') ?>" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 hidden sm:inline-flex items-center">
                       <i class="fas fa-sign-in-alt mr-2"></i> <?= __("Accedi") ?>
                     </a>
-                    <a href="/register" class="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 ml-2 hidden sm:inline-flex items-center">
+                    <a href="<?= route_path('register') ?>" class="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 ml-2 hidden sm:inline-flex items-center">
                       <i class="fas fa-user-plus mr-2"></i> <?= __("Registrati") ?>
                     </a>
                     <div class="sm:hidden">
-                      <a href="/login" class="p-2 rounded-xl hover:bg-gray-100"><i class="fas fa-sign-in-alt"></i></a>
+                      <a href="<?= route_path('login') ?>" class="p-2 rounded-xl hover:bg-gray-100"><i class="fas fa-sign-in-alt"></i></a>
                     </div>
                   <?php endif; ?>
                 </div>

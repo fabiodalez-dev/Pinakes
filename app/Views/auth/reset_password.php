@@ -1,3 +1,4 @@
+<?php $resetPasswordRoute = route_path('reset_password'); ?>
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
     <div class="mb-6">
@@ -18,7 +19,7 @@
       </div>
     <?php endif; ?>
 
-    <form method="post" action="/reset-password" class="space-y-4 bg-white p-6 rounded-2xl border border-gray-200 shadow">
+    <form method="post" action="<?= $resetPasswordRoute ?>" class="space-y-4 bg-white p-6 rounded-2xl border border-gray-200 shadow">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="token" value="<?php echo htmlspecialchars((string)($token ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
       <div>
@@ -30,7 +31,7 @@
         <input type="password" name="password_confirm" autocomplete="new-password" required aria-required="true" class="form-input" />
       </div>
       <div class="flex items-center justify-between">
-        <a href="/login" class="text-sm text-blue-600 hover:underline">Torna al login</a>
+        <a href="<?= route_path('login') ?>" class="text-sm text-blue-600 hover:underline">Torna al login</a>
         <button type="submit" class="btn-primary inline-flex items-center">
           <i class="fas fa-save mr-2"></i>
           <?= __('Salva') ?>
@@ -39,4 +40,3 @@
     </form>
   </div>
 </div>
-

@@ -45,6 +45,12 @@ $socialTwitter = (string)ConfigStore::get('app.social_twitter', '');
 $socialInstagram = (string)ConfigStore::get('app.social_instagram', '');
 $socialLinkedin = (string)ConfigStore::get('app.social_linkedin', '');
 $socialBluesky = (string)ConfigStore::get('app.social_bluesky', '');
+$catalogRoute = route_path('catalog');
+$reservationsRoute = route_path('reservations');
+$wishlistRoute = route_path('wishlist');
+$profileRoute = route_path('profile');
+$loginRoute = route_path('login');
+$registerRoute = route_path('register');
 
 // Helper function for generating absolute URLs
 if (!function_exists('absoluteUrl')) {
@@ -1150,7 +1156,7 @@ if (!function_exists('assetUrl')) {
                     </a>
 
                     <ul class="nav-links d-none d-md-flex">
-                        <li><a href="<?= absoluteUrl('/catalogo') ?>" class="<?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a></li>
+                        <li><a href="<?= absoluteUrl($catalogRoute) ?>" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a></li>
                     </ul>
 
                     <!-- Mobile Search Toggle -->
@@ -1163,7 +1169,7 @@ if (!function_exists('assetUrl')) {
                         <i class="fas fa-bars"></i>
                     </button>
 
-                    <form class="search-form d-none d-md-block" action="<?= absoluteUrl('/catalogo') ?>" method="get">
+                    <form class="search-form d-none d-md-block" action="<?= absoluteUrl($catalogRoute) ?>" method="get">
                         <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori...') ?>" aria-label="<?= __('Search') ?>">
                     </form>
 
@@ -1172,12 +1178,12 @@ if (!function_exists('assetUrl')) {
 
                         <?php if ($isLogged): ?>
                             <div class="d-flex align-items-center gap-2">
-                                <a class="btn btn-outline-header" href="<?= absoluteUrl('/prenotazioni') ?>">
+                                <a class="btn btn-outline-header" href="<?= absoluteUrl($reservationsRoute) ?>">
                                     <i class="fas fa-bookmark"></i>
                                     <span class="d-none d-sm-inline"><?= __('Prenotazioni') ?></span>
                                     <span id="nav-res-count" class="badge-notification d-none">0</span>
                                 </a>
-                                <a class="btn btn-outline-header" href="<?= absoluteUrl('/wishlist') ?>">
+                                <a class="btn btn-outline-header" href="<?= absoluteUrl($wishlistRoute) ?>">
                                     <i class="fas fa-heart"></i>
                                     <span class="d-none d-sm-inline"><?= __('Preferiti') ?></span>
                                 </a>
@@ -1187,19 +1193,19 @@ if (!function_exists('assetUrl')) {
                                     <span class="d-none d-md-inline"><?= __('Admin') ?></span>
                                 </a>
                                 <?php else: ?>
-                                <a class="btn btn-primary-header" href="<?= absoluteUrl('/profilo') ?>">
+                                <a class="btn btn-primary-header" href="<?= absoluteUrl($profileRoute) ?>">
                                     <i class="fas fa-user"></i>
-                                    <span class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? 'Profilo') ?></span>
+                                    <span class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
                                 </a>
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
                             <div class="d-flex align-items-center gap-2">
-                                <a class="btn btn-outline-header" href="<?= absoluteUrl('/login') ?>">
+                                <a class="btn btn-outline-header" href="<?= absoluteUrl($loginRoute) ?>">
                                     <i class="fas fa-sign-in-alt"></i>
                                     <span class="d-none d-sm-inline"><?= __('Accedi') ?></span>
                                 </a>
-                                <a class="btn btn-primary-header" href="<?= absoluteUrl('/register') ?>">
+                                <a class="btn btn-primary-header" href="<?= absoluteUrl($registerRoute) ?>">
                                     <i class="fas fa-user-plus"></i>
                                     <span class="d-none d-sm-inline"><?= __('Registrati') ?></span>
                                 </a>
@@ -1209,7 +1215,7 @@ if (!function_exists('assetUrl')) {
 
                     <!-- Mobile search container with animation -->
                     <div class="mobile-search-container d-md-none" id="mobileSearchContainer">
-                        <form class="search-form w-100" action="<?= absoluteUrl('/catalogo') ?>" method="get">
+                        <form class="search-form w-100" action="<?= absoluteUrl($catalogRoute) ?>" method="get">
                             <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>" aria-label="<?= __('Search') ?>">
                         </form>
                     </div>
@@ -1227,18 +1233,18 @@ if (!function_exists('assetUrl')) {
                     </button>
                 </div>
                 <nav class="mobile-nav">
-                    <a href="<?= absoluteUrl('/catalogo') ?>" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'], '/catalogo') !== false ? 'active' : '' ?>">
-                        <i class="fas fa-book me-2"></i>Catalogo
+                    <a href="<?= absoluteUrl($catalogRoute) ?>" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
+                        <i class="fas fa-book me-2"></i><?= __('Catalogo') ?>
                     </a>
                     <?php if ($isLogged): ?>
                     <hr class="mobile-menu-divider">
                     <a href="<?= absoluteUrl('/user/dashboard') ?>" class="mobile-nav-link">
                         <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                     </a>
-                    <a href="<?= absoluteUrl('/prenotazioni') ?>" class="mobile-nav-link">
+                    <a href="<?= absoluteUrl($reservationsRoute) ?>" class="mobile-nav-link">
                         <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                     </a>
-                    <a href="<?= absoluteUrl('/wishlist') ?>" class="mobile-nav-link">
+                    <a href="<?= absoluteUrl($wishlistRoute) ?>" class="mobile-nav-link">
                         <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                     </a>
                     <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
@@ -1246,16 +1252,16 @@ if (!function_exists('assetUrl')) {
                         <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
                     </a>
                     <?php else: ?>
-                    <a href="<?= absoluteUrl('/profilo') ?>" class="mobile-nav-link">
+                    <a href="<?= absoluteUrl($profileRoute) ?>" class="mobile-nav-link">
                         <i class="fas fa-user me-2"></i><?= __("Profilo") ?>
                     </a>
                     <?php endif; ?>
                     <?php else: ?>
                     <hr class="mobile-menu-divider">
-                    <a href="<?= absoluteUrl('/login') ?>" class="mobile-nav-link">
+                    <a href="<?= absoluteUrl($loginRoute) ?>" class="mobile-nav-link">
                         <i class="fas fa-sign-in-alt me-2"></i><?= __("Accedi") ?>
                     </a>
-                    <a href="<?= absoluteUrl('/register') ?>" class="mobile-nav-link">
+                    <a href="<?= absoluteUrl($registerRoute) ?>" class="mobile-nav-link">
                         <i class="fas fa-user-plus me-2"></i><?= __("Registrati") ?>
                     </a>
                     <?php endif; ?>
@@ -1565,7 +1571,7 @@ if (!function_exists('assetUrl')) {
 
                 // Add "View all results" link
                 html += '<div class="search-section" style="padding: 0.75rem 1rem;">' +
-                        '<a href="<?= absoluteUrl('/catalogo') ?>?search=' + encodeURIComponent(currentSearchInput.value) + '"' +
+                        '<a href="<?= absoluteUrl($catalogRoute) ?>?search=' + encodeURIComponent(currentSearchInput.value) + '"' +
                            ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; background: #f3f4f6; border-radius: 0.375rem; text-decoration: none; color: #000000; font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#e5e7eb\'" onmouseout="this.style.backgroundColor=\'#f3f4f6\'">' +
                             'Vedi tutti i risultati <i class="fas fa-arrow-right" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>' +
                         '</a>' +

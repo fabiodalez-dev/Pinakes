@@ -1,5 +1,9 @@
 <?php
 $title = __("Biblioteca Digitale - La tua biblioteca online");
+$catalogRoute = route_path('catalog');
+$legacyCatalogRoute = route_path('catalog_legacy');
+$apiCatalogRoute = route_path('api_catalog');
+$registerRoute = route_path('register');
 
 // SEO Variables are now passed from FrontendController::home()
 // No need to override them here - the controller handles all SEO logic with proper fallbacks
@@ -460,7 +464,7 @@ ob_start();
 
             <!-- Hero Search Bar -->
             <div class="hero-search-container">
-                <form class="hero-search-form search-form" action="/catalogo" method="get">
+                <form class="hero-search-form search-form" action="<?= $catalogRoute ?>" method="get">
                     <div class="hero-search-input-group">
                         <i class="fas fa-search hero-search-icon"></i>
                         <input type="search"
@@ -480,7 +484,7 @@ ob_start();
                         <i class="fas fa-book"></i>
                         <?= __("Ultimi Arrivi") ?>
                     </a>
-                    <a href="/catalogo" class="hero-quick-link">
+                    <a href="<?= $catalogRoute ?>" class="hero-quick-link">
                         <i class="fas fa-list"></i>
                         <?= __("Sfoglia Catalogo") ?>
                     </a>
@@ -581,7 +585,7 @@ ob_start();
                 <i class="fas fa-plus"></i>
                 <?= __("Carica Altri") ?>
             </button>
-            <a href="/catalogo.php" class="btn-cta">
+            <a href="<?= $legacyCatalogRoute ?>" class="btn-cta">
                 <i class="fas fa-th-large"></i>
                 <?= __("Visualizza Tutto il Catalogo") ?>
             </a>
@@ -610,7 +614,7 @@ ob_start();
                 <?php echo htmlspecialchars($homeContent['cta']['subtitle'] ?? __("Unisciti alla nostra community di lettori e scopri il piacere della lettura con la nostra piattaforma moderna."), ENT_QUOTES, 'UTF-8'); ?>
             </p>
             <div class="d-flex justify-content-center gap-3 flex-wrap">
-                <a href="<?php echo htmlspecialchars($homeContent['cta']['button_link'] ?? '/register', ENT_QUOTES, 'UTF-8'); ?>" class="btn-cta">
+                <a href="<?php echo htmlspecialchars($homeContent['cta']['button_link'] ?? $registerRoute, ENT_QUOTES, 'UTF-8'); ?>" class="btn-cta">
                     <i class="fas fa-user-plus"></i>
                     <?php echo htmlspecialchars($homeContent['cta']['button_text'] ?? __("Registrati Ora"), ENT_QUOTES, 'UTF-8'); ?>
                 </a>
@@ -655,7 +659,7 @@ function loadStats() {
     // Only load stats if elements exist
     if (!totalBooksEl || !availableBooksEl) return;
 
-    fetch('/api/catalogo')
+    fetch('<?= $apiCatalogRoute ?>')
         .then(response => response.json())
         .then(data => {
             totalBooksEl.innerHTML = data.pagination.total_books;
@@ -711,10 +715,10 @@ function loadCategories() {
     // Only load if container exists
     if (!container) return;
 
-    fetch('/api/catalogo')
+    fetch('<?= $apiCatalogRoute ?>')
         .then(response => response.json())
         .then(data => {
-            container.innerHTML = '<section class=\"py-5\" style=\"background: var(--light-bg);\"><div class=\"container\"><h2 class=\"section-title\">' + i18n.exploreByCategory + '</h2><div class=\"text-center\"><a href=\"/catalogo.php\" class=\"btn-cta btn-cta-lg\"><i class=\"fas fa-th-large me-2\"></i>' + i18n.viewAllCategories + '</a></div></div></section>';
+            container.innerHTML = '<section class=\"py-5\" style=\"background: var(--light-bg);\"><div class=\"container\"><h2 class=\"section-title\">' + i18n.exploreByCategory + '</h2><div class=\"text-center\"><a href=\"<?= $legacyCatalogRoute ?>\" class=\"btn-cta btn-cta-lg\"><i class=\"fas fa-th-large me-2\"></i>' + i18n.viewAllCategories + '</a></div></div></section>';
         })
         .catch(error => {
             console.error('Error loading categories:', error);

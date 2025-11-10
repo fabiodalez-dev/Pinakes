@@ -2,6 +2,9 @@
 use App\Support\ConfigStore;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
+$loginRoute = route_path('login');
+$registerRoute = route_path('register');
+$forgotPasswordRoute = route_path('forgot_password');
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -31,7 +34,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
     <!-- Login Form -->
     <div class="bg-white rounded-2xl p-8 border border-gray-200">
-      <form method="post" action="/login" class="space-y-6">
+      <form method="post" action="<?= $loginRoute ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
         <?php if (!empty($return_url ?? '')): ?>
           <input type="hidden" name="return_url" value="<?php echo htmlspecialchars($return_url ?? '', ENT_QUOTES, 'UTF-8'); ?>">
@@ -129,7 +132,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
               <?= __('Ricordami') ?>
             </label>
           </div>
-          <a href="/forgot-password" class="text-sm font-medium text-gray-600 hover:text-black transition-colors whitespace-nowrap">
+          <a href="<?= $forgotPasswordRoute ?>" class="text-sm font-medium text-gray-600 hover:text-black transition-colors whitespace-nowrap">
             <?= __('Password') ?> dimenticata?
           </a>
         </div>
@@ -152,7 +155,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
       <div class="mt-6 text-center">
         <p class="text-gray-600 text-sm">
           <?= __('Non hai un account?') ?>
-          <a href="/register" class="font-medium text-gray-600 hover:text-black transition-colors">
+          <a href="<?= $registerRoute ?>" class="font-medium text-gray-600 hover:text-black transition-colors">
             <?= __('Registrati') ?>
           </a>
         </p>
@@ -196,7 +199,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 
         // Se l'utente è stato attivo negli ultimi 5 minuti, refresh del token
         if (minutesInactive < 5) {
-            fetch('/login', {
+            fetch('<?= $loginRoute ?>', {
                 method: 'GET',
                 credentials: 'same-origin'
             })

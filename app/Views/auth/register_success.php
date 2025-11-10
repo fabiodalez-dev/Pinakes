@@ -37,7 +37,7 @@
         </p>
         <div class="space-y-4">
           <a
-            href="/login"
+            href="<?= route_path('login') ?>"
             class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center"
           >
             <i class="fas fa-sign-in-alt mr-2"></i>

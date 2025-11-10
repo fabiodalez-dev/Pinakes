@@ -152,19 +152,20 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
         <body>
             <div class="installer-container">
                 <div class="installer-header">
-                    <h1>✓ ' . __("Applicazione Già Installata") . '</h1>
+                    <h1>' . __("Applicazione già installata") . '</h1>
+                    <p>' . __("L'applicazione risulta correttamente configurata.") . '</p>
                 </div>
                 <div class="installer-body">
                     <div class="alert alert-success">
-                        ' . __("L'applicazione è stata installata correttamente e tutte le verifiche sono andate a buon fine.") . '
+                        ' . __("L'installazione è stata completata correttamente e tutte le verifiche sono andate a buon fine.") . '
                     </div>
-                    <p class="mt-4">' . __("Se desideri reinstallare, puoi farlo in due modi:") . '</p>
+                    <p class="mt-4">' . __("Se desideri reinstallare puoi:") . '</p>
                     <ol>
-                        <li>' . __("Elimina il file .installed dalla root del progetto e riprova") . '</li>
-                        <li>' . __("Accedi a /installer/?force=1 per forzare una reinstallazione") . '</li>
+                        <li>' . __("Eliminare il file .installed dalla root del progetto e rieseguire l'installer") . '</li>
+                        <li>' . __("Oppure accedere a /installer/?force=1 per forzare una nuova procedura") . '</li>
                     </ol>
                     <p class="text-center mt-4">
-                        <a href="/" class="btn btn-primary">' . __("Vai all'Applicazione") . '</a>
+                        <a href="/" class="btn btn-primary">' . __("Vai all'applicazione") . '</a>
                     </p>
                 </div>
             </div>
@@ -221,13 +222,12 @@ function renderHeader($currentStep, $stepTitle) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title><?= htmlspecialchars($stepTitle) ?> - <?= __("Installer Sistema Biblioteca") ?></title>
         <link rel="stylesheet" href="/installer/assets/style.css">
-        <link rel="stylesheet" href="/assets/vendor.css">
     </head>
     <body>
         <div class="installer-container">
             <div class="installer-header">
-                <h1>📚 <?= __("Sistema Pinakes") ?></h1>
-                <p><?= __("Installazione Guidata") ?></p>
+                <h1><?= __("Sistema Pinakes - Installazione") ?></h1>
+                <p><?= __("Configurazione guidata in pochi passaggi.") ?></p>
             </div>
 
             <div class="installer-progress">

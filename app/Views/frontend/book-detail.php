@@ -39,6 +39,9 @@ if ($bookTitle !== '') {
 if (!empty($authorNames)) {
     $coverAltParts[] = __('di %s', implode(', ', $authorNames));
 }
+$catalogRoute = route_path('catalog');
+$legacyCatalogRoute = route_path('catalog_legacy');
+$loginRoute = route_path('login');
 if ($bookPublisher !== '') {
     $coverAltParts[] = __('Editore %s', $bookPublisher);
 }
@@ -103,7 +106,7 @@ $breadcrumbSchema = [
             "@type" => "ListItem",
             "position" => 2,
             "name" => __("Catalogo"),
-            "item" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/catalogo'
+            "item" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $catalogRoute
         ]
     ]
 ];
@@ -1383,7 +1386,7 @@ ob_start();
 
                     <?php if (!empty($book['genere'])): ?>
                     <div class="genre-tags">
-                        <a href="/catalogo?genere=<?= urlencode(html_entity_decode($book['genere'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
+                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($book['genere'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
                             <i class="fas fa-tags me-1"></i><?= htmlspecialchars($bookGenre) ?>
                         </a>
                     </div>
@@ -1407,7 +1410,7 @@ ob_start();
                                     <a href="/" class="text-dark"><?= __("Home") ?></a>
                                 </li>
                                 <li class="breadcrumb-item">
-                                    <a href="/catalogo.php" class="text-dark-50"><?= __("Catalogo") ?></a>
+                                    <a href="<?= $legacyCatalogRoute ?>" class="text-dark-50"><?= __("Catalogo") ?></a>
                                 </li>
                                 <li class="breadcrumb-item active text-dark" aria-current="page">
                                     <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
@@ -1440,7 +1443,7 @@ ob_start();
                         <i class="fas fa-heart me-2"></i><span><?= __("Aggiungi ai Preferiti") ?></span>
                       </button>
                     <?php else: ?>
-                      <a href="/login" class="btn btn-light btn-lg btn-fav-custom">
+                      <a href="<?= $loginRoute ?>" class="btn btn-light btn-lg btn-fav-custom">
                         <i class="fas fa-heart me-2"></i><?= __("Accedi per aggiungere ai Preferiti") ?>
                       </a>
                     <?php endif; ?>
@@ -1939,12 +1942,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           }).then((result) => {
             if (result.isConfirmed) {
-              window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+              window.location.href = '<?= $loginRoute ?>?redirect=' + encodeURIComponent(window.location.pathname);
             }
           });
         } else {
           if (confirm(__('Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?'))) {
-            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            window.location.href = '<?= $loginRoute ?>?redirect=' + encodeURIComponent(window.location.pathname);
           }
         }
         return;

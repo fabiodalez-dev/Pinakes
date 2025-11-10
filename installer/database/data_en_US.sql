@@ -1624,5 +1624,5 @@ INSERT INTO `email_templates` VALUES (18,'wishlist_book_available','it_IT','📖
 
 -- Seed data for languages table
 INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
-(1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 1, 1, NULL, 2015, 2015, 100.00),
-(2, 'en_US', 'English', 'English', '🇬🇧', 0, 1, 'locale/en_US.json', 2015, 1988, 98.66);
+(1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 2015, 2015, 100.00),
+(2, 'en_US', 'English', 'English', '🇬🇧', 1, 1, 'locale/en_US.json', 2015, 1988, 98.66);
