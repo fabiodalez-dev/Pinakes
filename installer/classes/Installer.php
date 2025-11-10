@@ -190,9 +190,10 @@ class Installer {
         // Try locale-specific data file first (data_it_IT.sql or data_en_US.sql)
         $dataFile = $installerDir . '/database/data_' . $fullLocale . '.sql';
 
-        // Fallback to generic data.sql if locale-specific file doesn't exist
+        // If locale-specific file does not exist, do not fallback to generic data.sql
+        // This enforces explicit language-specific seed files only.
         if (!file_exists($dataFile)) {
-            $dataFile = $installerDir . '/database/data.sql';
+            throw new Exception("File dati iniziali per la lingua selezionata non trovato: " . basename($dataFile));
         }
 
         // Data file is optional - if missing, skip
