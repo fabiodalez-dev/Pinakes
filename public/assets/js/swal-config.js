@@ -4,8 +4,13 @@
  */
 
 const __swal = (typeof window !== 'undefined' && typeof window.__ === 'function')
-  ? (key, ...args) => window.__(key, ...args)
-  : (key) => key;
+  ? (key, fallback = key, ...args) => {
+      const translated = window.__(key, ...args);
+      return translated === undefined || translated === null || translated === key
+        ? fallback
+        : translated;
+    }
+  : (key, fallback = key) => fallback;
 
 // Configurazione default per tutti gli alert
 const SwalConfig = {
@@ -25,8 +30,8 @@ const SwalConfig = {
   },
 
   // Pulsanti
-  confirmButtonText: __swal('Conferma'),
-  cancelButtonText: __swal('Annulla'),
+  confirmButtonText: __swal('Conferma', 'Confirm'),
+  cancelButtonText: __swal('Annulla', 'Cancel'),
 
   // Animazioni
   showClass: {
@@ -53,13 +58,13 @@ window.SwalApp = {
    */
   confirmDelete: function(options = {}) {
     return Swal.fire({
-      title: options.title || __swal('Sei sicuro?'),
-      text: options.text || __swal('Questa azione non può essere annullata!'),
+      title: options.title || __swal('Sei sicuro?', 'Are you sure?'),
+      text: options.text || __swal('Questa azione non può essere annullata!', 'This action cannot be undone!'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626', // Rosso per delete
-      confirmButtonText: options.confirmText || __swal('Elimina'),
-      cancelButtonText: __swal('Annulla'),
+      confirmButtonText: options.confirmText || __swal('Elimina', 'Delete'),
+      cancelButtonText: __swal('Annulla', 'Cancel'),
       reverseButtons: true
     });
   },
@@ -70,10 +75,10 @@ window.SwalApp = {
   success: function(title, text) {
     return Swal.fire({
       icon: 'success',
-      title: title || __swal('Successo!'),
+      title: title || __swal('Successo!', 'Success!'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: __swal('OK')
+      confirmButtonText: __swal('OK', 'OK')
     });
   },
 
@@ -83,10 +88,10 @@ window.SwalApp = {
   error: function(title, text) {
     return Swal.fire({
       icon: 'error',
-      title: title || __swal('Errore!'),
+      title: title || __swal('Errore!', 'Error!'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: __swal('OK')
+      confirmButtonText: __swal('OK', 'OK')
     });
   },
 
@@ -96,10 +101,10 @@ window.SwalApp = {
   info: function(title, text) {
     return Swal.fire({
       icon: 'info',
-      title: title || __swal('Informazione'),
+      title: title || __swal('Informazione', 'Information'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: __swal('OK')
+      confirmButtonText: __swal('OK', 'OK')
     });
   },
 
@@ -109,10 +114,10 @@ window.SwalApp = {
   warning: function(title, text) {
     return Swal.fire({
       icon: 'warning',
-      title: title || __swal('Attenzione!'),
+      title: title || __swal('Attenzione!', 'Warning!'),
       text: text,
       confirmButtonColor: '#111827',
-      confirmButtonText: __swal('OK')
+      confirmButtonText: __swal('OK', 'OK')
     });
   },
 
@@ -121,15 +126,15 @@ window.SwalApp = {
    */
   confirm: function(options = {}) {
     return Swal.fire({
-      title: options.title || __swal('Confermi?'),
+      title: options.title || __swal('Confermi?', 'Confirm?'),
       text: options.text,
       html: options.html,
       icon: options.icon || 'question',
       showCancelButton: true,
       confirmButtonColor: '#111827',
       cancelButtonColor: '#9ca3af',
-      confirmButtonText: options.confirmText || __swal('Conferma'),
-      cancelButtonText: __swal('Annulla'),
+      confirmButtonText: options.confirmText || __swal('Conferma', 'Confirm'),
+      cancelButtonText: __swal('Annulla', 'Cancel'),
       reverseButtons: true
     });
   },
@@ -152,7 +157,7 @@ window.SwalApp = {
 
     return Toast.fire({
       icon: options.icon || 'success',
-      title: options.title || __swal('Operazione completata')
+      title: options.title || __swal('Operazione completata', 'Operation completed')
     });
   }
 };
