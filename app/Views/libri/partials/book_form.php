@@ -563,6 +563,15 @@ const bookFormI18n = {
     searchError: __("Errore nella ricerca")
 };
 
+const bookFormMessages = {
+    uploadReady: <?= json_encode(__('File "%s" pronto per l\'upload')) ?>,
+    authorAlreadySelected: <?= json_encode(__('Autore "%s" è già selezionato')) ?>,
+    authorReady: <?= json_encode(__('Autore "%s" pronto per essere creato')) ?>,
+    publisherSelected: <?= json_encode(__('Editore "%s" selezionato')) ?>,
+    publisherReady: <?= json_encode(__('Editore "%s" pronto per essere creato')) ?>,
+    publisherPlaceholder: <?= json_encode(__('Cerca editore esistente o inserisci nuovo...')) ?>
+};
+
 // Global variables
 let authorsChoice = null;
 let uppy = null;
@@ -643,7 +652,7 @@ function initializeUppy() {
             Swal.fire({
                 icon: 'success',
                 title: __("Immagine Caricata!"),
-                text: `File "${file.name}" pronto per l'upload`,
+                text: bookFormMessages.uploadReady.replace('%s', file.name),
                 timer: 2000,
                 showConfirmButton: false
             });
@@ -840,7 +849,7 @@ function initializeChoicesJS() {
                 if (window.Toast) {
                     window.Toast.fire({
                         icon: 'info',
-                        title: `Autore "${normalizedLabel}" è già selezionato`
+                        title: bookFormMessages.authorAlreadySelected.replace('%s', normalizedLabel)
                     });
                 }
                 return;
@@ -860,7 +869,7 @@ function initializeChoicesJS() {
                 if (window.Toast) {
                     window.Toast.fire({
                         icon: 'info',
-                        title: `Autore "${normalizedLabel}" pronto per essere creato`
+                        title: bookFormMessages.authorReady.replace('%s', normalizedLabel)
                     });
                 }
             } catch (err) {
@@ -1194,7 +1203,7 @@ function initializeAutocomplete() {
             } else {
                 editoreInput.value = currentValue;
             }
-            editoreInput.placeholder = 'Cerca editore esistente o inserisci nuovo...';
+            editoreInput.placeholder = bookFormMessages.publisherPlaceholder;
             editoreInput.focus();
         }
     };
@@ -1279,7 +1288,7 @@ function initializeAutocomplete() {
             if (editoreInput) {
                 editoreInput.disabled = false;
                 editoreInput.value = '';
-                editoreInput.placeholder = 'Cerca editore esistente o inserisci nuovo...';
+                editoreInput.placeholder = bookFormMessages.publisherPlaceholder;
                 editoreInput.focus();
             }
         });
@@ -1297,7 +1306,7 @@ function initializeAutocomplete() {
             if (window.Toast) {
                 window.Toast.fire({
                     icon: 'success',
-                    title: `Editore "${item.label}" selezionato`
+                    title: bookFormMessages.publisherSelected.replace('%s', item.label)
                 });
             }
         },
@@ -1313,7 +1322,7 @@ function initializeAutocomplete() {
             if (window.Toast) {
                 window.Toast.fire({
                     icon: 'info',
-                    title: `Editore "${value}" pronto per essere creato`
+                    title: bookFormMessages.publisherReady.replace('%s', value)
                 });
             }
         }

@@ -1145,7 +1145,7 @@ class LibriController
         }
 
         // Barcode data
-        $barcodeData = $libro['isbn13'] ?? $libro['ean'] ?? $libro['isbn10'] ?? '';
+        $barcodePayload = $this->prepareBarcodePayload($libro, $libro['isbn13'] ?? $libro['ean'] ?? $libro['isbn10'] ?? '');
 
         // Position text
         $positionText = '';
@@ -1157,10 +1157,10 @@ class LibriController
 
         if ($isPortrait) {
             // PORTRAIT LAYOUT (vertical label - most common for book spines)
-            $this->renderPortraitLabel($pdf, $appName, $libro, $autoriStr, $collocazione, $barcodeData, $positionText, $availableWidth, $availableHeight, $margin);
+            $this->renderPortraitLabel($pdf, $appName, $libro, $autoriStr, $collocazione, $barcodePayload, $positionText, $availableWidth, $availableHeight, $margin);
         } else {
             // LANDSCAPE LAYOUT (horizontal label - for larger internal labels)
-            $this->renderLandscapeLabel($pdf, $appName, $libro, $autoriStr, $collocazione, $barcodeData, $positionText, $availableWidth, $availableHeight, $margin);
+            $this->renderLandscapeLabel($pdf, $appName, $libro, $autoriStr, $collocazione, $barcodePayload, $positionText, $availableWidth, $availableHeight, $margin);
         }
 
         // Output PDF
@@ -1176,7 +1176,7 @@ class LibriController
      * Render portrait (vertical) label layout
      * Optimized for narrow spine labels like 25x38mm, 25x40mm, 34x48mm
      */
-    private function renderPortraitLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, string $barcodeData, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
+    private function renderPortraitLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
     {
         // Calculate font sizes proportional to label width
         $fontSizeApp = max(4, min(7, $availableWidth * 0.25));
@@ -1209,7 +1209,7 @@ class LibriController
         }
 
         // Barcode
-        $includeBarcode = !empty($barcodeData);
+        $includeBarcode = !empty($barcode['value']);
         $barcodeHeight = 0;
         if ($includeBarcode) {
             $barcodeHeight = min(8, $availableHeight * 0.20);
@@ -1254,7 +1254,7 @@ class LibriController
             $barcodeWidth = $availableWidth * 0.85;
             $barcodeX = $margin + (($availableWidth - $barcodeWidth) / 2);
             $currentY += 1;
-            $pdf->write1DBarcode($barcodeData, 'EAN13', $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.3, ['stretch' => true, 'fitwidth' => true]);
+            $pdf->write1DBarcode($barcode['value'], $barcode['type'], $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.3, ['stretch' => true, 'fitwidth' => true]);
             $currentY += $barcodeHeight + 1;
         }
 
@@ -1271,7 +1271,7 @@ class LibriController
      * Render landscape (horizontal) label layout
      * Optimized for larger labels like 70x36mm, 50x25mm, 52x30mm
      */
-    private function renderLandscapeLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, string $barcodeData, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
+    private function renderLandscapeLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
     {
         // Calculate font sizes proportional to label height
         $fontSizeApp = max(6, min(10, $availableHeight * 0.25));
@@ -1312,7 +1312,7 @@ class LibriController
         }
 
         // Barcode
-        $includeBarcode = !empty($barcodeData);
+        $includeBarcode = !empty($barcode['value']);
         $barcodeHeight = 0;
         if ($includeBarcode) {
             $barcodeHeight = min(10, $availableHeight * 0.30);
@@ -1363,7 +1363,7 @@ class LibriController
             $barcodeWidth = min($availableWidth * 0.65, 44);
             $barcodeX = $margin + (($availableWidth - $barcodeWidth) / 2);
             $currentY += 0.5;
-            $pdf->write1DBarcode($barcodeData, 'EAN13', $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.4, ['stretch' => true]);
+            $pdf->write1DBarcode($barcode['value'], $barcode['type'], $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.4, ['stretch' => true]);
             $currentY += $barcodeHeight + 0.5;
         }
 
@@ -1381,6 +1381,46 @@ class LibriController
             $pdf->SetXY($margin, $currentY);
             $pdf->Cell($availableWidth, 4, $collocazione, 0, 0, 'C');
         }
+    }
+
+    private function prepareBarcodePayload(array $libro, string $rawValue): array
+    {
+        $normalized = strtoupper(trim($rawValue));
+        $digits = preg_replace('/[^0-9]/', '', $normalized);
+
+        if ($digits && preg_match('/^\d{13}$/', $digits)) {
+            return ['value' => $digits, 'type' => 'EAN13'];
+        }
+
+        if ($digits && preg_match('/^\d{12}$/', $digits)) {
+            return ['value' => $digits . $this->calculateEan13CheckDigit($digits), 'type' => 'EAN13'];
+        }
+
+        // Convert ISBN-10 (with possible X) to EAN-13 by prefixing 978 and recomputing the check digit
+        if ($normalized && preg_match('/^\d{9}[\dX]$/i', $normalized)) {
+            $isbnDigits = substr($normalized, 0, 9); // drop ISBN-10 check digit
+            $base = '978' . $isbnDigits;
+            return ['value' => $base . $this->calculateEan13CheckDigit($base), 'type' => 'EAN13'];
+        }
+
+        if ($digits && preg_match('/^\d{8}$/', $digits)) {
+            return ['value' => $digits, 'type' => 'EAN8'];
+        }
+
+        $fallback = 'LIB-' . str_pad((string)($libro['id'] ?? 0), 6, '0', STR_PAD_LEFT);
+        return ['value' => $fallback, 'type' => 'C128'];
+    }
+
+    private function calculateEan13CheckDigit(string $digits): int
+    {
+        $sum = 0;
+        $length = strlen($digits);
+        for ($i = 0; $i < $length; $i++) {
+            $num = (int)$digits[$i];
+            $sum += ($i % 2 === 0) ? $num : $num * 3;
+        }
+        $mod = $sum % 10;
+        return $mod === 0 ? 0 : 10 - $mod;
     }
 
     /**

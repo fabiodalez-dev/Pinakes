@@ -1,11 +1,12 @@
 <?php
 use App\Support\ConfigStore;
+use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 $resetPasswordRoute = route_path('reset_password');
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?= substr(I18n::getLocale(), 0, 2) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -38,19 +39,19 @@ $resetPasswordRoute = route_path('reset_password');
             <i class="fas fa-exclamation-circle text-red-500 dark:text-red-400 mr-3"></i>
             <div class="text-red-700 dark:text-red-300 text-sm">
               <?php if ($_GET['error'] === 'invalid_token'): ?>
-                Link di reset non valido o scaduto
+                <?= __('Link di reset non valido o scaduto') ?>
               <?php elseif ($_GET['error'] === 'token_expired'): ?>
-                Questo link di reset è scaduto. Richiedi uno nuovo
+                <?= __('Questo link di reset è scaduto. Richiedi uno nuovo') ?>
               <?php elseif ($_GET['error'] === 'csrf'): ?>
-                Errore di sicurezza. Aggiorna la pagina e riprova
+                <?= __('Errore di sicurezza. Aggiorna la pagina e riprova') ?>
               <?php elseif ($_GET['error'] === 'password_mismatch'): ?>
-                Le password non coincidono
+                <?= __('Le password non coincidono') ?>
               <?php elseif ($_GET['error'] === 'weak_password'): ?>
-                La password deve contenere almeno 8 caratteri, lettere maiuscole, minuscole e numeri
+                <?= __('La password deve contenere almeno 8 caratteri, lettere maiuscole, minuscole e numeri') ?>
               <?php elseif ($_GET['error'] === 'missing_fields'): ?>
-                Compila tutti i campi richiesti
+                <?= __('Compila tutti i campi richiesti') ?>
               <?php else: ?>
-                Si è verificato un errore. Riprova
+                <?= __('Si è verificato un errore. Riprova') ?>
               <?php endif; ?>
             </div>
           </div>
@@ -72,7 +73,7 @@ $resetPasswordRoute = route_path('reset_password');
               </p>
               <div class="mt-4">
                 <a href="<?= route_path('login') ?>" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-                  Accedi
+                  <?= __('Accedi') ?>
                 </a>
               </div>
             </div>
@@ -148,14 +149,14 @@ $resetPasswordRoute = route_path('reset_password');
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
         <a href="/privacy-policy" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-          Privacy Policy
+          <?= __('Privacy Policy') ?>
         </a>
         <a href="/contatti" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-          Contatti
+          <?= __('Contatti') ?>
         </a>
       </div>
       <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
-        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. Tutti i diritti riservati.
+        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>
   </div>

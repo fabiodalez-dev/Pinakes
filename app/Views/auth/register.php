@@ -1,15 +1,16 @@
 <?php
 use App\Support\ConfigStore;
+use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 $registerRoute = route_path('register');
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?= substr(I18n::getLocale(), 0, 2) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrazione - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
+    <title><?= __('Registrazione') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     
     <link href="/assets/vendor.css" rel="stylesheet">
     <link href="/assets/main.css" rel="stylesheet">
@@ -49,7 +50,7 @@ $registerRoute = route_path('register');
                 <?php elseif ($_GET['error'] === 'email_exists'): ?>
                   <?= __('Email già registrata') ?>
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
-                  Compila tutti i campi richiesti
+                  <?= __('Compila tutti i campi richiesti') ?>
                 <?php else: ?>
                   <?= __('Errore durante la registrazione') ?>
                 <?php endif; ?>
@@ -288,12 +289,12 @@ $registerRoute = route_path('register');
         <a href="/privacy-policy" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
           Privacy Policy
         </a>
-        <a href="/contatti" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-          Contatti
+                <a href="/contatti" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+          <?= __('Contatti') ?>
         </a>
       </div>
       <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
-        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. Tutti i diritti riservati.
+        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>
   </div>

@@ -1,15 +1,16 @@
 <?php
 use App\Support\ConfigStore;
+use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 $forgotPasswordRoute = route_path('forgot_password');
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?= substr(I18n::getLocale(), 0, 2) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recupera Password - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
+    <title><?= __('Recupera Password') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     
     <link href="/assets/vendor.css" rel="stylesheet">
     <link href="/assets/main.css" rel="stylesheet">
@@ -38,17 +39,17 @@ $forgotPasswordRoute = route_path('forgot_password');
             <i class="fas fa-exclamation-circle text-red-500 dark:text-red-400 mr-3"></i>
             <div class="text-red-700 dark:text-red-300 text-sm">
               <?php if ($_GET['error'] === 'email_not_found'): ?>
-                Email non trovata nel nostro sistema
+                <?= __('Email non trovata nel nostro sistema') ?>
               <?php elseif ($_GET['error'] === 'csrf'): ?>
-                Errore di sicurezza. Aggiorna la pagina e riprova
+                <?= __('Errore di sicurezza. Aggiorna la pagina e riprova') ?>
               <?php elseif ($_GET['error'] === 'invalid_email'): ?>
-                Email non valida. Verifica il formato
+                <?= __('Email non valida. Verifica il formato') ?>
               <?php elseif ($_GET['error'] === 'email_error'): ?>
-                Errore durante l'invio dell'email. Riprova più tardi
+                <?= __('Errore durante l\'invio dell\'email. Riprova più tardi') ?>
               <?php elseif ($_GET['error'] === 'rate_limit'): ?>
-                Troppi tentativi. Attendi qualche minuto prima di riprovare
+                <?= __('Troppi tentativi. Attendi qualche minuto prima di riprovare') ?>
               <?php else: ?>
-                Si è verificato un errore. Riprova
+                <?= __('Si è verificato un errore. Riprova') ?>
               <?php endif; ?>
             </div>
           </div>
@@ -110,7 +111,7 @@ $forgotPasswordRoute = route_path('forgot_password');
         <p class="text-gray-600 dark:text-gray-400 text-sm">
           <?= __('Ricordi la password?') ?>
           <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
-            Accedi
+            <?= __('Accedi') ?>
           </a>
         </p>
       </div>
@@ -120,14 +121,14 @@ $forgotPasswordRoute = route_path('forgot_password');
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
         <a href="/privacy-policy" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-          Privacy Policy
+          <?= __('Privacy Policy') ?>
         </a>
         <a href="/contatti" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-          Contatti
+          <?= __('Contatti') ?>
         </a>
       </div>
       <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
-        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. Tutti i diritti riservati.
+        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>
   </div>

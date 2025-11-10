@@ -869,7 +869,7 @@ if (!function_exists('assetUrl')) {
                     <h5>Menu</h5>
                     <ul class="list-unstyled">
                         <li><a href="/chi-siamo">Chi Siamo</a></li>
-                        <li><a href="/contatti">Contatti</a></li>
+                        <li><a href="/contatti"><?= __('Contatti') ?></a></li>
                         <li><a href="/privacy-policy">Privacy Policy</a></li>
                         <li><a href="/cookies">Cookies</a></li>
                     </ul>

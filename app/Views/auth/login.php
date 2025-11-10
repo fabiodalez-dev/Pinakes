@@ -1,5 +1,6 @@
 <?php
 use App\Support\ConfigStore;
+use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
 $loginRoute = route_path('login');
@@ -7,11 +8,11 @@ $registerRoute = route_path('register');
 $forgotPasswordRoute = route_path('forgot_password');
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?= substr(I18n::getLocale(), 0, 2) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accesso - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
+    <title><?= __('Accesso') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     
     <link href="/assets/vendor.css" rel="stylesheet">
     <link href="/assets/main.css" rel="stylesheet">
@@ -133,7 +134,7 @@ $forgotPasswordRoute = route_path('forgot_password');
             </label>
           </div>
           <a href="<?= $forgotPasswordRoute ?>" class="text-sm font-medium text-gray-600 hover:text-black transition-colors whitespace-nowrap">
-            <?= __('Password') ?> dimenticata?
+            <?= __('Password dimenticata?') ?>
           </a>
         </div>
 
@@ -166,14 +167,14 @@ $forgotPasswordRoute = route_path('forgot_password');
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
         <a href="/privacy-policy" class="text-gray-500 hover:text-gray-700 transition-colors">
-          Privacy Policy
+          <?= __('Privacy Policy') ?>
         </a>
         <a href="/contatti" class="text-gray-500 hover:text-gray-700 transition-colors">
-          Contatti
+          <?= __('Contatti') ?>
         </a>
       </div>
       <p class="mt-4 text-xs text-gray-500">
-        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. Tutti i diritti riservati.
+        &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>
   </div>
