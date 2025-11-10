@@ -1448,11 +1448,15 @@ $i18nTranslations = [
     'errore_caricamento' => __('Errore nel caricamento. Riprova.')
 ];
 $i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$catalogRouteJs = json_encode($catalogRoute, JSON_UNESCAPED_SLASHES);
+$apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES);
 
 $additional_js = <<<JS
 <script>
 // Translations object (PHP-rendered for JavaScript)
 const i18n = {$i18nJson};
+const CATALOG_ROUTE = {$catalogRouteJs};
+const API_CATALOG_ROUTE = {$apiCatalogRouteJs};
 
 let currentFilters = {};
 let searchTimeout;
@@ -1535,7 +1539,7 @@ function syncAvailabilityActiveState() {
 function clearAllFilters() {
     // Simply redirect to catalog without any query parameters
     // This will reload the page and show all filter options
-    window.location.href = '<?= $catalogRoute ?>';
+    window.location.href = CATALOG_ROUTE;
 }
 
 function removeFilter(key) {
@@ -1557,7 +1561,7 @@ function updateURL() {
     });
 
     const query = params.toString();
-    const newURL = '<?= $catalogRoute ?>' + (query ? '?' + query : '');
+    const newURL = CATALOG_ROUTE + (query ? '?' + query : '');
     window.history.replaceState({}, '', newURL);
 }
 
@@ -1642,7 +1646,7 @@ function loadBooks() {
 
     const params = new URLSearchParams(currentFilters);
 
-    fetch('<?= $apiCatalogRoute ?>?' + params.toString())
+    fetch(API_CATALOG_ROUTE + '?' + params.toString())
         .then((response) => response.json())
         .then((data) => {
             loading.style.display = 'none';

@@ -3,6 +3,7 @@ $title = __("Biblioteca Digitale - La tua biblioteca online");
 $catalogRoute = route_path('catalog');
 $legacyCatalogRoute = route_path('catalog_legacy');
 $apiCatalogRoute = route_path('api_catalog');
+$apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES);
 $registerRoute = route_path('register');
 
 // SEO Variables are now passed from FrontendController::home()
@@ -643,6 +644,7 @@ const i18n = {
 
 let currentLatestPage = 1;
 let hasMoreLatestBooks = true;
+const API_CATALOG_ROUTE = {$apiCatalogRouteJs};
 
 // Load initial content
 document.addEventListener('DOMContentLoaded', function() {
@@ -659,7 +661,7 @@ function loadStats() {
     // Only load stats if elements exist
     if (!totalBooksEl || !availableBooksEl) return;
 
-    fetch('<?= $apiCatalogRoute ?>')
+    fetch(API_CATALOG_ROUTE)
         .then(response => response.json())
         .then(data => {
             totalBooksEl.innerHTML = data.pagination.total_books;
@@ -715,7 +717,7 @@ function loadCategories() {
     // Only load if container exists
     if (!container) return;
 
-    fetch('<?= $apiCatalogRoute ?>')
+    fetch(API_CATALOG_ROUTE)
         .then(response => response.json())
         .then(data => {
             container.innerHTML = '<section class=\"py-5\" style=\"background: var(--light-bg);\"><div class=\"container\"><h2 class=\"section-title\">' + i18n.exploreByCategory + '</h2><div class=\"text-center\"><a href=\"<?= $legacyCatalogRoute ?>\" class=\"btn-cta btn-cta-lg\"><i class=\"fas fa-th-large me-2\"></i>' + i18n.viewAllCategories + '</a></div></div></section>';
