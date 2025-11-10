@@ -243,6 +243,12 @@ body {
     text-align: center;
 }
 
+.btn-lg {
+    min-width: 250px;
+    padding: 15px 30px;
+    font-size: 16px;
+}
+
 .btn-primary {
     background: #16a34a;
     color: white;
@@ -373,6 +379,47 @@ body {
 
 .text-center {
     text-align: center;
+}
+
+/* Language selector cards (Step 0) */
+
+.language-option {
+    cursor: pointer;
+    padding: 25px;
+    border: 3px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    transition: all 0.2s;
+    display: block;
+}
+
+.language-option:hover {
+    border-color: #2563eb;
+    background: #f9fafb;
+}
+
+.language-option .language-check {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.language-option.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.language-option.selected .language-check {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #ffffff;
 }
 
 .mt-4 {
