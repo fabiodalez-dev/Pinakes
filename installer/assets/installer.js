@@ -3,6 +3,11 @@
  */
 
 // Test database connection (AJAX)
+function getInstallerTranslation(key, fallback) {
+    const dict = window.installerTranslations || {};
+    return dict[key] || fallback;
+}
+
 function testDatabaseConnection() {
     const btn = document.getElementById('test-connection-btn');
     const result = document.getElementById('connection-result');
@@ -10,7 +15,7 @@ function testDatabaseConnection() {
     if (!btn || !result) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Testing...';
+    btn.innerHTML = `<span class="spinner"></span> ${getInstallerTranslation('testing', 'Testing...')}`;
 
     const formData = new FormData();
     formData.append('action', 'test_connection');
@@ -29,23 +34,23 @@ function testDatabaseConnection() {
     .then(data => {
         if (data.success) {
             result.className = 'alert alert-success';
-            result.textContent = '✓ Connessione riuscita! Database è vuoto e pronto per l\'installazione.';
+            result.textContent = getInstallerTranslation('testSuccess', '✓ Connection successful! Database is empty and ready for installation.');
             document.getElementById('continue-btn').disabled = false;
         } else {
             result.className = 'alert alert-error';
-            result.textContent = '✗ ' + (data.error || 'Connessione fallita');
+            result.textContent = '✗ ' + (data.error || getInstallerTranslation('testFailure', 'Connection failed'));
             document.getElementById('continue-btn').disabled = true;
         }
         result.style.display = 'block';
     })
     .catch(error => {
         result.className = 'alert alert-error';
-        result.textContent = '✗ Errore di connessione: ' + error.message;
+        result.textContent = '✗ ' + getInstallerTranslation('errorPrefix', 'Connection error:') + ' ' + error.message;
         result.style.display = 'block';
     })
     .finally(() => {
         btn.disabled = false;
-        btn.textContent = 'Test Connessione';
+        btn.textContent = getInstallerTranslation('testButton', 'Test Connection');
     });
 }
 

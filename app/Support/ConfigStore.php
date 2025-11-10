@@ -14,6 +14,7 @@ final class ConfigStore
                 'name' => 'Pinakes',
                 'logo' => '',
                 'footer_description' => 'Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.',
+                'locale' => 'it_IT',
                 'social_facebook' => '',
                 'social_twitter' => '',
                 'social_instagram' => '',
@@ -195,6 +196,11 @@ final class ConfigStore
 
     private static function determineInstallationLocale(): string
     {
+        $dbLocale = self::extractLocaleFromDatabase();
+        if ($dbLocale !== null) {
+            return $dbLocale;
+        }
+
         $envLocale = getenv('APP_LOCALE') ?: 'it_IT';
         $normalized = self::normalizeLocale($envLocale);
         if (!preg_match('/^[a-z]{2}_[A-Z]{2}$/', $normalized)) {
@@ -210,6 +216,20 @@ final class ConfigStore
             return strtolower($matches[1]) . '_' . strtoupper($matches[2]);
         }
         return $locale;
+    }
+
+    private static function extractLocaleFromDatabase(): ?string
+    {
+        $dbSettings = self::loadDatabaseSettings();
+        if (isset($dbSettings['app']['locale'])) {
+            $locale = (string)$dbSettings['app']['locale'];
+            $normalized = self::normalizeLocale($locale);
+            if (preg_match('/^[a-z]{2}_[A-Z]{2}$/', $normalized)) {
+                return $normalized;
+            }
+        }
+
+        return null;
     }
 
     private static function loadDatabaseSettings(): array

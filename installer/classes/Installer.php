@@ -775,6 +775,10 @@ HTACCESS;
             }
         }
 
+        // Persist selected locale for the application
+        $this->saveSetting('app', 'locale', $locale);
+        $this->setDefaultLanguage($locale);
+
         return true;
     }
 
@@ -870,6 +874,16 @@ HTACCESS;
         }
 
         return $base;
+    }
+
+    private function setDefaultLanguage(string $locale): void
+    {
+        $pdo = $this->getDatabaseConnection();
+
+        $pdo->exec("UPDATE languages SET is_default = 0");
+
+        $stmt = $pdo->prepare("UPDATE languages SET is_default = 1 WHERE code = :code LIMIT 1");
+        $stmt->execute(['code' => $locale]);
     }
 
     /**

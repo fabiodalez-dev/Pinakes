@@ -163,6 +163,15 @@ renderHeader(2, __('Configurazione Database'));
 </form>
 
 <script>
+window.installerTranslations = {
+    testing: <?= json_encode(__('Verifica in corso...')) ?>,
+    testSuccess: <?= json_encode(__('✓ Connessione riuscita! Database è vuoto e pronto per l\'installazione.')) ?>,
+    testFailure: <?= json_encode(__('Connessione fallita')) ?>,
+    errorPrefix: <?= json_encode(__('Errore di connessione:')) ?>,
+    testButton: <?= json_encode(__('Test Connessione')) ?>,
+};
+</script>
+<script>
 // Enable continue button after successful connection test
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');

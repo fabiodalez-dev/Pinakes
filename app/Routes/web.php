@@ -35,18 +35,23 @@ return function (App $app): void {
     $installationLocale = I18n::getInstallationLocale();
     if ($installationLocale === 'en_US') {
         $legacyRedirects = [
-            '/accedi' => RouteTranslator::route('login'),
-            '/registrati' => RouteTranslator::route('register'),
-            '/profilo' => RouteTranslator::route('profile'),
-            '/profilo/password' => RouteTranslator::route('profile_password'),
-            '/profilo/aggiorna' => RouteTranslator::route('profile_update'),
-            '/prenotazioni' => RouteTranslator::route('reservations'),
-            '/lista-desideri' => RouteTranslator::route('wishlist'),
-            '/catalogo' => RouteTranslator::route('catalog'),
-            '/catalogo.php' => RouteTranslator::route('catalog_legacy'),
+            '/accedi' => 'login',
+            '/registrati' => 'register',
+            '/profilo' => 'profile',
+            '/profilo/password' => 'profile_password',
+            '/profilo/aggiorna' => 'profile_update',
+            '/prenotazioni' => 'reservations',
+            '/lista-desideri' => 'wishlist',
+            '/catalogo' => 'catalog',
+            '/catalogo.php' => 'catalog_legacy',
         ];
 
-        foreach ($legacyRedirects as $legacyPath => $targetPath) {
+        foreach ($legacyRedirects as $legacyPath => $routeKey) {
+            $targetPath = RouteTranslator::route($routeKey);
+            if ($targetPath === $legacyPath) {
+                continue; // avoid duplicate registrations
+            }
+
             $app->get($legacyPath, function ($request, $response) use ($targetPath) {
                 return $response->withHeader('Location', $targetPath)->withStatus(302);
             });

@@ -74,7 +74,16 @@ final class I18n
             self::$installationLocale = $envLocale;
         }
 
-        // 2) If DB available, prefer active default language from languages table
+        // 2) Prefer locale stored in system settings if available
+        if ($db instanceof \mysqli) {
+            $systemLocale = self::fetchSystemLocale($db);
+            if ($systemLocale !== null) {
+                self::$locale = $systemLocale;
+                self::$installationLocale = $systemLocale;
+            }
+        }
+
+        // 3) If DB available, prefer active default language from languages table
         if ($db instanceof \mysqli) {
             try {
                 $result = $db->query("SELECT code FROM languages WHERE is_default = 1 AND is_active = 1 LIMIT 1");
@@ -179,6 +188,32 @@ final class I18n
         }
 
         self::$translationsLoaded = true;
+    }
+
+    private static function fetchSystemLocale(\mysqli $db): ?string
+    {
+        try {
+            $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE category = 'app' AND setting_key = 'locale' LIMIT 1");
+            if ($stmt === false) {
+                return null;
+            }
+
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            $stmt->close();
+
+            if (!empty($row['setting_value'])) {
+                $normalized = self::normalizeLocaleCode((string)$row['setting_value']);
+                if (self::isValidLocaleCode($normalized)) {
+                    return $normalized;
+                }
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return null;
     }
 
     /**
