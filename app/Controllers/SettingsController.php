@@ -30,12 +30,25 @@ class SettingsController
         $labelSettings = $this->resolveLabelSettings($repository);
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
+        $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
 
         $queryParams = $request->getQueryParams();
         $activeTab = $queryParams['tab'] ?? 'general';
 
         ob_start();
-        $data = compact('appSettings', 'emailSettings', 'templates', 'contactSettings', 'privacySettings', 'labelSettings', 'advancedSettings', 'contactMessages', 'activeTab', 'db');
+        $data = compact(
+            'appSettings',
+            'emailSettings',
+            'templates',
+            'contactSettings',
+            'privacySettings',
+            'labelSettings',
+            'advancedSettings',
+            'contactMessages',
+            'activeTab',
+            'db',
+            'cookieBannerTexts'
+        );
         require __DIR__ . '/../Views/settings/index.php';
         $content = ob_get_clean();
 
@@ -793,41 +806,76 @@ class SettingsController
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        // Collect all cookie banner text fields
-        $cookieBannerTexts = [
-            'banner_description' => trim((string)($data['cookie_banner_description'] ?? '')),
-            'accept_all_text' => trim((string)($data['cookie_accept_all_text'] ?? '')),
-            'reject_non_essential_text' => trim((string)($data['cookie_reject_non_essential_text'] ?? '')),
-            'preferences_button_text' => trim((string)($data['cookie_preferences_button_text'] ?? '')),
-            'preferences_title' => trim((string)($data['cookie_preferences_title'] ?? '')),
-            'preferences_description' => trim((string)($data['cookie_preferences_description'] ?? '')),
-            'cookie_essential_name' => trim((string)($data['cookie_essential_name'] ?? '')),
-            'cookie_essential_description' => trim((string)($data['cookie_essential_description'] ?? '')),
-            'cookie_analytics_name' => trim((string)($data['cookie_analytics_name'] ?? '')),
-            'cookie_analytics_description' => trim((string)($data['cookie_analytics_description'] ?? '')),
-            'cookie_marketing_name' => trim((string)($data['cookie_marketing_name'] ?? '')),
-            'cookie_marketing_description' => trim((string)($data['cookie_marketing_description'] ?? '')),
-        ];
+        $fieldMap = $this->getCookieBannerTextFieldMap();
+        $cookieBannerTexts = [];
 
-        // Save to database and ConfigStore
-        foreach ($cookieBannerTexts as $key => $value) {
-            if ($value !== '') {
-                $repository->set('cookie_banner', $key, $value);
-                ConfigStore::set("cookie_banner.$key", $value);
-            }
+        foreach ($fieldMap as $key => $inputName) {
+            $cookieBannerTexts[$key] = trim((string)($data[$inputName] ?? ''));
         }
 
-        // Save boolean flags for showing/hiding cookie categories
-        $showAnalytics = isset($data['show_analytics']) && $data['show_analytics'] === '1';
-        $showMarketing = isset($data['show_marketing']) && $data['show_marketing'] === '1';
+        foreach ($cookieBannerTexts as $key => $value) {
+            if ($value === '') {
+                continue;
+            }
 
-        $repository->set('cookie_banner', 'show_analytics', $showAnalytics ? '1' : '0');
-        $repository->set('cookie_banner', 'show_marketing', $showMarketing ? '1' : '0');
-        ConfigStore::set('cookie_banner.show_analytics', $showAnalytics);
-        ConfigStore::set('cookie_banner.show_marketing', $showMarketing);
+            $repository->set('cookie_banner', $key, $value);
+            ConfigStore::set("cookie_banner.$key", $value);
+        }
 
         $_SESSION['success_message'] = 'Testi cookie banner aggiornati correttamente.';
-        return $this->redirect($response, '/admin/settings');
+        return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
+    }
+
+    private function resolveCookieBannerTexts(SettingsRepository $repository): array
+    {
+        $defaults = $this->getCookieBannerDefaultMap();
+        $config = ConfigStore::get('cookie_banner', []);
+        $texts = [];
+
+        foreach ($defaults as $key => $fallback) {
+            $fallbackValue = $config[$key] ?? $fallback;
+            $texts[$key] = $repository->get('cookie_banner', $key, $fallbackValue);
+        }
+
+        return $texts;
+    }
+
+    private function getCookieBannerDefaultMap(): array
+    {
+        return [
+            'banner_description' => '<p>Utilizziamo i cookie per migliorare la tua esperienza. Continuando a visitare questo sito, accetti il nostro uso dei cookie.</p>',
+            'accept_all_text' => 'Accetta tutti',
+            'reject_non_essential_text' => 'Rifiuta non essenziali',
+            'preferences_button_text' => 'Preferenze',
+            'save_selected_text' => 'Accetta selezionati',
+            'preferences_title' => 'Personalizza le tue preferenze sui cookie',
+            'preferences_description' => '<p>Rispettiamo il tuo diritto alla privacy. Puoi scegliere di non consentire alcuni tipi di cookie. Le tue preferenze si applicheranno all\'intero sito web.</p>',
+            'cookie_essential_name' => 'Cookie Essenziali',
+            'cookie_essential_description' => 'Questi cookie sono necessari per il funzionamento del sito e non possono essere disabilitati.',
+            'cookie_analytics_name' => 'Cookie Analitici',
+            'cookie_analytics_description' => 'Questi cookie ci aiutano a capire come i visitatori interagiscono con il sito web.',
+            'cookie_marketing_name' => 'Cookie di Marketing',
+            'cookie_marketing_description' => 'Questi cookie vengono utilizzati per fornire annunci personalizzati.',
+        ];
+    }
+
+    private function getCookieBannerTextFieldMap(): array
+    {
+        return [
+            'banner_description' => 'cookie_banner_description',
+            'accept_all_text' => 'cookie_accept_all_text',
+            'reject_non_essential_text' => 'cookie_reject_non_essential_text',
+            'preferences_button_text' => 'cookie_preferences_button_text',
+            'save_selected_text' => 'cookie_save_selected_text',
+            'preferences_title' => 'cookie_preferences_title',
+            'preferences_description' => 'cookie_preferences_description',
+            'cookie_essential_name' => 'cookie_essential_name',
+            'cookie_essential_description' => 'cookie_essential_description',
+            'cookie_analytics_name' => 'cookie_analytics_name',
+            'cookie_analytics_description' => 'cookie_analytics_description',
+            'cookie_marketing_name' => 'cookie_marketing_name',
+            'cookie_marketing_description' => 'cookie_marketing_description',
+        ];
     }
 
     private function redirect(Response $response, string $location): Response

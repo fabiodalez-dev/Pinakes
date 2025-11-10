@@ -66,16 +66,6 @@ return function (App $app): void {
         }
     };
 
-    // Debug endpoint to see registered routes
-    $app->get('/debug-routes', function ($request, $response) use (&$registeredRoutes) {
-        $html = '<h1>Registered Routes</h1><ul>';
-        foreach ($registeredRoutes as $route => $value) {
-            $html .= '<li>' . htmlspecialchars($route) . '</li>';
-        }
-        $html .= '</ul>';
-        $response->getBody()->write($html);
-        return $response;
-    });
 
     $app->get('/', function ($request, $response) use ($app) {
         // Redirect to frontend home page

@@ -1,33 +1,8 @@
 <?php
 $title = __("Biblioteca Digitale - La tua biblioteca online");
 
-// SEO Variables
-$seoTitle = __("Biblioteca Digitale - Scopri e Prenota i Tuoi Libri Preferiti");
-$seoDescription = __("Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture. Sistema di prestito moderno e intuitivo con ricerca avanzata e categorie organizzate.");
-$seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
-$seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
-
-// Schema.org structured data
-$seoSchema = json_encode([
-    "@context" => "https://schema.org",
-    "@type" => "Library",
-    "name" => __("Biblioteca Digitale"),
-    "description" => $seoDescription,
-    "url" => $seoCanonical,
-    "image" => $seoImage,
-    "address" => [
-        "@type" => "PostalAddress",
-        "addressCountry" => "IT"
-    ],
-    "potentialAction" => [
-        "@type" => "SearchAction",
-        "target" => [
-            "@type" => "EntryPoint",
-            "urlTemplate" => $seoCanonical . "catalogo?q={search_term_string}"
-        ],
-        "query-input" => "required name=search_term_string"
-    ]
-], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+// SEO Variables are now passed from FrontendController::home()
+// No need to override them here - the controller handles all SEO logic with proper fallbacks
 $additional_css = "
     .hero-section {
         background-size: cover;

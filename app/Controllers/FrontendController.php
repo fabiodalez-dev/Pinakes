@@ -100,38 +100,95 @@ class FrontendController
         $footerDescription = \App\Support\ConfigStore::get('app.footer_description', '');
         $appLogo = \App\Support\ConfigStore::get('app.logo', '');
 
-        // Build SEO title (priority: custom SEO title > hero title > app name)
+        // Build base URL and protocol
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $baseUrl = $protocol . '://' . $host;
+        $seoCanonical = $baseUrl . '/';
+
+        // === Basic SEO Meta Tags ===
+
+        // SEO Title (priority: custom SEO title > hero title > app name)
         $seoTitle = !empty($hero['seo_title']) ? $hero['seo_title'] :
                     (!empty($hero['title']) ? $hero['title'] . ' - ' . $appName : $appName);
 
-        // Build SEO description (priority: custom SEO description > hero subtitle > footer description)
+        // SEO Description (priority: custom SEO description > hero subtitle > footer description > default)
         $seoDescription = !empty($hero['seo_description']) ? $hero['seo_description'] :
                          (!empty($hero['subtitle']) ? $hero['subtitle'] :
                           ($footerDescription ?: __('Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture')));
 
-        // Build OG image (priority: custom OG image > hero background > app logo > default)
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $baseUrl = $protocol . '://' . $host;
-
-        $seoImage = $baseUrl . '/uploads/copertine/default-cover.jpg'; // Default fallback
-        if (!empty($hero['og_image'])) {
-            // Custom OG image specified
-            $seoImage = (str_starts_with($hero['og_image'], 'http')) ? $hero['og_image'] : $baseUrl . $hero['og_image'];
-        } elseif (!empty($hero['background_image'])) {
-            // Use hero background image
-            $seoImage = $baseUrl . $hero['background_image'];
-        } elseif (!empty($appLogo)) {
-            // Use app logo
-            $seoImage = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
-        }
-
-        // Build canonical URL
-        $seoCanonical = $baseUrl . '/';
-
-        // Build keywords (custom or defaults)
+        // SEO Keywords (custom or defaults)
         $seoKeywords = !empty($hero['seo_keywords']) ? $hero['seo_keywords'] :
                        __('biblioteca, prestito libri, catalogo online, scopri libri, prenotazioni');
+
+        // === Open Graph Meta Tags ===
+
+        // OG Title (priority: custom og_title > seo_title > hero title > app name)
+        $ogTitle = !empty($hero['og_title']) ? $hero['og_title'] :
+                   (!empty($hero['seo_title']) ? $hero['seo_title'] :
+                   (!empty($hero['title']) ? $hero['title'] : $appName));
+
+        // OG Description (priority: custom og_description > seo_description > hero subtitle > footer description > default)
+        $ogDescription = !empty($hero['og_description']) ? $hero['og_description'] :
+                        (!empty($hero['seo_description']) ? $hero['seo_description'] :
+                        (!empty($hero['subtitle']) ? $hero['subtitle'] :
+                         ($footerDescription ?: __('Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture'))));
+
+        // OG Type (priority: custom og_type > default 'website')
+        $ogType = !empty($hero['og_type']) ? $hero['og_type'] : 'website';
+
+        // OG URL (priority: custom og_url > canonical URL)
+        $ogUrl = !empty($hero['og_url']) ? $hero['og_url'] : $seoCanonical;
+
+        // OG Image (priority: custom og_image > hero background > app logo > default cover)
+        $ogImage = $baseUrl . '/uploads/copertine/default-cover.jpg'; // Default fallback
+        if (!empty($hero['og_image'])) {
+            // Custom OG image specified
+            $ogImage = (str_starts_with($hero['og_image'], 'http')) ? $hero['og_image'] : $baseUrl . $hero['og_image'];
+        } elseif (!empty($hero['background_image'])) {
+            // Use hero background image
+            $ogImage = $baseUrl . $hero['background_image'];
+        } elseif (!empty($appLogo)) {
+            // Use app logo
+            $ogImage = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
+        }
+
+        // Keep $seoImage as alias for backward compatibility
+        $seoImage = $ogImage;
+
+        // === Twitter Card Meta Tags ===
+
+        // Twitter Card Type (priority: custom twitter_card > default 'summary_large_image')
+        $twitterCard = !empty($hero['twitter_card']) ? $hero['twitter_card'] : 'summary_large_image';
+
+        // Twitter Title (priority: custom twitter_title > og_title > seo_title > hero title > app name)
+        $twitterTitle = !empty($hero['twitter_title']) ? $hero['twitter_title'] :
+                       (!empty($hero['og_title']) ? $hero['og_title'] :
+                       (!empty($hero['seo_title']) ? $hero['seo_title'] :
+                       (!empty($hero['title']) ? $hero['title'] : $appName)));
+
+        // Twitter Description (priority: custom twitter_description > og_description > seo_description > hero subtitle > footer description > default)
+        $twitterDescription = !empty($hero['twitter_description']) ? $hero['twitter_description'] :
+                             (!empty($hero['og_description']) ? $hero['og_description'] :
+                             (!empty($hero['seo_description']) ? $hero['seo_description'] :
+                             (!empty($hero['subtitle']) ? $hero['subtitle'] :
+                              ($footerDescription ?: __('Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture')))));
+
+        // Twitter Image (priority: custom twitter_image > og_image > hero background > app logo > default cover)
+        $twitterImage = $baseUrl . '/uploads/copertine/default-cover.jpg'; // Default fallback
+        if (!empty($hero['twitter_image'])) {
+            // Custom Twitter image specified
+            $twitterImage = (str_starts_with($hero['twitter_image'], 'http')) ? $hero['twitter_image'] : $baseUrl . $hero['twitter_image'];
+        } elseif (!empty($hero['og_image'])) {
+            // Use OG image
+            $twitterImage = (str_starts_with($hero['og_image'], 'http')) ? $hero['og_image'] : $baseUrl . $hero['og_image'];
+        } elseif (!empty($hero['background_image'])) {
+            // Use hero background image
+            $twitterImage = $baseUrl . $hero['background_image'];
+        } elseif (!empty($appLogo)) {
+            // Use app logo
+            $twitterImage = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
+        }
 
         // Social media links
         $socialFacebook = \App\Support\ConfigStore::get('app.social_facebook', '');

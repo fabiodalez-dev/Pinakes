@@ -120,8 +120,6 @@ class ProfileController
         $stmt->bind_param('sssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $uid);
 
         if ($stmt->execute()) {
-            // Log the update for debugging
-            error_log("Profile update for user $uid: data_nascita=$data_nascita");
             $_SESSION['success_message'] = __('Profilo aggiornato con successo.');
             // Update session data
             $_SESSION['user']['name'] = $nome . ' ' . $cognome;

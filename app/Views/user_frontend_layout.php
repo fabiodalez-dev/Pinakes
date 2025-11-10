@@ -29,6 +29,7 @@ $cookieBannerTexts = [
     'accept_all_text' => (string)ConfigStore::get('cookie_banner.accept_all_text', 'Accetta tutti'),
     'reject_non_essential_text' => (string)ConfigStore::get('cookie_banner.reject_non_essential_text', 'Rifiuta non essenziali'),
     'preferences_button_text' => (string)ConfigStore::get('cookie_banner.preferences_button_text', 'Preferenze'),
+    'save_selected_text' => (string)ConfigStore::get('cookie_banner.save_selected_text', 'Accetta selezionati'),
     'preferences_title' => (string)ConfigStore::get('cookie_banner.preferences_title', 'Personalizza le tue preferenze sui cookie'),
     'preferences_description' => (string)ConfigStore::get('cookie_banner.preferences_description', '<p>Rispettiamo il tuo diritto alla privacy. Puoi scegliere di non consentire alcuni tipi di cookie. Le tue preferenze si applicheranno all\'intero sito web.</p>'),
     'cookie_essential_name' => (string)ConfigStore::get('cookie_banner.cookie_essential_name', 'Cookie Essenziali'),
@@ -1282,6 +1283,8 @@ if (!function_exists('assetUrl')) {
                     rejectNonEssentialButtonAccessibleLabel: <?= json_encode($cookieBannerTexts['reject_non_essential_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
                     preferencesButtonText: <?= json_encode($cookieBannerTexts['preferences_button_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
                     preferencesButtonAccessibleLabel: <?= json_encode($cookieBannerTexts['preferences_button_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
+                    saveSelectedButtonText: <?= json_encode($cookieBannerTexts['save_selected_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
+                    saveSelectedButtonAccessibleLabel: <?= json_encode($cookieBannerTexts['save_selected_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
                 },
                 preferences: {
                     title: <?= json_encode($cookieBannerTexts['preferences_title'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,

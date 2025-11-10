@@ -594,8 +594,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize Uppy File Upload
 function initializeUppy() {
-    // Debug: Check if Uppy libraries are loaded
-    // console.log({
     //     Uppy: typeof window.Uppy,
     //     UppyDragDrop: typeof window.UppyDragDrop,
     //     UppyProgressBar: typeof window.UppyProgressBar
@@ -977,7 +975,6 @@ async function initializeDewey() {
   // Load L1 categories
   try {
     const cats = await fetch('/api/dewey/categories').then(r => r.json());
-    // console.debug('Dewey L1 categories loaded:', cats.length);
 
     if (!cats || cats.length === 0) {
       const warn = document.createElement('div');
@@ -1986,7 +1983,6 @@ function initializeFormValidation() {
                 }
             });
             
-            // Debug logging for editore fields
             const editoreId = document.getElementById('editore_id').value;
             const editoreSearch = document.getElementById('editore_search').value;
             const scrapedPublisher = document.getElementById('scraped_publisher').value;

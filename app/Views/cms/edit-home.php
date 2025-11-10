@@ -330,20 +330,6 @@ $cta = $sections['cta'] ?? null;
         </p>
       </div>
       <div class="p-6">
-        <!-- DEBUG: Temporary output to check $hero values -->
-        <?php if ($_GET['debug'] ?? false): ?>
-          <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-            <p class="font-mono text-xs"><strong>DEBUG $hero SEO fields:</strong></p>
-            <pre class="text-xs mt-2"><?php
-              echo "seo_title: " . var_export($hero['seo_title'] ?? 'NOT SET', true) . "\n";
-              echo "seo_description: " . var_export($hero['seo_description'] ?? 'NOT SET', true) . "\n";
-              echo "og_title: " . var_export($hero['og_title'] ?? 'NOT SET', true) . "\n";
-              echo "og_description: " . var_export($hero['og_description'] ?? 'NOT SET', true) . "\n";
-              echo "twitter_title: " . var_export($hero['twitter_title'] ?? 'NOT SET', true) . "\n";
-            ?></pre>
-          </div>
-        <?php endif; ?>
-
         <!-- Accordion Container -->
         <div class="space-y-3">
 
@@ -363,10 +349,6 @@ $cta = $sections['cta'] ?? null;
                   <?= __("Titolo SEO") ?>
                   <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 60 caratteri)") ?></span>
                 </label>
-                <?php if ($_GET['debug'] ?? false): ?>
-                  <!-- DEBUG: Raw value = '<?php echo $hero['seo_title'] ?? 'NULL'; ?>' -->
-                  <!-- DEBUG: After HtmlHelper::e() = '<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>' -->
-                <?php endif; ?>
                 <input type="text" id="hero_seo_title" name="hero[seo_title]" maxlength="255"
                        value="<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"

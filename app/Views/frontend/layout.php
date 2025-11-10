@@ -128,21 +128,21 @@ if (!function_exists('assetUrl')) {
     <link rel="alternate" hreflang="x-default" href="<?= htmlspecialchars($baseUrlClean) ?>">
 
     <!-- Open Graph Meta Tags -->
-    <?php if (isset($seoTitle)): ?>
-    <meta property="og:title" content="<?= htmlspecialchars($seoTitle) ?>">
-    <meta property="og:description" content="<?= htmlspecialchars($seoDescription) ?>">
-    <meta property="og:image" content="<?= htmlspecialchars($seoImage) ?>">
-    <meta property="og:url" content="<?= htmlspecialchars($seoCanonical) ?>">
-    <meta property="og:type" content="book">
+    <?php if (isset($ogTitle)): ?>
+    <meta property="og:title" content="<?= htmlspecialchars($ogTitle) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars($ogDescription) ?>">
+    <meta property="og:image" content="<?= htmlspecialchars($ogImage) ?>">
+    <meta property="og:url" content="<?= htmlspecialchars($ogUrl) ?>">
+    <meta property="og:type" content="<?= htmlspecialchars($ogType) ?>">
     <meta property="og:site_name" content="<?= HtmlHelper::e($appName) ?>">
     <?php endif; ?>
 
     <!-- Twitter Card Meta Tags -->
-    <?php if (isset($seoTitle)): ?>
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="<?= htmlspecialchars($seoTitle) ?>">
-    <meta name="twitter:description" content="<?= htmlspecialchars($seoDescription) ?>">
-    <meta name="twitter:image" content="<?= htmlspecialchars($seoImage) ?>">
+    <?php if (isset($twitterCard)): ?>
+    <meta name="twitter:card" content="<?= htmlspecialchars($twitterCard) ?>">
+    <meta name="twitter:title" content="<?= htmlspecialchars($twitterTitle) ?>">
+    <meta name="twitter:description" content="<?= htmlspecialchars($twitterDescription) ?>">
+    <meta name="twitter:image" content="<?= htmlspecialchars($twitterImage) ?>">
     <?php
     // Add Twitter handle if available (extract from social_twitter URL)
     if (!empty($socialTwitter)) {

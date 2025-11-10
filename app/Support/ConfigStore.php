@@ -61,6 +61,7 @@ final class ConfigStore
                 'accept_all_text' => 'Accetta tutti',
                 'reject_non_essential_text' => 'Rifiuta non essenziali',
                 'preferences_button_text' => 'Preferenze',
+                'save_selected_text' => 'Accetta selezionati',
 
                 // Preferences modal texts
                 'preferences_title' => 'Personalizza le tue preferenze sui cookie',
