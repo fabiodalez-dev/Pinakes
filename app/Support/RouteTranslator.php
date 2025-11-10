@@ -61,20 +61,43 @@ class RouteTranslator
     ];
 
     /**
-     * Get translated route pattern for the installation locale
+     * Get translated route pattern for the current session locale
      *
-     * IMPORTANT: Uses the installation locale (fixed at installation time),
-     * NOT the current session locale. Routes are static and determined
-     * at installation time based on the default language.
+     * IMPORTANT: Uses the current session locale, so routes change
+     * dynamically when the user switches language. This allows multiple
+     * route variants (e.g., /libro/123 and /book/123) to point to the
+     * same content.
      *
      * @param string $key Route key (e.g., 'catalog', 'book', 'login')
      * @return string Route pattern (e.g., '/catalogo', '/libro', '/accedi')
      */
     public static function route(string $key): string
     {
-        // Use installation locale, not session locale
-        // Routes are fixed at installation time and don't change
-        $locale = I18n::getInstallationLocale();
+        // Use current session locale (changes when user switches language)
+        $locale = I18n::getLocale();
+        $routes = self::loadRoutes($locale);
+
+        // Return translated route if exists
+        if (isset($routes[$key])) {
+            return $routes[$key];
+        }
+
+        // Fallback to default English route
+        return self::fallback($key);
+    }
+
+    /**
+     * Get translated route pattern for a specific locale
+     *
+     * Used to register multiple route variants in web.php that point
+     * to the same controller (e.g., /libro/123 and /book/123).
+     *
+     * @param string $key Route key (e.g., 'catalog', 'book', 'login')
+     * @param string $locale Specific locale code (e.g., 'it_IT', 'en_US')
+     * @return string Route pattern for the specified locale
+     */
+    public static function getRouteForLocale(string $key, string $locale): string
+    {
         $routes = self::loadRoutes($locale);
 
         // Return translated route if exists

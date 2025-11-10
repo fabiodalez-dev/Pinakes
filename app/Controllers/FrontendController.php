@@ -12,10 +12,13 @@ class FrontendController
 {
     public function home(Request $request, Response $response, mysqli $db): Response
     {
-        // Carica i contenuti CMS della home (inclusi campi SEO)
+        // Carica i contenuti CMS della home (inclusi campi SEO completi)
         $homeContent = [];
         $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
-                              seo_title, seo_description, seo_keywords, og_image, is_active
+                              seo_title, seo_description, seo_keywords, og_image,
+                              og_title, og_description, og_type, og_url,
+                              twitter_card, twitter_title, twitter_description, twitter_image,
+                              is_active
                        FROM home_content
                        WHERE is_active = 1
                        ORDER BY display_order ASC";

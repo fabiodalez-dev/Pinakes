@@ -1284,19 +1284,19 @@ if (!function_exists('assetUrl')) {
                 <div class="col-lg-3">
                     <h5><?= __("Menu") ?></h5>
                     <ul class="list-unstyled">
-                        <li><a href="<?= absoluteUrl('/chi-siamo') ?>"><?= __("Chi Siamo") ?></a></li>
-                        <li><a href="<?= absoluteUrl('/contatti') ?>"><?= __("Contatti") ?></a></li>
-                        <li><a href="<?= absoluteUrl('/privacy-policy') ?>"><?= __("Privacy Policy") ?></a></li>
-                        <li><a href="<?= absoluteUrl('/cookies') ?>"><?= __("Cookies") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('about')) ?>"><?= __("Chi Siamo") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('contact')) ?>"><?= __("Contatti") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('privacy')) ?>"><?= __("Privacy Policy") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('cookies')) ?>"><?= __("Cookies") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
                     <h5><?= __("Account") ?></h5>
                     <ul class="list-unstyled">
-                        <li><a href="<?= absoluteUrl('/user/dashboard') ?>"><?= __("Dashboard") ?></a></li>
-                        <li><a href="<?= absoluteUrl('/profilo') ?>"><?= __("Profilo") ?></a></li>
-                        <li><a href="<?= absoluteUrl('/wishlist') ?>"><?= __("Wishlist") ?></a></li>
-                        <li><a href="<?= absoluteUrl('/prenotazioni') ?>"><?= __("Prenotazioni") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('user_dashboard')) ?>"><?= __("Dashboard") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('profile')) ?>"><?= __("Profilo") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('wishlist')) ?>"><?= __("Wishlist") ?></a></li>
+                        <li><a href="<?= absoluteUrl(\App\Support\RouteTranslator::route('reservations')) ?>"><?= __("Prenotazioni") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">

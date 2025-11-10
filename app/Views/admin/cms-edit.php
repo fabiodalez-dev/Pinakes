@@ -204,8 +204,8 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
   // Use globally available Uppy from vendor.bundle.js
   const { Uppy } = window;
-  const { Dashboard } = window.UppyDashboard;
-  const { XHRUpload } = window.UppyXHRUpload;
+  const Dashboard = window.UppyDashboard;
+  const XHRUpload = window.UppyXHRUpload;
 
   const uppy = new Uppy({
     restrictions: {

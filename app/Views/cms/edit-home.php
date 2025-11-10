@@ -109,74 +109,6 @@ $cta = $sections['cta'] ?? null;
                    placeholder="<?= __('/catalogo') ?>">
           </div>
         </div>
-
-        <!-- SEO Fields Section -->
-        <div class="border-t border-gray-200 pt-6 mt-6">
-          <h3 class="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <i class="fas fa-search text-blue-600"></i>
-            <?= __("Ottimizzazione SEO (Meta Tags)") ?>
-          </h3>
-          <p class="text-sm text-gray-600 mb-4">
-            <?= __("Personalizza i meta tag per i motori di ricerca e i social media. Se lasciati vuoti, verranno utilizzati i valori predefiniti.") ?>
-          </p>
-
-          <div class="space-y-4">
-            <div>
-              <label for="hero_seo_title" class="block text-sm font-medium text-gray-700 mb-2">
-                <?= __("Titolo SEO") ?>
-                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 60 caratteri)") ?></span>
-              </label>
-              <input type="text" id="hero_seo_title" name="hero[seo_title]" maxlength="255"
-                     value="<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>"
-                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                     placeholder="<?= __('Es. Biblioteca Digitale - Migliaia di libri da esplorare') ?>">
-              <p class="mt-1 text-xs text-gray-500">
-                <?= __("Apparirà nei risultati di ricerca Google. Se vuoto, usa il titolo hero o il nome dell'app.") ?>
-              </p>
-            </div>
-
-            <div>
-              <label for="hero_seo_description" class="block text-sm font-medium text-gray-700 mb-2">
-                <?= __("Descrizione SEO") ?>
-                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 160 caratteri)") ?></span>
-              </label>
-              <textarea id="hero_seo_description" name="hero[seo_description]" rows="3" maxlength="500"
-                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                        placeholder="<?= __('Es. Scopri il nostro catalogo digitale con migliaia di libri disponibili per il prestito. Registrati gratuitamente e inizia a leggere oggi stesso.') ?>"><?php echo HtmlHelper::e($hero['seo_description'] ?? ''); ?></textarea>
-              <p class="mt-1 text-xs text-gray-500">
-                <?= __("Apparirà sotto il titolo nei risultati di ricerca. Se vuoto, usa il sottotitolo hero o una descrizione generica.") ?>
-              </p>
-            </div>
-
-            <div>
-              <label for="hero_seo_keywords" class="block text-sm font-medium text-gray-700 mb-2">
-                <?= __("Parole Chiave SEO") ?>
-                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - separate da virgola)") ?></span>
-              </label>
-              <input type="text" id="hero_seo_keywords" name="hero[seo_keywords]" maxlength="500"
-                     value="<?php echo HtmlHelper::e($hero['seo_keywords'] ?? ''); ?>"
-                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                     placeholder="<?= __('Es. biblioteca digitale, prestito libri, catalogo online, libri gratis') ?>">
-              <p class="mt-1 text-xs text-gray-500">
-                <?= __("Parole chiave per i motori di ricerca (impatto SEO limitato). Separate da virgola.") ?>
-              </p>
-            </div>
-
-            <div>
-              <label for="hero_og_image" class="block text-sm font-medium text-gray-700 mb-2">
-                <?= __("Immagine Open Graph") ?>
-                <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - URL completo)") ?></span>
-              </label>
-              <input type="text" id="hero_og_image" name="hero[og_image]" maxlength="500"
-                     value="<?php echo HtmlHelper::e($hero['og_image'] ?? ''); ?>"
-                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                     placeholder="<?= __('Es. https://tuosito.com/uploads/og-image.jpg') ?>">
-              <p class="mt-1 text-xs text-gray-500">
-                <?= __("Immagine mostrata quando condividi la pagina su social media (Facebook, Twitter, LinkedIn). Se vuoto, usa l'immagine hero di sfondo. Dimensioni consigliate: 1200x630px (rapporto 1.91:1).") ?>
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -382,6 +314,258 @@ $cta = $sections['cta'] ?? null;
             <input type="text" id="cta_button_link" name="cta[button_link]" value="<?php echo HtmlHelper::e($cta['button_link'] ?? '/registrati'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEO & Social Media Section -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-search text-blue-600"></i>
+          <?= __("Ottimizzazione SEO e Social Media") ?>
+        </h2>
+        <p class="text-sm text-gray-600 mt-1">
+          <?= __("Personalizza i meta tag per i motori di ricerca e i social media. Se lasciati vuoti, verranno utilizzati i valori predefiniti della sezione Hero.") ?>
+        </p>
+      </div>
+      <div class="p-6">
+        <!-- DEBUG: Temporary output to check $hero values -->
+        <?php if ($_GET['debug'] ?? false): ?>
+          <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+            <p class="font-mono text-xs"><strong>DEBUG $hero SEO fields:</strong></p>
+            <pre class="text-xs mt-2"><?php
+              echo "seo_title: " . var_export($hero['seo_title'] ?? 'NOT SET', true) . "\n";
+              echo "seo_description: " . var_export($hero['seo_description'] ?? 'NOT SET', true) . "\n";
+              echo "og_title: " . var_export($hero['og_title'] ?? 'NOT SET', true) . "\n";
+              echo "og_description: " . var_export($hero['og_description'] ?? 'NOT SET', true) . "\n";
+              echo "twitter_title: " . var_export($hero['twitter_title'] ?? 'NOT SET', true) . "\n";
+            ?></pre>
+          </div>
+        <?php endif; ?>
+
+        <!-- Accordion Container -->
+        <div class="space-y-3">
+
+          <!-- Basic SEO Accordion Item -->
+          <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <button type="button" class="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+                    onclick="toggleAccordion('seo-basic')">
+              <span class="font-medium text-gray-900 flex items-center gap-2">
+                <i class="fas fa-globe text-blue-600"></i>
+                <?= __("SEO Base (Meta Tags)") ?>
+              </span>
+              <i class="fas fa-chevron-down transition-transform" id="seo-basic-icon"></i>
+            </button>
+            <div id="seo-basic-content" class="hidden p-4 space-y-4 bg-white">
+              <div>
+                <label for="hero_seo_title" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Titolo SEO") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 60 caratteri)") ?></span>
+                </label>
+                <?php if ($_GET['debug'] ?? false): ?>
+                  <!-- DEBUG: Raw value = '<?php echo $hero['seo_title'] ?? 'NULL'; ?>' -->
+                  <!-- DEBUG: After HtmlHelper::e() = '<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>' -->
+                <?php endif; ?>
+                <input type="text" id="hero_seo_title" name="hero[seo_title]" maxlength="255"
+                       value="<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>"
+                       class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                       placeholder="<?= __('Es. Biblioteca Digitale - Migliaia di libri da esplorare') ?>">
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Apparirà nei risultati di ricerca Google. Se vuoto, usa il titolo hero o il nome dell'app.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_seo_description" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Descrizione SEO") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 160 caratteri)") ?></span>
+                </label>
+                <textarea id="hero_seo_description" name="hero[seo_description]" rows="3" maxlength="500"
+                          class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                          placeholder="<?= __('Es. Scopri il nostro catalogo digitale con migliaia di libri disponibili per il prestito. Registrati gratuitamente e inizia a leggere oggi stesso.') ?>"><?php echo HtmlHelper::e($hero['seo_description'] ?? ''); ?></textarea>
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Apparirà sotto il titolo nei risultati di ricerca. Se vuoto, usa il sottotitolo hero o una descrizione generica.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_seo_keywords" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Parole Chiave SEO") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - separate da virgola)") ?></span>
+                </label>
+                <input type="text" id="hero_seo_keywords" name="hero[seo_keywords]" maxlength="500"
+                       value="<?php echo HtmlHelper::e($hero['seo_keywords'] ?? ''); ?>"
+                       class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                       placeholder="<?= __('Es. biblioteca digitale, prestito libri, catalogo online, libri gratis') ?>">
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Parole chiave per i motori di ricerca (impatto SEO limitato). Separate da virgola.") ?>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Open Graph Accordion Item -->
+          <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <button type="button" class="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+                    onclick="toggleAccordion('seo-og')">
+              <span class="font-medium text-gray-900 flex items-center gap-2">
+                <i class="fab fa-facebook text-blue-600"></i>
+                <?= __("Open Graph (Facebook, LinkedIn)") ?>
+              </span>
+              <i class="fas fa-chevron-down transition-transform" id="seo-og-icon"></i>
+            </button>
+            <div id="seo-og-content" class="hidden p-4 space-y-4 bg-white">
+              <div>
+                <label for="hero_og_title" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Titolo Open Graph") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale)") ?></span>
+                </label>
+                <input type="text" id="hero_og_title" name="hero[og_title]" maxlength="255"
+                       value="<?php echo HtmlHelper::e($hero['og_title'] ?? ''); ?>"
+                       class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                       placeholder="<?= __('Es. La Tua Biblioteca Digitale') ?>">
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Titolo mostrato quando condividi su Facebook/LinkedIn. Se vuoto, usa il titolo SEO o hero.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_og_description" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Descrizione Open Graph") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale)") ?></span>
+                </label>
+                <textarea id="hero_og_description" name="hero[og_description]" rows="3" maxlength="500"
+                          class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                          placeholder="<?= __('Es. Esplora migliaia di libri, prenota online e gestisci i tuoi prestiti.') ?>"><?php echo HtmlHelper::e($hero['og_description'] ?? ''); ?></textarea>
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Descrizione per anteprima social. Se vuoto, usa la descrizione SEO.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_og_image" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Immagine Open Graph") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - URL completo)") ?></span>
+                </label>
+                <input type="text" id="hero_og_image" name="hero[og_image]" maxlength="500"
+                       value="<?php echo HtmlHelper::e($hero['og_image'] ?? ''); ?>"
+                       class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                       placeholder="<?= __('Es. https://tuosito.com/uploads/og-image.jpg') ?>">
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Immagine mostrata quando condividi su social. Dimensioni consigliate: 1200x630px (rapporto 1.91:1). Se vuoto, usa l'immagine hero di sfondo.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_og_url" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("URL Canonico") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale)") ?></span>
+                </label>
+                <input type="url" id="hero_og_url" name="hero[og_url]" maxlength="500"
+                       value="<?php echo HtmlHelper::e($hero['og_url'] ?? ''); ?>"
+                       class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                       placeholder="<?= __('Es. https://tuosito.com') ?>">
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("URL principale del sito. Se vuoto, usa l'URL corrente.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_og_type" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Tipo Contenuto") ?>
+                </label>
+                <select id="hero_og_type" name="hero[og_type]"
+                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+                  <option value="website" <?php echo (($hero['og_type'] ?? 'website') === 'website') ? 'selected' : ''; ?>>
+                    <?= __("Website (Sito Web)") ?>
+                  </option>
+                  <option value="article" <?php echo (($hero['og_type'] ?? '') === 'article') ? 'selected' : ''; ?>>
+                    <?= __("Article (Articolo/Blog)") ?>
+                  </option>
+                  <option value="profile" <?php echo (($hero['og_type'] ?? '') === 'profile') ? 'selected' : ''; ?>>
+                    <?= __("Profile (Profilo)") ?>
+                  </option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Tipo di contenuto per Open Graph. Scegli 'Website' per la homepage.") ?>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Twitter Card Accordion Item -->
+          <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <button type="button" class="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+                    onclick="toggleAccordion('seo-twitter')">
+              <span class="font-medium text-gray-900 flex items-center gap-2">
+                <i class="fab fa-twitter text-blue-400"></i>
+                <?= __("Twitter Cards (X)") ?>
+              </span>
+              <i class="fas fa-chevron-down transition-transform" id="seo-twitter-icon"></i>
+            </button>
+            <div id="seo-twitter-content" class="hidden p-4 space-y-4 bg-white">
+              <div>
+                <label for="hero_twitter_card" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Tipo Twitter Card") ?>
+                </label>
+                <select id="hero_twitter_card" name="hero[twitter_card]"
+                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+                  <option value="summary_large_image" <?php echo (($hero['twitter_card'] ?? 'summary_large_image') === 'summary_large_image') ? 'selected' : ''; ?>>
+                    <?= __("Summary Large Image (Immagine Grande)") ?>
+                  </option>
+                  <option value="summary" <?php echo (($hero['twitter_card'] ?? '') === 'summary') ? 'selected' : ''; ?>>
+                    <?= __("Summary (Immagine Piccola)") ?>
+                  </option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Consigliato: Summary Large Image per homepage.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_twitter_title" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Titolo Twitter") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 70 caratteri)") ?></span>
+                </label>
+                <input type="text" id="hero_twitter_title" name="hero[twitter_title]" maxlength="255"
+                       value="<?php echo HtmlHelper::e($hero['twitter_title'] ?? ''); ?>"
+                       class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                       placeholder="<?= __('Es. La Tua Biblioteca Digitale') ?>">
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Titolo per Twitter/X. Se vuoto, usa il titolo Open Graph.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_twitter_description" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Descrizione Twitter") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - max 200 caratteri)") ?></span>
+                </label>
+                <textarea id="hero_twitter_description" name="hero[twitter_description]" rows="3" maxlength="500"
+                          class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                          placeholder="<?= __('Es. Esplora migliaia di libri, prenota online e gestisci i tuoi prestiti.') ?>"><?php echo HtmlHelper::e($hero['twitter_description'] ?? ''); ?></textarea>
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Descrizione per Twitter/X. Se vuoto, usa la descrizione Open Graph.") ?>
+                </p>
+              </div>
+
+              <div>
+                <label for="hero_twitter_image" class="block text-sm font-medium text-gray-700 mb-2">
+                  <?= __("Immagine Twitter") ?>
+                  <span class="text-xs text-gray-500 font-normal"><?= __("(opzionale - URL completo)") ?></span>
+                </label>
+                <input type="text" id="hero_twitter_image" name="hero[twitter_image]" maxlength="500"
+                       value="<?php echo HtmlHelper::e($hero['twitter_image'] ?? ''); ?>"
+                       class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                       placeholder="<?= __('Es. https://tuosito.com/uploads/twitter-image.jpg') ?>">
+                <p class="mt-1 text-xs text-gray-500">
+                  <?= __("Immagine per Twitter/X. Dimensioni consigliate: 1200x675px o 1200x1200px. Se vuoto, usa l'immagine Open Graph.") ?>
+                </p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -674,6 +858,20 @@ document.addEventListener('keydown', function(e) {
 <!-- TinyMCE -->
 <script src="/assets/tinymce/tinymce.min.js"></script>
 <script>
+// Accordion toggle function
+function toggleAccordion(id) {
+  const content = document.getElementById(id + '-content');
+  const icon = document.getElementById(id + '-icon');
+
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    icon.classList.add('rotate-180');
+  } else {
+    content.classList.add('hidden');
+    icon.classList.remove('rotate-180');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
    tinymce.init({

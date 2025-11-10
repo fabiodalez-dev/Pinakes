@@ -54,10 +54,13 @@ class CmsController
         // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
         $db->set_charset('utf8mb4');
 
-        // Carica tutti i contenuti della home (inclusi campi SEO)
+        // Carica tutti i contenuti della home (inclusi campi SEO completi)
         $stmt = $db->prepare("
             SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image,
-                   seo_title, seo_description, seo_keywords, og_image, is_active
+                   seo_title, seo_description, seo_keywords, og_image,
+                   og_title, og_description, og_type, og_url,
+                   twitter_card, twitter_title, twitter_description, twitter_image,
+                   is_active
             FROM home_content
             ORDER BY display_order ASC
         ");
@@ -230,15 +233,33 @@ class CmsController
                     $backgroundImage = $bgImagePath;
                 }
 
-                // SEO fields for hero
+                // SEO fields for hero (base)
                 $seoTitle = $sanitizeText($heroData['seo_title'] ?? '');
                 $seoDescription = $sanitizeText($heroData['seo_description'] ?? '');
                 $seoKeywords = $sanitizeText($heroData['seo_keywords'] ?? '');
                 $ogImage = $sanitizeText($heroData['og_image'] ?? '');
 
+                // SEO fields for hero (Open Graph)
+                $ogTitle = $sanitizeText($heroData['og_title'] ?? '');
+                $ogDescription = $sanitizeText($heroData['og_description'] ?? '');
+                $ogType = $sanitizeText($heroData['og_type'] ?? 'website');
+                $ogUrl = $sanitizeText($heroData['og_url'] ?? '');
+
+                // SEO fields for hero (Twitter)
+                $twitterCard = $sanitizeText($heroData['twitter_card'] ?? 'summary_large_image');
+                $twitterTitle = $sanitizeText($heroData['twitter_title'] ?? '');
+                $twitterDescription = $sanitizeText($heroData['twitter_description'] ?? '');
+                $twitterImage = $sanitizeText($heroData['twitter_image'] ?? '');
+
                 $stmt = $db->prepare("
-                    INSERT INTO home_content (section_key, title, subtitle, button_text, button_link, background_image, seo_title, seo_description, seo_keywords, og_image, is_active, display_order)
-                    VALUES ('hero', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, -2)
+                    INSERT INTO home_content (
+                        section_key, title, subtitle, button_text, button_link, background_image,
+                        seo_title, seo_description, seo_keywords, og_image,
+                        og_title, og_description, og_type, og_url,
+                        twitter_card, twitter_title, twitter_description, twitter_image,
+                        is_active, display_order
+                    )
+                    VALUES ('hero', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, -2)
                     ON DUPLICATE KEY UPDATE
                         title = VALUES(title),
                         subtitle = VALUES(subtitle),
@@ -248,10 +269,18 @@ class CmsController
                         seo_title = VALUES(seo_title),
                         seo_description = VALUES(seo_description),
                         seo_keywords = VALUES(seo_keywords),
-                        og_image = VALUES(og_image)
+                        og_image = VALUES(og_image),
+                        og_title = VALUES(og_title),
+                        og_description = VALUES(og_description),
+                        og_type = VALUES(og_type),
+                        og_url = VALUES(og_url),
+                        twitter_card = VALUES(twitter_card),
+                        twitter_title = VALUES(twitter_title),
+                        twitter_description = VALUES(twitter_description),
+                        twitter_image = VALUES(twitter_image)
                 ");
                 $removeBackground = isset($heroData['remove_background']) && $heroData['remove_background'] == '1' ? 1 : 0;
-                $stmt->bind_param('ssssssssi',
+                $stmt->bind_param('sssssssssssssssssi',
                     $heroData['title'],
                     $heroData['subtitle'],
                     $heroData['button_text'],
@@ -261,6 +290,14 @@ class CmsController
                     $seoDescription,
                     $seoKeywords,
                     $ogImage,
+                    $ogTitle,
+                    $ogDescription,
+                    $ogType,
+                    $ogUrl,
+                    $twitterCard,
+                    $twitterTitle,
+                    $twitterDescription,
+                    $twitterImage,
                     $removeBackground
                 );
                 $stmt->execute();

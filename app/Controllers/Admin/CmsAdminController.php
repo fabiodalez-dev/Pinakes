@@ -35,15 +35,18 @@ class CmsAdminController
 
     public function editPage(Request $request, Response $response, array $args): Response
     {
-        $slug = $args['slug'] ?? 'chi-siamo';
+        $slug = $args['slug'] ?? 'about-us';
 
-        // Recupera la pagina dal database
+        // Get current locale from session
+        $currentLocale = \App\Support\I18n::getLocale();
+
+        // Recupera la pagina dal database (slug + locale)
         $stmt = $this->db->prepare("
-            SELECT id, slug, title, content, image, meta_description, is_active
+            SELECT id, slug, locale, title, content, image, meta_description, is_active
             FROM cms_pages
-            WHERE slug = ?
+            WHERE slug = ? AND locale = ?
         ");
-        $stmt->bind_param('s', $slug);
+        $stmt->bind_param('ss', $slug, $currentLocale);
         $stmt->execute();
         $result = $stmt->get_result();
         $page = $result->fetch_assoc();
@@ -72,8 +75,11 @@ class CmsAdminController
 
     public function updatePage(Request $request, Response $response, array $args): Response
     {
-        $slug = $args['slug'] ?? 'chi-siamo';
+        $slug = $args['slug'] ?? 'about-us';
         $data = $request->getParsedBody();
+
+        // Get current locale from session
+        $currentLocale = \App\Support\I18n::getLocale();
 
         $title = $data['title'] ?? '';
         $content = $data['content'] ?? '';
@@ -81,13 +87,13 @@ class CmsAdminController
         $metaDescription = $data['meta_description'] ?? '';
         $isActive = isset($data['is_active']) ? 1 : 0;
 
-        // Aggiorna la pagina
+        // Aggiorna la pagina (slug + locale)
         $stmt = $this->db->prepare("
             UPDATE cms_pages
             SET title = ?, content = ?, image = ?, meta_description = ?, is_active = ?, updated_at = NOW()
-            WHERE slug = ?
+            WHERE slug = ? AND locale = ?
         ");
-        $stmt->bind_param('ssssis', $title, $content, $image, $metaDescription, $isActive, $slug);
+        $stmt->bind_param('ssssiss', $title, $content, $image, $metaDescription, $isActive, $slug, $currentLocale);
 
         if ($stmt->execute()) {
             $stmt->close();

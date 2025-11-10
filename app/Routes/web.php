@@ -31,6 +31,52 @@ use App\Middleware\AdminAuthMiddleware;
 use App\Support\RouteTranslator;
 
 return function (App $app): void {
+    // Supported locales for multi-language route variants
+    // Content routes (book, author, publisher, genre) are registered
+    // in all languages to support language switching without 404s
+    $supportedLocales = ['it_IT', 'en_US'];
+
+    // Track registered routes to avoid duplicates (some routes are identical across languages)
+    $registeredRoutes = [];
+
+    // Helper function to register route only if not already registered
+    $registerRouteIfUnique = function(string $method, string $pattern, callable $handler, ?array $middleware = null) use ($app, &$registeredRoutes) {
+        $routeKey = $method . ':' . $pattern;
+
+        if (isset($registeredRoutes[$routeKey])) {
+            return; // Already registered, skip
+        }
+
+        $registeredRoutes[$routeKey] = true;
+
+        // Use specific HTTP method instead of map() for better compatibility
+        $route = match(strtoupper($method)) {
+            'GET' => $app->get($pattern, $handler),
+            'POST' => $app->post($pattern, $handler),
+            'PUT' => $app->put($pattern, $handler),
+            'DELETE' => $app->delete($pattern, $handler),
+            'PATCH' => $app->patch($pattern, $handler),
+            default => $app->map([$method], $pattern, $handler),
+        };
+
+        if ($middleware) {
+            foreach ($middleware as $mw) {
+                $route->add($mw);
+            }
+        }
+    };
+
+    // Debug endpoint to see registered routes
+    $app->get('/debug-routes', function ($request, $response) use (&$registeredRoutes) {
+        $html = '<h1>Registered Routes</h1><ul>';
+        foreach ($registeredRoutes as $route => $value) {
+            $html .= '<li>' . htmlspecialchars($route) . '</li>';
+        }
+        $html .= '</ul>';
+        $response->getBody()->write($html);
+        return $response;
+    });
+
     $app->get('/', function ($request, $response) use ($app) {
         // Redirect to frontend home page
         $controller = new \App\Controllers\FrontendController();
@@ -73,18 +119,23 @@ return function (App $app): void {
                 return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
             } else {
                 // For standard users, show user dashboard
-                return $response->withHeader('Location', '/user/dashboard')->withStatus(302);
+                return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
             }
         }
-        return $response->withHeader('Location', '/login')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
     });
 
     // User Dashboard (separate from admin)
-    $app->get('/user/dashboard', function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new \App\Controllers\UserDashboardController();
-        return $controller->index($request, $response, $db);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+    // User dashboard (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $dashboardRoute = RouteTranslator::getRouteForLocale('user_dashboard', $locale);
+
+        $registerRouteIfUnique('GET', $dashboardRoute, function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new \App\Controllers\UserDashboardController();
+            return $controller->index($request, $response, $db);
+        }, [new AuthMiddleware(['admin','staff','standard','premium'])]);
+    }
 
     // Auth routes (translated based on installation locale)
     $app->get(RouteTranslator::route('login'), function ($request, $response) use ($app) {
@@ -94,7 +145,7 @@ return function (App $app): void {
             if ($userRole === 'admin' || $userRole === 'staff') {
                 return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
             } else {
-                return $response->withHeader('Location', '/user/dashboard')->withStatus(302);
+                return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
             }
         }
         $controller = new AuthController();
@@ -111,48 +162,62 @@ return function (App $app): void {
         return $controller->logout($request, $response);
     });
 
-    // User profile (translated)
-    $app->get(RouteTranslator::route('profile'), function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new ProfileController();
-        return $controller->show($request, $response, $db);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+    // User profile (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $profileRoute = RouteTranslator::getRouteForLocale('profile', $locale);
 
-    $app->post(RouteTranslator::route('profile_update'), function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new ProfileController();
-        return $controller->update($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
+        $registerRouteIfUnique('GET', $profileRoute, function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new ProfileController();
+            return $controller->show($request, $response, $db);
+        }, [new AuthMiddleware(['admin','staff','standard','premium'])]);
 
-    // Redirect GET to profile update to profile
-    $app->get(RouteTranslator::route('profile_update'), function ($request, $response) use ($app) {
-        return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+        $profileUpdateRoute = RouteTranslator::getRouteForLocale('profile_update', $locale);
+        $registerRouteIfUnique('POST', $profileUpdateRoute, function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new ProfileController();
+            return $controller->update($request, $response, $db);
+        }, [new CsrfMiddleware($app->getContainer()), new AuthMiddleware(['admin','staff','standard','premium'])]);
 
-    $app->post(RouteTranslator::route('profile_password'), function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new ProfileController();
-        return $controller->changePassword($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
+        // Redirect GET to profile update to profile
+        $registerRouteIfUnique('GET', $profileUpdateRoute, function ($request, $response) use ($app) {
+            return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
+        }, [new AuthMiddleware(['admin','staff','standard','premium'])]);
 
-    // Redirect GET to profile password to profile
-    $app->get(RouteTranslator::route('profile_password'), function ($request, $response) use ($app) {
-        return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+        $profilePasswordRoute = RouteTranslator::getRouteForLocale('profile_password', $locale);
+        $registerRouteIfUnique('POST', $profilePasswordRoute, function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new ProfileController();
+            return $controller->changePassword($request, $response, $db);
+        }, [new CsrfMiddleware($app->getContainer()), new AuthMiddleware(['admin','staff','standard','premium'])]);
 
-    // User wishlist (translated)
-    $app->get(RouteTranslator::route('wishlist'), function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new UserWishlistController();
-        return $controller->page($request, $response, $db);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+        // Redirect GET to profile password to profile
+        $registerRouteIfUnique('GET', $profilePasswordRoute, function ($request, $response) use ($app) {
+            return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
+        }, [new AuthMiddleware(['admin','staff','standard','premium'])]);
+    }
 
-    // User reservations (translated)
-    $app->get(RouteTranslator::route('reservations'), function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new UserDashboardController();
-        return $controller->prenotazioni($request, $response, $db);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+    // User wishlist (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $wishlistRoute = RouteTranslator::getRouteForLocale('wishlist', $locale);
+
+        $registerRouteIfUnique('GET', $wishlistRoute, function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new UserWishlistController();
+            return $controller->page($request, $response, $db);
+        }, [new AuthMiddleware(['admin','staff','standard','premium'])]);
+    }
+
+    // User reservations (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $reservationsRoute = RouteTranslator::getRouteForLocale('reservations', $locale);
+
+        $registerRouteIfUnique('GET', $reservationsRoute, function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new UserDashboardController();
+            return $controller->prenotazioni($request, $response, $db);
+        }, [new AuthMiddleware(['admin','staff','standard','premium'])]);
+    }
 
     // Public registration routes (translated)
     $app->get(RouteTranslator::route('register'), function ($request, $response) use ($app) {
@@ -1320,119 +1385,167 @@ return function (App $app): void {
         return $controller->home($request, $response, $db);
     });
 
-// Legacy redirect for backward compatibility
-$app->get(RouteTranslator::route('catalog_legacy'), function ($request, $response) use ($app) {
-    return $response->withHeader('Location', RouteTranslator::route('catalog'))->withStatus(301);
-});
+// Legacy redirect for backward compatibility (all language variants)
+foreach ($supportedLocales as $locale) {
+    $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('catalog_legacy', $locale), function ($request, $response) use ($app) {
+        return $response->withHeader('Location', RouteTranslator::route('catalog'))->withStatus(301);
+    });
+}
 
-// Catalog page (translated)
-$app->get(RouteTranslator::route('catalog'), function ($request, $response) use ($app) {
-    $controller = new \App\Controllers\FrontendController();
-    $db = $app->getContainer()->get('db');
-    return $controller->catalog($request, $response, $db);
-});
-
-    // Legacy book detail redirect
-    $app->get(RouteTranslator::route('book_legacy'), function ($request, $response) use ($app) {
+// Catalog page (all language variants)
+foreach ($supportedLocales as $locale) {
+    $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('catalog', $locale), function ($request, $response) use ($app) {
         $controller = new \App\Controllers\FrontendController();
         $db = $app->getContainer()->get('db');
-        return $controller->bookDetail($request, $response, $db);
+        return $controller->catalog($request, $response, $db);
     });
+}
 
-    // SEO-friendly book detail URL (translated)
-    $app->get(RouteTranslator::route('book') . '/{id:\d+}[/{slug}]', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['slug'] ?? '');
-    });
+    // Legacy book detail redirect (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('book_legacy', $locale), function ($request, $response) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->bookDetail($request, $response, $db);
+        });
+    }
 
-    // API endpoints for book reservations (translated)
-    $app->get(RouteTranslator::route('api_book') . '/{id:\d+}/availability', function ($request, $response, $args) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new \App\Controllers\ReservationsController($db);
-        return $controller->getBookAvailability($request, $response, $args);
-    });
+    // SEO-friendly book detail URL (all language variants)
+    // Register two routes: with and without slug (FastRoute doesn't support optional params in pattern)
+    foreach ($supportedLocales as $locale) {
+        $bookRoute = RouteTranslator::getRouteForLocale('book', $locale);
 
-    $app->post(RouteTranslator::route('api_book') . '/{id:\d+}/reservation', function ($request, $response, $args) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new \App\Controllers\ReservationsController($db);
-        return $controller->createReservation($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
+        // Route without slug
+        $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}', function ($request, $response, $args) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], '');
+        });
 
-    // API endpoint for AJAX catalog filtering (translated)
-    $app->get(RouteTranslator::route('api_catalog'), function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->catalogAPI($request, $response, $db);
-    });
+        // Route with slug
+        $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}/{slug}', function ($request, $response, $args) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['slug']);
+        });
+    }
 
-    // API endpoint for home page sections (translated)
-    $app->get(RouteTranslator::route('api_home') . '/{section}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->homeAPI($request, $response, $db, $args['section']);
-    });
+    // API endpoints for book reservations (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('api_book', $locale) . '/{id:\d+}/availability', function ($request, $response, $args) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new \App\Controllers\ReservationsController($db);
+            return $controller->getBookAvailability($request, $response, $args);
+        });
 
-    // Author archive page by ID (public) - must come before name route (translated)
-    $app->get(RouteTranslator::route('author') . '/{id:\d+}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->authorArchiveById($request, $response, $db, (int)$args['id']);
-    });
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('api_book', $locale) . '/{id:\d+}/reservation', function ($request, $response, $args) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new \App\Controllers\ReservationsController($db);
+            return $controller->createReservation($request, $response, $args);
+        }, [new AuthMiddleware(['admin','staff','standard','premium']), new CsrfMiddleware($app->getContainer())]);
+    }
 
-    // Author archive page by name (public) (translated)
-    $app->get(RouteTranslator::route('author') . '/{name}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->authorArchive($request, $response, $db, $args['name']);
-    });
+    // API endpoint for AJAX catalog filtering (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('api_catalog', $locale), function ($request, $response) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->catalogAPI($request, $response, $db);
+        });
+    }
 
-    // Publisher archive page (public) (translated)
-    $app->get(RouteTranslator::route('publisher') . '/{name}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->publisherArchive($request, $response, $db, $args['name']);
-    });
+    // API endpoint for home page sections (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('api_home', $locale) . '/{section}', function ($request, $response, $args) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->homeAPI($request, $response, $db, $args['section']);
+        });
+    }
 
-    // Genre archive page (public) (translated)
-    $app->get(RouteTranslator::route('genre') . '/{name}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->genreArchive($request, $response, $db, $args['name']);
-    });
+    // Author archive page by ID (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('author', $locale) . '/{id:\d+}', function ($request, $response, $args) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->authorArchiveById($request, $response, $db, (int)$args['id']);
+        });
+    }
 
-    // CMS pages (Chi Siamo, etc.) (translated)
-    $app->get(RouteTranslator::route('about'), function ($request, $response, $args) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new \App\Controllers\CmsController();
-        // Derive slug from translated route (remove leading /)
-        $slug = ltrim(RouteTranslator::route('about'), '/');
-        return $controller->showPage($request, $response, $db, ['slug' => $slug]);
-    });
+    // Author archive page by name (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('author', $locale) . '/{name}', function ($request, $response, $args) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->authorArchive($request, $response, $db, $args['name']);
+        });
+    }
 
-    // Contact page (translated)
-    $app->get(RouteTranslator::route('contact'), function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\ContactController();
-        return $controller->showPage($request, $response);
-    });
+    // Publisher archive page (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('publisher', $locale) . '/{name}', function ($request, $response, $args) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->publisherArchive($request, $response, $db, $args['name']);
+        });
+    }
 
-    $app->post(RouteTranslator::route('contact_submit'), function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $controller = new \App\Controllers\ContactController();
-        return $controller->submitForm($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()));
+    // Genre archive page (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('genre', $locale) . '/{name}', function ($request, $response, $args) use ($app) {
+            $controller = new \App\Controllers\FrontendController();
+            $db = $app->getContainer()->get('db');
+            return $controller->genreArchive($request, $response, $db, $args['name']);
+        });
+    }
 
-    // Privacy Policy page (translated)
-    $app->get(RouteTranslator::route('privacy'), function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\PrivacyController();
-        return $controller->showPage($request, $response);
-    });
+    // CMS pages (Chi Siamo, etc.) (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $aboutRoute = RouteTranslator::getRouteForLocale('about', $locale);
 
-    // Cookie Policy page (translated)
-    $app->get(RouteTranslator::route('cookies'), function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\CookiesController();
-        return $controller->showPage($request, $response);
-    });
+        $registerRouteIfUnique('GET', $aboutRoute, function ($request, $response, $args) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new \App\Controllers\CmsController();
+            return $controller->showPage($request, $response, $db, ['slug' => 'about-us']);
+        });
+    }
+
+    // Contact page (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $contactRoute = RouteTranslator::getRouteForLocale('contact', $locale);
+
+        $registerRouteIfUnique('GET', $contactRoute, function ($request, $response) use ($app) {
+            $controller = new \App\Controllers\ContactController();
+            return $controller->showPage($request, $response);
+        });
+
+        $contactSubmitRoute = RouteTranslator::getRouteForLocale('contact_submit', $locale);
+        $registerRouteIfUnique('POST', $contactSubmitRoute, function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $controller = new \App\Controllers\ContactController();
+            return $controller->submitForm($request, $response, $db);
+        }, [new CsrfMiddleware($app->getContainer())]);
+    }
+
+    // Privacy Policy page (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $privacyRoute = RouteTranslator::getRouteForLocale('privacy', $locale);
+
+        $registerRouteIfUnique('GET', $privacyRoute, function ($request, $response) use ($app) {
+            $controller = new \App\Controllers\PrivacyController();
+            return $controller->showPage($request, $response);
+        });
+    }
+
+    // Cookie Policy page (multi-language variants)
+    foreach ($supportedLocales as $locale) {
+        $cookiesRoute = RouteTranslator::getRouteForLocale('cookies', $locale);
+
+        $registerRouteIfUnique('GET', $cookiesRoute, function ($request, $response) use ($app) {
+            $controller = new \App\Controllers\CookiesController();
+            return $controller->showPage($request, $response);
+        });
+    }
 
     // Cover proxy endpoint for previews (bypasses CORS)
     $app->get('/proxy/cover', function ($request, $response) use ($app) {

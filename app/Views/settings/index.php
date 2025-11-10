@@ -5,7 +5,7 @@ use App\Support\HtmlHelper;
 $csrfToken = Csrf::ensureToken();
 $activeTab = $activeTab ?? 'general';
 ?>
-<div class="max-w-6xl mx-auto py-10">
+<div class="max-w-7xl mx-auto py-6 px-4">
   <div class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
       <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gray-100 text-gray-700">
