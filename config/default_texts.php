@@ -15,6 +15,7 @@ return [
             'page_content' => '<p>La tua privacy è importante per noi.</p>',
             'cookie_banner_language' => 'it',
             'cookie_banner_country' => 'IT',
+            'cookie_policy_content' => '<p>Questa pagina descrive come utilizziamo i cookie sul nostro sito.</p>',
         ],
         'cookie_banner' => [
             'banner_description' => '<p>Utilizziamo i cookie per migliorare la tua esperienza. Continuando a visitare questo sito, accetti il nostro uso dei cookie.</p>',
@@ -46,6 +47,7 @@ return [
             'page_content' => '<p>Your privacy matters to us.</p>',
             'cookie_banner_language' => 'en',
             'cookie_banner_country' => 'US',
+            'cookie_policy_content' => '<p>This page explains how we use cookies on our website.</p>',
         ],
         'cookie_banner' => [
             'banner_description' => '<p>We use cookies to improve your experience. By continuing to browse this site, you agree to our use of cookies.</p>',

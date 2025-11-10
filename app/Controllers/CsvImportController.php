@@ -52,28 +52,28 @@ class CsvImportController
         $data = (array)$request->getParsedBody();
 
         if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error'] = 'Token CSRF non valido';
+            $_SESSION['error'] = __('Token CSRF non valido');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
         $uploadedFiles = $request->getUploadedFiles();
 
         if (!isset($uploadedFiles['csv_file'])) {
-            $_SESSION['error'] = 'Nessun file caricato';
+            $_SESSION['error'] = __('Nessun file caricato');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
         $uploadedFile = $uploadedFiles['csv_file'];
 
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
-            $_SESSION['error'] = 'Errore nel caricamento del file';
+            $_SESSION['error'] = __('Errore nel caricamento del file');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
         // Validazione estensione file
         $filename = $uploadedFile->getClientFilename();
         if (!str_ends_with(strtolower($filename), '.csv')) {
-            $_SESSION['error'] = 'Il file deve avere estensione .csv';
+            $_SESSION['error'] = __('Il file deve avere estensione .csv');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
@@ -81,7 +81,7 @@ class CsvImportController
         $allowedMimes = ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'];
         $mimeType = $uploadedFile->getClientMediaType();
         if (!in_array($mimeType, $allowedMimes, true)) {
-            $_SESSION['error'] = 'Tipo MIME non valido. Solo file CSV sono accettati.';
+            $_SESSION['error'] = __('Tipo MIME non valido. Solo file CSV sono accettati.');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
@@ -90,7 +90,7 @@ class CsvImportController
         // Validazione contenuto CSV: verifica che contenga separatori validi
         $handle = fopen($tmpFile, 'r');
         if ($handle === false) {
-            $_SESSION['error'] = 'Impossibile leggere il file caricato';
+            $_SESSION['error'] = __('Impossibile leggere il file caricato');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
@@ -102,16 +102,9 @@ class CsvImportController
         fclose($handle);
 
         // Verifica che almeno una riga contenga il separatore CSV (;)
-        $hasValidSeparator = false;
-        foreach ($firstLines as $line) {
-            if (strpos($line, ';') !== false) {
-                $hasValidSeparator = true;
-                break;
-            }
-        }
-
-        if (!$hasValidSeparator) {
-            $_SESSION['error'] = 'File CSV non valido: separatore ";" non trovato. Usa separatore punto e virgola.';
+        $delimiter = $this->detectDelimiterFromSample($firstLines);
+        if ($delimiter === null) {
+            $_SESSION['error'] = __('File CSV non valido: usa ";" o "," come separatore.');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
         $enableScraping = !empty($data['enable_scraping']);
@@ -128,7 +121,7 @@ class CsvImportController
                   $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
 
         try {
-            $result = $this->importCsvData($tmpFile, $db, $enableScraping);
+            $result = $this->importCsvData($tmpFile, $db, $enableScraping, $delimiter);
 
             $_SESSION['import_progress'] = [
                 'status' => 'completed',
@@ -137,7 +130,7 @@ class CsvImportController
             ];
 
             $message = sprintf(
-                'Import completato: %d libri nuovi, %d libri aggiornati, %d autori creati, %d editori creati',
+                __('Import completato: %d libri nuovi, %d libri aggiornati, %d autori creati, %d editori creati'),
                 $result['imported'],
                 $result['updated'],
                 $result['authors_created'],
@@ -145,11 +138,11 @@ class CsvImportController
             );
 
             if ($enableScraping && isset($result['scraped'])) {
-                $message .= sprintf(', %d libri arricchiti con scraping', $result['scraped']);
+                $message .= sprintf(__(', %d libri arricchiti con scraping'), $result['scraped']);
             }
 
             if (!empty($result['errors'])) {
-                $message .= sprintf(', %d errori', count($result['errors']));
+                $message .= sprintf(__(', %d errori'), count($result['errors']));
             }
 
             $_SESSION['success'] = $message;
@@ -169,7 +162,7 @@ class CsvImportController
             }
 
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Errore durante l\'import: ' . $e->getMessage();
+            $_SESSION['error'] = sprintf(__('Errore durante l\'import: %s'), $e->getMessage());
             $_SESSION['import_progress'] = ['status' => 'error'];
 
             if ($isAjax) {
@@ -329,10 +322,38 @@ class CsvImportController
     }
 
     /**
+     * Detect delimiter from sample lines
+     */
+    private function detectDelimiterFromSample(array $lines): ?string
+    {
+        $candidates = [';' => 0, ',' => 0];
+
+        foreach ($lines as $line) {
+            if (!is_string($line)) {
+                continue;
+            }
+
+            foreach ($candidates as $delimiter => $count) {
+                $candidates[$delimiter] += substr_count($line, $delimiter);
+            }
+        }
+
+        arsort($candidates);
+        $bestDelimiter = array_key_first($candidates);
+
+        if ($bestDelimiter === null || $candidates[$bestDelimiter] === 0) {
+            return null;
+        }
+
+        return $bestDelimiter;
+    }
+
+    /**
      * Importa i dati dal CSV
      */
-    private function importCsvData(string $filePath, \mysqli $db, bool $enableScraping = false): array
+    private function importCsvData(string $filePath, \mysqli $db, bool $enableScraping = false, string $delimiter = ';'): array
     {
+        $delimiter = $delimiter !== '' ? $delimiter : ';';
         $imported = 0;
         $updated = 0;
         $authorsCreated = 0;
@@ -347,34 +368,34 @@ class CsvImportController
 
         $file = fopen($filePath, 'r');
         if (!$file) {
-            throw new \Exception('Impossibile aprire il file CSV');
+            throw new \Exception(__('Impossibile aprire il file CSV'));
         }
 
         // Skip BOM if present
         $bom = fread($file, 3);
-        if ($bom !== "\xEF\xBB\xBF") {
+        $hasBom = ($bom === "\xEF\xBB\xBF");
+        if (!$hasBom) {
             rewind($file);
         }
 
         // Leggi intestazioni
-        $headers = fgetcsv($file, 0, ';');
+        $headers = fgetcsv($file, 0, $delimiter);
         if (!$headers) {
             fclose($file);
-            throw new \Exception('File CSV vuoto o formato non valido');
+            throw new \Exception(__('File CSV vuoto o formato non valido'));
         }
 
         // Count total rows for progress tracking
         $totalRows = 0;
-        while (fgetcsv($file, 0, ';') !== false) {
+        while (fgetcsv($file, 0, $delimiter) !== false) {
             $totalRows++;
         }
+
         rewind($file);
-        // Skip BOM and headers again
-        $bom = fread($file, 3);
-        if ($bom !== "\xEF\xBB\xBF") {
-            rewind($file);
+        if ($hasBom) {
+            fread($file, 3);
         }
-        fgetcsv($file, 0, ';'); // Skip headers
+        fgetcsv($file, 0, $delimiter); // Skip headers
 
         // Update progress with total
         $_SESSION['import_progress']['total'] = $totalRows;
@@ -389,12 +410,12 @@ class CsvImportController
 
             // Prevent DoS from extremely large CSV files
             if ($rowCount > $maxRows) {
-                $errors[] = "Numero massimo di righe superato ($maxRows). Dividi il file in parti più piccole.";
+                $errors[] = sprintf(__('Numero massimo di righe superato (%d). Dividi il file in parti più piccole.'), $maxRows);
                 break;
             }
 
             if (count($row) !== count($headers)) {
-                $errors[] = "Riga $lineNumber: numero di colonne non corrispondente";
+                $errors[] = sprintf(__('Riga %d: numero di colonne non corrispondente'), $lineNumber);
                 continue;
             }
 
@@ -408,7 +429,7 @@ class CsvImportController
 
                 // Verifica campi obbligatori
                 if (empty($data['titolo'])) {
-                    throw new \Exception("Titolo obbligatorio mancante");
+                    throw new \Exception(__('Titolo obbligatorio mancante'));
                 }
 
                 // Gestione editore
@@ -477,7 +498,7 @@ class CsvImportController
                 if ($enableScraping && !empty($data['isbn13']) && $scraped < $maxScrapeItems) {
                     // Check timeout before scraping
                     if (time() - $scrapingStartTime > $maxScrapingTime) {
-                        $errors[] = "Scraping interrotto: timeout di {$maxScrapingTime} secondi raggiunto. Importati {$scraped} libri con scraping.";
+                        $errors[] = sprintf(__('Scraping interrotto: timeout di %d secondi raggiunto. Importati %d libri con scraping.'), $maxScrapingTime, $scraped);
                         $enableScraping = false; // Disable for remaining books
                     } else {
                         $needsScraping = empty($data['autori']) ||
@@ -505,7 +526,8 @@ class CsvImportController
 
             } catch (\Exception $e) {
                 $db->rollback();
-                $errors[] = "Riga $lineNumber ({$data['titolo']}): " . $e->getMessage();
+                $title = $data['titolo'] ?? '';
+                $errors[] = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
             }
         }
 

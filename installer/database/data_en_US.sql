@@ -28,6 +28,10 @@ INSERT INTO `system_settings` (`group`, `key`, `value`, `type`, `is_public`, `de
 ('cookie_banner', 'save_preferences_text', 'Save preferences', 'string', 0, 'Label for the button that saves cookie preferences'),
 ('cookie_banner', 'learn_more_text', 'Learn more', 'string', 0, 'Label for the link/button that opens more information (e.g. Privacy Policy)'),
 ('cookie_banner', 'policy_link', '/privacy-policy', 'string', 0, 'URL of the Privacy Policy page linked from the banner');
+INSERT INTO `system_settings` (`group`, `key`, `value`, `type`, `is_public`, `description`) VALUES
+('privacy', 'cookie_policy_content', '<p>This page explains how we use cookies on our website.</p>', 'text', 1, 'Content displayed on /cookies');
+INSERT INTO `system_settings` (`group`, `key`, `value`, `type`, `is_public`, `description`) VALUES
+('app', 'footer_description', '<p>Your Pinakes system to catalog, manage, and share your book collection.</p>', 'text', 1, 'Footer description text shown on the public site');
 
 
 INSERT INTO `classificazione` VALUES (1,NULL,'000','000 - Informatica, informazione e opere generali',1);
