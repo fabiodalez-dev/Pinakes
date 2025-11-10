@@ -3,6 +3,33 @@
 
 SET FOREIGN_KEY_CHECKS=0;
 
+-- Default settings for en_US (including cookie banner texts)
+INSERT INTO `system_settings` (`group`, `key`, `value`, `type`, `is_public`, `description`) VALUES
+('cookie_banner', 'enabled', '1', 'boolean', 1, 'Enable cookie consent banner'),
+('cookie_banner', 'position', 'bottom', 'string', 0, 'Position of the cookie banner'),
+('cookie_banner', 'layout', 'bar', 'string', 0, 'Layout of the cookie banner'),
+('cookie_banner', 'theme', 'light', 'string', 0, 'Color theme for the cookie banner'),
+('cookie_banner', 'primary_color', '#2563eb', 'string', 0, 'Primary color for buttons and highlights'),
+('cookie_banner', 'text_color', '#111827', 'string', 0, 'Color of the main text in the banner'),
+('cookie_banner', 'background_color', '#ffffff', 'string', 0, 'Background color of the banner'),
+('cookie_banner', 'backdrop', '1', 'boolean', 0, 'Show a subtle page backdrop behind the banner'),
+('cookie_banner', 'message', 'We use technical and analytical cookies to ensure the correct functioning of the site and improve your browsing experience. You can accept all cookies or customize your preferences.', 'text', 1, 'Main message shown in the cookie banner'),
+('cookie_banner', 'accept_text', 'Accept all', 'string', 1, 'Label for the full acceptance button'),
+('cookie_banner', 'reject_text', 'Reject non-essential', 'string', 1, 'Label for the button that rejects non-essential cookies'),
+('cookie_banner', 'settings_text', 'Customize', 'string', 1, 'Label for the button that opens the cookie preferences panel'),
+('cookie_banner', 'details_title', 'Cookie Preferences', 'string', 0, 'Title of the preferences modal/panel'),
+('cookie_banner', 'details_description', 'Select the categories of cookies you want to enable. You can change your preferences at any time from the site footer.', 'text', 0, 'Description shown in the preferences panel'),
+('cookie_banner', 'necessary_title', 'Strictly necessary cookies', 'string', 0, 'Title for strictly necessary cookies section'),
+('cookie_banner', 'necessary_description', 'These cookies are essential for the correct functioning of the site and cannot be disabled.', 'text', 0, 'Description for strictly necessary cookies'),
+('cookie_banner', 'analytics_title', 'Analytics cookies', 'string', 0, 'Title for analytics cookies section'),
+('cookie_banner', 'analytics_description', 'These cookies help us understand how the site is used, in order to improve navigation and the quality of our services.', 'text', 0, 'Description for analytics cookies'),
+('cookie_banner', 'thirdparty_title', 'Third-party cookies', 'string', 0, 'Title for third-party cookies section'),
+('cookie_banner', 'thirdparty_description', 'These cookies may be set by external services integrated into the site (for example, videos, maps, social widgets).', 'text', 0, 'Description for third-party cookies'),
+('cookie_banner', 'save_preferences_text', 'Save preferences', 'string', 0, 'Label for the button that saves cookie preferences'),
+('cookie_banner', 'learn_more_text', 'Learn more', 'string', 0, 'Label for the link/button that opens more information (e.g. Privacy Policy)'),
+('cookie_banner', 'policy_link', '/privacy-policy', 'string', 0, 'URL of the Privacy Policy page linked from the banner');
+
+
 INSERT INTO `classificazione` VALUES (1,NULL,'000','000 - Informatica, informazione e opere generali',1);
 INSERT INTO `classificazione` VALUES (2,NULL,'100','100 - Filosofia e psicologia',1);
 INSERT INTO `classificazione` VALUES (3,NULL,'200','200 - Religione',1);

@@ -17,7 +17,7 @@ final class I18n
 {
     private const LOCALE_PATTERN = '/^[a-z]{2}_[A-Z]{2}$/';
     /**
-     * Current locale (default: Italian)
+     * Current locale (default: Italian or APP_LOCALE/system_settings if available)
      */
     private static string $locale = 'it_IT';
 
@@ -54,6 +54,42 @@ final class I18n
      * Flag to track if translations have been loaded
      */
     private static bool $translationsLoaded = false;
+
+    /**
+     * Initialize locale from environment and database.
+     *
+     * - Reads APP_LOCALE from .env (via getenv) if present.
+     * - Reads default language from languages table if available.
+     * - Falls back to it_IT.
+     *
+     * This SHOULD be called once early in bootstrap, with a valid mysqli $db.
+     */
+    public static function bootstrap(?\mysqli $db = null): void
+    {
+        // 1) Start with APP_LOCALE from environment if valid
+        $envLocale = getenv('APP_LOCALE') ?: '';
+        $envLocale = self::normalizeLocaleCode($envLocale);
+        if (self::isValidLocaleCode($envLocale)) {
+            self::$locale = $envLocale;
+            self::$installationLocale = $envLocale;
+        }
+
+        // 2) If DB available, prefer active default language from languages table
+        if ($db instanceof \mysqli) {
+            try {
+                $result = $db->query("SELECT code FROM languages WHERE is_default = 1 AND is_active = 1 LIMIT 1");
+                if ($result && ($row = $result->fetch_assoc())) {
+                    $code = self::normalizeLocaleCode((string)$row['code']);
+                    if (self::isValidLocaleCode($code)) {
+                        self::$locale = $code;
+                        self::$installationLocale = $code;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore DB bootstrap errors, keep env/fallback locale
+            }
+        }
+    }
 
     /**
      * Load languages from database
