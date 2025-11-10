@@ -330,7 +330,7 @@ Non devi logout da tutti i dispositivi.
 1. Puoi visitare:
    - Home page (/)
    - Catalogo (/catalogo)
-   - Dettagli libro (/libro/{id})
+   - Dettagli libro (/{author-slug}/{book-slug}/{id})
 
 2. ❌ NON puoi:
    - Aggiungere ai preferiti

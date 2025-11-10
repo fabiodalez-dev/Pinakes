@@ -168,7 +168,7 @@ use App\Support\HtmlHelper;
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <code class="bg-gray-100 px-1 rounded">book</code>
-                                <code class="bg-gray-100 px-1 rounded">/libro</code>
+                                <code class="bg-gray-100 px-1 rounded">/libro <?= __('(percorso legacy)') ?></code>
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <code class="bg-gray-100 px-1 rounded">login</code>

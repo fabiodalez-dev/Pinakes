@@ -1,4 +1,14 @@
-<?php use App\Support\Csrf; ?>
+<?php 
+use App\Support\Csrf;
+
+function profileReservationBookUrl(array $item): string {
+    return book_url([
+        'libro_id' => $item['libro_id'] ?? null,
+        'libro_titolo' => $item['titolo'] ?? ($item['libro_titolo'] ?? ''),
+        'autore' => $item['autore'] ?? ($item['libro_autore'] ?? ''),
+    ]);
+}
+?>
 <!-- Link star-rating.js CSS -->
 <link rel="stylesheet" href="/assets/star-rating/dist/star-rating.css">
 
@@ -332,13 +342,13 @@
     ?>
       <div class="item-card">
         <div class="item-inner">
-          <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
+          <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? __('Libro')) . ' - ' . __('Copertina')); ?>"
                  onerror="this.src='/uploads/copertine/placeholder.jpg'">
           </a>
           <div class="item-info">
-            <h3 class="item-title"><a href="/libro/<?php echo (int)$p['libro_id']; ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+            <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
             <div class="item-badges">
               <div class="badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
                 <i class="fas fa-clock" style="color: #f59e0b;"></i>
@@ -393,13 +403,13 @@
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?php echo (int)$p['libro_id']; ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge <?php echo $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar"></i>
@@ -457,13 +467,13 @@
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?php echo (int)$p['libro_id']; ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge badge-position">
                   <i class="fas fa-sort-numeric-up"></i>
@@ -529,13 +539,13 @@
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?php echo (int)$p['libro_id']; ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?php echo (int)$p['libro_id']; ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge badge-status">
                   <i class="fas fa-check-circle"></i>
@@ -608,13 +618,13 @@
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?php echo (int)$r['libro_id']; ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src='/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?php echo (int)$r['libro_id']; ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge" style="<?php echo $statusColor; ?>">
                   <i class="fas fa-info-circle"></i>

@@ -203,7 +203,23 @@ class SitemapGenerator
     private function getBookEntries(): array
     {
         $entries = [];
-        $sql = "SELECT id, titolo, updated_at, created_at FROM libri ORDER BY updated_at DESC LIMIT 2000";
+        $sql = "
+            SELECT l.id,
+                   l.titolo,
+                   l.updated_at,
+                   l.created_at,
+                   (
+                       SELECT a.nome
+                       FROM libri_autori la
+                       JOIN autori a ON la.autore_id = a.id
+                       WHERE la.libro_id = l.id
+                       ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END, la.id
+                       LIMIT 1
+                   ) AS autore_principale
+            FROM libri l
+            ORDER BY l.updated_at DESC
+            LIMIT 2000
+        ";
 
         if ($result = $this->db->query($sql)) {
             while ($row = $result->fetch_assoc()) {
@@ -214,7 +230,7 @@ class SitemapGenerator
                 }
 
                 $entries[] = [
-                    'loc' => $this->baseUrl . $this->buildBookPath($id, $title),
+                    'loc' => $this->baseUrl . $this->buildBookPath($id, $title, (string)($row['autore_principale'] ?? '')),
                     'changefreq' => 'weekly',
                     'priority' => '0.8',
                     'lastmod' => $row['updated_at'] ?? $row['created_at'] ?? null,
@@ -351,22 +367,12 @@ class SitemapGenerator
         }
     }
 
-    private function buildBookPath(int $bookId, string $title): string
+    private function buildBookPath(int $bookId, string $title, string $authorName): string
     {
-        $slug = $this->createSlug($title);
-        return '/libro/' . $bookId . ($slug !== '' ? '/' . $slug : '');
-    }
-
-    private function createSlug(string $text): string
-    {
-        $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
-        $text = strtolower($text);
-        $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT', $text);
-        if ($transliterated !== false) {
-            $text = $transliterated;
-        }
-        $text = preg_replace('/[^a-z0-9\s-]/', '', $text) ?? '';
-        $text = preg_replace('/[\s-]+/', '-', $text) ?? '';
-        return trim($text, '-');
+        return book_url([
+            'id' => $bookId,
+            'titolo' => $title,
+            'autore_principale' => $authorName,
+        ]);
     }
 }

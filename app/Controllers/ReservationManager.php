@@ -146,6 +146,12 @@ class ReservationManager {
                 return false;
             }
 
+            $bookLink = book_url([
+                'id' => $reservation['libro_id'],
+                'titolo' => $book['titolo'] ?? '',
+                'autore' => $book['autore'] ?? ''
+            ]);
+
             $variables = [
                 'utente_nome' => $reservation['nome'],
                 'libro_titolo' => $book['titolo'],
@@ -153,7 +159,7 @@ class ReservationManager {
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => date('d-m-Y', strtotime($reservation['data_inizio_richiesta'])),
                 'data_fine' => date('d-m-Y', strtotime($reservation['data_fine_richiesta'])),
-                'book_url' => $this->getBaseUrl() . '/libro/' . $reservation['libro_id'],
+                'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
                 'profile_url' => $this->getBaseUrl() . '/profile/prestiti'
             ];
 

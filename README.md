@@ -182,10 +182,10 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 - **Dark theme** gray-900 coerente
 
 ### 🌍 Localizzazione e Lingue
-- **Doppia lingua inclusa**: l'app viene installata in italiano (`it_IT`) o inglese (`en_US`) in base alla lingua scelta nell'installer.
-- **Traduzioni JSON**: tutte le stringhe sono centralizzate in `locale/<lingua>.json`; per aggiungere una nuova lingua basta clonare uno dei file esistenti, tradurre i valori e attivarla da **Admin → Impostazioni → Lingue**.
-- **Installer multilocale**: i testi di seed (homepage, CMS, cookie banner, ecc.) vengono popolati automaticamente nella lingua selezionata, mantenendo coerenza tra frontend e backend.
-- **Route tradotte**: il sistema di routing carica automaticamente i percorsi localizzati (es. `/login` ↔ `/login` • `/profilo` ↔ `/profile`) e permette di aggiungere nuove lingue tramite `locale/routes_<lingua>.json`.
+- **Già bilingue**: scegli Italiano o Inglese nell'installer e tutto il sistema (frontend + backend) parte subito in quella lingua.
+- **File JSON semplici**: tutte le stringhe vivono in `locale/<lingua>.json`; duplica un file, traduci i valori e abilita la lingua da **Admin → Impostazioni → Lingue**.
+- **Seeder coerente**: homepage, CMS, banner cookie e testi di default vengono creati direttamente nella lingua selezionata, senza mix IT/EN.
+- **Route editabili da UI**: login, profilo, catalogo, ecc. sono tradotti automaticamente ma puoi rinominarli da **Admin → Lingue → Rotte** senza toccare codice.
 
 ### 🔐 Sicurezza
 - **Protezione CSRF** su tutte le form
@@ -609,7 +609,7 @@ Markup JSON-LD su tutte le pagine rilevanti:
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Home", "item": "/"},
     {"@type": "ListItem", "position": 2, "name": "Catalogo", "item": "/catalogo"},
-    {"@type": "ListItem", "position": 3, "name": "Don Chisciotte", "item": "/libro/123"}
+    {"@type": "ListItem", "position": 3, "name": "Don Chisciotte", "item": "/miguel-de-cervantes/don-chisciotte/123"}
   ]
 }
 ```
@@ -635,7 +635,7 @@ Markup JSON-LD su tutte le pagine rilevanti:
 
 **Canonical URLs:**
 ```html
-<link rel="canonical" href="https://tuodominio.com/libro/don-chisciotte-123">
+<link rel="canonical" href="https://tuodominio.com/miguel-de-cervantes/don-chisciotte/123">
 ```
 
 ### URL SEO-Friendly
@@ -647,7 +647,7 @@ Markup JSON-LD su tutte le pagine rilevanti:
 - ✅ **301 redirects**: URL vecchi reindirizzati permanentemente
 
 **Esempi:**
-- `/libro/il-nome-della-rosa-umberto-eco`
+- `/umberto-eco/il-nome-della-rosa/42`
 - `/autore/jose-saramago`
 - `/editore/einaudi`
 - `/genere/narrativa-classica`

@@ -1808,7 +1808,7 @@ ob_start();
                             $relatedCoverAlt = __("Copertina del libro");
                         }
                         ?>
-                        <a href="/libro/<?= (int)$related['id'] ?>/<?= urlencode(strtolower(str_replace(' ', '-', $related['titolo']))) ?>">
+                        <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
                             <img src="<?= htmlspecialchars($related['copertina_url'] ?? '/uploads/copertine/default-cover.jpg') ?>"
                                  alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
                                  class="related-book-image">
@@ -1821,7 +1821,7 @@ ob_start();
                     </div>
                     <div class="related-book-content">
                         <h5 class="related-book-title">
-                            <a href="/libro/<?= (int)$related['id'] ?>/<?= urlencode(strtolower(str_replace(' ', '-', $related['titolo']))) ?>">
+                            <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
                                 <?= htmlspecialchars($related['titolo']) ?>
                             </a>
                         </h5>
@@ -1829,7 +1829,7 @@ ob_start();
                             <?= htmlspecialchars($related['autori'] ?? 'Autore sconosciuto') ?>
                         </p>
                         <div class="related-book-actions">
-                            <a href="/libro/<?= (int)$related['id'] ?>/<?= urlencode(strtolower(str_replace(' ', '-', $related['titolo']))) ?>"
+                            <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"
                                class="btn-related-view">
                                 <i class="fas fa-eye me-2"></i><?= __("Vedi Dettagli") ?>
                             </a>

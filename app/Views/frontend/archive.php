@@ -468,13 +468,7 @@ ob_start();
 
         <?php
 function createBookUrl($book) {
-    $text = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
-    $text = strtolower($text);
-    $text = iconv('UTF-8', 'ASCII//TRANSLIT', $text);
-    $slug = preg_replace('/[^a-z0-9\s-]/', '', $text);
-    $slug = preg_replace('/[\s-]+/', '-', $slug);
-    $slug = trim($slug, '-');
-    return "/libro/{$book['id']}" . ($slug ? "/$slug" : '');
+    return book_url($book);
 }
 ?>
 

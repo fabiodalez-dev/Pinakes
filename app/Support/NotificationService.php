@@ -506,13 +506,19 @@ class NotificationService {
             $result = $stmt->get_result();
 
             while ($wishlist = $result->fetch_assoc()) {
+                $bookLink = book_url([
+                    'id' => $bookId,
+                    'titolo' => $wishlist['titolo'] ?? '',
+                    'autore' => $wishlist['autore'] ?? ''
+                ]);
+
                 $variables = [
                     'utente_nome' => $wishlist['utente_nome'],
                     'libro_titolo' => $wishlist['titolo'],
                     'libro_autore' => $wishlist['autore'] ?: 'Autore non specificato',
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
                     'data_disponibilita' => date('d-m-Y H:i'),
-                    'book_url' => $this->getBaseUrl() . '/libro/' . $bookId,
+                    'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
                     'wishlist_url' => $this->getBaseUrl() . '/profile/wishlist'
                 ];
 

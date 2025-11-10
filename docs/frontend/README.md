@@ -67,7 +67,7 @@ La pagina di ricerca e filtri avanzati con:
 ---
 
 ### 5. 📖 [**Scheda Libro**](./scheda_libro.md)
-**URL**: http://localhost:8000/libro/{ID}/{slug}
+**URL**: http://localhost:8000/{author-slug}/{book-slug}/{ID}
 
 La pagina dettagli di un libro singolo con:
 - Hero section con copertina
@@ -135,18 +135,18 @@ Register (/register)
 Home (/)
 ├─ Hero Search → /catalogo?q=ricerca
 ├─ Quick Links → /catalogo
-├─ Latest Books → Clicca Libro → /libro/{id}/{slug}
+├─ Latest Books → Clicca Libro → /{author-slug}/{book-slug}/{id}
 ├─ Categories → /catalogo?categoria=Nome
 └─ CTA Button → /catalogo
 
 Catalogo (/catalogo)
 ├─ Filtri → Aggiorna risultati dinamicamente
 ├─ Ricerca → Istantanea mentre digiti
-├─ Libri Grid → Clicca Libro → /libro/{id}/{slug}
+├─ Libri Grid → Clicca Libro → /{author-slug}/{book-slug}/{id}
 ├─ Paginazione → Altre pagine risultati
 └─ Sidebar → Ogni filtro clickabile
 
-Scheda Libro (/libro/{id}/{slug})
+Scheda Libro (/{author-slug}/{book-slug}/{id})
 ├─ Richiedi Prestito → Popup calendario → /prenotazioni
 ├─ Aggiungi Preferiti ❤️ → /wishlist (se loggato)
 ├─ Clicca Autore → /autore/Nome-Autore
@@ -157,21 +157,21 @@ Scheda Libro (/libro/{id}/{slug})
 
 Wishlist (/wishlist - Login richiesto)
 ├─ Filtro ricerca → Filtra per titolo/stato
-├─ Clicca Libro → /libro/{id}/{slug}
+├─ Clicca Libro → /{author-slug}/{book-slug}/{id}
 ├─ Rimuovi dal preferiti 🗑️ → Aggiorna lista
 ├─ "Esplora Catalogo" → /catalogo
 └─ "Prenotazioni" → /prenotazioni
 
 Prenotazioni (/prenotazioni - Login richiesto)
 ├─ Prestiti in Corso → Vedi scadenze
-│  ├─ Clicca Libro → /libro/{id}/{slug}
+│  ├─ Clicca Libro → /{author-slug}/{book-slug}/{id}
 │  └─ Vedi Badge scadenza (verde/rosso)
 ├─ Prenotazioni Attive → Vedi posizione coda
-│  ├─ Clicca Libro → /libro/{id}/{slug}
+│  ├─ Clicca Libro → /{author-slug}/{book-slug}/{id}
 │  ├─ Annulla Prenotazione → Rimuovi dalla coda
 │  └─ Vedi Posizione in coda (#1, #2, ecc.)
 └─ Storico Prestiti → Vedi prestiti passati
-   ├─ Clicca Libro → /libro/{id}/{slug}
+   ├─ Clicca Libro → /{author-slug}/{book-slug}/{id}
    └─ Vedi stato (Restituito, In ritardo, Perso)
 ```
 

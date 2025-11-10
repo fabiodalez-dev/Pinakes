@@ -196,10 +196,10 @@ Le 4 statistiche in cima si caricano automaticamente via JavaScript quando la pa
 | **Hero** | "Ultimi Arrivi" | Scroll a #latest-books |
 | **Hero** | "Sfoglia Catalogo" | /catalogo |
 | **Hero** | Barra di ricerca | /catalogo?q=tuaricerca |
-| **Latest Books** | Libro | /libro/61/titolo-del-libro |
+| **Latest Books** | Libro | /autore-slug/titolo-del-libro/61 |
 | **Latest Books** | "Visualizza Tutto" | /catalogo |
 | **Categorie** | Categoria | /catalogo?categoria=Nome |
-| **Categorie** | Libro | /libro/{id}/titolo |
+| **Categorie** | Libro | /{author-slug}/{book-slug}/{id} |
 | **CTA** | "Esplora Catalogo" | Personalizzabile da CMS |
 | **CTA** | "Contattaci" | #contact (se esiste sezione) |
 

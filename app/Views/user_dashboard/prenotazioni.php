@@ -3,6 +3,14 @@ use App\Support\Csrf;
 use App\Support\HtmlHelper;
 
 $csrfToken = Csrf::ensureToken();
+
+function reservationBookUrl(array $item): string {
+    return book_url([
+        'libro_id' => $item['libro_id'] ?? null,
+        'libro_titolo' => $item['titolo'] ?? ($item['libro_titolo'] ?? ''),
+        'autore' => $item['autore'] ?? ($item['libro_autore'] ?? ''),
+    ]);
+}
 ?>
 
 <link rel="stylesheet" href="/assets/star-rating/dist/star-rating.css">
@@ -465,11 +473,11 @@ $csrfToken = Csrf::ensureToken();
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?= (int)$request['libro_id']; ?>" class="item-cover">
+            <a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?= (int)$request['libro_id']; ?>"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
                   <i class="fas fa-clock" aria-hidden="true" style="color: #f59e0b;"></i>
@@ -528,11 +536,11 @@ $csrfToken = Csrf::ensureToken();
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?= (int)$loan['libro_id']; ?>" class="item-cover">
+            <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?= (int)$loan['libro_id']; ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar" aria-hidden="true"></i>
@@ -588,11 +596,11 @@ $csrfToken = Csrf::ensureToken();
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?= (int)$reservation['libro_id']; ?>" class="item-cover">
+            <a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?= (int)$reservation['libro_id']; ?>"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge badge-position">
                   <i class="fas fa-sort-numeric-up" aria-hidden="true"></i>
@@ -660,11 +668,11 @@ $csrfToken = Csrf::ensureToken();
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?= (int)$loan['libro_id']; ?>" class="item-cover">
+            <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?= (int)$loan['libro_id']; ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge badge-status">
                   <i class="fas fa-check-circle" aria-hidden="true"></i>
@@ -732,11 +740,11 @@ $csrfToken = Csrf::ensureToken();
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="/libro/<?= (int)$review['libro_id']; ?>" class="item-cover">
+            <a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="/libro/<?= (int)$review['libro_id']; ?>"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge" style="<?= $statusColor; ?>">
                   <i class="fas fa-info-circle" aria-hidden="true"></i>

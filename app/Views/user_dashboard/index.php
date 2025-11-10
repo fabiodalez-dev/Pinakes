@@ -101,8 +101,9 @@ $wishlistRoute = route_path('wishlist');
                             </span>
                           </div>
                         </div>
+                        <?php $latestBookUrl = book_url($libro); ?>
                         <div class="ms-3">
-                          <a href="/libro/<?php echo (int)($libro['id'] ?? 0); ?>" class="btn btn-outline-primary btn-sm">
+                          <a href="<?php echo htmlspecialchars($latestBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-eye"></i>
                           </a>
                         </div>
@@ -155,8 +156,15 @@ $wishlistRoute = route_path('wishlist');
                             </span>
                           </div>
                         </div>
+                        <?php 
+                          $loanBookUrl = book_url([
+                              'libro_id' => $prestito['libro_id'] ?? null,
+                              'libro_titolo' => $prestito['titolo_libro'] ?? '',
+                              'autore' => $prestito['autore'] ?? ''
+                          ]);
+                        ?>
                         <div class="ms-3">
-                          <a href="/libro/<?php echo (int)($prestito['libro_id'] ?? 0); ?>" class="btn btn-outline-primary btn-sm">
+                          <a href="<?php echo htmlspecialchars($loanBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-info-circle"></i>
                           </a>
                         </div>

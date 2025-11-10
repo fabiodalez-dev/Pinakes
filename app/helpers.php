@@ -60,3 +60,94 @@ if (!function_exists('route_path')) {
         return App\Support\RouteTranslator::route($key);
     }
 }
+
+if (!function_exists('slugify_text')) {
+    /**
+     * Convert a string into a URL-friendly slug.
+     */
+    function slugify_text(?string $text): string
+    {
+        if ($text === null) {
+            return '';
+        }
+
+        $decoded = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+        $decoded = strtolower($decoded);
+        $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT', $decoded);
+        if ($transliterated !== false) {
+            $decoded = $transliterated;
+        }
+
+        $decoded = preg_replace('/[^a-z0-9\s-]/', '', $decoded) ?? '';
+        $decoded = preg_replace('/[\s-]+/', '-', $decoded) ?? '';
+
+        return trim($decoded, '-');
+    }
+}
+
+if (!function_exists('book_primary_author_name')) {
+    /**
+     * Attempt to extract the primary author name from a book array.
+     */
+    function book_primary_author_name(array $book): string
+    {
+        $candidates = [
+            $book['autore_principale'] ?? null,
+            $book['autore'] ?? null,
+            $book['author'] ?? null,
+            $book['libro_autore'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!empty($candidate)) {
+                return trim(html_entity_decode((string)$candidate, ENT_QUOTES, 'UTF-8'));
+            }
+        }
+
+        if (!empty($book['autori'])) {
+            $parts = preg_split('/[,;]+/', (string)$book['autori']);
+            if (!empty($parts[0])) {
+                return trim(html_entity_decode($parts[0], ENT_QUOTES, 'UTF-8'));
+            }
+        }
+
+        if (!empty($book['authors']) && is_array($book['authors'])) {
+            $firstAuthor = $book['authors'][0] ?? null;
+            if (is_array($firstAuthor) && !empty($firstAuthor['nome'])) {
+                return trim(html_entity_decode((string)$firstAuthor['nome'], ENT_QUOTES, 'UTF-8'));
+            }
+            if (is_string($firstAuthor) && $firstAuthor !== '') {
+                return trim(html_entity_decode($firstAuthor, ENT_QUOTES, 'UTF-8'));
+            }
+        }
+
+        return 'autore';
+    }
+}
+
+if (!function_exists('book_url')) {
+    /**
+     * Build the canonical frontend URL for a book (author slug + book slug + ID).
+     */
+    function book_url(array $book): string
+    {
+        $bookId = (int)($book['id'] ?? $book['libro_id'] ?? 0);
+        if ($bookId <= 0) {
+            return '/';
+        }
+
+        $title = (string)($book['titolo'] ?? $book['libro_titolo'] ?? $book['title'] ?? '');
+        $bookSlug = slugify_text($title);
+        if ($bookSlug === '') {
+            $bookSlug = 'libro';
+        }
+
+        $authorName = book_primary_author_name($book);
+        $authorSlug = slugify_text($authorName);
+        if ($authorSlug === '') {
+            $authorSlug = 'autore';
+        }
+
+        return '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
+    }
+}

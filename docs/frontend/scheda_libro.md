@@ -1,8 +1,8 @@
 # 📖 Scheda Libro - La Pagina di Dettaglio del Libro
 
-> **Accedi qui**: http://localhost:8000/libro/61/anarchia-il-nostro-programma
+> **Accedi qui**: http://localhost:8000/errico-malatesta/anarchia-il-nostro-programma/61
 >
-> Esempio URL: `/libro/{ID}/{slug-titolo}`
+> Esempio URL: `/{author-slug}/{book-slug}/{ID}`
 
 Questa è la **pagina più importante per il lettore**: qui vedi TUTTI i dettagli di un libro e puoi richiedere un prestito o aggiungerlo ai preferiti.
 
@@ -295,14 +295,14 @@ Vedi "Accedi per aggiungere ai Preferiti" → Clicca → Vai a login.
 
 **Formato URL**:
 ```
-/libro/{ID}/{slug-titolo}
+/{author-slug}/{book-slug}/{ID}
 ```
 
 **Esempi**:
 ```
-/libro/61/anarchia-il-nostro-programma
-/libro/42/100-anni-di-solitudine
-/libro/1/la-divina-commedia
+/errico-malatesta/anarchia-il-nostro-programma/61
+/gabriel-garcia-marquez/cent-anni-di-solitudine/42
+/dante-alighieri/la-divina-commedia/1
 ```
 
 **Come funziona lo slug**:
@@ -473,7 +473,7 @@ La pagina è **SEO-optimizzata**:
 ## 🎬 Workflow Tipico dall'Utente
 
 ```
-1. Accedi a /libro/61/anarchia-il-nostro-programma
+1. Accedi a /errico-malatesta/anarchia-il-nostro-programma/61
    ↓
 2. Leggi il titolo, autore, e description
    ↓

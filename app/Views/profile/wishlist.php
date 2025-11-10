@@ -349,8 +349,9 @@ $reservationsRoute = route_path('reservations');
               </span>
               <h3 class="wishlist-card-title mb-0"><?= HtmlHelper::e($it['titolo'] ?? ''); ?></h3>
               <p class="text-muted small mb-0"><?= __("Copie disponibili:") ?> <?= (int)($it['copie_disponibili'] ?? 0); ?></p>
+              <?php $wishlistBookUrl = book_url($it); ?>
               <div class="wishlist-card-footer">
-                <a href="/libro/<?= (int)$it['id']; ?>" class="btn btn-outline-dark"><i class="fas fa-book-open me-2"></i><?= __("Dettagli") ?></a>
+                <a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-dark"><i class="fas fa-book-open me-2"></i><?= __("Dettagli") ?></a>
                 <button type="button" class="btn btn-light remove-fav-btn" title="<?= __("Rimuovi dalla wishlist") ?>">
                   <i class="fas fa-trash"></i>
                 </button>

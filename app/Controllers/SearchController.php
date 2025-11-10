@@ -302,7 +302,11 @@ class SearchController
                 'year' => $row['anno_pubblicazione'],
                 'cover' => $absoluteCoverUrl,
                 'type' => 'book',
-                'url' => '/libro/' . $row['id']
+                'url' => book_url([
+                    'id' => $row['id'],
+                    'titolo' => $row['titolo'],
+                    'autore_principale' => $row['autore_principale'] ?? ''
+                ])
             ];
         }
 

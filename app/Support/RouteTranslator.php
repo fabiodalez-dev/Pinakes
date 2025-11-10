@@ -13,7 +13,7 @@ namespace App\Support;
  *
  * Example usage:
  *   RouteTranslator::route('catalog');  // Returns '/catalogo' for IT, '/catalog' for EN
- *   RouteTranslator::route('book');     // Returns '/libro' for IT, '/book' for EN
+ *   RouteTranslator::route('book');     // Returns legacy base '/libro' for IT, '/book' for EN
  */
 class RouteTranslator
 {
@@ -65,11 +65,11 @@ class RouteTranslator
      *
      * IMPORTANT: Uses the current session locale, so routes change
      * dynamically when the user switches language. This allows multiple
-     * route variants (e.g., /libro/123 and /book/123) to point to the
+     * route variants (e.g., legacy /libro/123 and /book/123) to point to the
      * same content.
      *
      * @param string $key Route key (e.g., 'catalog', 'book', 'login')
-     * @return string Route pattern (e.g., '/catalogo', '/libro', '/accedi')
+     * @return string Route pattern (e.g., '/catalogo', legacy '/libro', '/accedi')
      */
     public static function route(string $key): string
     {
@@ -90,7 +90,7 @@ class RouteTranslator
      * Get translated route pattern for a specific locale
      *
      * Used to register multiple route variants in web.php that point
-     * to the same controller (e.g., /libro/123 and /book/123).
+     * to the same controller (e.g., legacy /libro/123 and /book/123).
      *
      * @param string $key Route key (e.g., 'catalog', 'book', 'login')
      * @param string $locale Specific locale code (e.g., 'it_IT', 'en_US')

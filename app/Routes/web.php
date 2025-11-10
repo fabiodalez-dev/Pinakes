@@ -1431,34 +1431,40 @@ foreach ($supportedLocales as $locale) {
     });
 }
 
-    // Legacy book detail redirect (all language variants)
-    foreach ($supportedLocales as $locale) {
-        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('book_legacy', $locale), function ($request, $response) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
-            return $controller->bookDetail($request, $response, $db);
-        });
-    }
+// Legacy book detail redirect (all language variants)
+foreach ($supportedLocales as $locale) {
+    $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('book_legacy', $locale), function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\FrontendController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bookDetail($request, $response, $db);
+    });
+}
 
-    // SEO-friendly book detail URL (all language variants)
-    // Register two routes: with and without slug (FastRoute doesn't support optional params in pattern)
-    foreach ($supportedLocales as $locale) {
-        $bookRoute = RouteTranslator::getRouteForLocale('book', $locale);
+// Old /libro/{id}/{slug} variants remain available and redirect inside the controller
+foreach ($supportedLocales as $locale) {
+    $bookRoute = RouteTranslator::getRouteForLocale('book', $locale);
 
-        // Route without slug
-        $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}', function ($request, $response, $args) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
-            return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], '');
-        });
+    // Route without slug
+    $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\FrontendController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], '');
+    });
 
-        // Route with slug
-        $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}/{slug}', function ($request, $response, $args) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
-            return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['slug']);
-        });
-    }
+    // Route with slug
+    $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}/{slug}', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\FrontendController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['slug']);
+    });
+}
+
+// Canonical SEO route: /{author-slug}/{book-slug}/{id}
+$registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $controller = new \App\Controllers\FrontendController();
+    $db = $app->getContainer()->get('db');
+    return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['bookSlug']);
+});
 
     // API endpoints for book reservations (all language variants)
     foreach ($supportedLocales as $locale) {

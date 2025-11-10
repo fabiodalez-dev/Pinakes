@@ -470,6 +470,23 @@ class FrontendController
 
         $book = $result->fetch_assoc();
 
+        // Ensure canonical URL structure (author slug + book slug + ID)
+        $canonicalPath = book_url([
+            'id' => $book_id,
+            'titolo' => $book['titolo'] ?? '',
+            'autore_principale' => $book['autore_principale'] ?? '',
+            'autori' => $book['autore_principale'] ?? '',
+        ]);
+        $currentPath = '/' . ltrim($request->getUri()->getPath(), '/');
+        if ($currentPath !== $canonicalPath) {
+            $queryString = $request->getUri()->getQuery();
+            if (!empty($queryString)) {
+                $canonicalPath .= '?' . $queryString;
+            }
+
+            return $response->withHeader('Location', $canonicalPath)->withStatus(301);
+        }
+
         // Query per ottenere tutti gli autori del libro
         $query_authors = "
             SELECT a.*, la.ruolo
@@ -1119,8 +1136,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
     public function getBookUrl(array $book): string
     {
-        $slug = $this->createSlug($book['titolo'] ?? '');
-        return "/libro/{$book['id']}" . ($slug ? "/$slug" : '');
+        return book_url($book);
     }
 
     private function buildGenreHierarchy(array $generi_flat): array
