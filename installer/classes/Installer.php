@@ -194,12 +194,17 @@ class Installer {
         // Default to it_IT if not set
         $locale = $this->config['APP_LOCALE'] ?? 'it';
 
-        // Convert short locale (it, en) to full locale (it_IT, en_US)
+        // Convert locale code to full form (supports it, it_IT, en, en_US)
         $localeMap = [
             'it' => 'it_IT',
+            'it_it' => 'it_IT',
+            'it_IT' => 'it_IT',
             'en' => 'en_US',
+            'en_us' => 'en_US',
+            'en_US' => 'en_US',
         ];
-        $fullLocale = $localeMap[$locale] ?? 'it_IT';
+        $normalizedLocale = strtolower(str_replace('-', '_', $locale));
+        $fullLocale = $localeMap[$normalizedLocale] ?? 'it_IT';
 
         // Try locale-specific data file first (data_it_IT.sql or data_en_US.sql)
         $dataFile = $installerDir . '/database/data_' . $fullLocale . '.sql';

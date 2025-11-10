@@ -33,30 +33,6 @@ use App\Support\I18n;
 
 return function (App $app): void {
     $installationLocale = I18n::getInstallationLocale();
-    if ($installationLocale === 'en_US') {
-        $legacyRedirects = [
-            '/accedi' => 'login',
-            '/registrati' => 'register',
-            '/profilo' => 'profile',
-            '/profilo/password' => 'profile_password',
-            '/profilo/aggiorna' => 'profile_update',
-            '/prenotazioni' => 'reservations',
-            '/lista-desideri' => 'wishlist',
-            '/catalogo' => 'catalog',
-            '/catalogo.php' => 'catalog_legacy',
-        ];
-
-        foreach ($legacyRedirects as $legacyPath => $routeKey) {
-            $targetPath = RouteTranslator::route($routeKey);
-            if ($targetPath === $legacyPath) {
-                continue; // avoid duplicate registrations
-            }
-
-            $app->get($legacyPath, function ($request, $response) use ($targetPath) {
-                return $response->withHeader('Location', $targetPath)->withStatus(302);
-            });
-        }
-    }
     // Supported locales for multi-language route variants
     // Content routes (book, author, publisher, genre) are registered
     // in all languages to support language switching without 404s
@@ -511,6 +487,31 @@ return function (App $app): void {
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->editRoutes($request, $response, $db, $args);
     })->add(new AdminAuthMiddleware());
+
+    if ($installationLocale === 'en_US') {
+        $legacyRedirects = [
+            '/accedi' => 'login',
+            '/registrati' => 'register',
+            '/profilo' => 'profile',
+            '/profilo/password' => 'profile_password',
+            '/profilo/aggiorna' => 'profile_update',
+            '/prenotazioni' => 'reservations',
+            '/lista-desideri' => 'wishlist',
+            '/catalogo' => 'catalog',
+            '/catalogo.php' => 'catalog_legacy',
+        ];
+
+        foreach ($legacyRedirects as $legacyPath => $routeKey) {
+            $targetPath = RouteTranslator::route($routeKey);
+            if ($targetPath === $legacyPath) {
+                continue;
+            }
+
+            $registerRouteIfUnique('GET', $legacyPath, function ($request, $response) use ($targetPath) {
+                return $response->withHeader('Location', $targetPath)->withStatus(302);
+            });
+        }
+    }
 
     $app->post('/admin/languages/{code}/update-routes', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
