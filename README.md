@@ -181,6 +181,12 @@ Questo progetto prosegue quella tradizione millenaria di 2,268 anni portando gli
 - **Scelta multipla** avanzata (Choices.js)
 - **Dark theme** gray-900 coerente
 
+### 🌍 Localizzazione e Lingue
+- **Doppia lingua inclusa**: l'app viene installata in italiano (`it_IT`) o inglese (`en_US`) in base alla lingua scelta nell'installer.
+- **Traduzioni JSON**: tutte le stringhe sono centralizzate in `locale/<lingua>.json`; per aggiungere una nuova lingua basta clonare uno dei file esistenti, tradurre i valori e attivarla da **Admin → Impostazioni → Lingue**.
+- **Installer multilocale**: i testi di seed (homepage, CMS, cookie banner, ecc.) vengono popolati automaticamente nella lingua selezionata, mantenendo coerenza tra frontend e backend.
+- **Route tradotte**: il sistema di routing carica automaticamente i percorsi localizzati (es. `/login` ↔ `/login` • `/profilo` ↔ `/profile`) e permette di aggiungere nuove lingue tramite `locale/routes_<lingua>.json`.
+
 ### 🔐 Sicurezza
 - **Protezione CSRF** su tutte le form
 - **Password bcrypt** hash sicuro
