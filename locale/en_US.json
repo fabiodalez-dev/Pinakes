@@ -2486,7 +2486,6 @@
     "Errore di sicurezza. Ricarica la pagina e riprova.": "Security error. Reload the page and try again.",
     "Attenzione!": "Warning!",
     "Confermi?": "Confirm?",
-    "Token CSRF non valido": "Invalid CSRF token",
     "Nessun file caricato": "No file uploaded",
     "Errore nel caricamento del file": "Error while uploading the file",
     "Il file deve avere estensione .csv": "The file must have a .csv extension",

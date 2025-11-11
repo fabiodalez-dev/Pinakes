@@ -5,12 +5,15 @@
 
 const __swal = (typeof window !== 'undefined' && typeof window.__ === 'function')
   ? (key, fallback = key, ...args) => {
+      // Usa sempre la chiave come stringa di lookup (__ è responsabile di scegliere la lingua corretta)
       const translated = window.__(key, ...args);
-      return translated === undefined || translated === null || translated === key
-        ? fallback
-        : translated;
+      // Se non trova traduzione, ripiega sulla chiave originale (fallback globale = IT)
+      if (translated === undefined || translated === null || translated === key) {
+        return key;
+      }
+      return translated;
     }
-  : (key, fallback = key) => fallback;
+  : (key, fallback = key) => key;
 
 // Configurazione default per tutti gli alert
 const SwalConfig = {
@@ -29,9 +32,9 @@ const SwalConfig = {
     denyButton: 'swal-app-deny-button'
   },
 
-  // Pulsanti
-  confirmButtonText: __swal('Conferma', 'Confirm'),
-  cancelButtonText: __swal('Annulla', 'Cancel'),
+  // Pulsanti (usano chiavi traducibili, default IT → EN tramite __swal)
+  confirmButtonText: __swal('Conferma'),
+  cancelButtonText: __swal('Annulla'),
 
   // Animazioni
   showClass: {
@@ -58,13 +61,13 @@ window.SwalApp = {
    */
   confirmDelete: function(options = {}) {
     return Swal.fire({
-      title: options.title || __swal('Sei sicuro?', 'Are you sure?'),
-      text: options.text || __swal('Questa azione non può essere annullata!', 'This action cannot be undone!'),
+      title: options.title || __swal('Sei sicuro?'),
+      text: options.text || __swal('Questa azione non può essere annullata!'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626', // Rosso per delete
-      confirmButtonText: options.confirmText || __swal('Elimina', 'Delete'),
-      cancelButtonText: __swal('Annulla', 'Cancel'),
+      confirmButtonText: options.confirmText || __swal('Elimina'),
+      cancelButtonText: __swal('Annulla'),
       reverseButtons: true
     });
   },
@@ -75,7 +78,7 @@ window.SwalApp = {
   success: function(title, text) {
     return Swal.fire({
       icon: 'success',
-      title: title || __swal('Successo!', 'Success!'),
+      title: title || __swal('Successo!'),
       text: text,
       confirmButtonColor: '#111827',
       confirmButtonText: __swal('OK', 'OK')
@@ -88,7 +91,7 @@ window.SwalApp = {
   error: function(title, text) {
     return Swal.fire({
       icon: 'error',
-      title: title || __swal('Errore!', 'Error!'),
+      title: title || __swal('Errore!'),
       text: text,
       confirmButtonColor: '#111827',
       confirmButtonText: __swal('OK', 'OK')
@@ -101,7 +104,7 @@ window.SwalApp = {
   info: function(title, text) {
     return Swal.fire({
       icon: 'info',
-      title: title || __swal('Informazione', 'Information'),
+      title: title || __swal('Informazione'),
       text: text,
       confirmButtonColor: '#111827',
       confirmButtonText: __swal('OK', 'OK')
@@ -114,7 +117,7 @@ window.SwalApp = {
   warning: function(title, text) {
     return Swal.fire({
       icon: 'warning',
-      title: title || __swal('Attenzione!', 'Warning!'),
+      title: title || __swal('Attenzione!'),
       text: text,
       confirmButtonColor: '#111827',
       confirmButtonText: __swal('OK', 'OK')
@@ -126,15 +129,15 @@ window.SwalApp = {
    */
   confirm: function(options = {}) {
     return Swal.fire({
-      title: options.title || __swal('Confermi?', 'Confirm?'),
+      title: options.title || __swal('Confermi?'),
       text: options.text,
       html: options.html,
       icon: options.icon || 'question',
       showCancelButton: true,
       confirmButtonColor: '#111827',
       cancelButtonColor: '#9ca3af',
-      confirmButtonText: options.confirmText || __swal('Conferma', 'Confirm'),
-      cancelButtonText: __swal('Annulla', 'Cancel'),
+      confirmButtonText: options.confirmText || __swal('Conferma'),
+      cancelButtonText: __swal('Annulla'),
       reverseButtons: true
     });
   },
@@ -157,7 +160,7 @@ window.SwalApp = {
 
     return Toast.fire({
       icon: options.icon || 'success',
-      title: options.title || __swal('Operazione completata', 'Operation completed')
+      title: options.title || __swal('Operazione completata')
     });
   }
 };

@@ -268,7 +268,7 @@ $registerRoute = route_path('register');
             type="submit"
             class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
           >
-            Registrati
+            <?= __('Registrati') ?>
           </button>
         </div>
       </form>
@@ -277,7 +277,7 @@ $registerRoute = route_path('register');
         <p class="text-gray-600 dark:text-gray-400 text-sm">
           <?= __('Hai già un account?') ?> 
           <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
-            Accedi
+            <?= __('Accedi') ?>
           </a>
         </p>
       </div>

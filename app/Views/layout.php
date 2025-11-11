@@ -1124,7 +1124,11 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 
         try {
           // Load books count
-          const booksResponse = await fetch('/api/stats/books-count');
+          const booksResponse = await fetch('/api/stats/books-count', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            cache: 'no-store'
+          });
           if (booksResponse.ok) {
             const booksData = await booksResponse.json();
             const booksCount = booksData.count || 0;
@@ -1132,10 +1136,16 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             const headerBooksEl = document.getElementById('header-books-count');
             if (booksEl) booksEl.textContent = booksCount.toLocaleString();
             if (headerBooksEl) headerBooksEl.textContent = booksCount.toLocaleString();
+          } else {
+            console.warn('Books stats request failed', booksResponse.status);
           }
 
           // Load loans count
-          const loansResponse = await fetch('/api/stats/active-loans-count');
+          const loansResponse = await fetch('/api/stats/active-loans-count', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            cache: 'no-store'
+          });
           if (loansResponse.ok) {
             const loansData = await loansResponse.json();
             const loansCount = loansData.count || 0;
@@ -1143,6 +1153,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
             const headerLoansEl = document.getElementById('header-loans-count');
             if (loansEl) loansEl.textContent = loansCount.toLocaleString();
             if (headerLoansEl) headerLoansEl.textContent = loansCount.toLocaleString();
+          } else {
+            console.warn('Loans stats request failed', loansResponse.status);
           }
         } catch (error) {
           console.error('Error loading quick stats:', error);

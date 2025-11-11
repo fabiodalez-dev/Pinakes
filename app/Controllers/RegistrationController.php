@@ -21,7 +21,10 @@ class RegistrationController
         require __DIR__ . '/../Views/auth/register.php';
         $html = ob_get_clean();
         $response->getBody()->write($html);
-        return $response;
+        return $response
+            ->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Expires', '0');
     }
 
     public function register(Request $request, Response $response, mysqli $db): Response
