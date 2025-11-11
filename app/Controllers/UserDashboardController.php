@@ -116,7 +116,7 @@ class UserDashboardController
         // Verifica autenticazione
         if (empty($_SESSION['user']['id'])) {
             return $response
-                ->withHeader('Location', '/login')
+                ->withHeader('Location', \App\Support\RouteTranslator::route('login'))
                 ->withStatus(302);
         }
 

@@ -9,6 +9,7 @@ use App\Support\CsrfHelper;
 use App\Support\Mailer;
 use App\Support\ConfigStore;
 use App\Support\NotificationService;
+use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -35,7 +36,7 @@ class RegistrationController
         $data = (array)($request->getParsedBody() ?? []);
 
         // Validate CSRF using helper - handles session expiry automatically
-        if ($error = CsrfHelper::validateRequest($request, $response, '/register')) {
+        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('register'))) {
             return $error;
         }
         $nome = \App\Support\HtmlHelper::decode(trim((string)($data['nome'] ?? '')));
@@ -58,29 +59,29 @@ class RegistrationController
 
         // Validate required fields
         if ($nome === '' || $cognome === '' || $email === '' || $telefono === '' || $indirizzo === '' || $password === '' || $password !== $password2) {
-            return $response->withHeader('Location', '/register?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=missing_fields')->withStatus(302);
         }
         
         // Validate input lengths
         if (strlen($nome) > 100 || strlen($cognome) > 100) {
-            return $response->withHeader('Location', '/register?error=name_too_long')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=name_too_long')->withStatus(302);
         }
         
         if (strlen($email) > 255) {
-            return $response->withHeader('Location', '/register?error=email_too_long')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=email_too_long')->withStatus(302);
         }
         
         if (strlen($password) > 128) {
-            return $response->withHeader('Location', '/register?error=password_too_long')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_too_long')->withStatus(302);
         }
         
         // Validate password complexity
         if (strlen($password) < 8) {
-            return $response->withHeader('Location', '/register?error=password_too_short')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_too_short')->withStatus(302);
         }
         
         if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
-            return $response->withHeader('Location', '/register?error=password_needs_upper_lower_number')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_needs_upper_lower_number')->withStatus(302);
         }
         // Check existing email
         $stmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
@@ -88,7 +89,7 @@ class RegistrationController
         $stmt->execute();
         if ($stmt->get_result()->num_rows > 0) {
             $stmt->close();
-            return $response->withHeader('Location', '/register?error=email_exists')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=email_exists')->withStatus(302);
         }
         $stmt->close();
 
@@ -120,7 +121,7 @@ class RegistrationController
         );
         if (!$stmt->execute()) {
             $stmt->close();
-            return $response->withHeader('Location', '/register?error=db')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);
         }
         $userId = (int)$stmt->insert_id; $stmt->close();
 
@@ -137,7 +138,7 @@ class RegistrationController
         $notificationService->notifyNewUserInApp($userId, $nome . ' ' . $cognome, $email);
 
         // Redirect to success page
-        return $response->withHeader('Location', '/register/success')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('register_success'))->withStatus(302);
     }
 
     public function success(Request $request, Response $response): Response
@@ -155,7 +156,7 @@ class RegistrationController
         // Sanitize token to prevent HTTP response splitting
         $token = str_replace(["\r", "\n"], '', $token);
         if ($token === '') {
-            return $response->withHeader('Location', '/login?error=invalid_token')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('login') . '?error=invalid_token')->withStatus(302);
         }
 
         // Ensure timezone consistency
@@ -174,12 +175,12 @@ class RegistrationController
             $stmt->execute();
             $stmt->close();
             // Show message instructing admin approval pending
-            return $response->withHeader('Location', '/login?verified=1')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('login') . '?verified=1')->withStatus(302);
         }
         $stmt->close();
 
         // Token is expired or invalid
-        return $response->withHeader('Location', '/login?error=token_expired')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('login') . '?error=token_expired')->withStatus(302);
     }
 
     private function generateTessera(mysqli $db): string

@@ -18,7 +18,7 @@ class RecensioniAdminController
         // Verifica autenticazione admin
         if (empty($_SESSION['user']) || !in_array($_SESSION['user']['tipo_utente'], ['admin', 'staff'])) {
             return $response
-                ->withHeader('Location', '/login')
+                ->withHeader('Location', \App\Support\RouteTranslator::route('login'))
                 ->withStatus(302);
         }
 

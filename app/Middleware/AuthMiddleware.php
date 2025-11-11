@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\MiddlewareInterface;
@@ -29,7 +30,8 @@ class AuthMiddleware implements MiddlewareInterface
         // Utente non autenticato
         if (!$user) {
             $res = new SlimResponse(302);
-            return $res->withHeader('Location', '/login?error=auth_required');
+            $loginUrl = RouteTranslator::route('login') . '?error=auth_required';
+            return $res->withHeader('Location', $loginUrl);
         }
 
         // FIX: Array vuoto = nessun ruolo permesso = DENY

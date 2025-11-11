@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\MiddlewareInterface;
@@ -22,14 +23,16 @@ class AdminAuthMiddleware implements MiddlewareInterface
         // Not authenticated - redirect to login
         if (!$user) {
             $res = new SlimResponse(302);
-            return $res->withHeader('Location', '/login?error=auth_required');
+            $loginUrl = RouteTranslator::route('login') . '?error=auth_required';
+            return $res->withHeader('Location', $loginUrl);
         }
 
         // Check for admin or staff role
         $tipo_utente = $user['tipo_utente'] ?? null;
         if ($tipo_utente !== 'admin' && $tipo_utente !== 'staff') {
             // Regular user trying to access admin area - redirect to profile
-            return (new SlimResponse(302))->withHeader('Location', '/profilo');
+            $profileUrl = RouteTranslator::route('profile');
+            return (new SlimResponse(302))->withHeader('Location', $profileUrl);
         }
 
         // Admin/staff user - allow access

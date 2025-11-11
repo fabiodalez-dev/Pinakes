@@ -7,6 +7,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\ConfigStore;
 use App\Support\Csrf;
 use App\Support\CsrfHelper;
+use App\Support\RouteTranslator;
 use ReCaptcha\ReCaptcha;
 
 class ContactController
@@ -38,7 +39,7 @@ class ContactController
         // Validazione CSRF
         if (!Csrf::validate($data['csrf_token'] ?? '')) {
             return $response
-                ->withHeader('Location', '/contatti?error=csrf')
+                ->withHeader('Location', RouteTranslator::route('contact')?error=csrf')
                 ->withStatus(302);
         }
 
@@ -51,7 +52,7 @@ class ContactController
 
             if (empty($recaptchaToken)) {
                 return $response
-                    ->withHeader('Location', '/contatti?error=recaptcha')
+                    ->withHeader('Location', RouteTranslator::route('contact')?error=recaptcha')
                     ->withStatus(302);
             }
 
@@ -62,7 +63,7 @@ class ContactController
 
             if (!$resp->isSuccess()) {
                 return $response
-                    ->withHeader('Location', '/contatti?error=recaptcha')
+                    ->withHeader('Location', RouteTranslator::route('contact')?error=recaptcha')
                     ->withStatus(302);
             }
         }
@@ -78,19 +79,19 @@ class ContactController
 
         if (empty($nome) || empty($cognome) || empty($email) || empty($messaggio)) {
             return $response
-                ->withHeader('Location', '/contatti?error=required')
+                ->withHeader('Location', RouteTranslator::route('contact')?error=required')
                 ->withStatus(302);
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $response
-                ->withHeader('Location', '/contatti?error=email')
+                ->withHeader('Location', RouteTranslator::route('contact')?error=email')
                 ->withStatus(302);
         }
 
         if (!$privacyAccepted) {
             return $response
-                ->withHeader('Location', '/contatti?error=privacy')
+                ->withHeader('Location', RouteTranslator::route('contact')?error=privacy')
                 ->withStatus(302);
         }
 
@@ -120,7 +121,7 @@ class ContactController
         if (!$stmt->execute()) {
             $stmt->close();
             return $response
-                ->withHeader('Location', '/contatti?error=db')
+                ->withHeader('Location', RouteTranslator::route('contact')?error=db')
                 ->withStatus(302);
         }
 
@@ -134,7 +135,7 @@ class ContactController
         $this->createInAppNotification($nome, $cognome, $email, $messageId, $db);
 
         return $response
-            ->withHeader('Location', '/contatti?success=1')
+            ->withHeader('Location', RouteTranslator::route('contact')?success=1')
             ->withStatus(302);
     }
 

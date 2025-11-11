@@ -8,6 +8,7 @@ use App\Support\Csrf;
 use App\Support\CsrfHelper;
 use App\Support\Mailer;
 use App\Support\EmailService;
+use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -28,14 +29,14 @@ class PasswordController
         $data = (array)($request->getParsedBody() ?? []);
         // Validate CSRF using helper
 
-        if ($error = CsrfHelper::validateRequest($request, $response, '/forgot-password?error=csrf')) {
+        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('forgot_password')?error=csrf')) {
 
             return $error;
 
         }
         $email = trim((string)($data['email'] ?? ''));
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $response->withHeader('Location', '/forgot-password?error=invalid')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=invalid')->withStatus(302);
         }
 
         // Ensure MySQL and PHP use the same timezone (UTC)
@@ -43,7 +44,7 @@ class PasswordController
 
         // Rate limiting: max 3 requests per 15 minutes per email
         if (!$this->checkRateLimit($db, $email, 'forgot_password', 3, 15)) {
-            return $response->withHeader('Location', '/forgot-password?error=rate_limit')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=rate_limit')->withStatus(302);
         }
 
         $stmt = $db->prepare("SELECT id, nome, cognome, email_verificata FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
@@ -64,7 +65,7 @@ class PasswordController
 
             // Use validated base URL to prevent Host Header Injection
             $baseUrl = $this->getValidatedBaseUrl();
-            $resetUrl = $baseUrl . '/reset-password?token=' . urlencode($resetToken);
+            $resetUrl = $baseUrl . RouteTranslator::route('reset_password')?token=' . urlencode($resetToken);
             $name = trim((string)($row['nome'] ?? '') . ' ' . (string)($row['cognome'] ?? ''));
             $subject = 'Recupera la tua password';
             $html = '<h2>Recupera la tua password</h2>' .
@@ -88,7 +89,7 @@ class PasswordController
         } else {
             $stmt->close();
         }
-        return $response->withHeader('Location', '/forgot-password?sent=1')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('forgot_password')?sent=1')->withStatus(302);
     }
 
     public function resetForm(Request $request, Response $response, mysqli $db): Response
@@ -97,7 +98,7 @@ class PasswordController
         $token = (string)($params['token'] ?? '');
 
         if (empty($token)) {
-            return $response->withHeader('Location', '/forgot-password?error=invalid_token')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=invalid_token')->withStatus(302);
         }
 
         // Ensure MySQL and PHP use the same timezone (UTC)
@@ -113,7 +114,7 @@ class PasswordController
         $stmt->close();
 
         if (!$user) {
-            return $response->withHeader('Location', '/forgot-password?error=token_expired')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=token_expired')->withStatus(302);
         }
 
         $csrf_token = Csrf::ensureToken();
@@ -129,7 +130,7 @@ class PasswordController
         $data = (array)($request->getParsedBody() ?? []);
         // Validate CSRF using helper
 
-        if ($error = CsrfHelper::validateRequest($request, $response, '/reset-password?error=csrf')) {
+        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('reset_password')?error=csrf')) {
 
             return $error;
 
@@ -140,16 +141,16 @@ class PasswordController
         $pwd1 = (string)($data['password'] ?? '');
         $pwd2 = (string)($data['password_confirm'] ?? '');
         if ($token === '' || $pwd1 === '' || $pwd1 !== $pwd2) {
-            return $response->withHeader('Location', '/reset-password?token='.urlencode($token).'&error=invalid')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password')?token='.urlencode($token).'&error=invalid')->withStatus(302);
         }
 
         // Validate password complexity before checking token
         if (strlen($pwd1) < 8) {
-            return $response->withHeader('Location', '/reset-password?token='.urlencode($token).'&error=password_too_short')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password')?token='.urlencode($token).'&error=password_too_short')->withStatus(302);
         }
 
         if (!preg_match('/[A-Z]/', $pwd1) || !preg_match('/[a-z]/', $pwd1) || !preg_match('/[0-9]/', $pwd1)) {
-            return $response->withHeader('Location', '/reset-password?token='.urlencode($token).'&error=password_needs_upper_lower_number')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password')?token='.urlencode($token).'&error=password_needs_upper_lower_number')->withStatus(302);
         }
 
         // Ensure MySQL and PHP use the same timezone (UTC)
@@ -173,10 +174,10 @@ class PasswordController
             $stmt->bind_param('si', $hash, $uid);
             $stmt->execute();
             $stmt->close();
-            return $response->withHeader('Location', '/login?reset=1')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('login') . '?reset=1')->withStatus(302);
         }
         $stmt->close();
-        return $response->withHeader('Location', '/reset-password?error=invalid_token')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?error=invalid_token')->withStatus(302);
     }
 
     /**

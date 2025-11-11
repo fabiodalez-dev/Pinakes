@@ -7,6 +7,7 @@ use mysqli;
 use App\Support\Csrf;
 use App\Support\CsrfHelper;
 use App\Support\Log;
+use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -45,7 +46,7 @@ class AuthController
         $returnUrl = $this->sanitizeReturnUrl($data['return_url'] ?? null);
 
         // Validate CSRF using helper - handles session expiry automatically
-        if ($error = CsrfHelper::validateRequest($request, $response, '/login')) {
+        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('login'))) {
             // Log CSRF failure for debugging (especially useful for mobile issues)
             $token = CsrfHelper::extractToken($request);
             $csrfValidation = Csrf::validateWithReason($token);
@@ -84,7 +85,7 @@ class AuthController
                         'user_id' => $row['id'] ?? null,
                         'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
                     ]);
-                    return $response->withHeader('Location', '/login?error=email_not_verified')->withStatus(302);
+                    return $response->withHeader('Location', RouteTranslator::route('login') . '?error=email_not_verified')->withStatus(302);
                 }
                 if (($row['stato'] ?? 'sospeso') === 'sospeso') {
                     Log::security('login.account_suspended', [
@@ -92,7 +93,7 @@ class AuthController
                         'user_id' => $row['id'] ?? null,
                         'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
                     ]);
-                    return $response->withHeader('Location', '/login?error=account_suspended')->withStatus(302);
+                    return $response->withHeader('Location', RouteTranslator::route('login') . '?error=account_suspended')->withStatus(302);
                 }
                 if (($row['stato'] ?? '') !== 'attivo') {
                     Log::security('login.account_pending', [
@@ -101,7 +102,7 @@ class AuthController
                         'stato' => $row['stato'] ?? 'unknown',
                         'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
                     ]);
-                    return $response->withHeader('Location', '/login?error=account_pending')->withStatus(302);
+                    return $response->withHeader('Location', RouteTranslator::route('login') . '?error=account_pending')->withStatus(302);
                 }
                 // Regenerate session ID to prevent session fixation attacks
                 session_regenerate_id(true);
@@ -171,7 +172,7 @@ class AuthController
         // Plugin hook: After failed login
         \App\Support\Hooks::do('login.failed', [$email, $request]);
 
-        return $response->withHeader('Location', '/login?error=invalid_credentials')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('login') . '?error=invalid_credentials')->withStatus(302);
     }
 
     public function logout(Request $request, Response $response): Response
@@ -185,7 +186,7 @@ class AuthController
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
         }
         session_destroy();
-        return $response->withHeader('Location', '/login')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
 }
 
     private function sanitizeReturnUrl(?string $url): ?string

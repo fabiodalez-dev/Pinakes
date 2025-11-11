@@ -6,6 +6,7 @@ namespace App\Controllers;
 use mysqli;
 use App\Support\Csrf;
 use App\Support\CsrfHelper;
+use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -14,7 +15,7 @@ class ProfileController
     public function show(Request $request, Response $response, mysqli $db): Response
     {
         $uid = (int)($_SESSION['user']['id'] ?? 0);
-        if ($uid <= 0) return $response->withHeader('Location', '/login')->withStatus(302);
+        if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale FROM utenti WHERE id = ? LIMIT 1");
         $stmt->bind_param('i', $uid);
         $stmt->execute();
@@ -42,7 +43,7 @@ class ProfileController
     public function changePassword(Request $request, Response $response, mysqli $db): Response
     {
         $uid = (int)($_SESSION['user']['id'] ?? 0);
-        if ($uid <= 0) return $response->withHeader('Location', '/login')->withStatus(302);
+        if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         $data = (array)($request->getParsedBody() ?? []);
 
         // Validate CSRF using helper
@@ -52,31 +53,34 @@ class ProfileController
         $p1 = (string)($data['password'] ?? '');
         $p2 = (string)($data['password_confirm'] ?? '');
         if ($p1 === '' || $p1 !== $p2) {
-            return $response->withHeader('Location', '/profile?error=invalid')->withStatus(302);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=invalid')->withStatus(302);
         }
-        
+
         // Validate password complexity
         if (strlen($p1) < 8) {
-            return $response->withHeader('Location', '/profile?error=password_too_short')->withStatus(302);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=password_too_short')->withStatus(302);
         }
-        
+
         if (!preg_match('/[A-Z]/', $p1) || !preg_match('/[a-z]/', $p1) || !preg_match('/[0-9]/', $p1)) {
-            return $response->withHeader('Location', '/profile?error=password_needs_upper_lower_number')->withStatus(302);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=password_needs_upper_lower_number')->withStatus(302);
         }
-        
+
         $hash = password_hash($p1, PASSWORD_DEFAULT);
         $stmt = $db->prepare("UPDATE utenti SET password = ? WHERE id = ?");
         $stmt->bind_param('si', $hash, $uid);
         $stmt->execute();
         $stmt->close();
         $_SESSION['success_message'] = __('Password aggiornata con successo.');
-        return $response->withHeader('Location', '/profile')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
     }
 
     public function update(Request $request, Response $response, mysqli $db): Response
     {
         $uid = (int)($_SESSION['user']['id'] ?? 0);
-        if ($uid <= 0) return $response->withHeader('Location', '/login')->withStatus(302);
+        if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
 
         $data = (array)($request->getParsedBody() ?? []);
 
@@ -112,7 +116,8 @@ class ProfileController
 
         // Validate required fields
         if (empty($nome) || empty($cognome)) {
-            return $response->withHeader('Location', '/profilo?error=required_fields')->withStatus(302);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=required_fields')->withStatus(302);
         }
 
         // Update user (sesso can be NULL)
@@ -129,7 +134,7 @@ class ProfileController
         }
 
         $stmt->close();
-        return $response->withHeader('Location', '/profilo')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
     }
 }
 

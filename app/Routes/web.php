@@ -281,7 +281,7 @@ return function (App $app): void {
 
     // Redirect old URL for compatibility
     $app->get('/my-reservations', function ($request, $response) {
-        return $response->withHeader('Location', '/prenotazioni')->withStatus(301);
+        return $response->withHeader('Location', \App\Support\RouteTranslator::route('reservations'))->withStatus(301);
     })->add(new AuthMiddleware(['admin','staff','standard','premium']));
     $app->post('/reservation/cancel', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');

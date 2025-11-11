@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use mysqli;
+use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -12,7 +13,7 @@ final class UserWishlistController
     public function page(Request $request, Response $response, mysqli $db): Response
     {
         $user = $_SESSION['user'] ?? null;
-        if (!$user || empty($user['id'])) { return $response->withHeader('Location','/login')->withStatus(302); }
+        if (!$user || empty($user['id'])) { return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302); }
         $uid = (int)$user['id'];
         $sql = "SELECT l.id, l.titolo, l.copertina_url, l.copie_disponibili
                 FROM wishlist w JOIN libri l ON l.id=w.libro_id

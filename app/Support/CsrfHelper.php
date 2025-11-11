@@ -5,6 +5,7 @@ namespace App\Support;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\RouteTranslator;
 
 /**
  * Helper centralizzato per gestione CSRF con messaggi user-friendly
@@ -46,7 +47,7 @@ final class CsrfHelper
             return $response->withHeader('Location', $returnUrl . '?error=csrf')->withStatus(302);
         }
 
-        return $response->withHeader('Location', '/login?error=csrf')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('login') . '?error=csrf')->withStatus(302);
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Controllers;
 use mysqli;
 use App\Support\Csrf;
 use App\Support\CsrfHelper;
+use App\Support\RouteTranslator;
 use App\Controllers\ReservationManager;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -15,7 +16,7 @@ class UserActionsController
     public function reservationsPage(Request $request, Response $response, mysqli $db): Response
     {
         $user = $_SESSION['user'] ?? null;
-        if (!$user || empty($user['id'])) { return $response->withHeader('Location','/login')->withStatus(302); }
+        if (!$user || empty($user['id'])) { return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302); }
         $uid = (int)$user['id'];
 
         // Richieste di prestito in sospeso
@@ -110,7 +111,7 @@ class UserActionsController
         $uid = (int)$user['id'];
         $stmt = $db->prepare("UPDATE prenotazioni SET stato='annullata' WHERE id=? AND utente_id=?");
         $stmt->bind_param('ii', $rid, $uid); $stmt->execute(); $stmt->close();
-        return $response->withHeader('Location','/prenotazioni?canceled=1')->withStatus(302);
+        return $response->withHeader('Location',RouteTranslator::route('reservations')?canceled=1')->withStatus(302);
     }
 
     public function changeReservationDate(Request $request, Response $response, mysqli $db): Response
@@ -120,13 +121,13 @@ class UserActionsController
         if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) { return $response->withStatus(400); }
         $rid = (int)($data['reservation_id'] ?? 0); $date = trim((string)($data['desired_date'] ?? ''));
         if ($rid<=0 || $date==='' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return $response->withStatus(422);
-        if (strtotime($date) < strtotime(date('Y-m-d'))) return $response->withHeader('Location','/prenotazioni?error=past_date')->withStatus(302);
+        if (strtotime($date) < strtotime(date('Y-m-d'))) return $response->withHeader('Location',RouteTranslator::route('reservations')?error=past_date')->withStatus(302);
         $uid = (int)$user['id'];
         $startDt = $date . ' 00:00:00';
         $endDt   = date('Y-m-d', strtotime($date . ' +1 month')) . ' 23:59:59';
         $stmt = $db->prepare("UPDATE prenotazioni SET data_prenotazione=?, data_scadenza_prenotazione=? WHERE id=? AND utente_id=? AND stato='attiva'");
         $stmt->bind_param('ssii', $startDt, $endDt, $rid, $uid); $stmt->execute(); $stmt->close();
-        return $response->withHeader('Location','/prenotazioni?updated=1')->withStatus(302);
+        return $response->withHeader('Location',RouteTranslator::route('reservations')?updated=1')->withStatus(302);
     }
     public function reservationsCount(Request $request, Response $response, mysqli $db): Response
     {
@@ -147,7 +148,7 @@ class UserActionsController
     {
         $user = $_SESSION['user'] ?? null;
         if (!$user || empty($user['id'])) {
-            return $response->withHeader('Location', '/login')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         }
         $data = (array)($request->getParsedBody() ?? []);
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
@@ -179,7 +180,7 @@ class UserActionsController
     {
         $user = $_SESSION['user'] ?? null;
         if (!$user || empty($user['id'])) {
-            return $response->withHeader('Location', '/login')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         }
         $data = (array)($request->getParsedBody() ?? []);
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
