@@ -552,9 +552,21 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
       ?>
       window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
 
-      // Translation helper function
-      window.__ = window.__ || function(key) {
-        return window.i18nTranslations[key] || key;
+      // Override translation helper function to use i18nTranslations (overrides head fallback)
+      window.__ = function(key, ...args) {
+        // First try translation from i18nTranslations
+        let translated = window.i18nTranslations[key] || key;
+
+        // If args provided, do string replacement (for %s, %d placeholders)
+        if (args.length > 0) {
+          let argIndex = 0;
+          translated = translated.replace(/%(\d+\$)?[sd]/g, function() {
+            const value = args[argIndex++];
+            return value !== undefined ? String(value) : '';
+          });
+        }
+
+        return translated;
       };
     </script>
     <script src="/assets/vendor.bundle.js"></script>
