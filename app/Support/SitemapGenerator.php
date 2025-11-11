@@ -15,6 +15,16 @@ class SitemapGenerator
     private string $baseUrl;
 
     /**
+     * @var array<string> Active locale codes
+     */
+    private array $activeLocales = [];
+
+    /**
+     * @var string Default locale code
+     */
+    private string $defaultLocale = 'it_IT';
+
+    /**
      * @var array<string,int>
      */
     private array $stats = [
@@ -31,6 +41,7 @@ class SitemapGenerator
     {
         $this->db = $db;
         $this->baseUrl = rtrim($baseUrl, '/');
+        $this->loadActiveLocales();
     }
 
     /**
@@ -129,43 +140,31 @@ class SitemapGenerator
      */
     private function getStaticEntries(): array
     {
-        return [
-            [
-                'loc' => $this->baseUrl . '/',
-                'changefreq' => 'daily',
-                'priority' => '1.0',
-            ],
-            [
-                'loc' => $this->baseUrl . '/catalogo',
-                'changefreq' => 'daily',
-                'priority' => '0.9',
-            ],
-            [
-                'loc' => $this->baseUrl . '/chi-siamo',
-                'changefreq' => 'monthly',
-                'priority' => '0.7',
-            ],
-            [
-                'loc' => $this->baseUrl . '/contatti',
-                'changefreq' => 'monthly',
-                'priority' => '0.6',
-            ],
-            [
-                'loc' => $this->baseUrl . '/privacy-policy',
-                'changefreq' => 'yearly',
-                'priority' => '0.4',
-            ],
-            [
-                'loc' => $this->baseUrl . '/register',
-                'changefreq' => 'monthly',
-                'priority' => '0.5',
-            ],
-            [
-                'loc' => $this->baseUrl . '/login',
-                'changefreq' => 'monthly',
-                'priority' => '0.4',
-            ],
+        $entries = [];
+        $staticPages = [
+            ['path' => '/', 'changefreq' => 'daily', 'priority' => '1.0'],
+            ['path' => '/catalogo', 'changefreq' => 'daily', 'priority' => '0.9'],
+            ['path' => '/chi-siamo', 'changefreq' => 'monthly', 'priority' => '0.7'],
+            ['path' => '/contatti', 'changefreq' => 'monthly', 'priority' => '0.6'],
+            ['path' => '/privacy-policy', 'changefreq' => 'yearly', 'priority' => '0.4'],
+            ['path' => '/register', 'changefreq' => 'monthly', 'priority' => '0.5'],
+            ['path' => '/login', 'changefreq' => 'monthly', 'priority' => '0.4'],
         ];
+
+        // Generate URL for each active locale
+        foreach ($this->activeLocales as $locale) {
+            $localePrefix = $this->getLocalePrefix($locale);
+
+            foreach ($staticPages as $page) {
+                $entries[] = [
+                    'loc' => $this->baseUrl . $localePrefix . $page['path'],
+                    'changefreq' => $page['changefreq'],
+                    'priority' => $page['priority'],
+                ];
+            }
+        }
+
+        return $entries;
     }
 
     /**
@@ -184,12 +183,18 @@ class SitemapGenerator
                 }
 
                 $lastmod = $row['updated_at'] ?? $row['created_at'] ?? null;
-                $entries[] = [
-                    'loc' => $this->baseUrl . '/' . rawurlencode($slug),
-                    'changefreq' => 'monthly',
-                    'priority' => '0.6',
-                    'lastmod' => $lastmod,
-                ];
+
+                // Generate URL for each active locale
+                foreach ($this->activeLocales as $locale) {
+                    $localePrefix = $this->getLocalePrefix($locale);
+
+                    $entries[] = [
+                        'loc' => $this->baseUrl . $localePrefix . '/' . rawurlencode($slug),
+                        'changefreq' => 'monthly',
+                        'priority' => '0.6',
+                        'lastmod' => $lastmod,
+                    ];
+                }
             }
             $result->free();
         }
@@ -213,7 +218,7 @@ class SitemapGenerator
                        FROM libri_autori la
                        JOIN autori a ON la.autore_id = a.id
                        WHERE la.libro_id = l.id
-                       ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END, la.id
+                       ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END, la.ordine_credito
                        LIMIT 1
                    ) AS autore_principale
             FROM libri l
@@ -229,12 +234,18 @@ class SitemapGenerator
                     continue;
                 }
 
-                $entries[] = [
-                    'loc' => $this->baseUrl . $this->buildBookPath($id, $title, (string)($row['autore_principale'] ?? '')),
-                    'changefreq' => 'weekly',
-                    'priority' => '0.8',
-                    'lastmod' => $row['updated_at'] ?? $row['created_at'] ?? null,
-                ];
+                // Generate URL for each active locale
+                foreach ($this->activeLocales as $locale) {
+                    $localePrefix = $this->getLocalePrefix($locale);
+                    $bookPath = $this->buildBookPath($id, $title, (string)($row['autore_principale'] ?? ''));
+
+                    $entries[] = [
+                        'loc' => $this->baseUrl . $localePrefix . $bookPath,
+                        'changefreq' => 'weekly',
+                        'priority' => '0.8',
+                        'lastmod' => $row['updated_at'] ?? $row['created_at'] ?? null,
+                    ];
+                }
             }
             $result->free();
         }
@@ -257,12 +268,17 @@ class SitemapGenerator
                     continue;
                 }
 
-                $entries[] = [
-                    'loc' => $this->baseUrl . '/autore/' . rawurlencode($name),
-                    'changefreq' => 'monthly',
-                    'priority' => '0.6',
-                    'lastmod' => $row['created_at'] ?? null,
-                ];
+                // Generate URL for each active locale
+                foreach ($this->activeLocales as $locale) {
+                    $localePrefix = $this->getLocalePrefix($locale);
+
+                    $entries[] = [
+                        'loc' => $this->baseUrl . $localePrefix . '/autore/' . rawurlencode($name),
+                        'changefreq' => 'monthly',
+                        'priority' => '0.6',
+                        'lastmod' => $row['created_at'] ?? null,
+                    ];
+                }
             }
             $result->free();
         }
@@ -285,12 +301,17 @@ class SitemapGenerator
                     continue;
                 }
 
-                $entries[] = [
-                    'loc' => $this->baseUrl . '/editore/' . rawurlencode($name),
-                    'changefreq' => 'monthly',
-                    'priority' => '0.5',
-                    'lastmod' => null,
-                ];
+                // Generate URL for each active locale
+                foreach ($this->activeLocales as $locale) {
+                    $localePrefix = $this->getLocalePrefix($locale);
+
+                    $entries[] = [
+                        'loc' => $this->baseUrl . $localePrefix . '/editore/' . rawurlencode($name),
+                        'changefreq' => 'monthly',
+                        'priority' => '0.5',
+                        'lastmod' => null,
+                    ];
+                }
             }
             $result->free();
         }
@@ -320,12 +341,17 @@ class SitemapGenerator
                     continue;
                 }
 
-                $entries[] = [
-                    'loc' => $this->baseUrl . '/genere/' . rawurlencode($name),
-                    'changefreq' => 'monthly',
-                    'priority' => '0.5',
-                    'lastmod' => null,
-                ];
+                // Generate URL for each active locale
+                foreach ($this->activeLocales as $locale) {
+                    $localePrefix = $this->getLocalePrefix($locale);
+
+                    $entries[] = [
+                        'loc' => $this->baseUrl . $localePrefix . '/genere/' . rawurlencode($name),
+                        'changefreq' => 'monthly',
+                        'priority' => '0.5',
+                        'lastmod' => null,
+                    ];
+                }
             }
             $result->free();
         }
@@ -365,6 +391,58 @@ class SitemapGenerator
         } catch (\Exception $exception) {
             // Ignore invalid dates
         }
+    }
+
+    /**
+     * Load active locales from database
+     */
+    private function loadActiveLocales(): void
+    {
+        try {
+            $result = $this->db->query("
+                SELECT code, is_default
+                FROM languages
+                WHERE is_active = 1
+                ORDER BY is_default DESC, code ASC
+            ");
+
+            if ($result) {
+                while ($row = $result->fetch_assoc()) {
+                    $code = (string)($row['code'] ?? '');
+                    if ($code !== '') {
+                        $this->activeLocales[] = $code;
+                        if ((int)($row['is_default'] ?? 0) === 1) {
+                            $this->defaultLocale = $code;
+                        }
+                    }
+                }
+                $result->free();
+            }
+        } catch (\Exception $e) {
+            // Fallback to default locale only
+            $this->activeLocales = ['it_IT'];
+            $this->defaultLocale = 'it_IT';
+        }
+
+        // Ensure at least one locale
+        if (empty($this->activeLocales)) {
+            $this->activeLocales = ['it_IT'];
+        }
+    }
+
+    /**
+     * Get locale prefix for URL (empty for default locale, /xx for others)
+     */
+    private function getLocalePrefix(string $locale): string
+    {
+        // Default locale has no prefix
+        if ($locale === $this->defaultLocale) {
+            return '';
+        }
+
+        // Extract language code (first 2 chars of locale: it_IT -> it, en_US -> en)
+        $langCode = strtolower(substr($locale, 0, 2));
+        return '/' . $langCode;
     }
 
     private function buildBookPath(int $bookId, string $title, string $authorName): string

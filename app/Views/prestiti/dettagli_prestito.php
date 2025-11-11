@@ -200,7 +200,7 @@ function formatLoanStatus($status) {
                 } else {
                     Swal.fire({
                         title: __('Errore'),
-                        text: data.message || 'Errore durante l\'approvazione',
+                        text: data.message || __('Errore durante l\'approvazione'),
                         icon: 'error',
                         confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'
@@ -227,8 +227,8 @@ function formatLoanStatus($status) {
             const { value: reason } = await Swal.fire({
                 title: __('Rifiuta prestito'),
                 input: 'textarea',
-                inputLabel: 'Motivo del rifiuto (opzionale)',
-                inputPlaceholder: 'Inserisci il motivo del rifiuto...',
+                inputLabel: __('Motivo del rifiuto (opzionale)'),
+                inputPlaceholder: __('Inserisci il motivo del rifiuto...'),
                 showCancelButton: true,
                 confirmButtonText: __('Rifiuta'),
                 cancelButtonText: __('Annulla'),
@@ -272,7 +272,7 @@ function formatLoanStatus($status) {
                 } else {
                     Swal.fire({
                         title: __('Errore'),
-                        text: data.message || 'Errore durante il rifiuto',
+                        text: data.message || __('Errore durante il rifiuto'),
                         icon: 'error',
                         confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'

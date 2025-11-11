@@ -525,7 +525,7 @@ use App\Support\HtmlHelper;
                     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg <?php echo $key['is_active'] ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-gray-900 text-white hover:bg-black'; ?> transition-colors"
-                            title="<?php echo $key['is_active'] ? '<?= __("Disattiva") ?>' : '<?= __("Attiva") ?>'; ?>">
+                            title="<?php echo $key['is_active'] ? __('Disattiva') : __('Attiva'); ?>">
                       <i class="fas <?php echo $key['is_active'] ? 'fa-pause' : 'fa-play'; ?>"></i>
                     </button>
                   </form>

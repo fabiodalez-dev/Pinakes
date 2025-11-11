@@ -141,10 +141,10 @@ function initializeFormValidation() {
                 Swal.fire({
                     icon: 'error',
                     title: __('Campo Obbligatorio'),
-                    text: __('Il nome dell\')autore è obbligatorio.'
+                    text: __('Il nome dell\'autore è obbligatorio.')
                 });
             } else {
-                alert('Il nome dell\'autore è obbligatorio.');
+                alert(__('Il nome dell\'autore è obbligatorio.'));
             }
             return;
         }
@@ -172,7 +172,7 @@ function initializeFormValidation() {
         if (window.Swal) {
             const result = await Swal.fire({
                 title: __('Conferma Salvataggio'),
-                text: `Sei sicuro di voler salvare l'autore "${nome}"?`,
+                text: __('Sei sicuro di voler salvare l\'autore "%s"?').replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: __('Sì, Salva'),
@@ -196,7 +196,7 @@ function initializeFormValidation() {
                 form.submit();
             }
         } else {
-            if (confirm(`Sei sicuro di voler salvare l'autore "${nome}"?`)) {
+            if (confirm(__('Sei sicuro di voler salvare l\'autore "%s"?').replace('%s', nome))) {
                 form.submit();
             }
         }

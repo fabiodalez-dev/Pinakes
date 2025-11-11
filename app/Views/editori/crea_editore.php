@@ -151,10 +151,10 @@ function initializeFormValidation() {
                 Swal.fire({
                     icon: 'error',
                     title: __('Campo Obbligatorio'),
-                    text: __('Il nome dell\')editore è obbligatorio.'
+                    text: __('Il nome dell\'editore è obbligatorio.')
                 });
             } else {
-                alert('Il nome dell\'editore è obbligatorio.');
+                alert(__('Il nome dell\'editore è obbligatorio.'));
             }
             return;
         }
@@ -181,10 +181,10 @@ function initializeFormValidation() {
                 Swal.fire({
                     icon: 'error',
                     title: __('Email Non Valida'),
-                    text: __('L\')indirizzo email deve essere valido.'
+                    text: __('L\'indirizzo email deve essere valido.')
                 });
             } else {
-                alert('L\'indirizzo email deve essere valido.');
+                alert(__('L\'indirizzo email deve essere valido.'));
             }
             return;
         }
@@ -193,7 +193,7 @@ function initializeFormValidation() {
         if (window.Swal) {
             const result = await Swal.fire({
                 title: __('Conferma Salvataggio'),
-                text: `Sei sicuro di voler salvare l'editore "${nome}"?`,
+                text: __('Sei sicuro di voler salvare l\'editore "%s"?').replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: __('Sì, Salva'),

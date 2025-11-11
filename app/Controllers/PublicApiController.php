@@ -32,7 +32,7 @@ class PublicApiController
 
         // Validate that at least one parameter is provided
         if ($ean === null && $isbn13 === null && $isbn10 === null && $author === null) {
-            return $this->jsonError('At least one search parameter is required (ean, isbn13, isbn10, or author)', 400, $response);
+            return $this->jsonError(__('At least one search parameter is required (ean, isbn13, isbn10, or author)'), 400, $response);
         }
 
         try {
@@ -48,7 +48,7 @@ class PublicApiController
             ], $response);
         } catch (\Throwable $e) {
             error_log('Public API error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-            return $this->jsonError('Internal server error', 500, $response);
+            return $this->jsonError(__('Internal server error'), 500, $response);
         }
     }
 

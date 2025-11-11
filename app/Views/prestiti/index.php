@@ -411,16 +411,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(resp => resp.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire('Successo', 'Prestito approvato!', 'success').then(() => {
+                            Swal.fire(__('Successo'), __('Prestito approvato!'), 'success').then(() => {
                                 location.reload();
                             });
                         } else {
-                            Swal.fire('Errore', data.message || 'Errore nell\'approvazione', 'error');
+                            Swal.fire(__('Errore'), data.message || __('Errore nell\'approvazione'), 'error');
                         }
                     })
                     .catch(err => {
                         console.error(err);
-                        Swal.fire('Errore', 'Errore di comunicazione con il server', 'error');
+                        Swal.fire(__('Errore'), __('Errore di comunicazione con il server'), 'error');
                     });
                 }
             });
@@ -453,16 +453,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(resp => resp.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire('Successo', 'Prestito rifiutato!', 'success').then(() => {
+                            Swal.fire(__('Successo'), __('Prestito rifiutato!'), 'success').then(() => {
                                 location.reload();
                             });
                         } else {
-                            Swal.fire('Errore', data.message || 'Errore nel rifiuto', 'error');
+                            Swal.fire(__('Errore'), data.message || __('Errore nel rifiuto'), 'error');
                         }
                     })
                     .catch(err => {
                         console.error(err);
-                        Swal.fire('Errore', 'Errore di comunicazione con il server', 'error');
+                        Swal.fire(__('Errore'), __('Errore di comunicazione con il server'), 'error');
                     });
                 }
             });

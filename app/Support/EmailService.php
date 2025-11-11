@@ -8,6 +8,7 @@ use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 use mysqli;
 use App\Support\ConfigStore;
+use App\Support\I18n;
 
 class EmailService {
     private const RAW_HTML_VARIABLES = ['verify_section'];
@@ -96,7 +97,7 @@ class EmailService {
             $subject = $this->replaceVariables($template['subject'], $variables);
             $body = $this->replaceVariables($template['body'], $variables);
 
-            return $this->sendEmail($to, $subject, $body);
+            return $this->sendEmail($to, $subject, $body, '', $locale);
 
         } catch (Exception $e) {
             error_log("Failed to send template email '{$templateName}' to {$to}: " . $e->getMessage());
@@ -107,12 +108,12 @@ class EmailService {
     /**
      * Send plain email
      */
-    public function sendEmail(string $to, string $subject, string $body, string $toName = ''): bool {
+    public function sendEmail(string $to, string $subject, string $body, string $toName = '', ?string $locale = null): bool {
         try {
             $this->mailer->clearAddresses();
             $this->mailer->addAddress($to, $toName);
             $this->mailer->Subject = $subject;
-            $this->mailer->Body = $this->wrapInBaseTemplate($body, $subject);
+            $this->mailer->Body = $this->wrapInBaseTemplate($body, $subject, $locale);
 
             return $this->mailer->send();
 
@@ -411,9 +412,26 @@ class EmailService {
     /**
      * Wrap content in base HTML template
      */
-    private function wrapInBaseTemplate(string $content, string $subject): string {
+    private function wrapInBaseTemplate(string $content, string $subject, ?string $locale = null): string {
         $appName = ConfigStore::get('app.name', 'Biblioteca');
         $appLogo = (string)ConfigStore::get('app.logo', '');
+
+        // Determine locale for translations
+        if ($locale === null) {
+            $locale = I18n::getLocale();
+        }
+
+        // Set locale temporarily for translations
+        $previousLocale = I18n::getLocale();
+        I18n::setLocale($locale);
+
+        // Translated footer messages
+        $footerLine1 = __('Questa email è stata generata automaticamente da %s.', $appName);
+        $footerLine2 = __('Per assistenza, contatta l\'amministrazione della biblioteca.');
+
+        // Restore previous locale
+        I18n::setLocale($previousLocale);
+
         $logoHtml = '';
         if ($appLogo !== '') {
             $logoSrc = $appLogo;
@@ -425,9 +443,11 @@ class EmailService {
             $logoHtml = "<h1 style='color: #1f2937; margin: 0;'>" . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . "</h1>";
         }
 
+        $langCode = substr($locale, 0, 2); // it_IT -> it, en_US -> en
+
         return "
         <!DOCTYPE html>
-        <html lang='it'>
+        <html lang='{$langCode}'>
         <head>
             <meta charset='UTF-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
@@ -441,8 +461,8 @@ class EmailService {
                 {$content}
             </div>
             <div style='text-align: center; font-size: 12px; color: #6b7280; margin-top: 20px;'>
-                <p>Questa email è stata generata automaticamente da {$appName}.</p>
-                <p>Per assistenza, contatta l'amministrazione della biblioteca.</p>
+                <p>{$footerLine1}</p>
+                <p>{$footerLine2}</p>
             </div>
         </body>
         </html>";

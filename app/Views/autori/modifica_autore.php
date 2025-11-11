@@ -179,7 +179,7 @@ function initializeFormValidation() {
         if (window.Swal) {
             const result = await Swal.fire({
                 title: __('Conferma Aggiornamento'),
-                text: `Sei sicuro di voler aggiornare l'autore "${nome}"?`,
+                text: __('Sei sicuro di voler aggiornare l\'autore "%s"?').replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: __('Sì, Aggiorna'),
@@ -203,7 +203,7 @@ function initializeFormValidation() {
                 form.submit();
             }
         } else {
-            if (confirm(`Sei sicuro di voler aggiornare l'autore "${nome}"?`)) {
+            if (confirm(__('Sei sicuro di voler aggiornare l\'autore "%s"?').replace('%s', nome))) {
                 form.submit();
             }
         }
