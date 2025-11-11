@@ -621,35 +621,12 @@ class Installer {
      * Save application settings
      */
     public function saveSetting($category, $key, $value) {
-        $pdo = $this->getDatabaseConnection();
+        // Use ConfigStore to save settings to storage/settings.json
+        // This ensures consistency between installer and app
+        require_once __DIR__ . '/../../app/Support/ConfigStore.php';
 
-        // Build full setting key (e.g. "app.locale")
         $fullKey = $category . '.' . $key;
-
-        // Check if setting exists in config_store
-        $stmt = $pdo->prepare("SELECT setting_key FROM config_store WHERE setting_key = :key");
-        $stmt->execute(['key' => $fullKey]);
-        $exists = $stmt->fetch();
-
-        if ($exists) {
-            // Update
-            $stmt = $pdo->prepare("
-                UPDATE config_store
-                SET setting_value = :value, updated_at = NOW()
-                WHERE setting_key = :key
-            ");
-        } else {
-            // Insert
-            $stmt = $pdo->prepare("
-                INSERT INTO config_store (setting_key, setting_value, created_at, updated_at)
-                VALUES (:key, :value, NOW(), NOW())
-            ");
-        }
-
-        $stmt->execute([
-            'key' => $fullKey,
-            'value' => $value
-        ]);
+        \App\Support\ConfigStore::set($fullKey, $value);
 
         return true;
     }
