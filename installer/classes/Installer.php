@@ -215,11 +215,6 @@ class Installer {
             throw new Exception("File dati iniziali per la lingua selezionata non trovato: " . basename($dataFile));
         }
 
-        // Data file is optional - if missing, skip
-        if (!file_exists($dataFile)) {
-            return true;
-        }
-
         // Try exec() method first (faster and more reliable)
         if (function_exists('exec')) {
             try {
@@ -628,29 +623,31 @@ class Installer {
     public function saveSetting($category, $key, $value) {
         $pdo = $this->getDatabaseConnection();
 
-        // Check if setting exists
-        $stmt = $pdo->prepare("SELECT id FROM system_settings WHERE category = :category AND setting_key = :key");
-        $stmt->execute(['category' => $category, 'key' => $key]);
+        // Build full setting key (e.g. "app.locale")
+        $fullKey = $category . '.' . $key;
+
+        // Check if setting exists in config_store
+        $stmt = $pdo->prepare("SELECT setting_key FROM config_store WHERE setting_key = :key");
+        $stmt->execute(['key' => $fullKey]);
         $exists = $stmt->fetch();
 
         if ($exists) {
             // Update
             $stmt = $pdo->prepare("
-                UPDATE system_settings
+                UPDATE config_store
                 SET setting_value = :value, updated_at = NOW()
-                WHERE category = :category AND setting_key = :key
+                WHERE setting_key = :key
             ");
         } else {
             // Insert
             $stmt = $pdo->prepare("
-                INSERT INTO system_settings (category, setting_key, setting_value, created_at, updated_at)
-                VALUES (:category, :key, :value, NOW(), NOW())
+                INSERT INTO config_store (setting_key, setting_value, created_at, updated_at)
+                VALUES (:key, :value, NOW(), NOW())
             ");
         }
 
         $stmt->execute([
-            'category' => $category,
-            'key' => $key,
+            'key' => $fullKey,
             'value' => $value
         ]);
 

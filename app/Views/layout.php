@@ -538,8 +538,21 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
     
     <!-- Scripts -->
     <script>
-      // Ensure translation helper exists before other bundles run
-      window.i18nTranslations = window.i18nTranslations || {};
+      // Load complete translation file FIRST before any script uses it
+      <?php
+      // Use ConfigStore to get locale (same source as __() function for consistency)
+      $currentLocale = ConfigStore::get('app.locale', 'it_IT');
+      $translationFile = __DIR__ . '/../../locale/' . $currentLocale . '.json';
+      $translations = [];
+
+      if (file_exists($translationFile)) {
+          $translationsContent = file_get_contents($translationFile);
+          $translations = json_decode($translationsContent, true) ?? [];
+      }
+      ?>
+      window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+
+      // Translation helper function
       window.__ = window.__ || function(key) {
         return window.i18nTranslations[key] || key;
       };
@@ -550,22 +563,6 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
     <script src="/assets/js/csrf-helper.js"></script>
     <script src="/assets/js/swal-config.js"></script>
     <script>
-      // Global translations for JavaScript
-      window.i18nTranslations = <?= json_encode([
-        'Apri' => __('Apri'),
-        'Segna tutte come lette' => __('Segna tutte come lette'),
-        'Vedi tutte le notifiche' => __('Vedi tutte le notifiche'),
-        'Nessuna notifica' => __('Nessuna notifica'),
-        'Ricerca in corso...' => __('Ricerca in corso...'),
-        'Nessun risultato trovato per' => __('Nessun risultato trovato per'),
-        'Nessun risultato trovato' => __('Nessun risultato trovato'),
-        'Errore durante la ricerca' => __('Errore durante la ricerca'),
-      ], JSON_UNESCAPED_UNICODE) ?>;
-
-      // Global __ function for JavaScript translations
-      window.__ = function(key) {
-        return window.i18nTranslations[key] || key;
-      };
 
       function escapeHtml(value) {
         const div = document.createElement('div');
