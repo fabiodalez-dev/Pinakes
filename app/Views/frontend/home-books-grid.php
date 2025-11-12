@@ -119,7 +119,7 @@ function getBookStatusBadge($book) {
 .book-image {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     transition: var(--transition);
 }
 

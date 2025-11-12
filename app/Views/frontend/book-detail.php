@@ -1228,7 +1228,7 @@ $additional_css = "
         left: 0;
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain;
         transition: transform 0.3s ease;
     }
 
@@ -1344,6 +1344,10 @@ $additional_css = "
     }
     .card {
     background-color: white;
+    }
+    div#book-cover-container {
+    max-width: 400px;
+    margin: auto;
     }
 </style>
 ";

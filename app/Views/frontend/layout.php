@@ -649,7 +649,7 @@ if (!function_exists('assetUrl')) {
         .book-image img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
@@ -1516,7 +1516,7 @@ if (!function_exists('assetUrl')) {
                         const bookYear = escapeHtml(book.year ?? '');
 
                         html += '<a href="' + bookUrl + '" class="search-result-item book-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
-                                '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: cover; border-radius: 0.25rem; margin-right: 0.75rem;">' +
+                                '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                                 '<div class="search-book-info">' +
                                     '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: #000000;">' + bookTitle + '</div>' +
                                     (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem;">' + bookAuthor + '</div>' : '') +
