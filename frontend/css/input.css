@@ -2,6 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========================================
+   MOBILE RESPONSIVE FIX
+   Prevent horizontal scroll on all devices
+   ======================================== */
+
+/* Force box-sizing for all elements */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Lock viewport width - NO horizontal scroll */
+html {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100% !important;
+}
+
+body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100% !important;
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+
+/* Prevent ANY element from exceeding viewport */
+* {
+  max-width: 100% !important;
+}
+
+/* Main wrappers must respect viewport */
+#app,
+.min-h-screen,
+.container,
+.container-fluid,
+.row {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}
+
+/* Images and media - always responsive */
+img,
+video,
+iframe,
+svg {
+  max-width: 100% !important;
+  height: auto;
+}
+
+/* Tables scroll internally on mobile */
+table {
+  max-width: 100% !important;
+}
+
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce padding on mobile */
+  .container,
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
 /* Import external libraries */
 @import '../node_modules/@uppy/core/dist/style.css';
 @import '../node_modules/@uppy/drag-drop/dist/style.css';

@@ -3319,6 +3319,9 @@ select {
 .mt-1 {
   margin-top: 0.25rem;
 }
+.mt-12 {
+  margin-top: 3rem;
+}
 .mt-2 {
   margin-top: 0.5rem;
 }
@@ -3460,6 +3463,9 @@ select {
 .min-h-screen {
   min-height: 100vh;
 }
+.w-1\/3 {
+  width: 33.333333%;
+}
 .w-10 {
   width: 2.5rem;
 }
@@ -3534,9 +3540,6 @@ select {
 }
 .max-w-5xl {
   max-width: 64rem;
-}
-.max-w-6xl {
-  max-width: 72rem;
 }
 .max-w-7xl {
   max-width: 80rem;
@@ -3988,6 +3991,10 @@ select {
 .border-yellow-300 {
   --tw-border-opacity: 1;
   border-color: rgb(253 224 71 / var(--tw-border-opacity, 1));
+}
+.border-yellow-400 {
+  --tw-border-opacity: 1;
+  border-color: rgb(250 204 21 / var(--tw-border-opacity, 1));
 }
 .border-l-blue-500 {
   --tw-border-opacity: 1;
@@ -4511,6 +4518,10 @@ select {
   --tw-text-opacity: 1;
   color: rgb(0 0 0 / var(--tw-text-opacity, 1));
 }
+.text-blue-400 {
+  --tw-text-opacity: 1;
+  color: rgb(96 165 250 / var(--tw-text-opacity, 1));
+}
 .text-blue-500 {
   --tw-text-opacity: 1;
   color: rgb(59 130 246 / var(--tw-text-opacity, 1));
@@ -4702,6 +4713,9 @@ select {
 .underline {
   text-decoration-line: underline;
 }
+.no-underline {
+  text-decoration-line: none;
+}
 .decoration-gray-400 {
   text-decoration-color: #9ca3af;
 }
@@ -4851,6 +4865,78 @@ select {
 .slide-in-up {
     animation: slideInUp 0.3s ease-out;
   }
+
+/* ========================================
+   MOBILE RESPONSIVE FIX
+   Prevent horizontal scroll on all devices
+   ======================================== */
+
+/* Force box-sizing for all elements */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Lock viewport width - NO horizontal scroll */
+html {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100% !important;
+}
+
+body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100% !important;
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+
+/* Prevent ANY element from exceeding viewport */
+* {
+  max-width: 100% !important;
+}
+
+/* Main wrappers must respect viewport */
+#app,
+.min-h-screen,
+.container,
+.container-fluid,
+.row {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}
+
+/* Images and media - always responsive */
+img,
+video,
+iframe,
+svg {
+  max-width: 100% !important;
+  height: auto;
+}
+
+/* Tables scroll internally on mobile */
+table {
+  max-width: 100% !important;
+}
+
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce padding on mobile */
+  .container,
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
 
 /* Import external libraries */
 
@@ -5413,6 +5499,10 @@ table.dataTable thead td {
   --tw-text-opacity: 1;
   color: rgb(20 83 45 / var(--tw-text-opacity, 1));
 }
+.hover\:text-purple-900:hover {
+  --tw-text-opacity: 1;
+  color: rgb(88 28 135 / var(--tw-text-opacity, 1));
+}
 .hover\:text-red-300:hover {
   --tw-text-opacity: 1;
   color: rgb(252 165 165 / var(--tw-text-opacity, 1));
@@ -5550,6 +5640,10 @@ table.dataTable thead td {
 }
 .disabled\:opacity-50:disabled {
   opacity: 0.5;
+}
+.group[open] .group-open\:rotate-180 {
+  --tw-rotate: 180deg;
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 .group:focus-within .group-focus-within\:text-gray-600 {
   --tw-text-opacity: 1;
@@ -5951,6 +6045,10 @@ table.dataTable thead td {
 
   .md\:p-5 {
     padding: 1.25rem;
+  }
+
+  .md\:p-6 {
+    padding: 1.5rem;
   }
 
   .md\:px-5 {
