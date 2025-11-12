@@ -4948,7 +4948,7 @@ body {
 .container,
 .container-fluid,
 .row {
-  max-width: 100vw !important;
+  max-width: 92vw !important;
   overflow-x: hidden !important;
 }
 
@@ -4958,7 +4958,7 @@ video,
 iframe,
 svg {
   max-width: 100% !important;
-  height: auto;
+  height: auto;}
 /* Admin/DataTables responsive behavior:
  * Su mobile permettiamo lo scroll orizzontale invece di tagliare le colonne,
  * così nomi utenti e altri campi restano visibili (es. /admin/utenti).
@@ -4983,7 +4983,7 @@ svg {
     white-space: nowrap;
   }
 }
-}
+
 
 /* Tables scroll internally on mobile */
 table {

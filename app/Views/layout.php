@@ -406,7 +406,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   </button>
 
                   <!-- Notifications Dropdown -->
-                  <div id="notifications-dropdown" class="absolute md:right-0 right-4 left-4 md:left-auto mt-2 md:w-96 w-auto bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
+                  <div id="notifications-dropdown" class="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 md:translate-x-0 mt-2 w-[calc(100vw-2rem)] md:w-96 max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
                     <div class="p-4 border-b border-gray-200 flex items-center justify-between">
                       <h3 class="text-lg font-semibold text-gray-900"><?= __("Notifiche") ?></h3>
                       <button onclick="markAllNotificationsAsRead()" class="text-xs text-gray-900 hover:text-gray-700 font-medium">
