@@ -1,5 +1,5 @@
 <?php use App\Support\Csrf; $csrf = Csrf::ensureToken(); ?>
-<section class="space-y-4">
+<section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
   <!-- Breadcrumb -->
   <nav aria-label="breadcrumb" class="mb-2">
     <ol class="flex items-center space-x-2 text-sm">

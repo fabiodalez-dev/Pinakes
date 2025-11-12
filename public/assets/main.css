@@ -6345,3 +6345,28 @@ table.dataTable thead td {
 
 
 /*# sourceMappingURL=main.css.map*/
+/* Notifications dropdown: centered, robust on desktop and mobile */
+#notifications-dropdown {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Desktop-friendly min width */
+  min-width: 420px;
+  max-width: 90vw;
+}
+
+/* Tablet: slightly smaller but still centered */
+@media (max-width: 1024px) {
+  #notifications-dropdown {
+    min-width: 360px;
+    max-width: 92vw;
+  }
+}
+
+/* Mobile: ensure fits viewport and remains centered */
+@media (max-width: 640px) {
+  #notifications-dropdown {
+    min-width: 320px;
+    max-width: 94vw;
+  }
+}

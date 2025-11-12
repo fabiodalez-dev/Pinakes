@@ -55,7 +55,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
 };
 ?>
 
-<div class="space-y-6">
+<div class="max-w-7xl py-6 mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
   <?php
   // Success and error messages
   $success = $_GET['success'] ?? '';
@@ -262,8 +262,8 @@ $display = static function (?string $value, string $placeholder = '—'): string
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-600">
                 <tr>
-                    <th><?= __("$1") ?></th>
-                    <th><?= __("$1") ?></th>
+                    <th scope="col" class="px-6 py-3 text-left font-medium"><?= __("Libro") ?></th>
+                    <th scope="col" class="px-6 py-3 text-left font-medium"><?= __("Periodo") ?></th>
                     <th scope="col" class="px-6 py-3 text-center font-medium"><?= __("Stato") ?></th>
                     <th scope="col" class="px-6 py-3 text-right font-medium"><?= __("Azioni") ?></th>
                 </tr>
