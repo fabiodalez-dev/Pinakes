@@ -101,6 +101,12 @@ $totalLines = $data['total_lines'] ?? 0;
         </h2>
       </div>
       <div class="p-6">
+        <!-- Mobile scroll hint -->
+        <div class="md:hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+          <i class="fas fa-hand-point-right"></i>
+          <span><?= __("Scorri a destra per vedere tutte le colonne") ?></span>
+        </div>
+
         <div class="overflow-x-auto">
           <table id="logs-table" class="w-full">
             <thead class="bg-gray-50">
@@ -225,5 +231,55 @@ details[open] summary {
 pre {
   max-height: 300px;
   overflow-y: auto;
+}
+
+/* Mobile horizontal scroll styling */
+@media (max-width: 768px) {
+  /* Make timestamp column wider on mobile */
+  #logs-table th:first-child,
+  #logs-table td:first-child {
+    min-width: 160px !important;
+    width: 160px !important;
+  }
+
+  /* Custom scrollbar styling for mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #3b82f6 #e0e7ff;
+    position: relative;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-track {
+    background: #e0e7ff;
+    border-radius: 6px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #3b82f6;
+    border-radius: 6px;
+    border: 2px solid #e0e7ff;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #2563eb;
+  }
+
+  /* Add scroll indicator shadow */
+  .overflow-x-auto::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(0,0,0,0.08), transparent);
+    pointer-events: none;
+    z-index: 1;
+  }
 }
 </style>

@@ -172,8 +172,13 @@ $autori = $data['autori'];
         </div>
       </div>
       <div class="p-6">
+        <!-- Mobile scroll hint -->
+        <div class="md:hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+          <i class="fas fa-hand-point-right"></i>
+          <span><?= __("Scorri a destra per vedere tutte le colonne") ?></span>
+        </div>
         <div class="overflow-x-auto">
-              <table id="autori-table" class="display responsive nowrap" style="width:100%">
+              <table id="autori-table" class="display nowrap" style="width:100%">
                 <thead>
                   <tr>
                     <th><?= __('Nome') ?></th>
@@ -231,8 +236,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const table = new DataTable('#autori-table', {
     processing: true,
     serverSide: true,
-    responsive: true,
-    searching: false, // custom
+    responsive: false, // Disabilitato - usiamo solo scroll orizzontale
+    searching: false,
+    scrollX: true,
+    autoWidth: false, // custom
     stateSave: true,
     dom: 'lrtip', // Imposta un layout senza i pulsanti DataTables predefiniti ('B')
     ajax: {
@@ -705,29 +712,75 @@ document.addEventListener('DOMContentLoaded', function() {
     @apply w-full justify-center;
   }
 
-  /* Mobile responsive table */
-  .dtr-details {
-    width: 100%;
+  /* Improve horizontal scroll on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #3b82f6 #e0e7ff;
+    position: relative;
   }
 
-  .dtr-title {
-    font-weight: 600;
-    display: inline-block;
-    min-width: 100px;
+  .overflow-x-auto::-webkit-scrollbar {
+    height: 12px;
   }
 
-  .dtr-data {
-    display: inline;
+  .overflow-x-auto::-webkit-scrollbar-track {
+    background: #e0e7ff;
+    border-radius: 8px;
+    margin: 0 8px;
   }
 
-  /* Mobile card styling */
-  table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
-  table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before {
-    background-color: #3b82f6;
-    border: none;
-    box-shadow: none;
-    top: 50%;
-    transform: translateY(-50%);
+  .overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #3b82f6;
+    border-radius: 8px;
+    border: 2px solid #e0e7ff;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #2563eb;
+  }
+
+  /* Make table scroll naturally without cutting anything */
+  .dataTables_wrapper .dataTables_scroll {
+    overflow-x: auto !important;
+  }
+
+  #autori-table {
+    width: max-content !important;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  /* Ensure columns have enough space */
+  #autori-table th,
+  #autori-table td {
+    white-space: normal;
+    word-wrap: break-word;
+    max-width: none;
+  }
+
+  /* Make Nome column bigger on mobile */
+  #autori-table th:first-child,
+  #autori-table td:first-child {
+    min-width: 200px !important;
+    width: 200px !important;
+  }
+
+  /* Add shadow gradient to indicate more content */
+  .overflow-x-auto::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(255, 255, 255, 0.9), transparent);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  .overflow-x-auto.scrolled-end::after {
+    opacity: 0;
   }
 
   /* Adjust export buttons for mobile */

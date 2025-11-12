@@ -177,3 +177,5 @@ $containerDefinitions = [
         );
     },
 ];
+
+return $containerDefinitions;

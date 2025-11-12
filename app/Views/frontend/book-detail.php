@@ -1342,6 +1342,9 @@ $additional_css = "
         color: #ffffff !important;
         box-shadow: 0 0 0 0.25rem rgba(33, 37, 41, 0.5);
     }
+    .card {
+    background-color: white;
+    }
 </style>
 ";
 

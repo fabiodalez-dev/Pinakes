@@ -236,8 +236,14 @@ $libri = $data['libri'];
         </div>
       </div>
       <div class="p-6">
+        <!-- Mobile scroll hint -->
+        <div class="md:hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+          <i class="fas fa-hand-point-right"></i>
+          <span><?= __("Scorri a destra per vedere tutte le colonne") ?></span>
+        </div>
+
         <div class="overflow-x-auto">
-              <table id="libri-table" class="display responsive nowrap" style="width:100%">
+              <table id="libri-table" class="display nowrap" style="width:100%">
                 <thead>
                   <tr>
                     <th style="width:40px"><?= __("Stato") ?></th>
@@ -279,22 +285,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const table = new DataTable('#libri-table', {
     processing: true,
     serverSide: true,
-    responsive: {
-      details: {
-        type: 'column',
-        target: 'tr',
-        renderer: function (api, rowIdx, columns) {
-          let data = columns.map((col, i) => {
-            return col.hidden ?
-              `<div class="dtr-details-row mb-3">
-                <div class="dtr-title font-semibold text-gray-700 text-sm">${col.title}:</div>
-                <div class="dtr-data text-gray-900 text-sm mt-1">${col.data}</div>
-              </div>` : '';
-          }).join('');
-          return data ? `<div class="dtr-details bg-gray-50 p-4 rounded-lg">${data}</div>` : false;
-        }
-      }
-    },
+    responsive: false, // Disabilitiamo responsive mode - usiamo solo scroll orizzontale
+    scrollX: true,
+    autoWidth: false,
     searching: false, // Using custom search
     stateSave: true,
     stateDuration: 60 * 60 * 24, // 24 hours
@@ -1468,43 +1461,65 @@ document.addEventListener('DOMContentLoaded', function() {
   .card-header {
     @apply flex-col items-start gap-3;
   }
-  
+
   .card-header .flex {
     @apply w-full justify-center;
   }
-  
-  /* Mobile responsive table */
-  .dtr-details {
-    width: 100%;
-  }
-  
-  .dtr-title {
-    font-weight: 600;
-    display: inline-block;
-    min-width: 100px;
-  }
-  
-  .dtr-data {
-    display: inline;
-  }
-  
-  /* Mobile card styling */
-  table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
-  table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before {
-    background-color: #3b82f6;
-    border: none;
-    box-shadow: none;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  
+
   /* Adjust export buttons for mobile */
   #export-buttons {
     @apply flex-wrap gap-1;
   }
-  
+
   #export-buttons .btn-outline {
     @apply px-2 py-1 text-xs;
+  }
+
+  /* Mobile horizontal scroll: make Informazioni column wider */
+  #libri-table th:nth-child(3),
+  #libri-table td:nth-child(3) {
+    min-width: 280px !important;
+    width: 280px !important;
+  }
+
+  /* Custom scrollbar styling for mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #3b82f6 #e0e7ff;
+    position: relative;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-track {
+    background: #e0e7ff;
+    border-radius: 6px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #3b82f6;
+    border-radius: 6px;
+    border: 2px solid #e0e7ff;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #2563eb;
+  }
+
+  /* Add scroll indicator shadow */
+  .overflow-x-auto::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(0,0,0,0.08), transparent);
+    pointer-events: none;
+    z-index: 1;
   }
 }
 </style>

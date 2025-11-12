@@ -2975,40 +2975,43 @@ select {
   border-bottom-width: 1px;
   padding-top: 1rem;
   padding-bottom: 1rem;
-    border-color: var(--color-gray-200);
-    margin: -1.5rem -1.5rem 1.5rem -1.5rem; /* Negative margin to extend to card edges */
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+  border-color: var(--color-gray-200);
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem; /* Desktop: estende ai bordi della card */
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Mobile: se la card è già dentro contenitori con padding, evitiamo extra padding/margini sul header */
+@media (max-width: 768px) {
+  .card-header {
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 .card-body {
     /* No padding - inherits from .card */
   }
-/* Dark mode support for cards */
+/* Force cards to stay white in all themes (frontend + backend) */
 @media (prefers-color-scheme: dark) {
-    .\!card {
-      background-color: var(--color-gray-800) !important;
-      border-color: var(--color-gray-700) !important;
-    }
+    .\!card,
     .card {
-      background-color: var(--color-gray-800);
+      background-color: #ffffff !important;
       border-color: var(--color-gray-700);
     }
-    
+
     .card-header {
       border-color: var(--color-gray-700);
     }
-  }
-[data-theme="dark"] .\!card {
-    background-color: var(--color-gray-800) !important;
-    border-color: var(--color-gray-700) !important;
-  }
+}
+[data-theme="dark"] .\!card,
 [data-theme="dark"] .card {
-    background-color: var(--color-gray-800);
+    background-color: #ffffff !important;
     border-color: var(--color-gray-700);
-  }
+}
 [data-theme="dark"] .card-header {
     border-color: var(--color-gray-700);
-  }
+}
 /* Chip/Badge */
 .chip {
   display: inline-flex;
@@ -4287,6 +4290,40 @@ select {
   padding-top: 0.125rem;
   padding-bottom: 0.125rem;
 }
+/* Global responsive fix for card headers with title + inline actions (e.g. admin lists).
+ * This targets only `.card-header` toolbars, NOT every `.flex` row.
+ */
+@media (max-width: 768px) {
+  .card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .card-header > h1,
+  .card-header > h2 {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .card-header #export-buttons,
+  .card-header > .flex.items-center.space-x-2,
+  .card-header > .flex.items-center.gap-2 {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.5rem;
+  }
+
+  .card-header #export-buttons button,
+  .card-header > .flex.items-center.space-x-2 button,
+  .card-header > .flex.items-center.gap-2 button {
+    flex: 0 0 auto;
+  }
+}
 .py-1 {
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;
@@ -4896,7 +4933,13 @@ body {
 
 /* Prevent ANY element from exceeding viewport */
 * {
-  max-width: 100% !important;
+  max-width: 100%;
+}
+
+/* Allow header search form to use its designed width */
+.header-main .search-form {
+  max-width: 400px;
+  width: 100%;
 }
 
 /* Main wrappers must respect viewport */
@@ -4916,11 +4959,78 @@ iframe,
 svg {
   max-width: 100% !important;
   height: auto;
+/* Admin/DataTables responsive behavior:
+ * Su mobile permettiamo lo scroll orizzontale invece di tagliare le colonne,
+ * così nomi utenti e altri campi restano visibili (es. /admin/utenti).
+ */
+@media (max-width: 768px) {
+  .card-body table,
+  .card table,
+  table.dataTable {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  .card-body table th,
+  .card-body table td,
+  .card table th,
+  .card table td,
+  table.dataTable th,
+  table.dataTable td {
+    white-space: nowrap;
+  }
+}
 }
 
 /* Tables scroll internally on mobile */
 table {
   max-width: 100% !important;
+}
+
+/* Mobile layout fixes for admin libri header + filters bar */
+@media (max-width: 768px) {
+  /* Stack filter footer elements vertically */
+  .flex.justify-between.items-center.pt-4.border-t.border-gray-200 {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .flex.justify-between.items-center.pt-4.border-t.border-gray-200 > .flex.items-center.text-sm.text-gray-500 {
+    width: 100%;
+  }
+
+  .flex.justify-between.items-center.pt-4.border-t.border-gray-200 > .flex.items-center.gap-2 {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Stack Elenco Libri header & export buttons */
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between h2 {
+    width: 100%;
+  }
+
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between #export-buttons {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between #export-buttons button {
+    width: auto;
+  }
 }
 
 @media (max-width: 768px) {
@@ -4939,6 +5049,49 @@ table {
 }
 
 /* Import external libraries */
+
+/*
+ * Generic mobile layout fix for admin listing headers and filter footers
+ * Applies to libri, autori, and similar pages using the same Tailwind-style markup.
+ */
+@media (max-width: 768px) {
+  /* Footer with filters info + actions */
+  .flex.justify-between.items-center.pt-4.border-t.border-gray-200 {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .flex.justify-between.items-center.pt-4.border-t.border-gray-200 > .flex.items-center {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .flex.justify-between.items-center.pt-4.border-t.border-gray-200 > .flex.items-center.gap-2,
+  .flex.justify-between.items-center.pt-4.border-t.border-gray-200 > .flex.items-center.space-x-2 {
+    justify-content: flex-start;
+    gap: 0.5rem;
+  }
+
+  /* Header with title + total count + export/toolbar buttons */
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between > h2,
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between > div {
+    width: 100%;
+  }
+
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between #export-buttons,
+  .p-6.border-b.border-gray-200.flex.items-center.justify-between .flex.items-center.space-x-2 {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
 
 /* Design System Variables */
 :root {
@@ -5028,7 +5181,9 @@ table {
   overflow: hidden;
   transition: all 0.2s ease;
 }
-
+ .card {
+    background-color: white;
+    }
 .choices__inner:hover {
   border-color: var(--color-gray-400);
 }

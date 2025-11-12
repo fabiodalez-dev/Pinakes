@@ -162,8 +162,13 @@
         </div>
       </div>
       <div class="card-body">
+        <!-- Mobile scroll hint -->
+        <div class="md:hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+          <i class="fas fa-hand-point-right"></i>
+          <span><?= __("Scorri a destra per vedere tutte le colonne") ?></span>
+        </div>
         <div class="overflow-x-auto">
-          <table id="utenti-table" class="display responsive nowrap" style="width:100%">
+          <table id="utenti-table" class="display nowrap" style="width:100%">
             <thead>
               <tr>
                 <th><?= __("Nome") ?></th>
@@ -171,7 +176,7 @@
                 <th><?= __("Telefono") ?></th>
                 <th><?= __("Tipo Utente") ?></th>
                 <th><?= __("Stato") ?></th>
-                <th class="all"><?= __("Azioni") ?></th>
+                <th><?= __("Azioni") ?></th>
               </tr>
             </thead>
           </table>
@@ -193,6 +198,7 @@ const i18nTranslations = <?= json_encode([
     'Esportazione di %d utenti filtrati su %d totali' => __("Exporting %d filtered users out of %d total"),
     'Esportazione di tutti i %d utenti' => __("Exporting all %d users"),
     'Totale utenti:' => __("Total users:"),
+    'Scorri a destra per vedere tutte le colonne' => __("Scorri a destra per vedere tutte le colonne"),
 ], JSON_UNESCAPED_UNICODE) ?>;
 
 // Global translation function for JavaScript
@@ -215,9 +221,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const table = new DataTable('#utenti-table', {
     processing: true,
     serverSide: true,
-    responsive: true,
+    responsive: false, // Disabilitiamo responsive mode - usiamo solo scroll orizzontale
     searching: false, // We use custom search
     dom: 'lfrtip',
+    scrollX: true,
+    autoWidth: false,
     ajax: {
       url: '/api/utenti',
       type: 'GET',
@@ -350,17 +358,39 @@ document.addEventListener('DOMContentLoaded', function() {
     ],
   language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
     initComplete: function() {
-      
+
       // Initialize filter toggle
       initializeFilterToggle();
-      
+
       // Initialize clear filters
       initializeClearFilters();
 
       // Initialize export buttons
       initializeExportButtons();
+
+      // Initialize scroll shadow effect
+      initializeScrollShadow();
     }
   });
+
+  // Scroll shadow effect for mobile
+  function initializeScrollShadow() {
+    const scrollContainer = document.querySelector('.overflow-x-auto');
+    if (!scrollContainer) return;
+
+    scrollContainer.addEventListener('scroll', function() {
+      const scrollLeft = this.scrollLeft;
+      const scrollWidth = this.scrollWidth;
+      const clientWidth = this.clientWidth;
+
+      // Check if scrolled to the end
+      if (scrollLeft + clientWidth >= scrollWidth - 10) {
+        this.classList.add('scrolled-end');
+      } else {
+        this.classList.remove('scrolled-end');
+      }
+    });
+  }
 
   // Filter event handlers
   $('#search_text, #role_filter, #status_filter, #created_from').on('keyup change', function() {
@@ -721,6 +751,109 @@ document.addEventListener('DOMContentLoaded', function() {
 
   .card-header .flex {
     @apply w-full justify-center;
+  }
+
+  /* Improve horizontal scroll on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #3b82f6 #e0e7ff;
+    position: relative;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-track {
+    background: #e0e7ff;
+    border-radius: 8px;
+    margin: 0 8px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #3b82f6;
+    border-radius: 8px;
+    border: 2px solid #e0e7ff;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #2563eb;
+  }
+
+  /* Make table scroll naturally without cutting anything */
+  .dataTables_wrapper .dataTables_scroll {
+    overflow-x: auto !important;
+  }
+
+  #utenti-table {
+    width: max-content !important;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  /* Ensure columns have enough space */
+  #utenti-table th,
+  #utenti-table td {
+    white-space: normal;
+    word-wrap: break-word;
+    max-width: none;
+  }
+
+  /* Make Nome column much bigger on mobile */
+  #utenti-table th:first-child,
+  #utenti-table td:first-child {
+    min-width: 250px !important;
+    width: 250px !important;
+  }
+
+  /* Add shadow gradient to indicate more content */
+  .overflow-x-auto::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(255, 255, 255, 0.9), transparent);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb:active ~ ::after,
+  .overflow-x-auto.scrolled-end::after {
+    opacity: 0;
+  }
+}
+
+/* Improve table visibility on small screens */
+@media (max-width: 640px) {
+  #utenti-table {
+    font-size: 0.875rem;
+  }
+
+  #utenti-table td,
+  #utenti-table th {
+    padding: 0.5rem !important;
+  }
+
+  /* Make action buttons more compact on mobile */
+  #utenti-table .flex.items-center.gap-1 {
+    gap: 0.25rem;
+  }
+
+  #utenti-table .p-2 {
+    padding: 0.375rem;
+  }
+
+  #export-buttons {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  #export-buttons button {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
   }
 }
 </style>

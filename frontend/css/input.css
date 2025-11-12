@@ -341,8 +341,9 @@ table {
     }
   }
   
+  /* Disable dark background for cards: cards must stay white in all themes */
   [data-theme="dark"] .card {
-    background-color: var(--color-gray-800);
+    background-color: #ffffff;
     border-color: var(--color-gray-700);
   }
   

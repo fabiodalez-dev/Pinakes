@@ -634,6 +634,9 @@ $registerRoute = route_path('register');
             color: #0f172a;
             background: #cbd5f5;
         }
+        .card {
+        background-color: white;
+            }
 
         @media (max-width: 768px) {
             .header-content {

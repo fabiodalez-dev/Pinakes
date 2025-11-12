@@ -294,12 +294,14 @@ return function (App $app): void {
         return $controller->changeReservationDate($request, $response, $db);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
-    // User reservations count (for badge) - protected
+    // User reservations count (for badge)
+    // If authenticated (via session user), returns JSON {count: N}
+    // If not authenticated, returns JSON {count: 0} with 200 (used on public pages safely).
     $app->get('/api/user/reservations/count', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->reservationsCount($request, $response, $db);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+    });
 
     // Wishlist API (AJAX)
     $app->get('/api/user/wishlist/status', function ($request, $response) use ($app) {
