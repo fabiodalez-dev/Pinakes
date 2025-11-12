@@ -204,21 +204,16 @@ $organizationSchema = [
     "description" => __("Biblioteca digitale con catalogo completo di libri disponibili per il prestito")
 ];
 $additional_css = "
-<style>
     .book-hero {
-        background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.35) 100%), url('" . htmlspecialchars($book['copertina_url']) . "');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
+        position: relative;
         color: #1a1a1a;
         padding: 4rem 0 4rem;
-        position: relative;
-        overflow: hidden;
         min-height: 600px;
         height: auto;
         display: flex;
         align-items: center;
         margin-top: 0;
+        overflow: hidden;
     }
 
     .book-hero::before {
@@ -228,8 +223,11 @@ $additional_css = "
         left: 0;
         right: 0;
         bottom: 0;
-        background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.35) 100%);
-        z-index: 1;
+        background-image: url('" . htmlspecialchars($book['copertina_url']) . "');
+        background-size: cover;
+        filter: blur(8px);
+        opacity: 0.9;
+        z-index: 0;
     }
 
     .book-hero::after {
@@ -239,9 +237,8 @@ $additional_css = "
         left: 0;
         right: 0;
         bottom: 0;
-        background: url('" . htmlspecialchars($book['copertina_url']) . "') center/cover;
-        opacity: 0.12;
-        z-index: 0;
+        background: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85));
+        z-index: 1;
     }
 
     .book-hero-content {
@@ -1349,7 +1346,6 @@ $additional_css = "
     max-width: 400px;
     margin: auto;
     }
-</style>
 ";
 
 ob_start();
