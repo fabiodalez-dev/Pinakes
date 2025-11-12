@@ -51,6 +51,18 @@ $registerRoute = route_path('register');
                   <?= __('Email già registrata') ?>
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
                   <?= __('Compila tutti i campi richiesti') ?>
+                <?php elseif ($_GET['error'] === 'name_too_long'): ?>
+                  <?= __('Nome o cognome troppo lungo (massimo 100 caratteri)') ?>
+                <?php elseif ($_GET['error'] === 'email_too_long'): ?>
+                  <?= __('Email troppo lunga (massimo 255 caratteri)') ?>
+                <?php elseif ($_GET['error'] === 'password_too_long'): ?>
+                  <?= __('Password troppo lunga (massimo 128 caratteri)') ?>
+                <?php elseif ($_GET['error'] === 'password_too_short'): ?>
+                  <?= __('La password deve essere lunga almeno 8 caratteri') ?>
+                <?php elseif ($_GET['error'] === 'password_needs_upper_lower_number'): ?>
+                  <?= __('La password deve contenere almeno una lettera maiuscola, una minuscola e un numero') ?>
+                <?php elseif ($_GET['error'] === 'db'): ?>
+                  <?= __('Errore del database durante la registrazione. Riprova più tardi') ?>
                 <?php else: ?>
                   <?= __('Errore durante la registrazione') ?>
                 <?php endif; ?>

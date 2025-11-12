@@ -406,7 +406,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   </button>
 
                   <!-- Notifications Dropdown -->
-                  <div id="notifications-dropdown" class="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
+                  <div id="notifications-dropdown" class="absolute md:right-0 right-4 left-4 md:left-auto mt-2 md:w-96 w-auto bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
                     <div class="p-4 border-b border-gray-200 flex items-center justify-between">
                       <h3 class="text-lg font-semibold text-gray-900"><?= __("Notifiche") ?></h3>
                       <button onclick="markAllNotificationsAsRead()" class="text-xs text-gray-900 hover:text-gray-700 font-medium">
@@ -467,7 +467,7 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                         </a>
                         <?php endif; ?>
                         <hr class="my-2 border-gray-200">
-                        <a href="/logout" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
+                        <a href="<?= \App\Support\RouteTranslator::route('logout') ?>" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
                           <i class="fas fa-sign-out-alt w-4 h-4"></i>
                           <span class="text-sm"><?= __("Esci") ?></span>
                         </a>
