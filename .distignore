@@ -20,6 +20,7 @@ frontend/node_modules/
 .env
 .installed
 config.local.php
+internal/
 
 # Build artifacts (source only, not compiled)
 frontend/

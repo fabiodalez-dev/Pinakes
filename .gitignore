@@ -15,17 +15,15 @@ config.local.sample.php
 # ========================================
 # CRITICAL: Database Backups & Archives
 # ========================================
-backups/
-backups/*.sql
+backups/*
 !backups/.gitkeep
-storage/backups/
-storage/backups/*.sql
-!storage/backups/.gitkeep
+!backups/.htaccess
 *.sql
 !installer/database/*.sql
 *.backup
 *.backup*
-*backup*
+!/backups/.htaccess
+!/storage/backups/.htaccess
 *.bak
 *.old
 backup_*.sql
@@ -52,6 +50,7 @@ old.sql
 # ========================================
 uploads/*
 !uploads/.gitkeep
+!uploads/.htaccess
 !uploads/copertine/placeholder.jpg
 public/uploads/settings/
 public/uploads/*
@@ -62,6 +61,7 @@ public/uploads/copertine/*.jpg
 # Storage
 storage/*
 !storage/.gitkeep
+!storage/.htaccess
 !storage/logs/
 storage/logs/*
 !storage/logs/.gitkeep
@@ -72,6 +72,11 @@ storage/tmp/*
 !storage/uploads/
 storage/uploads/*
 !storage/uploads/.gitkeep
+!storage/uploads/.htaccess
+!storage/backups/
+storage/backups/*
+!storage/backups/.gitkeep
+!storage/backups/.htaccess
 
 # Cache & Temp
 cache/*
