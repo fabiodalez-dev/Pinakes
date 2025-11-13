@@ -506,7 +506,7 @@ if (!function_exists('assetUrl')) {
 
         @media (max-width: 576px) {
             main {
-                padding-top: 75px;
+                padding-top: 73px;
             }
 
             .header-brand {

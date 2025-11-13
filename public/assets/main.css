@@ -4944,7 +4944,6 @@ body {
 
 /* Main wrappers must respect viewport */
 #app,
-.min-h-screen,
 .container,
 .container-fluid,
 .row {
