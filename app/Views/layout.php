@@ -24,10 +24,10 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title><?php echo HtmlHelper::e($appName); ?> - Sistema di Gestione Bibliotecaria</title>
     <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
-    <link rel="stylesheet" href="/assets/vendor.css" />
-    <link rel="stylesheet" href="/assets/flatpickr-custom.css" />
-    <link rel="stylesheet" href="/assets/main.css" />
-    <link rel="stylesheet" href="/assets/css/swal-theme.css" />
+    <link rel="stylesheet" href="/assets/vendor.css?v=<?= time() ?>" />
+    <link rel="stylesheet" href="/assets/flatpickr-custom.css?v=<?= time() ?>" />
+    <link rel="stylesheet" href="/assets/main.css?v=<?= time() ?>" />
+    <link rel="stylesheet" href="/assets/css/swal-theme.css?v=<?= time() ?>" />
     <script>
       (function() {
         if (typeof window.__ !== 'function') {

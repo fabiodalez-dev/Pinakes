@@ -156,10 +156,10 @@ if (!function_exists('assetUrl')) {
     <link rel="icon" type="image/svg+xml" href="<?= absoluteUrl('/favicon.svg') ?>">
 
     <!-- CSS moderno e minimale -->
-    <link href="<?= assetUrl('/vendor.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/flatpickr-custom.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/main.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/css/swal-theme.css') ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/vendor.css') ?>?v=<?= time() ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/flatpickr-custom.css') ?>?v=<?= time() ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/main.css') ?>?v=<?= time() ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/css/swal-theme.css') ?>?v=<?= time() ?>" rel="stylesheet">
 
     <style>
         :root {
@@ -186,7 +186,7 @@ if (!function_exists('assetUrl')) {
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.7;
             color: var(--text-color);
             background-color: var(--white);
