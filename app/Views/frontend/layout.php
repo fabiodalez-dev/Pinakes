@@ -19,27 +19,6 @@ if ($appLogo !== '') {
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $footerDescription = (string)ConfigStore::get('app.footer_description', 'Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.');
 
-// Cookie Banner Texts and Flags
-// Show analytics if explicitly enabled, OR if analytics code exists, OR if map iframe exists
-$hasAnalyticsCode = !empty(ConfigStore::get('advanced.custom_js_analytics'));
-$hasMapIframe = !empty(ConfigStore::get('contacts.google_maps_embed'));
-$showAnalytics = (bool)ConfigStore::get('cookie_banner.show_analytics', true) || $hasAnalyticsCode || $hasMapIframe;
-$showMarketing = (bool)ConfigStore::get('cookie_banner.show_marketing', true);
-$cookieBannerTexts = [
-    'banner_description' => (string)ConfigStore::get('cookie_banner.banner_description', '<p>' . __("Utilizziamo i cookie per migliorare la tua esperienza. Continuando a visitare questo sito, accetti il nostro uso dei cookie.") . '</p>'),
-    'accept_all_text' => (string)ConfigStore::get('cookie_banner.accept_all_text', __("Accetta tutti")),
-    'reject_non_essential_text' => (string)ConfigStore::get('cookie_banner.reject_non_essential_text', __("Rifiuta non essenziali")),
-    'save_selected_text' => (string)ConfigStore::get('cookie_banner.save_selected_text', __("Accetta selezionati")),
-    'preferences_button_text' => (string)ConfigStore::get('cookie_banner.preferences_button_text', __("Preferenze")),
-    'preferences_title' => (string)ConfigStore::get('cookie_banner.preferences_title', __("Personalizza le tue preferenze sui cookie")),
-    'preferences_description' => (string)ConfigStore::get('cookie_banner.preferences_description', '<p>' . __("Rispettiamo il tuo diritto alla privacy. Puoi scegliere di non consentire alcuni tipi di cookie. Le tue preferenze si applicheranno all'intero sito web.") . '</p>'),
-    'cookie_essential_name' => (string)ConfigStore::get('cookie_banner.cookie_essential_name', __("Cookie Essenziali")),
-    'cookie_essential_description' => (string)ConfigStore::get('cookie_banner.cookie_essential_description', __("Questi cookie sono necessari per il funzionamento del sito e non possono essere disabilitati.")),
-    'cookie_analytics_name' => (string)ConfigStore::get('cookie_banner.cookie_analytics_name', __("Cookie Analitici")),
-    'cookie_analytics_description' => (string)ConfigStore::get('cookie_banner.cookie_analytics_description', 'Questi cookie ci aiutano a capire come i visitatori interagiscono con il sito web.'),
-    'cookie_marketing_name' => (string)ConfigStore::get('cookie_banner.cookie_marketing_name', 'Cookie di Marketing'),
-    'cookie_marketing_description' => (string)ConfigStore::get('cookie_banner.cookie_marketing_description', 'Questi cookie vengono utilizzati per fornire annunci personalizzati.'),
-];
 $socialFacebook = (string)ConfigStore::get('app.social_facebook', '');
 $socialTwitter = (string)ConfigStore::get('app.social_twitter', '');
 $socialInstagram = (string)ConfigStore::get('app.social_instagram', '');
@@ -316,7 +295,7 @@ if (!function_exists('assetUrl')) {
 
         .search-form {
             flex: 1;
-            max-width: 400px;
+            max-width: 600px;
         }
 
         .search-input {
@@ -586,6 +565,7 @@ if (!function_exists('assetUrl')) {
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
+            gap: 1.5rem;
         }
 
         /* Elegant Hero Section */
@@ -1708,72 +1688,6 @@ if (!function_exists('assetUrl')) {
 
     <?= $additional_js ?? '' ?>
 
-    <!-- Silktide Consent Manager -->
-    <script src="<?= assetUrl('/js/silktide-consent-manager.js') ?>"></script>
-    <script>
-        // Configurazione Cookie Banner (caricata da ConfigStore)
-        silktideCookieBannerManager.updateCookieBannerConfig({
-            cookieTypes: [
-                {
-                    id: 'essential',
-                    name: <?= json_encode($cookieBannerTexts['cookie_essential_name'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    description: <?= json_encode($cookieBannerTexts['cookie_essential_description'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    required: true,
-                    defaultValue: true,
-                },
-                <?php if ($showAnalytics): ?>
-                {
-                    id: 'analytics',
-                    name: <?= json_encode($cookieBannerTexts['cookie_analytics_name'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    description: <?= json_encode($cookieBannerTexts['cookie_analytics_description'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    defaultValue: false,
-                    onAccept: function() {
-                        // Qui puoi attivare Google Analytics o altri tool
-                    },
-                    onReject: function() {
-                        // Cookie analitici rifiutati
-                    },
-                },
-                <?php endif; ?>
-                <?php if ($showMarketing): ?>
-                {
-                    id: 'marketing',
-                    name: <?= json_encode($cookieBannerTexts['cookie_marketing_name'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    description: <?= json_encode($cookieBannerTexts['cookie_marketing_description'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    defaultValue: false,
-                    onAccept: function() {
-                        // Cookie di marketing accettati
-                    },
-                    onReject: function() {
-                        // Cookie di marketing rifiutati
-                    },
-                },
-                <?php endif; ?>
-            ],
-            text: {
-                banner: {
-                    description: <?= json_encode($cookieBannerTexts['banner_description'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    acceptAllButtonText: <?= json_encode($cookieBannerTexts['accept_all_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    acceptAllButtonAccessibleLabel: <?= json_encode($cookieBannerTexts['accept_all_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    rejectNonEssentialButtonText: <?= json_encode($cookieBannerTexts['reject_non_essential_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    rejectNonEssentialButtonAccessibleLabel: <?= json_encode($cookieBannerTexts['reject_non_essential_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    saveSelectedButtonText: <?= json_encode($cookieBannerTexts['save_selected_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    saveSelectedButtonAccessibleLabel: <?= json_encode($cookieBannerTexts['save_selected_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    preferencesButtonText: <?= json_encode($cookieBannerTexts['preferences_button_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    preferencesButtonAccessibleLabel: <?= json_encode($cookieBannerTexts['preferences_button_text'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                },
-                preferences: {
-                    title: <?= json_encode($cookieBannerTexts['preferences_title'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    description: <?= json_encode($cookieBannerTexts['preferences_description'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    statementUrl: '/cookies',
-                    statementAccessibleLabel: 'Maggiori informazioni sui cookie',
-                },
-            },
-            position: {
-                banner: 'bottomRight', // Opzioni: 'bottomRight', 'bottomLeft', 'center', 'bottomCenter'
-                cookieIcon: 'bottomLeft', // Opzioni: 'bottomRight', 'bottomLeft'
-            },
-        });
-    </script>
+    <?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
 </body>
 </html>

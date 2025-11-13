@@ -204,5 +204,7 @@ $resetPasswordRoute = route_path('reset_password');
   }
 </script>
 
+<?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
+
 </body>
 </html>

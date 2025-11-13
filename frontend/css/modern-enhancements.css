@@ -76,11 +76,11 @@
 
 /* Card Components */
 .card {
-  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300;
+  @apply bg-white border border-gray-200 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300;
 }
 
 .card-header {
-  @apply flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700;
+  @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
 }
 
 .card-body {

@@ -70,5 +70,7 @@ $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
   </div>
 </div>
 
+<?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
+
 </body>
 </html>

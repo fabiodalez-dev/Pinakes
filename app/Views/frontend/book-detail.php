@@ -948,6 +948,11 @@ $additional_css = "
             padding: 2rem;
         }
 
+        /* Card contenuti full-bleed su mobile */
+        .card {
+            padding: 0;
+        }
+
         .book-meta {
             margin-top: -1rem;
             padding: 1.5rem;

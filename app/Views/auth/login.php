@@ -235,5 +235,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
 });
 </script>
 
+<?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
+
 </body>
 </html>

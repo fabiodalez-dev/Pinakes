@@ -18,9 +18,14 @@ class AutoriApiController
         $length = (int)($q['length'] ?? 10);
 
         $search_text = trim((string)($q['search_text'] ?? ''));
+        $search_nome = trim((string)($q['search_nome'] ?? ''));
+        $search_pseudonimo = trim((string)($q['search_pseudonimo'] ?? ''));
+        $search_sito = trim((string)($q['search_sito'] ?? ''));
         $search_naz = trim((string)($q['search_nazionalita'] ?? ''));
         $nascita_from = trim((string)($q['nascita_from'] ?? ''));
         $nascita_to   = trim((string)($q['nascita_to'] ?? ''));
+        $morte_from = trim((string)($q['morte_from'] ?? ''));
+        $morte_to   = trim((string)($q['morte_to'] ?? ''));
 
         // Se la tabella non esiste (database appena creato/backup parziale) restituiamo payload vuoto
         $tableCheck = $db->query("SHOW TABLES LIKE 'autori'");
@@ -57,6 +62,21 @@ class AutoriApiController
             $params_for_where[] = "%$search_text%";
             $param_types_for_where .= 'sss';
         }
+        if ($search_nome !== '') {
+            $where_prepared .= " AND a.nome LIKE ? ";
+            $params_for_where[] = "%$search_nome%";
+            $param_types_for_where .= 's';
+        }
+        if ($search_pseudonimo !== '') {
+            $where_prepared .= " AND a.pseudonimo LIKE ? ";
+            $params_for_where[] = "%$search_pseudonimo%";
+            $param_types_for_where .= 's';
+        }
+        if ($search_sito !== '') {
+            $where_prepared .= " AND a.sito_web LIKE ? ";
+            $params_for_where[] = "%$search_sito%";
+            $param_types_for_where .= 's';
+        }
         if ($search_naz !== '' && $colNaz !== null) {
             $where_prepared .= " AND a.`$colNaz` LIKE ? ";
             $params_for_where[] = "%$search_naz%";
@@ -70,6 +90,16 @@ class AutoriApiController
         if ($nascita_to !== '') {
             $where_prepared .= " AND a.data_nascita <= ? ";
             $params_for_where[] = $nascita_to;
+            $param_types_for_where .= 's';
+        }
+        if ($morte_from !== '') {
+            $where_prepared .= " AND a.data_morte >= ? ";
+            $params_for_where[] = $morte_from;
+            $param_types_for_where .= 's';
+        }
+        if ($morte_to !== '') {
+            $where_prepared .= " AND a.data_morte <= ? ";
+            $params_for_where[] = $morte_to;
             $param_types_for_where .= 's';
         }
 

@@ -339,5 +339,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
+
 </body>
 </html>

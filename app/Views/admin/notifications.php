@@ -76,9 +76,9 @@
                 <p class="text-sm text-gray-600">
                   <?php echo HtmlHelper::e($notification['message']); ?>
                 </p>
-                <div class="flex items-center gap-4 mt-2">
-                  <span class="text-xs text-gray-500">
-                    <i class="far fa-clock mr-1"></i>
+                <div class="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <span class="inline-flex items-center text-xs text-gray-500">
+                    <i class="far fa-clock mr-2"></i>
                     <?php
                     $date = new DateTime($notification['created_at']);
                     $now = new DateTime();
@@ -101,25 +101,32 @@
                     }
                     ?>
                   </span>
-                  <?php if (!empty($notification['link'])): ?>
-                  <a href="<?php echo HtmlHelper::e($notification['link']); ?>" class="text-xs text-gray-900 hover:text-gray-700 font-medium">
-                    <i class="fas fa-arrow-right mr-1"></i>
-                    <?= __("Vai") ?>
-                  </a>
-                  <?php endif; ?>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <?php if (!empty($notification['link'])): ?>
+                    <a href="<?php echo HtmlHelper::e($notification['link']); ?>"
+                       class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      <i class="fas fa-arrow-right text-xs"></i>
+                      <?= __("Vai") ?>
+                    </a>
+                    <?php endif; ?>
+                    <?php if (!$notification['is_read']): ?>
+                    <button type="button"
+                            onclick="markAsRead(<?php echo $notification['id']; ?>)"
+                            class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            title="<?= __("Segna come letto") ?>">
+                      <i class="fas fa-check text-xs"></i>
+                      <span class="hidden sm:inline"><?= __("Letta") ?></span>
+                    </button>
+                    <?php endif; ?>
+                    <button type="button"
+                            onclick="deleteNotification(<?php echo $notification['id']; ?>)"
+                            class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-100 text-sm font-medium text-red-600 hover:bg-red-50"
+                            title="<?= __("Elimina") ?>">
+                      <i class="fas fa-trash text-xs"></i>
+                      <span class="hidden sm:inline"><?= __("Elimina") ?></span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <!-- Actions -->
-              <div class="flex items-center gap-2">
-                <?php if (!$notification['is_read']): ?>
-                <button onclick="markAsRead(<?php echo $notification['id']; ?>)" class="text-gray-400 hover:text-gray-900 p-2" title="<?= __("Segna come letto") ?>">
-                  <i class="fas fa-check"></i>
-                </button>
-                <?php endif; ?>
-                <button onclick="deleteNotification(<?php echo $notification['id']; ?>)" class="text-gray-400 hover:text-red-600 p-2" title="<?= __("Elimina") ?>">
-                  <i class="fas fa-trash"></i>
-                </button>
               </div>
             </div>
           </div>

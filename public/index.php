@@ -245,14 +245,12 @@ $app->add(function ($request, $handler) {
     $response = $handler->handle($request);
 
     // Content Security Policy - restrictive but allows inline scripts/styles (required by app)
-    // All assets (Uppy, Inter font, Pie-CSS, etc.) are self-hosted - no external CDN dependencies
+    // Tutti gli asset (font inclusi) sono self-hosted: nessuna dipendenza esterna
     $csp = "default-src 'self'; " .
            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " .
-           // Google Fonts stylesheet (temporary until we self-host the font)
-           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " .
+           "style-src 'self' 'unsafe-inline'; " .
            "img-src 'self' data: blob: http: https:; " .
-           // Permit Google Fonts font files while keeping data URI support
-           "font-src 'self' data: https://fonts.gstatic.com; " .
+           "font-src 'self' data:; " .
            "connect-src 'self' data: blob:; " .
            "object-src 'none'; " .
            "base-uri 'self'; " .

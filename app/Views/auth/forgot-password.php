@@ -134,5 +134,7 @@ $forgotPasswordRoute = route_path('forgot_password');
   </div>
 </div>
 
+<?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
+
 </body>
 </html>

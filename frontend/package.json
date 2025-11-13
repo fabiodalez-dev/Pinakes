@@ -21,6 +21,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
     "@uppy/core": "^4.5.3",
     "@uppy/dashboard": "^4.4.3",
     "@uppy/drag-drop": "^4.2.2",
