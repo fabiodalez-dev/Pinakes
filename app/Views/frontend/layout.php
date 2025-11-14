@@ -336,6 +336,7 @@ if (!function_exists('assetUrl')) {
 
         /* Mobile search container animation */
         .mobile-search-container {
+            display: none;
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease-in-out;
@@ -343,6 +344,7 @@ if (!function_exists('assetUrl')) {
         }
 
         .mobile-search-container.active {
+            display: block;
             max-height: 60px;
         }
 

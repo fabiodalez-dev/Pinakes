@@ -229,3 +229,15 @@ releases/*.md
 # - installer/database/*.sql (installer data)
 # - cron/automatic-notifications.php (cron job)
 # - uploads/copertine/placeholder.jpg (default cover)
+docs/demini.md
+docs/email.MD
+docs/gpt.md
+docs/impostazioni_dettagliate.md
+docs/kimi.md
+docs/qwen.md
+models/config.json
+models/model.onnx
+models/special_tokens_map.json
+models/tokenizer.json
+models/tokenizer_config.json
+vectors.db
