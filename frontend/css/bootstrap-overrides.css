@@ -1,0 +1,127 @@
+/**
+ * Bootstrap Overrides - Biblioteca Theme
+ *
+ * Override Bootstrap defaults to match Tailwind gray-900 (#111827)
+ * for consistent dark theme across the application.
+ */
+
+/* Match Bootstrap's selector specificity for CSS variables */
+:root,
+[data-bs-theme=light] {
+  /* Override Bootstrap primary color with Tailwind gray-900 */
+  --bs-primary: #111827 !important;
+  --bs-primary-rgb: 17, 24, 39 !important;
+
+  /* Override all primary color variants */
+  --bs-btn-bg: #111827 !important;
+  --bs-btn-border-color: #111827 !important;
+  --bs-btn-hover-bg: #1f2937 !important;
+  --bs-btn-hover-border-color: #1f2937 !important;
+  --bs-btn-active-bg: #374151 !important;
+  --bs-btn-active-border-color: #374151 !important;
+
+  /* Link colors */
+  --bs-link-color: #111827 !important;
+  --bs-link-hover-color: #1f2937 !important;
+
+  /* Override link color RGB for rgba calculations */
+  --bs-link-color-rgb: 17, 24, 39 !important;
+  --bs-link-hover-color-rgb: 31, 41, 55 !important;
+}
+
+/* Primary button overrides */
+.btn-primary {
+  --bs-btn-bg: #111827 !important;
+  --bs-btn-border-color: #111827 !important;
+  --bs-btn-hover-bg: #1f2937 !important;
+  --bs-btn-hover-border-color: #1f2937 !important;
+  --bs-btn-active-bg: #374151 !important;
+  --bs-btn-active-border-color: #374151 !important;
+  --bs-btn-disabled-bg: #9ca3af !important;
+  --bs-btn-disabled-border-color: #9ca3af !important;
+
+  background-color: #111827 !important;
+  border-color: #111827 !important;
+}
+
+.btn-primary:hover {
+  background-color: #1f2937 !important;
+  border-color: #1f2937 !important;
+}
+
+.btn-primary:active,
+.btn-primary.active {
+  background-color: #374151 !important;
+  border-color: #374151 !important;
+}
+
+.btn-primary:focus {
+  background-color: #111827 !important;
+  border-color: #111827 !important;
+  box-shadow: 0 0 0 0.25rem rgba(17, 24, 39, 0.5) !important;
+}
+
+/* Nav link display flex */
+.nav-link {
+  display: flex !important;
+  align-items: center;
+}
+
+/* Other primary color components */
+.bg-primary {
+  background-color: #111827 !important;
+}
+
+.text-primary {
+  color: #111827 !important;
+}
+
+.border-primary {
+  border-color: #111827 !important;
+}
+
+/* Links */
+a.text-primary:hover,
+a.text-primary:focus {
+  color: #1f2937 !important;
+}
+
+/* Badges */
+.badge.bg-primary {
+  background-color: #111827 !important;
+}
+
+/* Alerts */
+.alert-primary {
+  --bs-alert-bg: #e5e7eb;
+  --bs-alert-border-color: #d1d5db;
+  --bs-alert-color: #111827;
+}
+
+/* List groups */
+.list-group-item-primary {
+  background-color: #e5e7eb;
+  color: #111827;
+}
+
+/* Pagination */
+.pagination .page-link {
+  color: #111827;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: #111827;
+  border-color: #111827;
+}
+
+/* Form controls focus */
+.form-control:focus,
+.form-select:focus {
+  border-color: #111827;
+  box-shadow: 0 0 0 0.25rem rgba(17, 24, 39, 0.25);
+}
+
+/* Progress bars */
+.progress-bar {
+  background-color: #111827 !important;
+}

@@ -1,0 +1,5003 @@
+{
+    "level1": [
+        {
+            "code": "000",
+            "title": "000 - Informatica, informazione e opere generali"
+        },
+        {
+            "code": "100",
+            "title": "100 - Filosofia e psicologia"
+        },
+        {
+            "code": "200",
+            "title": "200 - Religione"
+        },
+        {
+            "code": "300",
+            "title": "300 - Scienze sociali"
+        },
+        {
+            "code": "400",
+            "title": "400 - Linguaggio"
+        },
+        {
+            "code": "500",
+            "title": "500 - Scienze naturali e matematica"
+        },
+        {
+            "code": "600",
+            "title": "600 - Tecnologia (scienze applicate)"
+        },
+        {
+            "code": "700",
+            "title": "700 - Arti e ricreazione"
+        },
+        {
+            "code": "800",
+            "title": "800 - Letteratura, retorica e critica"
+        },
+        {
+            "code": "900",
+            "title": "900 - Storia, geografia e discipline ausiliarie"
+        }
+    ],
+    "level2": [
+        {
+            "code": "000",
+            "title": "000 - Informatica, conoscenza e sistemi",
+            "parent": "000"
+        },
+        {
+            "code": "010",
+            "title": "010 - Bibliografie",
+            "parent": "000"
+        },
+        {
+            "code": "020",
+            "title": "020 - Biblioteconomia e scienze dell'informazione",
+            "parent": "000"
+        },
+        {
+            "code": "030",
+            "title": "030 - Enciclopedie e libri di fatti",
+            "parent": "000"
+        },
+        {
+            "code": "040",
+            "title": "040 - Non assegnato — in precedenza Biografie",
+            "parent": "000"
+        },
+        {
+            "code": "050",
+            "title": "050 - Riviste, giornali e pubblicazioni seriali",
+            "parent": "000"
+        },
+        {
+            "code": "060",
+            "title": "060 - Associazioni, organizzazioni e musei",
+            "parent": "000"
+        },
+        {
+            "code": "070",
+            "title": "070 - Mezzi di informazione, giornalismo ed editoria",
+            "parent": "000"
+        },
+        {
+            "code": "080",
+            "title": "080 - Citazioni",
+            "parent": "000"
+        },
+        {
+            "code": "090",
+            "title": "090 - Manoscritti e libri rari",
+            "parent": "000"
+        },
+        {
+            "code": "100",
+            "title": "100 - Filosofia",
+            "parent": "100"
+        },
+        {
+            "code": "110",
+            "title": "110 - Metafisica",
+            "parent": "100"
+        },
+        {
+            "code": "120",
+            "title": "120 - Epistemologia, causalità e genere umano",
+            "parent": "100"
+        },
+        {
+            "code": "130",
+            "title": "130 - Parapsicologia e occultismo",
+            "parent": "100"
+        },
+        {
+            "code": "140",
+            "title": "140 - Scuole di pensiero filosofiche",
+            "parent": "100"
+        },
+        {
+            "code": "150",
+            "title": "150 - Psicologia",
+            "parent": "100"
+        },
+        {
+            "code": "160",
+            "title": "160 - Logica filosofica",
+            "parent": "100"
+        },
+        {
+            "code": "170",
+            "title": "170 - Etica (filosofia morale)",
+            "parent": "100"
+        },
+        {
+            "code": "180",
+            "title": "180 - Filosofia antica, medievale e orientale",
+            "parent": "100"
+        },
+        {
+            "code": "190",
+            "title": "190 - Filosofia occidentale moderna e altra filosofia non orientale",
+            "parent": "100"
+        },
+        {
+            "code": "200",
+            "title": "200 - Religione",
+            "parent": "200"
+        },
+        {
+            "code": "210",
+            "title": "210 - Filosofia e teoria della religione",
+            "parent": "200"
+        },
+        {
+            "code": "220",
+            "title": "220 - La Bibbia",
+            "parent": "200"
+        },
+        {
+            "code": "230",
+            "title": "230 - Cristianesimo",
+            "parent": "200"
+        },
+        {
+            "code": "240",
+            "title": "240 - Teologia morale e devozionale cristiana",
+            "parent": "200"
+        },
+        {
+            "code": "250",
+            "title": "250 - Chiesa cristiana locale e ordini religiosi cristiani",
+            "parent": "200"
+        },
+        {
+            "code": "260",
+            "title": "260 - Teologia sociale ed ecclesiastica cristiana",
+            "parent": "200"
+        },
+        {
+            "code": "270",
+            "title": "270 - Storia, trattamento geografico, biografia del Cristianesimo",
+            "parent": "200"
+        },
+        {
+            "code": "280",
+            "title": "280 - Denominazioni e sette della Chiesa cristiana",
+            "parent": "200"
+        },
+        {
+            "code": "290",
+            "title": "290 - Altre religioni",
+            "parent": "200"
+        },
+        {
+            "code": "300",
+            "title": "300 - Scienze sociali, sociologia e antropologia",
+            "parent": "300"
+        },
+        {
+            "code": "310",
+            "title": "310 - Statistica",
+            "parent": "300"
+        },
+        {
+            "code": "320",
+            "title": "320 - Scienza politica (politica e governo)",
+            "parent": "300"
+        },
+        {
+            "code": "330",
+            "title": "330 - Economia",
+            "parent": "300"
+        },
+        {
+            "code": "340",
+            "title": "340 - Diritto",
+            "parent": "300"
+        },
+        {
+            "code": "350",
+            "title": "350 - Amministrazione pubblica e scienza militare",
+            "parent": "300"
+        },
+        {
+            "code": "360",
+            "title": "360 - Problemi e servizi sociali; associazioni",
+            "parent": "300"
+        },
+        {
+            "code": "370",
+            "title": "370 - Educazione",
+            "parent": "300"
+        },
+        {
+            "code": "380",
+            "title": "380 - Commercio, comunicazioni, trasporti",
+            "parent": "300"
+        },
+        {
+            "code": "390",
+            "title": "390 - Usi e costumi, galateo, folclore",
+            "parent": "300"
+        },
+        {
+            "code": "400",
+            "title": "400 - Linguaggio",
+            "parent": "400"
+        },
+        {
+            "code": "410",
+            "title": "410 - Linguistica",
+            "parent": "400"
+        },
+        {
+            "code": "420",
+            "title": "420 - Inglese e antico inglese (anglosassone)",
+            "parent": "400"
+        },
+        {
+            "code": "430",
+            "title": "430 - Lingue germaniche e correlate",
+            "parent": "400"
+        },
+        {
+            "code": "440",
+            "title": "440 - Francese e lingue romanze correlate",
+            "parent": "400"
+        },
+        {
+            "code": "450",
+            "title": "450 - Italiano, dalmatico, romeno, retoromanzo, sardo, corso",
+            "parent": "400"
+        },
+        {
+            "code": "460",
+            "title": "460 - Spagnolo, portoghese, galiziano",
+            "parent": "400"
+        },
+        {
+            "code": "470",
+            "title": "470 - Latino e lingue italiche correlate",
+            "parent": "400"
+        },
+        {
+            "code": "480",
+            "title": "480 - Greco classico e lingue elleniche correlate",
+            "parent": "400"
+        },
+        {
+            "code": "490",
+            "title": "490 - Altre lingue",
+            "parent": "400"
+        },
+        {
+            "code": "500",
+            "title": "500 - Scienza",
+            "parent": "500"
+        },
+        {
+            "code": "510",
+            "title": "510 - Matematica",
+            "parent": "500"
+        },
+        {
+            "code": "520",
+            "title": "520 - Astronomia e scienze affini",
+            "parent": "500"
+        },
+        {
+            "code": "530",
+            "title": "530 - Fisica",
+            "parent": "500"
+        },
+        {
+            "code": "540",
+            "title": "540 - Chimica e scienze affini",
+            "parent": "500"
+        },
+        {
+            "code": "550",
+            "title": "550 - Scienze della Terra e geologia",
+            "parent": "500"
+        },
+        {
+            "code": "560",
+            "title": "560 - Fossili e vita preistorica",
+            "parent": "500"
+        },
+        {
+            "code": "570",
+            "title": "570 - Biologia",
+            "parent": "500"
+        },
+        {
+            "code": "580",
+            "title": "580 - Piante",
+            "parent": "500"
+        },
+        {
+            "code": "590",
+            "title": "590 - Animali (Zoologia)",
+            "parent": "500"
+        },
+        {
+            "code": "600",
+            "title": "600 - Tecnologia",
+            "parent": "600"
+        },
+        {
+            "code": "610",
+            "title": "610 - Medicina e salute",
+            "parent": "600"
+        },
+        {
+            "code": "620",
+            "title": "620 - Ingegneria e operazioni applicate",
+            "parent": "600"
+        },
+        {
+            "code": "630",
+            "title": "630 - Agricoltura e tecnologie correlate",
+            "parent": "600"
+        },
+        {
+            "code": "640",
+            "title": "640 - Economia domestica e familiare",
+            "parent": "600"
+        },
+        {
+            "code": "650",
+            "title": "650 - Gestione e servizi ausiliari",
+            "parent": "600"
+        },
+        {
+            "code": "660",
+            "title": "660 - Ingegneria chimica e tecnologie correlate",
+            "parent": "600"
+        },
+        {
+            "code": "670",
+            "title": "670 - Manifattura",
+            "parent": "600"
+        },
+        {
+            "code": "680",
+            "title": "680 - Fabbricazione di prodotti for usi specifici",
+            "parent": "600"
+        },
+        {
+            "code": "690",
+            "title": "690 - Costruzione di edifici",
+            "parent": "600"
+        },
+        {
+            "code": "700",
+            "title": "700 - Le arti",
+            "parent": "700"
+        },
+        {
+            "code": "710",
+            "title": "710 - Pianificazione territoriale e architettura del paesaggio",
+            "parent": "700"
+        },
+        {
+            "code": "720",
+            "title": "720 - Architettura",
+            "parent": "700"
+        },
+        {
+            "code": "730",
+            "title": "730 - Scultura e arti correlate",
+            "parent": "700"
+        },
+        {
+            "code": "740",
+            "title": "740 - Arti grafiche",
+            "parent": "700"
+        },
+        {
+            "code": "750",
+            "title": "750 - Pittura e dipinti",
+            "parent": "700"
+        },
+        {
+            "code": "760",
+            "title": "760 - Incisione e stampe",
+            "parent": "700"
+        },
+        {
+            "code": "770",
+            "title": "770 - Fotografia, computer art, cinematografia, videografia",
+            "parent": "700"
+        },
+        {
+            "code": "780",
+            "title": "780 - Musica",
+            "parent": "700"
+        },
+        {
+            "code": "790",
+            "title": "790 - Arti ricreative e dello spettacolo",
+            "parent": "700"
+        },
+        {
+            "code": "800",
+            "title": "800 - Letteratura (Belles-lettres) e retorica",
+            "parent": "800"
+        },
+        {
+            "code": "810",
+            "title": "810 - Letteratura americana in inglese",
+            "parent": "800"
+        },
+        {
+            "code": "820",
+            "title": "820 - Letterature inglese e antico inglese (anglosassone)",
+            "parent": "800"
+        },
+        {
+            "code": "830",
+            "title": "830 - Letteratura tedesca e letterature di lingue correlate",
+            "parent": "800"
+        },
+        {
+            "code": "840",
+            "title": "840 - Letteratura francese e letterature di lingue romanze correlate",
+            "parent": "800"
+        },
+        {
+            "code": "850",
+            "title": "850 - Letterature delle lingue italiana, dalmatica, romena, retoromanza, sarda, corsa",
+            "parent": "800"
+        },
+        {
+            "code": "860",
+            "title": "860 - Letterature delle lingue spagnola, portoghese, galiziana",
+            "parent": "800"
+        },
+        {
+            "code": "870",
+            "title": "870 - Letteratura latina e letterature di lingue italiche correlate",
+            "parent": "800"
+        },
+        {
+            "code": "880",
+            "title": "880 - Letteratura greca classica e letterature di lingue elleniche correlate",
+            "parent": "800"
+        },
+        {
+            "code": "890",
+            "title": "890 - Letterature di altre lingue e famiglie linguistiche specifiche",
+            "parent": "800"
+        },
+        {
+            "code": "900",
+            "title": "900 - Storia",
+            "parent": "900"
+        },
+        {
+            "code": "910",
+            "title": "910 - Geografia e viaggi",
+            "parent": "900"
+        },
+        {
+            "code": "920",
+            "title": "920 - Biografia, genealogia, insegne",
+            "parent": "900"
+        },
+        {
+            "code": "930",
+            "title": "930 - Storia del mondo antico fino al 499 circa",
+            "parent": "900"
+        },
+        {
+            "code": "940",
+            "title": "940 - Storia d'Europa",
+            "parent": "900"
+        },
+        {
+            "code": "950",
+            "title": "950 - Storia dell'Asia",
+            "parent": "900"
+        },
+        {
+            "code": "960",
+            "title": "960 - Storia dell'Africa",
+            "parent": "900"
+        },
+        {
+            "code": "970",
+            "title": "970 - Storia del Nord America",
+            "parent": "900"
+        },
+        {
+            "code": "980",
+            "title": "980 - Storia del Sud America",
+            "parent": "900"
+        },
+        {
+            "code": "990",
+            "title": "990 - Storia di Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide, mondi extraterrestri",
+            "parent": "900"
+        }
+    ],
+    "level3": [
+        {
+            "code": "001",
+            "title": "001 - Conoscenza",
+            "parent": "000"
+        },
+        {
+            "code": "002",
+            "title": "002 - Il libro (scrittura, biblioteche e argomenti correlati)",
+            "parent": "000"
+        },
+        {
+            "code": "003",
+            "title": "003 - Sistemi",
+            "parent": "000"
+        },
+        {
+            "code": "004",
+            "title": "004 - Elaborazione dati e informatica",
+            "parent": "000"
+        },
+        {
+            "code": "005",
+            "title": "005 - Programmazione, programmi e dati informatici",
+            "parent": "000"
+        },
+        {
+            "code": "006",
+            "title": "006 - Metodi informatici speciali (ad es. IA, multimedia, VR)",
+            "parent": "000"
+        },
+        {
+            "code": "007",
+            "title": "007 - [Non assegnato]",
+            "parent": "000"
+        },
+        {
+            "code": "008",
+            "title": "008 - [Non assegnato]",
+            "parent": "000"
+        },
+        {
+            "code": "009",
+            "title": "009 - [Non assegnato]",
+            "parent": "000"
+        },
+        {
+            "code": "011",
+            "title": "011 - Bibliografie",
+            "parent": "010"
+        },
+        {
+            "code": "012",
+            "title": "012 - Bibliografie di individui",
+            "parent": "010"
+        },
+        {
+            "code": "013",
+            "title": "013 - [Non assegnato]",
+            "parent": "010"
+        },
+        {
+            "code": "014",
+            "title": "014 - Bibliografie di opere anonime e pseudonime",
+            "parent": "010"
+        },
+        {
+            "code": "015",
+            "title": "015 - Bibliografie di opere di luoghi specifici",
+            "parent": "010"
+        },
+        {
+            "code": "016",
+            "title": "016 - Bibliografie di opere su soggetti specifici",
+            "parent": "010"
+        },
+        {
+            "code": "017",
+            "title": "017 - Cataloghi sistematici generali",
+            "parent": "010"
+        },
+        {
+            "code": "018",
+            "title": "018 - Cataloghi per autore, data, ecc. [spostato a 017]",
+            "parent": "010"
+        },
+        {
+            "code": "019",
+            "title": "019 - Cataloghi dizionario [spostato a 017]",
+            "parent": "010"
+        },
+        {
+            "code": "021",
+            "title": "021 - Relazioni della biblioteca (con archivi, centri di informazione, ecc.)",
+            "parent": "020"
+        },
+        {
+            "code": "022",
+            "title": "022 - Amministrazione della struttura fisica",
+            "parent": "020"
+        },
+        {
+            "code": "023",
+            "title": "023 - Gestione del personale",
+            "parent": "020"
+        },
+        {
+            "code": "024",
+            "title": "024 - [Non assegnato]",
+            "parent": "020"
+        },
+        {
+            "code": "025",
+            "title": "025 - Attività bibliotecarie",
+            "parent": "020"
+        },
+        {
+            "code": "026",
+            "title": "026 - Biblioteche per soggetti specifici",
+            "parent": "020"
+        },
+        {
+            "code": "027",
+            "title": "027 - Biblioteche generali",
+            "parent": "020"
+        },
+        {
+            "code": "028",
+            "title": "028 - Lettura e uso di altri mezzi di informazione",
+            "parent": "020"
+        },
+        {
+            "code": "029",
+            "title": "029 - [Non assegnato]",
+            "parent": "020"
+        },
+        {
+            "code": "031",
+            "title": "031 - Enciclopedie in inglese americano",
+            "parent": "030"
+        },
+        {
+            "code": "032",
+            "title": "032 - Enciclopedie in inglese",
+            "parent": "030"
+        },
+        {
+            "code": "033",
+            "title": "033 - Enciclopedie in altre lingue germaniche",
+            "parent": "030"
+        },
+        {
+            "code": "034",
+            "title": "034 - Enciclopedie in francese, occitano e catalano",
+            "parent": "030"
+        },
+        {
+            "code": "035",
+            "title": "035 - Enciclopedie in italiano, romeno e lingue correlate",
+            "parent": "030"
+        },
+        {
+            "code": "036",
+            "title": "036 - Enciclopedie in spagnolo e portoghese",
+            "parent": "030"
+        },
+        {
+            "code": "037",
+            "title": "037 - Enciclopedie in lingue slave",
+            "parent": "030"
+        },
+        {
+            "code": "038",
+            "title": "038 - Enciclopedie in lingue scandinave",
+            "parent": "030"
+        },
+        {
+            "code": "039",
+            "title": "039 - Enciclopedie in altre lingue",
+            "parent": "030"
+        },
+        {
+            "code": "051",
+            "title": "051 - Pubblicazioni seriali in inglese americano",
+            "parent": "050"
+        },
+        {
+            "code": "052",
+            "title": "052 - Pubblicazioni seriali in inglese",
+            "parent": "050"
+        },
+        {
+            "code": "053",
+            "title": "053 - Pubblicazioni seriali in altre lingue germaniche",
+            "parent": "050"
+        },
+        {
+            "code": "054",
+            "title": "054 - Pubblicazioni seriali in francese, occitano e catalano",
+            "parent": "050"
+        },
+        {
+            "code": "055",
+            "title": "055 - Pubblicazioni seriali in italiano, romeno e lingue correlate",
+            "parent": "050"
+        },
+        {
+            "code": "056",
+            "title": "056 - Pubblicazioni seriali in spagnolo e portoghese",
+            "parent": "050"
+        },
+        {
+            "code": "057",
+            "title": "057 - Pubblicazioni seriali in lingue slave",
+            "parent": "050"
+        },
+        {
+            "code": "058",
+            "title": "058 - Pubblicazioni seriali in lingue scandinave",
+            "parent": "050"
+        },
+        {
+            "code": "059",
+            "title": "059 - Pubblicazioni seriali in altre lingue",
+            "parent": "050"
+        },
+        {
+            "code": "061",
+            "title": "061 - Organizzazioni in Nord America",
+            "parent": "060"
+        },
+        {
+            "code": "062",
+            "title": "062 - Organizzazioni nelle Isole Britanniche; in Inghilterra",
+            "parent": "060"
+        },
+        {
+            "code": "063",
+            "title": "063 - Organizzazioni in Europa centrale; in Germania",
+            "parent": "060"
+        },
+        {
+            "code": "064",
+            "title": "064 - Organizzazioni in Francia e Monaco",
+            "parent": "060"
+        },
+        {
+            "code": "065",
+            "title": "065 - Organizzazioni in Italia e isole adiacenti",
+            "parent": "060"
+        },
+        {
+            "code": "066",
+            "title": "066 - Organizzazioni nella Penisola Iberica e isole adiacenti",
+            "parent": "060"
+        },
+        {
+            "code": "067",
+            "title": "067 - Organizzazioni in Europa orientale; in Russia",
+            "parent": "060"
+        },
+        {
+            "code": "068",
+            "title": "068 - Organizzazioni in altre aree geografiche",
+            "parent": "060"
+        },
+        {
+            "code": "069",
+            "title": "069 - Museologia",
+            "parent": "060"
+        },
+        {
+            "code": "071",
+            "title": "071 - Giornali in Nord America",
+            "parent": "070"
+        },
+        {
+            "code": "072",
+            "title": "072 - Giornali nelle Isole Britanniche; in Inghilterra",
+            "parent": "070"
+        },
+        {
+            "code": "073",
+            "title": "073 - Giornali in Europa centrale; in Germania",
+            "parent": "070"
+        },
+        {
+            "code": "074",
+            "title": "074 - Giornali in Francia e Monaco",
+            "parent": "070"
+        },
+        {
+            "code": "075",
+            "title": "075 - Giornali in Italia e isole adiacenti",
+            "parent": "070"
+        },
+        {
+            "code": "076",
+            "title": "076 - Giornali nella penisola iberica e isole adiacenti",
+            "parent": "070"
+        },
+        {
+            "code": "077",
+            "title": "077 - Giornali in Europa orientale; in Russia",
+            "parent": "070"
+        },
+        {
+            "code": "078",
+            "title": "078 - Giornali in Scandinavia",
+            "parent": "070"
+        },
+        {
+            "code": "079",
+            "title": "079 - Giornali in altre aree geografiche",
+            "parent": "070"
+        },
+        {
+            "code": "081",
+            "title": "081 - Raccolte in inglese americano",
+            "parent": "080"
+        },
+        {
+            "code": "082",
+            "title": "082 - Raccolte in inglese",
+            "parent": "080"
+        },
+        {
+            "code": "083",
+            "title": "083 - Raccolte in altre lingue germaniche",
+            "parent": "080"
+        },
+        {
+            "code": "084",
+            "title": "084 - Raccolte in francese, occitano, catalano",
+            "parent": "080"
+        },
+        {
+            "code": "085",
+            "title": "085 - Raccolte in italiano, romeno e lingue correlate",
+            "parent": "080"
+        },
+        {
+            "code": "086",
+            "title": "086 - Raccolte in spagnolo e portoghese",
+            "parent": "080"
+        },
+        {
+            "code": "087",
+            "title": "087 - Raccolte in lingue slave",
+            "parent": "080"
+        },
+        {
+            "code": "088",
+            "title": "088 - Raccolte in lingue scandinave",
+            "parent": "080"
+        },
+        {
+            "code": "089",
+            "title": "089 - Raccolte in altre lingue",
+            "parent": "080"
+        },
+        {
+            "code": "091",
+            "title": "091 - Manoscritti",
+            "parent": "090"
+        },
+        {
+            "code": "092",
+            "title": "092 - Libri silografici",
+            "parent": "090"
+        },
+        {
+            "code": "093",
+            "title": "093 - Incunaboli",
+            "parent": "090"
+        },
+        {
+            "code": "094",
+            "title": "094 - Libri a stampa",
+            "parent": "090"
+        },
+        {
+            "code": "095",
+            "title": "095 - Libri notevoli per la legatura",
+            "parent": "090"
+        },
+        {
+            "code": "096",
+            "title": "096 - Libri notevoli per le illustrazioni",
+            "parent": "090"
+        },
+        {
+            "code": "097",
+            "title": "097 - Libri notevoli per la proprietà o l'origine",
+            "parent": "090"
+        },
+        {
+            "code": "098",
+            "title": "098 - Opere proibite, falsificazioni e inganni",
+            "parent": "090"
+        },
+        {
+            "code": "099",
+            "title": "099 - Libri notevoli per il formato",
+            "parent": "090"
+        },
+        {
+            "code": "101",
+            "title": "101 - Teoria della filosofia",
+            "parent": "100"
+        },
+        {
+            "code": "102",
+            "title": "102 - Miscellanea",
+            "parent": "100"
+        },
+        {
+            "code": "103",
+            "title": "103 - Dizionari ed enciclopedie",
+            "parent": "100"
+        },
+        {
+            "code": "104",
+            "title": "104 - Non più in uso — in precedenza Saggi",
+            "parent": "100"
+        },
+        {
+            "code": "105",
+            "title": "105 - Pubblicazioni seriali",
+            "parent": "100"
+        },
+        {
+            "code": "106",
+            "title": "106 - Organizzazioni e gestione",
+            "parent": "100"
+        },
+        {
+            "code": "107",
+            "title": "107 - Educazione, ricerca, argomenti correlati di filosofia",
+            "parent": "100"
+        },
+        {
+            "code": "108",
+            "title": "108 - Gruppi di persone",
+            "parent": "100"
+        },
+        {
+            "code": "109",
+            "title": "109 - Storia e biografia collettiva",
+            "parent": "100"
+        },
+        {
+            "code": "111",
+            "title": "111 - Ontologia",
+            "parent": "110"
+        },
+        {
+            "code": "112",
+            "title": "112 - Non più in uso — in precedenza Metodologia",
+            "parent": "110"
+        },
+        {
+            "code": "113",
+            "title": "113 - Cosmologia (Filosofia della natura)",
+            "parent": "110"
+        },
+        {
+            "code": "114",
+            "title": "114 - Spazio",
+            "parent": "110"
+        },
+        {
+            "code": "115",
+            "title": "115 - Tempo",
+            "parent": "110"
+        },
+        {
+            "code": "116",
+            "title": "116 - Cambiamento",
+            "parent": "110"
+        },
+        {
+            "code": "117",
+            "title": "117 - Struttura",
+            "parent": "110"
+        },
+        {
+            "code": "118",
+            "title": "118 - Forza ed energia",
+            "parent": "110"
+        },
+        {
+            "code": "119",
+            "title": "119 - Numero e quantità",
+            "parent": "110"
+        },
+        {
+            "code": "121",
+            "title": "121 - Epistemologia (teoria della conoscenza)",
+            "parent": "120"
+        },
+        {
+            "code": "122",
+            "title": "122 - Causalità",
+            "parent": "120"
+        },
+        {
+            "code": "123",
+            "title": "123 - Determinismo e indeterminismo",
+            "parent": "120"
+        },
+        {
+            "code": "124",
+            "title": "124 - Teleologia",
+            "parent": "120"
+        },
+        {
+            "code": "125",
+            "title": "125 - Non più in uso — in precedenza Infinito",
+            "parent": "120"
+        },
+        {
+            "code": "126",
+            "title": "126 - Il sé",
+            "parent": "120"
+        },
+        {
+            "code": "127",
+            "title": "127 - L'inconscio e il subconscio",
+            "parent": "120"
+        },
+        {
+            "code": "128",
+            "title": "128 - Genere umano",
+            "parent": "120"
+        },
+        {
+            "code": "129",
+            "title": "129 - Origine e destino delle anime individuali",
+            "parent": "120"
+        },
+        {
+            "code": "131",
+            "title": "131 - Metodi parapsicologici e occulti per raggiungere benessere, felicità, successo",
+            "parent": "130"
+        },
+        {
+            "code": "132",
+            "title": "132 - Non più in uso — in precedenza Disturbi mentali",
+            "parent": "130"
+        },
+        {
+            "code": "133",
+            "title": "133 - Argomenti specifici in parapsicologia e occultismo",
+            "parent": "130"
+        },
+        {
+            "code": "134",
+            "title": "134 - Non più in uso — in precedenza Mesmerismo e chiaroveggenza",
+            "parent": "130"
+        },
+        {
+            "code": "135",
+            "title": "135 - Sogni e misteri",
+            "parent": "130"
+        },
+        {
+            "code": "136",
+            "title": "136 - Non più in uso — in precedenza Caratteristiche mentali",
+            "parent": "130"
+        },
+        {
+            "code": "137",
+            "title": "137 - Grafologia divinatoria",
+            "parent": "130"
+        },
+        {
+            "code": "138",
+            "title": "138 - Fisiognomica",
+            "parent": "130"
+        },
+        {
+            "code": "139",
+            "title": "139 - Frenologia",
+            "parent": "130"
+        },
+        {
+            "code": "141",
+            "title": "141 - Idealismo e sistemi e dottrine correlati",
+            "parent": "140"
+        },
+        {
+            "code": "142",
+            "title": "142 - Filosofia critica",
+            "parent": "140"
+        },
+        {
+            "code": "143",
+            "title": "143 - Bergsonismo e intuizionismo",
+            "parent": "140"
+        },
+        {
+            "code": "144",
+            "title": "144 - Umanesimo e sistemi e dottrine correlati",
+            "parent": "140"
+        },
+        {
+            "code": "145",
+            "title": "145 - Sensazionalismo",
+            "parent": "140"
+        },
+        {
+            "code": "146",
+            "title": "146 - Naturalismo e sistemi e dottrine correlati",
+            "parent": "140"
+        },
+        {
+            "code": "147",
+            "title": "147 - Panteismo e sistemi e dottrine correlati",
+            "parent": "140"
+        },
+        {
+            "code": "148",
+            "title": "148 - Dogmatismo, eclettismo, liberalismo, sincretismo e tradizionalismo",
+            "parent": "140"
+        },
+        {
+            "code": "149",
+            "title": "149 - Altri sistemi e dottrine filosofiche",
+            "parent": "140"
+        },
+        {
+            "code": "151",
+            "title": "151 - Non più in uso — in precedenza Intelletto",
+            "parent": "150"
+        },
+        {
+            "code": "152",
+            "title": "152 - Percezione sensoriale, movimento, emozioni e pulsioni fisiologiche",
+            "parent": "150"
+        },
+        {
+            "code": "153",
+            "title": "153 - Processi mentali coscienti e intelligenza",
+            "parent": "150"
+        },
+        {
+            "code": "154",
+            "title": "154 - Stati e processi subconsci e alterati",
+            "parent": "150"
+        },
+        {
+            "code": "155",
+            "title": "155 - Psicologia differenziale e dello sviluppo",
+            "parent": "150"
+        },
+        {
+            "code": "156",
+            "title": "156 - Psicologia comparata",
+            "parent": "150"
+        },
+        {
+            "code": "157",
+            "title": "157 - Non più in uso — in precedenza Emozioni",
+            "parent": "150"
+        },
+        {
+            "code": "158",
+            "title": "158 - Psicologia applicata",
+            "parent": "150"
+        },
+        {
+            "code": "159",
+            "title": "159 - Non più in uso — in precedenza Volontà",
+            "parent": "150"
+        },
+        {
+            "code": "161",
+            "title": "161 - Induzione",
+            "parent": "160"
+        },
+        {
+            "code": "162",
+            "title": "162 - Deduzione",
+            "parent": "160"
+        },
+        {
+            "code": "163",
+            "title": "163 - Non assegnato o non più in uso",
+            "parent": "160"
+        },
+        {
+            "code": "164",
+            "title": "164 - Non assegnato o non più in uso",
+            "parent": "160"
+        },
+        {
+            "code": "165",
+            "title": "165 - Fallacie e fonti di errore",
+            "parent": "160"
+        },
+        {
+            "code": "166",
+            "title": "166 - Sillogismi",
+            "parent": "160"
+        },
+        {
+            "code": "167",
+            "title": "167 - Ipotesi",
+            "parent": "160"
+        },
+        {
+            "code": "168",
+            "title": "168 - Argomentazione e persuasione",
+            "parent": "160"
+        },
+        {
+            "code": "169",
+            "title": "169 - Analogia",
+            "parent": "160"
+        },
+        {
+            "code": "171",
+            "title": "171 - Sistemi etici",
+            "parent": "170"
+        },
+        {
+            "code": "172",
+            "title": "172 - Etica politica",
+            "parent": "170"
+        },
+        {
+            "code": "173",
+            "title": "173 - Etica delle relazioni familiari",
+            "parent": "170"
+        },
+        {
+            "code": "174",
+            "title": "174 - Etica professionale",
+            "parent": "170"
+        },
+        {
+            "code": "175",
+            "title": "175 - Etica della ricreazione, del tempo libero, delle esibizioni pubbliche, della comunicazione",
+            "parent": "170"
+        },
+        {
+            "code": "176",
+            "title": "176 - Etica della sessualità e della riproduzione",
+            "parent": "170"
+        },
+        {
+            "code": "177",
+            "title": "177 - Etica delle relazioni sociali",
+            "parent": "170"
+        },
+        {
+            "code": "178",
+            "title": "178 - Etica del consumo",
+            "parent": "170"
+        },
+        {
+            "code": "179",
+            "title": "179 - Altre norme etiche",
+            "parent": "170"
+        },
+        {
+            "code": "181",
+            "title": "181 - Filosofia orientale",
+            "parent": "180"
+        },
+        {
+            "code": "182",
+            "title": "182 - Filosofie greche presocratiche",
+            "parent": "180"
+        },
+        {
+            "code": "183",
+            "title": "183 - Filosofie sofistiche, socratiche e greche correlate",
+            "parent": "180"
+        },
+        {
+            "code": "184",
+            "title": "184 - Filosofia platonica",
+            "parent": "180"
+        },
+        {
+            "code": "185",
+            "title": "185 - Filosofia aristotelica",
+            "parent": "180"
+        },
+        {
+            "code": "186",
+            "title": "186 - Filosofie scettiche e neoplatoniche",
+            "parent": "180"
+        },
+        {
+            "code": "187",
+            "title": "187 - Filosofia epicurea",
+            "parent": "180"
+        },
+        {
+            "code": "188",
+            "title": "188 - Filosofia stoica",
+            "parent": "180"
+        },
+        {
+            "code": "189",
+            "title": "189 - Filosofia occidentale medievale",
+            "parent": "180"
+        },
+        {
+            "code": "191",
+            "title": "191 - Filosofia degli Stati Uniti e del Canada",
+            "parent": "190"
+        },
+        {
+            "code": "192",
+            "title": "192 - Filosofia delle Isole Britanniche",
+            "parent": "190"
+        },
+        {
+            "code": "193",
+            "title": "193 - Filosofia della Germania e dell'Austria",
+            "parent": "190"
+        },
+        {
+            "code": "194",
+            "title": "194 - Filosofia della Francia",
+            "parent": "190"
+        },
+        {
+            "code": "195",
+            "title": "195 - Filosofia dell'Italia",
+            "parent": "190"
+        },
+        {
+            "code": "196",
+            "title": "196 - Filosofia della Spagna e del Portogallo",
+            "parent": "190"
+        },
+        {
+            "code": "197",
+            "title": "197 - Filosofia della Russia",
+            "parent": "190"
+        },
+        {
+            "code": "198",
+            "title": "198 - Filosofia della Scandinavia e della Finlandia",
+            "parent": "190"
+        },
+        {
+            "code": "199",
+            "title": "199 - Filosofia in altre aree geografiche",
+            "parent": "190"
+        },
+        {
+            "code": "201",
+            "title": "201 - Mitologia religiosa, classi generali di religione, relazioni e atteggiamenti interreligiosi, teologia sociale",
+            "parent": "200"
+        },
+        {
+            "code": "202",
+            "title": "202 - Dottrine",
+            "parent": "200"
+        },
+        {
+            "code": "203",
+            "title": "203 - Culto pubblico e altre pratiche",
+            "parent": "200"
+        },
+        {
+            "code": "204",
+            "title": "204 - Esperienza, vita, pratica religiosa",
+            "parent": "200"
+        },
+        {
+            "code": "205",
+            "title": "205 - Etica religiosa",
+            "parent": "200"
+        },
+        {
+            "code": "206",
+            "title": "206 - Capi e organizzazione",
+            "parent": "200"
+        },
+        {
+            "code": "207",
+            "title": "207 - Missioni ed educazione religiosa",
+            "parent": "200"
+        },
+        {
+            "code": "208",
+            "title": "208 - Fonti",
+            "parent": "200"
+        },
+        {
+            "code": "209",
+            "title": "209 - Sette e movimenti di riforma",
+            "parent": "200"
+        },
+        {
+            "code": "211",
+            "title": "211 - Concetti di Dio",
+            "parent": "210"
+        },
+        {
+            "code": "212",
+            "title": "212 - Esistenza, modi di conoscere Dio, attributi di Dio",
+            "parent": "210"
+        },
+        {
+            "code": "213",
+            "title": "213 - Creazione",
+            "parent": "210"
+        },
+        {
+            "code": "214",
+            "title": "214 - Teodicea",
+            "parent": "210"
+        },
+        {
+            "code": "215",
+            "title": "215 - Scienza e religione",
+            "parent": "210"
+        },
+        {
+            "code": "216",
+            "title": "216 - Non più in uso—in precedenza Male",
+            "parent": "210"
+        },
+        {
+            "code": "217",
+            "title": "217 - Non più in uso—in precedenza Preghiera",
+            "parent": "210"
+        },
+        {
+            "code": "218",
+            "title": "218 - Genere umano",
+            "parent": "210"
+        },
+        {
+            "code": "219",
+            "title": "219 - Non più in uso—in precedenza Analogies",
+            "parent": "210"
+        },
+        {
+            "code": "221",
+            "title": "221 - Antico Testamento (Tanakh)",
+            "parent": "220"
+        },
+        {
+            "code": "222",
+            "title": "222 - Libri storici dell'Antico Testamento",
+            "parent": "220"
+        },
+        {
+            "code": "223",
+            "title": "223 - Libri poetici dell'Antico Testamento",
+            "parent": "220"
+        },
+        {
+            "code": "224",
+            "title": "224 - Libri profetici dell'Antico Testamento",
+            "parent": "220"
+        },
+        {
+            "code": "225",
+            "title": "225 - Nuovo Testamento",
+            "parent": "220"
+        },
+        {
+            "code": "226",
+            "title": "226 - Vangeli e Atti",
+            "parent": "220"
+        },
+        {
+            "code": "227",
+            "title": "227 - Epistole",
+            "parent": "220"
+        },
+        {
+            "code": "228",
+            "title": "228 - Rivelazione (Apocalisse)",
+            "parent": "220"
+        },
+        {
+            "code": "229",
+            "title": "229 - Apocrifi, pseudepigrafi e opere intertestamentali",
+            "parent": "220"
+        },
+        {
+            "code": "231",
+            "title": "231 - Dio",
+            "parent": "230"
+        },
+        {
+            "code": "232",
+            "title": "232 - Gesù Cristo e la sua famiglia",
+            "parent": "230"
+        },
+        {
+            "code": "233",
+            "title": "233 - Genere umano",
+            "parent": "230"
+        },
+        {
+            "code": "234",
+            "title": "234 - Salvezza e grazia",
+            "parent": "230"
+        },
+        {
+            "code": "235",
+            "title": "235 - Esseri spirituali",
+            "parent": "230"
+        },
+        {
+            "code": "236",
+            "title": "236 - Escatologia",
+            "parent": "230"
+        },
+        {
+            "code": "237",
+            "title": "237 - Non più in uso—in precedenza Stato futuro",
+            "parent": "230"
+        },
+        {
+            "code": "238",
+            "title": "238 - Credo, confessioni di fede, patti e catechismi",
+            "parent": "230"
+        },
+        {
+            "code": "239",
+            "title": "239 - Apologetica e polemica",
+            "parent": "230"
+        },
+        {
+            "code": "241",
+            "title": "241 - Etica cristiana",
+            "parent": "240"
+        },
+        {
+            "code": "242",
+            "title": "242 - Letteratura devozionale",
+            "parent": "240"
+        },
+        {
+            "code": "243",
+            "title": "243 - Scritti evangelistici per individui e famiglie",
+            "parent": "240"
+        },
+        {
+            "code": "244",
+            "title": "244 - Non più in uso—in precedenza Narrativa religiosa",
+            "parent": "240"
+        },
+        {
+            "code": "245",
+            "title": "245 - Non più in uso—in precedenza Innologia",
+            "parent": "240"
+        },
+        {
+            "code": "246",
+            "title": "246 - Uso dell'arte nel Cristianesimo",
+            "parent": "240"
+        },
+        {
+            "code": "247",
+            "title": "247 - Arredi ecclesiastici e articoli correlati",
+            "parent": "240"
+        },
+        {
+            "code": "248",
+            "title": "248 - Esperienza, pratica, vita cristiana",
+            "parent": "240"
+        },
+        {
+            "code": "249",
+            "title": "249 - Osservanze cristiane nella vita familiare",
+            "parent": "240"
+        },
+        {
+            "code": "251",
+            "title": "251 - Predicazione (Omiletica)",
+            "parent": "250"
+        },
+        {
+            "code": "252",
+            "title": "252 - Testi di sermoni",
+            "parent": "250"
+        },
+        {
+            "code": "253",
+            "title": "253 - Ufficio e lavoro pastorale (Teologia pastorale)",
+            "parent": "250"
+        },
+        {
+            "code": "254",
+            "title": "254 - Amministrazione parrocchiale",
+            "parent": "250"
+        },
+        {
+            "code": "255",
+            "title": "255 - Congregazioni e ordini religiosi",
+            "parent": "250"
+        },
+        {
+            "code": "256",
+            "title": "256 - Non più in uso — in precedenza Società religiose",
+            "parent": "250"
+        },
+        {
+            "code": "257",
+            "title": "257 - Non più in uso — in precedenza Scuole parrocchiali, biblioteche, ecc.",
+            "parent": "250"
+        },
+        {
+            "code": "258",
+            "title": "258 - Non più in uso — in precedenza Medicina parrocchiale",
+            "parent": "250"
+        },
+        {
+            "code": "259",
+            "title": "259 - Cura pastorale delle famiglie, di gruppi specifici di persone",
+            "parent": "250"
+        },
+        {
+            "code": "261",
+            "title": "261 - Teologia sociale e relazioni e atteggiamenti interreligiosi",
+            "parent": "260"
+        },
+        {
+            "code": "262",
+            "title": "262 - Ecclesiologia",
+            "parent": "260"
+        },
+        {
+            "code": "263",
+            "title": "263 - Giorni, tempi, luoghi di osservanza religiosa",
+            "parent": "260"
+        },
+        {
+            "code": "264",
+            "title": "264 - Culto pubblico",
+            "parent": "260"
+        },
+        {
+            "code": "265",
+            "title": "265 - Sacramenti, altri riti e atti",
+            "parent": "260"
+        },
+        {
+            "code": "266",
+            "title": "266 - Missioni",
+            "parent": "260"
+        },
+        {
+            "code": "267",
+            "title": "267 - Associazioni per opere religiose",
+            "parent": "260"
+        },
+        {
+            "code": "268",
+            "title": "268 - Educazione religiosa",
+            "parent": "260"
+        },
+        {
+            "code": "269",
+            "title": "269 - Rinnovamento spirituale",
+            "parent": "260"
+        },
+        {
+            "code": "271",
+            "title": "271 - Congregazioni e ordini religiosi nella storia della Chiesa",
+            "parent": "270"
+        },
+        {
+            "code": "272",
+            "title": "272 - Persecuzioni nella storia della Chiesa",
+            "parent": "270"
+        },
+        {
+            "code": "273",
+            "title": "273 - Controversie dottrinali ed eresie nella storia generale della Chiesa",
+            "parent": "270"
+        },
+        {
+            "code": "274",
+            "title": "274 - Cristianesimo in Europa",
+            "parent": "270"
+        },
+        {
+            "code": "275",
+            "title": "275 - Cristianesimo in Asia",
+            "parent": "270"
+        },
+        {
+            "code": "276",
+            "title": "276 - Cristianesimo in Africa",
+            "parent": "270"
+        },
+        {
+            "code": "277",
+            "title": "277 - Cristianesimo in Nord America",
+            "parent": "270"
+        },
+        {
+            "code": "278",
+            "title": "278 - Cristianesimo in Sud America",
+            "parent": "270"
+        },
+        {
+            "code": "279",
+            "title": "279 - Storia del Cristianesimo in altre aree",
+            "parent": "270"
+        },
+        {
+            "code": "281",
+            "title": "281 - Chiesa primitiva e Chiese orientali",
+            "parent": "280"
+        },
+        {
+            "code": "282",
+            "title": "282 - Chiesa cattolica romana",
+            "parent": "280"
+        },
+        {
+            "code": "283",
+            "title": "283 - Chiese anglicane",
+            "parent": "280"
+        },
+        {
+            "code": "284",
+            "title": "284 - Denominazioni protestanti di origine continentale (luterana, riformata continentale)",
+            "parent": "280"
+        },
+        {
+            "code": "285",
+            "title": "285 - Chiese presbiteriane, Chiese riformate con centro in America, Chiese congregazionaliste",
+            "parent": "280"
+        },
+        {
+            "code": "286",
+            "title": "286 - Chiese battiste, del Movimento di Restaurazione, avventiste",
+            "parent": "280"
+        },
+        {
+            "code": "287",
+            "title": "287 - Chiese metodiste; chiese legate al Metodismo",
+            "parent": "280"
+        },
+        {
+            "code": "288",
+            "title": "288 - Non più in uso — in precedenza Unitariano",
+            "parent": "280"
+        },
+        {
+            "code": "289",
+            "title": "289 - Altre denominazioni e sette",
+            "parent": "280"
+        },
+        {
+            "code": "291",
+            "title": "291 - Non più in uso — in precedenza Religione comparata",
+            "parent": "290"
+        },
+        {
+            "code": "292",
+            "title": "292 - Religione classica (religione greca e romana)",
+            "parent": "290"
+        },
+        {
+            "code": "293",
+            "title": "293 - Religione germanica",
+            "parent": "290"
+        },
+        {
+            "code": "294",
+            "title": "294 - Religioni di origine indiana",
+            "parent": "290"
+        },
+        {
+            "code": "295",
+            "title": "295 - Zoroastrismo (Mazdeismo, Parsismo)",
+            "parent": "290"
+        },
+        {
+            "code": "296",
+            "title": "296 - Ebraismo",
+            "parent": "290"
+        },
+        {
+            "code": "297",
+            "title": "297 - Islam, Bábismo e Fede Baháʼí",
+            "parent": "290"
+        },
+        {
+            "code": "298",
+            "title": "298 - Non più in uso — in precedenza Mormonismo",
+            "parent": "290"
+        },
+        {
+            "code": "299",
+            "title": "299 - Religioni non previste altrove",
+            "parent": "290"
+        },
+        {
+            "code": "301",
+            "title": "301 - Sociologia e antropologia",
+            "parent": "300"
+        },
+        {
+            "code": "302",
+            "title": "302 - Interazione sociale",
+            "parent": "300"
+        },
+        {
+            "code": "303",
+            "title": "303 - Processi sociali",
+            "parent": "300"
+        },
+        {
+            "code": "304",
+            "title": "304 - Fattori che influenzano il comportamento sociale",
+            "parent": "300"
+        },
+        {
+            "code": "305",
+            "title": "305 - Gruppi di persone",
+            "parent": "300"
+        },
+        {
+            "code": "306",
+            "title": "306 - Cultura e istituzioni",
+            "parent": "300"
+        },
+        {
+            "code": "307",
+            "title": "307 - Comunità",
+            "parent": "300"
+        },
+        {
+            "code": "308",
+            "title": "308 - Non più in uso — in precedenza Poligrafia",
+            "parent": "300"
+        },
+        {
+            "code": "309",
+            "title": "309 - Non più in uso — in precedenza Storia della sociologia",
+            "parent": "300"
+        },
+        {
+            "code": "311",
+            "title": "311 - Non più in uso — in precedenza Teoria e metodi",
+            "parent": "310"
+        },
+        {
+            "code": "312",
+            "title": "312 - Non più in uso — in precedenza Popolazione",
+            "parent": "310"
+        },
+        {
+            "code": "313",
+            "title": "313 - Non più in uso — in precedenza Argomenti speciali",
+            "parent": "310"
+        },
+        {
+            "code": "314",
+            "title": "314 - Statistiche generali dell'Europa",
+            "parent": "310"
+        },
+        {
+            "code": "315",
+            "title": "315 - Statistiche generali dell'Asia",
+            "parent": "310"
+        },
+        {
+            "code": "316",
+            "title": "316 - Statistiche generali dell'Africa",
+            "parent": "310"
+        },
+        {
+            "code": "317",
+            "title": "317 - Statistiche generali del Nord America",
+            "parent": "310"
+        },
+        {
+            "code": "318",
+            "title": "318 - Statistiche generali del Sud America",
+            "parent": "310"
+        },
+        {
+            "code": "319",
+            "title": "319 - Statistiche generali di Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide",
+            "parent": "310"
+        },
+        {
+            "code": "321",
+            "title": "321 - Sistemi di governi e stati",
+            "parent": "320"
+        },
+        {
+            "code": "322",
+            "title": "322 - Relazione dello stato con i gruppi organizzati e i loro membri",
+            "parent": "320"
+        },
+        {
+            "code": "323",
+            "title": "323 - Diritti civili e politici",
+            "parent": "320"
+        },
+        {
+            "code": "324",
+            "title": "324 - Processo politico",
+            "parent": "320"
+        },
+        {
+            "code": "325",
+            "title": "325 - Migrazione internazionale e colonizzazione",
+            "parent": "320"
+        },
+        {
+            "code": "326",
+            "title": "326 - Schiavitù ed emancipazione",
+            "parent": "320"
+        },
+        {
+            "code": "327",
+            "title": "327 - Relazioni internazionali",
+            "parent": "320"
+        },
+        {
+            "code": "328",
+            "title": "328 - Il processo legislativo",
+            "parent": "320"
+        },
+        {
+            "code": "329",
+            "title": "329 - Non più in uso— in precedenza Partiti politici",
+            "parent": "320"
+        },
+        {
+            "code": "331",
+            "title": "331 - Economia del lavoro",
+            "parent": "330"
+        },
+        {
+            "code": "332",
+            "title": "332 - Economia finanziaria",
+            "parent": "330"
+        },
+        {
+            "code": "333",
+            "title": "333 - Economia della terra e dell'energia",
+            "parent": "330"
+        },
+        {
+            "code": "334",
+            "title": "334 - Cooperative",
+            "parent": "330"
+        },
+        {
+            "code": "335",
+            "title": "335 - Socialismo e sistemi correlati",
+            "parent": "330"
+        },
+        {
+            "code": "336",
+            "title": "336 - Finanza pubblica",
+            "parent": "330"
+        },
+        {
+            "code": "337",
+            "title": "337 - Economia internazionale",
+            "parent": "330"
+        },
+        {
+            "code": "338",
+            "title": "338 - Produzione",
+            "parent": "330"
+        },
+        {
+            "code": "339",
+            "title": "339 - Macroeconomia e argomenti correlati",
+            "parent": "330"
+        },
+        {
+            "code": "341",
+            "title": "341 - Diritto delle genti",
+            "parent": "340"
+        },
+        {
+            "code": "342",
+            "title": "342 - Diritto costituzionale e amministrativo",
+            "parent": "340"
+        },
+        {
+            "code": "343",
+            "title": "343 - Diritto militare, della difesa, della proprietà pubblica, della finanza pubblica, fiscale, commerciale (scambi), industriale",
+            "parent": "340"
+        },
+        {
+            "code": "344",
+            "title": "344 - Diritto del lavoro, dei servizi sociali, dell'istruzione, culturale",
+            "parent": "340"
+        },
+        {
+            "code": "345",
+            "title": "345 - Diritto penale",
+            "parent": "340"
+        },
+        {
+            "code": "346",
+            "title": "346 - Diritto privato",
+            "parent": "340"
+        },
+        {
+            "code": "347",
+            "title": "347 - Procedura e tribunali",
+            "parent": "340"
+        },
+        {
+            "code": "348",
+            "title": "348 - Leggi, regolamenti, casi",
+            "parent": "340"
+        },
+        {
+            "code": "349",
+            "title": "349 - Diritto di giurisdizioni, aree, regioni socioeconomiche, organizzazioni intergovernative regionali specifiche",
+            "parent": "340"
+        },
+        {
+            "code": "351",
+            "title": "351 - Amministrazione pubblica",
+            "parent": "350"
+        },
+        {
+            "code": "352",
+            "title": "352 - Considerazioni generali sull'amministrazione pubblica",
+            "parent": "350"
+        },
+        {
+            "code": "353",
+            "title": "353 - Campi specifici dell'amministrazione pubblica",
+            "parent": "350"
+        },
+        {
+            "code": "354",
+            "title": "354 - Amministrazione pubblica dell'economia e dell'ambiente",
+            "parent": "350"
+        },
+        {
+            "code": "355",
+            "title": "355 - Scienza militare",
+            "parent": "350"
+        },
+        {
+            "code": "356",
+            "title": "356 - Forze di fanteria e guerra terrestre",
+            "parent": "350"
+        },
+        {
+            "code": "357",
+            "title": "357 - Forze a cavallo e guerra a cavallo",
+            "parent": "350"
+        },
+        {
+            "code": "358",
+            "title": "358 - Forze aeree e altre forze e guerre specializzate; ingegneria e servizi correlati",
+            "parent": "350"
+        },
+        {
+            "code": "359",
+            "title": "359 - Forze navali e guerra marittima",
+            "parent": "350"
+        },
+        {
+            "code": "361",
+            "title": "361 - Problemi e servizi sociali",
+            "parent": "360"
+        },
+        {
+            "code": "362",
+            "title": "362 - Problemi sociali e servizi a gruppi di persone",
+            "parent": "360"
+        },
+        {
+            "code": "363",
+            "title": "363 - Altri problemi e servizi sociali",
+            "parent": "360"
+        },
+        {
+            "code": "364",
+            "title": "364 - Criminologia",
+            "parent": "360"
+        },
+        {
+            "code": "365",
+            "title": "365 - Istituti penali e correlati",
+            "parent": "360"
+        },
+        {
+            "code": "366",
+            "title": "366 - Associazioni e società segrete",
+            "parent": "360"
+        },
+        {
+            "code": "367",
+            "title": "367 - Circoli generali",
+            "parent": "360"
+        },
+        {
+            "code": "368",
+            "title": "368 - Assicurazioni",
+            "parent": "360"
+        },
+        {
+            "code": "369",
+            "title": "369 - Associazioni",
+            "parent": "360"
+        },
+        {
+            "code": "371",
+            "title": "371 - Scuole e loro attività, educazione speciale",
+            "parent": "370"
+        },
+        {
+            "code": "372",
+            "title": "372 - Educazione primaria (educazione elementare)",
+            "parent": "370"
+        },
+        {
+            "code": "373",
+            "title": "373 - Educazione secondaria",
+            "parent": "370"
+        },
+        {
+            "code": "374",
+            "title": "374 - Educazione degli adulti",
+            "parent": "370"
+        },
+        {
+            "code": "375",
+            "title": "375 - Curriculum",
+            "parent": "370"
+        },
+        {
+            "code": "376",
+            "title": "376 - Non più in uso — in precedenza Educazione delle donne",
+            "parent": "370"
+        },
+        {
+            "code": "377",
+            "title": "377 - Non più in uso — in precedenza Educazione etica",
+            "parent": "370"
+        },
+        {
+            "code": "378",
+            "title": "378 - Istruzione superiore (istruzione terziaria)",
+            "parent": "370"
+        },
+        {
+            "code": "379",
+            "title": "379 - Questioni di politica pubblica nell'educazione",
+            "parent": "370"
+        },
+        {
+            "code": "381",
+            "title": "381 - Commercio (scambi)",
+            "parent": "380"
+        },
+        {
+            "code": "382",
+            "title": "382 - Commercio internazionale (commercio estero)",
+            "parent": "380"
+        },
+        {
+            "code": "383",
+            "title": "383 - Comunicazione postale",
+            "parent": "380"
+        },
+        {
+            "code": "384",
+            "title": "384 - Comunicazioni",
+            "parent": "380"
+        },
+        {
+            "code": "385",
+            "title": "385 - Trasporto ferroviario",
+            "parent": "380"
+        },
+        {
+            "code": "386",
+            "title": "386 - Trasporto per vie navigabili interne e traghetti",
+            "parent": "380"
+        },
+        {
+            "code": "387",
+            "title": "387 - Trasporto marittimo, aereo, spaziale",
+            "parent": "380"
+        },
+        {
+            "code": "388",
+            "title": "388 - Trasporti",
+            "parent": "380"
+        },
+        {
+            "code": "389",
+            "title": "389 - Metrologia e standardizzazione",
+            "parent": "380"
+        },
+        {
+            "code": "391",
+            "title": "391 - Costume e aspetto personale",
+            "parent": "390"
+        },
+        {
+            "code": "392",
+            "title": "392 - Usi e costumi del ciclo della vita e della vita domestica",
+            "parent": "390"
+        },
+        {
+            "code": "393",
+            "title": "393 - Usi e costumi funebri",
+            "parent": "390"
+        },
+        {
+            "code": "394",
+            "title": "394 - Usi e costumi generali",
+            "parent": "390"
+        },
+        {
+            "code": "395",
+            "title": "395 - Galateo (buone maniere)",
+            "parent": "390"
+        },
+        {
+            "code": "396",
+            "title": "396 - Non più in uso — in precedenza Posizione e trattamento delle donne",
+            "parent": "390"
+        },
+        {
+            "code": "397",
+            "title": "397 - Non più in uso — in precedenza Studi sugli emarginati",
+            "parent": "390"
+        },
+        {
+            "code": "398",
+            "title": "398 - Folclore",
+            "parent": "390"
+        },
+        {
+            "code": "399",
+            "title": "399 - Usi e costumi di guerra e diplomazia",
+            "parent": "390"
+        },
+        {
+            "code": "401",
+            "title": "401 - Filosofia e teoria, lingue internazionali",
+            "parent": "400"
+        },
+        {
+            "code": "402",
+            "title": "402 - Miscellanea",
+            "parent": "400"
+        },
+        {
+            "code": "403",
+            "title": "403 - Dizionari, enciclopedie, concordanze",
+            "parent": "400"
+        },
+        {
+            "code": "404",
+            "title": "404 - Argomenti speciali di linguaggio",
+            "parent": "400"
+        },
+        {
+            "code": "405",
+            "title": "405 - Pubblicazioni seriali",
+            "parent": "400"
+        },
+        {
+            "code": "406",
+            "title": "406 - Organizzazioni e gestione",
+            "parent": "400"
+        },
+        {
+            "code": "407",
+            "title": "407 - Educazione, ricerca, argomenti correlati",
+            "parent": "400"
+        },
+        {
+            "code": "408",
+            "title": "408 - Gruppi di persone",
+            "parent": "400"
+        },
+        {
+            "code": "409",
+            "title": "409 - Trattamento geografico e biografia",
+            "parent": "400"
+        },
+        {
+            "code": "411",
+            "title": "411 - Sistemi di scrittura delle forme standard delle lingue",
+            "parent": "410"
+        },
+        {
+            "code": "412",
+            "title": "412 - Etimologia delle forme standard delle lingue",
+            "parent": "410"
+        },
+        {
+            "code": "413",
+            "title": "413 - Dizionari delle forme standard delle lingue",
+            "parent": "410"
+        },
+        {
+            "code": "414",
+            "title": "414 - Fonologia e fonetica delle forme standard delle lingue",
+            "parent": "410"
+        },
+        {
+            "code": "415",
+            "title": "415 - Grammatica delle forme standard delle lingue",
+            "parent": "410"
+        },
+        {
+            "code": "416",
+            "title": "416 - Non più in uso — in precedenza Prosodia",
+            "parent": "410"
+        },
+        {
+            "code": "417",
+            "title": "417 - Dialettologia e linguistica storica",
+            "parent": "410"
+        },
+        {
+            "code": "418",
+            "title": "418 - Uso standard (Linguistica prescrittiva)",
+            "parent": "410"
+        },
+        {
+            "code": "419",
+            "title": "419 - Lingue dei segni",
+            "parent": "410"
+        },
+        {
+            "code": "421",
+            "title": "421 - Sistema di scrittura, fonologia, fonetica dell'inglese standard",
+            "parent": "420"
+        },
+        {
+            "code": "422",
+            "title": "422 - Etimologia dell'inglese standard",
+            "parent": "420"
+        },
+        {
+            "code": "423",
+            "title": "423 - Dizionari di inglese standard",
+            "parent": "420"
+        },
+        {
+            "code": "424",
+            "title": "424 - Non più in uso — in precedenza Thesaurus inglesi",
+            "parent": "420"
+        },
+        {
+            "code": "425",
+            "title": "425 - Grammatica dell'inglese standard",
+            "parent": "420"
+        },
+        {
+            "code": "426",
+            "title": "426 - Non più in uso — in precedenza Prosodie inglesi",
+            "parent": "420"
+        },
+        {
+            "code": "427",
+            "title": "427 - Variazioni storiche e geografiche, variazioni moderne non geografiche dell'inglese",
+            "parent": "420"
+        },
+        {
+            "code": "428",
+            "title": "428 - Uso dell'inglese standard (Linguistica prescrittiva)",
+            "parent": "420"
+        },
+        {
+            "code": "429",
+            "title": "429 - Antico inglese (anglosassone)",
+            "parent": "420"
+        },
+        {
+            "code": "431",
+            "title": "431 - Sistemi di scrittura, fonologia, fonetica del tedesco standard",
+            "parent": "430"
+        },
+        {
+            "code": "432",
+            "title": "432 - Etimologia del tedesco standard",
+            "parent": "430"
+        },
+        {
+            "code": "433",
+            "title": "433 - Dizionari di tedesco standard",
+            "parent": "430"
+        },
+        {
+            "code": "434",
+            "title": "434 - Non assegnato o non più in uso",
+            "parent": "430"
+        },
+        {
+            "code": "435",
+            "title": "435 - Grammatica del tedesco standard",
+            "parent": "430"
+        },
+        {
+            "code": "436",
+            "title": "436 - Non assegnato o non più in uso",
+            "parent": "430"
+        },
+        {
+            "code": "437",
+            "title": "437 - Variazioni storiche e geografiche, variazioni moderne non geografiche del tedesco",
+            "parent": "430"
+        },
+        {
+            "code": "438",
+            "title": "438 - Uso del tedesco standard (Linguistica prescrittiva)",
+            "parent": "430"
+        },
+        {
+            "code": "439",
+            "title": "439 - Altre lingue germaniche",
+            "parent": "430"
+        },
+        {
+            "code": "441",
+            "title": "441 - Sistemi di scrittura, fonologia, fonetica del francese standard",
+            "parent": "440"
+        },
+        {
+            "code": "442",
+            "title": "442 - Etimologia del francese standard",
+            "parent": "440"
+        },
+        {
+            "code": "443",
+            "title": "443 - Dizionari di francese standard",
+            "parent": "440"
+        },
+        {
+            "code": "444",
+            "title": "444 - Non assegnato o non più in uso",
+            "parent": "440"
+        },
+        {
+            "code": "445",
+            "title": "445 - Grammatica del francese standard",
+            "parent": "440"
+        },
+        {
+            "code": "446",
+            "title": "446 - Non assegnato o non più in uso",
+            "parent": "440"
+        },
+        {
+            "code": "447",
+            "title": "447 - Variazioni storiche e geografiche, variazioni moderne non geografiche del francese",
+            "parent": "440"
+        },
+        {
+            "code": "448",
+            "title": "448 - Uso del francese standard (Linguistica prescrittiva)",
+            "parent": "440"
+        },
+        {
+            "code": "449",
+            "title": "449 - Occitano, catalano, francoprovenzale",
+            "parent": "440"
+        },
+        {
+            "code": "451",
+            "title": "451 - Sistemi di scrittura, fonologia, fonetica dell'italiano standard",
+            "parent": "450"
+        },
+        {
+            "code": "452",
+            "title": "452 - Etimologia dell'italiano standard",
+            "parent": "450"
+        },
+        {
+            "code": "453",
+            "title": "453 - Dizionari di italiano standard",
+            "parent": "450"
+        },
+        {
+            "code": "454",
+            "title": "454 - Non assegnato o non più in uso",
+            "parent": "450"
+        },
+        {
+            "code": "455",
+            "title": "455 - Grammatica dell'italiano standard",
+            "parent": "450"
+        },
+        {
+            "code": "456",
+            "title": "456 - Non assegnato o non più in uso",
+            "parent": "450"
+        },
+        {
+            "code": "457",
+            "title": "457 - Variazioni storiche e geografiche, variazioni moderne non geografiche dell'italiano",
+            "parent": "450"
+        },
+        {
+            "code": "458",
+            "title": "458 - Uso dell'italiano standard (Linguistica prescrittiva)",
+            "parent": "450"
+        },
+        {
+            "code": "459",
+            "title": "459 - Romeno, retoromanzo, sardo, corso",
+            "parent": "450"
+        },
+        {
+            "code": "461",
+            "title": "461 - Sistemi di scrittura, fonologia, fonetica dello spagnolo standard",
+            "parent": "460"
+        },
+        {
+            "code": "462",
+            "title": "462 - Etimologia dello spagnolo standard",
+            "parent": "460"
+        },
+        {
+            "code": "463",
+            "title": "463 - Dizionari di spagnolo standard",
+            "parent": "460"
+        },
+        {
+            "code": "464",
+            "title": "464 - Non assegnato o non più in uso",
+            "parent": "460"
+        },
+        {
+            "code": "465",
+            "title": "465 - Grammatica dello spagnolo standard",
+            "parent": "460"
+        },
+        {
+            "code": "466",
+            "title": "466 - Non assegnato o non più in uso",
+            "parent": "460"
+        },
+        {
+            "code": "467",
+            "title": "467 - Variazioni storiche e geografiche, variazioni moderne non geografiche dello spagnolo",
+            "parent": "460"
+        },
+        {
+            "code": "468",
+            "title": "468 - Uso dello spagnolo standard (Linguistica prescrittiva)",
+            "parent": "460"
+        },
+        {
+            "code": "469",
+            "title": "469 - Portoghese",
+            "parent": "460"
+        },
+        {
+            "code": "471",
+            "title": "471 - Sistemi di scrittura, fonologia, fonetica del latino classico",
+            "parent": "470"
+        },
+        {
+            "code": "472",
+            "title": "472 - Etimologia del latino classico",
+            "parent": "470"
+        },
+        {
+            "code": "473",
+            "title": "473 - Dizionari di latino classico",
+            "parent": "470"
+        },
+        {
+            "code": "474",
+            "title": "474 - Non assegnato o non più in uso",
+            "parent": "470"
+        },
+        {
+            "code": "475",
+            "title": "475 - Grammatica del latino classico",
+            "parent": "470"
+        },
+        {
+            "code": "476",
+            "title": "476 - Non più in uso",
+            "parent": "470"
+        },
+        {
+            "code": "477",
+            "title": "477 - Latino antico, postclassico, volgare",
+            "parent": "470"
+        },
+        {
+            "code": "478",
+            "title": "478 - Uso del latino classico (Linguistica prescrittiva)",
+            "parent": "470"
+        },
+        {
+            "code": "479",
+            "title": "479 - Altre lingue italiche",
+            "parent": "470"
+        },
+        {
+            "code": "481",
+            "title": "481 - Sistemi di scrittura, fonologia, fonetica del greco classico",
+            "parent": "480"
+        },
+        {
+            "code": "482",
+            "title": "482 - Etimologia del greco classico",
+            "parent": "480"
+        },
+        {
+            "code": "483",
+            "title": "483 - Dizionari di greco classico",
+            "parent": "480"
+        },
+        {
+            "code": "484",
+            "title": "484 - Non assegnato o non più in uso",
+            "parent": "480"
+        },
+        {
+            "code": "485",
+            "title": "485 - Grammatica del greco classico",
+            "parent": "480"
+        },
+        {
+            "code": "486",
+            "title": "486 - Non assegnato o non più in uso",
+            "parent": "480"
+        },
+        {
+            "code": "487",
+            "title": "487 - Greco preclassico e postclassico",
+            "parent": "480"
+        },
+        {
+            "code": "488",
+            "title": "488 - Uso del greco classico (Linguistica prescrittiva)",
+            "parent": "480"
+        },
+        {
+            "code": "489",
+            "title": "489 - Altre lingue elleniche",
+            "parent": "480"
+        },
+        {
+            "code": "491",
+            "title": "491 - Lingue indoeuropee orientali e celtiche",
+            "parent": "490"
+        },
+        {
+            "code": "492",
+            "title": "492 - Lingue afro-asiatiche",
+            "parent": "490"
+        },
+        {
+            "code": "493",
+            "title": "493 - Lingue afro-asiatiche non semitiche",
+            "parent": "490"
+        },
+        {
+            "code": "494",
+            "title": "494 - Lingue altaiche, uraliche, iperboree, dravidiche, lingue varie dell'Asia meridionale",
+            "parent": "490"
+        },
+        {
+            "code": "495",
+            "title": "495 - Lingue dell'Asia orientale e sud-orientale",
+            "parent": "490"
+        },
+        {
+            "code": "496",
+            "title": "496 - Lingue africane",
+            "parent": "490"
+        },
+        {
+            "code": "497",
+            "title": "497 - Lingue native del Nord America",
+            "parent": "490"
+        },
+        {
+            "code": "498",
+            "title": "498 - Lingue native del Sud America",
+            "parent": "490"
+        },
+        {
+            "code": "499",
+            "title": "499 - Lingue non austronesiane dell'Oceania, lingue austronesiane, lingue varie",
+            "parent": "490"
+        },
+        {
+            "code": "501",
+            "title": "501 - Filosofia e teoria",
+            "parent": "500"
+        },
+        {
+            "code": "502",
+            "title": "502 - Miscellanea",
+            "parent": "500"
+        },
+        {
+            "code": "503",
+            "title": "503 - Dizionari, enciclopedie, concordanze",
+            "parent": "500"
+        },
+        {
+            "code": "504",
+            "title": "504 - Non assegnato o non più in uso",
+            "parent": "500"
+        },
+        {
+            "code": "505",
+            "title": "505 - Pubblicazioni seriali",
+            "parent": "500"
+        },
+        {
+            "code": "506",
+            "title": "506 - Organizzazioni e gestione",
+            "parent": "500"
+        },
+        {
+            "code": "507",
+            "title": "507 - Educazione, ricerca, argomenti correlati",
+            "parent": "500"
+        },
+        {
+            "code": "508",
+            "title": "508 - Storia naturale",
+            "parent": "500"
+        },
+        {
+            "code": "509",
+            "title": "509 - Storia, trattamento geografico, biografia",
+            "parent": "500"
+        },
+        {
+            "code": "511",
+            "title": "511 - Principi generali di matematica",
+            "parent": "510"
+        },
+        {
+            "code": "512",
+            "title": "512 - Algebra",
+            "parent": "510"
+        },
+        {
+            "code": "513",
+            "title": "513 - Aritmetica",
+            "parent": "510"
+        },
+        {
+            "code": "514",
+            "title": "514 - Topologia",
+            "parent": "510"
+        },
+        {
+            "code": "515",
+            "title": "515 - Analisi",
+            "parent": "510"
+        },
+        {
+            "code": "516",
+            "title": "516 - Geometria",
+            "parent": "510"
+        },
+        {
+            "code": "517",
+            "title": "517 - Non assegnato o non più in uso",
+            "parent": "510"
+        },
+        {
+            "code": "518",
+            "title": "518 - Analisi numerica",
+            "parent": "510"
+        },
+        {
+            "code": "519",
+            "title": "519 - Probabilità e matematica applicata",
+            "parent": "510"
+        },
+        {
+            "code": "521",
+            "title": "521 - Meccanica celeste",
+            "parent": "520"
+        },
+        {
+            "code": "522",
+            "title": "522 - Tecniche, procedure, apparati, attrezzature, materiali",
+            "parent": "520"
+        },
+        {
+            "code": "523",
+            "title": "523 - Corpi e fenomeni celesti specifici",
+            "parent": "520"
+        },
+        {
+            "code": "524",
+            "title": "524 - Non assegnato o non più in uso",
+            "parent": "520"
+        },
+        {
+            "code": "525",
+            "title": "525 - Terra (geografia astronomica)",
+            "parent": "520"
+        },
+        {
+            "code": "526",
+            "title": "526 - Geografia matematica",
+            "parent": "520"
+        },
+        {
+            "code": "527",
+            "title": "527 - Navigazione astronomica",
+            "parent": "520"
+        },
+        {
+            "code": "528",
+            "title": "528 - Effemeridi",
+            "parent": "520"
+        },
+        {
+            "code": "529",
+            "title": "529 - Cronologia",
+            "parent": "520"
+        },
+        {
+            "code": "531",
+            "title": "531 - Meccanica classica",
+            "parent": "530"
+        },
+        {
+            "code": "532",
+            "title": "532 - Meccanica dei fluidi",
+            "parent": "530"
+        },
+        {
+            "code": "533",
+            "title": "533 - Pneumatica (Meccanica dei gas)",
+            "parent": "530"
+        },
+        {
+            "code": "534",
+            "title": "534 - Suono e vibrazioni correlate",
+            "parent": "530"
+        },
+        {
+            "code": "535",
+            "title": "535 - Luce e radiazioni correlate",
+            "parent": "530"
+        },
+        {
+            "code": "536",
+            "title": "536 - Calore",
+            "parent": "530"
+        },
+        {
+            "code": "537",
+            "title": "537 - Elettricità ed elettronica",
+            "parent": "530"
+        },
+        {
+            "code": "538",
+            "title": "538 - Magnetismo",
+            "parent": "530"
+        },
+        {
+            "code": "539",
+            "title": "539 - Fisica moderna",
+            "parent": "530"
+        },
+        {
+            "code": "541",
+            "title": "541 - Chimica fisica",
+            "parent": "540"
+        },
+        {
+            "code": "542",
+            "title": "542 - Tecniche, procedure, apparati, attrezzature, materiali",
+            "parent": "540"
+        },
+        {
+            "code": "543",
+            "title": "543 - Chimica analitica",
+            "parent": "540"
+        },
+        {
+            "code": "544",
+            "title": "544 - Non più in uso — in precedenza Analisi qualitativa",
+            "parent": "540"
+        },
+        {
+            "code": "545",
+            "title": "545 - Non più in uso — in precedenza Analisi quantitativa",
+            "parent": "540"
+        },
+        {
+            "code": "546",
+            "title": "546 - Chimica inorganica",
+            "parent": "540"
+        },
+        {
+            "code": "547",
+            "title": "547 - Chimica organica",
+            "parent": "540"
+        },
+        {
+            "code": "548",
+            "title": "548 - Cristallografia",
+            "parent": "540"
+        },
+        {
+            "code": "549",
+            "title": "549 - Mineralogia",
+            "parent": "540"
+        },
+        {
+            "code": "551",
+            "title": "551 - Geologia, idrologia, meteorologia",
+            "parent": "550"
+        },
+        {
+            "code": "552",
+            "title": "552 - Petrologia",
+            "parent": "550"
+        },
+        {
+            "code": "553",
+            "title": "553 - Geologia economica",
+            "parent": "550"
+        },
+        {
+            "code": "554",
+            "title": "554 - Scienze della Terra in Europa",
+            "parent": "550"
+        },
+        {
+            "code": "555",
+            "title": "555 - Scienze della Terra in Asia",
+            "parent": "550"
+        },
+        {
+            "code": "556",
+            "title": "556 - Scienze della Terra in Africa",
+            "parent": "550"
+        },
+        {
+            "code": "557",
+            "title": "557 - Scienze della Terra in Nord America",
+            "parent": "550"
+        },
+        {
+            "code": "558",
+            "title": "558 - Scienze della Terra in Sud America",
+            "parent": "550"
+        },
+        {
+            "code": "559",
+            "title": "559 - Scienze della Terra in Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide, mondi extraterrestri",
+            "parent": "550"
+        },
+        {
+            "code": "561",
+            "title": "561 - Paleobotanica, microrganismi fossili",
+            "parent": "560"
+        },
+        {
+            "code": "562",
+            "title": "562 - Invertebrati fossili",
+            "parent": "560"
+        },
+        {
+            "code": "563",
+            "title": "563 - Invertebrati marini e costieri fossili vari",
+            "parent": "560"
+        },
+        {
+            "code": "564",
+            "title": "564 - Molluschi e Molluscoidi fossili",
+            "parent": "560"
+        },
+        {
+            "code": "565",
+            "title": "565 - Artropodi fossili",
+            "parent": "560"
+        },
+        {
+            "code": "566",
+            "title": "566 - Cordati fossili",
+            "parent": "560"
+        },
+        {
+            "code": "567",
+            "title": "567 - Vertebrati a sangue freddo fossili",
+            "parent": "560"
+        },
+        {
+            "code": "568",
+            "title": "568 - Aves (uccelli) fossili",
+            "parent": "560"
+        },
+        {
+            "code": "569",
+            "title": "569 - Mammiferi fossili",
+            "parent": "560"
+        },
+        {
+            "code": "571",
+            "title": "571 - Fisiologia e argomenti correlati",
+            "parent": "570"
+        },
+        {
+            "code": "572",
+            "title": "572 - Biochimica",
+            "parent": "570"
+        },
+        {
+            "code": "573",
+            "title": "573 - Sistemi fisiologici specifici negli animali, istologia e fisiologia regionale negli animali",
+            "parent": "570"
+        },
+        {
+            "code": "574",
+            "title": "574 - Non assegnato o non più in uso",
+            "parent": "570"
+        },
+        {
+            "code": "575",
+            "title": "575 - Parti specifiche e sistemi fisiologici nelle piante",
+            "parent": "570"
+        },
+        {
+            "code": "576",
+            "title": "576 - Genetica ed evoluzione",
+            "parent": "570"
+        },
+        {
+            "code": "577",
+            "title": "577 - Ecologia",
+            "parent": "570"
+        },
+        {
+            "code": "578",
+            "title": "578 - Storia naturale degli organismi e argomenti correlati",
+            "parent": "570"
+        },
+        {
+            "code": "579",
+            "title": "579 - Storia naturale di microrganismi, funghi, alghe",
+            "parent": "570"
+        },
+        {
+            "code": "581",
+            "title": "581 - Argomenti specifici nella storia naturale delle piante",
+            "parent": "580"
+        },
+        {
+            "code": "582",
+            "title": "582 - Piante note per specifiche caratteristiche vegetative e fiori",
+            "parent": "580"
+        },
+        {
+            "code": "583",
+            "title": "583 - Magnoliopsida (Dicotiledoni)",
+            "parent": "580"
+        },
+        {
+            "code": "584",
+            "title": "584 - Liliopsida (Monocotiledoni)",
+            "parent": "580"
+        },
+        {
+            "code": "585",
+            "title": "585 - Pinophyta (Gimnosperme)",
+            "parent": "580"
+        },
+        {
+            "code": "586",
+            "title": "586 - Crittogame (piante senza semi)",
+            "parent": "580"
+        },
+        {
+            "code": "587",
+            "title": "587 - Pteridophyta",
+            "parent": "580"
+        },
+        {
+            "code": "588",
+            "title": "588 - Bryophyta",
+            "parent": "580"
+        },
+        {
+            "code": "589",
+            "title": "589 - Non più in uso—in precedenza Silvicoltura",
+            "parent": "580"
+        },
+        {
+            "code": "591",
+            "title": "591 - Argomenti specifici nella storia naturale degli animali",
+            "parent": "590"
+        },
+        {
+            "code": "592",
+            "title": "592 - Invertebrati",
+            "parent": "590"
+        },
+        {
+            "code": "593",
+            "title": "593 - Invertebrati marini e costieri vari",
+            "parent": "590"
+        },
+        {
+            "code": "594",
+            "title": "594 - Molluschi e Molluscoidi",
+            "parent": "590"
+        },
+        {
+            "code": "595",
+            "title": "595 - Artropodi",
+            "parent": "590"
+        },
+        {
+            "code": "596",
+            "title": "596 - Cordati",
+            "parent": "590"
+        },
+        {
+            "code": "597",
+            "title": "597 - Vertebrati a sangue freddo",
+            "parent": "590"
+        },
+        {
+            "code": "598",
+            "title": "598 - Aves (uccelli)",
+            "parent": "590"
+        },
+        {
+            "code": "599",
+            "title": "599 - Mammalia (mammiferi)",
+            "parent": "590"
+        },
+        {
+            "code": "601",
+            "title": "601 - Filosofia e teoria",
+            "parent": "600"
+        },
+        {
+            "code": "602",
+            "title": "602 - Miscellanea",
+            "parent": "600"
+        },
+        {
+            "code": "603",
+            "title": "603 - Dizionari, enciclopedie, concordanze",
+            "parent": "600"
+        },
+        {
+            "code": "604",
+            "title": "604 - Disegno tecnico, tecnologia dei materiali pericolosi; gruppi di persone",
+            "parent": "600"
+        },
+        {
+            "code": "605",
+            "title": "605 - Pubblicazioni seriali",
+            "parent": "600"
+        },
+        {
+            "code": "606",
+            "title": "606 - Organizzazioni",
+            "parent": "600"
+        },
+        {
+            "code": "607",
+            "title": "607 - Educazione, ricerca, argomenti correlati",
+            "parent": "600"
+        },
+        {
+            "code": "608",
+            "title": "608 - Brevetti",
+            "parent": "600"
+        },
+        {
+            "code": "609",
+            "title": "609 - Storia, trattamento geografico, biografia",
+            "parent": "600"
+        },
+        {
+            "code": "611",
+            "title": "611 - Anatomia umana, citologia, istologia",
+            "parent": "610"
+        },
+        {
+            "code": "612",
+            "title": "612 - Fisiologia umana",
+            "parent": "610"
+        },
+        {
+            "code": "613",
+            "title": "613 - Salute e sicurezza personale",
+            "parent": "610"
+        },
+        {
+            "code": "614",
+            "title": "614 - Medicina legale; incidenza di lesioni, ferite, malattie; medicina preventiva pubblica",
+            "parent": "610"
+        },
+        {
+            "code": "615",
+            "title": "615 - Farmacologia e terapeutica",
+            "parent": "610"
+        },
+        {
+            "code": "616",
+            "title": "616 - Malattie",
+            "parent": "610"
+        },
+        {
+            "code": "617",
+            "title": "617 - Chirurgia, medicina regionale, odontoiatria, oftalmologia, otologia, audiologia",
+            "parent": "610"
+        },
+        {
+            "code": "618",
+            "title": "618 - Ginecologia, ostetricia, pediatria, geriatria",
+            "parent": "610"
+        },
+        {
+            "code": "619",
+            "title": "619 - Non più in uso—in precedenza Medicina sperimentale",
+            "parent": "610"
+        },
+        {
+            "code": "621",
+            "title": "621 - Fisica applicata",
+            "parent": "620"
+        },
+        {
+            "code": "622",
+            "title": "622 - Attività minerarie e correlate",
+            "parent": "620"
+        },
+        {
+            "code": "623",
+            "title": "623 - Ingegneria militare e navale",
+            "parent": "620"
+        },
+        {
+            "code": "624",
+            "title": "624 - Ingegneria civile",
+            "parent": "620"
+        },
+        {
+            "code": "625",
+            "title": "625 - Ingegneria di ferrovie, strade",
+            "parent": "620"
+        },
+        {
+            "code": "626",
+            "title": "626 - Non assegnato o non più in uso",
+            "parent": "620"
+        },
+        {
+            "code": "627",
+            "title": "627 - Ingegneria idraulica",
+            "parent": "620"
+        },
+        {
+            "code": "628",
+            "title": "628 - Ingegneria sanitaria",
+            "parent": "620"
+        },
+        {
+            "code": "629",
+            "title": "629 - Altri rami dell'ingegneria",
+            "parent": "620"
+        },
+        {
+            "code": "631",
+            "title": "631 - Tecniche specifiche; apparati, attrezzature, materiali",
+            "parent": "630"
+        },
+        {
+            "code": "632",
+            "title": "632 - Danni alle piante, malattie, parassiti",
+            "parent": "630"
+        },
+        {
+            "code": "633",
+            "title": "633 - Colture di campo e di piantagione",
+            "parent": "630"
+        },
+        {
+            "code": "634",
+            "title": "634 - Frutteti, frutti, silvicoltura",
+            "parent": "630"
+        },
+        {
+            "code": "635",
+            "title": "635 - Colture da giardino (orticoltura)",
+            "parent": "630"
+        },
+        {
+            "code": "636",
+            "title": "636 - Zootecnia",
+            "parent": "630"
+        },
+        {
+            "code": "637",
+            "title": "637 - Lavorazione di prodotti lattiero-caseari e correlati",
+            "parent": "630"
+        },
+        {
+            "code": "638",
+            "title": "638 - Insetticoltura",
+            "parent": "630"
+        },
+        {
+            "code": "639",
+            "title": "639 - Caccia, pesca, conservazione, tecnologie correlate",
+            "parent": "630"
+        },
+        {
+            "code": "641",
+            "title": "641 - Cibo e bevande",
+            "parent": "640"
+        },
+        {
+            "code": "642",
+            "title": "642 - Pasti e servizio a tavola",
+            "parent": "640"
+        },
+        {
+            "code": "643",
+            "title": "643 - Alloggi e attrezzature domestiche",
+            "parent": "640"
+        },
+        {
+            "code": "644",
+            "title": "644 - Utenze domestiche",
+            "parent": "640"
+        },
+        {
+            "code": "645",
+            "title": "645 - Arredamento domestico",
+            "parent": "640"
+        },
+        {
+            "code": "646",
+            "title": "646 - Cucito, abbigliamento, gestione della vita personale e familiare",
+            "parent": "640"
+        },
+        {
+            "code": "647",
+            "title": "647 - Gestione di esercizi pubblici (governo di istituzioni)",
+            "parent": "640"
+        },
+        {
+            "code": "648",
+            "title": "648 - Lavori domestici",
+            "parent": "640"
+        },
+        {
+            "code": "649",
+            "title": "649 - Puericultura; assistenza domiciliare a persone con disabilità e malattie",
+            "parent": "640"
+        },
+        {
+            "code": "651",
+            "title": "651 - Servizi d'ufficio",
+            "parent": "650"
+        },
+        {
+            "code": "652",
+            "title": "652 - Processi di comunicazione scritta",
+            "parent": "650"
+        },
+        {
+            "code": "653",
+            "title": "653 - Stenografia",
+            "parent": "650"
+        },
+        {
+            "code": "654",
+            "title": "654 - Non assegnato o non più in uso",
+            "parent": "650"
+        },
+        {
+            "code": "655",
+            "title": "655 - Non assegnato o non più in uso",
+            "parent": "650"
+        },
+        {
+            "code": "656",
+            "title": "656 - Non assegnato o non più in uso",
+            "parent": "650"
+        },
+        {
+            "code": "657",
+            "title": "657 - Contabilità",
+            "parent": "650"
+        },
+        {
+            "code": "658",
+            "title": "658 - Gestione generale",
+            "parent": "650"
+        },
+        {
+            "code": "659",
+            "title": "659 - Pubblicità e pubbliche relazioni",
+            "parent": "650"
+        },
+        {
+            "code": "661",
+            "title": "661 - Tecnologia dei prodotti chimici industriali",
+            "parent": "660"
+        },
+        {
+            "code": "662",
+            "title": "662 - Tecnologia di esplosivi, combustibili, prodotti correlati",
+            "parent": "660"
+        },
+        {
+            "code": "663",
+            "title": "663 - Tecnologia delle bevande",
+            "parent": "660"
+        },
+        {
+            "code": "664",
+            "title": "664 - Tecnologia alimentare",
+            "parent": "660"
+        },
+        {
+            "code": "665",
+            "title": "665 - Tecnologia di oli, grassi, cere, gas industriali",
+            "parent": "660"
+        },
+        {
+            "code": "666",
+            "title": "666 - Tecnologie ceramiche e affini",
+            "parent": "660"
+        },
+        {
+            "code": "667",
+            "title": "667 - Pulizia, colore, rivestimento, tecnologie correlate",
+            "parent": "660"
+        },
+        {
+            "code": "668",
+            "title": "668 - Tecnologia di altri prodotti organici",
+            "parent": "660"
+        },
+        {
+            "code": "669",
+            "title": "669 - Metallurgia",
+            "parent": "660"
+        },
+        {
+            "code": "671",
+            "title": "671 - Processi di lavorazione dei metalli e prodotti metallici primari",
+            "parent": "670"
+        },
+        {
+            "code": "672",
+            "title": "672 - Ferro, acciaio, altre leghe di ferro",
+            "parent": "670"
+        },
+        {
+            "code": "673",
+            "title": "673 - Metalli non ferrosi",
+            "parent": "670"
+        },
+        {
+            "code": "674",
+            "title": "674 - Lavorazione del legname, prodotti in legno, sughero",
+            "parent": "670"
+        },
+        {
+            "code": "675",
+            "title": "675 - Lavorazione della pelle e della pelliccia",
+            "parent": "670"
+        },
+        {
+            "code": "676",
+            "title": "676 - Tecnologia della cellulosa e della carta",
+            "parent": "670"
+        },
+        {
+            "code": "677",
+            "title": "677 - Tessili",
+            "parent": "670"
+        },
+        {
+            "code": "678",
+            "title": "678 - Elastomeri e prodotti in elastomero",
+            "parent": "670"
+        },
+        {
+            "code": "679",
+            "title": "679 - Altri prodotti di specifici tipi di materiali",
+            "parent": "670"
+        },
+        {
+            "code": "681",
+            "title": "681 - Strumenti di precisione e altri dispositivi",
+            "parent": "680"
+        },
+        {
+            "code": "682",
+            "title": "682 - Piccoli lavori di forgiatura (fabbro)",
+            "parent": "680"
+        },
+        {
+            "code": "683",
+            "title": "683 - Ferramenta ed elettrodomestici",
+            "parent": "680"
+        },
+        {
+            "code": "684",
+            "title": "684 - Arredamento e laboratori domestici",
+            "parent": "680"
+        },
+        {
+            "code": "685",
+            "title": "685 - Articoli in pelle e pelliccia e prodotti correlati",
+            "parent": "680"
+        },
+        {
+            "code": "686",
+            "title": "686 - Stampa e attività correlate",
+            "parent": "680"
+        },
+        {
+            "code": "687",
+            "title": "687 - Abbigliamento e accessori",
+            "parent": "680"
+        },
+        {
+            "code": "688",
+            "title": "688 - Altri prodotti finali e tecnologia di imballaggio",
+            "parent": "680"
+        },
+        {
+            "code": "689",
+            "title": "689 - Non assegnato o non più in uso",
+            "parent": "680"
+        },
+        {
+            "code": "691",
+            "title": "691 - Materiali da costruzione",
+            "parent": "690"
+        },
+        {
+            "code": "692",
+            "title": "692 - Pratiche ausiliarie di costruzione",
+            "parent": "690"
+        },
+        {
+            "code": "693",
+            "title": "693 - Costruzione in tipi specifici di materiali e per scopi specifici",
+            "parent": "690"
+        },
+        {
+            "code": "694",
+            "title": "694 - Costruzione in legno",
+            "parent": "690"
+        },
+        {
+            "code": "695",
+            "title": "695 - Coperture per tetti",
+            "parent": "690"
+        },
+        {
+            "code": "696",
+            "title": "696 - Utenze",
+            "parent": "690"
+        },
+        {
+            "code": "697",
+            "title": "697 - Ingegneria del riscaldamento, della ventilazione e del condizionamento dell'aria",
+            "parent": "690"
+        },
+        {
+            "code": "698",
+            "title": "698 - Finiture di dettaglio",
+            "parent": "690"
+        },
+        {
+            "code": "699",
+            "title": "699 - Non assegnato o non più in uso",
+            "parent": "690"
+        },
+        {
+            "code": "701",
+            "title": "701 - Filosofia e teoria delle belle arti e delle arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "702",
+            "title": "702 - Miscellanea di belle arti e arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "703",
+            "title": "703 - Dizionari, enciclopedie, concordanze di belle arti e arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "704",
+            "title": "704 - Argomenti speciali in belle arti e arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "705",
+            "title": "705 - Pubblicazioni seriali di belle arti e arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "706",
+            "title": "706 - Organizzazioni e gestione di belle arti e arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "707",
+            "title": "707 - Educazione, ricerca, argomenti correlati di belle arti e arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "708",
+            "title": "708 - Gallerie, musei, collezioni private di belle arti e arti decorative",
+            "parent": "700"
+        },
+        {
+            "code": "709",
+            "title": "709 - Storia, trattamento geografico, biografia",
+            "parent": "700"
+        },
+        {
+            "code": "711",
+            "title": "711 - Pianificazione territoriale (arte civica)",
+            "parent": "710"
+        },
+        {
+            "code": "712",
+            "title": "712 - Architettura del paesaggio (Progettazione del paesaggio)",
+            "parent": "710"
+        },
+        {
+            "code": "713",
+            "title": "713 - Architettura del paesaggio delle vie di comunicazione",
+            "parent": "710"
+        },
+        {
+            "code": "714",
+            "title": "714 - Elementi acquatici nell'architettura del paesaggio",
+            "parent": "710"
+        },
+        {
+            "code": "715",
+            "title": "715 - Piante legnose nell'architettura del paesaggio",
+            "parent": "710"
+        },
+        {
+            "code": "716",
+            "title": "716 - Piante erbacee nell'architettura del paesaggio",
+            "parent": "710"
+        },
+        {
+            "code": "717",
+            "title": "717 - Strutture nell'architettura del paesaggio",
+            "parent": "710"
+        },
+        {
+            "code": "718",
+            "title": "718 - Progettazione paesaggistica dei cimiteri",
+            "parent": "710"
+        },
+        {
+            "code": "719",
+            "title": "719 - Paesaggi naturali",
+            "parent": "710"
+        },
+        {
+            "code": "721",
+            "title": "721 - Materiali architettonici ed elementi strutturali",
+            "parent": "720"
+        },
+        {
+            "code": "722",
+            "title": "722 - Architettura dai tempi più antichi al 300 circa",
+            "parent": "720"
+        },
+        {
+            "code": "723",
+            "title": "723 - Architettura dal 300 al 1399 circa",
+            "parent": "720"
+        },
+        {
+            "code": "724",
+            "title": "724 - Architettura dal 1400",
+            "parent": "720"
+        },
+        {
+            "code": "725",
+            "title": "725 - Strutture pubbliche",
+            "parent": "720"
+        },
+        {
+            "code": "726",
+            "title": "726 - Edifici per scopi religiosi e correlati",
+            "parent": "720"
+        },
+        {
+            "code": "727",
+            "title": "727 - Edifici per scopi educativi e di ricerca",
+            "parent": "720"
+        },
+        {
+            "code": "728",
+            "title": "728 - Edifici residenziali e correlati",
+            "parent": "720"
+        },
+        {
+            "code": "729",
+            "title": "729 - Progettazione e decorazione di strutture e accessori",
+            "parent": "720"
+        },
+        {
+            "code": "731",
+            "title": "731 - Processi, forme, soggetti della scultura",
+            "parent": "730"
+        },
+        {
+            "code": "732",
+            "title": "732 - Scultura dai tempi più antichi al 500 circa, scultura di popoli non letterati",
+            "parent": "730"
+        },
+        {
+            "code": "733",
+            "title": "733 - Scultura greca, etrusca, romana",
+            "parent": "730"
+        },
+        {
+            "code": "734",
+            "title": "734 - Scultura dal 500 al 1399 circa",
+            "parent": "730"
+        },
+        {
+            "code": "735",
+            "title": "735 - Scultura dal 1400",
+            "parent": "730"
+        },
+        {
+            "code": "736",
+            "title": "736 - Intaglio e incisioni",
+            "parent": "730"
+        },
+        {
+            "code": "737",
+            "title": "737 - Numismatica e sigillografia",
+            "parent": "730"
+        },
+        {
+            "code": "738",
+            "title": "738 - Arti ceramiche",
+            "parent": "730"
+        },
+        {
+            "code": "739",
+            "title": "739 - Lavorazione artistica dei metalli",
+            "parent": "730"
+        },
+        {
+            "code": "741",
+            "title": "741 - Disegno e disegni",
+            "parent": "740"
+        },
+        {
+            "code": "742",
+            "title": "742 - Prospettiva nel disegno",
+            "parent": "740"
+        },
+        {
+            "code": "743",
+            "title": "743 - Disegno e disegni per soggetto",
+            "parent": "740"
+        },
+        {
+            "code": "744",
+            "title": "744 - Progettazione della comunicazione e progettazione visiva (proposto)",
+            "parent": "740"
+        },
+        {
+            "code": "745",
+            "title": "745 - Arti decorative",
+            "parent": "740"
+        },
+        {
+            "code": "746",
+            "title": "746 - Arti tessili",
+            "parent": "740"
+        },
+        {
+            "code": "747",
+            "title": "747 - Decorazione di interni",
+            "parent": "740"
+        },
+        {
+            "code": "748",
+            "title": "748 - Vetro",
+            "parent": "740"
+        },
+        {
+            "code": "749",
+            "title": "749 - Mobili e accessori",
+            "parent": "740"
+        },
+        {
+            "code": "751",
+            "title": "751 - Tecniche, procedure, apparati, attrezzature, materiali, forme",
+            "parent": "750"
+        },
+        {
+            "code": "752",
+            "title": "752 - Colore",
+            "parent": "750"
+        },
+        {
+            "code": "753",
+            "title": "753 - Simbolismo, allegoria, mitologia, leggenda",
+            "parent": "750"
+        },
+        {
+            "code": "754",
+            "title": "754 - Pittura di genere",
+            "parent": "750"
+        },
+        {
+            "code": "755",
+            "title": "755 - Religione",
+            "parent": "750"
+        },
+        {
+            "code": "756",
+            "title": "756 - Non assegnato o non più in uso",
+            "parent": "750"
+        },
+        {
+            "code": "757",
+            "title": "757 - Figure umane",
+            "parent": "750"
+        },
+        {
+            "code": "758",
+            "title": "758 - Natura, soggetti architettonici e paesaggi urbani, altri soggetti specifici",
+            "parent": "750"
+        },
+        {
+            "code": "759",
+            "title": "759 - Storia, trattamento geografico, biografia",
+            "parent": "750"
+        },
+        {
+            "code": "761",
+            "title": "761 - Processi a rilievo (stampa a blocchi)",
+            "parent": "760"
+        },
+        {
+            "code": "762",
+            "title": "762 - Non assegnato o non più in uso",
+            "parent": "760"
+        },
+        {
+            "code": "763",
+            "title": "763 - Processi litografici (processi planografici)",
+            "parent": "760"
+        },
+        {
+            "code": "764",
+            "title": "764 - Cromolitografia e serigrafia",
+            "parent": "760"
+        },
+        {
+            "code": "765",
+            "title": "765 - Incisione su metallo",
+            "parent": "760"
+        },
+        {
+            "code": "766",
+            "title": "766 - Mezzatinta, acquatinta e processi correlati",
+            "parent": "760"
+        },
+        {
+            "code": "767",
+            "title": "767 - Acquaforte e puntasecca",
+            "parent": "760"
+        },
+        {
+            "code": "768",
+            "title": "768 - Non assegnato o non più in uso",
+            "parent": "760"
+        },
+        {
+            "code": "769",
+            "title": "769 - Stampe",
+            "parent": "760"
+        },
+        {
+            "code": "771",
+            "title": "771 - Tecniche, procedure, apparati, attrezzature, materiali",
+            "parent": "770"
+        },
+        {
+            "code": "772",
+            "title": "772 - Processi a sali metallici",
+            "parent": "770"
+        },
+        {
+            "code": "773",
+            "title": "773 - Processi di stampa a pigmenti",
+            "parent": "770"
+        },
+        {
+            "code": "774",
+            "title": "774 - Non più in uso—in precedenza Olografia",
+            "parent": "770"
+        },
+        {
+            "code": "775",
+            "title": "775 - Non più in uso—in precedenza Fotografia digitale",
+            "parent": "770"
+        },
+        {
+            "code": "776",
+            "title": "776 - Computer art (arte digitale)",
+            "parent": "770"
+        },
+        {
+            "code": "777",
+            "title": "777 - Cinematografia e videografia",
+            "parent": "770"
+        },
+        {
+            "code": "778",
+            "title": "778 - Campi specifici e tipi speciali di fotografia",
+            "parent": "770"
+        },
+        {
+            "code": "779",
+            "title": "779 - Immagini fotografiche",
+            "parent": "770"
+        },
+        {
+            "code": "781",
+            "title": "781 - Principi generali e forme musicali",
+            "parent": "780"
+        },
+        {
+            "code": "782",
+            "title": "782 - Musica vocale",
+            "parent": "780"
+        },
+        {
+            "code": "783",
+            "title": "783 - Musica per voci singole",
+            "parent": "780"
+        },
+        {
+            "code": "784",
+            "title": "784 - Strumenti e complessi strumentali e la loro musica",
+            "parent": "780"
+        },
+        {
+            "code": "785",
+            "title": "785 - Complessi con un solo strumento per parte",
+            "parent": "780"
+        },
+        {
+            "code": "786",
+            "title": "786 - Strumenti a tastiera, meccanici, elettrofonici, a percussione",
+            "parent": "780"
+        },
+        {
+            "code": "787",
+            "title": "787 - Strumenti a corda (cordofoni)",
+            "parent": "780"
+        },
+        {
+            "code": "788",
+            "title": "788 - Strumenti a fiato (aerofoni)",
+            "parent": "780"
+        },
+        {
+            "code": "789",
+            "title": "789 - Non assegnato o non più in uso",
+            "parent": "780"
+        },
+        {
+            "code": "791",
+            "title": "791 - Spettacoli pubblici",
+            "parent": "790"
+        },
+        {
+            "code": "792",
+            "title": "792 - Rappresentazioni teatrali",
+            "parent": "790"
+        },
+        {
+            "code": "793",
+            "title": "793 - Giochi e divertimenti al coperto",
+            "parent": "790"
+        },
+        {
+            "code": "794",
+            "title": "794 - Giochi di abilità al coperto",
+            "parent": "790"
+        },
+        {
+            "code": "795",
+            "title": "795 - Giochi d'azzardo",
+            "parent": "790"
+        },
+        {
+            "code": "796",
+            "title": "796 - Sport e giochi atletici e all'aperto",
+            "parent": "790"
+        },
+        {
+            "code": "797",
+            "title": "797 - Sport acquatici e aerei",
+            "parent": "790"
+        },
+        {
+            "code": "798",
+            "title": "798 - Sport equestri e corse di animali",
+            "parent": "790"
+        },
+        {
+            "code": "799",
+            "title": "799 - Pesca, caccia, tiro",
+            "parent": "790"
+        },
+        {
+            "code": "801",
+            "title": "801 - Filosofia e teoria",
+            "parent": "800"
+        },
+        {
+            "code": "802",
+            "title": "802 - Miscellanea",
+            "parent": "800"
+        },
+        {
+            "code": "803",
+            "title": "803 - Dizionari, enciclopedie, concordanze",
+            "parent": "800"
+        },
+        {
+            "code": "804",
+            "title": "804 - Non assegnato o non più in uso",
+            "parent": "800"
+        },
+        {
+            "code": "805",
+            "title": "805 - Pubblicazioni seriali",
+            "parent": "800"
+        },
+        {
+            "code": "806",
+            "title": "806 - Organizzazioni e gestione",
+            "parent": "800"
+        },
+        {
+            "code": "807",
+            "title": "807 - Educazione, ricerca, argomenti correlati",
+            "parent": "800"
+        },
+        {
+            "code": "808",
+            "title": "808 - Retorica e raccolte di testi letterari da più di due letterature",
+            "parent": "800"
+        },
+        {
+            "code": "809",
+            "title": "809 - Storia, descrizione, valutazione critica di più di due letterature",
+            "parent": "800"
+        },
+        {
+            "code": "811",
+            "title": "811 - Poesia americana in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "812",
+            "title": "812 - Teatro americano in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "813",
+            "title": "813 - Narrativa americana in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "814",
+            "title": "814 - Saggi americani in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "815",
+            "title": "815 - Discorsi americani in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "816",
+            "title": "816 - Lettere americane in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "817",
+            "title": "817 - Umorismo e satira americani in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "818",
+            "title": "818 - Scritti vari americani in inglese",
+            "parent": "810"
+        },
+        {
+            "code": "819",
+            "title": "819 - Non più in uso—in precedenza Attività di puzzle",
+            "parent": "810"
+        },
+        {
+            "code": "821",
+            "title": "821 - Poesia inglese",
+            "parent": "820"
+        },
+        {
+            "code": "822",
+            "title": "822 - Teatro inglese",
+            "parent": "820"
+        },
+        {
+            "code": "823",
+            "title": "823 - Narrativa inglese",
+            "parent": "820"
+        },
+        {
+            "code": "824",
+            "title": "824 - Saggi inglesi",
+            "parent": "820"
+        },
+        {
+            "code": "825",
+            "title": "825 - Discorsi inglesi",
+            "parent": "820"
+        },
+        {
+            "code": "826",
+            "title": "826 - Lettere inglesi",
+            "parent": "820"
+        },
+        {
+            "code": "827",
+            "title": "827 - Umorismo e satira inglesi",
+            "parent": "820"
+        },
+        {
+            "code": "828",
+            "title": "828 - Scritti vari inglesi",
+            "parent": "820"
+        },
+        {
+            "code": "829",
+            "title": "829 - Letteratura antico inglese (anglosassone)",
+            "parent": "820"
+        },
+        {
+            "code": "831",
+            "title": "831 - Poesia tedesca",
+            "parent": "830"
+        },
+        {
+            "code": "832",
+            "title": "832 - Teatro tedesco",
+            "parent": "830"
+        },
+        {
+            "code": "833",
+            "title": "833 - Narrativa tedesca",
+            "parent": "830"
+        },
+        {
+            "code": "834",
+            "title": "834 - Saggi tedeschi",
+            "parent": "830"
+        },
+        {
+            "code": "835",
+            "title": "835 - Discorsi tedeschi",
+            "parent": "830"
+        },
+        {
+            "code": "836",
+            "title": "836 - Lettere tedesche",
+            "parent": "830"
+        },
+        {
+            "code": "837",
+            "title": "837 - Umorismo e satira tedeschi",
+            "parent": "830"
+        },
+        {
+            "code": "838",
+            "title": "838 - Scritti vari tedeschi",
+            "parent": "830"
+        },
+        {
+            "code": "839",
+            "title": "839 - Altre letterature germaniche",
+            "parent": "830"
+        },
+        {
+            "code": "841",
+            "title": "841 - Poesia francese",
+            "parent": "840"
+        },
+        {
+            "code": "842",
+            "title": "842 - Teatro francese",
+            "parent": "840"
+        },
+        {
+            "code": "843",
+            "title": "843 - Narrativa francese",
+            "parent": "840"
+        },
+        {
+            "code": "844",
+            "title": "844 - Saggi francesi",
+            "parent": "840"
+        },
+        {
+            "code": "845",
+            "title": "845 - Discorsi francesi",
+            "parent": "840"
+        },
+        {
+            "code": "846",
+            "title": "846 - Lettere francesi",
+            "parent": "840"
+        },
+        {
+            "code": "847",
+            "title": "847 - Umorismo e satira francesi",
+            "parent": "840"
+        },
+        {
+            "code": "848",
+            "title": "848 - Scritti vari francesi",
+            "parent": "840"
+        },
+        {
+            "code": "849",
+            "title": "849 - Letterature occitana, catalana, francoprovenzale",
+            "parent": "840"
+        },
+        {
+            "code": "851",
+            "title": "851 - Poesia italiana",
+            "parent": "850"
+        },
+        {
+            "code": "852",
+            "title": "852 - Teatro italiano",
+            "parent": "850"
+        },
+        {
+            "code": "853",
+            "title": "853 - Narrativa italiana",
+            "parent": "850"
+        },
+        {
+            "code": "854",
+            "title": "854 - Saggi italiani",
+            "parent": "850"
+        },
+        {
+            "code": "855",
+            "title": "855 - Discorsi italiani",
+            "parent": "850"
+        },
+        {
+            "code": "856",
+            "title": "856 - Lettere italiane",
+            "parent": "850"
+        },
+        {
+            "code": "857",
+            "title": "857 - Umorismo e satira italiani",
+            "parent": "850"
+        },
+        {
+            "code": "858",
+            "title": "858 - Scritti vari italiani",
+            "parent": "850"
+        },
+        {
+            "code": "859",
+            "title": "859 - Letterature delle lingue romena, retoromanza, sarda, corsa",
+            "parent": "850"
+        },
+        {
+            "code": "861",
+            "title": "861 - Poesia spagnola",
+            "parent": "860"
+        },
+        {
+            "code": "862",
+            "title": "862 - Teatro spagnolo",
+            "parent": "860"
+        },
+        {
+            "code": "863",
+            "title": "863 - Narrativa spagnola",
+            "parent": "860"
+        },
+        {
+            "code": "864",
+            "title": "864 - Saggi spagnoli",
+            "parent": "860"
+        },
+        {
+            "code": "865",
+            "title": "865 - Discorsi spagnoli",
+            "parent": "860"
+        },
+        {
+            "code": "866",
+            "title": "866 - Lettere spagnole",
+            "parent": "860"
+        },
+        {
+            "code": "867",
+            "title": "867 - Umorismo e satira spagnoli",
+            "parent": "860"
+        },
+        {
+            "code": "868",
+            "title": "868 - Scritti vari spagnoli",
+            "parent": "860"
+        },
+        {
+            "code": "869",
+            "title": "869 - Letterature delle lingue portoghese e galiziana",
+            "parent": "860"
+        },
+        {
+            "code": "871",
+            "title": "871 - Poesia latina",
+            "parent": "870"
+        },
+        {
+            "code": "872",
+            "title": "872 - Poesia drammatica e teatro latini",
+            "parent": "870"
+        },
+        {
+            "code": "873",
+            "title": "873 - Poesia epica e narrativa latine",
+            "parent": "870"
+        },
+        {
+            "code": "874",
+            "title": "874 - Poesia lirica latina",
+            "parent": "870"
+        },
+        {
+            "code": "875",
+            "title": "875 - Discorsi latini",
+            "parent": "870"
+        },
+        {
+            "code": "876",
+            "title": "876 - Lettere latine",
+            "parent": "870"
+        },
+        {
+            "code": "877",
+            "title": "877 - Umorismo e satira latini",
+            "parent": "870"
+        },
+        {
+            "code": "878",
+            "title": "878 - Scritti vari latini",
+            "parent": "870"
+        },
+        {
+            "code": "879",
+            "title": "879 - Letterature di altre lingue italiche",
+            "parent": "870"
+        },
+        {
+            "code": "881",
+            "title": "881 - Poesia greca classica",
+            "parent": "880"
+        },
+        {
+            "code": "882",
+            "title": "882 - Teatro greco classico",
+            "parent": "880"
+        },
+        {
+            "code": "883",
+            "title": "883 - Poesia epica e narrativa greche classiche",
+            "parent": "880"
+        },
+        {
+            "code": "884",
+            "title": "884 - Poesia lirica greca classica",
+            "parent": "880"
+        },
+        {
+            "code": "885",
+            "title": "885 - Discorsi greci classici",
+            "parent": "880"
+        },
+        {
+            "code": "886",
+            "title": "886 - Lettere greche classiche",
+            "parent": "880"
+        },
+        {
+            "code": "887",
+            "title": "887 - Umorismo e satira greci classici",
+            "parent": "880"
+        },
+        {
+            "code": "888",
+            "title": "888 - Scritti vari greci classici",
+            "parent": "880"
+        },
+        {
+            "code": "889",
+            "title": "889 - Letteratura greca moderna",
+            "parent": "880"
+        },
+        {
+            "code": "891",
+            "title": "891 - Letterature indoeuropee orientali e celtiche",
+            "parent": "890"
+        },
+        {
+            "code": "892",
+            "title": "892 - Letterature afro-asiatiche",
+            "parent": "890"
+        },
+        {
+            "code": "893",
+            "title": "893 - Letterature afro-asiatiche non semitiche",
+            "parent": "890"
+        },
+        {
+            "code": "894",
+            "title": "894 - Letterature delle lingue altaiche, uraliche, iperboree, dravidiche; letterature di lingue varie dell'Asia meridionale",
+            "parent": "890"
+        },
+        {
+            "code": "895",
+            "title": "895 - Letterature dell'Asia orientale e sud-orientale",
+            "parent": "890"
+        },
+        {
+            "code": "896",
+            "title": "896 - Letterature africane",
+            "parent": "890"
+        },
+        {
+            "code": "897",
+            "title": "897 - Letterature delle lingue native del Nord America",
+            "parent": "890"
+        },
+        {
+            "code": "898",
+            "title": "898 - Letterature delle lingue native del Sud America",
+            "parent": "890"
+        },
+        {
+            "code": "899",
+            "title": "899 - Letterature delle lingue non austronesiane dell'Oceania, delle lingue austronesiane, di lingue varie",
+            "parent": "890"
+        },
+        {
+            "code": "901",
+            "title": "901 - Filosofia e teoria della storia",
+            "parent": "900"
+        },
+        {
+            "code": "902",
+            "title": "902 - Miscellanea di storia",
+            "parent": "900"
+        },
+        {
+            "code": "903",
+            "title": "903 - Dizionari, enciclopedie, concordanze di storia",
+            "parent": "900"
+        },
+        {
+            "code": "904",
+            "title": "904 - Raccolte di resoconti di eventi",
+            "parent": "900"
+        },
+        {
+            "code": "905",
+            "title": "905 - Pubblicazioni seriali di storia",
+            "parent": "900"
+        },
+        {
+            "code": "906",
+            "title": "906 - Organizzazioni e gestione della storia",
+            "parent": "900"
+        },
+        {
+            "code": "907",
+            "title": "907 - Educazione, ricerca, argomenti correlati di storia",
+            "parent": "900"
+        },
+        {
+            "code": "908",
+            "title": "908 - Storia rispetto a gruppi di persone",
+            "parent": "900"
+        },
+        {
+            "code": "909",
+            "title": "909 - Storia mondiale",
+            "parent": "900"
+        },
+        {
+            "code": "911",
+            "title": "911 - Geografia storica",
+            "parent": "910"
+        },
+        {
+            "code": "912",
+            "title": "912 - Rappresentazioni grafiche della superficie terrestre e di mondi extraterrestri",
+            "parent": "910"
+        },
+        {
+            "code": "913",
+            "title": "913 - Geografia e viaggi nel mondo antico",
+            "parent": "910"
+        },
+        {
+            "code": "914",
+            "title": "914 - Geografia e viaggi in Europa",
+            "parent": "910"
+        },
+        {
+            "code": "915",
+            "title": "915 - Geografia e viaggi in Asia",
+            "parent": "910"
+        },
+        {
+            "code": "916",
+            "title": "916 - Geografia e viaggi in Africa",
+            "parent": "910"
+        },
+        {
+            "code": "917",
+            "title": "917 - Geografia e viaggi in Nord America",
+            "parent": "910"
+        },
+        {
+            "code": "918",
+            "title": "918 - Geografia e viaggi in Sud America",
+            "parent": "910"
+        },
+        {
+            "code": "919",
+            "title": "919 - Geografia e viaggi in Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide e su mondi extraterrestri",
+            "parent": "910"
+        },
+        {
+            "code": "921",
+            "title": "921 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "922",
+            "title": "922 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "923",
+            "title": "923 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "924",
+            "title": "924 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "925",
+            "title": "925 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "926",
+            "title": "926 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "927",
+            "title": "927 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "928",
+            "title": "928 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.",
+            "parent": "920"
+        },
+        {
+            "code": "929",
+            "title": "929 - Genealogia, nomi, insegne",
+            "parent": "920"
+        },
+        {
+            "code": "931",
+            "title": "931 - Cina fino al 420",
+            "parent": "930"
+        },
+        {
+            "code": "932",
+            "title": "932 - Egitto fino al 640",
+            "parent": "930"
+        },
+        {
+            "code": "933",
+            "title": "933 - Palestina fino al 70",
+            "parent": "930"
+        },
+        {
+            "code": "934",
+            "title": "934 - Asia meridionale fino al 647",
+            "parent": "930"
+        },
+        {
+            "code": "935",
+            "title": "935 - Mesopotamia e Altopiano iranico fino al 637",
+            "parent": "930"
+        },
+        {
+            "code": "936",
+            "title": "936 - Europa a nord e a ovest della Penisola italiana fino al 499 circa",
+            "parent": "930"
+        },
+        {
+            "code": "937",
+            "title": "937 - Italia e territori adiacenti fino al 476",
+            "parent": "930"
+        },
+        {
+            "code": "938",
+            "title": "938 - Grecia fino al 323",
+            "parent": "930"
+        },
+        {
+            "code": "939",
+            "title": "939 - Altre parti del mondo antico",
+            "parent": "930"
+        },
+        {
+            "code": "941",
+            "title": "941 - Isole Britanniche",
+            "parent": "940"
+        },
+        {
+            "code": "942",
+            "title": "942 - Inghilterra e Galles",
+            "parent": "940"
+        },
+        {
+            "code": "943",
+            "title": "943 - Germania e paesi limitrofi dell'Europa centrale",
+            "parent": "940"
+        },
+        {
+            "code": "944",
+            "title": "944 - Francia e Monaco",
+            "parent": "940"
+        },
+        {
+            "code": "945",
+            "title": "945 - Italia, San Marino, Città del Vaticano, Malta",
+            "parent": "940"
+        },
+        {
+            "code": "946",
+            "title": "946 - Spagna, Andorra, Gibilterra, Portogallo",
+            "parent": "940"
+        },
+        {
+            "code": "947",
+            "title": "947 - Russia e paesi limitrofi dell'Europa orientale",
+            "parent": "940"
+        },
+        {
+            "code": "948",
+            "title": "948 - Scandinavia",
+            "parent": "940"
+        },
+        {
+            "code": "949",
+            "title": "949 - Altre parti d'Europa",
+            "parent": "940"
+        },
+        {
+            "code": "951",
+            "title": "951 - Cina e aree adiacenti",
+            "parent": "950"
+        },
+        {
+            "code": "952",
+            "title": "952 - Giappone",
+            "parent": "950"
+        },
+        {
+            "code": "953",
+            "title": "953 - Penisola arabica e aree adiacenti",
+            "parent": "950"
+        },
+        {
+            "code": "954",
+            "title": "954 - India e paesi limitrofi dell'Asia meridionale",
+            "parent": "950"
+        },
+        {
+            "code": "955",
+            "title": "955 - Iran",
+            "parent": "950"
+        },
+        {
+            "code": "956",
+            "title": "956 - Medio Oriente (Vicino Oriente)",
+            "parent": "950"
+        },
+        {
+            "code": "957",
+            "title": "957 - Siberia (Russia asiatica)",
+            "parent": "950"
+        },
+        {
+            "code": "958",
+            "title": "958 - Asia centrale",
+            "parent": "950"
+        },
+        {
+            "code": "959",
+            "title": "959 - Sud-est asiatico",
+            "parent": "950"
+        },
+        {
+            "code": "961",
+            "title": "961 - Tunisia e Libia",
+            "parent": "960"
+        },
+        {
+            "code": "962",
+            "title": "962 - Egitto, Sudan, Sud Sudan",
+            "parent": "960"
+        },
+        {
+            "code": "963",
+            "title": "963 - Etiopia ed Eritrea",
+            "parent": "960"
+        },
+        {
+            "code": "964",
+            "title": "964 - Marocco, Ceuta, Melilla, Sahara Occidentale, Isole Canarie",
+            "parent": "960"
+        },
+        {
+            "code": "965",
+            "title": "965 - Algeria",
+            "parent": "960"
+        },
+        {
+            "code": "966",
+            "title": "966 - Africa occidentale e isole al largo",
+            "parent": "960"
+        },
+        {
+            "code": "967",
+            "title": "967 - Africa centrale e isole al largo",
+            "parent": "960"
+        },
+        {
+            "code": "968",
+            "title": "968 - Sudafrica e Africa australe",
+            "parent": "960"
+        },
+        {
+            "code": "969",
+            "title": "969 - Isole dell'Oceano Indiano meridionale",
+            "parent": "960"
+        },
+        {
+            "code": "971",
+            "title": "971 - Canada",
+            "parent": "970"
+        },
+        {
+            "code": "972",
+            "title": "972 - Messico, America Centrale, Indie Occidentali, Bermuda",
+            "parent": "970"
+        },
+        {
+            "code": "973",
+            "title": "973 - Stati Uniti",
+            "parent": "970"
+        },
+        {
+            "code": "974",
+            "title": "974 - Stati Uniti nord-orientali (stati del New England e del Medio Atlantico)",
+            "parent": "970"
+        },
+        {
+            "code": "975",
+            "title": "975 - Stati Uniti sud-orientali (stati dell'Atlantico meridionale)",
+            "parent": "970"
+        },
+        {
+            "code": "976",
+            "title": "976 - Stati Uniti centro-meridionali",
+            "parent": "970"
+        },
+        {
+            "code": "977",
+            "title": "977 - Stati Uniti centro-settentrionali",
+            "parent": "970"
+        },
+        {
+            "code": "978",
+            "title": "978 - Stati Uniti occidentali",
+            "parent": "970"
+        },
+        {
+            "code": "979",
+            "title": "979 - Regione del Gran Bacino e del Versante Pacifico degli Stati Uniti",
+            "parent": "970"
+        },
+        {
+            "code": "981",
+            "title": "981 - Brasile",
+            "parent": "980"
+        },
+        {
+            "code": "982",
+            "title": "982 - Argentina",
+            "parent": "980"
+        },
+        {
+            "code": "983",
+            "title": "983 - Cile",
+            "parent": "980"
+        },
+        {
+            "code": "984",
+            "title": "984 - Bolivia",
+            "parent": "980"
+        },
+        {
+            "code": "985",
+            "title": "985 - Perù",
+            "parent": "980"
+        },
+        {
+            "code": "986",
+            "title": "986 - Colombia ed Ecuador",
+            "parent": "980"
+        },
+        {
+            "code": "987",
+            "title": "987 - Venezuela",
+            "parent": "980"
+        },
+        {
+            "code": "988",
+            "title": "988 - Guiana",
+            "parent": "980"
+        },
+        {
+            "code": "989",
+            "title": "989 - Paraguay e Uruguay",
+            "parent": "980"
+        },
+        {
+            "code": "991",
+            "title": "991 - Non assegnato o non più in uso",
+            "parent": "990"
+        },
+        {
+            "code": "992",
+            "title": "992 - Non assegnato o non più in uso",
+            "parent": "990"
+        },
+        {
+            "code": "993",
+            "title": "993 - Nuova Zelanda",
+            "parent": "990"
+        },
+        {
+            "code": "994",
+            "title": "994 - Australia",
+            "parent": "990"
+        },
+        {
+            "code": "995",
+            "title": "995 - Nuova Guinea e paesi vicini della Melanesia",
+            "parent": "990"
+        },
+        {
+            "code": "996",
+            "title": "996 - Polinesia e altre isole dell'Oceano Pacifico",
+            "parent": "990"
+        },
+        {
+            "code": "997",
+            "title": "997 - Isole dell'Oceano Atlantico",
+            "parent": "990"
+        },
+        {
+            "code": "998",
+            "title": "998 - Isole artiche e Antartide",
+            "parent": "990"
+        },
+        {
+            "code": "999",
+            "title": "999 - Mondi extraterrestri",
+            "parent": "990"
+        }
+    ]
+}

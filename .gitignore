@@ -1,0 +1,243 @@
+# ========================================
+# Pinakes - Git Ignore Rules
+# ========================================
+
+# ========================================
+# CRITICAL: Environment & Credentials
+# ========================================
+.env
+.env.*
+!.env.example
+.installed
+config.local.php
+config.local.sample.php
+
+# ========================================
+# CRITICAL: Database Backups & Archives
+# ========================================
+backups/*
+!backups/.gitkeep
+!backups/.htaccess
+*.sql
+!installer/database/*.sql
+*.backup
+*.backup*
+!/backups/.htaccess
+!/storage/backups/.htaccess
+*.bak
+*.old
+backup_*.sql
+migration-*.php
+
+# Temporary maintenance scripts
+clean-*.sh
+export-*.php
+fix-*.php
+
+# ========================================
+# CRITICAL: Archives
+# ========================================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+Archive.zip
+old.sql
+
+# ========================================
+# Runtime Data (user-generated)
+# ========================================
+uploads/*
+!uploads/.gitkeep
+!uploads/.htaccess
+!uploads/copertine/placeholder.jpg
+public/uploads/settings/
+public/uploads/*
+!public/uploads/.gitkeep
+public/uploads/copertine/*.jpg
+!public/uploads/copertine/placeholder.jpg
+
+# Storage
+storage/*
+!storage/.gitkeep
+!storage/.htaccess
+!storage/logs/
+storage/logs/*
+!storage/logs/.gitkeep
+storage/*.log
+!storage/tmp/
+storage/tmp/*
+!storage/tmp/.gitkeep
+!storage/uploads/
+storage/uploads/*
+!storage/uploads/.gitkeep
+!storage/uploads/.htaccess
+!storage/backups/
+storage/backups/*
+!storage/backups/.gitkeep
+!storage/backups/.htaccess
+
+# Cache & Temp
+cache/*
+tmp/*
+temp/*
+*.tmp
+*.cache
+*.temp
+
+# ========================================
+# Logs
+# ========================================
+*.log
+logs/*.log
+error_log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================================
+# Operating System Files
+# ========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ========================================
+# IDE & Editors
+# ========================================
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+.project
+.buildpath
+.settings/
+
+# ========================================
+# Test Artifacts
+# ========================================
+.playwright-mcp/
+
+# ========================================
+# Development Documentation (not for distribution)
+# ========================================
+CLAUDE.md
+CHANGELOG.md
+docs/LOGGING.md
+docs/RELEASE_PROCESS.md
+docs/reference/
+
+# Internationalization planning (contains untranslated strings)
+traduzione_piano.md
+traduzione_stringhe.md
+
+# ========================================
+# Git History Backups
+# ========================================
+.git-backup-*/
+
+# ========================================
+# Git Service Files
+# ========================================
+.github/
+**/.gitkeep
+
+# ========================================
+# Dependencies
+# ========================================
+vendor/
+node_modules/
+frontend/node_modules/
+# composer.lock - MUST be in git for applications (ensures consistent dependency versions)
+package-lock.json
+yarn.lock
+
+# ========================================
+# Build Artifacts
+# ========================================
+dist/
+build/
+frontend/dist/
+frontend/build/
+public/assets/*.map
+
+# ========================================
+# PHPUnit & Tests
+# ========================================
+.phpunit.result.cache
+.phpunit.cache/
+phpunit.xml
+tests/
+test/
+coverage/
+.nyc_output/
+.coverage
+htmlcov/
+
+# ========================================
+# Package Managers
+# ========================================
+.npm
+.yarn
+.pnpm-store
+bower_components/
+
+# ========================================
+# Security
+# ========================================
+.htpasswd
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+
+# ========================================
+# CI/CD
+# ========================================
+.travis.yml
+.circleci/
+azure-pipelines.yml
+.gitlab-ci.yml
+
+# ========================================
+# Git
+# ========================================
+.gitattributes
+.gitmodules
+
+# ========================================
+# Release artifacts
+# ========================================
+releases/
+releases/*.zip
+releases/*.sha256
+releases/*.md
+
+# ========================================
+# IMPORTANT: Keep these files
+# ========================================
+# - .env.example (template for users)
+# - installer/database/*.sql (installer data)
+# - cron/automatic-notifications.php (cron job)
+# - uploads/copertine/placeholder.jpg (default cover)
+docs/demini.md
+docs/email.MD
+docs/gpt.md
+docs/impostazioni_dettagliate.md
+docs/kimi.md
+docs/qwen.md
+models/config.json
+models/model.onnx
+models/special_tokens_map.json
+models/tokenizer.json
+models/tokenizer_config.json
+vectors.db

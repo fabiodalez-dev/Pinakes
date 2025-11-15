@@ -1,0 +1,38 @@
+{
+  "name": "scraping-pro",
+  "display_name": "Scraping Pro",
+  "description": "Scraping HTML da LibreriaUniversitaria con priorità (Scraping Pro) e copertine Feltrinelli come fallback principale.",
+  "version": "1.0.0",
+  "author": "Biblioteca",
+  "plugin_url": "https://www.libreriauniversitaria.it",
+  "main_file": "wrapper.php",
+  "requires_php": "7.4",
+  "requires_app": "1.0.0",
+  "metadata": {
+    "category": "scraping",
+    "tags": ["scraping", "libreriauniversitaria", "feltrinelli", "html"],
+    "priority": 2,
+    "api_endpoints": [
+      "https://www.libreriauniversitaria.it/morale-anarchica-libro-petr-alekseevic-kropotkin/libro/{isbn}",
+      "https://www.lafeltrinelli.it/morale-anarchica-libro-petr-alekseevic-kropotkin/e/{isbn}"
+    ],
+    "hooks": [
+      {
+        "name": "scrape.sources",
+        "description": "Registra le fonti LibreriaUniversitaria e Feltrinelli",
+        "priority": 2
+      },
+      {
+        "name": "scrape.fetch.custom",
+        "description": "Scraping completo LibreriaUniversitaria → Feltrinelli",
+        "priority": 2
+      }
+    ],
+    "features": [
+      "Scraping HTML completo",
+      "Copertina Feltrinelli con fallback",
+      "Hook-aware",
+      "Priorità più alta rispetto a Open Library"
+    ]
+  }
+}
