@@ -8,30 +8,41 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class DeweyApiController
 {
-    private static ?array $deweyData = null;
+    private static array $deweyDataCache = [];
 
     private function loadDeweyData(): array
     {
-        if (self::$deweyData === null) {
-            $jsonPath = __DIR__ . '/../../data/dewey/dewey.json';
+        // Cache per locale
+        $locale = $_SESSION['locale'] ?? 'it_IT';
+
+        if (!isset(self::$deweyDataCache[$locale])) {
+            // Determina il file JSON in base alla lingua
+            $jsonFile = ($locale === 'en_US') ? 'dewey_en.json' : 'dewey.json';
+            $jsonPath = __DIR__ . '/../../data/dewey/' . $jsonFile;
+
+            // Fallback al file italiano se quello inglese non esiste
+            if (!file_exists($jsonPath)) {
+                $jsonPath = __DIR__ . '/../../data/dewey/dewey.json';
+            }
+
             if (!file_exists($jsonPath)) {
                 throw new \Exception('Dewey JSON file not found');
             }
-            
+
             $jsonContent = file_get_contents($jsonPath);
             if ($jsonContent === false) {
                 throw new \Exception('Unable to read Dewey JSON file');
             }
-            
+
             $data = json_decode($jsonContent, true);
             if ($data === null) {
                 throw new \Exception('Invalid JSON in Dewey file');
             }
-            
-            self::$deweyData = $data;
+
+            self::$deweyDataCache[$locale] = $data;
         }
-        
-        return self::$deweyData;
+
+        return self::$deweyDataCache[$locale];
     }
 
     public function getCategories(Request $request, Response $response): Response
@@ -39,17 +50,23 @@ class DeweyApiController
         try {
             $data = $this->loadDeweyData();
             $categories = [];
-            
-            foreach ($data['classificazione_dewey'] as $class) {
-                if ($class['type'] === 'classe_principale') {
+
+            // Supporta sia la chiave italiana che quella inglese
+            $deweyKey = isset($data['classificazione_dewey']) ? 'classificazione_dewey' : 'dewey_classification';
+            $typeKey = isset($data[$deweyKey][0]['type']) && $data[$deweyKey][0]['type'] === 'classe_principale' ? 'classe_principale' : 'main_class';
+            $descKey = isset($data[$deweyKey][0]['descrizione']) ? 'descrizione' : 'description';
+            $codeKey = isset($data[$deweyKey][0]['codice']) ? 'codice' : 'code';
+
+            foreach ($data[$deweyKey] as $class) {
+                if ($class['type'] === $typeKey) {
                     $categories[] = [
-                        'id' => $class['codice'],
-                        'codice' => $class['codice'],
-                        'nome' => $class['descrizione']
+                        'id' => $class[$codeKey],
+                        'codice' => $class[$codeKey],
+                        'nome' => $class[$descKey]
                     ];
                 }
             }
-            
+
             $response->getBody()->write(json_encode($categories, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Exception $e) {
@@ -65,28 +82,39 @@ class DeweyApiController
         try {
             $params = $request->getQueryParams();
             $categoryId = $params['category_id'] ?? '';
-            
+
             if (empty($categoryId)) {
                 $response->getBody()->write(json_encode(['error' => __('Parametro category_id obbligatorio.')], JSON_UNESCAPED_UNICODE));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
-            
+
             $data = $this->loadDeweyData();
             $divisions = [];
-            
-            foreach ($data['classificazione_dewey'] as $class) {
-                if ($class['type'] === 'classe_principale' && $class['codice'] === $categoryId) {
-                    foreach ($class['divisioni'] as $division) {
+
+            // Supporta sia la chiave italiana che quella inglese
+            $deweyKey = isset($data['classificazione_dewey']) ? 'classificazione_dewey' : 'dewey_classification';
+            $typeKey = isset($data[$deweyKey][0]['type']) && $data[$deweyKey][0]['type'] === 'classe_principale' ? 'classe_principale' : 'main_class';
+            $divisionsKey = isset($data[$deweyKey][0]['divisioni']) ? 'divisioni' : 'divisions';
+            $divisionTypeKey = 'divisione'; // Italian
+            if (isset($data[$deweyKey][0][$divisionsKey][0]['type']) && $data[$deweyKey][0][$divisionsKey][0]['type'] === 'division') {
+                $divisionTypeKey = 'division'; // English
+            }
+            $descKey = isset($data[$deweyKey][0]['descrizione']) ? 'descrizione' : 'description';
+            $codeKey = isset($data[$deweyKey][0]['codice']) ? 'codice' : 'code';
+
+            foreach ($data[$deweyKey] as $class) {
+                if ($class['type'] === $typeKey && $class[$codeKey] === $categoryId) {
+                    foreach ($class[$divisionsKey] as $division) {
                         $divisions[] = [
-                            'id' => $division['codice'],
-                            'codice' => $division['codice'],
-                            'nome' => $division['descrizione']
+                            'id' => $division[$codeKey],
+                            'codice' => $division[$codeKey],
+                            'nome' => $division[$descKey]
                         ];
                     }
                     break;
                 }
             }
-            
+
             $response->getBody()->write(json_encode($divisions, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Exception $e) {
@@ -102,25 +130,36 @@ class DeweyApiController
         try {
             $params = $request->getQueryParams();
             $divisionId = $params['division_id'] ?? '';
-            
+
             if (empty($divisionId)) {
                 $response->getBody()->write(json_encode(['error' => __('Parametro division_id obbligatorio.')], JSON_UNESCAPED_UNICODE));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
-            
+
             $data = $this->loadDeweyData();
             $specifics = [];
-            
-            foreach ($data['classificazione_dewey'] as $class) {
-                if ($class['type'] === 'classe_principale') {
-                    foreach ($class['divisioni'] as $division) {
-                        if ($division['codice'] === $divisionId) {
-                            if (isset($division['sezioni'])) {
-                                foreach ($division['sezioni'] as $section) {
+
+            // Supporta sia la chiave italiana che quella inglese
+            $deweyKey = isset($data['classificazione_dewey']) ? 'classificazione_dewey' : 'dewey_classification';
+            $typeKey = isset($data[$deweyKey][0]['type']) && $data[$deweyKey][0]['type'] === 'classe_principale' ? 'classe_principale' : 'main_class';
+            $divisionsKey = isset($data[$deweyKey][0]['divisioni']) ? 'divisioni' : 'divisions';
+            $sectionsKey = 'sezioni';
+            if (isset($data[$deweyKey][0][$divisionsKey][0]['sections'])) {
+                $sectionsKey = 'sections';
+            }
+            $descKey = isset($data[$deweyKey][0]['descrizione']) ? 'descrizione' : 'description';
+            $codeKey = isset($data[$deweyKey][0]['codice']) ? 'codice' : 'code';
+
+            foreach ($data[$deweyKey] as $class) {
+                if ($class['type'] === $typeKey) {
+                    foreach ($class[$divisionsKey] as $division) {
+                        if ($division[$codeKey] === $divisionId) {
+                            if (isset($division[$sectionsKey])) {
+                                foreach ($division[$sectionsKey] as $section) {
                                     $specifics[] = [
-                                        'id' => $section['codice'],
-                                        'codice' => $section['codice'],
-                                        'nome' => $section['descrizione']
+                                        'id' => $section[$codeKey],
+                                        'codice' => $section[$codeKey],
+                                        'nome' => $section[$descKey]
                                     ];
                                 }
                             }
@@ -129,7 +168,7 @@ class DeweyApiController
                     }
                 }
             }
-            
+
             $response->getBody()->write(json_encode($specifics, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Exception $e) {

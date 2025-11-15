@@ -1,0 +1,5228 @@
+{
+  "dewey_classification": [
+    {
+      "type": "main_class",
+      "code": "000",
+      "description": "Computer science, information & general works",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "000",
+          "description": "Computer science, knowledge & systems",
+          "sections": [
+            {
+              "type": "section",
+              "code": "001",
+              "description": "Knowledge"
+            },
+            {
+              "type": "section",
+              "code": "002",
+              "description": "The book (writing, libraries, and related topics)"
+            },
+            {
+              "type": "section",
+              "code": "003",
+              "description": "Systems"
+            },
+            {
+              "type": "section",
+              "code": "004",
+              "description": "Data processing & computer science"
+            },
+            {
+              "type": "section",
+              "code": "005",
+              "description": "Computer programming, programs & data"
+            },
+            {
+              "type": "section",
+              "code": "006",
+              "description": "Special computer methods (e.g., AI, multimedia, VR)"
+            },
+            {
+              "type": "section",
+              "code": "007",
+              "description": "[Unassigned]"
+            },
+            {
+              "type": "section",
+              "code": "008",
+              "description": "[Unassigned]"
+            },
+            {
+              "type": "section",
+              "code": "009",
+              "description": "[Unassigned]"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "010",
+          "description": "Bibliographies",
+          "sections": [
+            {
+              "type": "section",
+              "code": "011",
+              "description": "Bibliographies"
+            },
+            {
+              "type": "section",
+              "code": "012",
+              "description": "Bibliographies of individuals"
+            },
+            {
+              "type": "section",
+              "code": "013",
+              "description": "[Unassigned]"
+            },
+            {
+              "type": "section",
+              "code": "014",
+              "description": "Bibliographies of anonymous & pseudonymous works"
+            },
+            {
+              "type": "section",
+              "code": "015",
+              "description": "Bibliographies of works from specific places"
+            },
+            {
+              "type": "section",
+              "code": "016",
+              "description": "Bibliographies of works on specific subjects"
+            },
+            {
+              "type": "section",
+              "code": "017",
+              "description": "General subject catalogs"
+            },
+            {
+              "type": "section",
+              "code": "018",
+              "description": "Catalogs arranged by author, date, etc. [moved to 017]"
+            },
+            {
+              "type": "section",
+              "code": "019",
+              "description": "Dictionary catalogs [moved to 017]"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "020",
+          "description": "Library & information sciences",
+          "sections": [
+            {
+              "type": "section",
+              "code": "021",
+              "description": "Library relationships (with archives, information centers, etc.)"
+            },
+            {
+              "type": "section",
+              "code": "022",
+              "description": "Administration of the physical plant"
+            },
+            {
+              "type": "section",
+              "code": "023",
+              "description": "Personnel management"
+            },
+            {
+              "type": "section",
+              "code": "024",
+              "description": "[Unassigned]"
+            },
+            {
+              "type": "section",
+              "code": "025",
+              "description": "Library operations"
+            },
+            {
+              "type": "section",
+              "code": "026",
+              "description": "Libraries for specific subjects"
+            },
+            {
+              "type": "section",
+              "code": "027",
+              "description": "General libraries"
+            },
+            {
+              "type": "section",
+              "code": "028",
+              "description": "Reading & use of other information media"
+            },
+            {
+              "type": "section",
+              "code": "029",
+              "description": "[Unassigned]"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "030",
+          "description": "Encyclopedias & books of facts",
+          "sections": [
+            {
+              "type": "section",
+              "code": "031",
+              "description": "Encyclopedias in American English"
+            },
+            {
+              "type": "section",
+              "code": "032",
+              "description": "Encyclopedias in English"
+            },
+            {
+              "type": "section",
+              "code": "033",
+              "description": "Encyclopedias in other Germanic languages"
+            },
+            {
+              "type": "section",
+              "code": "034",
+              "description": "Encyclopedias in French, Occitan & Catalan"
+            },
+            {
+              "type": "section",
+              "code": "035",
+              "description": "Encyclopedias in Italian, Romanian & related languages"
+            },
+            {
+              "type": "section",
+              "code": "036",
+              "description": "Encyclopedias in Spanish & Portuguese"
+            },
+            {
+              "type": "section",
+              "code": "037",
+              "description": "Encyclopedias in Slavic languages"
+            },
+            {
+              "type": "section",
+              "code": "038",
+              "description": "Encyclopedias in Scandinavian languages"
+            },
+            {
+              "type": "section",
+              "code": "039",
+              "description": "Encyclopedias in other languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "040",
+          "description": "Unassigned — formerly Biographies",
+          "sections": []
+        },
+        {
+          "type": "division",
+          "code": "050",
+          "description": "Magazines, journals & serials",
+          "sections": [
+            {
+              "type": "section",
+              "code": "051",
+              "description": "Serials in American English"
+            },
+            {
+              "type": "section",
+              "code": "052",
+              "description": "Serials in English"
+            },
+            {
+              "type": "section",
+              "code": "053",
+              "description": "Serials in other Germanic languages"
+            },
+            {
+              "type": "section",
+              "code": "054",
+              "description": "Serials in French, Occitan & Catalan"
+            },
+            {
+              "type": "section",
+              "code": "055",
+              "description": "Serials in Italian, Romanian & related languages"
+            },
+            {
+              "type": "section",
+              "code": "056",
+              "description": "Serials in Spanish & Portuguese"
+            },
+            {
+              "type": "section",
+              "code": "057",
+              "description": "Serials in Slavic languages"
+            },
+            {
+              "type": "section",
+              "code": "058",
+              "description": "Serials in Scandinavian languages"
+            },
+            {
+              "type": "section",
+              "code": "059",
+              "description": "Serials in other languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "060",
+          "description": "Associations, organizations & museums",
+          "sections": [
+            {
+              "type": "section",
+              "code": "061",
+              "description": "Organizations in North America"
+            },
+            {
+              "type": "section",
+              "code": "062",
+              "description": "Organizations in British Isles; in England"
+            },
+            {
+              "type": "section",
+              "code": "063",
+              "description": "Organizations in central Europe; in Germany"
+            },
+            {
+              "type": "section",
+              "code": "064",
+              "description": "Organizations in France & Monaco"
+            },
+            {
+              "type": "section",
+              "code": "065",
+              "description": "Organizations in Italy & adjacent islands"
+            },
+            {
+              "type": "section",
+              "code": "066",
+              "description": "Organizations in Iberian Peninsula & adjacent islands"
+            },
+            {
+              "type": "section",
+              "code": "067",
+              "description": "Organizations in eastern Europe; in Russia"
+            },
+            {
+              "type": "section",
+              "code": "068",
+              "description": "Organizations in other geographic areas"
+            },
+            {
+              "type": "section",
+              "code": "069",
+              "description": "Museology (Museum science)"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "070",
+          "description": "News media, journalism & publishing",
+          "sections": [
+            {
+              "type": "section",
+              "code": "071",
+              "description": "Newspapers in North America"
+            },
+            {
+              "type": "section",
+              "code": "072",
+              "description": "Newspapers in British Isles; in England"
+            },
+            {
+              "type": "section",
+              "code": "073",
+              "description": "Newspapers in central Europe; in Germany"
+            },
+            {
+              "type": "section",
+              "code": "074",
+              "description": "Newspapers in France & Monaco"
+            },
+            {
+              "type": "section",
+              "code": "075",
+              "description": "Newspapers in Italy & adjacent islands"
+            },
+            {
+              "type": "section",
+              "code": "076",
+              "description": "Newspapers in Iberian peninsula & adjacent islands"
+            },
+            {
+              "type": "section",
+              "code": "077",
+              "description": "Newspapers in eastern Europe; in Russia"
+            },
+            {
+              "type": "section",
+              "code": "078",
+              "description": "Newspapers in Scandinavia"
+            },
+            {
+              "type": "section",
+              "code": "079",
+              "description": "Newspapers in other geographic areas"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "080",
+          "description": "Quotations",
+          "sections": [
+            {
+              "type": "section",
+              "code": "081",
+              "description": "Collections in American English"
+            },
+            {
+              "type": "section",
+              "code": "082",
+              "description": "Collections in English"
+            },
+            {
+              "type": "section",
+              "code": "083",
+              "description": "Collections in other Germanic languages"
+            },
+            {
+              "type": "section",
+              "code": "084",
+              "description": "Collections in French, Occitan, Catalan"
+            },
+            {
+              "type": "section",
+              "code": "085",
+              "description": "Collections in Italian, Romanian & related languages"
+            },
+            {
+              "type": "section",
+              "code": "086",
+              "description": "Collections in Spanish & Portuguese"
+            },
+            {
+              "type": "section",
+              "code": "087",
+              "description": "Collections in Slavic languages"
+            },
+            {
+              "type": "section",
+              "code": "088",
+              "description": "Collections in Scandinavian languages"
+            },
+            {
+              "type": "section",
+              "code": "089",
+              "description": "Collections in other languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "090",
+          "description": "Manuscripts & rare books",
+          "sections": [
+            {
+              "type": "section",
+              "code": "091",
+              "description": "Manuscripts"
+            },
+            {
+              "type": "section",
+              "code": "092",
+              "description": "Block books"
+            },
+            {
+              "type": "section",
+              "code": "093",
+              "description": "Incunabula"
+            },
+            {
+              "type": "section",
+              "code": "094",
+              "description": "Printed books"
+            },
+            {
+              "type": "section",
+              "code": "095",
+              "description": "Books notable for bindings"
+            },
+            {
+              "type": "section",
+              "code": "096",
+              "description": "Books notable for illustrations"
+            },
+            {
+              "type": "section",
+              "code": "097",
+              "description": "Books notable for ownership or origin"
+            },
+            {
+              "type": "section",
+              "code": "098",
+              "description": "Prohibited works, forgeries & hoaxes"
+            },
+            {
+              "type": "section",
+              "code": "099",
+              "description": "Books notable for format"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "100",
+      "description": "Philosophy & psychology",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "100",
+          "description": "Philosophy",
+          "sections": [
+            {
+              "type": "section",
+              "code": "101",
+              "description": "Theory of philosophy"
+            },
+            {
+              "type": "section",
+              "code": "102",
+              "description": "Miscellany"
+            },
+            {
+              "type": "section",
+              "code": "103",
+              "description": "Dictionaries & encyclopedias"
+            },
+            {
+              "type": "section",
+              "code": "104",
+              "description": "No longer in use — formerly Essays"
+            },
+            {
+              "type": "section",
+              "code": "105",
+              "description": "Serial publications"
+            },
+            {
+              "type": "section",
+              "code": "106",
+              "description": "Organizations & management"
+            },
+            {
+              "type": "section",
+              "code": "107",
+              "description": "Education, research, related topics of philosophy"
+            },
+            {
+              "type": "section",
+              "code": "108",
+              "description": "Groups of people"
+            },
+            {
+              "type": "section",
+              "code": "109",
+              "description": "History & collected biography"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "110",
+          "description": "Metaphysics",
+          "sections": [
+            {
+              "type": "section",
+              "code": "111",
+              "description": "Ontology"
+            },
+            {
+              "type": "section",
+              "code": "112",
+              "description": "No longer in use — formerly Methodology"
+            },
+            {
+              "type": "section",
+              "code": "113",
+              "description": "Cosmology (Philosophy of nature)"
+            },
+            {
+              "type": "section",
+              "code": "114",
+              "description": "Space"
+            },
+            {
+              "type": "section",
+              "code": "115",
+              "description": "Time"
+            },
+            {
+              "type": "section",
+              "code": "116",
+              "description": "Change"
+            },
+            {
+              "type": "section",
+              "code": "117",
+              "description": "Structure"
+            },
+            {
+              "type": "section",
+              "code": "118",
+              "description": "Force & energy"
+            },
+            {
+              "type": "section",
+              "code": "119",
+              "description": "Number & quantity"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "120",
+          "description": "Epistemology, causation, & humankind",
+          "sections": [
+            {
+              "type": "section",
+              "code": "121",
+              "description": "Epistemology (Theory of knowledge)"
+            },
+            {
+              "type": "section",
+              "code": "122",
+              "description": "Causation"
+            },
+            {
+              "type": "section",
+              "code": "123",
+              "description": "Determinism & indeterminism"
+            },
+            {
+              "type": "section",
+              "code": "124",
+              "description": "Teleology"
+            },
+            {
+              "type": "section",
+              "code": "125",
+              "description": "No longer in use — formerly Infinity"
+            },
+            {
+              "type": "section",
+              "code": "126",
+              "description": "The self"
+            },
+            {
+              "type": "section",
+              "code": "127",
+              "description": "The unconscious & the subconscious"
+            },
+            {
+              "type": "section",
+              "code": "128",
+              "description": "Humankind"
+            },
+            {
+              "type": "section",
+              "code": "129",
+              "description": "Origin & destiny of individual souls"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "130",
+          "description": "Parapsychology & occultism",
+          "sections": [
+            {
+              "type": "section",
+              "code": "131",
+              "description": "Parapsychological and occult methods for achieving well-being, happiness, success"
+            },
+            {
+              "type": "section",
+              "code": "132",
+              "description": "No longer in use — formerly Mental derangements"
+            },
+            {
+              "type": "section",
+              "code": "133",
+              "description": "Specific topics in parapsychology & occultism"
+            },
+            {
+              "type": "section",
+              "code": "134",
+              "description": "No longer in use — formerly Mesmerism & clairvoyance"
+            },
+            {
+              "type": "section",
+              "code": "135",
+              "description": "Dreams & mysteries"
+            },
+            {
+              "type": "section",
+              "code": "136",
+              "description": "No longer in use — formerly Mental characteristics"
+            },
+            {
+              "type": "section",
+              "code": "137",
+              "description": "Divinatory graphology"
+            },
+            {
+              "type": "section",
+              "code": "138",
+              "description": "Physiognomy"
+            },
+            {
+              "type": "section",
+              "code": "139",
+              "description": "Phrenology"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "140",
+          "description": "Philosophical schools of thought",
+          "sections": [
+            {
+              "type": "section",
+              "code": "141",
+              "description": "Idealism & related systems & doctrines"
+            },
+            {
+              "type": "section",
+              "code": "142",
+              "description": "Critical philosophy"
+            },
+            {
+              "type": "section",
+              "code": "143",
+              "description": "Bergsonism & intuitionism"
+            },
+            {
+              "type": "section",
+              "code": "144",
+              "description": "Humanism & related systems & doctrines"
+            },
+            {
+              "type": "section",
+              "code": "145",
+              "description": "Sensationalism"
+            },
+            {
+              "type": "section",
+              "code": "146",
+              "description": "Naturalism & related systems & doctrines"
+            },
+            {
+              "type": "section",
+              "code": "147",
+              "description": "Pantheism & related systems & doctrines"
+            },
+            {
+              "type": "section",
+              "code": "148",
+              "description": "Dogmatism, eclecticism, liberalism, syncretism & traditionalism"
+            },
+            {
+              "type": "section",
+              "code": "149",
+              "description": "Other philosophical systems & doctrines"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "150",
+          "description": "Psychology",
+          "sections": [
+            {
+              "type": "section",
+              "code": "151",
+              "description": "No longer in use — formerly Intellect"
+            },
+            {
+              "type": "section",
+              "code": "152",
+              "description": "Sensory perception, movement, emotions & physiological drives"
+            },
+            {
+              "type": "section",
+              "code": "153",
+              "description": "Conscious mental processes & intelligence"
+            },
+            {
+              "type": "section",
+              "code": "154",
+              "description": "Subconscious & altered states & processes"
+            },
+            {
+              "type": "section",
+              "code": "155",
+              "description": "Differential & developmental psychology"
+            },
+            {
+              "type": "section",
+              "code": "156",
+              "description": "Comparative psychology"
+            },
+            {
+              "type": "section",
+              "code": "157",
+              "description": "No longer in use — formerly Emotions"
+            },
+            {
+              "type": "section",
+              "code": "158",
+              "description": "Applied psychology"
+            },
+            {
+              "type": "section",
+              "code": "159",
+              "description": "No longer in use — formerly Will"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "160",
+          "description": "Philosophical logic",
+          "sections": [
+            {
+              "type": "section",
+              "code": "161",
+              "description": "Induction"
+            },
+            {
+              "type": "section",
+              "code": "162",
+              "description": "Deduction"
+            },
+            {
+              "type": "section",
+              "code": "163",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "164",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "165",
+              "description": "Fallacies & sources of error"
+            },
+            {
+              "type": "section",
+              "code": "166",
+              "description": "Syllogisms"
+            },
+            {
+              "type": "section",
+              "code": "167",
+              "description": "Hypotheses"
+            },
+            {
+              "type": "section",
+              "code": "168",
+              "description": "Argument & persuasion"
+            },
+            {
+              "type": "section",
+              "code": "169",
+              "description": "Analogy"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "170",
+          "description": "Ethics (Moral philosophy)",
+          "sections": [
+            {
+              "type": "section",
+              "code": "171",
+              "description": "Ethical systems"
+            },
+            {
+              "type": "section",
+              "code": "172",
+              "description": "Political ethics"
+            },
+            {
+              "type": "section",
+              "code": "173",
+              "description": "Ethics of family relationships"
+            },
+            {
+              "type": "section",
+              "code": "174",
+              "description": "Occupational ethics"
+            },
+            {
+              "type": "section",
+              "code": "175",
+              "description": "Ethics of recreation, leisure, public performances, communication"
+            },
+            {
+              "type": "section",
+              "code": "176",
+              "description": "Ethics of sex & reproduction"
+            },
+            {
+              "type": "section",
+              "code": "177",
+              "description": "Ethics of social relations"
+            },
+            {
+              "type": "section",
+              "code": "178",
+              "description": "Ethics of consumption"
+            },
+            {
+              "type": "section",
+              "code": "179",
+              "description": "Other ethical norms"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "180",
+          "description": "Ancient, medieval, & Eastern philosophy",
+          "sections": [
+            {
+              "type": "section",
+              "code": "181",
+              "description": "Eastern philosophy"
+            },
+            {
+              "type": "section",
+              "code": "182",
+              "description": "Pre-Socratic Greek philosophies"
+            },
+            {
+              "type": "section",
+              "code": "183",
+              "description": "Sophistic, Socratic & related Greek philosophies"
+            },
+            {
+              "type": "section",
+              "code": "184",
+              "description": "Platonic philosophy"
+            },
+            {
+              "type": "section",
+              "code": "185",
+              "description": "Aristotelian philosophy"
+            },
+            {
+              "type": "section",
+              "code": "186",
+              "description": "Skeptic & Neoplatonic philosophies"
+            },
+            {
+              "type": "section",
+              "code": "187",
+              "description": "Epicurean philosophy"
+            },
+            {
+              "type": "section",
+              "code": "188",
+              "description": "Stoic philosophy"
+            },
+            {
+              "type": "section",
+              "code": "189",
+              "description": "Medieval Western philosophy"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "190",
+          "description": "Modern Western & other non-Eastern philosophy",
+          "sections": [
+            {
+              "type": "section",
+              "code": "191",
+              "description": "Philosophy of the United States & Canada"
+            },
+            {
+              "type": "section",
+              "code": "192",
+              "description": "Philosophy of the British Isles"
+            },
+            {
+              "type": "section",
+              "code": "193",
+              "description": "Philosophy of Germany & Austria"
+            },
+            {
+              "type": "section",
+              "code": "194",
+              "description": "Philosophy of France"
+            },
+            {
+              "type": "section",
+              "code": "195",
+              "description": "Philosophy of Italy"
+            },
+            {
+              "type": "section",
+              "code": "196",
+              "description": "Philosophy of Spain & Portugal"
+            },
+            {
+              "type": "section",
+              "code": "197",
+              "description": "Philosophy of Russia"
+            },
+            {
+              "type": "section",
+              "code": "198",
+              "description": "Philosophy of Scandinavia & Finland"
+            },
+            {
+              "type": "section",
+              "code": "199",
+              "description": "Philosophy in other geographic areas"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "200",
+      "description": "Religion",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "200",
+          "description": "Religion",
+          "sections": [
+            {
+              "type": "section",
+              "code": "201",
+              "description": "Religious mythology, general classes of religion, interreligious relations and attitudes, social theology"
+            },
+            {
+              "type": "section",
+              "code": "202",
+              "description": "Doctrines"
+            },
+            {
+              "type": "section",
+              "code": "203",
+              "description": "Public worship & other practices"
+            },
+            {
+              "type": "section",
+              "code": "204",
+              "description": "Religious experience, life, practice"
+            },
+            {
+              "type": "section",
+              "code": "205",
+              "description": "Religious ethics"
+            },
+            {
+              "type": "section",
+              "code": "206",
+              "description": "Leaders & organization"
+            },
+            {
+              "type": "section",
+              "code": "207",
+              "description": "Missions & religious education"
+            },
+            {
+              "type": "section",
+              "code": "208",
+              "description": "Sources"
+            },
+            {
+              "type": "section",
+              "code": "209",
+              "description": "Sects & reform movements"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "210",
+          "description": "Philosophy & theory of religion",
+          "sections": [
+            {
+              "type": "section",
+              "code": "211",
+              "description": "Concepts of God"
+            },
+            {
+              "type": "section",
+              "code": "212",
+              "description": "Existence, ways of knowing God, attributes of God"
+            },
+            {
+              "type": "section",
+              "code": "213",
+              "description": "Creation"
+            },
+            {
+              "type": "section",
+              "code": "214",
+              "description": "Theodicy"
+            },
+            {
+              "type": "section",
+              "code": "215",
+              "description": "Science & religion"
+            },
+            {
+              "type": "section",
+              "code": "216",
+              "description": "No longer in use—formerly Evil"
+            },
+            {
+              "type": "section",
+              "code": "217",
+              "description": "No longer in use—formerly Prayer"
+            },
+            {
+              "type": "section",
+              "code": "218",
+              "description": "Humankind"
+            },
+            {
+              "type": "section",
+              "code": "219",
+              "description": "No longer in use—formerly Analogies"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "220",
+          "description": "The Bible",
+          "sections": [
+            {
+              "type": "section",
+              "code": "221",
+              "description": "Old Testament (Tanakh)"
+            },
+            {
+              "type": "section",
+              "code": "222",
+              "description": "Historical books of Old Testament"
+            },
+            {
+              "type": "section",
+              "code": "223",
+              "description": "Poetic books of Old Testament"
+            },
+            {
+              "type": "section",
+              "code": "224",
+              "description": "Prophetic books of Old Testament"
+            },
+            {
+              "type": "section",
+              "code": "225",
+              "description": "New Testament"
+            },
+            {
+              "type": "section",
+              "code": "226",
+              "description": "Gospels & Acts"
+            },
+            {
+              "type": "section",
+              "code": "227",
+              "description": "Epistles"
+            },
+            {
+              "type": "section",
+              "code": "228",
+              "description": "Revelation (Apocalypse)"
+            },
+            {
+              "type": "section",
+              "code": "229",
+              "description": "Apocrypha, pseudepigrapha & intertestamental works"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "230",
+          "description": "Christianity",
+          "sections": [
+            {
+              "type": "section",
+              "code": "231",
+              "description": "God"
+            },
+            {
+              "type": "section",
+              "code": "232",
+              "description": "Jesus Christ & his family"
+            },
+            {
+              "type": "section",
+              "code": "233",
+              "description": "Humankind"
+            },
+            {
+              "type": "section",
+              "code": "234",
+              "description": "Salvation & grace"
+            },
+            {
+              "type": "section",
+              "code": "235",
+              "description": "Spiritual beings"
+            },
+            {
+              "type": "section",
+              "code": "236",
+              "description": "Eschatology"
+            },
+            {
+              "type": "section",
+              "code": "237",
+              "description": "No longer in use—formerly Future state"
+            },
+            {
+              "type": "section",
+              "code": "238",
+              "description": "Creeds, confessions of faith, covenants, catechisms"
+            },
+            {
+              "type": "section",
+              "code": "239",
+              "description": "Apologetics & polemics"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "240",
+          "description": "Christian moral & devotional theology",
+          "sections": [
+            {
+              "type": "section",
+              "code": "241",
+              "description": "Christian ethics"
+            },
+            {
+              "type": "section",
+              "code": "242",
+              "description": "Devotional literature"
+            },
+            {
+              "type": "section",
+              "code": "243",
+              "description": "Evangelistic writings for individuals & families"
+            },
+            {
+              "type": "section",
+              "code": "244",
+              "description": "No longer in use—formerly Religious fiction"
+            },
+            {
+              "type": "section",
+              "code": "245",
+              "description": "No longer in use—formerly Hymnology"
+            },
+            {
+              "type": "section",
+              "code": "246",
+              "description": "Use of art in Christianity"
+            },
+            {
+              "type": "section",
+              "code": "247",
+              "description": "Church furnishings & related articles"
+            },
+            {
+              "type": "section",
+              "code": "248",
+              "description": "Christian experience, practice, life"
+            },
+            {
+              "type": "section",
+              "code": "249",
+              "description": "Christian observances in family life"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "250",
+          "description": "Local Christian church & Christian religious orders",
+          "sections": [
+            {
+              "type": "section",
+              "code": "251",
+              "description": "Preaching (Homiletics)"
+            },
+            {
+              "type": "section",
+              "code": "252",
+              "description": "Texts of sermons"
+            },
+            {
+              "type": "section",
+              "code": "253",
+              "description": "Pastoral office & work (Pastoral theology)"
+            },
+            {
+              "type": "section",
+              "code": "254",
+              "description": "Parish administration"
+            },
+            {
+              "type": "section",
+              "code": "255",
+              "description": "Religious congregations & orders"
+            },
+            {
+              "type": "section",
+              "code": "256",
+              "description": "No longer in use—formerly Religious societies"
+            },
+            {
+              "type": "section",
+              "code": "257",
+              "description": "No longer in use—formerly Parish schools, libraries, etc."
+            },
+            {
+              "type": "section",
+              "code": "258",
+              "description": "No longer in use—formerly Parish medicine"
+            },
+            {
+              "type": "section",
+              "code": "259",
+              "description": "Pastoral care of families, of specific groups of people"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "260",
+          "description": "Christian social & ecclesiastical theology",
+          "sections": [
+            {
+              "type": "section",
+              "code": "261",
+              "description": "Social theology and interreligious relations and attitudes"
+            },
+            {
+              "type": "section",
+              "code": "262",
+              "description": "Ecclesiology"
+            },
+            {
+              "type": "section",
+              "code": "263",
+              "description": "Days, times, places of religious observance"
+            },
+            {
+              "type": "section",
+              "code": "264",
+              "description": "Public worship"
+            },
+            {
+              "type": "section",
+              "code": "265",
+              "description": "Sacraments, other rites & acts"
+            },
+            {
+              "type": "section",
+              "code": "266",
+              "description": "Missions"
+            },
+            {
+              "type": "section",
+              "code": "267",
+              "description": "Associations for religious work"
+            },
+            {
+              "type": "section",
+              "code": "268",
+              "description": "Religious education"
+            },
+            {
+              "type": "section",
+              "code": "269",
+              "description": "Spiritual renewal"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "270",
+          "description": "History, geographic treatment, biography of Christianity",
+          "sections": [
+            {
+              "type": "section",
+              "code": "271",
+              "description": "Religious congregations & orders in church history"
+            },
+            {
+              "type": "section",
+              "code": "272",
+              "description": "Persecutions in church history"
+            },
+            {
+              "type": "section",
+              "code": "273",
+              "description": "Doctrinal controversies & heresies in general church history"
+            },
+            {
+              "type": "section",
+              "code": "274",
+              "description": "Christianity in Europe"
+            },
+            {
+              "type": "section",
+              "code": "275",
+              "description": "Christianity in Asia"
+            },
+            {
+              "type": "section",
+              "code": "276",
+              "description": "Christianity in Africa"
+            },
+            {
+              "type": "section",
+              "code": "277",
+              "description": "Christianity in North America"
+            },
+            {
+              "type": "section",
+              "code": "278",
+              "description": "Christianity in South America"
+            },
+            {
+              "type": "section",
+              "code": "279",
+              "description": "History of Christianity in other areas"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "280",
+          "description": "Denominations & sects of Christian church",
+          "sections": [
+            {
+              "type": "section",
+              "code": "281",
+              "description": "Early church & Oriental churches"
+            },
+            {
+              "type": "section",
+              "code": "282",
+              "description": "Roman Catholic Church"
+            },
+            {
+              "type": "section",
+              "code": "283",
+              "description": "Anglican churches"
+            },
+            {
+              "type": "section",
+              "code": "284",
+              "description": "Protestant denominations of Continental origin (Lutheran, Continental Reformed)"
+            },
+            {
+              "type": "section",
+              "code": "285",
+              "description": "Presbyterian churches, Reformed churches centered in America, Congregational churches"
+            },
+            {
+              "type": "section",
+              "code": "286",
+              "description": "Baptist, Restoration Movement, Adventist churches"
+            },
+            {
+              "type": "section",
+              "code": "287",
+              "description": "Methodist churches; churches related to Methodism"
+            },
+            {
+              "type": "section",
+              "code": "288",
+              "description": "No longer in use — formerly Unitarian"
+            },
+            {
+              "type": "section",
+              "code": "289",
+              "description": "Other denominations & sects"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "290",
+          "description": "Other religions",
+          "sections": [
+            {
+              "type": "section",
+              "code": "291",
+              "description": "No longer in use — formerly Comparative religion"
+            },
+            {
+              "type": "section",
+              "code": "292",
+              "description": "Classical religion (Greek & Roman religion)"
+            },
+            {
+              "type": "section",
+              "code": "293",
+              "description": "Germanic religion"
+            },
+            {
+              "type": "section",
+              "code": "294",
+              "description": "Religions of Indic origin"
+            },
+            {
+              "type": "section",
+              "code": "295",
+              "description": "Zoroastrianism (Mazdaism, Parseeism)"
+            },
+            {
+              "type": "section",
+              "code": "296",
+              "description": "Judaism"
+            },
+            {
+              "type": "section",
+              "code": "297",
+              "description": "Islam, Bábism & Baháʼí Faith"
+            },
+            {
+              "type": "section",
+              "code": "298",
+              "description": "No longer in use — formerly Mormonism"
+            },
+            {
+              "type": "section",
+              "code": "299",
+              "description": "Religions not provided for elsewhere"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "300",
+      "description": "Social sciences",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "300",
+          "description": "Social sciences, sociology & anthropology",
+          "sections": [
+            {
+              "type": "section",
+              "code": "301",
+              "description": "Sociology & anthropology"
+            },
+            {
+              "type": "section",
+              "code": "302",
+              "description": "Social interaction"
+            },
+            {
+              "type": "section",
+              "code": "303",
+              "description": "Social processes"
+            },
+            {
+              "type": "section",
+              "code": "304",
+              "description": "Factors affecting social behavior"
+            },
+            {
+              "type": "section",
+              "code": "305",
+              "description": "Groups of people"
+            },
+            {
+              "type": "section",
+              "code": "306",
+              "description": "Culture & institutions"
+            },
+            {
+              "type": "section",
+              "code": "307",
+              "description": "Communities"
+            },
+            {
+              "type": "section",
+              "code": "308",
+              "description": "No longer in use — formerly Polygraphy"
+            },
+            {
+              "type": "section",
+              "code": "309",
+              "description": "No longer in use — formerly History of sociology"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "310",
+          "description": "Statistics",
+          "sections": [
+            {
+              "type": "section",
+              "code": "311",
+              "description": "No longer in use — formerly Theory and methods"
+            },
+            {
+              "type": "section",
+              "code": "312",
+              "description": "No longer in use — formerly Population"
+            },
+            {
+              "type": "section",
+              "code": "313",
+              "description": "No longer in use — formerly Special topics"
+            },
+            {
+              "type": "section",
+              "code": "314",
+              "description": "General statistics of Europe"
+            },
+            {
+              "type": "section",
+              "code": "315",
+              "description": "General statistics of Asia"
+            },
+            {
+              "type": "section",
+              "code": "316",
+              "description": "General statistics of Africa"
+            },
+            {
+              "type": "section",
+              "code": "317",
+              "description": "General statistics of North America"
+            },
+            {
+              "type": "section",
+              "code": "318",
+              "description": "General statistics of South America"
+            },
+            {
+              "type": "section",
+              "code": "319",
+              "description": "General statistics of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "320",
+          "description": "Political science (politics & government)",
+          "sections": [
+            {
+              "type": "section",
+              "code": "321",
+              "description": "Systems of governments & states"
+            },
+            {
+              "type": "section",
+              "code": "322",
+              "description": "Relation of state to organized groups & their members"
+            },
+            {
+              "type": "section",
+              "code": "323",
+              "description": "Civil & political rights"
+            },
+            {
+              "type": "section",
+              "code": "324",
+              "description": "The political process"
+            },
+            {
+              "type": "section",
+              "code": "325",
+              "description": "International migration & colonization"
+            },
+            {
+              "type": "section",
+              "code": "326",
+              "description": "Slavery & emancipation"
+            },
+            {
+              "type": "section",
+              "code": "327",
+              "description": "International relations"
+            },
+            {
+              "type": "section",
+              "code": "328",
+              "description": "The legislative process"
+            },
+            {
+              "type": "section",
+              "code": "329",
+              "description": "No longer in use— formerly Political parties"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "330",
+          "description": "Economics",
+          "sections": [
+            {
+              "type": "section",
+              "code": "331",
+              "description": "Labor economics"
+            },
+            {
+              "type": "section",
+              "code": "332",
+              "description": "Financial economics"
+            },
+            {
+              "type": "section",
+              "code": "333",
+              "description": "Economics of land & energy"
+            },
+            {
+              "type": "section",
+              "code": "334",
+              "description": "Cooperatives"
+            },
+            {
+              "type": "section",
+              "code": "335",
+              "description": "Socialism & related systems"
+            },
+            {
+              "type": "section",
+              "code": "336",
+              "description": "Public finance"
+            },
+            {
+              "type": "section",
+              "code": "337",
+              "description": "International economics"
+            },
+            {
+              "type": "section",
+              "code": "338",
+              "description": "Production"
+            },
+            {
+              "type": "section",
+              "code": "339",
+              "description": "Macroeconomics & related topics"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "340",
+          "description": "Law",
+          "sections": [
+            {
+              "type": "section",
+              "code": "341",
+              "description": "Law of nations"
+            },
+            {
+              "type": "section",
+              "code": "342",
+              "description": "Constitutional & administrative law"
+            },
+            {
+              "type": "section",
+              "code": "343",
+              "description": "Military, defense, public property, public finance, tax, commerce (trade), industrial law"
+            },
+            {
+              "type": "section",
+              "code": "344",
+              "description": "Labor, social service, education, cultural law"
+            },
+            {
+              "type": "section",
+              "code": "345",
+              "description": "Criminal law"
+            },
+            {
+              "type": "section",
+              "code": "346",
+              "description": "Private law"
+            },
+            {
+              "type": "section",
+              "code": "347",
+              "description": "Procedure & courts"
+            },
+            {
+              "type": "section",
+              "code": "348",
+              "description": "Laws, regulations, cases"
+            },
+            {
+              "type": "section",
+              "code": "349",
+              "description": "Law of specific jurisdictions, areas, socioeconomic regions, regional intergovernmental organizations"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "350",
+          "description": "Public administration & military science",
+          "sections": [
+            {
+              "type": "section",
+              "code": "351",
+              "description": "Public administration"
+            },
+            {
+              "type": "section",
+              "code": "352",
+              "description": "General considerations of public administration"
+            },
+            {
+              "type": "section",
+              "code": "353",
+              "description": "Specific fields of public administration"
+            },
+            {
+              "type": "section",
+              "code": "354",
+              "description": "Public administration of economy & environment"
+            },
+            {
+              "type": "section",
+              "code": "355",
+              "description": "Military science"
+            },
+            {
+              "type": "section",
+              "code": "356",
+              "description": "Foot forces & warfare"
+            },
+            {
+              "type": "section",
+              "code": "357",
+              "description": "Mounted forces & warfare"
+            },
+            {
+              "type": "section",
+              "code": "358",
+              "description": "Air & other specialized forces & warfare; engineering & related services"
+            },
+            {
+              "type": "section",
+              "code": "359",
+              "description": "Sea forces & warfare"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "360",
+          "description": "Social problems & services; associations",
+          "sections": [
+            {
+              "type": "section",
+              "code": "361",
+              "description": "Social problems & services"
+            },
+            {
+              "type": "section",
+              "code": "362",
+              "description": "Social problems of & services to groups of people"
+            },
+            {
+              "type": "section",
+              "code": "363",
+              "description": "Other social problems & services"
+            },
+            {
+              "type": "section",
+              "code": "364",
+              "description": "Criminology"
+            },
+            {
+              "type": "section",
+              "code": "365",
+              "description": "Penal & related institutions"
+            },
+            {
+              "type": "section",
+              "code": "366",
+              "description": "Associations & secret societies"
+            },
+            {
+              "type": "section",
+              "code": "367",
+              "description": "General clubs"
+            },
+            {
+              "type": "section",
+              "code": "368",
+              "description": "Insurance"
+            },
+            {
+              "type": "section",
+              "code": "369",
+              "description": "Associations"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "370",
+          "description": "Education",
+          "sections": [
+            {
+              "type": "section",
+              "code": "371",
+              "description": "Schools & their activities, special education"
+            },
+            {
+              "type": "section",
+              "code": "372",
+              "description": "Primary education (elementary education)"
+            },
+            {
+              "type": "section",
+              "code": "373",
+              "description": "Secondary education"
+            },
+            {
+              "type": "section",
+              "code": "374",
+              "description": "Adult education"
+            },
+            {
+              "type": "section",
+              "code": "375",
+              "description": "Curriculums"
+            },
+            {
+              "type": "section",
+              "code": "376",
+              "description": "No longer in use — formerly Education of women"
+            },
+            {
+              "type": "section",
+              "code": "377",
+              "description": "No longer in use — formerly Ethical education"
+            },
+            {
+              "type": "section",
+              "code": "378",
+              "description": "Higher education (tertiary education)"
+            },
+            {
+              "type": "section",
+              "code": "379",
+              "description": "Public policy issues in education"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "380",
+          "description": "Commerce, communications, transport",
+          "sections": [
+            {
+              "type": "section",
+              "code": "381",
+              "description": "Commerce (Trade)"
+            },
+            {
+              "type": "section",
+              "code": "382",
+              "description": "International commerce (foreign trade)"
+            },
+            {
+              "type": "section",
+              "code": "383",
+              "description": "Postal communication"
+            },
+            {
+              "type": "section",
+              "code": "384",
+              "description": "Communications"
+            },
+            {
+              "type": "section",
+              "code": "385",
+              "description": "Railroad transportation"
+            },
+            {
+              "type": "section",
+              "code": "386",
+              "description": "Inland waterway & ferry transportation"
+            },
+            {
+              "type": "section",
+              "code": "387",
+              "description": "Water, air, space transportation"
+            },
+            {
+              "type": "section",
+              "code": "388",
+              "description": "Transportation"
+            },
+            {
+              "type": "section",
+              "code": "389",
+              "description": "Metrology & standardization"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "390",
+          "description": "Customs, etiquette, folklore",
+          "sections": [
+            {
+              "type": "section",
+              "code": "391",
+              "description": "Costume & personal appearance"
+            },
+            {
+              "type": "section",
+              "code": "392",
+              "description": "Customs of life cycle & domestic life"
+            },
+            {
+              "type": "section",
+              "code": "393",
+              "description": "Death customs"
+            },
+            {
+              "type": "section",
+              "code": "394",
+              "description": "General customs"
+            },
+            {
+              "type": "section",
+              "code": "395",
+              "description": "Etiquette (Manners)"
+            },
+            {
+              "type": "section",
+              "code": "396",
+              "description": "No longer in use — formerly Women's position and treatment"
+            },
+            {
+              "type": "section",
+              "code": "397",
+              "description": "No longer in use — formerly Outcast studies"
+            },
+            {
+              "type": "section",
+              "code": "398",
+              "description": "Folklore"
+            },
+            {
+              "type": "section",
+              "code": "399",
+              "description": "Customs of war & diplomacy"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "400",
+      "description": "Language",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "400",
+          "description": "Language",
+          "sections": [
+            {
+              "type": "section",
+              "code": "401",
+              "description": "Philosophy & theory, international languages"
+            },
+            {
+              "type": "section",
+              "code": "402",
+              "description": "Miscellany"
+            },
+            {
+              "type": "section",
+              "code": "403",
+              "description": "Dictionaries, encyclopedias, concordances"
+            },
+            {
+              "type": "section",
+              "code": "404",
+              "description": "Special topics of language"
+            },
+            {
+              "type": "section",
+              "code": "405",
+              "description": "Serial publications"
+            },
+            {
+              "type": "section",
+              "code": "406",
+              "description": "Organizations & management"
+            },
+            {
+              "type": "section",
+              "code": "407",
+              "description": "Education, research, related topics"
+            },
+            {
+              "type": "section",
+              "code": "408",
+              "description": "Groups of people"
+            },
+            {
+              "type": "section",
+              "code": "409",
+              "description": "Geographic treatment & biography"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "410",
+          "description": "Linguistics",
+          "sections": [
+            {
+              "type": "section",
+              "code": "411",
+              "description": "Writing systems of standard forms of languages"
+            },
+            {
+              "type": "section",
+              "code": "412",
+              "description": "Etymology of standard forms of languages"
+            },
+            {
+              "type": "section",
+              "code": "413",
+              "description": "Dictionaries of standard forms of languages"
+            },
+            {
+              "type": "section",
+              "code": "414",
+              "description": "Phonology & phonetics of standard forms of languages"
+            },
+            {
+              "type": "section",
+              "code": "415",
+              "description": "Grammar of standard forms of languages"
+            },
+            {
+              "type": "section",
+              "code": "416",
+              "description": "No longer in use — formerly Prosody"
+            },
+            {
+              "type": "section",
+              "code": "417",
+              "description": "Dialectology & historical linguistics"
+            },
+            {
+              "type": "section",
+              "code": "418",
+              "description": "Standard usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "419",
+              "description": "Sign languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "420",
+          "description": "English & Old English (Anglo-Saxon)",
+          "sections": [
+            {
+              "type": "section",
+              "code": "421",
+              "description": "Writing system, phonology, phonetics of standard English"
+            },
+            {
+              "type": "section",
+              "code": "422",
+              "description": "Etymology of standard English"
+            },
+            {
+              "type": "section",
+              "code": "423",
+              "description": "Dictionaries of standard English"
+            },
+            {
+              "type": "section",
+              "code": "424",
+              "description": "No longer in use — formerly English thesauruses"
+            },
+            {
+              "type": "section",
+              "code": "425",
+              "description": "Grammar of standard English"
+            },
+            {
+              "type": "section",
+              "code": "426",
+              "description": "No longer in use — formerly English prosodies"
+            },
+            {
+              "type": "section",
+              "code": "427",
+              "description": "Historical & geographic variations, modern nongeographic variations of English"
+            },
+            {
+              "type": "section",
+              "code": "428",
+              "description": "Standard English usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "429",
+              "description": "Old English (Anglo-Saxon)"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "430",
+          "description": "Germanic languages & related languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "431",
+              "description": "Writing systems, phonology, phonetics of standard German"
+            },
+            {
+              "type": "section",
+              "code": "432",
+              "description": "Etymology of standard German"
+            },
+            {
+              "type": "section",
+              "code": "433",
+              "description": "Dictionaries of standard German"
+            },
+            {
+              "type": "section",
+              "code": "434",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "435",
+              "description": "Grammar of standard German"
+            },
+            {
+              "type": "section",
+              "code": "436",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "437",
+              "description": "Historical & geographic variations, modern nongeographic variations of German"
+            },
+            {
+              "type": "section",
+              "code": "438",
+              "description": "Standard German usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "439",
+              "description": "Other Germanic languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "440",
+          "description": "French & related Romance languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "441",
+              "description": "Writing systems, phonology, phonetics of standard French"
+            },
+            {
+              "type": "section",
+              "code": "442",
+              "description": "Etymology of standard French"
+            },
+            {
+              "type": "section",
+              "code": "443",
+              "description": "Dictionaries of standard French"
+            },
+            {
+              "type": "section",
+              "code": "444",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "445",
+              "description": "Grammar of standard French"
+            },
+            {
+              "type": "section",
+              "code": "446",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "447",
+              "description": "Historical & geographic variations, modern nongeographic variations of French"
+            },
+            {
+              "type": "section",
+              "code": "448",
+              "description": "Standard French usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "449",
+              "description": "Occitan, Catalan, Franco-Provençal"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "450",
+          "description": "Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican",
+          "sections": [
+            {
+              "type": "section",
+              "code": "451",
+              "description": "Writing systems, phonology, phonetics of standard Italian"
+            },
+            {
+              "type": "section",
+              "code": "452",
+              "description": "Etymology of standard Italian"
+            },
+            {
+              "type": "section",
+              "code": "453",
+              "description": "Dictionaries of standard Italian"
+            },
+            {
+              "type": "section",
+              "code": "454",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "455",
+              "description": "Grammar of standard Italian"
+            },
+            {
+              "type": "section",
+              "code": "456",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "457",
+              "description": "Historical & geographic variations, modern nongeographic variations of Italian"
+            },
+            {
+              "type": "section",
+              "code": "458",
+              "description": "Standard Italian usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "459",
+              "description": "Romanian, Rhaetian, Sardinian, Corsican"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "460",
+          "description": "Spanish, Portuguese, Galician",
+          "sections": [
+            {
+              "type": "section",
+              "code": "461",
+              "description": "Writing systems, phonology, phonetics of standard Spanish"
+            },
+            {
+              "type": "section",
+              "code": "462",
+              "description": "Etymology of standard Spanish"
+            },
+            {
+              "type": "section",
+              "code": "463",
+              "description": "Dictionaries of standard Spanish"
+            },
+            {
+              "type": "section",
+              "code": "464",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "465",
+              "description": "Grammar of standard Spanish"
+            },
+            {
+              "type": "section",
+              "code": "466",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "467",
+              "description": "Historical & geographic variations, modern nongeographic variations of Spanish"
+            },
+            {
+              "type": "section",
+              "code": "468",
+              "description": "Standard Spanish usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "469",
+              "description": "Portuguese"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "470",
+          "description": "Latin & related Italic languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "471",
+              "description": "Writing systems, phonology, phonetics of classical Latin"
+            },
+            {
+              "type": "section",
+              "code": "472",
+              "description": "Etymology of classical Latin"
+            },
+            {
+              "type": "section",
+              "code": "473",
+              "description": "Dictionaries of classical Latin"
+            },
+            {
+              "type": "section",
+              "code": "474",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "475",
+              "description": "Grammar of classical Latin"
+            },
+            {
+              "type": "section",
+              "code": "476",
+              "description": "No longer in use"
+            },
+            {
+              "type": "section",
+              "code": "477",
+              "description": "Old, postclassical, Vulgar Latin"
+            },
+            {
+              "type": "section",
+              "code": "478",
+              "description": "Classical Latin usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "479",
+              "description": "Other Italic languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "480",
+          "description": "Classical Greek & related Hellenic languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "481",
+              "description": "Writing systems, phonology, phonetics of classical Greek"
+            },
+            {
+              "type": "section",
+              "code": "482",
+              "description": "Etymology of classical Greek"
+            },
+            {
+              "type": "section",
+              "code": "483",
+              "description": "Dictionaries of classical Greek"
+            },
+            {
+              "type": "section",
+              "code": "484",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "485",
+              "description": "Grammar of classical Greek"
+            },
+            {
+              "type": "section",
+              "code": "486",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "487",
+              "description": "Preclassical & postclassical Greek"
+            },
+            {
+              "type": "section",
+              "code": "488",
+              "description": "Classical Greek usage (Prescriptive linguistics)"
+            },
+            {
+              "type": "section",
+              "code": "489",
+              "description": "Other Hellenic languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "490",
+          "description": "Other languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "491",
+              "description": "East Indo-European & Celtic languages"
+            },
+            {
+              "type": "section",
+              "code": "492",
+              "description": "Afro-Asiatic languages"
+            },
+            {
+              "type": "section",
+              "code": "493",
+              "description": "Non-Semitic Afro-Asiatic languages"
+            },
+            {
+              "type": "section",
+              "code": "494",
+              "description": "Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia"
+            },
+            {
+              "type": "section",
+              "code": "495",
+              "description": "Languages of East & Southeast Asia"
+            },
+            {
+              "type": "section",
+              "code": "496",
+              "description": "African languages"
+            },
+            {
+              "type": "section",
+              "code": "497",
+              "description": "North American native languages"
+            },
+            {
+              "type": "section",
+              "code": "498",
+              "description": "South American native languages"
+            },
+            {
+              "type": "section",
+              "code": "499",
+              "description": "Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "500",
+      "description": "Natural sciences & mathematics",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "500",
+          "description": "Science",
+          "sections": [
+            {
+              "type": "section",
+              "code": "501",
+              "description": "Philosophy & theory"
+            },
+            {
+              "type": "section",
+              "code": "502",
+              "description": "Miscellany"
+            },
+            {
+              "type": "section",
+              "code": "503",
+              "description": "Dictionaries, encyclopedias, concordances"
+            },
+            {
+              "type": "section",
+              "code": "504",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "505",
+              "description": "Serial publications"
+            },
+            {
+              "type": "section",
+              "code": "506",
+              "description": "Organizations & management"
+            },
+            {
+              "type": "section",
+              "code": "507",
+              "description": "Education, research, related topics"
+            },
+            {
+              "type": "section",
+              "code": "508",
+              "description": "Natural history"
+            },
+            {
+              "type": "section",
+              "code": "509",
+              "description": "History, geographic treatment, biography"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "510",
+          "description": "Mathematics",
+          "sections": [
+            {
+              "type": "section",
+              "code": "511",
+              "description": "General principles of mathematics"
+            },
+            {
+              "type": "section",
+              "code": "512",
+              "description": "Algebra"
+            },
+            {
+              "type": "section",
+              "code": "513",
+              "description": "Arithmetic"
+            },
+            {
+              "type": "section",
+              "code": "514",
+              "description": "Topology"
+            },
+            {
+              "type": "section",
+              "code": "515",
+              "description": "Analysis"
+            },
+            {
+              "type": "section",
+              "code": "516",
+              "description": "Geometry"
+            },
+            {
+              "type": "section",
+              "code": "517",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "518",
+              "description": "Numerical analysis"
+            },
+            {
+              "type": "section",
+              "code": "519",
+              "description": "Probabilities & applied mathematics"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "520",
+          "description": "Astronomy & allied sciences",
+          "sections": [
+            {
+              "type": "section",
+              "code": "521",
+              "description": "Celestial mechanics"
+            },
+            {
+              "type": "section",
+              "code": "522",
+              "description": "Techniques, procedures, apparatus, equipment, materials"
+            },
+            {
+              "type": "section",
+              "code": "523",
+              "description": "Specific celestial bodies & phenomena"
+            },
+            {
+              "type": "section",
+              "code": "524",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "525",
+              "description": "Earth (Astronomical geography)"
+            },
+            {
+              "type": "section",
+              "code": "526",
+              "description": "Mathematical geography"
+            },
+            {
+              "type": "section",
+              "code": "527",
+              "description": "Celestial navigation"
+            },
+            {
+              "type": "section",
+              "code": "528",
+              "description": "Ephemerides"
+            },
+            {
+              "type": "section",
+              "code": "529",
+              "description": "Chronology"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "530",
+          "description": "Physics",
+          "sections": [
+            {
+              "type": "section",
+              "code": "531",
+              "description": "Classical mechanics"
+            },
+            {
+              "type": "section",
+              "code": "532",
+              "description": "Fluid mechanics"
+            },
+            {
+              "type": "section",
+              "code": "533",
+              "description": "Pneumatics (Gas mechanics)"
+            },
+            {
+              "type": "section",
+              "code": "534",
+              "description": "Sound & related vibrations"
+            },
+            {
+              "type": "section",
+              "code": "535",
+              "description": "Light & related radiation"
+            },
+            {
+              "type": "section",
+              "code": "536",
+              "description": "Heat"
+            },
+            {
+              "type": "section",
+              "code": "537",
+              "description": "Electricity & electronics"
+            },
+            {
+              "type": "section",
+              "code": "538",
+              "description": "Magnetism"
+            },
+            {
+              "type": "section",
+              "code": "539",
+              "description": "Modern physics"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "540",
+          "description": "Chemistry & allied sciences",
+          "sections": [
+            {
+              "type": "section",
+              "code": "541",
+              "description": "Physical chemistry"
+            },
+            {
+              "type": "section",
+              "code": "542",
+              "description": "Techniques, procedures, apparatus, equipment, materials"
+            },
+            {
+              "type": "section",
+              "code": "543",
+              "description": "Analytical chemistry"
+            },
+            {
+              "type": "section",
+              "code": "544",
+              "description": "No longer in use — formerly Qualitative analysis"
+            },
+            {
+              "type": "section",
+              "code": "545",
+              "description": "No longer in use — formerly Quantitative analysis"
+            },
+            {
+              "type": "section",
+              "code": "546",
+              "description": "Inorganic chemistry"
+            },
+            {
+              "type": "section",
+              "code": "547",
+              "description": "Organic chemistry"
+            },
+            {
+              "type": "section",
+              "code": "548",
+              "description": "Crystallography"
+            },
+            {
+              "type": "section",
+              "code": "549",
+              "description": "Mineralogy"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "550",
+          "description": "Earth sciences & geology",
+          "sections": [
+            {
+              "type": "section",
+              "code": "551",
+              "description": "Geology, hydrology, meteorology"
+            },
+            {
+              "type": "section",
+              "code": "552",
+              "description": "Petrology"
+            },
+            {
+              "type": "section",
+              "code": "553",
+              "description": "Economic geology"
+            },
+            {
+              "type": "section",
+              "code": "554",
+              "description": "Earth sciences of Europe"
+            },
+            {
+              "type": "section",
+              "code": "555",
+              "description": "Earth sciences of Asia"
+            },
+            {
+              "type": "section",
+              "code": "556",
+              "description": "Earth sciences of Africa"
+            },
+            {
+              "type": "section",
+              "code": "557",
+              "description": "Earth sciences of North America"
+            },
+            {
+              "type": "section",
+              "code": "558",
+              "description": "Earth sciences of South America"
+            },
+            {
+              "type": "section",
+              "code": "559",
+              "description": "Earth sciences of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "560",
+          "description": "Fossils & prehistoric life",
+          "sections": [
+            {
+              "type": "section",
+              "code": "561",
+              "description": "Paleobotany, fossil microorganisms"
+            },
+            {
+              "type": "section",
+              "code": "562",
+              "description": "Fossil invertebrates"
+            },
+            {
+              "type": "section",
+              "code": "563",
+              "description": "Miscellaneous fossil marine & seashore invertebrates"
+            },
+            {
+              "type": "section",
+              "code": "564",
+              "description": "Fossil Mollusca & Molluscoidea"
+            },
+            {
+              "type": "section",
+              "code": "565",
+              "description": "Fossil Arthropoda"
+            },
+            {
+              "type": "section",
+              "code": "566",
+              "description": "Fossil Chordata"
+            },
+            {
+              "type": "section",
+              "code": "567",
+              "description": "Fossil cold-blooded vertebrates"
+            },
+            {
+              "type": "section",
+              "code": "568",
+              "description": "Fossil Aves (birds)"
+            },
+            {
+              "type": "section",
+              "code": "569",
+              "description": "Fossil Mammalia"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "570",
+          "description": "Biology",
+          "sections": [
+            {
+              "type": "section",
+              "code": "571",
+              "description": "Physiology & related subjects"
+            },
+            {
+              "type": "section",
+              "code": "572",
+              "description": "Biochemistry"
+            },
+            {
+              "type": "section",
+              "code": "573",
+              "description": "Specific physiological systems in animals, regional histology & physiology in animals"
+            },
+            {
+              "type": "section",
+              "code": "574",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "575",
+              "description": "Specific parts of & physiological systems in plants"
+            },
+            {
+              "type": "section",
+              "code": "576",
+              "description": "Genetics & evolution"
+            },
+            {
+              "type": "section",
+              "code": "577",
+              "description": "Ecology"
+            },
+            {
+              "type": "section",
+              "code": "578",
+              "description": "Natural history of organisms & related subjects"
+            },
+            {
+              "type": "section",
+              "code": "579",
+              "description": "Natural history of microorganisms, fungi, algae"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "580",
+          "description": "Plants",
+          "sections": [
+            {
+              "type": "section",
+              "code": "581",
+              "description": "Specific topics in natural history of plants"
+            },
+            {
+              "type": "section",
+              "code": "582",
+              "description": "Plants noted for specific vegetative characteristics & flowers"
+            },
+            {
+              "type": "section",
+              "code": "583",
+              "description": "Magnoliopsida (Dicotyledones)"
+            },
+            {
+              "type": "section",
+              "code": "584",
+              "description": "Liliopsida (Monocotyledones)"
+            },
+            {
+              "type": "section",
+              "code": "585",
+              "description": "Pinophyta (Gymnosperms)"
+            },
+            {
+              "type": "section",
+              "code": "586",
+              "description": "Cryptogamia (Seedless plants)"
+            },
+            {
+              "type": "section",
+              "code": "587",
+              "description": "Pteridophyta"
+            },
+            {
+              "type": "section",
+              "code": "588",
+              "description": "Bryophyta"
+            },
+            {
+              "type": "section",
+              "code": "589",
+              "description": "No longer in use—formerly Forestry"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "590",
+          "description": "Animals (Zoology)",
+          "sections": [
+            {
+              "type": "section",
+              "code": "591",
+              "description": "Specific topics in natural history of animals"
+            },
+            {
+              "type": "section",
+              "code": "592",
+              "description": "Invertebrates"
+            },
+            {
+              "type": "section",
+              "code": "593",
+              "description": "Miscellaneous marine & seashore invertebrates"
+            },
+            {
+              "type": "section",
+              "code": "594",
+              "description": "Mollusca & Molluscoidea"
+            },
+            {
+              "type": "section",
+              "code": "595",
+              "description": "Arthropoda"
+            },
+            {
+              "type": "section",
+              "code": "596",
+              "description": "Chordata"
+            },
+            {
+              "type": "section",
+              "code": "597",
+              "description": "Cold-blooded vertebrates"
+            },
+            {
+              "type": "section",
+              "code": "598",
+              "description": "Aves (Birds)"
+            },
+            {
+              "type": "section",
+              "code": "599",
+              "description": "Mammalia (Mammals)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "600",
+      "description": "Technology (Applied sciences)",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "600",
+          "description": "Technology",
+          "sections": [
+            {
+              "type": "section",
+              "code": "601",
+              "description": "Philosophy & theory"
+            },
+            {
+              "type": "section",
+              "code": "602",
+              "description": "Miscellany"
+            },
+            {
+              "type": "section",
+              "code": "603",
+              "description": "Dictionaries, encyclopedias, concordances"
+            },
+            {
+              "type": "section",
+              "code": "604",
+              "description": "Technical drawing, hazardous materials technology; groups of people"
+            },
+            {
+              "type": "section",
+              "code": "605",
+              "description": "Serial publications"
+            },
+            {
+              "type": "section",
+              "code": "606",
+              "description": "Organizations"
+            },
+            {
+              "type": "section",
+              "code": "607",
+              "description": "Education, research, related topics"
+            },
+            {
+              "type": "section",
+              "code": "608",
+              "description": "Patents"
+            },
+            {
+              "type": "section",
+              "code": "609",
+              "description": "History, geographic treatment, biography"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "610",
+          "description": "Medicine & health",
+          "sections": [
+            {
+              "type": "section",
+              "code": "611",
+              "description": "Human anatomy, cytology, histology"
+            },
+            {
+              "type": "section",
+              "code": "612",
+              "description": "Human physiology"
+            },
+            {
+              "type": "section",
+              "code": "613",
+              "description": "Personal health & safety"
+            },
+            {
+              "type": "section",
+              "code": "614",
+              "description": "Forensic medicine; incidence of injuries, wounds, disease; public preventive medicine"
+            },
+            {
+              "type": "section",
+              "code": "615",
+              "description": "Pharmacology & therapeutics"
+            },
+            {
+              "type": "section",
+              "code": "616",
+              "description": "Diseases"
+            },
+            {
+              "type": "section",
+              "code": "617",
+              "description": "Surgery, regional medicine, dentistry, ophthalmology, otology, audiology"
+            },
+            {
+              "type": "section",
+              "code": "618",
+              "description": "Gynecology, obstetrics, pediatrics, geriatrics"
+            },
+            {
+              "type": "section",
+              "code": "619",
+              "description": "No longer in use—formerly Experimental medicine"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "620",
+          "description": "Engineering & Applied operations",
+          "sections": [
+            {
+              "type": "section",
+              "code": "621",
+              "description": "Applied physics"
+            },
+            {
+              "type": "section",
+              "code": "622",
+              "description": "Mining & related operations"
+            },
+            {
+              "type": "section",
+              "code": "623",
+              "description": "Military & nautical engineering"
+            },
+            {
+              "type": "section",
+              "code": "624",
+              "description": "Civil engineering"
+            },
+            {
+              "type": "section",
+              "code": "625",
+              "description": "Engineering of railroads, roads"
+            },
+            {
+              "type": "section",
+              "code": "626",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "627",
+              "description": "Hydraulic engineering"
+            },
+            {
+              "type": "section",
+              "code": "628",
+              "description": "Sanitary engineering"
+            },
+            {
+              "type": "section",
+              "code": "629",
+              "description": "Other branches of engineering"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "630",
+          "description": "Agriculture & related technologies",
+          "sections": [
+            {
+              "type": "section",
+              "code": "631",
+              "description": "Specific techniques; apparatus, equipment, materials"
+            },
+            {
+              "type": "section",
+              "code": "632",
+              "description": "Plant injuries, diseases, pests"
+            },
+            {
+              "type": "section",
+              "code": "633",
+              "description": "Field & plantation crops"
+            },
+            {
+              "type": "section",
+              "code": "634",
+              "description": "Orchards, fruits, forestry"
+            },
+            {
+              "type": "section",
+              "code": "635",
+              "description": "Garden crops (Horticulture)"
+            },
+            {
+              "type": "section",
+              "code": "636",
+              "description": "Animal husbandry"
+            },
+            {
+              "type": "section",
+              "code": "637",
+              "description": "Processing dairy & related products"
+            },
+            {
+              "type": "section",
+              "code": "638",
+              "description": "Insect culture"
+            },
+            {
+              "type": "section",
+              "code": "639",
+              "description": "Hunting, fishing, conservation, related technologies"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "640",
+          "description": "Home & family management",
+          "sections": [
+            {
+              "type": "section",
+              "code": "641",
+              "description": "Food & drink"
+            },
+            {
+              "type": "section",
+              "code": "642",
+              "description": "Meals & table service"
+            },
+            {
+              "type": "section",
+              "code": "643",
+              "description": "Housing & household equipment"
+            },
+            {
+              "type": "section",
+              "code": "644",
+              "description": "Household utilities"
+            },
+            {
+              "type": "section",
+              "code": "645",
+              "description": "Household furnishings"
+            },
+            {
+              "type": "section",
+              "code": "646",
+              "description": "Sewing, clothing, management of personal and family life"
+            },
+            {
+              "type": "section",
+              "code": "647",
+              "description": "Management of public households (Institutional housekeeping)"
+            },
+            {
+              "type": "section",
+              "code": "648",
+              "description": "Housekeeping"
+            },
+            {
+              "type": "section",
+              "code": "649",
+              "description": "Child rearing; home care of people with disabilities and illnesses"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "650",
+          "description": "Management & auxiliary services",
+          "sections": [
+            {
+              "type": "section",
+              "code": "651",
+              "description": "Office services"
+            },
+            {
+              "type": "section",
+              "code": "652",
+              "description": "Processes of written communication"
+            },
+            {
+              "type": "section",
+              "code": "653",
+              "description": "Shorthand"
+            },
+            {
+              "type": "section",
+              "code": "654",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "655",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "656",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "657",
+              "description": "Accounting"
+            },
+            {
+              "type": "section",
+              "code": "658",
+              "description": "General management"
+            },
+            {
+              "type": "section",
+              "code": "659",
+              "description": "Advertising & public relations"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "660",
+          "description": "Chemical engineering & related technologies",
+          "sections": [
+            {
+              "type": "section",
+              "code": "661",
+              "description": "Technology of industrial chemicals"
+            },
+            {
+              "type": "section",
+              "code": "662",
+              "description": "Technology of explosives, fuels, related products"
+            },
+            {
+              "type": "section",
+              "code": "663",
+              "description": "Beverage technology"
+            },
+            {
+              "type": "section",
+              "code": "664",
+              "description": "Food technology"
+            },
+            {
+              "type": "section",
+              "code": "665",
+              "description": "Technology of industrial oils, fats, waxes, gases"
+            },
+            {
+              "type": "section",
+              "code": "666",
+              "description": "Ceramic & allied technologies"
+            },
+            {
+              "type": "section",
+              "code": "667",
+              "description": "Cleaning, color, coating, related technologies"
+            },
+            {
+              "type": "section",
+              "code": "668",
+              "description": "Technology of other organic products"
+            },
+            {
+              "type": "section",
+              "code": "669",
+              "description": "Metallurgy"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "670",
+          "description": "Manufacturing",
+          "sections": [
+            {
+              "type": "section",
+              "code": "671",
+              "description": "Metalworking processes & primary metal products"
+            },
+            {
+              "type": "section",
+              "code": "672",
+              "description": "Iron, steel, other iron alloys"
+            },
+            {
+              "type": "section",
+              "code": "673",
+              "description": "Nonferrous metals"
+            },
+            {
+              "type": "section",
+              "code": "674",
+              "description": "Lumber processing, wood products, cork"
+            },
+            {
+              "type": "section",
+              "code": "675",
+              "description": "Leather & fur processing"
+            },
+            {
+              "type": "section",
+              "code": "676",
+              "description": "Pulp & paper technology"
+            },
+            {
+              "type": "section",
+              "code": "677",
+              "description": "Textiles"
+            },
+            {
+              "type": "section",
+              "code": "678",
+              "description": "Elastomers & elastomer products"
+            },
+            {
+              "type": "section",
+              "code": "679",
+              "description": "Other products of specific kinds of materials"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "680",
+          "description": "Manufacture of products for specific uses",
+          "sections": [
+            {
+              "type": "section",
+              "code": "681",
+              "description": "Precision instruments & other devices"
+            },
+            {
+              "type": "section",
+              "code": "682",
+              "description": "Small forge work (Blacksmithing)"
+            },
+            {
+              "type": "section",
+              "code": "683",
+              "description": "Hardware & household appliances"
+            },
+            {
+              "type": "section",
+              "code": "684",
+              "description": "Furnishings & home workshops"
+            },
+            {
+              "type": "section",
+              "code": "685",
+              "description": "Leather & fur goods & related products"
+            },
+            {
+              "type": "section",
+              "code": "686",
+              "description": "Printing & related activities"
+            },
+            {
+              "type": "section",
+              "code": "687",
+              "description": "Clothing & accessories"
+            },
+            {
+              "type": "section",
+              "code": "688",
+              "description": "Other final products & packaging technology"
+            },
+            {
+              "type": "section",
+              "code": "689",
+              "description": "Unassigned or no longer in use"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "690",
+          "description": "Building construction",
+          "sections": [
+            {
+              "type": "section",
+              "code": "691",
+              "description": "Building materials"
+            },
+            {
+              "type": "section",
+              "code": "692",
+              "description": "Auxiliary construction practices"
+            },
+            {
+              "type": "section",
+              "code": "693",
+              "description": "Construction in specific types of materials & for specific purposes"
+            },
+            {
+              "type": "section",
+              "code": "694",
+              "description": "Wood construction"
+            },
+            {
+              "type": "section",
+              "code": "695",
+              "description": "Roof covering"
+            },
+            {
+              "type": "section",
+              "code": "696",
+              "description": "Utilities"
+            },
+            {
+              "type": "section",
+              "code": "697",
+              "description": "Heating, ventilating, air-conditioning engineering"
+            },
+            {
+              "type": "section",
+              "code": "698",
+              "description": "Detail finishing"
+            },
+            {
+              "type": "section",
+              "code": "699",
+              "description": "Unassigned or no longer in use"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "700",
+      "description": "Arts & recreation",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "700",
+          "description": "The arts",
+          "sections": [
+            {
+              "type": "section",
+              "code": "701",
+              "description": "Philosophy & theory of fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "702",
+              "description": "Miscellany of fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "703",
+              "description": "Dictionaries, encyclopedias, concordances of fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "704",
+              "description": "Special topics in fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "705",
+              "description": "Serial publications of fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "706",
+              "description": "Organizations & management of fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "707",
+              "description": "Education, research, related topics of fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "708",
+              "description": "Galleries, museums, private collections of fine & decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "709",
+              "description": "History, geographic treatment, biography"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "710",
+          "description": "Area planning & landscape architecture",
+          "sections": [
+            {
+              "type": "section",
+              "code": "711",
+              "description": "Area planning (Civic art)"
+            },
+            {
+              "type": "section",
+              "code": "712",
+              "description": "Landscape architecture (Landscape design)"
+            },
+            {
+              "type": "section",
+              "code": "713",
+              "description": "Landscape architecture of trafficways"
+            },
+            {
+              "type": "section",
+              "code": "714",
+              "description": "Water features in landscape architecture"
+            },
+            {
+              "type": "section",
+              "code": "715",
+              "description": "Woody plants in landscape architecture"
+            },
+            {
+              "type": "section",
+              "code": "716",
+              "description": "Herbaceous plants in landscape architecture"
+            },
+            {
+              "type": "section",
+              "code": "717",
+              "description": "Structures in landscape architecture"
+            },
+            {
+              "type": "section",
+              "code": "718",
+              "description": "Landscape design of cemeteries"
+            },
+            {
+              "type": "section",
+              "code": "719",
+              "description": "Natural landscapes"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "720",
+          "description": "Architecture",
+          "sections": [
+            {
+              "type": "section",
+              "code": "721",
+              "description": "Architectural materials & structural elements"
+            },
+            {
+              "type": "section",
+              "code": "722",
+              "description": "Architecture from earliest times to ca. 300"
+            },
+            {
+              "type": "section",
+              "code": "723",
+              "description": "Architecture from ca. 300 to 1399"
+            },
+            {
+              "type": "section",
+              "code": "724",
+              "description": "Architecture from 1400"
+            },
+            {
+              "type": "section",
+              "code": "725",
+              "description": "Public structures"
+            },
+            {
+              "type": "section",
+              "code": "726",
+              "description": "Buildings for religious & related purposes"
+            },
+            {
+              "type": "section",
+              "code": "727",
+              "description": "Buildings for educational & research purposes"
+            },
+            {
+              "type": "section",
+              "code": "728",
+              "description": "Residential & related buildings"
+            },
+            {
+              "type": "section",
+              "code": "729",
+              "description": "Design & decoration of structures & accessories"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "730",
+          "description": "Sculpture & related arts",
+          "sections": [
+            {
+              "type": "section",
+              "code": "731",
+              "description": "Processes, forms, subjects of sculpture"
+            },
+            {
+              "type": "section",
+              "code": "732",
+              "description": "Sculpture from earliest times to ca. 500, sculpture of nonliterate peoples"
+            },
+            {
+              "type": "section",
+              "code": "733",
+              "description": "Greek, Etruscan, Roman sculpture"
+            },
+            {
+              "type": "section",
+              "code": "734",
+              "description": "Sculpture from ca. 500 to 1399"
+            },
+            {
+              "type": "section",
+              "code": "735",
+              "description": "Sculpture from 1400"
+            },
+            {
+              "type": "section",
+              "code": "736",
+              "description": "Carving & carvings"
+            },
+            {
+              "type": "section",
+              "code": "737",
+              "description": "Numismatics & sigillography"
+            },
+            {
+              "type": "section",
+              "code": "738",
+              "description": "Ceramic arts"
+            },
+            {
+              "type": "section",
+              "code": "739",
+              "description": "Art metalwork"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "740",
+          "description": "Graphic arts",
+          "sections": [
+            {
+              "type": "section",
+              "code": "741",
+              "description": "Drawing & drawings"
+            },
+            {
+              "type": "section",
+              "code": "742",
+              "description": "Perspective in drawing"
+            },
+            {
+              "type": "section",
+              "code": "743",
+              "description": "Drawing & drawings by subject"
+            },
+            {
+              "type": "section",
+              "code": "744",
+              "description": "Communication design & visual design (proposed)"
+            },
+            {
+              "type": "section",
+              "code": "745",
+              "description": "Decorative arts"
+            },
+            {
+              "type": "section",
+              "code": "746",
+              "description": "Textile arts"
+            },
+            {
+              "type": "section",
+              "code": "747",
+              "description": "Interior decoration"
+            },
+            {
+              "type": "section",
+              "code": "748",
+              "description": "Glass"
+            },
+            {
+              "type": "section",
+              "code": "749",
+              "description": "Furniture & accessories"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "750",
+          "description": "Painting & paintings",
+          "sections": [
+            {
+              "type": "section",
+              "code": "751",
+              "description": "Techniques, procedures, apparatus, equipment, materials, forms"
+            },
+            {
+              "type": "section",
+              "code": "752",
+              "description": "Color"
+            },
+            {
+              "type": "section",
+              "code": "753",
+              "description": "Symbolism, allegory, mythology, legend"
+            },
+            {
+              "type": "section",
+              "code": "754",
+              "description": "Genre paintings"
+            },
+            {
+              "type": "section",
+              "code": "755",
+              "description": "Religion"
+            },
+            {
+              "type": "section",
+              "code": "756",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "757",
+              "description": "Human figures"
+            },
+            {
+              "type": "section",
+              "code": "758",
+              "description": "Nature, architectural subjects & cityscapes, other specific subjects"
+            },
+            {
+              "type": "section",
+              "code": "759",
+              "description": "History, geographic treatment, biography"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "760",
+          "description": "Printmaking & prints",
+          "sections": [
+            {
+              "type": "section",
+              "code": "761",
+              "description": "Relief processes (Block printing)"
+            },
+            {
+              "type": "section",
+              "code": "762",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "763",
+              "description": "Lithographic processes (Planographic processes)"
+            },
+            {
+              "type": "section",
+              "code": "764",
+              "description": "Chromolithography & serigraphy"
+            },
+            {
+              "type": "section",
+              "code": "765",
+              "description": "Metal engraving"
+            },
+            {
+              "type": "section",
+              "code": "766",
+              "description": "Mezzotinting, aquatinting & related processes"
+            },
+            {
+              "type": "section",
+              "code": "767",
+              "description": "Etching & drypoint"
+            },
+            {
+              "type": "section",
+              "code": "768",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "769",
+              "description": "Prints"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "770",
+          "description": "Photography, computer art, cinematography, videography",
+          "sections": [
+            {
+              "type": "section",
+              "code": "771",
+              "description": "Techniques, procedures, apparatus, equipment, materials"
+            },
+            {
+              "type": "section",
+              "code": "772",
+              "description": "Metallic salt processes"
+            },
+            {
+              "type": "section",
+              "code": "773",
+              "description": "Pigment processes of printing"
+            },
+            {
+              "type": "section",
+              "code": "774",
+              "description": "No longer in use—formerly Holography"
+            },
+            {
+              "type": "section",
+              "code": "775",
+              "description": "No longer in use—formerly Digital photography"
+            },
+            {
+              "type": "section",
+              "code": "776",
+              "description": "Computer art (Digital art)"
+            },
+            {
+              "type": "section",
+              "code": "777",
+              "description": "Cinematography & videography"
+            },
+            {
+              "type": "section",
+              "code": "778",
+              "description": "Specific fields & special kinds of photography"
+            },
+            {
+              "type": "section",
+              "code": "779",
+              "description": "Photographic images"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "780",
+          "description": "Music",
+          "sections": [
+            {
+              "type": "section",
+              "code": "781",
+              "description": "General principles & musical forms"
+            },
+            {
+              "type": "section",
+              "code": "782",
+              "description": "Vocal music"
+            },
+            {
+              "type": "section",
+              "code": "783",
+              "description": "Music for single voices"
+            },
+            {
+              "type": "section",
+              "code": "784",
+              "description": "Instruments & instrumental ensembles & their music"
+            },
+            {
+              "type": "section",
+              "code": "785",
+              "description": "Ensembles with only one instrument per part"
+            },
+            {
+              "type": "section",
+              "code": "786",
+              "description": "Keyboard, mechanical, electrophonic, percussion instruments"
+            },
+            {
+              "type": "section",
+              "code": "787",
+              "description": "Stringed instruments (Chordophones)"
+            },
+            {
+              "type": "section",
+              "code": "788",
+              "description": "Wind instruments (Aerophones)"
+            },
+            {
+              "type": "section",
+              "code": "789",
+              "description": "Unassigned or no longer in use"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "790",
+          "description": "Recreational & performing arts",
+          "sections": [
+            {
+              "type": "section",
+              "code": "791",
+              "description": "Public performances"
+            },
+            {
+              "type": "section",
+              "code": "792",
+              "description": "Stage presentations"
+            },
+            {
+              "type": "section",
+              "code": "793",
+              "description": "Indoor games & amusements"
+            },
+            {
+              "type": "section",
+              "code": "794",
+              "description": "Indoor games of skill"
+            },
+            {
+              "type": "section",
+              "code": "795",
+              "description": "Games of chance"
+            },
+            {
+              "type": "section",
+              "code": "796",
+              "description": "Athletic & outdoor sports & games"
+            },
+            {
+              "type": "section",
+              "code": "797",
+              "description": "Aquatic & air sports"
+            },
+            {
+              "type": "section",
+              "code": "798",
+              "description": "Equestrian sports & animal racing"
+            },
+            {
+              "type": "section",
+              "code": "799",
+              "description": "Fishing, hunting, shooting"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "800",
+      "description": "Literature, rhetoric & criticism",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "800",
+          "description": "Literature (Belles-lettres) & rhetoric",
+          "sections": [
+            {
+              "type": "section",
+              "code": "801",
+              "description": "Philosophy & theory"
+            },
+            {
+              "type": "section",
+              "code": "802",
+              "description": "Miscellany"
+            },
+            {
+              "type": "section",
+              "code": "803",
+              "description": "Dictionaries, encyclopedias, concordances"
+            },
+            {
+              "type": "section",
+              "code": "804",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "805",
+              "description": "Serial publications"
+            },
+            {
+              "type": "section",
+              "code": "806",
+              "description": "Organizations & management"
+            },
+            {
+              "type": "section",
+              "code": "807",
+              "description": "Education, research, related topics"
+            },
+            {
+              "type": "section",
+              "code": "808",
+              "description": "Rhetoric & collections of literary texts from more than two literatures"
+            },
+            {
+              "type": "section",
+              "code": "809",
+              "description": "History, description, critical appraisal of more than two literatures"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "810",
+          "description": "American literature in English",
+          "sections": [
+            {
+              "type": "section",
+              "code": "811",
+              "description": "American poetry in English"
+            },
+            {
+              "type": "section",
+              "code": "812",
+              "description": "American drama in English"
+            },
+            {
+              "type": "section",
+              "code": "813",
+              "description": "American fiction in English"
+            },
+            {
+              "type": "section",
+              "code": "814",
+              "description": "American essays in English"
+            },
+            {
+              "type": "section",
+              "code": "815",
+              "description": "American speeches in English"
+            },
+            {
+              "type": "section",
+              "code": "816",
+              "description": "American letters in English"
+            },
+            {
+              "type": "section",
+              "code": "817",
+              "description": "American humor & satire in English"
+            },
+            {
+              "type": "section",
+              "code": "818",
+              "description": "American miscellaneous writings in English"
+            },
+            {
+              "type": "section",
+              "code": "819",
+              "description": "No longer in use—formerly Puzzle activities"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "820",
+          "description": "English & Old English (Anglo-Saxon) literatures",
+          "sections": [
+            {
+              "type": "section",
+              "code": "821",
+              "description": "English poetry"
+            },
+            {
+              "type": "section",
+              "code": "822",
+              "description": "English drama"
+            },
+            {
+              "type": "section",
+              "code": "823",
+              "description": "English fiction"
+            },
+            {
+              "type": "section",
+              "code": "824",
+              "description": "English essays"
+            },
+            {
+              "type": "section",
+              "code": "825",
+              "description": "English speeches"
+            },
+            {
+              "type": "section",
+              "code": "826",
+              "description": "English letters"
+            },
+            {
+              "type": "section",
+              "code": "827",
+              "description": "English humor & satire"
+            },
+            {
+              "type": "section",
+              "code": "828",
+              "description": "English miscellaneous writings"
+            },
+            {
+              "type": "section",
+              "code": "829",
+              "description": "Old English (Anglo-Saxon) literature"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "830",
+          "description": "German literature & literatures of related languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "831",
+              "description": "German poetry"
+            },
+            {
+              "type": "section",
+              "code": "832",
+              "description": "German drama"
+            },
+            {
+              "type": "section",
+              "code": "833",
+              "description": "German fiction"
+            },
+            {
+              "type": "section",
+              "code": "834",
+              "description": "German essays"
+            },
+            {
+              "type": "section",
+              "code": "835",
+              "description": "German speeches"
+            },
+            {
+              "type": "section",
+              "code": "836",
+              "description": "German letters"
+            },
+            {
+              "type": "section",
+              "code": "837",
+              "description": "German humor & satire"
+            },
+            {
+              "type": "section",
+              "code": "838",
+              "description": "German miscellaneous writings"
+            },
+            {
+              "type": "section",
+              "code": "839",
+              "description": "Other Germanic literatures"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "840",
+          "description": "French literature & literatures of related Romance languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "841",
+              "description": "French poetry"
+            },
+            {
+              "type": "section",
+              "code": "842",
+              "description": "French drama"
+            },
+            {
+              "type": "section",
+              "code": "843",
+              "description": "French fiction"
+            },
+            {
+              "type": "section",
+              "code": "844",
+              "description": "French essays"
+            },
+            {
+              "type": "section",
+              "code": "845",
+              "description": "French speeches"
+            },
+            {
+              "type": "section",
+              "code": "846",
+              "description": "French letters"
+            },
+            {
+              "type": "section",
+              "code": "847",
+              "description": "French humor & satire"
+            },
+            {
+              "type": "section",
+              "code": "848",
+              "description": "French miscellaneous writings"
+            },
+            {
+              "type": "section",
+              "code": "849",
+              "description": "Occitan, Catalan, Franco-Provençal literatures"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "850",
+          "description": "Literatures of Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "851",
+              "description": "Italian poetry"
+            },
+            {
+              "type": "section",
+              "code": "852",
+              "description": "Italian drama"
+            },
+            {
+              "type": "section",
+              "code": "853",
+              "description": "Italian fiction"
+            },
+            {
+              "type": "section",
+              "code": "854",
+              "description": "Italian essays"
+            },
+            {
+              "type": "section",
+              "code": "855",
+              "description": "Italian speeches"
+            },
+            {
+              "type": "section",
+              "code": "856",
+              "description": "Italian letters"
+            },
+            {
+              "type": "section",
+              "code": "857",
+              "description": "Italian humor & satire"
+            },
+            {
+              "type": "section",
+              "code": "858",
+              "description": "Italian miscellaneous writings"
+            },
+            {
+              "type": "section",
+              "code": "859",
+              "description": "Literatures of Romanian, Rhaetian, Sardinian, Corsican languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "860",
+          "description": "Literatures of Spanish, Portuguese, Galician languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "861",
+              "description": "Spanish poetry"
+            },
+            {
+              "type": "section",
+              "code": "862",
+              "description": "Spanish drama"
+            },
+            {
+              "type": "section",
+              "code": "863",
+              "description": "Spanish fiction"
+            },
+            {
+              "type": "section",
+              "code": "864",
+              "description": "Spanish essays"
+            },
+            {
+              "type": "section",
+              "code": "865",
+              "description": "Spanish speeches"
+            },
+            {
+              "type": "section",
+              "code": "866",
+              "description": "Spanish letters"
+            },
+            {
+              "type": "section",
+              "code": "867",
+              "description": "Spanish humor & satire"
+            },
+            {
+              "type": "section",
+              "code": "868",
+              "description": "Spanish miscellaneous writings"
+            },
+            {
+              "type": "section",
+              "code": "869",
+              "description": "Literatures of Portuguese & Galician languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "870",
+          "description": "Latin literature & literatures of related Italic languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "871",
+              "description": "Latin poetry"
+            },
+            {
+              "type": "section",
+              "code": "872",
+              "description": "Latin dramatic poetry & drama"
+            },
+            {
+              "type": "section",
+              "code": "873",
+              "description": "Latin epic poetry & fiction"
+            },
+            {
+              "type": "section",
+              "code": "874",
+              "description": "Latin lyric poetry"
+            },
+            {
+              "type": "section",
+              "code": "875",
+              "description": "Latin speeches"
+            },
+            {
+              "type": "section",
+              "code": "876",
+              "description": "Latin letters"
+            },
+            {
+              "type": "section",
+              "code": "877",
+              "description": "Latin humor & satire"
+            },
+            {
+              "type": "section",
+              "code": "878",
+              "description": "Latin miscellaneous writings"
+            },
+            {
+              "type": "section",
+              "code": "879",
+              "description": "Literatures of other Italic languages"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "880",
+          "description": "Classical Greek literature & literatures of related Hellenic languages",
+          "sections": [
+            {
+              "type": "section",
+              "code": "881",
+              "description": "Classical Greek poetry"
+            },
+            {
+              "type": "section",
+              "code": "882",
+              "description": "Classical Greek drama"
+            },
+            {
+              "type": "section",
+              "code": "883",
+              "description": "Classical Greek epic poetry & fiction"
+            },
+            {
+              "type": "section",
+              "code": "884",
+              "description": "Classical Greek lyric poetry"
+            },
+            {
+              "type": "section",
+              "code": "885",
+              "description": "Classical Greek speeches"
+            },
+            {
+              "type": "section",
+              "code": "886",
+              "description": "Classical Greek letters"
+            },
+            {
+              "type": "section",
+              "code": "887",
+              "description": "Classical Greek humor & satire"
+            },
+            {
+              "type": "section",
+              "code": "888",
+              "description": "Classical Greek miscellaneous writings"
+            },
+            {
+              "type": "section",
+              "code": "889",
+              "description": "Modern Greek literature"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "890",
+          "description": "Literatures of other specific languages & language families",
+          "sections": [
+            {
+              "type": "section",
+              "code": "891",
+              "description": "East Indo-European & Celtic literatures"
+            },
+            {
+              "type": "section",
+              "code": "892",
+              "description": "Afro-Asiatic literatures"
+            },
+            {
+              "type": "section",
+              "code": "893",
+              "description": "Non-Semitic Afro-Asiatic literatures"
+            },
+            {
+              "type": "section",
+              "code": "894",
+              "description": "Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia"
+            },
+            {
+              "type": "section",
+              "code": "895",
+              "description": "Literatures of East & Southeast Asia"
+            },
+            {
+              "type": "section",
+              "code": "896",
+              "description": "African literatures"
+            },
+            {
+              "type": "section",
+              "code": "897",
+              "description": "Literatures of North American native languages"
+            },
+            {
+              "type": "section",
+              "code": "898",
+              "description": "Literatures of South American native languages"
+            },
+            {
+              "type": "section",
+              "code": "899",
+              "description": "Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "main_class",
+      "code": "900",
+      "description": "History, geography & auxiliary disciplines",
+      "divisions": [
+        {
+          "type": "division",
+          "code": "900",
+          "description": "History",
+          "sections": [
+            {
+              "type": "section",
+              "code": "901",
+              "description": "Philosophy & theory of history"
+            },
+            {
+              "type": "section",
+              "code": "902",
+              "description": "Miscellany of history"
+            },
+            {
+              "type": "section",
+              "code": "903",
+              "description": "Dictionaries, encyclopedias, concordances of history"
+            },
+            {
+              "type": "section",
+              "code": "904",
+              "description": "Collected accounts of events"
+            },
+            {
+              "type": "section",
+              "code": "905",
+              "description": "Serial publications of history"
+            },
+            {
+              "type": "section",
+              "code": "906",
+              "description": "Organizations & management of history"
+            },
+            {
+              "type": "section",
+              "code": "907",
+              "description": "Education, research, related topics of history"
+            },
+            {
+              "type": "section",
+              "code": "908",
+              "description": "History with respect to groups of people"
+            },
+            {
+              "type": "section",
+              "code": "909",
+              "description": "World history"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "910",
+          "description": "Geography & travel",
+          "sections": [
+            {
+              "type": "section",
+              "code": "911",
+              "description": "Historical geography"
+            },
+            {
+              "type": "section",
+              "code": "912",
+              "description": "Graphic representations of surface of Earth & of extraterrestrial worlds"
+            },
+            {
+              "type": "section",
+              "code": "913",
+              "description": "Geography of & travel in ancient world"
+            },
+            {
+              "type": "section",
+              "code": "914",
+              "description": "Geography of & travel in Europe"
+            },
+            {
+              "type": "section",
+              "code": "915",
+              "description": "Geography of & travel in Asia"
+            },
+            {
+              "type": "section",
+              "code": "916",
+              "description": "Geography of & travel in Africa"
+            },
+            {
+              "type": "section",
+              "code": "917",
+              "description": "Geography of & travel in North America"
+            },
+            {
+              "type": "section",
+              "code": "918",
+              "description": "Geography of & travel in South America"
+            },
+            {
+              "type": "section",
+              "code": "919",
+              "description": "Geography of & travel in Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, & on extraterrestrial worlds"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "920",
+          "description": "Biography, genealogy, insignia",
+          "sections": [
+            {
+              "type": "section",
+              "code": "921",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "922",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "923",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "924",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "925",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "926",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "927",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "928",
+              "description": "This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject's last name."
+            },
+            {
+              "type": "section",
+              "code": "929",
+              "description": "Genealogy, names, insignia"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "930",
+          "description": "History of ancient world to ca. 499",
+          "sections": [
+            {
+              "type": "section",
+              "code": "931",
+              "description": "China to 420"
+            },
+            {
+              "type": "section",
+              "code": "932",
+              "description": "Egypt to 640"
+            },
+            {
+              "type": "section",
+              "code": "933",
+              "description": "Palestine to 70"
+            },
+            {
+              "type": "section",
+              "code": "934",
+              "description": "South Asia to 647"
+            },
+            {
+              "type": "section",
+              "code": "935",
+              "description": "Mesopotamia & Iranian Plateau to 637"
+            },
+            {
+              "type": "section",
+              "code": "936",
+              "description": "Europe north & west of Italian Peninsula to ca. 499"
+            },
+            {
+              "type": "section",
+              "code": "937",
+              "description": "Italian Peninsula & adjacent territories to 476"
+            },
+            {
+              "type": "section",
+              "code": "938",
+              "description": "Greece to 323"
+            },
+            {
+              "type": "section",
+              "code": "939",
+              "description": "Other parts of ancient world"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "940",
+          "description": "History of Europe",
+          "sections": [
+            {
+              "type": "section",
+              "code": "941",
+              "description": "British Isles"
+            },
+            {
+              "type": "section",
+              "code": "942",
+              "description": "England & Wales"
+            },
+            {
+              "type": "section",
+              "code": "943",
+              "description": "Germany & neighboring central European countries"
+            },
+            {
+              "type": "section",
+              "code": "944",
+              "description": "France & Monaco"
+            },
+            {
+              "type": "section",
+              "code": "945",
+              "description": "Italy, San Marino, Vatican City, Malta"
+            },
+            {
+              "type": "section",
+              "code": "946",
+              "description": "Spain, Andorra, Gibraltar, Portugal"
+            },
+            {
+              "type": "section",
+              "code": "947",
+              "description": "Russia & neighboring east European countries"
+            },
+            {
+              "type": "section",
+              "code": "948",
+              "description": "Scandinavia"
+            },
+            {
+              "type": "section",
+              "code": "949",
+              "description": "Other parts of Europe"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "950",
+          "description": "History of Asia",
+          "sections": [
+            {
+              "type": "section",
+              "code": "951",
+              "description": "China & adjacent areas"
+            },
+            {
+              "type": "section",
+              "code": "952",
+              "description": "Japan"
+            },
+            {
+              "type": "section",
+              "code": "953",
+              "description": "Arabian Peninsula & adjacent areas"
+            },
+            {
+              "type": "section",
+              "code": "954",
+              "description": "India & neighboring south Asian countries"
+            },
+            {
+              "type": "section",
+              "code": "955",
+              "description": "Iran"
+            },
+            {
+              "type": "section",
+              "code": "956",
+              "description": "Middle East (Near East)"
+            },
+            {
+              "type": "section",
+              "code": "957",
+              "description": "Siberia (Asiatic Russia)"
+            },
+            {
+              "type": "section",
+              "code": "958",
+              "description": "Central Asia"
+            },
+            {
+              "type": "section",
+              "code": "959",
+              "description": "Southeast Asia"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "960",
+          "description": "History of Africa",
+          "sections": [
+            {
+              "type": "section",
+              "code": "961",
+              "description": "Tunisia & Libya"
+            },
+            {
+              "type": "section",
+              "code": "962",
+              "description": "Egypt, Sudan, South Sudan"
+            },
+            {
+              "type": "section",
+              "code": "963",
+              "description": "Ethiopia & Eritrea"
+            },
+            {
+              "type": "section",
+              "code": "964",
+              "description": "Morocco, Ceuta, Melilla, Western Sahara, Canary Islands"
+            },
+            {
+              "type": "section",
+              "code": "965",
+              "description": "Algeria"
+            },
+            {
+              "type": "section",
+              "code": "966",
+              "description": "West Africa & offshore islands"
+            },
+            {
+              "type": "section",
+              "code": "967",
+              "description": "Central Africa & offshore islands"
+            },
+            {
+              "type": "section",
+              "code": "968",
+              "description": "Republic of South Africa & Southern Africa"
+            },
+            {
+              "type": "section",
+              "code": "969",
+              "description": "South Indian Ocean islands"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "970",
+          "description": "History of North America",
+          "sections": [
+            {
+              "type": "section",
+              "code": "971",
+              "description": "Canada"
+            },
+            {
+              "type": "section",
+              "code": "972",
+              "description": "Mexico, Central America, West Indies, Bermuda"
+            },
+            {
+              "type": "section",
+              "code": "973",
+              "description": "United States"
+            },
+            {
+              "type": "section",
+              "code": "974",
+              "description": "Northeastern United States (New England & Middle Atlantic states)"
+            },
+            {
+              "type": "section",
+              "code": "975",
+              "description": "Southeastern United States (South Atlantic states)"
+            },
+            {
+              "type": "section",
+              "code": "976",
+              "description": "South central United States"
+            },
+            {
+              "type": "section",
+              "code": "977",
+              "description": "North central United States"
+            },
+            {
+              "type": "section",
+              "code": "978",
+              "description": "Western United States"
+            },
+            {
+              "type": "section",
+              "code": "979",
+              "description": "Great Basin & Pacific Slope region of United States"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "980",
+          "description": "History of South America",
+          "sections": [
+            {
+              "type": "section",
+              "code": "981",
+              "description": "Brazil"
+            },
+            {
+              "type": "section",
+              "code": "982",
+              "description": "Argentina"
+            },
+            {
+              "type": "section",
+              "code": "983",
+              "description": "Chile"
+            },
+            {
+              "type": "section",
+              "code": "984",
+              "description": "Bolivia"
+            },
+            {
+              "type": "section",
+              "code": "985",
+              "description": "Peru"
+            },
+            {
+              "type": "section",
+              "code": "986",
+              "description": "Colombia & Ecuador"
+            },
+            {
+              "type": "section",
+              "code": "987",
+              "description": "Venezuela"
+            },
+            {
+              "type": "section",
+              "code": "988",
+              "description": "Guiana"
+            },
+            {
+              "type": "section",
+              "code": "989",
+              "description": "Paraguay & Uruguay"
+            }
+          ]
+        },
+        {
+          "type": "division",
+          "code": "990",
+          "description": "History of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds",
+          "sections": [
+            {
+              "type": "section",
+              "code": "991",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "992",
+              "description": "Unassigned or no longer in use"
+            },
+            {
+              "type": "section",
+              "code": "993",
+              "description": "New Zealand"
+            },
+            {
+              "type": "section",
+              "code": "994",
+              "description": "Australia"
+            },
+            {
+              "type": "section",
+              "code": "995",
+              "description": "New Guinea & neighboring countries of Melanesia"
+            },
+            {
+              "type": "section",
+              "code": "996",
+              "description": "Polynesia & other Pacific Ocean islands"
+            },
+            {
+              "type": "section",
+              "code": "997",
+              "description": "Atlantic Ocean islands"
+            },
+            {
+              "type": "section",
+              "code": "998",
+              "description": "Arctic islands & Antarctica"
+            },
+            {
+              "type": "section",
+              "code": "999",
+              "description": "Extraterrestrial worlds"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
