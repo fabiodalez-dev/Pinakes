@@ -16,6 +16,7 @@ class OpenLibraryPlugin
 {
     private const API_BASE = 'https://openlibrary.org';
     private const COVERS_BASE = 'https://covers.openlibrary.org';
+    private const GOODREADS_COVERS_BASE = 'https://bookcover.longitood.com/bookcover';
     private const TIMEOUT = 15;
     private const USER_AGENT = 'Mozilla/5.0 (compatible; BibliotecaBot/1.0) Safari/537.36';
 
@@ -238,8 +239,9 @@ class OpenLibraryPlugin
                 }
             }
 
-            // Fetch cover image
-            $coverUrl = $this->getCoverUrl($isbn, $editionData);
+            // Fetch cover image (pass first author name for Goodreads fallback)
+            $firstAuthor = !empty($authorNames) ? $authorNames[0] : '';
+            $coverUrl = $this->getCoverUrl($isbn, $editionData, $firstAuthor);
 
             // Build response in the format expected by the application
             $result = [
@@ -291,7 +293,22 @@ class OpenLibraryPlugin
 
         // Try to fetch cover if missing
         if (empty($payload['image'])) {
-            $coverUrl = $this->getCoverUrl($isbn, []);
+            // Extract author and title from payload for Goodreads fallback
+            $authorName = '';
+            if (!empty($payload['author'])) {
+                // Get first author if comma-separated list
+                $authors = explode(',', $payload['author']);
+                $authorName = trim($authors[0]);
+            } elseif (!empty($payload['authors'][0])) {
+                $authorName = $payload['authors'][0];
+            }
+
+            $editionData = [];
+            if (!empty($payload['title'])) {
+                $editionData['title'] = $payload['title'];
+            }
+
+            $coverUrl = $this->getCoverUrl($isbn, $editionData, $authorName);
             if ($coverUrl) {
                 $payload['image'] = $coverUrl;
             }
@@ -337,13 +354,169 @@ class OpenLibraryPlugin
     }
 
     /**
+     * Convert ISBN-10 to ISBN-13
+     *
+     * @param string $isbn10 ISBN-10 code
+     * @return string ISBN-13 code
+     */
+    private function convertIsbn10ToIsbn13(string $isbn10): string
+    {
+        // Remove any hyphens or spaces
+        $isbn10 = preg_replace('/[\s\-]/', '', $isbn10);
+
+        // Check if it's already ISBN-13
+        if (strlen($isbn10) === 13) {
+            return $isbn10;
+        }
+
+        // Check if it's a valid ISBN-10 length
+        if (strlen($isbn10) !== 10) {
+            return $isbn10; // Return as-is if invalid
+        }
+
+        // Remove the check digit from ISBN-10
+        $isbn10WithoutCheck = substr($isbn10, 0, 9);
+
+        // Add 978 prefix
+        $isbn13WithoutCheck = '978' . $isbn10WithoutCheck;
+
+        // Calculate ISBN-13 check digit
+        $sum = 0;
+        for ($i = 0; $i < 12; $i++) {
+            $digit = (int)$isbn13WithoutCheck[$i];
+            $sum += ($i % 2 === 0) ? $digit : $digit * 3;
+        }
+
+        $checkDigit = (10 - ($sum % 10)) % 10;
+
+        return $isbn13WithoutCheck . $checkDigit;
+    }
+
+    /**
+     * Check if a code is a valid ISBN-13 (not just any EAN)
+     *
+     * @param string $code Code to check
+     * @return bool True if valid ISBN-13
+     */
+    private function isValidIsbn13(string $code): bool
+    {
+        // Remove any hyphens or spaces
+        $code = preg_replace('/[\s\-]/', '', $code);
+
+        // Must be exactly 13 digits
+        if (strlen($code) !== 13 || !ctype_digit($code)) {
+            return false;
+        }
+
+        // ISBN-13 must start with 978 or 979
+        $prefix = substr($code, 0, 3);
+        if ($prefix !== '978' && $prefix !== '979') {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Get cover from Goodreads API via bookcover.longitood.com
+     *
+     * @param string $isbn ISBN (will be converted to ISBN-13 if needed)
+     * @param string $title Book title (optional, for fallback)
+     * @param string $author Author name (optional, for fallback)
+     * @return string|null Cover URL or null
+     */
+    private function getGoodreadsCover(string $isbn, string $title = '', string $author = ''): ?string
+    {
+        try {
+            // Convert ISBN-10 to ISBN-13 if needed
+            $isbn13 = $this->convertIsbn10ToIsbn13($isbn);
+
+            // Only try Goodreads API if this is a valid ISBN-13, not just any EAN
+            if ($this->isValidIsbn13($isbn13)) {
+                // Try ISBN-based lookup first
+                $url = self::GOODREADS_COVERS_BASE . '/' . urlencode($isbn13);
+                $coverUrl = $this->fetchGoodreadsCoverUrl($url);
+
+                if ($coverUrl) {
+                    return $coverUrl;
+                }
+            }
+
+            // Fallback to title/author search - BOTH parameters are required
+            if (!empty($title) && !empty($author)) {
+                $queryParams = [
+                    'book_title' => $title,
+                    'author_name' => $author
+                ];
+
+                $url = self::GOODREADS_COVERS_BASE . '?' . http_build_query($queryParams);
+                $coverUrl = $this->fetchGoodreadsCoverUrl($url);
+
+                if ($coverUrl) {
+                    return $coverUrl;
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            // Gracefully handle errors - don't break the app
+            error_log("[OpenLibrary] Goodreads cover API error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Fetch cover URL from Goodreads API response
+     *
+     * @param string $apiUrl API endpoint URL
+     * @return string|null Cover URL or null
+     */
+    private function fetchGoodreadsCoverUrl(string $apiUrl): ?string
+    {
+        try {
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $apiUrl,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_USERAGENT => self::USER_AGENT,
+                CURLOPT_HTTPHEADER => ['Accept: application/json'],
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            // Gracefully handle non-200 responses
+            if ($httpCode !== 200 || empty($response)) {
+                return null;
+            }
+
+            $data = json_decode($response, true);
+
+            // Extract URL from response
+            if (!empty($data['url']) && filter_var($data['url'], FILTER_VALIDATE_URL)) {
+                return $data['url'];
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            error_log("[OpenLibrary] Error fetching Goodreads cover from $apiUrl: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Get cover URL for ISBN
      *
      * @param string $isbn ISBN
      * @param array $editionData Edition data (optional)
+     * @param string $authorName Author name (optional, for Goodreads fallback)
      * @return string|null Cover URL or null
      */
-    private function getCoverUrl(string $isbn, array $editionData = []): ?string
+    private function getCoverUrl(string $isbn, array $editionData = [], string $authorName = ''): ?string
     {
         // Try to get cover ID from edition data first
         if (!empty($editionData['covers'][0])) {
@@ -354,10 +527,18 @@ class OpenLibraryPlugin
             }
         }
 
-        // Fallback to ISBN-based cover
+        // Fallback to ISBN-based cover from OpenLibrary
         $url = self::COVERS_BASE . '/b/isbn/' . $isbn . '-L.jpg';
         if ($this->checkCoverExists($url)) {
             return $url;
+        }
+
+        // Third fallback: Try Goodreads via bookcover.longitood.com
+        $title = $editionData['title'] ?? '';
+
+        $goodreadsCover = $this->getGoodreadsCover($isbn, $title, $authorName);
+        if ($goodreadsCover) {
+            return $goodreadsCover;
         }
 
         return null;

@@ -1887,6 +1887,16 @@ include 'layout.php';
 <?php if ($isLoggedJs): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Translation function for JavaScript
+  const translations = {
+    'Aggiungi ai Preferiti': <?php echo json_encode(__('Aggiungi ai Preferiti'), JSON_UNESCAPED_UNICODE); ?>,
+    'Rimuovi dai Preferiti': <?php echo json_encode(__('Rimuovi dai Preferiti'), JSON_UNESCAPED_UNICODE); ?>
+  };
+
+  function __(key) {
+    return translations[key] || key;
+  }
+
   const favBtn = document.getElementById('btn-fav');
   if (!favBtn) return;
   const libroId = <?php echo (int)$libroIdJs; ?>;
