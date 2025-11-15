@@ -880,6 +880,71 @@ HTACCESS;
     }
 
     /**
+     * Install Open Library plugin automatically during installation
+     */
+    public function installOpenLibraryPlugin() {
+        $pluginSourceDir = $this->baseDir . '/storage/plugins/open-library';
+        $pluginDestDir = $this->baseDir . '/storage/plugins';
+
+        // Ensure plugins directory exists
+        if (!is_dir($pluginDestDir)) {
+            mkdir($pluginDestDir, 0755, true);
+        }
+
+        // Plugin should already be in storage/plugins/open-library from the repository
+        if (!is_dir($pluginSourceDir)) {
+            throw new Exception("Open Library plugin not found in storage/plugins/open-library");
+        }
+
+        // Get database connection
+        $pdo = $this->getDatabaseConnection();
+
+        // Insert plugin record
+        $stmt = $pdo->prepare("
+            INSERT INTO plugins (
+                name, display_name, description, version, author, author_url, plugin_url,
+                is_active, path, main_file, requires_php, requires_app, metadata, installed_at
+            ) VALUES (
+                'open-library',
+                'Open Library Scraper',
+                'Integrates Open Library and Google Books APIs for comprehensive book metadata scraping. Supports ISBN lookup with multi-source fallback and encrypted API key storage.',
+                '1.0.0',
+                'Fabio Dal Maso',
+                '',
+                '',
+                1,
+                'open-library',
+                'wrapper.php',
+                '8.1',
+                '1.0.0',
+                '{}',
+                NOW()
+            )
+        ");
+
+        $stmt->execute();
+        $pluginId = (int)$pdo->lastInsertId();
+
+        // Register plugin hooks
+        $hooks = [
+            ['scrape.sources', 'addOpenLibrarySource', 5],
+            ['scrape.fetch.custom', 'fetchFromOpenLibrary', 5],
+            ['scrape.data.modify', 'enrichWithOpenLibraryData', 10],
+        ];
+
+        foreach ($hooks as [$hookName, $callbackMethod, $priority]) {
+            $stmt = $pdo->prepare("
+                INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                VALUES (?, ?, 'OpenLibraryPlugin', ?, ?, 1, NOW())
+            ");
+
+            $stmt->execute([$pluginId, $hookName, $callbackMethod, $priority]);
+        }
+
+        return $pluginId;
+    }
+
+    /**
      * Delete installer directory for security
      */
     public function deleteInstaller() {

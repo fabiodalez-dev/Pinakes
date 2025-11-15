@@ -2551,4 +2551,7 @@
     "La password deve essere lunga almeno 8 caratteri": "Password must be at least 8 characters long",
     "La password deve contenere almeno una lettera maiuscola, una minuscola e un numero": "Password must contain at least one uppercase letter, one lowercase letter and one number",
     "Errore del database durante la registrazione. Riprova più tardi": "Database error during registration. Please try again later"
+,
+    "Installazione plugin Open Library...": "Installing Open Library plugin...",
+    "Plugin Open Library installato OK (ID: $pluginId)": "Open Library plugin installed OK (ID: $pluginId)"
 }

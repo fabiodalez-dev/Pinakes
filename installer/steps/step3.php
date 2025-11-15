@@ -55,6 +55,12 @@ if (true) {
             $debug[] = __("Trigger importati OK");
         }
 
+        // Install Open Library plugin
+        $debug[] = __("Installazione plugin Open Library...");
+        $pluginId = $installer->installOpenLibraryPlugin();
+        $_SESSION['openlibrary_plugin_id'] = $pluginId;
+        $debug[] = __("Plugin Open Library installato OK (ID: $pluginId)");
+
         // Verify installation
         $debug[] = __("Verifica installazione...");
         $installer->verifyInstallation();
