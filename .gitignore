@@ -77,6 +77,13 @@ storage/uploads/*
 storage/backups/*
 !storage/backups/.gitkeep
 !storage/backups/.htaccess
+!storage/plugins/
+storage/plugins/*
+!storage/plugins/open-library/
+storage/plugins/open-library/*
+!storage/plugins/open-library/*.php
+!storage/plugins/open-library/*.json
+!storage/plugins/open-library/*.md
 
 # Cache & Temp
 cache/*
