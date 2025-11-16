@@ -54,6 +54,7 @@ class Installer {
 
         $envContent .= "# Application Language\n";
         $envContent .= "# Default language for the entire application (e.g. it_IT, en_US)\n";
+        $envContent .= "# Received: {$locale} | Normalized: {$normalizedLocale}\n";
         $envContent .= "APP_LOCALE={$normalizedLocale}\n\n";
 
         $envContent .= "# Debug Mode\n";
