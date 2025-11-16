@@ -641,7 +641,7 @@ class Installer {
      * Upload and save logo
      */
     public function uploadLogo($file) {
-        $uploadDir = $this->baseDir . '/uploads/assets';
+        $uploadDir = $this->baseDir . '/public/assets';
 
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
@@ -656,7 +656,7 @@ class Installer {
             throw new Exception("Impossibile salvare il logo");
         }
 
-        return '/uploads/assets/' . $filename;
+        return '/assets/' . $filename;
     }
 
     /**

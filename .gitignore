@@ -49,10 +49,6 @@ old.sql
 # ========================================
 # Runtime Data (user-generated)
 # ========================================
-uploads/*
-!uploads/.gitkeep
-!uploads/.htaccess
-!uploads/copertine/placeholder.jpg
 public/uploads/settings/
 public/uploads/*
 !public/uploads/.gitkeep

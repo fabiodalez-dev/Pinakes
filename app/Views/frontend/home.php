@@ -659,7 +659,7 @@ ob_start();
 ?>
 
 <!-- Hero Section -->
-<section class="hero-section" style="background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), url('<?php echo htmlspecialchars($homeContent['hero']['background_image'] ?? '/uploads/assets/books.jpg', ENT_QUOTES, 'UTF-8'); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+<section class="hero-section" style="background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), url('<?php echo htmlspecialchars($homeContent['hero']['background_image'] ?? '/assets/books.jpg', ENT_QUOTES, 'UTF-8'); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;">
     <div class="container">
         <div class="hero-content text-center">
             <h1 class="hero-title"><?php echo htmlspecialchars($homeContent['hero']['title'] ?? __("La Tua Biblioteca Digitale"), ENT_QUOTES, 'UTF-8'); ?></h1>

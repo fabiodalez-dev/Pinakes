@@ -211,7 +211,7 @@ class CmsController
                                             $uploadedFile->moveTo($uploadPath);
                                             // SECURITY: Set secure file permissions
                                             @chmod($uploadPath, 0644);
-                                            $bgImagePath = '/uploads/assets/' . $newFilename;
+                                            $bgImagePath = '/assets/' . $newFilename;
                                         } catch (\Exception $e) {
                                             error_log("Image upload error: " . $e->getMessage());
                                             $errors[] = 'Errore durante l\'upload dell\'immagine. Riprova.';
