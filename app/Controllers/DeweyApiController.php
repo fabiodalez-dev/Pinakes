@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\I18n;
 
 class DeweyApiController
 {
@@ -13,7 +14,7 @@ class DeweyApiController
     private function loadDeweyData(): array
     {
         // Cache per locale
-        $locale = $_SESSION['locale'] ?? 'it_IT';
+        $locale = $this->getActiveLocale();
 
         if (!isset(self::$deweyDataCache[$locale])) {
             // Determina il file JSON in base alla lingua
@@ -185,5 +186,32 @@ class DeweyApiController
         // perché i dati vengono dal JSON
         $response->getBody()->write(json_encode(['success' => true, 'message' => __('I dati provengono dal file JSON, nessun seeding necessario.')], JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Determina la lingua attiva tenendo conto di sessione, I18n e fallback.
+     */
+    private function getActiveLocale(): string
+    {
+        // Session override (es. utente che cambia lingua dal frontend)
+        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['locale'])) {
+            $sessionLocale = I18n::normalizeLocaleCode((string)$_SESSION['locale']);
+            if (I18n::isValidLocaleCode($sessionLocale)) {
+                return $sessionLocale;
+            }
+        }
+
+        // Usa il locale corrente impostato da I18n (che legge APP_LOCALE / languages)
+        $locale = I18n::getLocale();
+        if (!I18n::isValidLocaleCode($locale)) {
+            $locale = I18n::getInstallationLocale();
+        }
+
+        // Fallback finale alla lingua italiana per sicurezza
+        if (!I18n::isValidLocaleCode($locale)) {
+            return 'it_IT';
+        }
+
+        return I18n::normalizeLocaleCode($locale);
     }
 }
