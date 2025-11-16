@@ -31,6 +31,7 @@ migration-*.php
 
 # Temporary maintenance scripts
 clean-*.sh
+convert-*.php
 export-*.php
 fix-*.php
 
