@@ -1683,6 +1683,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
             'covers.openlibrary.org',
             'images.amazon.com',
             'images-na.ssl-images-amazon.com',
+            'm.media-amazon.com',
             'www.lafeltrinelli.it',
             'books.google.com',
             'books.googleusercontent.com'
