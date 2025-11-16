@@ -620,6 +620,11 @@ $registerRoute = route_path('register');
             color: #0f172a;
             background: #cbd5f5;
         }
+
+        .footer-logo img {
+            max-height: 40px;
+            object-fit: contain;
+        }
         .card {
         background-color: white;
             }
@@ -1194,7 +1199,3 @@ $registerRoute = route_path('register');
     </script>
 </body>
 </html>
-        .footer-logo img {
-            max-height: 40px;
-            object-fit: contain;
-        }

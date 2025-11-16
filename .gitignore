@@ -248,3 +248,4 @@ models/special_tokens_map.json
 models/tokenizer.json
 models/tokenizer_config.json
 vectors.db
+/.qoder
