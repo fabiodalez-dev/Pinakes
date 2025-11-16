@@ -121,7 +121,7 @@ class ContactController
         if (!$stmt->execute()) {
             $stmt->close();
             return $response
-                ->withHeader('Location', RouteTranslator::route('contact')?error=db')
+                ->withHeader('Location', RouteTranslator::route('contact') . '?error=db')
                 ->withStatus(302);
         }
 
@@ -135,7 +135,7 @@ class ContactController
         $this->createInAppNotification($nome, $cognome, $email, $messageId, $db);
 
         return $response
-            ->withHeader('Location', RouteTranslator::route('contact')?success=1')
+            ->withHeader('Location', RouteTranslator::route('contact') . '?success=1')
             ->withStatus(302);
     }
 
