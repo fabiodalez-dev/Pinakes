@@ -18,7 +18,6 @@ class Installer {
      * Create .env file with database configuration
      */
     public function createEnvFile($host, $user, $password, $database, $port = 3306, $socket = '', $locale = 'it') {
-        error_log("[Installer] createEnvFile() - Received locale: $locale");
 
         // Normalize locale:
         // - "it" or "it_IT" -> it_IT
@@ -35,7 +34,6 @@ class Installer {
             $normalizedLocale = 'it_IT';
         }
 
-        error_log("[Installer] createEnvFile() - Writing APP_LOCALE to .env: $normalizedLocale");
         $envPath = $this->baseDir . '/.env';
 
         $envContent = "# Environment Configuration - Sistema Biblioteca\n";
@@ -201,7 +199,6 @@ class Installer {
         // Determine locale from APP_LOCALE config (set in .env during installation)
         // Default to it_IT if not set
         $locale = $this->config['APP_LOCALE'] ?? 'it';
-        error_log("[Installer] importData() - APP_LOCALE from config: " . $locale);
 
         // Convert locale code to full form (supports it, it_IT, en, en_US)
         $localeMap = [
@@ -214,11 +211,9 @@ class Installer {
         ];
         $normalizedLocale = strtolower(str_replace('-', '_', $locale));
         $fullLocale = $localeMap[$normalizedLocale] ?? 'it_IT';
-        error_log("[Installer] importData() - Normalized locale: $normalizedLocale -> Full locale: $fullLocale");
 
         // Try locale-specific data file first (data_it_IT.sql or data_en_US.sql)
         $dataFile = $installerDir . '/database/data_' . $fullLocale . '.sql';
-        error_log("[Installer] importData() - Using data file: $dataFile");
 
         // If locale-specific file does not exist, do not fallback to generic data.sql
         // This enforces explicit language-specific seed files only.
