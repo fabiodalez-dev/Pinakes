@@ -597,7 +597,8 @@ const bookFormMessages = {
     authorReady: <?= json_encode(__('Autore "%s" pronto per essere creato')) ?>,
     publisherSelected: <?= json_encode(__('Editore "%s" selezionato')) ?>,
     publisherReady: <?= json_encode(__('Editore "%s" pronto per essere creato')) ?>,
-    publisherPlaceholder: <?= json_encode(__('Cerca editore esistente o inserisci nuovo...')) ?>
+    publisherPlaceholder: <?= json_encode(__('Cerca editore esistente o inserisci nuovo...')) ?>,
+    priceImported: <?= json_encode(__('Prezzo "%s" importato')) ?>
 };
 
 const isbnImportMessages = {
@@ -2394,7 +2395,7 @@ function initializeIsbnImport() {
                 
                 Toast.fire({
                     icon: 'success',
-                    title: `Prezzo "${data.price}" importato`
+                    title: bookFormMessages.priceImported.replace('%s', data.price)
                 });
             } else {
             }

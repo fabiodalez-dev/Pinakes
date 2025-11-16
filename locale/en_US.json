@@ -1756,6 +1756,7 @@
     "Preview": "Preview",
     "Prezzo": "Price",
     "Prezzo \"${data.price}\" importato": "Price \"${data.price}\" imported",
+    "Prezzo \"%s\" importato": "Price \"%s\" imported",
     "Prezzo (€)": "Price (€)",
     "Prima di iniziare, verifichiamo che il tuo server soddisfi tutti i requisiti necessari.": "Before we begin, let's verify that your server meets all the necessary requirements.",
     "Primo": "First",
