@@ -103,7 +103,7 @@ class Validator {
                 $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
                 if (count($tables) > 0) {
-                    $this->errors['database'] = "Il database '{$database}' non è vuoto. Deve essere un database vuoto.";
+                    $this->errors['database'] = sprintf(__("Il database '%s' non è vuoto. Deve essere un database vuoto."), $database);
                     return false;
                 }
             }
@@ -111,7 +111,7 @@ class Validator {
             return true;
 
         } catch (PDOException $e) {
-            $this->errors['connection'] = "Connessione al database fallita: " . $e->getMessage();
+            $this->errors['connection'] = __("Connessione al database fallita") . ": " . $e->getMessage();
             return false;
         }
     }
