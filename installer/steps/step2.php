@@ -70,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
         // Get selected language from session (default to Italian if not set)
         $locale = $_SESSION['app_locale'] ?? 'it';
+        error_log("[Step2] Locale from session: $locale");
 
         // Create .env file with language setting
         if ($installer->createEnvFile($finalHost, $username, $password, $database, $port, $socket, $locale)) {
