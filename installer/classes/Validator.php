@@ -148,7 +148,6 @@ class Validator {
     public function validateDirectoryPermissions($baseDir) {
         $directories = [
             $baseDir,
-            $baseDir . '/uploads',
             $baseDir . '/storage',
             $baseDir . '/backups'
         ];

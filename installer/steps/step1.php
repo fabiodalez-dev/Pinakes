@@ -22,7 +22,6 @@ $fixResults = [];
 if (isset($_POST['fix_permissions'])) {
     $fixAttempted = true;
     $dirsToFix = [
-        'uploads' => $baseDir . '/uploads',
         'storage' => $baseDir . '/storage',
         'storage/logs' => $baseDir . '/storage/logs',
         'storage/tmp' => $baseDir . '/storage/tmp',
@@ -56,7 +55,6 @@ if (isset($_POST['fix_permissions'])) {
 // Check directory permissions
 $directories = [
     'Root Directory' => is_writable($baseDir),
-    'Uploads Directory' => is_dir($baseDir . '/uploads') && is_writable($baseDir . '/uploads'),
     'Storage Directory' => is_dir($baseDir . '/storage') && is_writable($baseDir . '/storage'),
     'Backups Directory' => is_dir($baseDir . '/backups') && is_writable($baseDir . '/backups'),
 ];
