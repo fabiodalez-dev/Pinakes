@@ -119,7 +119,7 @@ class PluginController
             }
 
             // Save uploaded file temporarily
-            $uploadsDir = __DIR__ . '/../../uploads/plugins';
+            $uploadsDir = __DIR__ . '/../../storage/uploads/plugins';
             if (!is_dir($uploadsDir)) {
                 mkdir($uploadsDir, 0755, true);
             }

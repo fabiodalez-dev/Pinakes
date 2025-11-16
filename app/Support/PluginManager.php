@@ -27,7 +27,7 @@ class PluginManager
         $this->db = $db;
         $this->hookManager = $hookManager;
         $this->pluginsDir = __DIR__ . '/../../storage/plugins';
-        $this->uploadsDir = __DIR__ . '/../../uploads/plugins';
+        $this->uploadsDir = __DIR__ . '/../../storage/uploads/plugins';
 
         // Ensure directories exist
         if (!is_dir($this->pluginsDir)) {
