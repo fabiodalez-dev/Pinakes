@@ -287,7 +287,7 @@ $additional_css = "
     .btn-submit {
         width: 100%;
         padding: 1rem 2rem;
-        background: #1f2937;
+        background: #d70262;
         color: white;
         border: none;
         border-radius: 12px;
@@ -302,9 +302,9 @@ $additional_css = "
     }
 
     .btn-submit:hover {
-        background: #111827;
+        background: #b6014f;
         transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: none;
     }
 
     .btn-submit:disabled {

@@ -214,6 +214,10 @@ function renderHeader($currentStep, $stepTitle) {
 
     $lang = $_SESSION['app_locale'] ?? 'it';
     $htmlLang = $lang === 'en_US' ? 'en' : 'it';
+    $versionFile = dirname(__DIR__) . '/version.json';
+    $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
+    $appVersion = $versionData['version'] ?? '0.1.0';
+    $completedSteps = $_SESSION['completed_steps'] ?? [];
     ?>
     <!DOCTYPE html>
     <html lang="<?= $htmlLang ?>">
@@ -225,15 +229,35 @@ function renderHeader($currentStep, $stepTitle) {
     </head>
     <body>
         <div class="installer-container">
+            <div class="installer-hero">
+                <div class="brand-lockup">
+                    <img src="/assets/brand/logo.png" alt="Pinakes logo" width="90" height="90" loading="lazy">
+                    <div class="brand-copy">
+                        <p class="brand-title">Pinakes</p>
+                        <p class="brand-subtitle"><?= __("Library Management System") ?></p>
+                    </div>
+                </div>
+                <div class="hero-version">v<?= htmlspecialchars($appVersion) ?></div>
+            </div>
+
             <div class="installer-header">
-                <h1><?= __("Sistema Pinakes - Installazione") ?></h1>
-                <p><?= __("Configurazione guidata in pochi passaggi.") ?></p>
+                <div class="step-chip">
+                    <?= __("Passo") ?> <?= str_pad((string)($currentStep + 1), 2, '0', STR_PAD_LEFT) ?> /
+                    <?= str_pad((string)count($steps), 2, '0', STR_PAD_LEFT) ?>
+                </div>
+                <h1><?= htmlspecialchars($stepTitle) ?></h1>
+                <p><?= __("Segui l'installazione guidata per completare la configurazione.") ?></p>
             </div>
 
             <div class="installer-progress">
                 <?php foreach ($steps as $num => $label): ?>
-                    <div class="progress-step <?= $num === $currentStep ? 'active' : '' ?> <?= in_array($num, $_SESSION['completed_steps'] ?? []) ? 'completed' : '' ?>">
-                        <?= htmlspecialchars($label) ?>
+                    <?php
+                        $isActive = $num === $currentStep;
+                        $isCompleted = in_array($num, $completedSteps, true);
+                    ?>
+                    <div class="progress-step <?= $isActive ? 'active' : '' ?> <?= $isCompleted ? 'completed' : '' ?>">
+                        <div class="step-node"><?= str_pad((string)($num + 1), 2, '0', STR_PAD_LEFT) ?></div>
+                        <div class="step-label"><?= htmlspecialchars($label) ?></div>
                     </div>
                 <?php endforeach; ?>
             </div>

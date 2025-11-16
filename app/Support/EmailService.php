@@ -7,6 +7,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 use mysqli;
+use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\I18n;
 
@@ -414,7 +415,7 @@ class EmailService {
      */
     private function wrapInBaseTemplate(string $content, string $subject, ?string $locale = null): string {
         $appName = ConfigStore::get('app.name', 'Biblioteca');
-        $appLogo = (string)ConfigStore::get('app.logo', '');
+        $appLogo = Branding::logo();
 
         // Determine locale for translations
         if ($locale === null) {

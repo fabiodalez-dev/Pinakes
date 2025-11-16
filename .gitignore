@@ -161,7 +161,6 @@ traduzione_stringhe.md
 # ========================================
 # Dependencies
 # ========================================
-vendor/
 node_modules/
 frontend/node_modules/
 # composer.lock - MUST be in git for applications (ensures consistent dependency versions)

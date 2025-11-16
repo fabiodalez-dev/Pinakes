@@ -1,22 +1,16 @@
 <?php
 // Expects $content
 
+use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 
 $appName = (string)ConfigStore::get('app.name', 'Pinakes');
-$appLogo = (string)ConfigStore::get('app.logo', '');
-if ($appLogo !== '') {
-    $parsedLogoPath = parse_url($appLogo, PHP_URL_PATH) ?? $appLogo;
-    $publicDir = realpath(dirname(__DIR__, 1) . '/../public');
-    if ($publicDir !== false) {
-        $absoluteLogoPath = realpath($publicDir . $parsedLogoPath) ?: ($publicDir . $parsedLogoPath);
-        if (!is_file($absoluteLogoPath)) {
-            $appLogo = '';
-        }
-    }
-}
+$appLogo = Branding::logo();
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
+$versionFile = __DIR__ . '/../../version.json';
+$versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
+$appVersion = $versionData['version'] ?? '0.1.0';
 ?><!doctype html>
 <html lang="it">
   <head>
@@ -72,22 +66,19 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
         <!-- Sidebar Header -->
         <div class="flex items-center justify-between px-6 py-5 flex-shrink-0">
           <a href="/" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
-            <?php if ($appLogo !== ''): ?>
-              <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>" class="w-10 h-10 object-contain">
-            <?php else: ?>
-              <div class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+            <div class="w-12 h-12 rounded-xl bg-white border border-gray-100 shadow-sm flex items-center justify-center">
+              <?php if ($appLogo !== ''): ?>
+                <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>" class="max-h-[45px] w-auto object-contain">
+              <?php else: ?>
                 <span class="text-gray-700 font-semibold text-lg"><?php echo HtmlHelper::e($appInitial); ?></span>
+              <?php endif; ?>
+            </div>
+            <div class="leading-tight">
+              <span class="font-bold text-lg text-gray-900 block"><?php echo HtmlHelper::e($appName); ?></span>
+              <div class="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
+                <?= __("Library Management System") ?>
               </div>
-            <?php endif; ?>
-            <div>
-              <span class="font-bold text-xl text-gray-900"><?php echo HtmlHelper::e($appName); ?></span>
-              <div class="text-xs text-gray-500 font-medium">Sistema di Gestione</div>
-              <?php
-              $versionFile = __DIR__ . '/../../version.json';
-              $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
-              $version = $versionData['version'] ?? '0.1.0';
-              ?>
-              <div class="text-[10px] text-gray-400 font-mono mt-0.5">v<?php echo HtmlHelper::e($version); ?></div>
+              <div class="text-[10px] text-gray-400 font-mono mt-0.5">v<?php echo HtmlHelper::e($appVersion); ?></div>
             </div>
           </a>
 
@@ -338,16 +329,16 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
                   <i class="fas fa-bars text-xl text-gray-600"></i>
                 </button>
                 <div class="flex items-center space-x-3">
-                  <?php if ($appLogo !== ''): ?>
-                    <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>" class="w-8 h-8 object-contain">
-                  <?php else: ?>
-                    <div class="w-8 h-8 bg-gray-900 rounded-xl flex items-center justify-center shadow-lg">
-                      <span class="text-white text-sm font-semibold"><?php echo HtmlHelper::e($appInitial); ?></span>
-                    </div>
-                  <?php endif; ?>
-                  <div class="hidden sm:block">
-                    <span class="font-bold text-lg text-gray-900"><?php echo HtmlHelper::e($appName); ?></span>
-                    <div class="text-xs text-gray-500"><?= __("Sistema") ?></div>
+                  <div class="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center shadow-sm">
+                    <?php if ($appLogo !== ''): ?>
+                      <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>" class="w-9 h-9 object-contain">
+                    <?php else: ?>
+                      <span class="text-gray-800 font-semibold"><?php echo HtmlHelper::e($appInitial); ?></span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="hidden sm:block leading-tight">
+                    <span class="font-bold text-base text-gray-900 block"><?php echo HtmlHelper::e($appName); ?></span>
+                    <div class="text-[11px] font-semibold uppercase tracking-wide" style="color:#d70161;"><?= __("Library Management System") ?></div>
                   </div>
                 </div>
               </div>
@@ -1236,8 +1227,8 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
         navLinks.forEach(link => {
           const href = link.getAttribute('href');
           if (currentPath.startsWith(href) && href !== '/') {
-            link.classList.add('bg-blue-50', 'dark:bg-blue-900/30', 'text-blue-600', 'dark:text-blue-400', 'border-r-2', 'border-blue-600');
-            link.classList.remove('text-gray-700', 'dark:text-gray-300');
+            link.classList.add('bg-rose-50', 'text-rose-600', 'border-r-2', 'border-rose-600');
+            link.classList.remove('text-gray-700');
           }
         });
       }

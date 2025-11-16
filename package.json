@@ -14,7 +14,7 @@
   },
   "keywords": ["library", "management", "biblioteca", "pinakes", "cataloging"],
   "author": "fabiodalez-dev",
-  "license": "ISC",
+  "license": "GPL-3.0-only",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/fabiodalez-dev/pinakes/issues"

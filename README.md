@@ -1,11 +1,32 @@
 # Pinakes 📚
 
-> Modern library automation with cataloging, circulation, patron self-service and a ready-made public portal.
+> Modern library automation with cataloging, circulation, patron self-service and a ready-made public portal — now deployable even on shared hosts, because dependencies are already vendored.
 
-[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](version.json)
-[![PHP](https://img.shields.io/badge/PHP-%3E%3D8.1-777BB4.svg)](https://www.php.net/)
-[![MySQL](https://img.shields.io/badge/MySQL-%3E%3D5.7-4479A1.svg)](https://www.mysql.com/)
-[![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.1-0ea5e9?style=for-the-badge)](version.json)
+[![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
+[![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
+
+[![PHP](https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
+![Slim](https://img.shields.io/badge/slim%20framework-2C3A3A?style=for-the-badge&logo=slim&logoColor=white)
+[![MySQL](https://img.shields.io/badge/mysql-4479A1.svg?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Composer](https://img.shields.io/badge/Composer-885630?style=for-the-badge&logo=composer&logoColor=white)](https://getcomposer.org/)
+[![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)](https://developer.mozilla.org/docs/Web/JavaScript)
+![Node.js](https://img.shields.io/badge/node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/tailwindcss-0ea5e9?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Bootstrap](https://img.shields.io/badge/bootstrap-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white)
+
+**Pinakes ships with the `vendor/` directory committed**, so you can upload the repo and start the installer without running Composer/NPM on production boxes. Point the installer at your database, pick Italian or English, and you get cataloging, circulation, the public portal and admin UI all at once.
+
+---
+
+## ⚡ Quick Start
+
+1. **Clone or download** this repository – it already contains the `vendor/` directory and compiled frontend assets.
+2. **Upload/extract** it on your server (shared hosting works fine because Composer isn’t required at deploy time).
+3. **Run the installer** by visiting `/installer`, choose the UI language, drop database credentials and follow the guided wizard.
+4. **Log in** with the admin account created during the wizard and start cataloguing.
+
+> Want to regenerate dependencies locally? Run `composer install && npm install && npm run build` as usual; just remember to commit the refreshed `vendor/` directory when preparing a release.
 
 ---
 
@@ -46,7 +67,7 @@
 ### Automations, Messaging & Compliance
 - Email settings and templates are editable from the admin UI (`SettingsController`) and persisted via `SettingsRepository`; common templates are pre-seeded during install.
 - Public contact forms, password resets and onboarding rely on the same `EmailService`, ensuring HTML + plain-text fallbacks and queue-safe sending.
-- Scheduled scripts in `scripts/` (backup, sitemap regeneration, availability sync) complement cron-ready tasks.
+- The Settings view (`app/Views/admin/settings.php`) centralizes SMTP driver selection, registration approvals, CMS quick links and provides copy‑paste cron snippets for `cron/automatic-notifications.php`.
 
 ### Plugins, Scraping & Integrations
 - `app/Support/Hooks.php` exposes action/filter hooks used across cataloging, scraping, login and frontend widgets; plugins register in `plugins`, `plugin_hooks`, `plugin_settings`, `plugin_data` and `plugin_logs` tables.
@@ -77,42 +98,38 @@ All responses are JSON UTF-8, provide timestamps + metadata and honour HTTP stat
 ---
 
 ## Installation
+Pinakes ships with `vendor/` and compiled frontend assets committed, so Composer/NPM are only required if you want to refresh dependencies locally.
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/fabiodalez-dev/pinakes.git
    cd pinakes
    ```
-2. **Install PHP dependencies**
+2. **(Optional) Refresh back-end/frontend dependencies**
    ```bash
    composer install --no-dev --optimize-autoloader
+   cd frontend && npm install && npm run build && cd ..
    ```
-3. **Install & build frontend assets**
-   ```bash
-   cd frontend
-   npm install
-   npm run build
-   cd ..
-   ```
-4. **Fix writable directories** – Git cannot store 0777, so run the helper script:
+3. **Fix writable directories** – Git cannot store 0777, so run the helper script:
    ```bash
    ./bin/setup-permissions.sh
    # or set 777 manually on uploads/, storage/, backups/, public/uploads/
    ```
-5. **Start a local server** (or configure your vhost) using the router so the installer can intercept routes:
+4. **Start a local server** (or configure your vhost) using the router so the installer can intercept routes:
    ```bash
    php -S 0.0.0.0:8000 router.php
    ```
-6. **Run the web installer** – visit your domain. The installer (see `installer/README.md`) walks through:
+5. **Run the web installer** – visit your domain. The installer (see `installer/README.md`) walks through:
    - requirement checks,
    - database credentials & connection test,
    - schema + sample data import (including Dewey, genres, email templates),
    - admin account creation,
    - app + email configuration.
    It writes `.env` and `.installed` automatically, so you do **not** need to duplicate `.env.example` manually.
-7. **Post-install**
+6. **Post-install**
    - Remove/lock the `installer/` directory (button provided on the final step).
-   - Configure SMTP + templates in Admin → Settings.
-   - Schedule `php cron/automatic-notifications.php` (daily) and any maintenance scripts you need.
+   - Configure SMTP, registration policy and CMS blocks from **Admin → Settings**.
+   - Schedule `php cron/automatic-notifications.php` (daily); the Settings page includes copy‑paste snippets for your crontab.
 
 ---
 
@@ -171,6 +188,6 @@ If you ever need to reinstall, delete `.installed` + `.env` or hit `/installer?f
 ---
 
 ## Contributing & License
-Contributions, issues and feature requests are welcome via GitHub pull requests. Pinakes is released under the ISC License (see [LICENSE](LICENSE)).
+Contributions, issues and feature requests are welcome via GitHub pull requests. Pinakes is released under the GNU General Public License v3.0 (see [LICENSE](LICENSE)).
 
 If Pinakes helps your library, please ⭐ the repository!

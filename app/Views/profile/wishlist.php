@@ -18,7 +18,7 @@ $reservationsRoute = route_path('reservations');
 
 <style>
   .wishlist-hero {
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background: #d70161;
     color: var(--white);
     padding: 4.5rem 0 3.5rem;
     margin-bottom: 3rem;
@@ -40,7 +40,6 @@ $reservationsRoute = route_path('reservations');
     border-radius: 20px;
     padding: clamp(1.75rem, 4vw, 2.5rem);
     box-shadow: var(--card-shadow);
-    margin-top: -90px;
     position: relative;
     z-index: 2;
   }
@@ -260,9 +259,6 @@ $reservationsRoute = route_path('reservations');
       font-size: 2.1rem;
     }
 
-    .wishlist-info-card {
-      margin-top: -60px;
-    }
   }
 </style>
 

@@ -3,10 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Repositories\RecensioniRepository;
+use App\Support\Branding;
+use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use mysqli;
-use App\Repositories\RecensioniRepository;
 
 class FrontendController
 {
@@ -122,13 +123,27 @@ class FrontendController
         // Fetch app settings for SEO fallbacks
         $appName = \App\Support\ConfigStore::get('app.name', 'Pinakes');
         $footerDescription = \App\Support\ConfigStore::get('app.footer_description', '');
-        $appLogo = \App\Support\ConfigStore::get('app.logo', '');
+        $appLogo = Branding::logo();
 
         // Build base URL and protocol
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $baseUrl = $protocol . '://' . $host;
+        $baseUrlNormalized = rtrim($baseUrl, '/');
+        $makeAbsolute = static function (string $path) use ($baseUrlNormalized): string {
+            if ($path === '') {
+                return '';
+            }
+
+            if (preg_match('/^https?:\\/\\//i', $path)) {
+                return $path;
+            }
+
+            return $baseUrlNormalized . '/' . ltrim($path, '/');
+        };
         $seoCanonical = $baseUrl . '/';
+        $brandLogoUrl = $appLogo !== '' ? $makeAbsolute($appLogo) : '';
+        $defaultSocialImage = $makeAbsolute(Branding::socialImage());
 
         // === Basic SEO Meta Tags ===
 
@@ -165,16 +180,13 @@ class FrontendController
         $ogUrl = !empty($hero['og_url']) ? $hero['og_url'] : $seoCanonical;
 
         // OG Image (priority: custom og_image > hero background > app logo > default cover)
-        $ogImage = $baseUrl . '/uploads/copertine/default-cover.jpg'; // Default fallback
+        $ogImage = $defaultSocialImage;
         if (!empty($hero['og_image'])) {
-            // Custom OG image specified
-            $ogImage = (str_starts_with($hero['og_image'], 'http')) ? $hero['og_image'] : $baseUrl . $hero['og_image'];
+            $ogImage = $makeAbsolute($hero['og_image']);
         } elseif (!empty($hero['background_image'])) {
-            // Use hero background image
-            $ogImage = $baseUrl . $hero['background_image'];
-        } elseif (!empty($appLogo)) {
-            // Use app logo
-            $ogImage = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
+            $ogImage = $makeAbsolute($hero['background_image']);
+        } elseif ($brandLogoUrl !== '') {
+            $ogImage = $brandLogoUrl;
         }
 
         // Keep $seoImage as alias for backward compatibility
@@ -199,19 +211,15 @@ class FrontendController
                               ($footerDescription ?: __('Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture')))));
 
         // Twitter Image (priority: custom twitter_image > og_image > hero background > app logo > default cover)
-        $twitterImage = $baseUrl . '/uploads/copertine/default-cover.jpg'; // Default fallback
+        $twitterImage = $defaultSocialImage;
         if (!empty($hero['twitter_image'])) {
-            // Custom Twitter image specified
-            $twitterImage = (str_starts_with($hero['twitter_image'], 'http')) ? $hero['twitter_image'] : $baseUrl . $hero['twitter_image'];
+            $twitterImage = $makeAbsolute($hero['twitter_image']);
         } elseif (!empty($hero['og_image'])) {
-            // Use OG image
-            $twitterImage = (str_starts_with($hero['og_image'], 'http')) ? $hero['og_image'] : $baseUrl . $hero['og_image'];
+            $twitterImage = $makeAbsolute($hero['og_image']);
         } elseif (!empty($hero['background_image'])) {
-            // Use hero background image
-            $twitterImage = $baseUrl . $hero['background_image'];
-        } elseif (!empty($appLogo)) {
-            // Use app logo
-            $twitterImage = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
+            $twitterImage = $makeAbsolute($hero['background_image']);
+        } elseif ($brandLogoUrl !== '') {
+            $twitterImage = $brandLogoUrl;
         }
 
         // Social media links
@@ -240,8 +248,8 @@ class FrontendController
         ];
 
         // Add organization schema if logo exists
-        if (!empty($appLogo)) {
-            $logoUrl = (str_starts_with($appLogo, 'http')) ? $appLogo : $baseUrl . $appLogo;
+        if ($brandLogoUrl !== '') {
+            $logoUrl = $brandLogoUrl;
 
             $orgSchema = [
                 '@context' => 'https://schema.org',

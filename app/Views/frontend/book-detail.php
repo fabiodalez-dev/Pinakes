@@ -545,35 +545,35 @@ $additional_css = "
     }
 
     .role-principale {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        color: white;
-        border-color: var(--primary-color);
+        background: #d70161;
+        color: #fff;
+        border-color: #d70161;
     }
 
     .role-principale:hover {
-        color: white;
+        color: #fff;
         box-shadow: none;
     }
 
     .role-coautore {
-        background: linear-gradient(135deg, var(--warning-color), #f97316);
-        color: white;
-        border-color: var(--warning-color);
+        background: #f97316;
+        color: #fff;
+        border-color: #f97316;
     }
 
     .role-coautore:hover {
-        color: white;
+        color: #fff;
         box-shadow: none;
     }
 
     .role-traduttore {
-        background: linear-gradient(135deg, #8b5cf6, #a855f7);
-        color: white;
+        background: #8b5cf6;
+        color: #fff;
         border-color: #8b5cf6;
     }
 
     .role-traduttore:hover {
-        color: white;
+        color: #fff;
         box-shadow: none;
     }
 

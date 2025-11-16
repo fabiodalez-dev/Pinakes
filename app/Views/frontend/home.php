@@ -151,7 +151,7 @@ $additional_css = "
         width: 80px;
         height: 80px;
         margin: 0 auto 2rem;
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        background: #d70161;
         border-radius: 50%;
         display: flex;
         align-items: center;

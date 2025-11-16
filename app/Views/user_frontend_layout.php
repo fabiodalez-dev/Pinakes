@@ -1,20 +1,11 @@
 <?php
 
+use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 
 $appName = (string)ConfigStore::get('app.name', 'Pinakes');
-$appLogo = (string)ConfigStore::get('app.logo', '');
-if ($appLogo !== '') {
-    $parsedLogoPath = parse_url($appLogo, PHP_URL_PATH) ?? $appLogo;
-    $publicDir = realpath(dirname(__DIR__, 2) . '/public');
-    if ($publicDir !== false) {
-        $absoluteLogoPath = realpath($publicDir . $parsedLogoPath) ?: ($publicDir . $parsedLogoPath);
-        if (!is_file($absoluteLogoPath)) {
-            $appLogo = '';
-        }
-    }
-}
+$appLogo = Branding::logo();
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $footerDescription = (string)ConfigStore::get('app.footer_description', 'Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.');
 
@@ -93,17 +84,17 @@ if (!function_exists('assetUrl')) {
 
     <style>
         :root {
-            --primary-color: #000000;
-            --secondary-color: #333333;
-            --accent-color: #666666;
-            --text-color: #000000;
-            --text-light: #666666;
-            --text-muted: #999999;
+            --primary-color: #d70161;
+            --secondary-color: #111827;
+            --accent-color: #f1f5f9;
+            --text-color: #0f172a;
+            --text-light: #6b7280;
+            --text-muted: #94a3b8;
             --light-bg: #f8f9fa;
             --white: #ffffff;
-            --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            --card-shadow-hover: 0 8px 30px rgba(0,0,0,0.12);
-            --border-color: #e5e7eb;
+            --card-shadow: 0 4px 20px rgba(15,23,42,0.08);
+            --card-shadow-hover: 0 8px 30px rgba(15,23,42,0.12);
+            --border-color: #e2e8f0;
             --success-color: #10b981;
             --danger-color: #ef4444;
             --warning-color: #f59e0b;
@@ -154,8 +145,8 @@ if (!function_exists('assetUrl')) {
         }
 
         .header-brand .logo-image {
-            width: 2.5rem;
-            height: 2.5rem;
+            max-height: 45px;
+            width: auto;
             object-fit: contain;
         }
 
@@ -169,6 +160,11 @@ if (!function_exists('assetUrl')) {
             color: var(--secondary-color);
             text-decoration: none;
             transform: translateY(-1px);
+        }
+
+        .footer-logo img {
+            max-height: 40px;
+            object-fit: contain;
         }
 
         .nav-links {
@@ -453,7 +449,6 @@ if (!function_exists('assetUrl')) {
 
             .header-brand {
                 order: 1;
-                font-size: 1.3rem;
             }
 
             .mobile-menu-toggle {
@@ -488,7 +483,6 @@ if (!function_exists('assetUrl')) {
             }
 
             .header-brand {
-                font-size: 1.2rem;
                 gap: 0.5rem;
             }
 
@@ -839,7 +833,13 @@ if (!function_exists('assetUrl')) {
                     <?php if ($appLogo !== ''): ?>
                         <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
                     <?php else: ?>
-                        <h5><i class="fas fa-book-open me-2"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <?php if ($appLogo !== ''): ?>
+                            <div class="footer-logo">
+                                <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>">
+                            </div>
+                        <?php else: ?>
+                            <h5><i class="fas fa-book-open me-2"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <?php endif; ?>
                     <?php endif; ?>
                     <p><?= HtmlHelper::e($footerDescription) ?></p>
                 </div>
@@ -900,7 +900,8 @@ if (!function_exists('assetUrl')) {
     <script src="/assets/js/swal-config.js" defer></script>
 
     <script>
-    (function() {
+    // Search functionality with preview - wrapped in DOMContentLoaded for reliability
+    document.addEventListener('DOMContentLoaded', function() {
         const searchInputs = document.querySelectorAll('.search-input');
         if (searchInputs.length === 0) {
             return;
@@ -942,7 +943,8 @@ if (!function_exists('assetUrl')) {
         }
 
         function performSearch(query, resultsContainer) {
-            fetch('/api/search/preview?q=' + encodeURIComponent(query))
+            const url = '/api/search/preview?q=' + encodeURIComponent(query);
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     displaySearchResults(data, resultsContainer);
@@ -1058,26 +1060,33 @@ if (!function_exists('assetUrl')) {
                 return;
             }
 
+            // Set parent to relative for absolute positioning
+            searchContainer.style.position = 'relative';
+
             const resultsContainer = document.createElement('div');
             resultsContainer.className = 'search-results';
+            resultsContainer.dataset.inputId = 'search-' + Math.random().toString(36).substr(2, 9);
+
+            // Use simple absolute positioning inside parent
             const isMobile = window.innerWidth <= 768;
             resultsContainer.style.cssText =
                 'position: absolute;' +
-                'top: 100%;' +
-                (isMobile ? 'left: -10px; right: -10px;' : 'left: -20px; right: -20px;') +
+                'top: calc(100% + 15px);' +
+                'left: -20px;' +
+                'right: -20px;' +
                 'background: white;' +
                 'border: 1px solid #e5e7eb;' +
                 'border-radius: 0.75rem;' +
-                'box-shadow: none;' +
+                'box-shadow: 0 10px 40px rgba(0,0,0,0.15);' +
                 (isMobile ? 'max-height: 70vh;' : 'max-height: 600px;') +
                 'overflow-y: auto;' +
-                'z-index: 1000;' +
+                'overscroll-behavior: contain;' +
+                'z-index: 99999;' +
                 'display: none;' +
-                (isMobile ? '' : 'min-width: 500px;');
+                (isMobile ? 'min-width: 300px;' : 'min-width: 500px;') +
+                'pointer-events: auto;';
 
-            if (!['relative', 'absolute', 'fixed'].includes(getComputedStyle(searchContainer).position)) {
-                searchContainer.style.position = 'relative';
-            }
+            // Append to parent
             searchContainer.appendChild(resultsContainer);
 
             input.addEventListener('input', function(e) {
@@ -1103,15 +1112,16 @@ if (!function_exists('assetUrl')) {
                 });
             }
 
+            // Hide results when clicking outside
             document.addEventListener('click', function(e) {
-                if (!searchContainer.contains(e.target)) {
+                if (!input.contains(e.target) && !resultsContainer.contains(e.target)) {
                     hideSearchResults();
                 }
             });
         });
 
         window.addEventListener('resize', updateSearchResultsSize);
-    })();
+    }); // End of DOMContentLoaded
 
     // Keyboard shortcuts
     function initializeKeyboardShortcuts() {

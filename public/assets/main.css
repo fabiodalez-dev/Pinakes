@@ -5013,7 +5013,6 @@ pre, code, table {
 .container-fluid,
 .row {
   max-width: 92vw !important;
-  overflow-x: hidden !important;
 }
 
 /* Images and media - always responsive */

@@ -71,7 +71,7 @@ $additional_css = "
     }
 
     .catalog-header {
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        background: #d70161;
         color: white;
         padding: 4rem 0 3rem;
         position: relative;
@@ -85,8 +85,7 @@ $additional_css = "
         left: 0;
         right: 0;
         bottom: 0;
-        background: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><defs><pattern id=\"grain\" width=\"100\" height=\"100\" patternUnits=\"userSpaceOnUse\"><circle cx=\"25\" cy=\"25\" r=\"1\" fill=\"white\" opacity=\"0.1\"/><circle cx=\"75\" cy=\"75\" r=\"1\" fill=\"white\" opacity=\"0.1\"/><circle cx=\"50\" cy=\"10\" r=\"0.5\" fill=\"white\" opacity=\"0.1\"/><circle cx=\"10\" cy=\"60\" r=\"0.5\" fill=\"white\" opacity=\"0.1\"/></pattern></defs><rect width=\"100%\" height=\"100%\" fill=\"url(%23grain)\"/></svg>');
-        opacity: 0.3;
+        background: rgba(255, 255, 255, 0.05);
     }
 
     .catalog-header-content {
@@ -99,10 +98,7 @@ $additional_css = "
         font-weight: 800;
         letter-spacing: -0.025em;
         margin-bottom: 0.5rem;
-        background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        color: #fff;
     }
 
     .catalog-subtitle {
@@ -126,7 +122,7 @@ $additional_css = "
     }
 
     .filters-header {
-        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+        background: var(--bg-secondary);
         padding: 1.5rem;
         border-bottom: 1px solid var(--border-light);
         flex-shrink: 0;
@@ -289,7 +285,7 @@ $additional_css = "
     .year-slider-track {
         position: absolute;
         height: 100%;
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        background: var(--primary-color);
         border-radius: 3px;
     }
 
@@ -386,22 +382,6 @@ $additional_css = "
         transition: var(--transition);
         position: relative;
         overflow: hidden;
-    }
-
-    .availability-option::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-        transition: var(--transition);
-        opacity: 0.1;
-    }
-
-    .availability-option:hover::before {
-        left: 0;
     }
 
     .availability-option:hover {
@@ -592,9 +572,9 @@ $additional_css = "
     .clear-all-btn {
         width: 100%;
         padding: 0.75rem;
-        background: #ef4444;
-        color: white;
-        border: none;
+        background: #0f172a;
+        color: #fff;
+        border: 1px solid #0f172a;
         border-radius: var(--radius-md);
         font-size: 0.875rem;
         font-weight: 600;
@@ -604,13 +584,13 @@ $additional_css = "
         align-items: center;
         justify-content: center;
         gap: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        box-shadow: none;
     }
 
     .clear-all-btn:hover {
-        background: #dc2626;
+        background: #000000;
+        border-color: #000000;
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     }
 
     .clear-all-btn i {
@@ -891,14 +871,13 @@ $additional_css = "
 
     /* Loading States */
     .loading-skeleton {
-        background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-secondary) 50%, var(--bg-tertiary) 75%);
-        background-size: 200% 100%;
-        animation: loading 1.5s infinite;
+        background: var(--bg-tertiary);
+        animation: pulse 1.2s ease-in-out infinite alternate;
     }
 
-    @keyframes loading {
-        0% { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
+    @keyframes pulse {
+        from { opacity: 0.6; }
+        to { opacity: 1; }
     }
 
     /* Empty State */
@@ -946,9 +925,9 @@ $additional_css = "
         display: inline-flex;
         align-items: center;
         padding: 0.75rem 1.5rem;
-        background: #1f2937;
+        background: #d70262;
         color: white;
-        border: none;
+        border: 1px solid #d70262;
         border-radius: var(--radius-md);
         font-size: 0.875rem;
         font-weight: 600;
@@ -957,7 +936,8 @@ $additional_css = "
     }
 
     .btn-cta:hover {
-        background: #111827;
+        background: #b70154;
+        border-color: #b70154;
         transform: translateY(-1px);
     }
 

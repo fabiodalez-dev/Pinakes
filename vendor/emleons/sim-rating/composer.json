@@ -1,0 +1,22 @@
+{
+    "name": "emleons/sim-rating",
+    "description": "A simple 5-star rating system for CodeIgniter 4",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Emleons\\SimRating\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "emleonstz",
+            "email": "emleons23@gmail.con"
+        }
+    ],
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "require-dev": {
+        "phpunit/phpunit": "11.5.x-dev"
+    }
+}

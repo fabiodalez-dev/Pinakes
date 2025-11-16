@@ -1,21 +1,12 @@
 <?php
 
+use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\ContentSanitizer;
 use App\Support\HtmlHelper;
 
 $appName = (string)ConfigStore::get('app.name', 'Pinakes');
-$appLogo = (string)ConfigStore::get('app.logo', '');
-if ($appLogo !== '') {
-    $parsedLogoPath = parse_url($appLogo, PHP_URL_PATH) ?? $appLogo;
-    $publicDir = realpath(dirname(__DIR__, 2) . '/public');
-    if ($publicDir !== false) {
-        $absoluteLogoPath = realpath($publicDir . $parsedLogoPath) ?: ($publicDir . $parsedLogoPath);
-        if (!is_file($absoluteLogoPath)) {
-            $appLogo = '';
-        }
-    }
-}
+$appLogo = Branding::logo();
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $footerDescription = (string)ConfigStore::get('app.footer_description', 'Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.');
 
@@ -112,6 +103,24 @@ if (!function_exists('assetUrl')) {
     <link rel="alternate" hreflang="en" href="<?= htmlspecialchars($hreflangEn) ?>">
     <link rel="alternate" hreflang="x-default" href="<?= htmlspecialchars($baseUrlClean) ?>">
 
+    <?php
+    $defaultOgImagePath = Branding::socialImage();
+    $resolvedDefaultOgImage = absoluteUrl($defaultOgImagePath);
+
+    $ogTitle = $ogTitle ?? ($seoTitle ?? $title ?? $appName);
+    $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?? __('Esplora il nostro catalogo digitale')));
+    $ogType = $ogType ?? 'website';
+    $ogUrl = $ogUrl ?? $baseUrlClean;
+    $ogImage = $ogImage ?? $resolvedDefaultOgImage;
+    $ogImage = absoluteUrl($ogImage);
+
+    $twitterCard = $twitterCard ?? 'summary_large_image';
+    $twitterTitle = $twitterTitle ?? $ogTitle;
+    $twitterDescription = $twitterDescription ?? $ogDescription;
+    $twitterImage = $twitterImage ?? $ogImage;
+    $twitterImage = absoluteUrl($twitterImage);
+    ?>
+
     <!-- Open Graph Meta Tags -->
     <?php if (isset($ogTitle)): ?>
     <meta property="og:title" content="<?= htmlspecialchars($ogTitle) ?>">
@@ -161,19 +170,19 @@ if (!function_exists('assetUrl')) {
     <link href="<?= assetUrl('/main.css') ?>?v=<?= time() ?>" rel="stylesheet">
     <link href="<?= assetUrl('/css/swal-theme.css') ?>?v=<?= time() ?>" rel="stylesheet">
 
-    <style>
+        <style>
         :root {
-            --primary-color: #000000;
-            --secondary-color: #333333;
-            --accent-color: #666666;
-            --text-color: #000000;
-            --text-light: #666666;
-            --text-muted: #999999;
+            --primary-color: #d70161;
+            --secondary-color: #111827;
+            --accent-color: #f1f5f9;
+            --text-color: #0f172a;
+            --text-light: #6b7280;
+            --text-muted: #94a3b8;
             --light-bg: #f8f9fa;
             --white: #ffffff;
-            --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            --card-shadow-hover: 0 8px 30px rgba(0,0,0,0.12);
-            --border-color: #e5e7eb;
+            --card-shadow: 0 4px 20px rgba(15,23,42,0.08);
+            --card-shadow-hover: 0 8px 30px rgba(15,23,42,0.12);
+            --border-color: #e2e8f0;
             --success-color: #10b981;
             --danger-color: #ef4444;
             --warning-color: #f59e0b;
@@ -229,8 +238,8 @@ if (!function_exists('assetUrl')) {
         }
 
         .header-brand .logo-image {
-            width: 2.5rem;
-            height: 2.5rem;
+            max-height: 45px;
+            width: auto;
             object-fit: contain;
         }
 
@@ -244,6 +253,11 @@ if (!function_exists('assetUrl')) {
             color: var(--secondary-color);
             text-decoration: none;
             transform: translateY(-1px);
+        }
+
+        .footer-logo img {
+            max-height: 40px;
+            object-fit: contain;
         }
 
         .user-menu {
@@ -396,9 +410,9 @@ if (!function_exists('assetUrl')) {
             gap: 0.6rem;
             padding: 0.9rem 2.2rem;
             border-radius: 999px;
-            border: 1.5px solid #111827;
-            background: #111827;
-            color: #ffffff;
+            border: 1.5px solid #d70262;
+            background: #d70262;
+            color: #fff;
             font-weight: 600;
             font-size: 1rem;
             letter-spacing: -0.01em;
@@ -411,9 +425,9 @@ if (!function_exists('assetUrl')) {
 
         .btn-cta:hover,
         .btn-cta:focus {
-            color: #ffffff;
-            background: #000000;
-            border-color: #000000;
+            color: #fff;
+            background: #b70154;
+            border-color: #b70154;
             transform: translateY(-2px);
             box-shadow: none;
             text-decoration: none;
@@ -430,15 +444,15 @@ if (!function_exists('assetUrl')) {
 
         .btn-cta-outline {
             background: transparent;
-            color: #111827;
-            border: 1.5px solid #111827;
+            color: #d70262;
+            border: 1.5px solid #d70262;
             box-shadow: none;
         }
 
         .btn-cta-outline:hover,
         .btn-cta-outline:focus {
-            background: #111827;
-            color: #ffffff;
+            background: #d70262;
+            color: #fff;
             box-shadow: none;
         }
 
@@ -696,13 +710,7 @@ if (!function_exists('assetUrl')) {
             background: #f8fafc;
             color: #0f172a;
             padding: 4rem 0 1.5rem;
-            margin-top: 6rem;
             border-top: 1px solid #e5e7eb;
-        }
-
-        /* Remove footer margin on home page */
-        body.home .footer {
-            margin-top: 0;
         }
 
         .footer h5 {
@@ -767,10 +775,6 @@ if (!function_exists('assetUrl')) {
                 padding: 1rem 0;
             }
 
-            .header-brand {
-                font-size: 1.3rem;
-            }
-
             .nav-links {
                 display: none;
             }
@@ -795,11 +799,11 @@ if (!function_exists('assetUrl')) {
 
             .header-content {
                 flex-wrap: wrap;
-            }
+        }
 
-            .header-brand {
-                order: 1;
-            }
+        .header-brand {
+            order: 1;
+        }
 
             .mobile-search-toggle {
                 order: 2;
@@ -832,7 +836,6 @@ if (!function_exists('assetUrl')) {
             }
 
             .header-brand {
-                font-size: 1.2rem;
                 gap: 0.5rem;
             }
 
@@ -1128,7 +1131,7 @@ if (!function_exists('assetUrl')) {
     <div class="header-container">
         <div class="header-main">
             <div class="container">
-                <div class="header-content">
+            <div class="header-content">
                     <a class="header-brand" href="<?= absoluteUrl('/') ?>">
                         <?php if ($appLogo !== ''): ?>
                             <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="logo-image">
@@ -1265,7 +1268,13 @@ if (!function_exists('assetUrl')) {
                     <?php if ($appLogo !== ''): ?>
                         <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
                     <?php else: ?>
-                        <h5><i class="fas fa-book-open me-2"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <?php if ($appLogo !== ''): ?>
+                            <div class="footer-logo">
+                                <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>">
+                            </div>
+                        <?php else: ?>
+                            <h5><i class="fas fa-book-open me-2"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <?php endif; ?>
                     <?php endif; ?>
                     <p><?= HtmlHelper::e($footerDescription) ?></p>
                 </div>
@@ -1376,8 +1385,8 @@ if (!function_exists('assetUrl')) {
             } catch(_){}
         })();
 
-        // Search functionality with preview
-        (function() {
+        // Search functionality with preview - wrapped in DOMContentLoaded for reliability
+        document.addEventListener('DOMContentLoaded', function() {
             const searchInputs = document.querySelectorAll('.search-input');
             let searchTimeout;
             let currentSearchInput = null;
@@ -1385,24 +1394,35 @@ if (!function_exists('assetUrl')) {
             searchInputs.forEach(input => {
                 // Create search results container
                 const searchContainer = input.closest('.search-form');
+                if (!searchContainer) return;
+
+                // Set parent to relative for absolute positioning
+                searchContainer.style.position = 'relative';
+
                 const resultsContainer = document.createElement('div');
                 resultsContainer.className = 'search-results';
-                // Responsive sizing based on screen width
+                resultsContainer.dataset.inputId = 'search-' + Math.random().toString(36).substr(2, 9);
+
+                // Use simple absolute positioning inside parent
                 const isMobile = window.innerWidth <= 768;
                 resultsContainer.style.cssText =
                     'position: absolute;' +
-                    'top: 100%;' +
-                    (isMobile ? 'left: -10px; right: -10px;' : 'left: -20px; right: -20px;') +
+                    'top: calc(100% + 15px);' +
+                    'left: -20px;' +
+                    'right: -20px;' +
                     'background: white;' +
                     'border: 1px solid #e5e7eb;' +
                     'border-radius: 0.75rem;' +
-                    'box-shadow: none;' +
+                    'box-shadow: 0 10px 40px rgba(0,0,0,0.15);' +
                     (isMobile ? 'max-height: 70vh;' : 'max-height: 600px;') +
                     'overflow-y: auto;' +
-                    'z-index: 1000;' +
+                    'overscroll-behavior: contain;' +
+                    'z-index: 99999;' +
                     'display: none;' +
-                    (isMobile ? '' : 'min-width: 500px;');
-                searchContainer.style.position = 'relative';
+                    (isMobile ? 'min-width: 300px;' : 'min-width: 500px;') +
+                    'pointer-events: auto;';
+
+                // Append to parent
                 searchContainer.appendChild(resultsContainer);
 
                 // Search input event
@@ -1429,7 +1449,7 @@ if (!function_exists('assetUrl')) {
 
                 // Hide results when clicking outside
                 document.addEventListener('click', function(e) {
-                    if (!searchContainer.contains(e.target)) {
+                    if (!input.contains(e.target) && !resultsContainer.contains(e.target)) {
                         hideSearchResults();
                     }
                 });
@@ -1462,7 +1482,8 @@ if (!function_exists('assetUrl')) {
             };
 
             function performSearch(query, resultsContainer) {
-                fetch('<?= absoluteUrl('/api/search/preview') ?>?q=' + encodeURIComponent(query))
+                const url = '<?= absoluteUrl('/api/search/preview') ?>?q=' + encodeURIComponent(query);
+                fetch(url)
                     .then(response => response.json())
                     .then(data => {
                         displaySearchResults(data, resultsContainer);
@@ -1590,7 +1611,7 @@ if (!function_exists('assetUrl')) {
             }
 
             window.addEventListener('resize', updateSearchResultsSize);
-        })();
+        }); // End of DOMContentLoaded
     </script>
 
     <!-- Mobile Menu Script -->

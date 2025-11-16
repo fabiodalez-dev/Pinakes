@@ -2,7 +2,7 @@
   "name": "pinakes/slim-app",
   "description": "Pinakes - Library Management System built with Slim 4",
   "type": "project",
-  "license": "ISC",
+  "license": "GPL-3.0-only",
   "require": {
     "php": "^8.1",
     "slim/slim": "^4.13",

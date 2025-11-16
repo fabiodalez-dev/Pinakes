@@ -235,17 +235,18 @@ function profileReservationBookUrl(array $item): string {
   }
 
   .btn-review {
-    background: #3b82f6;
-    color: white;
+    background: #d60361;
+    color: #fff;
   }
 
   .btn-review:hover {
-    background: #1f2937;
+    background: #b4024f;
   }
 
   .btn-review:disabled {
-    background: #9ca3af;
+    background: #d60361;
     cursor: not-allowed;
+    opacity: 0.7;
   }
 
   .alert-overdue {

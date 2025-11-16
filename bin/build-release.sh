@@ -19,7 +19,7 @@
 #   - shasum or sha256sum
 #
 # Author: Fabio D'Alessandro
-# License: ISC
+# License: GPL-3.0
 ################################################################################
 
 set -e  # Exit on error
@@ -280,20 +280,21 @@ $(cat "${OUTPUT_DIR}/pinakes-v${version}.zip.sha256")
    cd pinakes-v${version}
    \`\`\`
 
-2. Install Composer dependencies:
-   \`\`\`bash
-   composer install --no-dev --optimize-autoloader
-   \`\`\`
-
-3. Configure environment:
+2. Configure environment:
    \`\`\`bash
    cp .env.example .env
    # Edit .env with your settings
    \`\`\`
 
-4. Run web installer:
+3. Run web installer:
    - Navigate to http://yourdomain.com
    - Follow installation wizard
+
+4. *(Optional)* Refresh Composer/NPM dependencies only if you customize the code:
+   \`\`\`bash
+   composer install --no-dev --optimize-autoloader
+   cd frontend && npm install && npm run build && cd ..
+   \`\`\`
 
 ## 📚 Documentation
 
@@ -304,7 +305,7 @@ $(cat "${OUTPUT_DIR}/pinakes-v${version}.zip.sha256")
 ## 🆘 Support
 
 For issues and support, visit:
-- GitHub Issues: https://github.com/yourusername/pinakes/issues
+- GitHub Issues: https://github.com/fabiodalez-dev/pinakes/issues
 
 ---
 
