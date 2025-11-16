@@ -39,7 +39,7 @@ class ContactController
         // Validazione CSRF
         if (!Csrf::validate($data['csrf_token'] ?? '')) {
             return $response
-                ->withHeader('Location', RouteTranslator::route('contact')?error=csrf')
+                ->withHeader('Location', RouteTranslator::route('contact') . '?error=csrf')
                 ->withStatus(302);
         }
 
@@ -52,7 +52,7 @@ class ContactController
 
             if (empty($recaptchaToken)) {
                 return $response
-                    ->withHeader('Location', RouteTranslator::route('contact')?error=recaptcha')
+                    ->withHeader('Location', RouteTranslator::route('contact') . '?error=recaptcha')
                     ->withStatus(302);
             }
 
@@ -63,7 +63,7 @@ class ContactController
 
             if (!$resp->isSuccess()) {
                 return $response
-                    ->withHeader('Location', RouteTranslator::route('contact')?error=recaptcha')
+                    ->withHeader('Location', RouteTranslator::route('contact') . '?error=recaptcha')
                     ->withStatus(302);
             }
         }
@@ -79,19 +79,19 @@ class ContactController
 
         if (empty($nome) || empty($cognome) || empty($email) || empty($messaggio)) {
             return $response
-                ->withHeader('Location', RouteTranslator::route('contact')?error=required')
+                ->withHeader('Location', RouteTranslator::route('contact') . '?error=required')
                 ->withStatus(302);
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $response
-                ->withHeader('Location', RouteTranslator::route('contact')?error=email')
+                ->withHeader('Location', RouteTranslator::route('contact') . '?error=email')
                 ->withStatus(302);
         }
 
         if (!$privacyAccepted) {
             return $response
-                ->withHeader('Location', RouteTranslator::route('contact')?error=privacy')
+                ->withHeader('Location', RouteTranslator::route('contact') . '?error=privacy')
                 ->withStatus(302);
         }
 
