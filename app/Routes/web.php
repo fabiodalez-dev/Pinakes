@@ -1683,7 +1683,6 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
             'covers.openlibrary.org',
             'images.amazon.com',
             'images-na.ssl-images-amazon.com',
-            'm.media-amazon.com',
             'www.lafeltrinelli.it',
             'books.google.com',
             'books.googleusercontent.com'
@@ -1768,6 +1767,135 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $response->getBody()->write($img);
         return $response->withHeader('Content-Type', $mimeType)
                         ->withHeader('Cache-Control', 'public, max-age=3600');
+    });
+
+    // Plugin image proxy endpoint - More permissive for plugin extensibility
+    // Allows any HTTPS domain but protects against SSRF attacks
+    $app->get('/api/plugins/proxy-image', function ($request, $response) use ($app) {
+        $url = $request->getQueryParams()['url'] ?? '';
+        if (!$url) {
+            return $response->withStatus(400);
+        }
+
+        // Validate URL format
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return $response->withStatus(400);
+        }
+
+        // Parse URL components
+        $parts = parse_url($url);
+        if (!$parts || !isset($parts['scheme'], $parts['host'])) {
+            return $response->withStatus(400);
+        }
+
+        // Enforce HTTPS only (no HTTP, file://, ftp://, etc.)
+        if (strtolower($parts['scheme']) !== 'https') {
+            return $response->withStatus(403);
+        }
+
+        $host = strtolower($parts['host']);
+
+        // Block localhost and loopback addresses
+        $blockedHosts = ['localhost', '127.0.0.1', '::1', '0.0.0.0'];
+        if (in_array($host, $blockedHosts, true)) {
+            return $response->withStatus(403);
+        }
+
+        // Block common private network patterns
+        $privatePatterns = [
+            '/^192\.168\./',
+            '/^10\./',
+            '/^172\.(1[6-9]|2[0-9]|3[0-1])\./',
+            '/^169\.254\./',  // Link-local
+            '/^fe80:/i',      // IPv6 link-local
+            '/^fc00:/i',      // IPv6 private
+            '/^fd00:/i',      // IPv6 private
+        ];
+
+        foreach ($privatePatterns as $pattern) {
+            if (preg_match($pattern, $host)) {
+                return $response->withStatus(403);
+            }
+        }
+
+        // DNS resolution check - ensure domain resolves to public IPs only
+        $ips = @gethostbynamel($host) ?: [];
+        $aaaaRecords = @dns_get_record($host, DNS_AAAA) ?: [];
+
+        if (!$ips && !$aaaaRecords) {
+            return $response->withStatus(403);
+        }
+
+        // Validate all resolved IPv4 addresses are public
+        foreach ($ips as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                return $response->withStatus(403);
+            }
+        }
+
+        // Validate all resolved IPv6 addresses are public
+        foreach ($aaaaRecords as $record) {
+            $ipv6 = $record['ipv6'] ?? null;
+            if ($ipv6 && filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                return $response->withStatus(403);
+            }
+        }
+
+        // Fetch image with secure settings
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; BibliotecaBot/1.0) Safari/537.36',
+            CURLOPT_HTTPHEADER => [
+                'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+            ],
+        ]);
+
+        $img = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+        curl_close($ch);
+
+        if ($img === false || $httpCode !== 200) {
+            return $response->withStatus(404);
+        }
+
+        // Re-validate final URL after redirects to prevent SSRF via redirect
+        if ($finalUrl && $finalUrl !== $url) {
+            $finalParts = parse_url($finalUrl);
+            $finalHost = strtolower($finalParts['host'] ?? '');
+
+            // Check if redirect went to private network
+            if (in_array($finalHost, $blockedHosts, true)) {
+                return $response->withStatus(403);
+            }
+
+            foreach ($privatePatterns as $pattern) {
+                if (preg_match($pattern, $finalHost)) {
+                    return $response->withStatus(403);
+                }
+            }
+        }
+
+        // Validate it's actually an image
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->buffer($img);
+
+        // Only allow image MIME types
+        if (!str_starts_with($mimeType, 'image/')) {
+            return $response->withStatus(403);
+        }
+
+        $response->getBody()->write($img);
+        return $response->withHeader('Content-Type', $mimeType)
+                        ->withHeader('Cache-Control', 'public, max-age=3600')
+                        ->withHeader('X-Proxy-Type', 'plugin');
     });
 
     // Serve uploaded files from storage directory

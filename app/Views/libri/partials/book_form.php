@@ -2500,8 +2500,8 @@ function displayScrapedCover(imageUrl) {
         // Local image - use as is
         imageSrc = window.location.origin + imageUrl;
     } else if (imageUrl.startsWith('http')) {
-        // External image - use proxy to bypass CORS
-        imageSrc = `/proxy/cover?url=${encodeURIComponent(imageUrl)}`;
+        // External image - use plugin proxy (no domain whitelist)
+        imageSrc = `/api/plugins/proxy-image?url=${encodeURIComponent(imageUrl)}`;
     }
 
     img.src = imageSrc;
