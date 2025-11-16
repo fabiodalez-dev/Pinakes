@@ -197,9 +197,8 @@ class Installer {
     public function importData() {
         $installerDir = dirname(__DIR__);
 
-        // Determine locale from APP_LOCALE config (set in .env during installation)
-        // Default to it_IT if not set
-        $locale = $this->config['APP_LOCALE'] ?? 'it';
+        // Get locale from session first (most reliable), fallback to .env
+        $locale = $_SESSION['app_locale'] ?? ($this->config['APP_LOCALE'] ?? 'it');
 
         // Convert locale code to full form (supports it, it_IT, en, en_US)
         $localeMap = [
