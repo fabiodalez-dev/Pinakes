@@ -197,22 +197,37 @@ class OpenLibraryPlugin
             // Fetch edition data by ISBN
             $editionData = $this->fetchEditionByISBN($isbn);
 
-            if (empty($editionData)) {
-                error_log("[OpenLibrary] No data found for ISBN: $isbn");
-                // Try Google Books as fallback
-                return $this->tryGoogleBooks($isbn);
-            }
+            if (empty($editionData) || isset($editionData['error']) || empty($editionData['title'])) {
+                error_log("[OpenLibrary] No complete data found for ISBN: $isbn, trying Goodreads for cover");
 
-            // Check if we have an error response from API
-            if (isset($editionData['error'])) {
-                error_log("[OpenLibrary] API error for ISBN $isbn: {$editionData['error']}");
-                // Try Google Books as fallback
-                return $this->tryGoogleBooks($isbn);
-            }
+                // Try to get at least a cover from Goodreads
+                $goodreadsCover = $this->getGoodreadsCover($isbn, '', '');
 
-            // Validate we have at least a title
-            if (empty($editionData['title'])) {
-                error_log("[OpenLibrary] No title found for ISBN: $isbn");
+                if ($goodreadsCover) {
+                    // Return minimal data with just the cover
+                    error_log("[OpenLibrary] Found cover on Goodreads for ISBN: $isbn");
+                    return [
+                        'title' => '',
+                        'subtitle' => '',
+                        'author' => '',
+                        'authors' => [],
+                        'publisher' => '',
+                        'isbn' => $isbn,
+                        'ean' => '',
+                        'year' => null,
+                        'pages' => null,
+                        'weight' => null,
+                        'format' => '',
+                        'description' => '',
+                        'image' => $goodreadsCover,
+                        'series' => '',
+                        'notes' => '',
+                        'tipologia' => '',
+                        'source' => self::GOODREADS_COVERS_BASE . '/' . $isbn,
+                        '_cover_only' => true,
+                    ];
+                }
+
                 // Try Google Books as fallback
                 return $this->tryGoogleBooks($isbn);
             }
@@ -393,34 +408,9 @@ class OpenLibraryPlugin
     }
 
     /**
-     * Check if a code is a valid ISBN-13 (not just any EAN)
-     *
-     * @param string $code Code to check
-     * @return bool True if valid ISBN-13
-     */
-    private function isValidIsbn13(string $code): bool
-    {
-        // Remove any hyphens or spaces
-        $code = preg_replace('/[\s\-]/', '', $code);
-
-        // Must be exactly 13 digits
-        if (strlen($code) !== 13 || !ctype_digit($code)) {
-            return false;
-        }
-
-        // ISBN-13 must start with 978 or 979
-        $prefix = substr($code, 0, 3);
-        if ($prefix !== '978' && $prefix !== '979') {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Get cover from Goodreads API via bookcover.longitood.com
      *
-     * @param string $isbn ISBN (will be converted to ISBN-13 if needed)
+     * @param string $isbn ISBN/EAN code (ISBN-10, ISBN-13, or any 13-digit EAN)
      * @param string $title Book title (optional, for fallback)
      * @param string $author Author name (optional, for fallback)
      * @return string|null Cover URL or null
@@ -428,17 +418,29 @@ class OpenLibraryPlugin
     private function getGoodreadsCover(string $isbn, string $title = '', string $author = ''): ?string
     {
         try {
-            // Convert ISBN-10 to ISBN-13 if needed
-            $isbn13 = $this->convertIsbn10ToIsbn13($isbn);
+            // Clean the code
+            $cleanCode = preg_replace('/[\s\-]/', '', $isbn);
 
-            // Only try Goodreads API if this is a valid ISBN-13, not just any EAN
-            if ($this->isValidIsbn13($isbn13)) {
-                // Try ISBN-based lookup first
-                $url = self::GOODREADS_COVERS_BASE . '/' . urlencode($isbn13);
+            // Try with original code first (ISBN-13 or EAN-13)
+            if (strlen($cleanCode) === 13 && ctype_digit($cleanCode)) {
+                $url = self::GOODREADS_COVERS_BASE . '/' . urlencode($cleanCode);
                 $coverUrl = $this->fetchGoodreadsCoverUrl($url);
 
                 if ($coverUrl) {
                     return $coverUrl;
+                }
+            }
+
+            // Try converting ISBN-10 to ISBN-13 if it's 10 digits
+            if (strlen($cleanCode) === 10) {
+                $isbn13 = $this->convertIsbn10ToIsbn13($cleanCode);
+                if (strlen($isbn13) === 13) {
+                    $url = self::GOODREADS_COVERS_BASE . '/' . urlencode($isbn13);
+                    $coverUrl = $this->fetchGoodreadsCoverUrl($url);
+
+                    if ($coverUrl) {
+                        return $coverUrl;
+                    }
                 }
             }
 
