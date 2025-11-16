@@ -31,9 +31,14 @@ if (!class_exists('OpenLibraryPlugin', false)) {
          */
         public function activate(): void
         {
-            $this->instance->activate();
+            if (method_exists($this->instance, 'activate')) {
+                $this->instance->activate();
+            }
         }
 
+        /**
+         * Activate the plugin
+         */
         /**
          * Deactivate the plugin (called by PluginManager)
          */
@@ -42,6 +47,9 @@ if (!class_exists('OpenLibraryPlugin', false)) {
             // Remove hooks when deactivated
             // Note: Hooks system doesn't have a remove method yet
             // For now, we just log the deactivation
+            if (method_exists($this->instance, 'onDeactivate')) {
+                $this->instance->onDeactivate();
+            }
             error_log('[OpenLibrary] Plugin deactivated');
         }
 
@@ -50,6 +58,9 @@ if (!class_exists('OpenLibraryPlugin', false)) {
          */
         public function onInstall(): void
         {
+            if (method_exists($this->instance, 'onInstall')) {
+                $this->instance->onInstall();
+            }
             error_log('[OpenLibrary] Plugin installed');
         }
 
@@ -58,7 +69,11 @@ if (!class_exists('OpenLibraryPlugin', false)) {
          */
         public function onActivate(): void
         {
-            $this->activate();
+            if (method_exists($this->instance, 'onActivate')) {
+                $this->instance->onActivate();
+            } elseif (method_exists($this->instance, 'activate')) {
+                $this->instance->activate();
+            }
             error_log('[OpenLibrary] Plugin activated via PluginManager');
         }
 
@@ -67,6 +82,9 @@ if (!class_exists('OpenLibraryPlugin', false)) {
          */
         public function onUninstall(): void
         {
+            if (method_exists($this->instance, 'onUninstall')) {
+                $this->instance->onUninstall();
+            }
             error_log('[OpenLibrary] Plugin uninstalled');
         }
 

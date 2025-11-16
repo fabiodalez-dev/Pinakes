@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Controllers\Admin;
 
 use App\Models\Language;
+use App\Models\SettingsRepository;
 use App\Support\CsrfHelper;
+use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\I18n;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -360,7 +362,7 @@ class LanguagesController
 
         try {
             $languageModel->setDefault($code);
-
+            $this->synchronizeGlobalLocale($db, $code);
             $_SESSION['flash_success'] = __("Lingua predefinita impostata con successo");
         } catch (\Exception $e) {
             $_SESSION['flash_error'] = __("Errore nell'operazione:") . " " . $e->getMessage();
@@ -578,6 +580,53 @@ class LanguagesController
             'total_keys' => $totalKeys,
             'translated_keys' => $translatedKeys,
         ];
+    }
+
+    private function synchronizeGlobalLocale(\mysqli $db, string $code): void
+    {
+        $normalized = I18n::normalizeLocaleCode($code);
+        if (!I18n::isValidLocaleCode($normalized)) {
+            return;
+        }
+
+        try {
+            $settingsRepo = new SettingsRepository($db);
+            $settingsRepo->set('app', 'locale', $normalized);
+        } catch (\Throwable $e) {
+            error_log('[LanguagesController] Unable to save locale in system_settings: ' . $e->getMessage());
+        }
+
+        try {
+            ConfigStore::set('app.locale', $normalized);
+        } catch (\Throwable $e) {
+            error_log('[LanguagesController] Unable to save locale in settings store: ' . $e->getMessage());
+        }
+
+        $this->updateEnvLocale($normalized);
+
+        I18n::setLocale($normalized);
+        $_SESSION['locale'] = $normalized;
+    }
+
+    private function updateEnvLocale(string $locale): void
+    {
+        $envPath = dirname(__DIR__, 3) . '/.env';
+        if (!is_file($envPath) || !is_readable($envPath) || !is_writable($envPath)) {
+            return;
+        }
+
+        $contents = file_get_contents($envPath);
+        if ($contents === false) {
+            return;
+        }
+
+        if (preg_match('/^APP_LOCALE=.*$/m', $contents)) {
+            $contents = preg_replace('/^APP_LOCALE=.*$/m', 'APP_LOCALE=' . $locale, $contents);
+        } else {
+            $contents = rtrim($contents) . PHP_EOL . 'APP_LOCALE=' . $locale . PHP_EOL;
+        }
+
+        file_put_contents($envPath, $contents);
     }
 
     /**

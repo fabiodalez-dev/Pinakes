@@ -59,7 +59,7 @@ class OpenLibraryPlugin
      */
     public function onActivate(): void
     {
-        $this->activate();
+        $this->registerHooks();
         error_log('[OpenLibrary] Plugin activated via PluginManager');
     }
 
@@ -69,6 +69,7 @@ class OpenLibraryPlugin
     public function setPluginId(int $pluginId): void
     {
         $this->pluginId = $pluginId;
+        $this->ensureHooksRegistered();
     }
 
     /**
@@ -112,6 +113,30 @@ class OpenLibraryPlugin
         }
 
         error_log('[OpenLibrary] Hooks registered in database');
+    }
+
+    private function ensureHooksRegistered(): void
+    {
+        if ($this->db === null || $this->pluginId === null) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM plugin_hooks WHERE plugin_id = ?");
+        if ($stmt === false) {
+            return;
+        }
+
+        $stmt->bind_param('i', $this->pluginId);
+
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            if ((int)($row['total'] ?? 0) === 0) {
+                $this->registerHooks();
+            }
+        }
+
+        $stmt->close();
     }
 
     /**

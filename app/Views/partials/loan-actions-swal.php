@@ -32,10 +32,26 @@ $loanActionTranslations = array_merge([
 (function() {
   const t = <?= json_encode($loanActionTranslations, JSON_UNESCAPED_UNICODE); ?>;
   
-  // Global JavaScript translation function
-  window.__ = function(key) {
-    return t[key] || key;
-  };
+  // Extend the existing global window.__ function to include loan action translations
+  if (typeof window.__ === 'function') {
+    // Store the original function
+    const originalTranslate = window.__;
+    
+    // Create a new function that first checks loan action translations, then falls back to original
+    window.__ = function(key, ...args) {
+      // First check if it's a loan action translation
+      if (t.hasOwnProperty(key)) {
+        return t[key];
+      }
+      // Otherwise, use the original translation function
+      return originalTranslate(key, ...args);
+    };
+  } else {
+    // If no existing __ function, create one
+    window.__ = function(key) {
+      return t[key] || key;
+    };
+  }
 
   const hasSwal = () => typeof window.Swal !== 'undefined' && typeof window.Swal.fire === 'function';
 
