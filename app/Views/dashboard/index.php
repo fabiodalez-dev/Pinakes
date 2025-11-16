@@ -118,7 +118,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <?php foreach ($pending as $loan): ?>
               <div class="flex flex-col bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm" data-loan-card>
-                <div class="flex flex-col md:flex-row gap-4 items-center md:items-start">
+                <div class="flex flex-col gap-4 items-center md:items-start">
                   <div class="flex-shrink-0">
                     <?php $cover = !empty($loan['copertina_url']) ? $loan['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
                     <img
@@ -349,129 +349,9 @@
 </div>
 
 <?php
-// Create i18n translations for JavaScript
-$i18nTranslations = [
-    'confirm_approve' => __('Sei sicuro di voler approvare questo prestito?'),
-    'error_prefix' => __('Errore:'),
-    'server_error' => __('Errore nella comunicazione con il server'),
-    'reject_reason_prompt' => __('Motivo del rifiuto (opzionale):'),
-];
-$i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+require __DIR__ . '/../partials/loan-actions-swal.php';
+unset($loanActionTranslations);
 ?>
-
-<script>
-(function() {
-    // Translations object for JavaScript
-    const i18n = <?= $i18nJson ?>;
-
-    const bindLoanActions = (context = document) => {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
-        context.querySelectorAll('.approve-btn').forEach(btn => {
-            if (btn.dataset.bound === '1') {
-                return;
-            }
-            btn.dataset.bound = '1';
-            btn.addEventListener('click', async function() {
-                const loanId = this.dataset.loanId;
-
-                if (!confirm(i18n.confirm_approve)) {
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/admin/loans/approve', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-Token': csrf
-                        },
-                        body: JSON.stringify({ loan_id: parseInt(loanId, 10) })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        const card = this.closest('[data-loan-card]');
-                        if (card) {
-                            card.remove();
-                        }
-
-                        if (!document.querySelector('.approve-btn')) {
-                            location.reload();
-                        }
-                    } else {
-                        alert(i18n.error_prefix + ' ' + result.message);
-                    }
-                } catch (error) {
-                    alert(i18n.server_error);
-                }
-            });
-        });
-
-        context.querySelectorAll('.reject-btn').forEach(btn => {
-            if (btn.dataset.bound === '1') {
-                return;
-            }
-            btn.dataset.bound = '1';
-            btn.addEventListener('click', async function() {
-                const loanId = this.dataset.loanId;
-                const reason = prompt(i18n.reject_reason_prompt);
-                if (reason === null) {
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/admin/loans/reject', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-Token': csrf
-                        },
-                        body: JSON.stringify({
-                            loan_id: parseInt(loanId, 10),
-                            reason: reason
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        const card = this.closest('[data-loan-card]');
-                        if (card) {
-                            card.remove();
-                        }
-
-                        if (!document.querySelector('.approve-btn')) {
-                            location.reload();
-                        }
-                    } else {
-                        alert(i18n.error_prefix + ' ' + result.message);
-                    }
-                } catch (error) {
-                    alert(i18n.server_error);
-                }
-            });
-        });
-    };
-
-    if (!window.__loanActionsInit) {
-        window.__loanActionsInit = bindLoanActions;
-    }
-
-    const run = () => {
-        if (typeof window.__loanActionsInit === 'function') {
-            window.__loanActionsInit();
-        }
-    };
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', run, { once: true });
-    } else {
-        run();
-    }
-})();
-</script>
 
 <!-- Custom Styles for Enhanced UI -->
 <style>

@@ -1004,14 +1004,15 @@ $appVersion = $versionData['version'] ?? '0.1.0';
                       ${isUnread ? '<span class="ml-1 inline-block w-2 h-2 bg-blue-500 rounded-full"></span>' : ''}
                     </p>
                     <p class="text-xs text-gray-600 mt-1 group-hover:text-gray-700 transition-colors">${escapeHtml(notif.message || '')}</p>
-                    ${hasLink ? `
-                      <div class="mt-3">
-                        <button type="button" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-900 rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500/40" data-open-link="${escapedLink}">
-                          <i class="fas fa-external-link-alt text-[11px]"></i>
-                          ${__('Apri')}
-                        </button>
-                      </div>
-                    ` : ''}
+            ${hasLink ? `
+              <?php $openLabel = json_encode(__('Apri'), JSON_UNESCAPED_UNICODE); ?>
+              <div class="mt-3">
+                <button type="button" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-900 rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500/40" data-open-link="${escapedLink}">
+                  <i class="fas fa-external-link-alt text-[11px]"></i>
+                  ${<?= $openLabel ?>}
+                </button>
+              </div>
+            ` : ''}
                   </div>
                 </div>
               `;

@@ -1884,19 +1884,48 @@ $seoSchema = json_encode([$bookSchema, $breadcrumbSchema, $organizationSchema], 
 $content = ob_get_clean();
 include 'layout.php';
 ?>
+<?php
+$jsTranslationKeys = [
+    'Aggiungi ai Preferiti',
+    'Rimuovi dai Preferiti',
+    'Accesso Richiesto',
+    'Per richiedere un prestito devi effettuare il login.',
+    'Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?',
+    'Vai al Login',
+    'Annulla',
+    'Richiesta Prestito',
+    'Quando vuoi iniziare il prestito?',
+    'Fino a quando? (opzionale):',
+    'Lascia vuoto per 1 mese',
+    'Le date rosse non sono disponibili. La richiesta verrà valutata da un amministratore.',
+    'Seleziona una data di inizio',
+    'Richiesta Inviata!',
+    'Invia Richiesta',
+    'Errore',
+    'Impossibile creare la prenotazione',
+    'Inserisci la data di inizio (YYYY-MM-DD)',
+    'Prenotazione effettuata per ',
+    'Errore: ',
+    'Errore nella prenotazione'
+];
+$jsTranslations = [];
+foreach ($jsTranslationKeys as $key) {
+    $jsTranslations[$key] = __($key);
+}
+?>
+<script>
+(function() {
+  const newTranslations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE); ?>;
+  window.APP_TRANSLATIONS = Object.assign(window.APP_TRANSLATIONS || {}, newTranslations);
+  window.__ = function(key) {
+    const dict = window.APP_TRANSLATIONS || newTranslations;
+    return Object.prototype.hasOwnProperty.call(dict, key) ? dict[key] : key;
+  };
+})();
+</script>
 <?php if ($isLoggedJs): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Translation function for JavaScript
-  const translations = {
-    'Aggiungi ai Preferiti': <?php echo json_encode(__('Aggiungi ai Preferiti'), JSON_UNESCAPED_UNICODE); ?>,
-    'Rimuovi dai Preferiti': <?php echo json_encode(__('Rimuovi dai Preferiti'), JSON_UNESCAPED_UNICODE); ?>
-  };
-
-  function __(key) {
-    return translations[key] || key;
-  }
-
   const favBtn = document.getElementById('btn-fav');
   if (!favBtn) return;
   const libroId = <?php echo (int)$libroIdJs; ?>;
@@ -1948,6 +1977,11 @@ document.addEventListener('DOMContentLoaded', function() {
   if (requestBtn) {
     const libroId = <?php echo (int)$libroIdJs; ?>;
     const isLogged = <?php echo $isLoggedJs ? 'true' : 'false'; ?>;
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    const csrf = meta ? meta.getAttribute('content') : '';
+    const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE); ?>;
+    const successOneMonthTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%s</strong> per 1 mese'), JSON_UNESCAPED_UNICODE); ?>;
+    const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE); ?>;
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');
@@ -2114,12 +2148,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (res.ok && result.success) {
               await updateReservationsBadge();
+              const successHtml = formValues.endDate
+                ? successRangeTpl.replace('%1$s', formatDateIT(formValues.startDate)).replace('%2$s', formatDateIT(formValues.endDate))
+                : successOneMonthTpl.replace('%s', formatDateIT(formValues.startDate));
+
               Swal.fire({
                 icon: 'success',
                 title: __('Richiesta Inviata!'),
-                html: `Richiesta di prestito dal <strong>${formatDateIT(formValues.startDate)}</strong>` +
-                      (formValues.endDate ? ` al <strong>${formatDateIT(formValues.endDate)}</strong>` : __(' per 1 mese')) +
-                      `<br><small><?= __("$1") ?></small>`
+                html: `${successHtml}<br><small>${successFootnote}</small>`
               });
               return;
             } else {

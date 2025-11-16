@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DataIntegrity;
 use Exception;
+use function __;
 
 class LoanApprovalController {
 
@@ -57,7 +58,7 @@ class LoanApprovalController {
         $loanId = (int)($data['loan_id'] ?? 0);
 
         if ($loanId <= 0) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'ID prestito non valido']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -74,7 +75,7 @@ class LoanApprovalController {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => 'Prestito non trovato o già processato'
+                    'message' => __('Prestito non trovato o già processato')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
@@ -98,7 +99,7 @@ class LoanApprovalController {
                     $db->rollback();
                     $response->getBody()->write(json_encode([
                         'success' => false,
-                        'message' => 'Nessuna copia disponibile per questo libro'
+                        'message' => __('Nessuna copia disponibile per questo libro')
                     ]));
                     return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                 }
@@ -137,7 +138,7 @@ class LoanApprovalController {
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => 'Prestito approvato con successo'
+                'message' => __('Prestito approvato con successo')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
@@ -146,7 +147,7 @@ class LoanApprovalController {
             error_log("Errore approvazione prestito {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Errore interno durante l\'approvazione'
+                'message' => __('Errore interno durante l\'approvazione')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -168,7 +169,7 @@ class LoanApprovalController {
         $reason = $data['reason'] ?? '';
 
         if ($loanId <= 0) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'ID prestito non valido']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -183,7 +184,7 @@ class LoanApprovalController {
         if (!$loan) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Prestito non trovato o già processato'
+                'message' => __('Prestito non trovato o già processato')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -201,13 +202,13 @@ class LoanApprovalController {
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => 'Richiesta rifiutata'
+                'message' => __('Richiesta rifiutata')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
         } else {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Errore nel rifiuto della richiesta'
+                'message' => __('Errore nel rifiuto della richiesta')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
