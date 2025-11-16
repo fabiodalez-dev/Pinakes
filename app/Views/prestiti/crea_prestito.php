@@ -5,7 +5,7 @@
     <ol class="flex items-center space-x-2 text-sm">
       <li>
         <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-          <i class="fas fa-home mr-1"></i>Home
+          <i class="fas fa-home mr-1"></i><?= __("Home") ?>
         </a>
       </li>
       <li>
@@ -31,16 +31,16 @@
       <?php 
       switch($_GET['error']) {
         case 'libro_in_prestito':
-          echo 'Il libro selezionato è già in prestito. Seleziona un altro libro.';
+          echo __('Il libro selezionato è già in prestito. Seleziona un altro libro.');
           break;
         case 'missing_fields':
-          echo 'Errore: tutti i campi obbligatori devono essere compilati.';
+          echo __('Errore: tutti i campi obbligatori devono essere compilati.');
           break;
         case 'invalid_dates':
-          echo 'Errore: la data di scadenza deve essere successiva alla data di prestito.';
+          echo __('Errore: la data di scadenza deve essere successiva alla data di prestito.');
           break;
         default:
-          echo 'Errore durante la creazione del prestito.';
+          echo __('Errore durante la creazione del prestito.');
       }
       ?>
     </div>
@@ -55,7 +55,7 @@
 
     <!-- Ricerca Utente -->
     <div class="relative">
-      <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium">Ricerca Utente *</label>
+      <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Ricerca Utente") ?> *</label>
       <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
       <div id="utente_suggest" class="suggestions-box"></div>
       <input type="hidden" name="utente_id" id="utente_id" value="0" />
@@ -63,7 +63,7 @@
 
     <!-- Ricerca Libro -->
     <div class="relative">
-      <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium">Ricerca Libro *</label>
+      <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Ricerca Libro") ?> *</label>
       <input type="text" id="libro_search" placeholder="<?= __('Cerca per titolo o sottotitolo') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
       <div id="libro_suggest" class="suggestions-box"></div>
       <input type="hidden" name="libro_id" id="libro_id" value="0" />
@@ -72,13 +72,13 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Data Prestito -->
       <div>
-        <label for="data_prestito" class="block text-gray-700 dark:text-gray-300 font-medium">Data Prestito *</label>
+        <label for="data_prestito" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Prestito") ?> *</label>
         <input type="date" name="data_prestito" id="data_prestito" value="<?php echo date('Y-m-d'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
       </div>
 
       <!-- Data Scadenza -->
       <div>
-        <label for="data_scadenza" class="block text-gray-700 dark:text-gray-300 font-medium">Data Scadenza *</label>
+        <label for="data_scadenza" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Scadenza") ?> *</label>
         <input type="date" name="data_scadenza" id="data_scadenza" value="<?php echo date('Y-m-d', strtotime('+14 days')); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
       </div>
     </div>
@@ -93,9 +93,9 @@
     <div class="flex items-center gap-4">
       <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
-      <a href="/admin/prestiti" class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
-        <i class="fas fa-times mr-2"></i>Annulla
-      </a>
+<a href="/admin/prestiti" class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+        <i class="fas fa-times mr-2"></i><?= __("Annulla") ?>
+</a>
     </div>
   </form>
 

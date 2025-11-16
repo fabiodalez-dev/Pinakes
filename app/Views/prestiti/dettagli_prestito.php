@@ -18,7 +18,7 @@ function formatLoanStatus($status) {
     <ol class="flex items-center space-x-2 text-sm">
       <li>
         <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
-          <i class="fas fa-home mr-1"></i>Home
+          <i class="fas fa-home mr-1"></i><?= __("Home") ?>
         </a>
       </li>
       <li>
@@ -67,11 +67,11 @@ function formatLoanStatus($status) {
         <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2"><?= __("Date") ?></h3>
         <div class="space-y-3">
           <div>
-            <span class="font-semibold text-gray-600">Data Prestito:</span>
+            <span class="font-semibold text-gray-600"><?= __("Data Prestito:") ?></span>
             <span class="text-gray-800"><?= date("d/m/Y", strtotime($prestito['data_prestito'])); ?></span>
           </div>
           <div>
-            <span class="font-semibold text-gray-600">Data Scadenza:</span>
+            <span class="font-semibold text-gray-600"><?= __("Data Scadenza:") ?></span>
             <span class="text-gray-800"><?= date("d/m/Y", strtotime($prestito['data_scadenza'] ?? '')); ?></span>
           </div>
           <div>
@@ -130,11 +130,11 @@ function formatLoanStatus($status) {
       <?php if (($prestito['stato'] ?? '') === 'pendente'): ?>
         <button type="button" class="px-4 py-2 bg-gray-900 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center approve-btn" data-loan-id="<?= (int)$prestito['id']; ?>">
           <i class="fas fa-check mr-2"></i>
-          Approva
+          <?= __("Approva") ?>
         </button>
         <button type="button" class="px-4 py-2 bg-red-600 text-white hover:bg-red-500 rounded-lg transition-colors duration-200 inline-flex items-center reject-btn" data-loan-id="<?= (int)$prestito['id']; ?>">
           <i class="fas fa-times mr-2"></i>
-          Rifiuta
+          <?= __("Rifiuta") ?>
         </button>
       <?php endif; ?>
       <?php if ((int)($prestito['attivo'] ?? 0) === 1 && ($prestito['stato'] ?? '') !== 'pendente'): ?>
@@ -142,7 +142,7 @@ function formatLoanStatus($status) {
             <i class="fas fa-undo-alt mr-2"></i><?= __("Gestisci Restituzione") ?></a>
         <a href="/admin/prestiti/modifica/<?= (int)$prestito['id']; ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-pencil-alt mr-2"></i>
-            Modifica
+            <?= __("Modifica") ?>
         </a>
       <?php endif; ?>
       <a href="/admin/prestiti" class="px-4 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">

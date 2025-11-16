@@ -11,7 +11,7 @@ $csrf = Csrf::ensureToken();
             <li>
                 <a href="/admin/dashboard" class="hover:text-gray-900 transition-colors flex items-center gap-1">
                     <i class="fas fa-home"></i>
-                    Home
+                    <?= __("Home") ?>
                 </a>
             </li>
             <li><i class="fas fa-chevron-right text-xs"></i></li>
@@ -101,9 +101,9 @@ $csrf = Csrf::ensureToken();
                 <i class="fas fa-check-circle"></i><?= __("Registra Restituzione") ?></a>
             <?php endif; ?>
 
-            <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
+                <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
                 <i class="fas fa-times"></i>
-                Annulla
+                <?= __("Annulla") ?>
             </a>
         </div>
     </form>

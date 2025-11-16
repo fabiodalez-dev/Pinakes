@@ -10,7 +10,7 @@ $csrfToken = Csrf::ensureToken();
             <li>
                 <a href="/admin/dashboard" class="flex items-center gap-1 hover:text-white transition-colors">
                     <i class="fas fa-home"></i>
-                    Home
+                    <?= __("Home") ?>
                 </a>
             </li>
             <li><i class="fas fa-chevron-right text-xs"></i></li>
@@ -41,9 +41,9 @@ $csrfToken = Csrf::ensureToken();
         <div class="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100" role="alert">
             <?php
             echo match ($_GET['error']) {
-                'invalid_status'   => 'Stato prestito non valido.',
-                'update_failed'    => 'Si è verificato un errore durante l\'aggiornamento del prestito.',
-                default            => 'Impossibile completare l\'operazione. Riprova più tardi.'
+                'invalid_status'   => __('Stato prestito non valido.'),
+                'update_failed'    => __('Si è verificato un errore durante l\'aggiornamento del prestito.'),
+                default            => __('Impossibile completare l\'operazione. Riprova più tardi.')
             };
             ?>
         </div>
@@ -76,7 +76,7 @@ $csrfToken = Csrf::ensureToken();
                     </div>
                     <div class="flex items-center gap-2 text-gray-600">
                         <i class="fas fa-hourglass-end w-4"></i>
-                        <span>Scadenza</span>
+                        <span><?= __("Scadenza") ?></span>
                         <strong class="text-gray-900"><?= HtmlHelper::e($prestito['data_scadenza'] ?? '-'); ?></strong>
                     </div>
                 </div>
@@ -89,7 +89,7 @@ $csrfToken = Csrf::ensureToken();
                         <i class="fas fa-user"></i>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Utente</p>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500"><?= __("Utente") ?></p>
                         <p class="text-xs text-gray-400">ID #<?= (int)($prestito['utente_id'] ?? 0); ?></p>
                     </div>
                 </div>
@@ -117,7 +117,7 @@ $csrfToken = Csrf::ensureToken();
                 <?php if (!empty($prestito['note'])): ?>
                     <div class="mt-4 rounded-lg border border-yellow-300 bg-yellow-50 p-3" role="alert">
                         <p class="text-xs font-semibold uppercase tracking-wider text-yellow-700 mb-1">
-                            <i class="fas fa-sticky-note"></i> Note
+                            <i class="fas fa-sticky-note"></i> <?= __("Note") ?>
                         </p>
                         <p class="text-sm text-yellow-900"><?= HtmlHelper::e($prestito['note']); ?></p>
                     </div>
@@ -132,7 +132,7 @@ $csrfToken = Csrf::ensureToken();
 
             <div class="grid gap-5 md:grid-cols-2">
                 <label class="flex flex-col gap-2">
-                    <span class="text-sm font-bold text-gray-900">Stato prestito *</span>
+                    <span class="text-sm font-bold text-gray-900"><?= __("Stato prestito") ?> *</span>
                     <select
                         id="stato"
                         name="stato"

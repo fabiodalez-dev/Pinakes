@@ -14,11 +14,28 @@ $loanActionTranslations = array_merge([
     'rejectPromptTitle' => __('Rifiuta prestito'),
     'rejectPromptLabel' => __('Motivo del rifiuto (opzionale):'),
     'rejectPromptPlaceholder' => __('Aggiungi un motivo (opzionale)'),
+    // Add missing translations for the Swal dialogs in prestiti/index.php
+    'Approva Prestito?' => __('Approva Prestito?'),
+    'Approverai questa richiesta di prestito?' => __('Approverai questa richiesta di prestito?'),
+    'Rifiuta Prestito?' => __('Rifiuta Prestito?'),
+    'Rifiuterai questa richiesta di prestito?' => __('Rifiuterai questa richiesta di prestito?'),
+    'Successo' => __('Successo'),
+    'Errore' => __('Errore'),
+    'Errore nell\'approvazione' => __('Errore nell\'approvazione'),
+    'Errore nel rifiuto' => __('Errore nel rifiuto'),
+    'Errore di comunicazione con il server' => __('Errore di comunicazione con il server'),
+    'Prestito approvato!' => __('Prestito approvato!'),
+    'Prestito rifiutato!' => __('Prestito rifiutato!'),
 ], $loanActionTranslations ?? []);
 ?>
 <script>
 (function() {
   const t = <?= json_encode($loanActionTranslations, JSON_UNESCAPED_UNICODE); ?>;
+  
+  // Global JavaScript translation function
+  window.__ = function(key) {
+    return t[key] || key;
+  };
 
   const hasSwal = () => typeof window.Swal !== 'undefined' && typeof window.Swal.fire === 'function';
 
