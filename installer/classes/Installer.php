@@ -8,7 +8,10 @@ class Installer {
     private $baseDir;
     private $pdo;
     private $config = [];
-    private array $triggerWarnings = [];
+    /**
+     * @var array Warnings generated during trigger import
+     */
+    private $triggerWarnings = [];
 
     public function __construct($baseDir) {
         $this->baseDir = rtrim($baseDir, '/');
@@ -550,8 +553,8 @@ class Installer {
         $stmt = $pdo->query("SHOW TABLES");
         $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        if (count($tables) !== 36) {
-            throw new Exception("Installazione database non completa. Trovate " . count($tables) . " tabelle, attese 36");
+        if (count($tables) !== 38) {
+            throw new Exception("Installazione database non completa. Trovate " . count($tables) . " tabelle, attese 38");
         }
 
         // Check essential data

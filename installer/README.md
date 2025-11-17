@@ -47,7 +47,7 @@ L'applicazione rileverà automaticamente che non è installata e ti reindirizzer
 - 💾 Creazione file `.env`
 
 ### Step 3: Installazione Database
-- 📊 Import schema (30 tabelle)
+- 📊 Import schema (38 tabelle)
 - ⚙️ Import trigger (2 trigger)
 - 📦 Import dati essenziali:
   - 1369 classificazioni Dewey
@@ -116,7 +116,7 @@ Vedi `DEVELOPMENT.md` per dettagli.
 
 ### Schema Creato
 
-L'installer crea **30 tabelle**:
+L'installer crea **38 tabelle**:
 
 **Core**:
 - `users` - Utenti sistema
