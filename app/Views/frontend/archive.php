@@ -478,7 +478,7 @@ function createBookUrl($book) {
                     <div class="book-card">
                         <div class="book-image-container">
                             <a href="<?= createBookUrl($book) ?>">
-                                <img src="<?= htmlspecialchars($book['copertina_url'] ?? '/uploads/copertine/default-cover.jpg') ?>"
+                                <img src="<?= htmlspecialchars($book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg') ?>"
                                      alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>">
                             </a>
                             <span class="book-status-badge <?= ($book['copie_disponibili'] > 0) ? 'status-available' : 'status-borrowed' ?>">

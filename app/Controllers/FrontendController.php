@@ -1053,7 +1053,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $seoTitle = "Libri di {$publisherName} - Catalogo Editore | Biblioteca";
         $seoDescription = "Scopri tutti i libri pubblicati da {$publisherName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
         $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/editore/' . urlencode($publisher['nome']);
-        $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
+        $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
 
         $archive_type = 'editore';
         $archive_info = $publisher;
@@ -1140,7 +1140,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $seoTitle = "Libri di {$genreName} - Catalogo per Genere | Biblioteca";
         $seoDescription = "Esplora tutti i libri del genere {$genreName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
         $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/genere/' . urlencode($genre['nome']);
-        $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
+        $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
 
         $archive_type = 'genere';
         $archive_info = $genre;

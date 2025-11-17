@@ -291,7 +291,7 @@ class SearchController
         $res = $stmt->get_result();
 
         while ($row = $res->fetch_assoc()) {
-            $coverUrl = $row['copertina_url'] ?? '/uploads/copertine/default-cover.jpg';
+            $coverUrl = $row['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
             $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl :
                 ((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $coverUrl);
 

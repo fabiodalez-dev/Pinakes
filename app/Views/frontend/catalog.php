@@ -17,7 +17,7 @@ if ($searchQuery) {
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
 $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $catalogRoute;
-$seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
+$seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
 
 // Schema.org structured data
 $seoSchema = json_encode([

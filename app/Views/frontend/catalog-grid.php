@@ -17,9 +17,9 @@ function getBookStatusBadge($book) {
             <div class="book-image-container">
                 <a href="<?= createBookUrl($book) ?>">
                     <?php
-                    $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/default-cover.jpg';
+                    $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
                     $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : ((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $coverUrl);
-                    $defaultCoverUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/default-cover.jpg';
+                    $defaultCoverUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
                     ?>
                     <img class="book-image"
                          src="<?= htmlspecialchars($absoluteCoverUrl) ?>"

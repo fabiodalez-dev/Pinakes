@@ -88,7 +88,7 @@ if ($bookCover) {
     // Se l'URL è relativo, renderlo assoluto
     $ogImage = (strpos($bookCover, 'http') === 0) ? $bookCover : $baseUrl . $bookCover;
 } else {
-    $ogImage = $baseUrl . '/uploads/copertine/default-cover.jpg';
+    $ogImage = $baseUrl . '/uploads/copertine/placeholder.jpg';
 }
 
 // Breadcrumb Schema
@@ -1836,7 +1836,7 @@ ob_start();
                         }
                         ?>
                         <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                            <img src="<?= htmlspecialchars($related['copertina_url'] ?? '/uploads/copertine/default-cover.jpg') ?>"
+                            <img src="<?= htmlspecialchars($related['copertina_url'] ?? '/uploads/copertine/placeholder.jpg') ?>"
                                  alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
                                  class="related-book-image">
                         </a>
