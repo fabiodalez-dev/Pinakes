@@ -12,6 +12,10 @@ if (!isset($_SESSION['installation_finalized'])) {
         // Populate default settings
         $installer->populateDefaultSettings();
 
+        // Install plugins from ZIP (open-library and z39-server)
+        $installedPlugins = $installer->installPluginsFromZip();
+        $_SESSION['installed_plugins'] = $installedPlugins;
+
         // Create .htaccess if missing
         $installer->createHtaccess();
 
@@ -134,6 +138,19 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
     <?php endif; ?>
     <li><i class="fas fa-check-circle"></i> Applicazione configurata: <strong><?= htmlspecialchars($appName) ?></strong></li>
     <li><i class="fas fa-check-circle"></i> Email configurata</li>
+    <?php
+    $installedPlugins = $_SESSION['installed_plugins'] ?? [];
+    if (!empty($installedPlugins)):
+        $successfulPlugins = array_filter($installedPlugins, function($p) {
+            return $p['status'] === 'installed_and_activated';
+        });
+    ?>
+    <li><i class="fas fa-check-circle"></i> Plugin installati e attivati: <strong><?= count($successfulPlugins) ?></strong>
+        <?php if (!empty($successfulPlugins)): ?>
+        (<?= implode(', ', array_column($successfulPlugins, 'name')) ?>)
+        <?php endif; ?>
+    </li>
+    <?php endif; ?>
     <li><i class="fas fa-check-circle"></i> File .htaccess creato</li>
     <li><i class="fas fa-check-circle"></i> Lock file creato (installazione protetta)</li>
 </ul>

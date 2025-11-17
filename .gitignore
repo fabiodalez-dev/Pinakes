@@ -84,6 +84,13 @@ storage/plugins/open-library/*
 !storage/plugins/open-library/*.php
 !storage/plugins/open-library/*.json
 !storage/plugins/open-library/*.md
+!storage/plugins/z39-server/
+storage/plugins/z39-server/*
+!storage/plugins/z39-server/*.php
+!storage/plugins/z39-server/*.json
+!storage/plugins/z39-server/*.md
+!storage/plugins/z39-server/classes/
+!storage/plugins/z39-server/classes/*.php
 
 # Cache & Temp
 cache/*

@@ -160,17 +160,21 @@ if (!$isCli) {
                 $requestPort = (int)$_SERVER['SERVER_PORT'];
             }
 
+            // Skip canonical redirect for API endpoints (needed for interoperability)
+            $isApiRequest = strpos($requestUri, '/api/') === 0;
+
             $needsRedirect = false;
-            if ($requestHost !== $canonicalHost) {
+            if (!$isApiRequest && $requestHost !== $canonicalHost) {
                 $needsRedirect = true;
             }
 
-            if (!$needsRedirect && $canonicalPort !== null && $requestPort !== $canonicalPort) {
+            if (!$isApiRequest && !$needsRedirect && $canonicalPort !== null && $requestPort !== $canonicalPort) {
                 $needsRedirect = true;
             }
 
             if (
-                !$needsRedirect
+                !$isApiRequest
+                && !$needsRedirect
                 && $canonicalScheme !== ''
                 && $requestScheme !== ''
                 && $canonicalScheme !== $requestScheme
