@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
       dataSrc: function(json) {
         // Update total count
         const totalCount = json.recordsTotal || 0;
-        document.getElementById('total-count').textContent = totalCount.toLocaleString() + ' libri';
+        document.getElementById('total-count').textContent = totalCount.toLocaleString() + ' ' + window.__('libri');
         return json.data;
       }
     },
@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'all align-top',
         responsivePriority: 1,
         render: function(_, type, row) {
-          const titolo = row.titolo || 'Senza titolo';
+          const titolo = row.titolo || window.__('Senza titolo');
           const sottotitolo = row.sottotitolo ? `<div class="text-xs text-gray-500 italic mt-1">${row.sottotitolo}</div>` : '';
 
           // Create linked authors
@@ -912,17 +912,17 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Title
       doc.setFontSize(18);
-      doc.text('Elenco Libri - Biblioteca', 14, 22);
-      
+      doc.text(window.__('Elenco Libri - Biblioteca'), 14, 22);
+
       // Date
       doc.setFontSize(11);
-      doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
-      
+      doc.text(`${window.__('Generato il')}: ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
+
       // Total count
-      doc.text(`Totale libri: ${data.length}`, 14, 38);
-      
+      doc.text(`${window.__('Totale libri')}: ${data.length}`, 14, 38);
+
       // Table headers
-      const headers = ['Titolo', 'Autore/i', 'Editore', 'Stato', 'Data Acq.'];
+      const headers = [window.__('Titolo'), window.__('Autore/i'), window.__('Editore'), window.__('Stato'), window.__('Data Acq.')];
       let yPos = 50;
       
       // Set font for table
@@ -1000,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Image modal functionality with book details
   window.showImageModal = function(bookData) {
     const imageUrl = bookData.copertina_url || '/uploads/copertine/placeholder.jpg';
-    const title = bookData.titolo || 'Libro senza titolo';
+    const title = bookData.titolo || window.__('Libro senza titolo');
 
     if (window.Swal) {
       // Build HTML content with book information

@@ -147,7 +147,7 @@ class ReservationsController {
         // Validate CSRF token
         $token = $data['csrf_token'] ?? '';
         if (!\App\Support\Csrf::validate($token)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Token CSRF non valido']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -156,7 +156,7 @@ class ReservationsController {
         $sessionUserId = $sessionUser['id'] ?? ($_SESSION['user_id'] ?? null);
 
         if ($sessionUserId === null) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Accesso non autorizzato']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Accesso non autorizzato')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
         }
 
@@ -165,7 +165,7 @@ class ReservationsController {
         $endDate = $data['end_date'] ?? null;
 
         if (!$startDate) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Data inizio richiesta mancante']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Data inizio richiesta mancante')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -185,7 +185,7 @@ class ReservationsController {
         if (!empty($conflictDates)) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Alcune date richieste non sono disponibili',
+                'message' => __('Alcune date richieste non sono disponibili'),
                 'conflict_dates' => $conflictDates
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
@@ -231,20 +231,20 @@ class ReservationsController {
 
                 $response->getBody()->write(json_encode([
                     'success' => true,
-                    'message' => 'Richiesta di prestito inviata con successo',
+                    'message' => __('Richiesta di prestito inviata con successo'),
                     'loan_request_id' => $loanRequestId,
                     'status' => 'pending_approval'
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {
                 $this->db->rollback();
-                $response->getBody()->write(json_encode(['success' => false, 'message' => 'Errore nella creazione della richiesta di prestito']));
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore nella creazione della richiesta di prestito')]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
         } catch (Exception $e) {
             $this->db->rollback();
             error_log("Error creating reservation: " . $e->getMessage());
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Errore del server']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore del server')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }

@@ -305,20 +305,20 @@ document.addEventListener('DOMContentLoaded', function() {
             {
                 data: 'libro',
                 render: function(data, type, row) {
-                    return `<div class="font-semibold text-gray-900">${data || 'N/D'}</div>
-                            <div class="text-gray-500">ID Prestito: ${row.id}</div>`;
+                    return `<div class="font-semibold text-gray-900">${data || window.__('N/D')}</div>
+                            <div class="text-gray-500">${window.__('ID Prestito')}: ${row.id}</div>`;
                 }
             },
             {
                 data: 'utente',
                 render: function(data, type, row) {
-                    return `<div class="font-semibold text-gray-900">${data || 'N/D'}</div>`;
+                    return `<div class="font-semibold text-gray-900">${data || window.__('N/D')}</div>`;
                 }
             },
             {
                 data: 'data_prestito',
                 render: function(data, type, row) {
-                    const dataPrestito = data ? new Date(data).toLocaleDateString('it-IT') : 'N/D';
+                    const dataPrestito = data ? new Date(data).toLocaleDateString('it-IT') : window.__('N/D');
                     return `<div class="text-gray-700">${dataPrestito}</div>`;
                 }
             },
@@ -352,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
                     if (row.attivo === 1) {
-                        actions += `<a href="/admin/prestiti/restituito/${row.id}" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="Registra Restituzione">
+                        actions += `<a href="/admin/prestiti/restituito/${row.id}" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="${window.__('Registra Restituzione')}">
                             <i class="fas fa-undo-alt w-4 h-4"></i>
                         </a>`;
                     }
