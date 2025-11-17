@@ -69,6 +69,16 @@ return function (App $app): void {
     };
 
 
+    // ==========================================
+    // Plugin Routes Hook (register early)
+    // ==========================================
+    try {
+        $hookManager = $app->getContainer()->get('hookManager');
+        $hookManager->doAction('app.routes.register', [$app]);
+    } catch (\Throwable $e) {
+        error_log('[Routes] Error loading plugin routes: ' . $e->getMessage());
+    }
+
     $app->get('/', function ($request, $response) use ($app) {
         // Redirect to frontend home page
         $controller = new \App\Controllers\FrontendController();

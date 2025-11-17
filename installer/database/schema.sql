@@ -746,6 +746,52 @@ CREATE TABLE `wishlist` (
   CONSTRAINT `wishlist_ibfk_2` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `z39_access_logs`
+-- Plugin: Z39.50/SRU Server
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `z39_access_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Client IP address',
+  `user_agent` text COLLATE utf8mb4_unicode_ci COMMENT 'Client user agent',
+  `operation` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'SRU operation (explain, searchRetrieve, scan)',
+  `query` text COLLATE utf8mb4_unicode_ci COMMENT 'CQL query string',
+  `format` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Record format requested',
+  `num_records` int DEFAULT '0' COMMENT 'Number of records returned',
+  `response_time_ms` int DEFAULT NULL COMMENT 'Response time in milliseconds',
+  `http_status` int DEFAULT NULL COMMENT 'HTTP status code',
+  `error_message` text COLLATE utf8mb4_unicode_ci COMMENT 'Error message if any',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ip` (`ip_address`),
+  KEY `idx_operation` (`operation`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `z39_rate_limits`
+-- Plugin: Z39.50/SRU Server
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `z39_rate_limits` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `request_count` int DEFAULT '1',
+  `window_start` datetime NOT NULL,
+  `last_request` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_ip_window` (`ip_address`,`window_start`),
+  KEY `idx_window` (`window_start`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

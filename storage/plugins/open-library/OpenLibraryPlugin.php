@@ -86,6 +86,7 @@ class OpenLibraryPlugin
             ['scrape.sources', 'addOpenLibrarySource', 5],
             ['scrape.fetch.custom', 'fetchFromOpenLibrary', 5],
             ['scrape.data.modify', 'enrichWithOpenLibraryData', 10],
+            ['app.routes.register', 'registerRoutes', 10],
         ];
 
         // Delete existing hooks for this plugin
@@ -1025,5 +1026,47 @@ class OpenLibraryPlugin
             'notes' => 'Retrieved from Google Books API',
             'source' => 'https://books.google.com/books?isbn=' . $isbn,
         ];
+    }
+
+    /**
+     * Register API routes for the plugin
+     * Called by app.routes.register hook
+     *
+     * @param \Slim\App $app Slim application instance
+     */
+    public function registerRoutes($app): void
+    {
+        // Register test endpoint for Open Library plugin
+        $app->get('/api/open-library/test', function ($request, $response) use ($app) {
+            $queryParams = $request->getQueryParams();
+            $isbn = $queryParams['isbn'] ?? '9788804666592'; // Default ISBN for testing
+
+            // Clean ISBN
+            $cleanIsbn = preg_replace('/[^0-9X]/', '', strtoupper($isbn));
+
+            // Try to fetch from Open Library
+            $result = $this->fetchFromOpenLibraryApi($cleanIsbn);
+
+            if ($result) {
+                $response->getBody()->write(json_encode([
+                    'success' => true,
+                    'plugin' => 'Open Library',
+                    'isbn' => $cleanIsbn,
+                    'data' => $result,
+                    'message' => 'Book data successfully retrieved from Open Library'
+                ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                return $response->withHeader('Content-Type', 'application/json');
+            } else {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'plugin' => 'Open Library',
+                    'isbn' => $cleanIsbn,
+                    'message' => 'Book not found in Open Library database'
+                ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+        });
+
+        error_log('[OpenLibrary Plugin] Test route registered at /api/open-library/test');
     }
 }
