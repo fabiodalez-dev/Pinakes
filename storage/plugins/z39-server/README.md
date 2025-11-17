@@ -133,6 +133,7 @@ GET /api/sru?operation=scan&scanClause=dc.title&maximumTerms=20
 2. **Attiva il plugin:**
    - Trova "Z39.50/SRU Server" nella lista plugin
    - Clicca "Attiva"
+   - **La route `/api/sru` viene registrata automaticamente!**
 
 3. **Configura le impostazioni:**
    - Vai su Admin → Z39.50/SRU Server

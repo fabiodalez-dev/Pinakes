@@ -179,10 +179,10 @@ class Z39ServerPlugin
         }
 
         $hooks = [
-            // Register API endpoint for SRU server
+            // Register API routes
             [
-                'hook_name' => 'api.routes.register',
-                'callback_method' => 'registerSRUEndpoint',
+                'hook_name' => 'app.routes.register',
+                'callback_method' => 'registerRoutes',
                 'priority' => 10
             ],
             // Add admin menu item
@@ -217,12 +217,33 @@ class Z39ServerPlugin
     }
 
     /**
-     * Register SRU API endpoint
+     * Register SRU API routes
+     * Called by app.routes.register hook
+     *
+     * @param \Slim\App $app Slim application instance
      */
-    public function registerSRUEndpoint(): void
+    public function registerRoutes($app): void
     {
-        // This hook will be called to register custom routes
-        // The actual endpoint will be created in a separate controller file
+        // Register SRU endpoint
+        $app->get('/api/sru', function ($request, $response) use ($app) {
+            $db = $app->getContainer()->get('db');
+            $pluginManager = $app->getContainer()->get('pluginManager');
+            $plugin = $pluginManager->getPluginByName('z39-server');
+            $pluginId = $plugin ? (int)$plugin['id'] : null;
+
+            // Load endpoint handler
+            $endpointFile = __DIR__ . '/endpoint.php';
+            if (file_exists($endpointFile)) {
+                require_once $endpointFile;
+                return handleSRURequest($request, $response, $db, $pluginId);
+            } else {
+                // Fallback error response
+                $response->getBody()->write('<?xml version="1.0"?><error>SRU endpoint not found</error>');
+                return $response->withHeader('Content-Type', 'application/xml')->withStatus(500);
+            }
+        });
+
+        error_log('[Z39 Server Plugin] SRU route registered at /api/sru');
     }
 
     /**

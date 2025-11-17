@@ -55,30 +55,9 @@ Il sistema automaticamente:
 2. Clicca sul pulsante **"Attiva"**
 3. Il plugin sarà ora attivo e funzionante
 
-### Passo 4: Aggiungere la Route (MANUALE)
+**La route `/api/sru` viene registrata automaticamente!** Non è necessario modificare manualmente alcun file.
 
-**IMPORTANTE:** Dopo l'attivazione, devi aggiungere manualmente la route SRU al file delle route.
-
-1. Apri il file `/app/Routes/web.php`
-2. Cerca la fine del file (prima della riga `};`)
-3. Aggiungi il seguente codice:
-
-```php
-    // Z39.50/SRU Server Plugin Endpoint
-    $app->get('/api/sru', function ($request, $response) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $pluginManager = $app->getContainer()->get('pluginManager');
-        $plugin = $pluginManager->getPluginByName('z39-server');
-        $pluginId = $plugin ? (int)$plugin['id'] : null;
-
-        require __DIR__ . '/../../storage/plugins/z39-server/endpoint.php';
-        return handleSRURequest($request, $response, $db, $pluginId);
-    });
-```
-
-4. Salva il file
-
-### Passo 5: Testare l'Installazione
+### Passo 4: Testare l'Installazione
 
 Verifica che il plugin funzioni correttamente:
 
@@ -195,9 +174,7 @@ INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, created_at) 
 UPDATE plugins SET is_active = 1, activated_at = NOW() WHERE name = 'z39-server';
 ```
 
-### Passo 4: Aggiungere la Route
-
-Segui le istruzioni del Passo 4 del Metodo 1.
+**La route `/api/sru` viene registrata automaticamente tramite il sistema di hook!**
 
 ## Configurazione Post-Installazione
 
