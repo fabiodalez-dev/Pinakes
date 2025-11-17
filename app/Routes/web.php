@@ -655,23 +655,7 @@ return function (App $app): void {
         return $controller->updateHome($request, $response, $db, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
-    // Admin CMS routes - Other pages
-    $app->get('/admin/cms/{slug}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\Admin\CmsAdminController();
-        return $controller->editPage($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
-
-    $app->post('/admin/cms/{slug}/update', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\Admin\CmsAdminController();
-        return $controller->updatePage($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
-
-    $app->post('/admin/cms/upload', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\Admin\CmsAdminController();
-        return $controller->uploadImage($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
-
-    // Admin Events routes
+    // Admin Events routes (MUST be before the catch-all /admin/cms/{slug} route)
     $app->get('/admin/cms/events', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
@@ -713,6 +697,22 @@ return function (App $app): void {
         $controller = new \App\Controllers\EventsController();
         return $controller->delete($request, $response, $db, $args);
     })->add(new AdminAuthMiddleware());
+
+    // Admin CMS routes - Other pages (catch-all, MUST be after specific routes)
+    $app->get('/admin/cms/{slug}', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\Admin\CmsAdminController();
+        return $controller->editPage($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/cms/{slug}/update', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\Admin\CmsAdminController();
+        return $controller->updatePage($request, $response, $args);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/cms/upload', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\Admin\CmsAdminController();
+        return $controller->uploadImage($request, $response);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Admin API: pending registrations count/list
     $app->get('/api/admin/pending-registrations-count', function ($request, $response) use ($app) {
