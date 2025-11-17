@@ -5,8 +5,8 @@ use App\Support\HtmlHelper;
 use App\Support\ContentSanitizer;
 
 $title = $event['title'];
-$appName = Branding::getAppName();
-$baseUrl = Branding::getBaseUrl();
+$appName = \App\Support\ConfigStore::get('app.name');
+$baseUrl = \App\Support\ConfigStore::get('app.canonical_url');
 
 // SEO variables are already set from controller:
 // $seoTitle, $seoDescription, $seoKeywords, $seoCanonical
@@ -207,7 +207,7 @@ function content(): void {
         "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
         "organizer": {
             "@type": "Organization",
-            "name": "<?= addslashes(Branding::getAppName()) ?>",
+            "name": "<?= addslashes(\App\Support\ConfigStore::get('app.name')) ?>",
             "url": "<?= addslashes($baseUrl) ?>"
         }
     }

@@ -5,8 +5,8 @@ use App\Support\HtmlHelper;
 use App\Support\ContentSanitizer;
 
 $title = __("Eventi");
-$appName = Branding::getAppName();
-$baseUrl = Branding::getBaseUrl();
+$appName = \App\Support\ConfigStore::get('app.name');
+$baseUrl = \App\Support\ConfigStore::get('app.canonical_url');
 
 // Variables are already set from controller
 // $events, $page, $totalPages, $seoTitle, $seoDescription, $seoCanonical

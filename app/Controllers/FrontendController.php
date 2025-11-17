@@ -1578,9 +1578,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt->close();
 
         // SEO meta tags for events list page
-        $seoTitle = __("Eventi") . ' - ' . Branding::getAppName();
+        $seoTitle = __("Eventi") . ' - ' . \App\Support\ConfigStore::get('app.name');
         $seoDescription = __("Scopri tutti gli eventi organizzati dalla biblioteca");
-        $seoCanonical = Branding::getBaseUrl() . '/events';
+        $seoCanonical = \App\Support\ConfigStore::get('app.canonical_url') . '/events';
 
         ob_start();
         include __DIR__ . '/../Views/frontend/events.php';
@@ -1630,8 +1630,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         // Prepare SEO variables with fallbacks
-        $baseUrl = Branding::getBaseUrl();
-        $appName = Branding::getAppName();
+        $baseUrl = \App\Support\ConfigStore::get('app.canonical_url');
+        $appName = \App\Support\ConfigStore::get('app.name');
 
         // Extract excerpt from content (first 160 chars of plain text)
         $contentPlain = strip_tags($event['content'] ?? '');

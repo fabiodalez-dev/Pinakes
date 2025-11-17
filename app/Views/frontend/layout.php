@@ -1,4 +1,4 @@
-<?php
+<?php $content = $content ?? '';
 
 use App\Support\Branding;
 use App\Support\ConfigStore;
