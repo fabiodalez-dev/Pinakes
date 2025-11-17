@@ -546,6 +546,8 @@ class SettingsController
                 $repository->get('advanced', 'custom_header_css', $config['custom_header_css'] ?? '')
             ),
             'days_before_expiry_warning' => (int)$repository->get('advanced', 'days_before_expiry_warning', (string)($config['days_before_expiry_warning'] ?? 3)),
+            'force_https' => $repository->get('advanced', 'force_https', $config['force_https'] ?? '0'),
+            'enable_hsts' => $repository->get('advanced', 'enable_hsts', $config['enable_hsts'] ?? '0'),
             'sitemap_last_generated_at' => $repository->get('advanced', 'sitemap_last_generated_at', $config['sitemap_last_generated_at'] ?? ''),
             'sitemap_last_generated_total' => (int)$repository->get('advanced', 'sitemap_last_generated_total', (string)($config['sitemap_last_generated_total'] ?? 0)),
             'api_enabled' => $repository->get('api', 'enabled', '0'),
@@ -571,12 +573,16 @@ class SettingsController
             'custom_js_marketing' => ContentSanitizer::normalizeExternalAssets(trim((string)($data['custom_js_marketing'] ?? ''))),
             'custom_header_css' => ContentSanitizer::normalizeExternalAssets(trim((string)($data['custom_header_css'] ?? ''))),
             'days_before_expiry_warning' => (string)$daysBeforeWarning,
+            'force_https' => isset($data['force_https']) && $data['force_https'] === '1' ? '1' : '0',
+            'enable_hsts' => isset($data['enable_hsts']) && $data['enable_hsts'] === '1' ? '1' : '0',
         ];
 
         foreach ($settings as $key => $value) {
             $repository->set('advanced', $key, $value);
             if ($key === 'days_before_expiry_warning') {
                 ConfigStore::set("advanced.$key", (int)$value);
+            } elseif ($key === 'force_https' || $key === 'enable_hsts') {
+                ConfigStore::set("advanced.$key", $value === '1');
             } else {
                 ConfigStore::set("advanced.$key", $value);
             }

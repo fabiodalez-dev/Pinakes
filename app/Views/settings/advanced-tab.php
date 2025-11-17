@@ -197,6 +197,73 @@ use App\Support\HtmlHelper;
       </div>
     </div>
 
+    <!-- Security Settings: HTTPS and HSTS -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-shield-alt text-gray-500"></i>
+          <?= __("Sicurezza Connessione") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Configura le impostazioni di sicurezza per le connessioni HTTPS") ?></p>
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5"></i>
+            <div class="text-xs text-yellow-800">
+              <strong><?= __("Attenzione:") ?></strong> <?= __("Attiva HTTPS solo se hai un certificato SSL valido installato. Attivare HSTS rende permanente il reindirizzamento HTTPS nel browser.") ?>
+            </div>
+          </div>
+        </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
+            <div class="text-xs text-blue-800">
+              <strong><?= __("Info HSTS:") ?></strong> <?= __("HTTP Strict Transport Security forza i browser a usare solo connessioni HTTPS per 1 anno (raccomandato per produzione con SSL valido).") ?>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <div>
+          <label class="inline-flex items-center gap-3 cursor-pointer">
+            <input type="checkbox"
+                   id="force_https"
+                   name="force_https"
+                   value="1"
+                   <?php echo isset($advancedSettings['force_https']) && $advancedSettings['force_https'] === '1' ? 'checked' : ''; ?>
+                   class="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-500">
+            <div>
+              <span class="text-sm font-semibold text-gray-900"><?= __("Forza HTTPS") ?></span>
+              <p class="text-xs text-gray-600"><?= __("Reindirizza automaticamente tutte le richieste HTTP a HTTPS") ?></p>
+            </div>
+          </label>
+        </div>
+        <div>
+          <label class="inline-flex items-center gap-3 cursor-pointer">
+            <input type="checkbox"
+                   id="enable_hsts"
+                   name="enable_hsts"
+                   value="1"
+                   <?php echo isset($advancedSettings['enable_hsts']) && $advancedSettings['enable_hsts'] === '1' ? 'checked' : ''; ?>
+                   class="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-500">
+            <div>
+              <span class="text-sm font-semibold text-gray-900"><?= __("Abilita HSTS") ?></span>
+              <p class="text-xs text-gray-600"><?= __("Attiva HTTP Strict Transport Security (max-age: 1 anno, include sottodomini)") ?></p>
+            </div>
+          </label>
+        </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div class="text-xs text-gray-700 space-y-1">
+            <p><strong><?= __("Requisiti:") ?></strong></p>
+            <ul class="list-disc pl-5">
+              <li><?= __("Certificato SSL/TLS valido") ?></li>
+              <li><?= __("Tutte le risorse del sito devono essere HTTPS") ?></li>
+              <li><?= __("Sottodomini devono supportare HTTPS (se usati)") ?></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Loan Expiry Warning Settings -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">

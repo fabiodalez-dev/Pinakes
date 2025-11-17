@@ -122,16 +122,26 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
 // Enforce HTTPS in production environments (only if server supports HTTPS)
 $isCli = PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg';
-if (!$isCli && getenv('APP_ENV') === 'production' && !$httpsDetected) {
-    // Only redirect to HTTPS if we can verify the server supports it
-    // Check if HTTPS port is listening or if we have explicit HTTPS config
-    $forceHttps = getenv('FORCE_HTTPS') === 'true';
+if (!$isCli && !$httpsDetected) {
+    // Check settings from database (ConfigStore) or fallback to ENV
+    $forceHttpsFromDb = \App\Support\ConfigStore::get('advanced.force_https', false);
+    $forceHttpsFromEnv = getenv('FORCE_HTTPS') === 'true';
+    $forceHttps = $forceHttpsFromDb || (getenv('APP_ENV') === 'production' && $forceHttpsFromEnv);
 
     if ($forceHttps) {
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
         header('Location: https://' . $host . $requestUri, true, 301);
         exit;
+    }
+}
+
+// Set HSTS header if enabled and using HTTPS
+if (!$isCli && $httpsDetected) {
+    $enableHstsFromDb = \App\Support\ConfigStore::get('advanced.enable_hsts', false);
+    if ($enableHstsFromDb) {
+        // HSTS: max-age=1 year (31536000 seconds), includeSubDomains
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains', false);
     }
 }
 
