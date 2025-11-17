@@ -769,7 +769,7 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
       Swal.fire({
         icon: 'success',
         title: __('Recensione inviata!'),
-        text: __('Sarà pubblicata dopo l\')approvazione di un amministratore.',
+        text: __('Sarà pubblicata dopo l\'approvazione di un amministratore.'),
         confirmButtonText: __('OK')
       }).then(() => {
         closeReviewModal();

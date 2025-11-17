@@ -5,6 +5,48 @@
 
 class Installer {
 
+    private const EXPECTED_TABLES = [
+        'admin_notifications',
+        'api_keys',
+        'autori',
+        'classificazione',
+        'cms_pages',
+        'contact_messages',
+        'copie',
+        'donazioni',
+        'editori',
+        'email_templates',
+        'feedback',
+        'generi',
+        'home_content',
+        'events',
+        'languages',
+        'libri',
+        'libri_autori',
+        'libri_donati',
+        'libri_tag',
+        'log_modifiche',
+        'mensole',
+        'plugin_data',
+        'plugin_hooks',
+        'plugin_logs',
+        'plugin_settings',
+        'plugins',
+        'posizioni',
+        'preferenze_notifica_utenti',
+        'prenotazioni',
+        'prestiti',
+        'recensioni',
+        'scaffali',
+        'staff',
+        'system_settings',
+        'tag',
+        'utenti',
+        'wishlist',
+        'z39_access_logs',
+        'z39_rate_limits'
+    ];
+
     private $baseDir;
     private $pdo;
     private $config = [];
@@ -467,8 +509,23 @@ class Installer {
             $stmt = $pdo->query("SHOW TABLES");
             $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-            if (count($tables) < 5) {
-                throw new Exception("Schema non importato correttamente. Solo " . count($tables) . " tabelle trovate.");
+            if (!is_array($tables) || empty($tables)) {
+                throw new Exception("Schema non importato correttamente. Nessuna tabella trovata.");
+            }
+
+            $actual = array_map('strtolower', $tables);
+            sort($actual);
+
+            $expected = self::EXPECTED_TABLES;
+            sort($expected);
+
+            $missing = array_diff($expected, $actual);
+            if (!empty($missing)) {
+                throw new Exception("Schema non importato correttamente. Tabelle mancanti: " . implode(', ', $missing));
+            }
+
+            if (count($actual) < count($expected)) {
+                throw new Exception("Schema incompleto: trovate " . count($actual) . " tabelle su " . count($expected) . " attese.");
             }
         } catch (PDOException $e) {
             throw new Exception("Errore verifica tabelle: " . $e->getMessage());

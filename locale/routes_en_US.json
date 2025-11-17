@@ -12,6 +12,7 @@
   "user_dashboard": "/user/dashboard",
   "wishlist": "/wishlist",
   "reservations": "/reservations",
+  "events": "/events",
   "catalog": "/catalog",
   "catalog_legacy": "/catalog.php",
   "book": "/book",

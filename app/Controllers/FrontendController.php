@@ -117,6 +117,36 @@ class FrontendController
 
         $genreCarouselEnabled = $this->isHomeSectionEnabled($db, 'genre_carousel');
 
+        // Home events preview (respect CMS visibility)
+        $homeEvents = [];
+        $homeEventsEnabled = false;
+        $eventsFeatureEnabled = false;
+
+        try {
+            $settingsRepository = new \App\Models\SettingsRepository($db);
+            $eventsFeatureEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
+        } catch (\Throwable $e) {
+            $eventsFeatureEnabled = false;
+        }
+
+        if ($eventsFeatureEnabled) {
+            $eventsQuery = "
+                SELECT id, title, slug, event_date, event_time, featured_image
+                FROM events
+                WHERE is_active = 1 AND event_date >= CURDATE()
+                ORDER BY event_date ASC, event_time ASC, created_at DESC
+                LIMIT 3
+            ";
+            $resultEvents = $db->query($eventsQuery);
+            if ($resultEvents) {
+                while ($eventRow = $resultEvents->fetch_assoc()) {
+                    $homeEvents[] = $eventRow;
+                }
+            }
+        }
+
+        $homeEventsEnabled = $eventsFeatureEnabled && !empty($homeEvents);
+
         // Build dynamic SEO data from settings and CMS
         $hero = $homeContent['hero'] ?? [];
 
@@ -1527,6 +1557,144 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         return array_slice($related_books, 0, $limit);
+    }
+
+    /**
+     * Display events list page
+     */
+    public function events(Request $request, Response $response, mysqli $db): Response
+    {
+        // CRITICAL: Set UTF-8 charset
+        $db->set_charset('utf8mb4');
+
+        // Check if events page is enabled
+        $repository = new \App\Models\SettingsRepository($db);
+        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '0');
+
+        if ($eventsEnabled !== '1') {
+            // Events page disabled, return 404
+            $response->getBody()->write('Pagina non trovata');
+            return $response->withStatus(404);
+        }
+
+        // Pagination
+        $queryParams = $request->getQueryParams();
+        $page = max(1, (int)($queryParams['page'] ?? 1));
+        $perPage = 12;
+        $offset = ($page - 1) * $perPage;
+
+        // Get total count of active events
+        $countResult = $db->query("SELECT COUNT(*) as total FROM events WHERE is_active = 1");
+        $totalEvents = $countResult->fetch_assoc()['total'];
+        $totalPages = (int)ceil($totalEvents / $perPage);
+
+        // Get events for current page
+        $stmt = $db->prepare("
+            SELECT id, title, slug, content, event_date, event_time, featured_image,
+                   seo_title, seo_description
+            FROM events
+            WHERE is_active = 1
+            ORDER BY event_date DESC, created_at DESC
+            LIMIT ? OFFSET ?
+        ");
+        $stmt->bind_param('ii', $perPage, $offset);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $events = [];
+        while ($row = $result->fetch_assoc()) {
+            $events[] = $row;
+        }
+        $stmt->close();
+
+        // SEO meta tags for events list page
+        $seoTitle = __("Eventi") . ' - ' . \App\Support\ConfigStore::get('app.name');
+        $seoDescription = __("Scopri tutti gli eventi organizzati dalla biblioteca");
+        $seoCanonical = \App\Support\ConfigStore::get('app.canonical_url') . '/events';
+
+        ob_start();
+        include __DIR__ . '/../Views/frontend/events.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
+    }
+
+    /**
+     * Display single event page
+     */
+    public function event(Request $request, Response $response, mysqli $db, array $args): Response
+    {
+        // CRITICAL: Set UTF-8 charset
+        $db->set_charset('utf8mb4');
+
+        $slug = $args['slug'] ?? '';
+
+        // Check if events page is enabled
+        $repository = new \App\Models\SettingsRepository($db);
+        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '0');
+
+        if ($eventsEnabled !== '1') {
+            $response->getBody()->write('Pagina non trovata');
+            return $response->withStatus(404);
+        }
+
+        // Get event by slug
+        $stmt = $db->prepare("
+            SELECT id, title, slug, content, event_date, event_time, featured_image,
+                   seo_title, seo_description, seo_keywords, og_image,
+                   og_title, og_description, og_type, og_url,
+                   twitter_card, twitter_title, twitter_description, twitter_image
+            FROM events
+            WHERE slug = ? AND is_active = 1
+        ");
+        $stmt->bind_param('s', $slug);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $event = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!$event) {
+            $response->getBody()->write('Evento non trovato');
+            return $response->withStatus(404);
+        }
+
+        // Prepare SEO variables with fallbacks
+        $baseUrl = \App\Support\ConfigStore::get('app.canonical_url');
+        $appName = \App\Support\ConfigStore::get('app.name');
+
+        // Extract excerpt from content (first 160 chars of plain text)
+        $contentPlain = strip_tags($event['content'] ?? '');
+        $excerpt = mb_substr($contentPlain, 0, 160);
+        if (mb_strlen($contentPlain) > 160) {
+            $excerpt .= '...';
+        }
+
+        // SEO meta tags with event-specific data
+        $seoTitle = $event['seo_title'] ?: ($event['title'] . ' - ' . $appName);
+        $seoDescription = $event['seo_description'] ?: $excerpt;
+        $seoKeywords = $event['seo_keywords'] ?? '';
+        $seoCanonical = $baseUrl . '/events/' . $event['slug'];
+
+        // Open Graph tags
+        $ogTitle = $event['og_title'] ?: $event['title'];
+        $ogDescription = $event['og_description'] ?: $seoDescription;
+        $ogType = $event['og_type'] ?: 'article';
+        $ogUrl = $event['og_url'] ?: $seoCanonical;
+        $ogImage = $event['og_image'] ?: ($event['featured_image'] ? $baseUrl . $event['featured_image'] : $baseUrl . '/assets/social.jpg');
+
+        // Twitter Card tags
+        $twitterCard = $event['twitter_card'] ?: 'summary_large_image';
+        $twitterTitle = $event['twitter_title'] ?: $ogTitle;
+        $twitterDescription = $event['twitter_description'] ?: $ogDescription;
+        $twitterImage = $event['twitter_image'] ?: $ogImage;
+
+        ob_start();
+        include __DIR__ . '/../Views/frontend/event-detail.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
     }
 }
 ?>

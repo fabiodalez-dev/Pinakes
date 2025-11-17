@@ -30,7 +30,7 @@ final class UserWishlistController
         ob_start();
         require __DIR__ . '/../Views/profile/wishlist.php';
         $content = ob_get_clean();
-        include __DIR__ . '/../Views/user_layout.php';
+        include __DIR__ . '/../Views/user_frontend_layout.php';
         return $response;
     }
     public function status(Request $request, Response $response, mysqli $db): Response

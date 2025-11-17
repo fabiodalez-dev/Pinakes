@@ -86,6 +86,19 @@ return function (App $app): void {
         return $controller->home($request, $response, $db);
     });
 
+    // Frontend Events routes
+    $app->get('/events', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\FrontendController();
+        $db = $app->getContainer()->get('db');
+        return $controller->events($request, $response, $db);
+    });
+
+    $app->get('/events/{slug}', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\FrontendController();
+        $db = $app->getContainer()->get('db');
+        return $controller->event($request, $response, $db, $args);
+    });
+
     $app->get('/health', function ($request, $response) {
         $data = ['status' => 'ok'];
         $payload = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -642,7 +655,50 @@ return function (App $app): void {
         return $controller->updateHome($request, $response, $db, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
-    // Admin CMS routes - Other pages
+    // Admin Events routes (MUST be before the catch-all /admin/cms/{slug} route)
+    $app->get('/admin/cms/events', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->index($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/cms/events/toggle-visibility', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->toggleVisibility($request, $response, $db);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/cms/events/create', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->create($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/cms/events', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->store($request, $response, $db);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/cms/events/edit/{id}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->edit($request, $response, $db, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/cms/events/update/{id}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->update($request, $response, $db, $args);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/cms/events/delete/{id}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->delete($request, $response, $db, $args);
+    })->add(new AdminAuthMiddleware());
+
+    // Admin CMS routes - Other pages (catch-all, MUST be after specific routes)
     $app->get('/admin/cms/{slug}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\Admin\CmsAdminController();
         return $controller->editPage($request, $response, $args);

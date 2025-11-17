@@ -254,6 +254,37 @@ CREATE TABLE `home_content` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `events` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `content` text COLLATE utf8mb4_unicode_ci,
+  `event_date` date NOT NULL,
+  `event_time` time DEFAULT NULL,
+  `featured_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `seo_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `seo_description` text COLLATE utf8mb4_unicode_ci,
+  `seo_keywords` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `og_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `og_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `og_description` text COLLATE utf8mb4_unicode_ci,
+  `og_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'article',
+  `og_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `twitter_card` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'summary_large_image',
+  `twitter_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `twitter_description` text COLLATE utf8mb4_unicode_ci,
+  `twitter_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `idx_events_active` (`is_active`),
+  KEY `idx_events_date` (`event_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Library events and activities';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `languages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Language code: it_IT, en_US, es_ES, fr_FR, de_DE, etc.',
@@ -801,4 +832,3 @@ CREATE TABLE `z39_rate_limits` (
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
