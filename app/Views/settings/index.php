@@ -430,6 +430,30 @@ $activeTab = $activeTab ?? 'general';
                 </a>
               </div>
             </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1">
+                  <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                      <i class="fas fa-calendar-alt text-purple-600"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900"><?= __("Eventi") ?></h3>
+                  </div>
+                  <p class="text-sm text-gray-600"><?= __("Gestisci gli eventi della biblioteca: crea, modifica ed elimina eventi con immagini e descrizioni") ?></p>
+                  <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
+                    <i class="fas fa-link"></i>
+                    <a href="/events" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4">
+                <a href="/admin/cms/events" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
+                  <i class="fas fa-edit"></i>
+                  <?= __("Gestisci Eventi") ?>
+                </a>
+              </div>
+            </div>
           </div>
 
           <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5">

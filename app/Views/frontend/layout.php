@@ -22,6 +22,17 @@ $profileRoute = route_path('profile');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 
+// Check if events page is enabled
+$eventsEnabled = false;
+if (isset($db)) {
+    try {
+        $repository = new \App\Models\SettingsRepository($db);
+        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '0') === '1';
+    } catch (\Exception $e) {
+        // Silently fail if events table doesn't exist yet
+    }
+}
+
 // Helper function for generating absolute URLs
 if (!function_exists('absoluteUrl')) {
     function absoluteUrl($path = '') {
@@ -1142,6 +1153,9 @@ if (!function_exists('assetUrl')) {
 
                     <ul class="nav-links d-none d-md-flex">
                         <li><a href="<?= absoluteUrl($catalogRoute) ?>" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a></li>
+                        <?php if ($eventsEnabled): ?>
+                            <li><a href="<?= absoluteUrl('/events') ?>" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __('Eventi') ?></a></li>
+                        <?php endif; ?>
                     </ul>
 
                     <!-- Mobile Search Toggle -->
@@ -1221,6 +1235,11 @@ if (!function_exists('assetUrl')) {
                     <a href="<?= absoluteUrl($catalogRoute) ?>" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book me-2"></i><?= __('Catalogo') ?>
                     </a>
+                    <?php if ($eventsEnabled): ?>
+                        <a href="<?= absoluteUrl('/events') ?>" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
+                            <i class="fas fa-calendar-alt me-2"></i><?= __('Eventi') ?>
+                        </a>
+                    <?php endif; ?>
                     <?php if ($isLogged): ?>
                     <hr class="mobile-menu-divider">
                     <a href="<?= absoluteUrl('/user/dashboard') ?>" class="mobile-nav-link">
