@@ -146,9 +146,11 @@ desktop.ini
 CLAUDE.md
 CHANGELOG.md
 GOOGLE_BOOKS_API_SETUP.md
+PLUGIN_AUTO_ROUTES.md
 docs/LOGGING.md
 docs/RELEASE_PROCESS.md
 docs/reference/
+security.md
 
 # Internationalization planning (contains untranslated strings)
 traduzione_piano.md
