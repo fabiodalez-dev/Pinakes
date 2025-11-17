@@ -966,7 +966,7 @@ ob_start();
         ? $genreSectionContent['subtitle']
         : __("Scopri le nostre radici tematiche e lasciati ispirare dai titoli disponibili.");
 ?>
-<?php if (!empty($homeEvents) && ($homeEventsEnabled ?? false)): ?>
+<?php if ($homeEventsEnabled && !empty($homeEvents)): ?>
     <?php
     $homeEventsLocale = $_SESSION['locale'] ?? 'it_IT';
     $homeEventsDateFormatter = new \IntlDateFormatter($homeEventsLocale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
