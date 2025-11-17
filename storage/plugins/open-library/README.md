@@ -38,7 +38,19 @@ Il plugin estrae e mappa i seguenti dati:
 
 ## Hook Utilizzati
 
-Il plugin si integra con i seguenti hook dello scraping:
+Il plugin si integra con i seguenti hook dell'applicazione:
+
+### `app.routes.register` (Priorità: 10)
+Registra le route API del plugin automaticamente.
+
+```php
+public function registerRoutes($app): void
+{
+    $app->get('/api/open-library/test', function ($request, $response) {
+        // Test endpoint per verificare il plugin
+    });
+}
+```
 
 ### `scrape.sources` (Priorità: 5)
 Aggiunge Open Library come fonte di scraping con alta priorità.
@@ -70,22 +82,51 @@ Arricchisce i dati esistenti con informazioni aggiuntive (es. copertine mancanti
 
 ## Installazione
 
-### 1. Attivazione Automatica
+### 1. Installazione tramite Plugin Manager
 
-Aggiungi il plugin al file di bootstrap:
+1. Crea un file ZIP con tutti i file del plugin
+2. Vai su **Admin → Plugin**
+3. Clicca **"Carica Plugin"**
+4. Seleziona il file ZIP e clicca **"Installa"**
+5. Attiva il plugin dalla lista
 
-```php
-// public/index.php o bootstrap.php
-$openLibraryPlugin = new \App\Plugins\OpenLibrary\OpenLibraryPlugin();
-$openLibraryPlugin->activate();
-```
+**La route `/api/open-library/test` viene registrata automaticamente!**
 
-### 2. Verifica
+### 2. Verifica Installazione
 
-Testa lo scraping di un ISBN esistente su Open Library:
+**Opzione A: Endpoint di Test**
+
+Testa il plugin direttamente con l'endpoint di test:
 
 ```bash
-curl 'http://localhost/admin/scrape?isbn=9780140328721'
+# Test con ISBN di default
+curl 'http://localhost/api/open-library/test'
+
+# Test con ISBN specifico
+curl 'http://localhost/api/open-library/test?isbn=9780140328721'
+```
+
+Dovresti ricevere:
+```json
+{
+  "success": true,
+  "plugin": "Open Library",
+  "isbn": "9780140328721",
+  "data": {
+    "title": "Fantastic Mr. Fox",
+    "author": "Roald Dahl",
+    ...
+  },
+  "message": "Book data successfully retrieved from Open Library"
+}
+```
+
+**Opzione B: Endpoint di Scraping Integrato**
+
+Testa lo scraping tramite l'endpoint principale:
+
+```bash
+curl 'http://localhost/api/scrape/isbn?isbn=9780140328721'
 ```
 
 Dovresti vedere nella risposta:

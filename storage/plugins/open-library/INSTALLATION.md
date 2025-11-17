@@ -1,210 +1,331 @@
 # Open Library Plugin - Guida all'Installazione
 
-## ✅ Stato Installazione
+## 📦 Installazione tramite Plugin Manager
 
-Il plugin Open Library è **già installato e attivo** nel tuo sistema Biblioteca.
+### 1. Preparazione
 
-## 📁 File del Plugin
-
-```
-app/Plugins/OpenLibrary/
-├── OpenLibraryPlugin.php    # Classe principale del plugin
-├── plugin.json              # Manifest del plugin
-├── activate.php             # Script di attivazione rapida
-├── test.php                 # Script di test
-├── README.md                # Documentazione completa
-└── INSTALLATION.md          # Questa guida
+Crea un file ZIP con tutti i file del plugin:
+```bash
+cd storage/plugins
+zip -r open-library.zip open-library/
 ```
 
-## 🚀 Verifica Installazione
+### 2. Installazione
 
-### 1. Verifica che il plugin sia caricato
+1. Accedi al pannello di amministrazione
+2. Vai su **Admin → Plugin**
+3. Clicca **"Carica Plugin"**
+4. Seleziona il file `open-library.zip`
+5. Clicca **"Installa"**
 
-Il plugin viene caricato automaticamente in `public/index.php` alle righe 350-355:
+Il sistema automaticamente:
+- Estrarrà i file nella directory corretta
+- Registrerà il plugin nel database
+- Configurerà le impostazioni di default
 
-```php
-// Load plugins
-if (file_exists(__DIR__ . '/../app/Plugins/OpenLibrary/activate.php')) {
-    require __DIR__ . '/../app/Plugins/OpenLibrary/activate.php';
-}
+### 3. Attivazione
+
+1. Nella lista dei plugin, trova **"Open Library Scraper"**
+2. Clicca sul pulsante **"Attiva"**
+
+**Le route vengono registrate automaticamente!**
+- `/api/open-library/test` - Endpoint di test del plugin
+
+## ✅ Verifica Installazione
+
+### Test Endpoint Plugin
+
+Testa il plugin direttamente con l'endpoint di test:
+
+```bash
+# Test con ISBN di default (La Divina Commedia)
+curl 'http://localhost/api/open-library/test'
+
+# Test con ISBN specifico (Fantastic Mr. Fox)
+curl 'http://localhost/api/open-library/test?isbn=9780140328721'
 ```
 
-### 2. Test via Browser
-
-Accedi all'interfaccia di scraping e inserisci un ISBN:
-
-```
-http://localhost/admin/libri/scrape
-```
-
-Prova con questi ISBN:
-- `9780140328721` - Fantastic Mr. Fox di Roald Dahl
-- `9780451526538` - 1984 di George Orwell
-- `9788804671664` - Il nome della rosa di Umberto Eco
-
-Se il plugin funziona, nel campo "source" della risposta JSON vedrai:
+**Risposta di successo:**
 ```json
 {
-  "source": "https://openlibrary.org/isbn/...",
-  "title": "...",
-  "author": "...",
-  ...
+  "success": true,
+  "plugin": "Open Library",
+  "isbn": "9780140328721",
+  "data": {
+    "title": "Fantastic Mr. Fox",
+    "author": "Roald Dahl",
+    "publisher": "Puffin Books",
+    "year": "1988",
+    ...
+  },
+  "message": "Book data successfully retrieved from Open Library"
 }
 ```
 
-### 3. Test via Command Line
+### Test Scraping Integrato
+
+Il plugin si integra automaticamente con l'endpoint di scraping esistente:
 
 ```bash
-# Test API diretta
-curl 'http://localhost/admin/scrape?isbn=9780140328721'
-
-# Test script PHP
-cd /Users/fabio/Documents/GitHub/biblioteca
-php app/Plugins/OpenLibrary/test.php
+curl 'http://localhost/api/scrape/isbn?isbn=9780140328721'
 ```
 
-### 4. Verifica Log
+Se il plugin è attivo, vedrai nei log:
+```
+[OpenLibrary] Fetching ISBN: 9780140328721
+[OpenLibrary] Edition found: /books/OL7353617M
+```
 
-Controlla i log di PHP per vedere se il plugin è stato attivato:
+### Test via Browser
 
-```bash
-tail -f /var/log/php/error.log | grep OpenLibrary
+1. Vai su **Admin → Libri → Nuovo Libro**
+2. Clicca su "Importa da ISBN"
+3. Inserisci un ISBN (es. `9780140328721`)
+4. Il plugin recupererà automaticamente i dati
+
+## 🔧 Configurazione
+
+### Google Books API (Opzionale)
+
+Il plugin supporta Google Books come fallback:
+
+1. Vai su **Admin → Plugin → Open Library → Impostazioni**
+2. Inserisci la tua Google Books API Key
+3. Salva le impostazioni
+
+**Come ottenere la API Key:**
+1. Vai su https://console.cloud.google.com/
+2. Crea un nuovo progetto
+3. Abilita "Books API"
+4. Crea credenziali → API Key
+5. Copia la chiave nel campo
+
+### Priorità del Plugin
+
+Il plugin ha **priorità 5** (alta) nelle fonti di scraping:
+- Priorità più bassa = eseguito prima
+- Open Library (5) → viene eseguito prima di altre fonti (10, 20, etc.)
+
+## 📊 Monitoraggio
+
+### Verifica Hook Registrati
+
+Controlla che gli hook siano attivi:
+
+```sql
+SELECT hook_name, callback_method, priority, is_active
+FROM plugin_hooks ph
+JOIN plugins p ON ph.plugin_id = p.id
+WHERE p.name = 'open-library';
 ```
 
 Dovresti vedere:
 ```
-[OpenLibrary] Plugin activated successfully
+scrape.sources           addOpenLibrarySource         5    1
+scrape.fetch.custom      fetchFromOpenLibrary         5    1
+scrape.data.modify       enrichWithOpenLibraryData   10    1
+app.routes.register      registerRoutes              10    1
 ```
 
-## 🔧 Configurazione
+### Log di Sistema
 
-### Priorità del Plugin
+Controlla i log per verificare il funzionamento:
 
-Il plugin Open Library ha **priorità 5** (alta). Questo significa che viene eseguito **prima** dello scraping HTML da LibreriaUniversitaria (priorità 10).
+```bash
+# Log PHP
+tail -f /var/log/php/error.log | grep -i "openlibrary"
 
-L'ordine di esecuzione è:
-1. **Open Library** (priorità 5) - API
-2. LibreriaUniversitaria (priorità 10) - HTML scraping
-3. Feltrinelli Covers (priorità 20) - Solo copertine
-
-### Modificare la Priorità
-
-Se vuoi cambiare la priorità del plugin, modifica `OpenLibraryPlugin.php`:
-
-```php
-// Nella funzione addOpenLibrarySource()
-$sources['openlibrary'] = [
-    // ...
-    'priority' => 15, // Cambia qui (valori più alti = priorità più bassa)
-];
+# Log del plugin (nel database)
+SELECT level, message, context, created_at
+FROM plugin_logs
+WHERE plugin_id = (SELECT id FROM plugins WHERE name = 'open-library')
+ORDER BY created_at DESC
+LIMIT 20;
 ```
 
-### Disabilitare il Plugin
+## 🔄 Aggiornamento
 
-#### Metodo 1: Commentare il caricamento
+Per aggiornare il plugin:
 
-In `public/index.php`:
+1. **Disattiva** il plugin dall'interfaccia
+2. Sostituisci i file nella directory `storage/plugins/open-library/`
+3. **Attiva** nuovamente il plugin
 
-```php
-// Commenta queste righe:
-// if (file_exists(__DIR__ . '/../app/Plugins/OpenLibrary/activate.php')) {
-//     require __DIR__ . '/../app/Plugins/OpenLibrary/activate.php';
-// }
-```
+Il sistema aggiornerà automaticamente gli hook nel database.
 
-#### Metodo 2: Disabilitare via Hook
+## ❌ Disinstallazione
 
-Aggiungi in `public/index.php` dopo il caricamento del plugin:
+Per rimuovere completamente il plugin:
 
-```php
-// Disabilita Open Library
-\App\Support\Hooks::add('scrape.sources', function($sources) {
-    $sources['openlibrary']['enabled'] = false;
-    return $sources;
-}, 99);
-```
+1. Vai su **Admin → Plugin**
+2. Trova "Open Library Scraper"
+3. Clicca **"Disattiva"** (se attivo)
+4. Clicca **"Disinstalla"**
 
-## 📊 Copertura e Limiti
-
-### Copertura ISBN
-
-- **Ottima** (90%+): Libri in inglese, bestseller internazionali
-- **Buona** (70%+): Classici, libri accademici
-- **Variabile** (40%+): Libri recenti in altre lingue
-- **Limitata** (<30%): Pubblicazioni locali, edizioni rare
-
-### Limiti Tecnici
-
-- **Timeout**: 15 secondi per richiesta
-- **Rate limiting**: Nessun limite ufficiale documentato
-- **Dimensione risposta**: Variabile (1-50KB per libro)
-- **Richieste multiple**: 1 richiesta per edizione + 1 per opera + N per autori
-
-### Best Practices
-
-1. **Cache locale**: Salva i risultati nel database per evitare richieste ripetute
-2. **Fallback**: Il plugin lascia automaticamente gestire ad altri scraper se non trova dati
-3. **Error handling**: Gli errori vengono loggati ma non bloccano il processo di scraping
+Questo rimuoverà:
+- File del plugin
+- Hook registrati
+- Impostazioni
+- Log del plugin
 
 ## 🐛 Troubleshooting
 
-### Il plugin non funziona
+### Plugin non appare nella lista
 
-1. **Verifica che curl sia abilitato in PHP**:
-   ```bash
-   php -m | grep curl
-   ```
+**Causa**: Il file `plugin.json` potrebbe non essere valido
 
-2. **Verifica connessione a Open Library**:
-   ```bash
-   curl -I https://openlibrary.org
-   ```
-
-3. **Controlla i log di errore**:
-   ```bash
-   tail -50 /var/log/php/error.log | grep -i "openlibrary\|curl"
-   ```
-
-### Scraping lento
-
-Se lo scraping è lento, potrebbe essere per:
-- **Multiple richieste API**: Il plugin fa 1 richiesta per edizione + 1 per opera + N per autori
-- **Timeout lunghi**: 15 secondi per richiesta
-
-**Soluzione**: Riduci il timeout in `OpenLibraryPlugin.php`:
-
-```php
-private const TIMEOUT = 10; // Ridotto da 15 a 10 secondi
-```
-
-### Nessuna copertina trovata
-
-Le copertine potrebbero non essere disponibili per tutti i libri. Il plugin:
-1. Cerca prima tramite Cover ID (dall'edizione)
-2. Poi cerca tramite ISBN
-3. Verifica che l'immagine esista effettivamente (non sia un placeholder)
-
-Se ancora non funziona, prova manualmente:
+**Soluzione**:
 ```bash
-curl -I "https://covers.openlibrary.org/b/isbn/9780140328721-L.jpg"
+# Verifica sintassi JSON
+cat storage/plugins/open-library/plugin.json | python -m json.tool
 ```
 
-## 📚 Documentazione Aggiuntiva
+### Route non funziona
 
-- **README.md** - Panoramica completa del plugin
-- **PLUGIN_HOOKS.md** (docs/) - Documentazione di tutti gli hook con esempi
-- **API Open Library** - https://openlibrary.org/developers/api
+**Causa**: Il plugin potrebbe non essere attivo
+
+**Soluzione**:
+```sql
+-- Verifica che sia attivo
+SELECT name, is_active FROM plugins WHERE name = 'open-library';
+
+-- Attiva manualmente se necessario
+UPDATE plugins SET is_active = 1 WHERE name = 'open-library';
+```
+
+### Nessun dato recuperato
+
+**Causa**: cURL potrebbe essere disabilitato
+
+**Soluzione**:
+```bash
+# Verifica cURL
+php -m | grep curl
+
+# Test connessione Open Library
+curl -I https://openlibrary.org
+```
+
+### Errori di permessi
+
+**Causa**: File non leggibili dal web server
+
+**Soluzione**:
+```bash
+# Imposta permessi corretti
+chmod 755 storage/plugins/open-library
+chmod 644 storage/plugins/open-library/*.php
+chmod 644 storage/plugins/open-library/*.json
+```
+
+## 📈 Copertura ISBN
+
+### Per Lingua
+
+- **Inglese**: 90%+ (ottima)
+- **Italiano**: 60%+ (buona)
+- **Altre lingue europee**: 50%+ (discreta)
+- **Lingue orientali**: 30%+ (limitata)
+
+### Per Tipo
+
+- **Bestseller internazionali**: 95%+ (ottima)
+- **Classici**: 90%+ (ottima)
+- **Libri accademici**: 70%+ (buona)
+- **Edizioni recenti**: 60%+ (discreta)
+- **Pubblicazioni locali**: 30%+ (limitata)
+
+## 🔗 API Endpoints
+
+### Plugin Test Endpoint
+
+```
+GET /api/open-library/test?isbn={isbn}
+```
+
+**Parametri:**
+- `isbn` (opzionale): ISBN da testare (default: 9788804666592)
+
+**Risposta:**
+```json
+{
+  "success": boolean,
+  "plugin": "Open Library",
+  "isbn": "string",
+  "data": {...} | null,
+  "message": "string"
+}
+```
+
+### Integrated Scraping Endpoint
+
+```
+GET /api/scrape/isbn?isbn={isbn}
+```
+
+**Parametri:**
+- `isbn` (obbligatorio): ISBN del libro
+
+**Risposta:**
+```json
+{
+  "title": "string",
+  "author": "string",
+  "publisher": "string",
+  ...
+  "source": "https://openlibrary.org/isbn/..."
+}
+```
+
+## 📚 Esempi ISBN per Test
+
+ISBN verificati su Open Library:
+
+- `9780140328721` - Fantastic Mr. Fox (Roald Dahl)
+- `9780451526538` - 1984 (George Orwell)
+- `9780743273565` - The Great Gatsby (F. Scott Fitzgerald)
+- `9788804666592` - La Divina Commedia (Dante Alighieri)
+- `9788804671664` - Il nome della rosa (Umberto Eco)
 
 ## 🆘 Supporto
 
 Per problemi o domande:
 
-1. Controlla i log: `tail -f /var/log/php/error.log`
-2. Esegui il test: `php app/Plugins/OpenLibrary/test.php`
-3. Verifica la connessione: `curl https://openlibrary.org/isbn/9780140328721.json`
+1. **Controlla i log**: Vai su Admin → Plugin → Open Library → Log
+2. **Testa l'endpoint**: `curl http://localhost/api/open-library/test`
+3. **Verifica l'API**: `curl https://openlibrary.org/isbn/9780140328721.json`
+4. **Consulta la documentazione**: `storage/plugins/open-library/README.md`
+
+## 📝 Note Tecniche
+
+### Sistema di Hook
+
+Il plugin usa il nuovo sistema di hook automatici:
+- Gli hook vengono registrati nel database durante l'attivazione
+- Le route vengono create automaticamente tramite `app.routes.register`
+- Nessuna modifica manuale ai file core è necessaria
+
+### Architettura
+
+```
+OpenLibraryPlugin
+├── Hook Handlers
+│   ├── addOpenLibrarySource()      # Registra fonte scraping
+│   ├── fetchFromOpenLibrary()      # Logica fetch principale
+│   ├── enrichWithOpenLibraryData() # Arricchimento dati
+│   └── registerRoutes()            # Registrazione route
+├── API Clients
+│   ├── fetchFromOpenLibraryApi()   # Client Open Library
+│   └── fetchFromGoogleBooks()      # Client Google Books fallback
+└── Lifecycle Hooks
+    ├── onInstall()                 # Setup iniziale
+    ├── onActivate()                # Registrazione hook
+    └── onDeactivate()              # Cleanup
+```
 
 ---
 
-**Data installazione**: 2025-01-14
-**Versione plugin**: 1.0.0
+**Versione Plugin**: 1.0.0
 **Versione API Open Library**: v1
+**Sistema di Hook**: v2 (automatic route registration)
+**Ultima modifica**: 2025-01-16
