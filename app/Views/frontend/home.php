@@ -1,10 +1,14 @@
 <?php
+use App\Support\HtmlHelper;
+
 $title = __("Biblioteca Digitale - La tua biblioteca online");
 $catalogRoute = route_path('catalog');
 $legacyCatalogRoute = route_path('catalog_legacy');
 $apiCatalogRoute = route_path('api_catalog');
 $apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES);
 $registerRoute = route_path('register');
+$homeEvents = $homeEvents ?? [];
+$homeEventsEnabled = $homeEventsEnabled ?? false;
 
 // SEO Variables are now passed from FrontendController::home()
 // No need to override them here - the controller handles all SEO logic with proper fallbacks
@@ -652,6 +656,158 @@ form.hero-search-form {
             padding: 0.75rem;
         }
     }
+
+    .home-events {
+        padding: 4rem 0;
+        background: #ffffff;
+    }
+
+    .home-events__header {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .home-events__title {
+        font-size: clamp(2rem, 3vw, 2.5rem);
+        font-weight: 800;
+        color: #111827;
+        margin: 0;
+    }
+
+    .home-events__subtitle {
+        color: #4b5563;
+        max-width: 640px;
+        margin: 0;
+        font-size: 1rem;
+    }
+
+    .home-events__all-link {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.65rem 1.5rem;
+        border-radius: 999px;
+        border: 1px solid #111827;
+        color: #111827;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+
+    .home-events__all-link:hover {
+        background: #111827;
+        color: #ffffff;
+    }
+
+    .home-events-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .home-events__header {
+            flex-direction: column;
+        }
+
+        .home-events-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .home-events-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .home-events-grid .event-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .home-events-grid .event-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .home-events-grid .event-card__thumb {
+        height: 230px;
+        background: #f3f4f6;
+    }
+
+    .home-events-grid .event-card__thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .home-events-grid .event-card__placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        font-size: 2rem;
+        height: 100%;
+    }
+
+    .home-events-grid .event-card__body {
+        padding: 1.25rem 1.5rem 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        flex: 1;
+    }
+
+    .home-events-grid .event-card__title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #111827;
+        margin: 0;
+    }
+
+    .home-events-grid .event-card__title a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .home-events-grid .event-card__title a:hover {
+        color: #d70161;
+    }
+
+    .home-events-grid .event-card__meta {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #4b5563;
+    }
+
+    .home-events-grid .event-card__button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        gap: 0.4rem;
+        padding: 0.65rem 1rem;
+        border-radius: 999px;
+        border: 1px solid #111827;
+        color: #111827;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+
+    .home-events-grid .event-card__button:hover {
+        background: #111827;
+        color: #ffffff;
+    }
 </style>
 ";
 
@@ -810,6 +966,83 @@ ob_start();
         ? $genreSectionContent['subtitle']
         : __("Scopri le nostre radici tematiche e lasciati ispirare dai titoli disponibili.");
 ?>
+<?php if (!empty($homeEvents) && ($homeEventsEnabled ?? false)): ?>
+    <?php
+    $homeEventsLocale = $_SESSION['locale'] ?? 'it_IT';
+    $homeEventsDateFormatter = new \IntlDateFormatter($homeEventsLocale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+    $homeEventsCreateDateTime = static function (?string $value) {
+        if (!$value) {
+            return null;
+        }
+
+        $dateTime = \DateTime::createFromFormat('Y-m-d', $value);
+        if ($dateTime instanceof \DateTimeInterface) {
+            return $dateTime;
+        }
+
+        try {
+            return new \DateTime($value);
+        } catch (\Exception $e) {
+            return null;
+        }
+    };
+    $homeEventsFormatDate = static function (?string $value) use ($homeEventsDateFormatter, $homeEventsCreateDateTime) {
+        $dateTime = $homeEventsCreateDateTime($value);
+        if (!$dateTime) {
+            return (string)$value;
+        }
+        return $homeEventsDateFormatter->format($dateTime);
+    };
+    ?>
+    <section class="home-events" aria-label="<?= __("Eventi") ?>">
+        <div class="container">
+            <div class="home-events__header">
+                <div>
+                    <p class="page-hero__eyebrow"><?= __("Calendario eventi") ?></p>
+                    <h2 class="home-events__title"><?= __("Gli appuntamenti della biblioteca") ?></h2>
+                    <p class="home-events__subtitle">
+                        <?= __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.") ?>
+                    </p>
+                </div>
+                <a href="/events" class="home-events__all-link">
+                    <?= __("Vedi tutti gli eventi") ?>
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+            <div class="home-events-grid">
+                <?php foreach ($homeEvents as $event): ?>
+                    <?php $eventDateText = $homeEventsFormatDate($event['event_date'] ?? ''); ?>
+                    <article class="event-card">
+                        <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__thumb">
+                            <?php if (!empty($event['featured_image'])): ?>
+                                <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                            <?php else: ?>
+                                <div class="event-card__placeholder">
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                            <?php endif; ?>
+                        </a>
+                        <div class="event-card__body">
+                            <div class="event-card__meta">
+                                <?= HtmlHelper::e($eventDateText) ?>
+                            </div>
+                            <h3 class="event-card__title">
+                                <a href="/events/<?= HtmlHelper::e($event['slug']) ?>">
+                                    <?= HtmlHelper::e($event['title']) ?>
+                                </a>
+                            </h3>
+                            <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__button">
+                                <?= __("Scopri l'evento") ?>
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+<?php endif; ?>
+
 <section id="genre-carousels" class="section">
     <div class="container text-center mb-5">
         <h2 class="section-title">

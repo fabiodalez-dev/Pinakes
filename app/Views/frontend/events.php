@@ -1,14 +1,12 @@
 <?php
-use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
-use App\Support\ContentSanitizer;
 
 $title = __("Eventi");
-$appName = \App\Support\ConfigStore::get('app.name');
-$baseUrl = \App\Support\ConfigStore::get('app.canonical_url');
+$appName = ConfigStore::get('app.name');
+$baseUrl = ConfigStore::get('app.canonical_url');
 
-// Variables are already set from controller
+// SEO meta values are provided by the controller:
 // $events, $page, $totalPages, $seoTitle, $seoDescription, $seoCanonical
 
 // Open Graph defaults
@@ -24,171 +22,371 @@ $twitterTitle = $seoTitle;
 $twitterDescription = $seoDescription;
 $twitterImage = $ogImage;
 
-// Include main layout
-include __DIR__ . '/layout.php';
+$locale = $_SESSION['locale'] ?? 'it_IT';
+$dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+$timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
 
-function content(): void {
-    global $events, $page, $totalPages, $baseUrl;
-    ?>
+$createDateTime = static function (?string $value, array $formats = []) {
+    if (!$value) {
+        return null;
+    }
 
-    <!-- Events Hero Section -->
-    <section class="bg-gradient-to-br from-purple-600 to-purple-800 text-white py-16">
-        <div class="container mx-auto px-4">
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="text-4xl md:text-5xl font-bold mb-4">
-                    <i class="fas fa-calendar-alt mr-3"></i>
-                    <?= __("Eventi") ?>
-                </h1>
-                <p class="text-xl text-purple-100">
-                    <?= __("Scopri tutti gli eventi organizzati dalla nostra biblioteca") ?>
-                </p>
+    foreach ($formats as $format) {
+        $dateTime = \DateTime::createFromFormat($format, $value);
+        if ($dateTime instanceof \DateTimeInterface) {
+            return $dateTime;
+        }
+    }
+
+    try {
+        return new \DateTime($value);
+    } catch (\Exception $e) {
+        return null;
+    }
+};
+
+$formatDate = static function (?string $date) use ($dateFormatter, $createDateTime) {
+    $dateTime = $createDateTime($date, ['Y-m-d']);
+    if (!$dateTime) {
+        return (string)$date;
+    }
+
+    return $dateFormatter->format($dateTime);
+};
+
+$formatTime = static function (?string $time) use ($timeFormatter, $createDateTime) {
+    $dateTime = $createDateTime($time, ['H:i:s', 'H:i']);
+    if (!$dateTime) {
+        return (string)$time;
+    }
+
+    return $timeFormatter->format($dateTime);
+};
+
+$additional_css = "
+<style>
+    main {
+        padding-top: 120px;
+    }
+
+    @media (max-width: 576px) {
+        main {
+            padding-top: 110px;
+        }
+    }
+
+    .page-hero {
+        padding: 5rem 0 4rem;
+        background: #f8fafc;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-hero__content {
+        max-width: 760px;
+    }
+
+    .page-hero__eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
+        color: #6b7280;
+    }
+
+    .page-hero__title {
+        font-size: clamp(2rem, 4vw, 3rem);
+        font-weight: 800;
+        color: #111827;
+        margin-bottom: 0.75rem;
+        letter-spacing: -0.02em;
+    }
+
+    .page-hero__subtitle {
+        color: #4b5563;
+        font-size: 1.125rem;
+        max-width: 640px;
+    }
+
+    .events-wrapper {
+        padding: 3rem 0 4rem;
+        background: #fff;
+    }
+
+    .events-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .events-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .events-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .event-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .event-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .event-card__thumb {
+        display: block;
+        height: 230px;
+        background: #f3f4f6;
+    }
+
+    .event-card__thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .event-card__placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        font-size: 2rem;
+        height: 100%;
+    }
+
+    .event-card__body {
+        padding: 1.25rem 1.5rem 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        flex: 1;
+    }
+
+    .event-card__title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #111827;
+        margin: 0;
+    }
+
+    .event-card__title a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .event-card__title a:hover {
+        color: #d70161;
+    }
+
+    .event-card__meta {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #4b5563;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .event-card__actions {
+        margin-top: auto;
+    }
+
+    .event-card__button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        gap: 0.4rem;
+        padding: 0.65rem 1rem;
+        border-radius: 999px;
+        border: 1px solid #111827;
+        color: #111827;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+
+    .event-card__button:hover {
+        background: #111827;
+        color: #fff;
+    }
+
+    .events-empty {
+        max-width: 560px;
+        margin: 2rem auto 0;
+        padding: 2.5rem 2rem;
+        border-radius: 20px;
+        border: 1px solid #e5e7eb;
+        text-align: center;
+        background: #f9fafb;
+    }
+
+    .events-empty__icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #d70161;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .events-pagination {
+        margin-top: 2.5rem;
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .events-pagination a,
+    .events-pagination span {
+        min-width: 44px;
+        padding: 0.6rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid #e5e7eb;
+        text-align: center;
+        font-weight: 600;
+        text-decoration: none;
+        color: #111827;
+    }
+
+    .events-pagination a:hover {
+        border-color: #d70161;
+        color: #d70161;
+    }
+
+    .events-pagination .is-active {
+        background: #111827;
+        border-color: #111827;
+        color: #fff;
+    }
+</style>
+";
+
+ob_start();
+?>
+
+<section class="page-hero">
+    <div class="container">
+        <div class="page-hero__content">
+            <div class="page-hero__eyebrow">
+                <i class="fas fa-calendar-alt"></i>
+                <?= __("Calendario eventi") ?>
             </div>
+            <h1 class="page-hero__title"><?= __("Gli appuntamenti della biblioteca") ?></h1>
+            <p class="page-hero__subtitle">
+                <?= __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.") ?>
+            </p>
         </div>
-    </section>
+    </div>
+</section>
 
-    <!-- Events Grid -->
-    <section class="py-16 bg-gray-50">
-        <div class="container mx-auto px-4">
-
-            <?php if (empty($events)): ?>
-                <!-- No Events -->
-                <div class="max-w-2xl mx-auto text-center py-12">
-                    <div class="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <i class="fas fa-calendar-times text-gray-400 text-4xl"></i>
-                    </div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-3">
-                        <?= __("Nessun evento in programma") ?>
-                    </h2>
-                    <p class="text-gray-600">
-                        <?= __("Al momento non ci sono eventi programmati. Torna a visitare questa pagina per scoprire i prossimi appuntamenti.") ?>
-                    </p>
+<section class="events-wrapper">
+    <div class="container">
+        <?php if (empty($events)): ?>
+            <div class="events-empty">
+                <div class="events-empty__icon">
+                    <i class="fas fa-calendar-times"></i>
                 </div>
-            <?php else: ?>
-                <!-- Events Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-                    <?php foreach ($events as $event): ?>
-                        <?php
-                        // Extract excerpt from content
-                        $contentPlain = strip_tags($event['content'] ?? '');
-                        $excerpt = mb_substr($contentPlain, 0, 150);
-                        if (mb_strlen($contentPlain) > 150) {
-                            $excerpt .= '...';
-                        }
-                        ?>
-                        <article class="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                            <!-- Event Image -->
-                            <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="block">
-                                <?php if ($event['featured_image']): ?>
-                                    <img
-                                        src="<?= HtmlHelper::e($event['featured_image']) ?>"
-                                        alt="<?= HtmlHelper::e($event['title']) ?>"
-                                        class="w-full h-56 object-cover"
-                                    >
-                                <?php else: ?>
-                                    <div class="w-full h-56 bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
-                                        <i class="fas fa-calendar-alt text-white text-6xl opacity-50"></i>
-                                    </div>
-                                <?php endif; ?>
-                            </a>
+                <h2><?= __("Nessun evento in programma") ?></h2>
+                <p><?= __("Al momento non ci sono eventi attivi. Continua a seguirci per restare aggiornato sui prossimi appuntamenti.") ?></p>
+            </div>
+        <?php else: ?>
+            <div class="events-grid">
+                <?php foreach ($events as $event): ?>
+                    <?php
+                    $eventDateFormatted = $formatDate($event['event_date'] ?? '');
+                    $eventTimeFormatted = $formatTime($event['event_time'] ?? '');
 
-                            <!-- Event Content -->
-                            <div class="p-6">
-                                <!-- Event Date -->
-                                <div class="flex items-center gap-3 mb-4 text-sm text-purple-600 font-semibold">
+                    ?>
+                    <article class="event-card">
+                        <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__thumb">
+                            <?php if (!empty($event['featured_image'])): ?>
+                                <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                            <?php else: ?>
+                                <div class="event-card__placeholder">
                                     <i class="fas fa-calendar"></i>
-                                    <time datetime="<?= HtmlHelper::e($event['event_date']) ?>">
-                                        <?= strftime('%d %B %Y', strtotime($event['event_date'])) ?>
-                                    </time>
-                                    <?php if ($event['event_time']): ?>
-                                        <span class="text-gray-400">•</span>
-                                        <i class="fas fa-clock"></i>
-                                        <time datetime="<?= HtmlHelper::e($event['event_time']) ?>">
-                                            <?= date('H:i', strtotime($event['event_time'])) ?>
-                                        </time>
-                                    <?php endif; ?>
                                 </div>
-
-                                <!-- Event Title -->
-                                <h2 class="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
-                                    <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="hover:text-purple-600 transition-colors">
-                                        <?= HtmlHelper::e($event['title']) ?>
-                                    </a>
-                                </h2>
-
-                                <!-- Event Excerpt -->
-                                <?php if (!empty($excerpt)): ?>
-                                    <p class="text-gray-600 text-sm mb-4 line-clamp-3">
-                                        <?= HtmlHelper::e($excerpt) ?>
-                                    </p>
-                                <?php endif; ?>
-
-                                <!-- Read More Link -->
-                                <a
-                                    href="/events/<?= HtmlHelper::e($event['slug']) ?>"
-                                    class="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-semibold text-sm transition-colors"
-                                >
-                                    <?= __("Scopri di più") ?>
+                            <?php endif; ?>
+                        </a>
+                        <div class="event-card__body">
+                            <div class="event-card__meta">
+                                <?= HtmlHelper::e($eventDateFormatted) ?>
+                            </div>
+                            <h2 class="event-card__title">
+                                <a href="/events/<?= HtmlHelper::e($event['slug']) ?>">
+                                    <?= HtmlHelper::e($event['title']) ?>
+                                </a>
+                            </h2>
+                            <div class="event-card__actions">
+                                <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__button">
+                                    <?= __("Scopri l'evento") ?>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>
                             </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-
-                <!-- Pagination -->
-                <?php if ($totalPages > 1): ?>
-                    <nav class="mt-12 flex items-center justify-center" aria-label="<?= __("Paginazione eventi") ?>">
-                        <div class="flex items-center gap-2">
-                            <?php if ($page > 1): ?>
-                                <a
-                                    href="?page=<?= $page - 1 ?>"
-                                    class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
-                                >
-                                    <i class="fas fa-chevron-left"></i>
-                                    <?= __("Precedente") ?>
-                                </a>
-                            <?php endif; ?>
-
-                            <div class="flex items-center gap-1">
-                                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                                    <?php if ($i == $page): ?>
-                                        <span class="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold">
-                                            <?= $i ?>
-                                        </span>
-                                    <?php elseif ($i == 1 || $i == $totalPages || abs($i - $page) <= 2): ?>
-                                        <a
-                                            href="?page=<?= $i ?>"
-                                            class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
-                                        >
-                                            <?= $i ?>
-                                        </a>
-                                    <?php elseif (abs($i - $page) == 3): ?>
-                                        <span class="px-2 text-gray-400">...</span>
-                                    <?php endif; ?>
-                                <?php endfor; ?>
-                            </div>
-
-                            <?php if ($page < $totalPages): ?>
-                                <a
-                                    href="?page=<?= $page + 1 ?>"
-                                    class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
-                                >
-                                    <?= __("Successivo") ?>
-                                    <i class="fas fa-chevron-right"></i>
-                                </a>
-                            <?php endif; ?>
                         </div>
-                    </nav>
-                <?php endif; ?>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+
+            <?php if ($totalPages > 1): ?>
+                <div class="events-pagination" aria-label="<?= __("Paginazione eventi") ?>">
+                    <?php if ($page > 1): ?>
+                        <a href="?page=<?= $page - 1 ?>">
+                            <?= __("Precedente") ?>
+                        </a>
+                    <?php endif; ?>
+
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <?php if ($i == $page): ?>
+                            <span class="is-active"><?= $i ?></span>
+                        <?php elseif ($i == 1 || $i == $totalPages || abs($i - $page) <= 2): ?>
+                            <a href="?page=<?= $i ?>"><?= $i ?></a>
+                        <?php elseif (abs($i - $page) == 3): ?>
+                            <span>…</span>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+
+                    <?php if ($page < $totalPages): ?>
+                        <a href="?page=<?= $page + 1 ?>">
+                            <?= __("Successivo") ?>
+                        </a>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
+        <?php endif; ?>
+    </div>
+</section>
 
-        </div>
-    </section>
-
-    <?php
-}
-
-ob_start();
-content();
+<?php
 $content = ob_get_clean();
+include __DIR__ . '/layout.php';
 ?>

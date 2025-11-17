@@ -1,6 +1,47 @@
 <?php
 use App\Support\HtmlHelper;
 use App\Support\Csrf;
+
+$locale = $_SESSION['locale'] ?? 'it_IT';
+$dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+$timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+
+$createDateTime = static function (?string $value, array $formats = []) {
+    if (!$value) {
+        return null;
+    }
+
+    foreach ($formats as $format) {
+        $dateTime = \DateTime::createFromFormat($format, $value);
+        if ($dateTime instanceof \DateTimeInterface) {
+            return $dateTime;
+        }
+    }
+
+    try {
+        return new \DateTime($value);
+    } catch (\Exception $e) {
+        return null;
+    }
+};
+
+$formatEventDate = static function (?string $value) use ($dateFormatter, $createDateTime) {
+    $dateTime = $createDateTime($value, ['Y-m-d']);
+    if (!$dateTime) {
+        return (string)$value;
+    }
+
+    return $dateFormatter->format($dateTime);
+};
+
+$formatEventTime = static function (?string $value) use ($timeFormatter, $createDateTime) {
+    $dateTime = $createDateTime($value, ['H:i:s', 'H:i']);
+    if (!$dateTime) {
+        return (string)$value;
+    }
+
+    return $timeFormatter->format($dateTime);
+};
 ?>
 
 <div class="min-h-screen bg-gray-50 py-8">
@@ -145,12 +186,12 @@ use App\Support\Csrf;
                       <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                         <div class="flex items-center gap-2">
                           <i class="fas fa-calendar text-gray-400"></i>
-                          <span><?= date('d/m/Y', strtotime($event['event_date'])) ?></span>
+                          <span><?= HtmlHelper::e($formatEventDate($event['event_date'] ?? '')) ?></span>
                         </div>
                         <?php if ($event['event_time']): ?>
                           <div class="flex items-center gap-2">
                             <i class="fas fa-clock text-gray-400"></i>
-                            <span><?= date('H:i', strtotime($event['event_time'])) ?></span>
+                            <span><?= HtmlHelper::e($formatEventTime($event['event_time'] ?? '')) ?></span>
                           </div>
                         <?php endif; ?>
                       </div>

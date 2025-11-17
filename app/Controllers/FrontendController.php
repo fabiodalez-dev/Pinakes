@@ -117,6 +117,36 @@ class FrontendController
 
         $genreCarouselEnabled = $this->isHomeSectionEnabled($db, 'genre_carousel');
 
+        // Home events preview (respect CMS visibility)
+        $homeEvents = [];
+        $homeEventsEnabled = false;
+        $eventsFeatureEnabled = false;
+
+        try {
+            $settingsRepository = new \App\Models\SettingsRepository($db);
+            $eventsFeatureEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
+        } catch (\Throwable $e) {
+            $eventsFeatureEnabled = false;
+        }
+
+        if ($eventsFeatureEnabled) {
+            $eventsQuery = "
+                SELECT id, title, slug, event_date, event_time, featured_image
+                FROM events
+                WHERE is_active = 1 AND event_date >= CURDATE()
+                ORDER BY event_date ASC, event_time ASC, created_at DESC
+                LIMIT 3
+            ";
+            $resultEvents = $db->query($eventsQuery);
+            if ($resultEvents) {
+                while ($eventRow = $resultEvents->fetch_assoc()) {
+                    $homeEvents[] = $eventRow;
+                }
+            }
+        }
+
+        $homeEventsEnabled = $eventsFeatureEnabled && !empty($homeEvents);
+
         // Build dynamic SEO data from settings and CMS
         $hero = $homeContent['hero'] ?? [];
 

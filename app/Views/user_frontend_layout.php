@@ -20,6 +20,15 @@ $wishlistRoute = route_path('wishlist');
 $profileRoute = route_path('profile');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
+$eventsEnabled = false;
+if (isset($db)) {
+    try {
+        $settingsRepository = new \App\Models\SettingsRepository($db);
+        $eventsEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
+    } catch (\Throwable $e) {
+        $eventsEnabled = false;
+    }
+}
 
 // Helper function for absolute URLs
 if (!function_exists('absoluteUrl')) {
@@ -716,6 +725,9 @@ if (!function_exists('assetUrl')) {
 
                     <ul class="nav-links d-none d-md-flex">
                         <li><a href="<?= $catalogRoute ?>" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a></li>
+                        <?php if ($eventsEnabled): ?>
+                            <li><a href="/events" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a></li>
+                        <?php endif; ?>
                     </ul>
 
                     <!-- Mobile Menu Toggle -->
@@ -787,6 +799,11 @@ if (!function_exists('assetUrl')) {
                     <a href="<?= $catalogRoute ?>" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
+                    <?php if ($eventsEnabled): ?>
+                        <a href="/events" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
+                            <i class="fas fa-calendar-alt me-2"></i><?= __("Eventi") ?>
+                        </a>
+                    <?php endif; ?>
                     <?php if ($isLogged): ?>
                     <hr class="mobile-menu-divider">
                     <a href="/user/dashboard" class="mobile-nav-link">
@@ -1223,6 +1240,28 @@ if (!function_exists('assetUrl')) {
                     }
                 });
             }
+        })();
+    </script>
+
+    <script>
+        (function() {
+            const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
+            const alertTitle = <?= json_encode(__('Avviso')) ?>;
+            const alertButton = <?= json_encode(__('OK')) ?>;
+
+            window.alert = function(message) {
+                const text = (message === undefined || message === null) ? '' : String(message);
+                if (window.Swal && typeof window.Swal.fire === 'function') {
+                    window.Swal.fire({
+                        icon: 'info',
+                        title: alertTitle,
+                        text,
+                        confirmButtonText: alertButton
+                    });
+                } else if (nativeAlert) {
+                    nativeAlert(text);
+                }
+            };
         })();
     </script>
 

@@ -1728,6 +1728,28 @@ if (!function_exists('assetUrl')) {
         });
     </script>
 
+    <script>
+        (function() {
+            const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
+            const alertTitle = <?= json_encode(__('Avviso')) ?>;
+            const alertButton = <?= json_encode(__('OK')) ?>;
+
+            window.alert = function(message) {
+                const text = (message === undefined || message === null) ? '' : String(message);
+                if (window.Swal && typeof window.Swal.fire === 'function') {
+                    window.Swal.fire({
+                        icon: 'info',
+                        title: alertTitle,
+                        text,
+                        confirmButtonText: alertButton
+                    });
+                } else if (nativeAlert) {
+                    nativeAlert(text);
+                }
+            };
+        })();
+    </script>
+
     <?= $additional_js ?? '' ?>
 
     <?php require __DIR__ . '/../partials/cookie-banner.php'; ?>

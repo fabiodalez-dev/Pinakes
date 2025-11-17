@@ -1,222 +1,433 @@
 <?php
-use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\ContentSanitizer;
 
 $title = $event['title'];
-$appName = \App\Support\ConfigStore::get('app.name');
-$baseUrl = \App\Support\ConfigStore::get('app.canonical_url');
+$appName = ConfigStore::get('app.name');
+$baseUrl = ConfigStore::get('app.canonical_url');
 
-// SEO variables are already set from controller:
+// SEO variables are set in the controller:
 // $seoTitle, $seoDescription, $seoKeywords, $seoCanonical
 // $ogTitle, $ogDescription, $ogType, $ogUrl, $ogImage
 // $twitterCard, $twitterTitle, $twitterDescription, $twitterImage
 
-// Include main layout
-include __DIR__ . '/layout.php';
+$contentHtml = ContentSanitizer::normalizeExternalAssets($event['content'] ?? '');
 
-function content(): void {
-    global $event, $baseUrl;
+$locale = $_SESSION['locale'] ?? 'it_IT';
+$dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+$timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
 
-    $contentHtml = ContentSanitizer::normalizeExternalAssets($event['content'] ?? '');
-    ?>
-
-    <!-- Breadcrumbs -->
-    <nav class="bg-gray-50 py-4 border-b border-gray-200" aria-label="<?= __("Breadcrumb") ?>">
-        <div class="container mx-auto px-4">
-            <ol class="flex items-center gap-2 text-sm">
-                <li>
-                    <a href="/" class="text-gray-600 hover:text-gray-900 transition-colors">
-                        <i class="fas fa-home"></i>
-                        <span class="sr-only"><?= __("Home") ?></span>
-                    </a>
-                </li>
-                <li class="text-gray-400">/</li>
-                <li>
-                    <a href="/events" class="text-gray-600 hover:text-gray-900 transition-colors">
-                        <?= __("Eventi") ?>
-                    </a>
-                </li>
-                <li class="text-gray-400">/</li>
-                <li class="text-gray-900 font-semibold truncate max-w-xs">
-                    <?= HtmlHelper::e($event['title']) ?>
-                </li>
-            </ol>
-        </div>
-    </nav>
-
-    <!-- Event Header -->
-    <article class="py-12 bg-white">
-        <div class="container mx-auto px-4">
-            <div class="max-w-4xl mx-auto">
-
-                <!-- Event Meta -->
-                <div class="flex flex-wrap items-center gap-4 mb-6 text-purple-600">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-calendar"></i>
-                        <time datetime="<?= HtmlHelper::e($event['event_date']) ?>" class="font-semibold">
-                            <?= strftime('%d %B %Y', strtotime($event['event_date'])) ?>
-                        </time>
-                    </div>
-                    <?php if ($event['event_time']): ?>
-                        <span class="text-gray-400">•</span>
-                        <div class="flex items-center gap-2">
-                            <i class="fas fa-clock"></i>
-                            <time datetime="<?= HtmlHelper::e($event['event_time']) ?>" class="font-semibold">
-                                <?= date('H:i', strtotime($event['event_time'])) ?>
-                            </time>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-                <!-- Event Title -->
-                <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-8 leading-tight">
-                    <?= HtmlHelper::e($event['title']) ?>
-                </h1>
-
-                <!-- Featured Image -->
-                <?php if ($event['featured_image']): ?>
-                    <div class="mb-10 rounded-2xl overflow-hidden shadow-2xl">
-                        <img
-                            src="<?= HtmlHelper::e($event['featured_image']) ?>"
-                            alt="<?= HtmlHelper::e($event['title']) ?>"
-                            class="w-full h-auto"
-                        >
-                    </div>
-                <?php endif; ?>
-
-                <!-- Event Content -->
-                <div class="prose prose-lg max-w-none mb-12">
-                    <?= $contentHtml ?>
-                </div>
-
-                <!-- Back to Events -->
-                <div class="pt-8 border-t border-gray-200">
-                    <a
-                        href="/events"
-                        class="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-semibold transition-colors"
-                    >
-                        <i class="fas fa-arrow-left"></i>
-                        <?= __("Torna agli eventi") ?>
-                    </a>
-                </div>
-
-            </div>
-        </div>
-    </article>
-
-    <!-- Related Events Section -->
-    <?php
-    // Get other upcoming events
-    global $db;
-    $currentId = $event['id'];
-    $currentDate = $event['event_date'];
-
-    $stmt = $db->prepare("
-        SELECT id, title, slug, event_date, event_time, featured_image
-        FROM events
-        WHERE is_active = 1 AND id != ? AND event_date >= CURDATE()
-        ORDER BY event_date ASC
-        LIMIT 3
-    ");
-    $stmt->bind_param('i', $currentId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    $relatedEvents = [];
-    while ($row = $result->fetch_assoc()) {
-        $relatedEvents[] = $row;
+$createDateTime = static function (?string $value, array $formats = []) {
+    if (!$value) {
+        return null;
     }
-    $stmt->close();
-    ?>
 
-    <?php if (!empty($relatedEvents)): ?>
-        <section class="py-16 bg-gray-50">
-            <div class="container mx-auto px-4">
-                <div class="max-w-6xl mx-auto">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">
-                        <?= __("Altri eventi in programma") ?>
-                    </h2>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <?php foreach ($relatedEvents as $relatedEvent): ?>
-                            <article class="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                                <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>" class="block">
-                                    <?php if ($relatedEvent['featured_image']): ?>
-                                        <img
-                                            src="<?= HtmlHelper::e($relatedEvent['featured_image']) ?>"
-                                            alt="<?= HtmlHelper::e($relatedEvent['title']) ?>"
-                                            class="w-full h-48 object-cover"
-                                        >
-                                    <?php else: ?>
-                                        <div class="w-full h-48 bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
-                                            <i class="fas fa-calendar-alt text-white text-5xl opacity-50"></i>
-                                        </div>
-                                    <?php endif; ?>
-                                </a>
-
-                                <div class="p-6">
-                                    <div class="flex items-center gap-2 mb-3 text-sm text-purple-600 font-semibold">
-                                        <i class="fas fa-calendar"></i>
-                                        <time datetime="<?= HtmlHelper::e($relatedEvent['event_date']) ?>">
-                                            <?= strftime('%d %b %Y', strtotime($relatedEvent['event_date'])) ?>
-                                        </time>
-                                        <?php if ($relatedEvent['event_time']): ?>
-                                            <span class="text-gray-400">•</span>
-                                            <time datetime="<?= HtmlHelper::e($relatedEvent['event_time']) ?>">
-                                                <?= date('H:i', strtotime($relatedEvent['event_time'])) ?>
-                                            </time>
-                                        <?php endif; ?>
-                                    </div>
-
-                                    <h3 class="text-lg font-bold text-gray-900 mb-3 line-clamp-2">
-                                        <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>" class="hover:text-purple-600 transition-colors">
-                                            <?= HtmlHelper::e($relatedEvent['title']) ?>
-                                        </a>
-                                    </h3>
-
-                                    <a
-                                        href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>"
-                                        class="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-semibold text-sm transition-colors"
-                                    >
-                                        <?= __("Scopri di più") ?>
-                                        <i class="fas fa-arrow-right"></i>
-                                    </a>
-                                </div>
-                            </article>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            </div>
-        </section>
-    <?php endif; ?>
-
-    <!-- JSON-LD Structured Data for Event -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "Event",
-        "name": "<?= addslashes(HtmlHelper::e($event['title'])) ?>",
-        "startDate": "<?= HtmlHelper::e($event['event_date']) ?><?= $event['event_time'] ? 'T' . HtmlHelper::e($event['event_time']) : '' ?>",
-        <?php if ($event['featured_image']): ?>
-        "image": "<?= addslashes($baseUrl . $event['featured_image']) ?>",
-        <?php endif; ?>
-        "description": "<?= addslashes(strip_tags($event['content'] ?? '')) ?>",
-        "eventStatus": "https://schema.org/EventScheduled",
-        "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-        "organizer": {
-            "@type": "Organization",
-            "name": "<?= addslashes(\App\Support\ConfigStore::get('app.name')) ?>",
-            "url": "<?= addslashes($baseUrl) ?>"
+    foreach ($formats as $format) {
+        $dateTime = \DateTime::createFromFormat($format, $value);
+        if ($dateTime instanceof \DateTimeInterface) {
+            return $dateTime;
         }
     }
-    </script>
 
-    <?php
-}
+    try {
+        return new \DateTime($value);
+    } catch (\Exception $e) {
+        return null;
+    }
+};
+
+$formatDate = static function (?string $date) use ($dateFormatter, $createDateTime) {
+    $dateTime = $createDateTime($date, ['Y-m-d']);
+    if (!$dateTime) {
+        return (string)$date;
+    }
+
+    return $dateFormatter->format($dateTime);
+};
+
+$formatTime = static function (?string $time) use ($timeFormatter, $createDateTime) {
+    $dateTime = $createDateTime($time, ['H:i:s', 'H:i']);
+    if (!$dateTime) {
+        return (string)$time;
+    }
+
+    return $timeFormatter->format($dateTime);
+};
+
+$eventDateFormatted = $formatDate($event['event_date'] ?? null);
+$eventTimeFormatted = $formatTime($event['event_time'] ?? null);
+
+$additional_css = "
+<style>
+    main {
+        padding-top: 120px;
+    }
+
+    @media (max-width: 576px) {
+        main {
+            padding-top: 110px;
+        }
+    }
+
+    .event-hero {
+        background: #f8fafc;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 4.5rem 0 3.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .event-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.95rem;
+        color: #6b7280;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .event-breadcrumb a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .event-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
+        color: #6b7280;
+    }
+
+    .event-title {
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        font-weight: 800;
+        color: #111827;
+        letter-spacing: -0.02em;
+        margin-bottom: 1.25rem;
+    }
+
+    .event-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .event-meta__item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1rem;
+    }
+
+    .event-section {
+        background: #fff;
+        padding: 3rem 0 4rem;
+    }
+
+    .event-card {
+        border: none;
+        border-radius: 24px;
+        padding: clamp(1.75rem, 4vw, 3rem);
+        background: #fff;
+    }
+
+    .event-cover {
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+        border: 1px solid #f1f5f9;
+    }
+
+    .event-cover img {
+        width: 100%;
+        display: block;
+    }
+
+    .event-body {
+        font-size: 1.05rem;
+        line-height: 1.8;
+        color: #1f2937;
+    }
+
+    .event-back {
+        margin-top: 2.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .event-back a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #d70161;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .related-events {
+        background: #f8fafc;
+        padding: 3rem 0 4rem;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .related-heading {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .related-heading h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 0.5rem;
+    }
+
+    .related-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .related-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 18px;
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .related-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 20px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .related-thumb {
+        height: 170px;
+        background: #f3f4f6;
+        display: block;
+    }
+
+    .related-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .related-body {
+        padding: 1.25rem;
+    }
+
+    .related-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #6b7280;
+        margin-bottom: 0.5rem;
+    }
+
+    .related-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        color: #111827;
+    }
+
+    .related-title a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .related-title a:hover {
+        color: #d70161;
+    }
+
+    .related-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 600;
+        color: #d70161;
+        text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+        .event-meta {
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .event-card {
+            padding: 1.5rem;
+        }
+    }
+</style>
+";
 
 ob_start();
-content();
+?>
+
+<section class="event-hero">
+    <div class="container">
+        <div class="event-breadcrumb" aria-label="<?= __("Percorso di navigazione") ?>">
+            <a href="/"><?= __("Home") ?></a>
+            <span>/</span>
+            <a href="/events"><?= __("Eventi") ?></a>
+            <span>/</span>
+            <span><?= HtmlHelper::e($event['title']) ?></span>
+        </div>
+
+        <div class="event-label">
+            <i class="fas fa-bookmark"></i>
+            <?= __("Evento della biblioteca") ?>
+        </div>
+
+        <h1 class="event-title"><?= HtmlHelper::e($event['title']) ?></h1>
+
+        <div class="event-meta">
+            <?php if ($eventDateFormatted): ?>
+                <div class="event-meta__item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <time datetime="<?= HtmlHelper::e($event['event_date']) ?>">
+                        <?= HtmlHelper::e($eventDateFormatted) ?>
+                    </time>
+                </div>
+            <?php endif; ?>
+            <?php if ($eventTimeFormatted): ?>
+                <div class="event-meta__item">
+                    <i class="fas fa-clock"></i>
+                    <time datetime="<?= HtmlHelper::e($event['event_time']) ?>">
+                        <?= HtmlHelper::e($eventTimeFormatted) ?>
+                    </time>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
+
+<section class="event-section">
+    <div class="container">
+        <article class="event-card">
+            <?php if (!empty($event['featured_image'])): ?>
+                <figure class="event-cover">
+                    <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                </figure>
+            <?php endif; ?>
+
+            <div class="event-body">
+                <?= $contentHtml ?>
+            </div>
+
+            <div class="event-back">
+                <a href="/events">
+                    <i class="fas fa-arrow-left"></i>
+                    <?= __("Torna alla panoramica eventi") ?>
+                </a>
+            </div>
+        </article>
+    </div>
+</section>
+
+<?php
+// Related events
+$currentId = $event['id'];
+$stmt = $db->prepare("
+    SELECT id, title, slug, event_date, event_time, featured_image
+    FROM events
+    WHERE is_active = 1 AND id != ? AND event_date >= CURDATE()
+    ORDER BY event_date ASC
+    LIMIT 3
+");
+$stmt->bind_param('i', $currentId);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$relatedEvents = [];
+while ($row = $result->fetch_assoc()) {
+    $relatedEvents[] = $row;
+}
+$stmt->close();
+?>
+
+<?php if (!empty($relatedEvents)): ?>
+    <section class="related-events">
+        <div class="container">
+            <div class="related-heading">
+                <h2><?= __("Altri eventi in programma") ?></h2>
+                <p class="text-muted"><?= __("Segna in agenda anche questi appuntamenti imminenti.") ?></p>
+            </div>
+            <div class="related-grid">
+                <?php foreach ($relatedEvents as $relatedEvent): ?>
+                    <?php
+                    $relatedDateFormatted = $formatDate($relatedEvent['event_date'] ?? null);
+                    $relatedTimeFormatted = $formatTime($relatedEvent['event_time'] ?? null);
+                    ?>
+                    <article class="related-card">
+                        <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>" class="related-thumb">
+                            <?php if (!empty($relatedEvent['featured_image'])): ?>
+                                <img src="<?= HtmlHelper::e($relatedEvent['featured_image']) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
+                            <?php endif; ?>
+                        </a>
+                        <div class="related-body">
+                            <div class="related-meta">
+                                <?php if ($relatedDateFormatted): ?>
+                                    <span><i class="fas fa-calendar-alt"></i> <?= HtmlHelper::e($relatedDateFormatted) ?></span>
+                                <?php endif; ?>
+                                <?php if ($relatedTimeFormatted): ?>
+                                    <span><i class="fas fa-clock"></i> <?= HtmlHelper::e($relatedTimeFormatted) ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <h3 class="related-title">
+                                <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>">
+                                    <?= HtmlHelper::e($relatedEvent['title']) ?>
+                                </a>
+                            </h3>
+                            <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>" class="related-link">
+                                <?= __("Dettagli evento") ?>
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+<?php endif; ?>
+
+<!-- JSON-LD Structured Data for Event -->
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Event",
+    "name": "<?= addslashes(HtmlHelper::e($event['title'])) ?>",
+    "startDate": "<?= HtmlHelper::e($event['event_date']) ?><?= $event['event_time'] ? 'T' . HtmlHelper::e($event['event_time']) : '' ?>",
+    <?php if ($event['featured_image']): ?>
+    "image": "<?= addslashes($baseUrl . $event['featured_image']) ?>",
+    <?php endif; ?>
+    "description": "<?= addslashes(strip_tags($event['content'] ?? '')) ?>",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+    "organizer": {
+        "@type": "Organization",
+        "name": "<?= addslashes(ConfigStore::get('app.name')) ?>",
+        "url": "<?= addslashes($baseUrl) ?>"
+    }
+}
+</script>
+
+<?php
 $content = ob_get_clean();
+include __DIR__ . '/layout.php';
 ?>

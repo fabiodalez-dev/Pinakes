@@ -20,6 +20,15 @@ $wishlistRoute = route_path('wishlist');
 $profileRoute = route_path('profile');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
+$eventsEnabled = false;
+if (isset($db)) {
+    try {
+        $settingsRepository = new \App\Models\SettingsRepository($db);
+        $eventsEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
+    } catch (\Throwable $e) {
+        $eventsEnabled = false;
+    }
+}
 ?><!doctype html>
 <html lang="it">
 <head>
@@ -677,6 +686,9 @@ $registerRoute = route_path('register');
 
                     <ul class="nav-links d-none d-md-flex">
                         <li><a href="<?= $catalogRoute ?>" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a></li>
+                        <?php if ($eventsEnabled): ?>
+                            <li><a href="/events" class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a></li>
+                        <?php endif; ?>
                     </ul>
 
                     <!-- Mobile Menu Toggle -->
@@ -748,6 +760,11 @@ $registerRoute = route_path('register');
                     <a href="<?= $catalogRoute ?>" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
+                    <?php if ($eventsEnabled): ?>
+                        <a href="/events" class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
+                            <i class="fas fa-calendar-alt me-2"></i><?= __("Eventi") ?>
+                        </a>
+                    <?php endif; ?>
                     <?php if ($isLogged): ?>
                     <hr class="mobile-menu-divider">
                     <a href="/user/dashboard" class="mobile-nav-link">

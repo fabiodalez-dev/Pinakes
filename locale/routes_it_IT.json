@@ -12,6 +12,7 @@
   "user_dashboard": "/utente/bacheca",
   "wishlist": "/lista-desideri",
   "reservations": "/prenotazioni",
+  "events": "/eventi",
   "catalog": "/catalogo",
   "catalog_legacy": "/catalogo.php",
   "book": "/libro",
