@@ -610,8 +610,18 @@ class Installer {
         $stmt = $pdo->query("SHOW TABLES");
         $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        if (count($tables) !== 38) {
-            throw new Exception("Installazione database non completa. Trovate " . count($tables) . " tabelle, attese 38");
+        $actualTables = array_map('strtolower', $tables);
+        sort($actualTables);
+        $expectedTables = self::EXPECTED_TABLES;
+        sort($expectedTables);
+
+        $missing = array_diff($expectedTables, $actualTables);
+        if (!empty($missing)) {
+            throw new Exception("Installazione database non completa. Tabelle mancanti: " . implode(', ', $missing));
+        }
+
+        if (count($actualTables) !== count($expectedTables)) {
+            throw new Exception("Installazione database non completa. Trovate " . count($actualTables) . " tabelle, attese " . count($expectedTables));
         }
 
         // Check essential data
@@ -961,33 +971,52 @@ HTACCESS;
         // Get database connection
         $pdo = $this->getDatabaseConnection();
 
-        // Insert plugin record
-        $stmt = $pdo->prepare("
-            INSERT INTO plugins (
-                name, display_name, description, version, author, author_url, plugin_url,
-                is_active, path, main_file, requires_php, requires_app, metadata, installed_at
-            ) VALUES (
-                'open-library',
-                'Open Library Scraper',
-                'Integrates Open Library and Google Books APIs for comprehensive book metadata scraping. Supports ISBN lookup with multi-source fallback and encrypted API key storage.',
-                '1.0.0',
-                'Fabio Dal Maso',
-                '',
-                '',
-                1,
-                'open-library',
-                'wrapper.php',
-                '8.1',
-                '1.0.0',
-                '{}',
-                NOW()
-            )
-        ");
-
+        // Insert plugin record only if not already installed
+        $stmt = $pdo->prepare("SELECT id FROM plugins WHERE name = 'open-library' LIMIT 1");
         $stmt->execute();
-        $pluginId = (int)$pdo->lastInsertId();
+        $pluginId = (int)$stmt->fetchColumn();
 
-        // Register plugin hooks
+        if (!$pluginId) {
+            $stmt = $pdo->prepare("
+                INSERT INTO plugins (
+                    name, display_name, description, version, author, author_url, plugin_url,
+                    is_active, path, main_file, requires_php, requires_app, metadata, installed_at
+                ) VALUES (
+                    'open-library',
+                    'Open Library Scraper',
+                    'Integrates Open Library and Google Books APIs for comprehensive book metadata scraping. Supports ISBN lookup with multi-source fallback and encrypted API key storage.',
+                    '1.0.0',
+                    'Fabio Dal Maso',
+                    '',
+                    '',
+                    1,
+                    'open-library',
+                    'wrapper.php',
+                    '8.1',
+                    '1.0.0',
+                    '{}',
+                    NOW()
+                )
+            ");
+
+            $stmt->execute();
+            $pluginId = (int)$pdo->lastInsertId();
+        }
+
+        if (!$pluginId) {
+            throw new Exception("Impossibile determinare l'ID del plugin Open Library.");
+        }
+
+        // Register plugin hooks (avoid duplicates)
+        $existingHooksStmt = $pdo->prepare("SELECT hook_name, callback_method FROM plugin_hooks WHERE plugin_id = ?");
+        $existingHooksStmt->execute([$pluginId]);
+        $existingHooks = $existingHooksStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $existingMap = [];
+        foreach ($existingHooks as $hook) {
+            $existingMap[$hook['hook_name'] . '|' . $hook['callback_method']] = true;
+        }
+
         $hooks = [
             ['scrape.sources', 'addOpenLibrarySource', 5],
             ['scrape.fetch.custom', 'fetchFromOpenLibrary', 5],
@@ -995,6 +1024,11 @@ HTACCESS;
         ];
 
         foreach ($hooks as [$hookName, $callbackMethod, $priority]) {
+            $key = $hookName . '|' . $callbackMethod;
+            if (isset($existingMap[$key])) {
+                continue;
+            }
+
             $stmt = $pdo->prepare("
                 INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
                 VALUES (?, ?, 'OpenLibraryPlugin', ?, ?, 1, NOW())
