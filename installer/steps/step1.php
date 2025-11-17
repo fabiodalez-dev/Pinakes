@@ -27,7 +27,6 @@ if (isset($_POST['fix_permissions'])) {
         'storage/tmp' => $baseDir . '/storage/tmp',
         'storage/uploads' => $baseDir . '/storage/uploads',
         'storage/backups' => $baseDir . '/storage/backups',
-        'backups' => $baseDir . '/backups',
         'public/uploads' => $baseDir . '/public/uploads',
     ];
 
@@ -56,7 +55,9 @@ if (isset($_POST['fix_permissions'])) {
 $directories = [
     'Root Directory' => is_writable($baseDir),
     'Storage Directory' => is_dir($baseDir . '/storage') && is_writable($baseDir . '/storage'),
-    'Backups Directory' => is_dir($baseDir . '/backups') && is_writable($baseDir . '/backups'),
+    'Storage/Uploads Directory' => is_dir($baseDir . '/storage/uploads') && is_writable($baseDir . '/storage/uploads'),
+    'Storage/Backups Directory' => is_dir($baseDir . '/storage/backups') && is_writable($baseDir . '/storage/backups'),
+    'Public Uploads Directory' => is_dir($baseDir . '/public/uploads') && is_writable($baseDir . '/public/uploads'),
 ];
 
 $allRequirementsMet = !in_array(false, array_merge($requirements, $directories), true);
@@ -148,7 +149,7 @@ chmod 777 storage/logs storage/tmp storage/uploads storage/backups
 chmod 777 public/uploads
 
 # Verifica permessi
-ls -la uploads backups storage
+ls -la storage storage/uploads storage/backups public/uploads
 # Output atteso: drwxrwxrwx (777)</pre>
             </div>
         </details>
