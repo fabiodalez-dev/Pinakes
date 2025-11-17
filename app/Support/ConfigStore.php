@@ -6,9 +6,14 @@ namespace App\Support;
 final class ConfigStore
 {
     private const FILE = __DIR__ . '/../../storage/settings.json';
+    private static ?array $runtimeCache = null;
 
     public static function all(): array
     {
+        if (self::$runtimeCache !== null) {
+            return self::$runtimeCache;
+        }
+
         $defaults = [
             'app' => [
                 'name' => 'Pinakes',
@@ -116,7 +121,8 @@ final class ConfigStore
             $defaults = self::mergeRecursiveDistinct($defaults, $dbOverrides);
         }
 
-        return $defaults;
+        self::$runtimeCache = $defaults;
+        return self::$runtimeCache;
     }
 
     public static function get(string $path, $default = null)
@@ -133,6 +139,7 @@ final class ConfigStore
 
     public static function set(string $path, $value): void
     {
+        self::$runtimeCache = null;
         $data = self::all();
         $keys = explode('.', $path);
         $ref =& $data;
@@ -145,6 +152,12 @@ final class ConfigStore
             @mkdir(dirname(self::FILE), 0775, true);
         }
         file_put_contents(self::FILE, json_encode($data, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+        self::$runtimeCache = $data;
+    }
+
+    public static function clearCache(): void
+    {
+        self::$runtimeCache = null;
     }
 
     private static function mergeRecursiveDistinct(array $base, array $replacements): array

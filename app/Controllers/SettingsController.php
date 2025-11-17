@@ -196,7 +196,7 @@ class SettingsController
 
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $this->redirect($response, '/admin/settings?tab=templates');
         }
 
@@ -364,7 +364,7 @@ class SettingsController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $this->redirect($response, '/admin/settings?tab=contacts');
         }
 
@@ -443,7 +443,7 @@ class SettingsController
             ConfigStore::set("contacts.$key", $value);
         }
 
-        $_SESSION['success_message'] = 'Impostazioni contatti aggiornate correttamente.';
+        $_SESSION['success_message'] = __('Impostazioni contatti aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=contacts');
     }
 
@@ -525,7 +525,7 @@ class SettingsController
         ConfigStore::set('cookie_banner.show_analytics', $showAnalytics);
         ConfigStore::set('cookie_banner.show_marketing', $showMarketing);
 
-        $_SESSION['success_message'] = 'Impostazioni privacy aggiornate correttamente.';
+        $_SESSION['success_message'] = __('Impostazioni privacy aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=privacy');
     }
 
@@ -596,7 +596,7 @@ class SettingsController
             ConfigStore::set('cookie_banner.show_marketing', true);
         }
 
-        $_SESSION['success_message'] = 'Impostazioni avanzate aggiornate correttamente.';
+        $_SESSION['success_message'] = __('Impostazioni avanzate aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=advanced');
     }
 
@@ -626,9 +626,9 @@ class SettingsController
             ConfigStore::set('advanced.sitemap_last_generated_at', $generatedAt);
             ConfigStore::set('advanced.sitemap_last_generated_total', $total);
 
-            $_SESSION['success_message'] = sprintf('Sitemap rigenerata con successo (%d URL).', $total);
+            $_SESSION['success_message'] = sprintf(__('Sitemap rigenerata con successo (%d URL).'), $total);
         } catch (\Throwable $exception) {
-            $_SESSION['error_message'] = 'Impossibile rigenerare la sitemap: ' . $exception->getMessage();
+            $_SESSION['error_message'] = sprintf(__('Impossibile rigenerare la sitemap: %s'), $exception->getMessage());
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
@@ -718,8 +718,11 @@ class SettingsController
 
         $enabled = isset($data['api_enabled']) && $data['api_enabled'] === '1' ? '1' : '0';
         $repository->set('api', 'enabled', $enabled);
+        ConfigStore::set('api.enabled', $enabled);
 
-        $_SESSION['success_message'] = $enabled === '1' ? 'API abilitata con successo.' : 'API disabilitata con successo.';
+        $_SESSION['success_message'] = $enabled === '1'
+            ? __('API abilitata con successo.')
+            : __('API disabilitata con successo.');
         return $this->redirect($response, '/admin/settings?tab=advanced');
     }
 
@@ -727,7 +730,7 @@ class SettingsController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $this->redirect($response, '/admin/settings?tab=advanced');
         }
 
@@ -735,7 +738,7 @@ class SettingsController
         $description = trim((string)($data['description'] ?? ''));
 
         if ($name === '') {
-            $_SESSION['error_message'] = 'Il nome dell\'API key è obbligatorio.';
+            $_SESSION['error_message'] = __('Il nome dell\'API key è obbligatorio.');
             return $this->redirect($response, '/admin/settings?tab=advanced');
         }
 
@@ -744,10 +747,10 @@ class SettingsController
             $apiKeyRepo->ensureTable();
             $newKey = $apiKeyRepo->create($name, $description !== '' ? $description : null);
 
-            $_SESSION['success_message'] = 'API key creata con successo.';
+            $_SESSION['success_message'] = __('API key creata con successo.');
             $_SESSION['new_api_key'] = $newKey['api_key']; // Store for one-time display
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = 'Errore nella creazione dell\'API key: ' . $e->getMessage();
+            $_SESSION['error_message'] = sprintf(__('Errore nella creazione dell\'API key: %s'), $e->getMessage());
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
@@ -757,7 +760,7 @@ class SettingsController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $this->redirect($response, '/admin/settings?tab=advanced');
         }
 
@@ -766,9 +769,9 @@ class SettingsController
             $apiKeyRepo->ensureTable();
             $apiKeyRepo->toggleActive($id);
 
-            $_SESSION['success_message'] = 'Stato API key aggiornato con successo.';
+            $_SESSION['success_message'] = __('Stato API key aggiornato con successo.');
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = 'Errore nell\'aggiornamento dello stato dell\'API key: ' . $e->getMessage();
+            $_SESSION['error_message'] = sprintf(__('Errore nell\'aggiornamento dello stato dell\'API key: %s'), $e->getMessage());
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
@@ -778,7 +781,7 @@ class SettingsController
     {
         $data = (array)$request->getParsedBody();
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
             return $this->redirect($response, '/admin/settings?tab=advanced');
         }
 
@@ -787,9 +790,9 @@ class SettingsController
             $apiKeyRepo->ensureTable();
             $apiKeyRepo->delete($id);
 
-            $_SESSION['success_message'] = 'API key eliminata con successo.';
+            $_SESSION['success_message'] = __('API key eliminata con successo.');
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = 'Errore nell\'eliminazione dell\'API key: ' . $e->getMessage();
+            $_SESSION['error_message'] = sprintf(__('Errore nell\'eliminazione dell\'API key: %s'), $e->getMessage());
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');

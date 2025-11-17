@@ -842,6 +842,7 @@ class NotificationService {
                 'related_id' => $row['related_id'] ? (int)$row['related_id'] : null,
                 'is_read' => (bool)$row['is_read'],
                 'created_at' => $row['created_at'],
+                'relative_time' => $this->formatRelativeTime($row['created_at']),
             ];
         }
 
@@ -849,6 +850,43 @@ class NotificationService {
         $stmt->close();
 
         return $notifications;
+    }
+
+    private function formatRelativeTime(?string $timestamp): string
+    {
+        if (empty($timestamp)) {
+            return '';
+        }
+
+        try {
+            $date = new \DateTime($timestamp);
+        } catch (\Exception $e) {
+            return '';
+        }
+
+        $now = new \DateTime('now', $date->getTimezone());
+        $diffSeconds = $now->getTimestamp() - $date->getTimestamp();
+
+        if ($diffSeconds < 60) {
+            return __('Adesso');
+        }
+
+        if ($diffSeconds < 3600) {
+            $minutes = max(1, (int)floor($diffSeconds / 60));
+            return __n('%d minuto fa', '%d minuti fa', $minutes, $minutes);
+        }
+
+        if ($diffSeconds < 86400) {
+            $hours = max(1, (int)floor($diffSeconds / 3600));
+            return __n('%d ora fa', '%d ore fa', $hours, $hours);
+        }
+
+        if ($diffSeconds < 172800) {
+            return __('Ieri');
+        }
+
+        // Fallback to formatted date
+        return $date->format('d/m/Y H:i');
     }
 
     /**

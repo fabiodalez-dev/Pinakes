@@ -1,6 +1,11 @@
 <?php
 use App\Support\HtmlHelper;
 ?>
+<style>
+.api-toggle-track .api-toggle-label-on { display: none; }
+.api-toggle-input:checked + .api-toggle-track .api-toggle-label-on { display: flex; }
+.api-toggle-input:checked + .api-toggle-track .api-toggle-label-off { display: none; }
+</style>
 <section data-settings-panel="advanced" class="settings-panel <?php echo $activeTab === 'advanced' ? 'block' : 'hidden'; ?>">
   <form action="/admin/settings/advanced" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
@@ -436,9 +441,9 @@ use App\Support\HtmlHelper;
                    name="api_enabled"
                    value="1"
                    <?php echo $apiEnabled ? 'checked' : ''; ?>
-                   class="sr-only peer"
+                   class="sr-only peer api-toggle-input"
                    onchange="document.getElementById('api-toggle-form').submit()">
-            <div class="w-20 h-10 bg-white border-4 border-gray-900 rounded-full peer
+            <div class="api-toggle-track w-20 h-10 bg-white border-4 border-gray-900 rounded-full peer
                         peer-checked:bg-gray-900
                         transition-all duration-300 ease-in-out
                         relative cursor-pointer
@@ -448,7 +453,8 @@ use App\Support\HtmlHelper;
                            transition-all duration-300 ease-in-out
                            shadow-lg
                            flex items-center justify-center text-white text-xs font-bold peer-checked:text-gray-900">
-                <?php echo $apiEnabled ? 'ON' : 'OFF'; ?>
+                <span class="api-toggle-label-off uppercase tracking-wide"><?php echo HtmlHelper::e(__('OFF')); ?></span>
+                <span class="api-toggle-label-on uppercase tracking-wide"><?php echo HtmlHelper::e(__('ON')); ?></span>
               </span>
             </div>
           </label>
