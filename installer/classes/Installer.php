@@ -947,6 +947,128 @@ HTACCESS;
     }
 
     /**
+     * Install plugins from ZIP files automatically during installation
+     * Installs: open-library and z39-server
+     */
+    public function installPluginsFromZip() {
+        $pluginZipsDir = dirname(__DIR__) . '/plugins';
+        $pluginsToInstall = ['open-library', 'z39-server'];
+        $installedPlugins = [];
+
+        // Check if plugin ZIPs directory exists
+        if (!is_dir($pluginZipsDir)) {
+            error_log("[Installer] Plugin ZIPs directory not found: $pluginZipsDir");
+            return $installedPlugins;
+        }
+
+        // Load environment for database connection
+        $envPath = $this->baseDir . '/.env';
+        if (!file_exists($envPath)) {
+            error_log("[Installer] .env file not found, cannot install plugins");
+            return $installedPlugins;
+        }
+
+        // Parse .env file
+        $envVars = parse_ini_file($envPath);
+        if (!$envVars) {
+            error_log("[Installer] Failed to parse .env file");
+            return $installedPlugins;
+        }
+
+        // Create mysqli connection for PluginManager
+        $mysqli = new mysqli(
+            $envVars['DB_HOST'],
+            $envVars['DB_USER'],
+            $envVars['DB_PASS'],
+            $envVars['DB_NAME'],
+            (int)($envVars['DB_PORT'] ?? 3306)
+        );
+
+        if ($mysqli->connect_error) {
+            error_log("[Installer] MySQLi connection failed: " . $mysqli->connect_error);
+            return $installedPlugins;
+        }
+
+        $mysqli->set_charset('utf8mb4');
+
+        // Load PluginManager and HookManager
+        require_once $this->baseDir . '/app/Support/HookManager.php';
+        require_once $this->baseDir . '/app/Support/PluginManager.php';
+
+        $hookManager = new App\Support\HookManager($mysqli);
+        $pluginManager = new App\Support\PluginManager($mysqli, $hookManager);
+
+        // Install each plugin
+        foreach ($pluginsToInstall as $pluginName) {
+            $zipPath = $pluginZipsDir . '/' . $pluginName . '.zip';
+
+            if (!file_exists($zipPath)) {
+                error_log("[Installer] Plugin ZIP not found: $zipPath");
+                continue;
+            }
+
+            try {
+                // Check if plugin is already installed
+                $existingPlugin = $pluginManager->getPluginByName($pluginName);
+                if ($existingPlugin) {
+                    error_log("[Installer] Plugin '$pluginName' already installed, skipping");
+                    $installedPlugins[] = [
+                        'name' => $pluginName,
+                        'status' => 'already_installed',
+                        'plugin_id' => $existingPlugin['id']
+                    ];
+                    continue;
+                }
+
+                // Install plugin from ZIP
+                $result = $pluginManager->installFromZip($zipPath);
+
+                if ($result['success']) {
+                    error_log("[Installer] Plugin '$pluginName' installed successfully (ID: {$result['plugin_id']})");
+
+                    // Activate plugin
+                    $activateResult = $pluginManager->activatePlugin($result['plugin_id']);
+
+                    if ($activateResult['success']) {
+                        error_log("[Installer] Plugin '$pluginName' activated successfully");
+                        $installedPlugins[] = [
+                            'name' => $pluginName,
+                            'status' => 'installed_and_activated',
+                            'plugin_id' => $result['plugin_id']
+                        ];
+                    } else {
+                        error_log("[Installer] Failed to activate plugin '$pluginName': {$activateResult['message']}");
+                        $installedPlugins[] = [
+                            'name' => $pluginName,
+                            'status' => 'installed_not_activated',
+                            'plugin_id' => $result['plugin_id'],
+                            'error' => $activateResult['message']
+                        ];
+                    }
+                } else {
+                    error_log("[Installer] Failed to install plugin '$pluginName': {$result['message']}");
+                    $installedPlugins[] = [
+                        'name' => $pluginName,
+                        'status' => 'failed',
+                        'error' => $result['message']
+                    ];
+                }
+            } catch (Exception $e) {
+                error_log("[Installer] Exception installing plugin '$pluginName': " . $e->getMessage());
+                $installedPlugins[] = [
+                    'name' => $pluginName,
+                    'status' => 'error',
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        $mysqli->close();
+
+        return $installedPlugins;
+    }
+
+    /**
      * Delete installer directory for security
      */
     public function deleteInstaller() {
