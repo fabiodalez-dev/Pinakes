@@ -140,20 +140,20 @@ class PluginManager
             // Validate ZIP file
             if (!file_exists($zipPath)) {
                 error_log("❌ [PluginManager] ZIP file not found: $zipPath");
-                return ['success' => false, 'message' => 'File ZIP non trovato.', 'plugin_id' => null];
+                return ['success' => false, 'message' => __('File ZIP non trovato.'), 'plugin_id' => null];
             }
 
             $fileSize = filesize($zipPath);
             if ($fileSize !== false && $fileSize > self::MAX_UPLOAD_BYTES) {
                 error_log("❌ [PluginManager] ZIP too large: {$fileSize} bytes");
-                return ['success' => false, 'message' => 'File ZIP troppo grande. Dimensione massima: 100 MB.', 'plugin_id' => null];
+                return ['success' => false, 'message' => __('File ZIP troppo grande. Dimensione massima: 100 MB.'), 'plugin_id' => null];
             }
 
         $zip = new ZipArchive();
         $zipResult = $zip->open($zipPath);
 
         if ($zipResult !== true) {
-            return ['success' => false, 'message' => 'Impossibile aprire il file ZIP.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Impossibile aprire il file ZIP.'), 'plugin_id' => null];
         }
 
         // Look for plugin.json in root or first directory
@@ -175,7 +175,7 @@ class PluginManager
 
         if (!$pluginJsonPath) {
             $zip->close();
-            return ['success' => false, 'message' => 'File plugin.json non trovato nel pacchetto.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('File plugin.json non trovato nel pacchetto.'), 'plugin_id' => null];
         }
 
         // Read and validate plugin.json
@@ -184,7 +184,7 @@ class PluginManager
 
         if (!$pluginMeta) {
             $zip->close();
-            return ['success' => false, 'message' => 'File plugin.json non valido.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('File plugin.json non valido.'), 'plugin_id' => null];
         }
 
         // Validate required fields
@@ -192,20 +192,20 @@ class PluginManager
         foreach ($requiredFields as $field) {
             if (empty($pluginMeta[$field])) {
                 $zip->close();
-                return ['success' => false, 'message' => "Campo obbligatorio mancante: {$field}", 'plugin_id' => null];
+                return ['success' => false, 'message' => __('Campo obbligatorio mancante: %s', $field), 'plugin_id' => null];
             }
         }
 
         if (!preg_match('/^[a-z0-9_\-]+$/i', $pluginMeta['name'])) {
             $zip->close();
-            return ['success' => false, 'message' => 'Nome plugin non valido. Usa solo lettere, numeri, trattini o underscore.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Nome plugin non valido. Usa solo lettere, numeri, trattini o underscore.'), 'plugin_id' => null];
         }
 
         // Check if plugin already exists
         $existingPlugin = $this->getPluginByName($pluginMeta['name']);
         if ($existingPlugin) {
             $zip->close();
-            return ['success' => false, 'message' => 'Plugin già installato.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Plugin già installato.'), 'plugin_id' => null];
         }
 
         // Check PHP version compatibility
@@ -226,19 +226,19 @@ class PluginManager
 
         if (is_dir($pluginPath)) {
             $zip->close();
-            return ['success' => false, 'message' => 'Directory plugin già esistente.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Directory plugin già esistente.'), 'plugin_id' => null];
         }
 
         if (!mkdir($pluginPath, 0755, true)) {
             $zip->close();
-            return ['success' => false, 'message' => 'Impossibile creare la directory del plugin.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Impossibile creare la directory del plugin.'), 'plugin_id' => null];
         }
 
         $pluginRealPath = realpath($pluginPath);
         if ($pluginRealPath === false || strpos($pluginRealPath, rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR)) !== 0) {
             $zip->close();
             $this->deleteDirectory($pluginPath);
-            return ['success' => false, 'message' => 'Percorso di installazione del plugin non valido.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Percorso di installazione del plugin non valido.'), 'plugin_id' => null];
         }
         $pluginPath = $pluginRealPath;
 
@@ -271,14 +271,14 @@ class PluginManager
             if ($targetPath === null) {
                 $zip->close();
                 $this->deleteDirectory($pluginPath);
-                return ['success' => false, 'message' => 'Il pacchetto contiene percorsi non validi.', 'plugin_id' => null];
+                return ['success' => false, 'message' => __('Il pacchetto contiene percorsi non validi.'), 'plugin_id' => null];
             }
 
             if (str_ends_with($filename, '/')) {
                 if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true)) {
                     $zip->close();
                     $this->deleteDirectory($pluginPath);
-                    return ['success' => false, 'message' => 'Impossibile creare la struttura del plugin.', 'plugin_id' => null];
+                    return ['success' => false, 'message' => __('Impossibile creare la struttura del plugin.'), 'plugin_id' => null];
                 }
                 continue;
             }
@@ -287,14 +287,14 @@ class PluginManager
             if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
                 $zip->close();
                 $this->deleteDirectory($pluginPath);
-                return ['success' => false, 'message' => 'Impossibile creare la struttura del plugin.', 'plugin_id' => null];
+                return ['success' => false, 'message' => __('Impossibile creare la struttura del plugin.'), 'plugin_id' => null];
             }
 
             $content = $zip->getFromIndex($i);
             if ($content === false || file_put_contents($targetPath, $content) === false) {
                 $zip->close();
                 $this->deleteDirectory($pluginPath);
-                return ['success' => false, 'message' => 'Errore durante l\'estrazione del plugin.', 'plugin_id' => null];
+                return ['success' => false, 'message' => __('Errore durante l\'estrazione del plugin.'), 'plugin_id' => null];
             }
 
             $extractedFiles = true;
@@ -304,14 +304,14 @@ class PluginManager
 
         if (!$extractedFiles) {
             $this->deleteDirectory($pluginPath);
-            return ['success' => false, 'message' => 'Il pacchetto non contiene file validi.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Il pacchetto non contiene file validi.'), 'plugin_id' => null];
         }
 
         // Verify main file exists
         $mainFilePath = $pluginPath . '/' . $pluginMeta['main_file'];
         if (!file_exists($mainFilePath)) {
             $this->deleteDirectory($pluginPath);
-            return ['success' => false, 'message' => 'File principale del plugin non trovato.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('File principale del plugin non trovato.'), 'plugin_id' => null];
         }
 
         // Insert plugin into database
@@ -359,7 +359,7 @@ class PluginManager
 
         if (!$result) {
             $this->deleteDirectory($pluginPath);
-            return ['success' => false, 'message' => 'Errore durante il salvataggio nel database.', 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Errore durante il salvataggio nel database.'), 'plugin_id' => null];
         }
 
             // Set plugin ID before running installation hook
@@ -401,11 +401,11 @@ class PluginManager
         $plugin = $this->getPlugin($pluginId);
 
         if (!$plugin) {
-            return ['success' => false, 'message' => 'Plugin non trovato.'];
+            return ['success' => false, 'message' => __('Plugin non trovato.')];
         }
 
         if ($plugin['is_active']) {
-            return ['success' => false, 'message' => 'Plugin già attivo.'];
+            return ['success' => false, 'message' => __('Plugin già attivo.')];
         }
 
         // Load plugin main file
@@ -413,14 +413,14 @@ class PluginManager
         $mainFile = $pluginPath . '/' . $plugin['main_file'];
 
         if (!file_exists($mainFile)) {
-            return ['success' => false, 'message' => 'File principale del plugin non trovato.'];
+            return ['success' => false, 'message' => __('File principale del plugin non trovato.')];
         }
 
         // Run plugin activation hook
         try {
             $this->runPluginMethod($plugin['name'], 'onActivate');
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => 'Errore durante l\'attivazione: ' . $e->getMessage()];
+            return ['success' => false, 'message' => __('Errore durante l\'attivazione: %s', $e->getMessage())];
         }
 
         // Update database
@@ -430,10 +430,10 @@ class PluginManager
         $stmt->close();
 
         if (!$result) {
-            return ['success' => false, 'message' => 'Errore durante l\'attivazione del plugin.'];
+            return ['success' => false, 'message' => __('Errore durante l\'attivazione del plugin.')];
         }
 
-        return ['success' => true, 'message' => 'Plugin attivato con successo.'];
+        return ['success' => true, 'message' => __('Plugin attivato con successo.')];
     }
 
     /**
@@ -447,18 +447,18 @@ class PluginManager
         $plugin = $this->getPlugin($pluginId);
 
         if (!$plugin) {
-            return ['success' => false, 'message' => 'Plugin non trovato.'];
+            return ['success' => false, 'message' => __('Plugin non trovato.')];
         }
 
         if (!$plugin['is_active']) {
-            return ['success' => false, 'message' => 'Plugin già disattivato.'];
+            return ['success' => false, 'message' => __('Plugin già disattivato.')];
         }
 
         // Run plugin deactivation hook
         try {
             $this->runPluginMethod($plugin['name'], 'onDeactivate');
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => 'Errore durante la disattivazione: ' . $e->getMessage()];
+            return ['success' => false, 'message' => __('Errore durante la disattivazione: %s', $e->getMessage())];
         }
 
         // Update database
@@ -468,10 +468,10 @@ class PluginManager
         $stmt->close();
 
         if (!$result) {
-            return ['success' => false, 'message' => 'Errore durante la disattivazione del plugin.'];
+            return ['success' => false, 'message' => __('Errore durante la disattivazione del plugin.')];
         }
 
-        return ['success' => true, 'message' => 'Plugin disattivato con successo.'];
+        return ['success' => true, 'message' => __('Plugin disattivato con successo.')];
     }
 
     /**
@@ -485,7 +485,7 @@ class PluginManager
         $plugin = $this->getPlugin($pluginId);
 
         if (!$plugin) {
-            return ['success' => false, 'message' => 'Plugin non trovato.'];
+            return ['success' => false, 'message' => __('Plugin non trovato.')];
         }
 
         // Deactivate first if active
@@ -511,7 +511,7 @@ class PluginManager
         $stmt->close();
 
         if (!$result) {
-            return ['success' => false, 'message' => 'Errore durante la rimozione dal database.'];
+            return ['success' => false, 'message' => __('Errore durante la rimozione dal database.')];
         }
 
         // Delete plugin directory
@@ -520,7 +520,7 @@ class PluginManager
             $this->deleteDirectory($pluginPath);
         }
 
-        return ['success' => true, 'message' => 'Plugin disinstallato con successo.'];
+        return ['success' => true, 'message' => __('Plugin disinstallato con successo.')];
     }
 
     /**

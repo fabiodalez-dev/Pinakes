@@ -67,7 +67,7 @@ class PluginController
             if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => 'Non autorizzato.'
+                    'message' => __('Non autorizzato.')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
@@ -79,7 +79,7 @@ class PluginController
             if (!Csrf::validate($csrfToken)) {
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => 'Token CSRF non valido.'
+                    'message' => __('Token CSRF non valido.')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
@@ -89,7 +89,7 @@ class PluginController
             if (!isset($uploadedFiles['plugin_file'])) {
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => 'File non trovato nell\'upload.'
+                    'message' => __('File non trovato nell\'upload.')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
@@ -99,7 +99,7 @@ class PluginController
                 error_log("[Plugin Upload] Upload error code: $uploadError");
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => 'Errore durante il caricamento del file (code: ' . $uploadError . ').'
+                    'message' => __('Errore durante il caricamento del file (code: %s).', $uploadError)
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
@@ -113,7 +113,7 @@ class PluginController
             if ($extension !== 'zip') {
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => 'Solo file ZIP sono accettati.'
+                    'message' => __('Solo file ZIP sono accettati.')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
@@ -141,7 +141,7 @@ class PluginController
             error_log("[Plugin Upload] Exception: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Errore interno: ' . $e->getMessage()
+                'message' => __('Errore interno: %s', $e->getMessage())
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -156,7 +156,7 @@ class PluginController
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Non autorizzato.'
+                'message' => __('Non autorizzato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -166,7 +166,7 @@ class PluginController
         if (!Csrf::validate($body['csrf_token'] ?? '')) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Token CSRF non valido.'
+                'message' => __('Token CSRF non valido.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -187,7 +187,7 @@ class PluginController
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Non autorizzato.'
+                'message' => __('Non autorizzato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -197,7 +197,7 @@ class PluginController
         if (!Csrf::validate($body['csrf_token'] ?? '')) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Token CSRF non valido.'
+                'message' => __('Token CSRF non valido.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -218,7 +218,7 @@ class PluginController
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Non autorizzato.'
+                'message' => __('Non autorizzato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -228,7 +228,7 @@ class PluginController
         if (!Csrf::validate($body['csrf_token'] ?? '')) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Token CSRF non valido.'
+                'message' => __('Token CSRF non valido.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -249,7 +249,7 @@ class PluginController
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Non autorizzato.'
+                'message' => __('Non autorizzato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -260,7 +260,7 @@ class PluginController
         if (!$plugin) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Plugin non trovato.'
+                'message' => __('Plugin non trovato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
@@ -283,7 +283,7 @@ class PluginController
             error_log('[PluginController] Unauthorized access attempt');
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Non autorizzato.'
+                'message' => __('Non autorizzato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -295,7 +295,7 @@ class PluginController
             error_log('[PluginController] Invalid CSRF token');
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Token CSRF non valido.'
+                'message' => __('Token CSRF non valido.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -309,7 +309,7 @@ class PluginController
             error_log('[PluginController] Plugin not found: ' . $pluginId);
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Plugin non trovato.'
+                'message' => __('Plugin non trovato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
@@ -321,7 +321,7 @@ class PluginController
             error_log('[PluginController] Invalid settings format');
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Formato impostazioni non valido.'
+                'message' => __('Formato impostazioni non valido.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -331,7 +331,7 @@ class PluginController
             error_log('[PluginController] Plugin does not support settings: ' . $plugin['name']);
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Questo plugin non supporta impostazioni personalizzate.'
+                'message' => __('Questo plugin non supporta impostazioni personalizzate.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -346,8 +346,8 @@ class PluginController
         $response->getBody()->write(json_encode([
             'success' => true,
             'message' => $apiKey !== ''
-                ? 'Chiave Google Books salvata correttamente.'
-                : 'Chiave Google Books rimossa.',
+                ? __('Chiave Google Books salvata correttamente.')
+                : __('Chiave Google Books rimossa.'),
             'data' => [
                 'google_books_api_key' => $apiKey !== '' ? 'saved' : 'removed',
                 'key_length' => $apiKeyLength

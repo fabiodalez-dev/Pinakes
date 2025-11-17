@@ -1,11 +1,13 @@
 :root {
-    --brand-primary: #d70161;
+    --brand-primary: #d60361;
     --brand-primary-dark: #a00049;
-    --brand-dark: #0f172a;
+    --brand-dark: #000000;
     --brand-muted: #6b7280;
     --brand-border: #e2e8f0;
     --brand-bg: #f8f9fb;
     --brand-white: #ffffff;
+    --brand-silver: #c0c0c0;
+    --brand-light-bg: #eec5d7;
 }
 
 * {
@@ -16,8 +18,7 @@
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(215, 1, 97, 0.85));
-    background-attachment: fixed;
+    background: #f8f9fb;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -37,7 +38,7 @@ body {
 }
 
 .installer-hero {
-    background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 55%), var(--brand-dark);
+    background: var(--brand-dark);
     padding: 32px;
     display: flex;
     align-items: center;
@@ -92,9 +93,11 @@ body {
 }
 
 .installer-header {
-    padding: 28px 32px 16px;
-    background: linear-gradient(120deg, rgba(215, 1, 97, 0.08), rgba(15, 23, 42, 0.02));
-    border-bottom: 1px solid var(--brand-border);
+    background: #000000;
+    color: white;
+    padding: 30px;
+    text-align: center;
+    border-bottom: 3px solid #d60361;
 }
 
 .step-chip {
@@ -103,7 +106,7 @@ body {
     gap: 8px;
     padding: 6px 16px;
     border-radius: 999px;
-    background: rgba(215, 1, 97, 0.12);
+    background: var(--brand-light-bg);
     color: var(--brand-primary);
     font-weight: 600;
     font-size: 0.85rem;
@@ -148,6 +151,7 @@ body {
     width: 100%;
     height: 2px;
     background: var(--brand-border);
+    z-index: 1;
 }
 
 .progress-step.completed:not(:last-child)::after {
@@ -166,20 +170,22 @@ body {
     font-weight: 600;
     color: var(--brand-muted);
     background: var(--brand-bg);
+    position: relative;
+    z-index: 2;
 }
 
 .progress-step.active .step-node {
     border-color: var(--brand-primary);
     color: var(--brand-primary);
     background: var(--brand-white);
-    box-shadow: 0 0 0 4px rgba(215, 1, 97, 0.15);
+    box-shadow: 0 0 0 4px var(--brand-light-bg);
 }
 
 .progress-step.completed .step-node {
     background: var(--brand-primary);
     border-color: var(--brand-primary);
     color: #fff;
-    box-shadow: 0 0 0 4px rgba(215, 1, 97, 0.15);
+    box-shadow: 0 0 0 4px var(--brand-light-bg);
 }
 
 .progress-step .step-label {
@@ -237,7 +243,7 @@ body {
 .form-select:focus {
     outline: none;
     border-color: var(--brand-primary);
-    box-shadow: 0 0 0 4px rgba(215, 1, 97, 0.12);
+    box-shadow: 0 0 0 4px var(--brand-light-bg);
 }
 
 .form-row {
@@ -267,27 +273,27 @@ body {
 }
 
 .alert-success {
-    background: #ecfdf5;
-    border-color: #86efac;
-    color: #065f46;
+    background: var(--brand-light-bg);
+    border-color: var(--brand-light-bg);
+    color: var(--brand-dark);
 }
 
 .alert-error {
-    background: #fee2e2;
-    border-color: #fca5a5;
-    color: #991b1b;
+    background: #ffe0e8;
+    border-color: var(--brand-primary);
+    color: var(--brand-primary-dark);
 }
 
 .alert-warning {
-    background: #fef3c7;
-    border-color: #fcd34d;
-    color: #92400e;
+    background: var(--brand-bg);
+    border-color: var(--brand-silver);
+    color: var(--brand-dark);
 }
 
 .alert-info {
-    background: #dbeafe;
-    border-color: #93c5fd;
-    color: #1d4ed8;
+    background: var(--brand-bg);
+    border-color: var(--brand-border);
+    color: var(--brand-dark);
 }
 
 .requirements-list {
@@ -307,15 +313,15 @@ body {
 }
 
 .requirements-list li.met {
-    background: #ecfdf5;
-    color: #065f46;
-    border-color: #86efac;
+    background: var(--brand-light-bg);
+    color: var(--brand-dark);
+    border-color: var(--brand-light-bg);
 }
 
 .requirements-list li.not-met {
-    background: #fee2e2;
-    color: #991b1b;
-    border-color: #fca5a5;
+    background: #ffe0e8;
+    color: var(--brand-primary-dark);
+    border-color: var(--brand-primary);
 }
 
 .btn {
@@ -342,7 +348,7 @@ body {
 .btn-primary {
     background: var(--brand-primary);
     color: #fff;
-    box-shadow: 0 15px 35px rgba(215, 1, 97, 0.35);
+    box-shadow: 0 4px 12px rgba(214, 3, 97, 0.25);
 }
 
 .btn-primary:hover {
@@ -362,13 +368,13 @@ body {
 }
 
 .btn-warning {
-    background: #fbbf24;
-    color: #78350f;
+    background: var(--brand-silver);
+    color: var(--brand-dark);
 }
 
 .btn-warning:hover {
-    background: #f59e0b;
-    color: #451a03;
+    background: #a8a8a8;
+    color: var(--brand-dark);
 }
 
 .btn:disabled {
@@ -403,7 +409,8 @@ body {
 
 .language-option.selected {
     border-color: var(--brand-primary);
-    box-shadow: 0 20px 45px rgba(215, 1, 97, 0.18);
+    background: var(--brand-light-bg);
+    box-shadow: 0 4px 12px rgba(214, 3, 97, 0.15);
 }
 
 .language-radio {
@@ -426,7 +433,7 @@ body {
 
 .file-upload-label:hover {
     border-color: var(--brand-primary);
-    background: rgba(215, 1, 97, 0.04);
+    background: var(--brand-light-bg);
 }
 
 .file-upload-label i {
