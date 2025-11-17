@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace Z39Server;
 
+use Z39Server\Exceptions\InvalidCQLSyntaxException;
+use Z39Server\Exceptions\UnsupportedRelationException;
+
 /**
  * Minimal CQL parser that builds an AST supporting boolean operators, parentheses
  * and the basic relation operators defined by SRU 1.2.
@@ -21,7 +24,7 @@ class CQLParser
     {
         $query = trim($query);
         if ($query === '') {
-            throw new \Exception('Empty query');
+            throw new InvalidCQLSyntaxException('Empty query');
         }
 
         $this->tokens = $this->tokenize($query);
@@ -30,7 +33,7 @@ class CQLParser
         $ast = $this->parseOrExpression();
 
         if ($this->peek() !== null) {
-            throw new \Exception('Unexpected token near "' . ($this->peek()['value'] ?? '') . '"');
+            throw new InvalidCQLSyntaxException('Unexpected token near "' . ($this->peek()['value'] ?? '') . '"');
         }
 
         return $ast;
@@ -89,6 +92,9 @@ class CQLParser
                     }
                     $value .= $current;
                     $i++;
+                }
+                if ($i > $length + 1) {
+                    throw new InvalidCQLSyntaxException('Unterminated string literal');
                 }
                 $tokens[] = ['type' => 'STRING', 'value' => $value];
                 continue;
@@ -183,7 +189,7 @@ class CQLParser
     {
         $token = $this->peek();
         if ($token === null) {
-            throw new \Exception('Unexpected end of query');
+            throw new InvalidCQLSyntaxException('Unexpected end of query');
         }
 
         if ($token['type'] === '(') {
@@ -203,7 +209,7 @@ class CQLParser
     {
         $token = $this->peek();
         if ($token === null) {
-            throw new \Exception('Unexpected end of condition');
+            throw new InvalidCQLSyntaxException('Unexpected end of condition');
         }
 
         if ($token['type'] === 'WORD') {
@@ -254,7 +260,7 @@ class CQLParser
             return $token['value'];
         }
 
-        throw new \Exception('Expected relation operator near "' . ($token['value'] ?? '') . '"');
+        throw new UnsupportedRelationException('Expected relation operator near "' . ($token['value'] ?? '') . '"');
     }
 
     private function consumeValueToken(): array
@@ -264,6 +270,6 @@ class CQLParser
             return ['type' => 'VALUE', 'value' => $token['value']];
         }
 
-        throw new \Exception('Expected search term near "' . ($token['value'] ?? '') . '"');
+        throw new InvalidCQLSyntaxException('Expected search term near "' . ($token['value'] ?? '') . '"');
     }
 }

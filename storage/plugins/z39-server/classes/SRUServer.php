@@ -295,29 +295,19 @@ class SRUServer
 
             $sqlQuery = $this->buildSearchQuery($ast, $startRecord, $maximumRecords);
 
-            // Execute query
-            $result = $this->db->query($sqlQuery['count']);
-            if ($result) {
-                $row = $result->fetch_row();
-                $totalRecords = $row ? (int)$row[0] : 0;
-                $result->free();
-            } else {
-                $totalRecords = 0;
-            }
-
-            $result = $this->db->query($sqlQuery['data']);
-            $records = [];
-            if ($result) {
-                while ($row = $result->fetch_assoc()) {
-                    $records[] = $row;
-                }
-                $result->free();
-            }
+            $totalRecords = $this->executeCountQuery($sqlQuery['count']);
+            $records = $this->executeDataQuery($sqlQuery['data']);
 
             // Format response
             return $this->formatSearchResponse($version, $query, $totalRecords, $startRecord, count($records), $records, $recordSchema);
+        } catch (\Z39Server\Exceptions\UnsupportedIndexException $e) {
+            return $this->errorResponse(16, $e->getMessage(), $version);
+        } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException|\Z39Server\Exceptions\UnsupportedRelationException $e) {
+            return $this->errorResponse(10, $e->getMessage(), $version);
+        } catch (\Z39Server\Exceptions\DatabaseException $e) {
+            return $this->errorResponse(1, 'Database error: ' . $e->getMessage(), $version);
         } catch (\Exception $e) {
-            return $this->errorResponse(10, 'Query syntax error: ' . $e->getMessage(), $version);
+            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
         }
     }
 
@@ -347,8 +337,14 @@ class SRUServer
             $terms = $this->performScanQuery($condition['index'], $condition['value'], $maximumTerms);
 
             return $this->formatScanResponse($version, $scanClause, $terms, $responsePosition);
+        } catch (\Z39Server\Exceptions\UnsupportedIndexException $e) {
+            return $this->errorResponse(16, $e->getMessage(), $version);
+        } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException|\Z39Server\Exceptions\UnsupportedRelationException $e) {
+            return $this->errorResponse(10, $e->getMessage(), $version);
+        } catch (\Z39Server\Exceptions\DatabaseException $e) {
+            return $this->errorResponse(1, 'Database error: ' . $e->getMessage(), $version);
         } catch (\Exception $e) {
-            return $this->errorResponse(10, 'Scan clause syntax error: ' . $e->getMessage(), $version);
+            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
         }
     }
 
@@ -389,6 +385,39 @@ class SRUServer
                 ORDER BY l.id
                 LIMIT " . (int)$maximumRecords . " OFFSET " . (int)$offset
         ];
+    }
+
+    private function executeCountQuery(string $sql): int
+    {
+        try {
+            $result = $this->db->query($sql);
+            if ($result) {
+                $row = $result->fetch_row();
+                $count = $row ? (int)$row[0] : 0;
+                $result->free();
+                return $count;
+            }
+            return 0;
+        } catch (\mysqli_sql_exception $e) {
+            throw new \Z39Server\Exceptions\DatabaseException($e->getMessage(), (int)$e->getCode(), $e);
+        }
+    }
+
+    private function executeDataQuery(string $sql): array
+    {
+        try {
+            $result = $this->db->query($sql);
+            $records = [];
+            if ($result) {
+                while ($row = $result->fetch_assoc()) {
+                    $records[] = $row;
+                }
+                $result->free();
+            }
+            return $records;
+        } catch (\mysqli_sql_exception $e) {
+            throw new \Z39Server\Exceptions\DatabaseException($e->getMessage(), (int)$e->getCode(), $e);
+        }
     }
 
     /**
@@ -706,17 +735,22 @@ class SRUServer
         }
 
         $terms = [];
-        $result = $this->db->query($sql);
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                if (!empty($row['term'])) {
-                    $terms[] = [
-                        'value' => $row['term'],
-                        'frequency' => (int)($row['frequency'] ?? 0),
-                    ];
+        $terms = [];
+        try {
+            $result = $this->db->query($sql);
+            if ($result) {
+                while ($row = $result->fetch_assoc()) {
+                    if (!empty($row['term'])) {
+                        $terms[] = [
+                            'value' => $row['term'],
+                            'frequency' => (int)($row['frequency'] ?? 0),
+                        ];
+                    }
                 }
+                $result->free();
             }
-            $result->free();
+        } catch (\mysqli_sql_exception $e) {
+            throw new \Z39Server\Exceptions\DatabaseException($e->getMessage(), (int)$e->getCode(), $e);
         }
 
         return $terms;
