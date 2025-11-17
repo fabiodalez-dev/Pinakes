@@ -1,7 +1,0 @@
-# Prevent accidental web access to raw SQL backups
-<IfModule mod_authz_core.c>
-    Require all denied
-</IfModule>
-<IfModule !mod_authz_core.c>
-    Deny from all
-</IfModule>
