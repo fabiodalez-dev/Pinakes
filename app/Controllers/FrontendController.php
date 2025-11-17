@@ -143,6 +143,23 @@ class FrontendController
                     $homeEvents[] = $eventRow;
                 }
             }
+
+            // Fallback: if no upcoming events, show latest active events
+            if (empty($homeEvents)) {
+                $fallbackQuery = "
+                    SELECT id, title, slug, event_date, event_time, featured_image
+                    FROM events
+                    WHERE is_active = 1
+                    ORDER BY event_date DESC, created_at DESC
+                    LIMIT 3
+                ";
+                $fallbackResult = $db->query($fallbackQuery);
+                if ($fallbackResult) {
+                    while ($eventRow = $fallbackResult->fetch_assoc()) {
+                        $homeEvents[] = $eventRow;
+                    }
+                }
+            }
         }
 
         $homeEventsEnabled = $eventsFeatureEnabled && !empty($homeEvents);
