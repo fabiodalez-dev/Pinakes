@@ -460,11 +460,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      let csvContent = "Nome,Sito Web,Stato\n";
+      let csvContent = `${window.__('Nome')},${window.__('Sito Web')},${window.__('Stato')}\n`;
       currentData.forEach(row => {
         const nome = (row.nome || '').replace(/"/g, '""');
         const sitoWeb = (row.sito_web || '').replace(/"/g, '""');
-        const stato = "Attivo";
+        const stato = window.__('Attivo');
         csvContent += `"${nome}","${sitoWeb}","${stato}"\n`;
       });
 
@@ -542,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (row.via) indirizzoParts.push(row.via);
       if (row.cap) indirizzoParts.push(row.cap);
       const indirizzo = indirizzoParts.join(' ') || '-';
-      const citta = (row.citta || 'N/D');
+      const citta = (row.citta || window.__('N/D'));
 
       const rowData = [nome, sitoWeb, indirizzo, citta];
       rowData.forEach((cell, i) => {

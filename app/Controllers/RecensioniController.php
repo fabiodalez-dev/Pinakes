@@ -52,7 +52,7 @@ class RecensioniController
     {
         // Verifica autenticazione
         if (empty($_SESSION['user']['id'])) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Non autenticato']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Non autenticato')]));
             return $response
                 ->withHeader('Content-Type', 'application/json')
                 ->withStatus(401);
@@ -74,7 +74,7 @@ class RecensioniController
         $csrfToken = $body['csrf_token'] ?? '';
 
         if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Token CSRF non valido']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
             return $response
                 ->withHeader('Content-Type', 'application/json')
                 ->withStatus(403);
@@ -87,22 +87,22 @@ class RecensioniController
         $descrizione = trim($body['descrizione'] ?? '');
 
         if ($libroId <= 0) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'ID libro non valido']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID libro non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         if ($stelle < 1 || $stelle > 5) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Valutazione non valida (1-5 stelle)']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Valutazione non valida (1-5 stelle)')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         if (strlen($titolo) > 255) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Titolo troppo lungo (max 255 caratteri)']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Titolo troppo lungo (max 255 caratteri)')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         if (strlen($descrizione) > 2000) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Descrizione troppo lunga (max 2000 caratteri)']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Descrizione troppo lunga (max 2000 caratteri)')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -112,7 +112,7 @@ class RecensioniController
         if (!$repository->canUserReview($userId, $libroId)) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Non puoi recensire questo libro (devi averlo preso in prestito e non averlo già recensito)'
+                'message' => __('Non puoi recensire questo libro (devi averlo preso in prestito e non averlo già recensito)')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
@@ -128,7 +128,7 @@ class RecensioniController
             ]);
 
             if (!$reviewId) {
-                $response->getBody()->write(json_encode(['success' => false, 'message' => 'Errore nella creazione della recensione']));
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore nella creazione della recensione')]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
 
@@ -143,7 +143,7 @@ class RecensioniController
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => 'Recensione inviata con successo! Sarà pubblicata dopo l\'approvazione di un amministratore.',
+                'message' => __('Recensione inviata con successo! Sarà pubblicata dopo l\'approvazione di un amministratore.'),
                 'review_id' => $reviewId
             ]));
 
@@ -153,7 +153,7 @@ class RecensioniController
             error_log("Error creating review: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => 'Errore del server: ' . $e->getMessage()
+                'message' => __('Errore del server') . ': ' . $e->getMessage()
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }

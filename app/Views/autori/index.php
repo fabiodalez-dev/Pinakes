@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', function() {
       dataSrc: function(json) {
         // Update total count
         const totalCount = json.recordsTotal || 0;
-        document.getElementById('total-count').textContent = totalCount.toLocaleString() + ' autori';
+        document.getElementById('total-count').textContent = totalCount.toLocaleString() + ' ' + window.__('autori');
         return json.data;
       }
     },
@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       // Create CSV content
-      let csvContent = "Nome,Pseudonimo,Nazionalita,Sito Web,Biografia\n";
+      let csvContent = `${window.__('Nome')},${window.__('Pseudonimo')},${window.__('Nazionalità')},${window.__('Sito Web')},${window.__('Biografia')}\n`;
       currentData.forEach(row => {
         const nome = (row.nome || '').replace(/"/g, '""');
         const pseudonimo = (row.pseudonimo || '').replace(/"/g, '""');
@@ -542,14 +542,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Title
     doc.setFontSize(18);
-    doc.text('Elenco Autori - Biblioteca', 14, 22);
-    
+    doc.text(window.__('Elenco Autori - Biblioteca'), 14, 22);
+
     // Date
     doc.setFontSize(11);
-    doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
-    
+    doc.text(`${window.__('Generato il')}: ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
+
     // Total count
-    doc.text(`Totale autori: ${data.length}`, 14, 38);
+    doc.text(`${window.__('Totale autori')}: ${data.length}`, 14, 38);
     
     // Table headers
     const headers = [__('Nome'), __('Pseudonimo'), __('Nazionalità'), __('Libri')];

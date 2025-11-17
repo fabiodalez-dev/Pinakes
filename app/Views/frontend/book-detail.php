@@ -1853,7 +1853,7 @@ ob_start();
                             </a>
                         </h5>
                         <p class="related-book-author">
-                            <?= htmlspecialchars($related['autori'] ?? 'Autore sconosciuto') ?>
+                            <?= htmlspecialchars($related['autori'] ?? __('Autore sconosciuto')) ?>
                         </p>
                         <div class="related-book-actions">
                             <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"
