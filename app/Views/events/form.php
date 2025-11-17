@@ -88,6 +88,12 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
           <!-- Uppy Upload Area -->
           <div id="uppy-event-upload" class="mb-4"></div>
           <div id="uppy-event-progress" class="mb-4"></div>
+          <div id="event-image-preview" class="hidden rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+            <img src="" alt="<?= __("Anteprima immagine caricata") ?>" class="w-full h-60 object-cover" id="event-image-preview-img">
+            <div class="px-4 py-2 text-xs text-gray-500" id="event-image-preview-text">
+              <?= __("Anteprima immagine caricata") ?>
+            </div>
+          </div>
           <!-- Fallback file input (hidden, used by Uppy) -->
           <input type="file" name="featured_image" accept="image/jpeg,image/jpg,image/png,image/webp"
                  style="display: none;" id="event-image-input">
@@ -95,8 +101,8 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
         </div>
 
         <!-- Date and Time -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start md:items-stretch">
+          <div class="flex flex-col h-full">
             <label for="event_date" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __("Data Evento") ?> <span class="text-red-500">*</span>
             </label>
@@ -110,7 +116,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               required
             >
           </div>
-          <div>
+          <div class="flex flex-col h-full">
             <label for="event_time" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __("Ora Evento") ?>
             </label>
@@ -369,14 +375,16 @@ document.addEventListener('DOMContentLoaded', function() {
     tinymce.init({
       selector: '#event_content',
       license_key: 'gpl',
-      height: 500,
+      height: 520,
       menubar: true,
+      toolbar_mode: 'wrap',
+      toolbar_sticky: true,
       plugins: [
         'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
         'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
         'insertdatetime', 'media', 'table', 'help', 'wordcount'
       ],
-      toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | removeformat | help',
+      toolbar: 'undo redo | blocks | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | removeformat | code fullscreen help',
       style_formats: [
         { title: '<?= addslashes(__('Paragrafo')) ?>', format: 'p' },
         { title: '<?= addslashes(__('Titolo 1')) ?>', format: 'h1' },
@@ -392,6 +400,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize Uppy for event image
   try {
     if (typeof Uppy !== 'undefined' && typeof UppyDragDrop !== 'undefined' && typeof UppyProgressBar !== 'undefined') {
+      const fileInput = document.getElementById('event-image-input');
+      const previewWrapper = document.getElementById('event-image-preview');
+      const previewImage = document.getElementById('event-image-preview-img');
+      const previewText = document.getElementById('event-image-preview-text');
+
       const uppyEvent = new Uppy({
         restrictions: {
           maxFileSize: 5 * 1024 * 1024, // 5MB
@@ -417,30 +430,56 @@ document.addEventListener('DOMContentLoaded', function() {
         hideAfterFinish: false
       });
 
+      const updatePreview = (fileObj) => {
+        if (!previewWrapper || !previewImage) {
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewImage.src = e.target?.result || '';
+          previewWrapper.classList.remove('hidden');
+          if (previewText) {
+            previewText.textContent = '<?= addslashes(__("Anteprima immagine caricata")) ?>';
+          }
+        };
+        reader.readAsDataURL(fileObj);
+      };
+
       // Handle file added
       uppyEvent.on('file-added', (file) => {
-        const fileInput = document.getElementById('event-image-input');
         const dataTransfer = new DataTransfer();
+        let normalizedFile = null;
 
-        fetch(file.data instanceof File ? URL.createObjectURL(file.data) : file.preview)
-          .then(res => res.blob())
-          .then(blob => {
-            const newFile = new File([blob], file.name, { type: file.type });
-            dataTransfer.items.add(newFile);
-            fileInput.files = dataTransfer.files;
-          })
-          .catch(err => {
-            console.error('Error converting file:', err);
-            if (file.data instanceof File) {
-              dataTransfer.items.add(file.data);
+        if (file.data instanceof File) {
+          normalizedFile = file.data;
+        } else if (file.data instanceof Blob) {
+          normalizedFile = new File([file.data], file.name, { type: file.type });
+        } else if (file.preview) {
+          fetch(file.preview)
+            .then(res => res.blob())
+            .then(blob => {
+              const fetchedFile = new File([blob], file.name, { type: file.type });
+              dataTransfer.items.add(fetchedFile);
               fileInput.files = dataTransfer.files;
-            }
-          });
+              updatePreview(fetchedFile);
+            })
+            .catch(err => console.error('Error loading preview blob:', err));
+          return;
+        }
+
+        if (normalizedFile) {
+          dataTransfer.items.add(normalizedFile);
+          fileInput.files = dataTransfer.files;
+          updatePreview(normalizedFile);
+        }
       });
 
       // Handle file removed
       uppyEvent.on('file-removed', (file) => {
         document.getElementById('event-image-input').value = '';
+        if (previewWrapper) {
+          previewWrapper.classList.add('hidden');
+        }
       });
 
       uppyEvent.on('restriction-failed', (file, error) => {

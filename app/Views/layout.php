@@ -561,6 +561,7 @@ $appVersion = $versionData['version'] ?? '0.1.0';
       };
     </script>
     <script src="/assets/vendor.bundle.js"></script>
+    <script src="/assets/tinymce/tinymce.min.js"></script>
     <script src="/assets/flatpickr-init.js"></script>
     <script src="/assets/main.bundle.js"></script>
     <script src="/assets/js/csrf-helper.js"></script>

@@ -1048,6 +1048,32 @@ HTACCESS;
         $pdo = $this->getDatabaseConnection();
         $results = [];
 
+        // Helper to ensure hooks exist
+        $ensureHooks = function(int $pluginId, array $hooks, string $callbackClass) use ($pdo) {
+            $existing = $pdo->prepare("SELECT hook_name, callback_method FROM plugin_hooks WHERE plugin_id = ?");
+            $existing->execute([$pluginId]);
+            $existingMap = [];
+            foreach ($existing->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $existingMap[$row['hook_name'] . '|' . $row['callback_method']] = true;
+            }
+
+            foreach ($hooks as $hook) {
+                $hookName = $hook['name'];
+                $callbackMethod = $hook['callback_method'] ?? ('handle' . ucfirst(str_replace('.', '', $hookName)));
+                $priority = $hook['priority'] ?? 10;
+                $key = $hookName . '|' . $callbackMethod;
+                if (isset($existingMap[$key])) {
+                    continue;
+                }
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, 1, NOW())
+                ");
+                $stmt->execute([$pluginId, $hookName, $callbackClass, $callbackMethod, $priority]);
+            }
+        };
+
         // Plugin 1: Open Library
         try {
             $pluginDir = $this->baseDir . '/storage/plugins/open-library';
@@ -1057,39 +1083,38 @@ HTACCESS;
             } else {
                 $pluginJson = json_decode(file_get_contents($pluginDir . '/plugin.json'), true);
 
-                $stmt = $pdo->prepare("
-                    INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
-                        is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
-                    VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
-                        1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
-                ");
+                $stmt = $pdo->prepare("SELECT id FROM plugins WHERE name = :name LIMIT 1");
+                $stmt->execute(['name' => $pluginJson['name']]);
+                $pluginId = (int)$stmt->fetchColumn();
 
-                $stmt->execute([
-                    'name' => $pluginJson['name'],
-                    'display_name' => $pluginJson['display_name'],
-                    'description' => $pluginJson['description'],
-                    'version' => $pluginJson['version'],
-                    'author' => $pluginJson['author'],
-                    'author_url' => $pluginJson['author_url'] ?? '',
-                    'plugin_url' => $pluginJson['plugin_url'] ?? '',
-                    'path' => 'open-library',
-                    'main_file' => $pluginJson['main_file'],
-                    'requires_php' => $pluginJson['requires_php'],
-                    'requires_app' => $pluginJson['requires_app'],
-                    'metadata' => json_encode($pluginJson['metadata'] ?? [])
-                ]);
-
-                $pluginId = (int)$pdo->lastInsertId();
-
-                // Register hooks
-                $hooks = $pluginJson['metadata']['hooks'] ?? [];
-                foreach ($hooks as $hook) {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
-                        VALUES (?, ?, 'OpenLibraryPlugin', ?, ?, 1, NOW())
+                if (!$pluginId) {
+                    $insertStmt = $pdo->prepare("
+                        INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
+                            is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
+                        VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
+                            1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
                     ");
-                    $stmt->execute([$pluginId, $hook['name'], 'handle' . ucfirst(str_replace('.', '', $hook['name'])), $hook['priority']]);
+
+                    $insertStmt->execute([
+                        'name' => $pluginJson['name'],
+                        'display_name' => $pluginJson['display_name'],
+                        'description' => $pluginJson['description'],
+                        'version' => $pluginJson['version'],
+                        'author' => $pluginJson['author'],
+                        'author_url' => $pluginJson['author_url'] ?? '',
+                        'plugin_url' => $pluginJson['plugin_url'] ?? '',
+                        'path' => 'open-library',
+                        'main_file' => $pluginJson['main_file'],
+                        'requires_php' => $pluginJson['requires_php'],
+                        'requires_app' => $pluginJson['requires_app'],
+                        'metadata' => json_encode($pluginJson['metadata'] ?? [])
+                    ]);
+
+                    $pluginId = (int)$pdo->lastInsertId();
                 }
+
+                $hooks = $pluginJson['metadata']['hooks'] ?? [];
+                $ensureHooks($pluginId, $hooks, 'OpenLibraryPlugin');
 
                 $results[] = ['name' => 'open-library', 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
             }
@@ -1106,36 +1131,44 @@ HTACCESS;
             } else {
                 $pluginJson = json_decode(file_get_contents($pluginDir . '/plugin.json'), true);
 
-                $stmt = $pdo->prepare("
-                    INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
-                        is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
-                    VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
-                        1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
-                ");
+                $stmt = $pdo->prepare("SELECT id FROM plugins WHERE name = :name LIMIT 1");
+                $stmt->execute(['name' => $pluginJson['name']]);
+                $pluginId = (int)$stmt->fetchColumn();
 
-                $stmt->execute([
-                    'name' => $pluginJson['name'],
-                    'display_name' => $pluginJson['display_name'],
-                    'description' => $pluginJson['description'],
-                    'version' => $pluginJson['version'],
-                    'author' => $pluginJson['author'],
-                    'author_url' => $pluginJson['author_url'] ?? '',
-                    'plugin_url' => $pluginJson['plugin_url'] ?? '',
-                    'path' => 'z39-server',
-                    'main_file' => $pluginJson['main_file'],
-                    'requires_php' => $pluginJson['requires_php'],
-                    'requires_app' => $pluginJson['requires_app'],
-                    'metadata' => json_encode($pluginJson['metadata'] ?? [])
-                ]);
+                if (!$pluginId) {
+                    $insertStmt = $pdo->prepare("
+                        INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
+                            is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
+                        VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
+                            1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
+                    ");
 
-                $pluginId = (int)$pdo->lastInsertId();
+                    $insertStmt->execute([
+                        'name' => $pluginJson['name'],
+                        'display_name' => $pluginJson['display_name'],
+                        'description' => $pluginJson['description'],
+                        'version' => $pluginJson['version'],
+                        'author' => $pluginJson['author'],
+                        'author_url' => $pluginJson['author_url'] ?? '',
+                        'plugin_url' => $pluginJson['plugin_url'] ?? '',
+                        'path' => 'z39-server',
+                        'main_file' => $pluginJson['main_file'],
+                        'requires_php' => $pluginJson['requires_php'],
+                        'requires_app' => $pluginJson['requires_app'],
+                        'metadata' => json_encode($pluginJson['metadata'] ?? [])
+                    ]);
+
+                    $pluginId = (int)$pdo->lastInsertId();
+                }
 
                 // Register hook for route registration
-                $stmt = $pdo->prepare("
-                    INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
-                    VALUES (?, 'app.routes.register', 'Z39ServerPlugin', 'registerRoutes', 10, 1, NOW())
-                ");
-                $stmt->execute([$pluginId]);
+                $ensureHooks($pluginId, [
+                    [
+                        'name' => 'app.routes.register',
+                        'callback_method' => 'registerRoutes',
+                        'priority' => 10
+                    ]
+                ], 'Z39ServerPlugin');
 
                 $results[] = ['name' => 'z39-server', 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
             }
