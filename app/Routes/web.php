@@ -678,6 +678,12 @@ return function (App $app): void {
         return $controller->index($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/cms/events/toggle-visibility', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\EventsController();
+        return $controller->toggleVisibility($request, $response, $db);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
     $app->get('/admin/cms/events/create', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();

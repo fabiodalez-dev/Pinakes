@@ -1,12 +1,13 @@
 <?php
 use App\Support\HtmlHelper;
+use App\Support\Csrf;
 ?>
 
 <div class="min-h-screen bg-gray-50 py-8">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
     <!-- Header -->
-    <div class="mb-8">
+    <div class="mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
@@ -24,6 +25,53 @@ use App\Support\HtmlHelper;
           </a>
         </div>
       </div>
+    </div>
+
+    <!-- Visibility Toggle Card -->
+    <div class="mb-6 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <form action="/admin/cms/events/toggle-visibility" method="post" id="visibilityForm">
+        <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e(Csrf::ensureToken()) ?>">
+
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div class="flex-1">
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-12 h-12 rounded-xl <?= $eventsEnabled ? 'bg-green-100' : 'bg-gray-100' ?> flex items-center justify-center">
+                <i class="fas <?= $eventsEnabled ? 'fa-eye text-green-600' : 'fa-eye-slash text-gray-400' ?> text-xl"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">
+                  <?= __("Visibilità Sezione Eventi") ?>
+                </h3>
+                <p class="text-sm <?= $eventsEnabled ? 'text-green-600 font-medium' : 'text-gray-500' ?>">
+                  <?= $eventsEnabled ? __("Abilitata - Visibile nel frontend") : __("Disabilitata - Nascosta nel frontend") ?>
+                </p>
+              </div>
+            </div>
+            <p class="text-sm text-gray-600 mt-2">
+              <?= __("Quando la sezione è abilitata, il menu Eventi e tutte le pagine eventi saranno visibili agli utenti nel frontend. Quando è disabilitata, tutto sarà nascosto.") ?>
+            </p>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="events_enabled"
+                value="1"
+                <?= $eventsEnabled ? 'checked' : '' ?>
+                class="toggle-checkbox sr-only"
+                onchange="document.getElementById('visibilityForm').submit()"
+              >
+              <div class="toggle-switch">
+                <div class="toggle-slider"></div>
+              </div>
+              <span class="text-sm font-medium text-gray-700">
+                <?= $eventsEnabled ? __("Abilitata") : __("Disabilitata") ?>
+              </span>
+            </label>
+          </div>
+        </div>
+      </form>
     </div>
 
     <?php if (isset($_SESSION['success_message'])): ?>
@@ -212,6 +260,43 @@ use App\Support\HtmlHelper;
 
   </div>
 </div>
+
+<style>
+/* Toggle Switch Styles */
+.toggle-switch {
+  position: relative;
+  width: 60px;
+  height: 32px;
+  background-color: #d1d5db;
+  border-radius: 9999px;
+  transition: background-color 0.3s ease;
+}
+
+.toggle-checkbox:checked + .toggle-switch {
+  background-color: #10b981;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  background-color: white;
+  border-radius: 9999px;
+  transition: transform 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-checkbox:checked + .toggle-switch .toggle-slider {
+  transform: translateX(28px);
+}
+
+.toggle-checkbox:focus + .toggle-switch {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+</style>
 
 <script>
 function confirmDelete(eventId, eventTitle) {

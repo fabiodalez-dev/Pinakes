@@ -16,6 +16,10 @@ class EventsController
         // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
         $db->set_charset('utf8mb4');
 
+        // Check if events section is enabled
+        $repository = new \App\Models\SettingsRepository($db);
+        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '1') === '1';
+
         // Pagination
         $page = max(1, (int)($request->getQueryParams()['page'] ?? 1));
         $perPage = 10;
@@ -57,6 +61,36 @@ class EventsController
 
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /**
+     * Toggle events section visibility
+     */
+    public function toggleVisibility(Request $request, Response $response, \mysqli $db): Response
+    {
+        $data = $request->getParsedBody();
+
+        $db->set_charset('utf8mb4');
+
+        // SECURITY: Validate CSRF
+        if (!is_array($data) || !isset($data['csrf_token']) || !\App\Support\Csrf::validate($data['csrf_token'])) {
+            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
+            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+        }
+
+        $enabled = isset($data['events_enabled']) ? '1' : '0';
+
+        // Update setting
+        $repository = new \App\Models\SettingsRepository($db);
+        $repository->set('cms', 'events_page_enabled', $enabled);
+
+        if ($enabled === '1') {
+            $_SESSION['success_message'] = __('Sezione Eventi abilitata! Il menu e le pagine sono ora visibili nel frontend.');
+        } else {
+            $_SESSION['success_message'] = __('Sezione Eventi disabilitata. Il menu e le pagine sono ora nascosti nel frontend.');
+        }
+
+        return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
     }
 
     /**
