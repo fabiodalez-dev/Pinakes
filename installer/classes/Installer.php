@@ -950,6 +950,112 @@ HTACCESS;
     }
 
     /**
+     * Register and activate default plugins (open-library and z39-server)
+     * Plugins are already in storage/plugins/ - just register them in DB
+     */
+    public function installPluginsFromZip() {
+        $pdo = $this->getDatabaseConnection();
+        $results = [];
+
+        // Plugin 1: Open Library
+        try {
+            $pluginDir = $this->baseDir . '/storage/plugins/open-library';
+
+            if (!is_dir($pluginDir)) {
+                $results[] = ['name' => 'open-library', 'status' => 'error', 'message' => 'Directory not found'];
+            } else {
+                $pluginJson = json_decode(file_get_contents($pluginDir . '/plugin.json'), true);
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
+                        is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
+                    VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
+                        1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
+                ");
+
+                $stmt->execute([
+                    'name' => $pluginJson['name'],
+                    'display_name' => $pluginJson['display_name'],
+                    'description' => $pluginJson['description'],
+                    'version' => $pluginJson['version'],
+                    'author' => $pluginJson['author'],
+                    'author_url' => $pluginJson['author_url'] ?? '',
+                    'plugin_url' => $pluginJson['plugin_url'] ?? '',
+                    'path' => 'open-library',
+                    'main_file' => $pluginJson['main_file'],
+                    'requires_php' => $pluginJson['requires_php'],
+                    'requires_app' => $pluginJson['requires_app'],
+                    'metadata' => json_encode($pluginJson['metadata'] ?? [])
+                ]);
+
+                $pluginId = (int)$pdo->lastInsertId();
+
+                // Register hooks
+                $hooks = $pluginJson['metadata']['hooks'] ?? [];
+                foreach ($hooks as $hook) {
+                    $stmt = $pdo->prepare("
+                        INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                        VALUES (?, ?, 'OpenLibraryPlugin', ?, ?, 1, NOW())
+                    ");
+                    $stmt->execute([$pluginId, $hook['name'], 'handle' . ucfirst(str_replace('.', '', $hook['name'])), $hook['priority']]);
+                }
+
+                $results[] = ['name' => 'open-library', 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
+            }
+        } catch (Exception $e) {
+            $results[] = ['name' => 'open-library', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+
+        // Plugin 2: Z39-Server
+        try {
+            $pluginDir = $this->baseDir . '/storage/plugins/z39-server';
+
+            if (!is_dir($pluginDir)) {
+                $results[] = ['name' => 'z39-server', 'status' => 'error', 'message' => 'Directory not found'];
+            } else {
+                $pluginJson = json_decode(file_get_contents($pluginDir . '/plugin.json'), true);
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
+                        is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
+                    VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
+                        1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
+                ");
+
+                $stmt->execute([
+                    'name' => $pluginJson['name'],
+                    'display_name' => $pluginJson['display_name'],
+                    'description' => $pluginJson['description'],
+                    'version' => $pluginJson['version'],
+                    'author' => $pluginJson['author'],
+                    'author_url' => $pluginJson['author_url'] ?? '',
+                    'plugin_url' => $pluginJson['plugin_url'] ?? '',
+                    'path' => 'z39-server',
+                    'main_file' => $pluginJson['main_file'],
+                    'requires_php' => $pluginJson['requires_php'],
+                    'requires_app' => $pluginJson['requires_app'],
+                    'metadata' => json_encode($pluginJson['metadata'] ?? [])
+                ]);
+
+                $pluginId = (int)$pdo->lastInsertId();
+
+                // Register hook for route registration
+                $stmt = $pdo->prepare("
+                    INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                    VALUES (?, 'app.routes.register', 'Z39ServerPlugin', 'registerRoutes', 10, 1, NOW())
+                ");
+                $stmt->execute([$pluginId]);
+
+                $results[] = ['name' => 'z39-server', 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
+            }
+        } catch (Exception $e) {
+            $results[] = ['name' => 'z39-server', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+
+        return $results;
+    }
+
+    /**
      * Delete installer directory for security
      */
     public function deleteInstaller() {
