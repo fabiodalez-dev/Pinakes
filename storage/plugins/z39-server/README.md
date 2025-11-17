@@ -6,12 +6,14 @@ Plugin per Pinakes che implementa un server SRU (Search/Retrieve via URL) comple
 
 Questo plugin permette di esporre il catalogo della tua biblioteca tramite il protocollo **SRU (Search/Retrieve via URL)**, il successore moderno e basato su HTTP del protocollo Z39.50. Questo consente l'integrazione con altre biblioteche, sistemi ILS (Integrated Library Systems) e reti bibliotecarie che supportano questi standard internazionali.
 
+> ℹ️ **Nota**: il plugin parla esclusivamente SRU 1.2 (HTTP + XML). I client Z39.50 “puri” dovranno usare un gateway SRU↔Z39.50 per collegarsi.
+
 ## Caratteristiche
 
 - ✅ **Server SRU completo** - Implementazione completa del protocollo SRU 1.2
 - ✅ **Formati multipli** - Supporto per MARCXML, Dublin Core, MODS e OAI Dublin Core
 - ✅ **Operazioni standard** - explain, searchRetrieve, scan
-- ✅ **Ricerca CQL** - Supporto per Contextual Query Language
+- ✅ **Ricerca CQL** - Parser con supporto per parentesi, AND/OR/NOT, operatori `all`/`any`/`exact` e relazioni numeriche
 - ✅ **Sicurezza OWASP** - Rate limiting, input validation, SQL injection prevention
 - ✅ **Logging completo** - Tracciamento di tutte le richieste e performance
 - ✅ **Paginazione** - Gestione efficiente di grandi risultati
@@ -120,6 +122,14 @@ Scansiona un indice per ottenere termini disponibili.
 ```
 GET /api/sru?operation=scan&scanClause=dc.title&maximumTerms=20
 ```
+
+**Indici contenenti termini sfogliabili:**
+- `dc.title` / `cql.anywhere` – restituisce titoli di opere
+- `dc.creator` – restituisce i nomi presenti nell’anagrafica autori
+- `dc.subject` – restituisce i soggetti (generi) configurati
+- `bath.isbn` – restituisce gli ISBN registrati
+
+Il server esegue una ricerca “prefix” (es. `dc.creator=ros` → tutti i cognomi che iniziano con “Ros...”) e ritorna `<term>` con `value`, `numberOfRecords` e `position`, come previsto dalle specifiche SRU.
 
 ## Installazione
 

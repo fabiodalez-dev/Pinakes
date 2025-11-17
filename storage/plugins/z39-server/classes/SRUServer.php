@@ -19,6 +19,45 @@ class SRUServer
     private mysqli $db;
     private array $settings;
     private ?int $pluginId;
+    /** @var array<string,array<string,mixed>> */
+    private array $indexDefinitions = [
+        'dc.title' => [
+            'type' => 'text',
+            'columns' => ['l.titolo', 'l.sottotitolo'],
+        ],
+        'dc.creator' => [
+            'type' => 'text',
+            'columns' => ['a.nome'],
+        ],
+        'dc.subject' => [
+            'type' => 'text',
+            'columns' => ['l.parole_chiave', 'g.nome'],
+        ],
+        'dc.publisher' => [
+            'type' => 'text',
+            'columns' => ['e.nome'],
+        ],
+        'dc.date' => [
+            'type' => 'numeric',
+            'column' => 'l.anno_pubblicazione',
+        ],
+        'bath.isbn' => [
+            'type' => 'isbn',
+        ],
+        'cql.anywhere' => [
+            'type' => 'text',
+            'columns' => [
+                'l.titolo',
+                'l.sottotitolo',
+                'l.descrizione',
+                'a.nome',
+                'e.nome',
+                'l.isbn10',
+                'l.isbn13',
+                'g.nome',
+            ],
+        ],
+    ];
 
     // SRU namespaces
     private const NS_SRU = 'http://www.loc.gov/zing/srw/';
@@ -251,18 +290,19 @@ class SRUServer
         }
 
         try {
-            // Parse CQL query
             $cqlParser = new CQLParser();
-            $sqlConditions = $cqlParser->parse($query);
+            $ast = $cqlParser->parse($query);
 
-            // Build SQL query with proper escaping (OWASP: SQL Injection Prevention)
-            $sqlQuery = $this->buildSearchQuery($sqlConditions, $startRecord, $maximumRecords);
+            $sqlQuery = $this->buildSearchQuery($ast, $startRecord, $maximumRecords);
 
             // Execute query
             $result = $this->db->query($sqlQuery['count']);
-            $totalRecords = $result ? (int)$result->fetch_row()[0] : 0;
             if ($result) {
+                $row = $result->fetch_row();
+                $totalRecords = $row ? (int)$row[0] : 0;
                 $result->free();
+            } else {
+                $totalRecords = 0;
             }
 
             $result = $this->db->query($sqlQuery['data']);
@@ -299,22 +339,30 @@ class SRUServer
             return $this->errorResponse(7, 'Mandatory parameter not supplied: scanClause', $version);
         }
 
-        // For now, return a basic scan response
-        // Full implementation would scan the index
-        return $this->formatScanResponse($version, $scanClause, $responsePosition, $maximumTerms);
+        try {
+            $parser = new CQLParser();
+            $ast = $parser->parse($scanClause);
+            $condition = $this->extractScanCondition($ast);
+
+            $terms = $this->performScanQuery($condition['index'], $condition['value'], $maximumTerms);
+
+            return $this->formatScanResponse($version, $scanClause, $terms, $responsePosition);
+        } catch (\Exception $e) {
+            return $this->errorResponse(10, 'Scan clause syntax error: ' . $e->getMessage(), $version);
+        }
     }
 
     /**
      * Build SQL query from CQL conditions
      *
-     * @param array $conditions CQL conditions
+     * @param array $ast Parsed AST
      * @param int $startRecord Start record (1-based)
      * @param int $maximumRecords Maximum records to return
      * @return array Array with 'count' and 'data' queries
      */
-    private function buildSearchQuery(array $conditions, int $startRecord, int $maximumRecords): array
+    private function buildSearchQuery(array $ast, int $startRecord, int $maximumRecords): array
     {
-        $whereClause = $this->buildWhereClause($conditions);
+        $whereClause = $this->buildWhereClause($ast);
 
         // Calculate offset (convert from 1-based to 0-based)
         $offset = $startRecord - 1;
@@ -344,63 +392,180 @@ class SRUServer
     }
 
     /**
-     * Build WHERE clause from conditions
-     *
-     * @param array $conditions CQL conditions
-     * @return string WHERE clause
+     * Build WHERE clause from AST
      */
-    private function buildWhereClause(array $conditions): string
+    private function buildWhereClause(?array $node): string
     {
-        if (empty($conditions)) {
+        if ($node === null) {
             return '1=1';
         }
 
-        $clauses = [];
-        foreach ($conditions as $condition) {
-            $index = $condition['index'] ?? 'cql.anywhere';
-            $value = $this->db->real_escape_string($condition['value'] ?? '');
+        $type = $node['type'] ?? '';
+        switch ($type) {
+            case 'boolean':
+                $left = $this->buildWhereClause($node['left'] ?? null);
+                $right = $this->buildWhereClause($node['right'] ?? null);
+                $operator = strtoupper($node['operator'] ?? 'AND');
+                if ($left === '' || $right === '') {
+                    return $left ?: $right ?: '1=1';
+                }
+                return "({$left} {$operator} {$right})";
 
-            switch ($index) {
-                case 'dc.title':
-                    $clauses[] = "(l.titolo LIKE '%{$value}%' OR l.sottotitolo LIKE '%{$value}%')";
-                    break;
+            case 'not':
+                $operand = $this->buildWhereClause($node['operand'] ?? null);
+                if ($operand === '') {
+                    return '1=1';
+                }
+                return "(NOT {$operand})";
 
-                case 'dc.creator':
-                    $clauses[] = "a.nome LIKE '%{$value}%'";
-                    break;
+            case 'condition':
+                $index = strtolower($node['index'] ?? 'cql.anywhere');
+                $relation = $node['relation'] ?? '=';
+                $value = $node['value'] ?? '';
+                return $this->compileConditionClause($index, $relation, $value);
 
-                case 'dc.subject':
-                    $clauses[] = "(l.parole_chiave LIKE '%{$value}%' OR g.nome LIKE '%{$value}%')";
-                    break;
+            default:
+                return '1=1';
+        }
+    }
 
-                case 'bath.isbn':
-                    $cleanIsbn = preg_replace('/[^0-9X]/', '', strtoupper($value));
-                    $clauses[] = "(l.isbn10 = '{$cleanIsbn}' OR l.isbn13 = '{$cleanIsbn}')";
-                    break;
+    private function compileConditionClause(string $index, string $relation, string $value): string
+    {
+        $definition = $this->indexDefinitions[$index] ?? $this->indexDefinitions['cql.anywhere'];
+        $relation = $this->normalizeRelation($relation);
+        $value = trim($value);
 
-                case 'dc.publisher':
-                    $clauses[] = "e.nome LIKE '%{$value}%'";
-                    break;
-
-                case 'dc.date':
-                    $clauses[] = "l.anno_pubblicazione = '{$value}'";
-                    break;
-
-                case 'cql.anywhere':
-                default:
-                    $clauses[] = "(
-                        l.titolo LIKE '%{$value}%' OR
-                        l.sottotitolo LIKE '%{$value}%' OR
-                        l.descrizione LIKE '%{$value}%' OR
-                        a.nome LIKE '%{$value}%' OR
-                        e.nome LIKE '%{$value}%' OR
-                        l.isbn10 LIKE '%{$value}%' OR
-                        l.isbn13 LIKE '%{$value}%'
-                    )";
-            }
+        if ($value === '' && $definition['type'] !== 'numeric') {
+            return '1=1';
         }
 
-        return implode(' AND ', $clauses);
+        switch ($definition['type']) {
+            case 'isbn':
+                return $this->compileIsbnClause($relation, $value);
+
+            case 'numeric':
+                $column = $definition['column'] ?? 'l.anno_pubblicazione';
+                return $this->compileNumericClause($column, $relation, $value);
+
+            case 'text':
+            default:
+                $columns = $definition['columns'] ?? $this->indexDefinitions['cql.anywhere']['columns'];
+                return $this->buildTextMatchClause($columns, $relation, $value);
+        }
+    }
+
+    private function normalizeRelation(string $relation): string
+    {
+        $relation = strtolower(trim($relation));
+        return match ($relation) {
+            '==' => '=',
+            '<>' => '!=',
+            'exact' => 'exact',
+            'all' => 'all',
+            'any' => 'any',
+            default => $relation === '' ? '=' : $relation,
+        };
+    }
+
+    private function buildTextMatchClause(array $columns, string $relation, string $value): string
+    {
+        $columns = !empty($columns) ? $columns : $this->indexDefinitions['cql.anywhere']['columns'];
+        $relation = $relation ?: '=';
+
+        $like = function (string $term) use ($columns): string {
+            $escaped = $this->escapeForLike($term);
+            $clauses = array_map(
+                fn ($column) => "{$column} LIKE '%{$escaped}%' ESCAPE '\\\\'",
+                $columns
+            );
+            return '(' . implode(' OR ', $clauses) . ')';
+        };
+
+        return match ($relation) {
+            'exact' => (function () use ($columns, $value): string {
+                $escaped = $this->db->real_escape_string($value);
+                $clauses = array_map(
+                    fn ($column) => "{$column} = '{$escaped}'",
+                    $columns
+                );
+                return '(' . implode(' OR ', $clauses) . ')';
+            })(),
+            '!=' => (function () use ($columns, $value): string {
+                $escaped = $this->escapeForLike($value);
+                $clauses = array_map(
+                    fn ($column) => "{$column} NOT LIKE '%{$escaped}%' ESCAPE '\\\\'",
+                    $columns
+                );
+                return '(' . implode(' AND ', $clauses) . ')';
+            })(),
+            'all' => (function () use ($value, $like): string {
+                $terms = $this->splitTerms($value);
+                if (empty($terms)) {
+                    return '1=1';
+                }
+                $clauses = array_map($like, $terms);
+                return '(' . implode(' AND ', $clauses) . ')';
+            })(),
+            'any' => (function () use ($value, $like): string {
+                $terms = $this->splitTerms($value);
+                if (empty($terms)) {
+                    return '1=1';
+                }
+                $clauses = array_map($like, $terms);
+                return '(' . implode(' OR ', $clauses) . ')';
+            })(),
+            default => $like($value),
+        };
+    }
+
+    private function compileIsbnClause(string $relation, string $value): string
+    {
+        $clean = preg_replace('/[^0-9X]/i', '', strtoupper($value));
+        if ($clean === '') {
+            return '1=0';
+        }
+        $escaped = $this->db->real_escape_string($clean);
+
+        if ($relation === '!=' ) {
+            return "(l.isbn10 <> '{$escaped}' AND l.isbn13 <> '{$escaped}')";
+        }
+
+        return "(l.isbn10 = '{$escaped}' OR l.isbn13 = '{$escaped}')";
+    }
+
+    private function compileNumericClause(string $column, string $relation, string $value): string
+    {
+        if (!is_numeric($value)) {
+            return '1=0';
+        }
+
+        $intValue = (int)$value;
+
+        return match ($relation) {
+            '>' => "{$column} > {$intValue}",
+            '>=' => "{$column} >= {$intValue}",
+            '<' => "{$column} < {$intValue}",
+            '<=' => "{$column} <= {$intValue}",
+            '!=' => "{$column} <> {$intValue}",
+            default => "{$column} = {$intValue}",
+        };
+    }
+
+    private function splitTerms(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        $parts = preg_split('/\\s+/u', $value);
+        return array_values(array_filter($parts, fn ($part) => $part !== ''));
+    }
+
+    private function escapeForLike(string $value): string
+    {
+        $escaped = $this->db->real_escape_string($value);
+        return str_replace(['%', '_'], ['\\%', '\\_'], $escaped);
     }
 
     /**
@@ -474,6 +639,89 @@ class SRUServer
         return $xml->saveXML();
     }
 
+    private function extractScanCondition(array $ast): array
+    {
+        if (($ast['type'] ?? '') !== 'condition') {
+            throw new \Exception('Scan clause must be a single index condition');
+        }
+
+        return [
+            'index' => $ast['index'] ?? 'cql.anywhere',
+            'value' => $ast['value'] ?? '',
+        ];
+    }
+
+    private function performScanQuery(string $index, string $prefix, int $limit): array
+    {
+        $index = strtolower($index);
+        $prefix = trim($prefix);
+        $likePrefix = $this->escapeForLike($prefix);
+        $pattern = $likePrefix . '%';
+
+        switch ($index) {
+            case 'dc.creator':
+                $sql = "
+                    SELECT nome AS term, COUNT(*) AS frequency
+                    FROM autori
+                    WHERE nome <> '' AND nome LIKE '{$pattern}' ESCAPE '\\\\'
+                    GROUP BY nome
+                    ORDER BY nome
+                    LIMIT " . (int)$limit;
+                break;
+
+            case 'dc.subject':
+                $sql = "
+                    SELECT nome AS term, COUNT(*) AS frequency
+                    FROM generi
+                    WHERE nome <> '' AND nome LIKE '{$pattern}' ESCAPE '\\\\'
+                    GROUP BY nome
+                    ORDER BY nome
+                    LIMIT " . (int)$limit;
+                break;
+
+            case 'bath.isbn':
+                $sql = "
+                    SELECT value AS term, COUNT(*) AS frequency FROM (
+                        SELECT l.isbn10 AS value FROM libri l WHERE l.isbn10 <> ''
+                        UNION ALL
+                        SELECT l.isbn13 AS value FROM libri l WHERE l.isbn13 <> ''
+                    ) AS isbns
+                    WHERE value LIKE '{$pattern}' ESCAPE '\\\\'
+                    GROUP BY value
+                    ORDER BY value
+                    LIMIT " . (int)$limit;
+                break;
+
+            case 'dc.title':
+            case 'cql.anywhere':
+            default:
+                $sql = "
+                    SELECT l.titolo AS term, COUNT(*) AS frequency
+                    FROM libri l
+                    WHERE l.titolo <> '' AND l.titolo LIKE '{$pattern}' ESCAPE '\\\\'
+                    GROUP BY l.titolo
+                    ORDER BY l.titolo
+                    LIMIT " . (int)$limit;
+                break;
+        }
+
+        $terms = [];
+        $result = $this->db->query($sql);
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                if (!empty($row['term'])) {
+                    $terms[] = [
+                        'value' => $row['term'],
+                        'frequency' => (int)($row['frequency'] ?? 0),
+                    ];
+                }
+            }
+            $result->free();
+        }
+
+        return $terms;
+    }
+
     /**
      * Format scan response
      *
@@ -486,8 +734,8 @@ class SRUServer
     private function formatScanResponse(
         string $version,
         string $scanClause,
-        int $responsePosition,
-        int $maximumTerms
+        array $terms,
+        int $responsePosition
     ): string {
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
@@ -498,11 +746,26 @@ class SRUServer
         $versionEl = $xml->createElement('version', $this->escapeXml($version));
         $root->appendChild($versionEl);
 
-        $terms = $xml->createElement('terms');
-        $root->appendChild($terms);
+        $termsEl = $xml->createElement('terms');
+        $root->appendChild($termsEl);
 
-        // This is a basic implementation
-        // A full implementation would scan the actual index
+        foreach ($terms as $offset => $termData) {
+            $termEl = $xml->createElement('term');
+            $termsEl->appendChild($termEl);
+
+            $value = $xml->createElement('value', $this->escapeXml($termData['value'] ?? ''));
+            $termEl->appendChild($value);
+
+            $number = $xml->createElement('numberOfRecords', (string)($termData['frequency'] ?? 0));
+            $termEl->appendChild($number);
+
+            $position = $xml->createElement('position', (string)($responsePosition + $offset));
+            $termEl->appendChild($position);
+        }
+
+        $echoed = $xml->createElement('echoedScanRequest');
+        $root->appendChild($echoed);
+        $echoed->appendChild($xml->createElement('scanClause', $this->escapeXml($scanClause)));
 
         return $xml->saveXML();
     }

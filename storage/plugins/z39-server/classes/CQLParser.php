@@ -1,107 +1,269 @@
 <?php
-/**
- * CQL (Contextual Query Language) Parser
- *
- * Parses CQL queries and converts them to database conditions.
- * Supports basic CQL syntax: index relation searchTerm
- *
- * Examples:
- * - dc.title = "Harry Potter"
- * - dc.creator = "Rowling"
- * - bath.isbn = "9780439708180"
- * - cql.anywhere = "fantasy"
- *
- * @see https://www.loc.gov/standards/sru/cql/
- */
-
 declare(strict_types=1);
 
 namespace Z39Server;
 
+/**
+ * Minimal CQL parser that builds an AST supporting boolean operators, parentheses
+ * and the basic relation operators defined by SRU 1.2.
+ */
 class CQLParser
 {
+    private array $tokens = [];
+    private int $position = 0;
+
     /**
-     * Parse CQL query into conditions
+     * Parse a CQL query string into an AST representation.
      *
-     * @param string $query CQL query string
-     * @return array Array of conditions
-     * @throws \Exception If query syntax is invalid
+     * @throws \Exception when the syntax is invalid.
      */
     public function parse(string $query): array
     {
         $query = trim($query);
-
-        if (empty($query)) {
+        if ($query === '') {
             throw new \Exception('Empty query');
         }
 
-        // Simple parser for basic CQL queries
-        // Format: index relation searchTerm
-        // Examples:
-        //   dc.title = "Harry Potter"
-        //   dc.creator = Rowling
-        //   bath.isbn = 9780439708180
+        $this->tokens = $this->tokenize($query);
+        $this->position = 0;
 
-        $conditions = [];
+        $ast = $this->parseOrExpression();
 
-        // Handle simple queries (just a search term, no index specified)
-        if (!preg_match('/[=<>]/', $query) && !preg_match('/\b(and|or|not)\b/i', $query)) {
-            // Simple keyword search
-            $conditions[] = [
-                'index' => 'cql.anywhere',
-                'relation' => '=',
-                'value' => $this->unquote($query)
-            ];
-            return $conditions;
+        if ($this->peek() !== null) {
+            throw new \Exception('Unexpected token near "' . ($this->peek()['value'] ?? '') . '"');
         }
 
-        // Split by boolean operators (simplified)
-        $parts = preg_split('/\b(and|or|not)\b/i', $query, -1, PREG_SPLIT_DELIM_CAPTURE);
-
-        foreach ($parts as $part) {
-            $part = trim($part);
-
-            // Skip boolean operators for now (in a full implementation, we'd build a tree)
-            if (in_array(strtolower($part), ['and', 'or', 'not']) || empty($part)) {
-                continue;
-            }
-
-            // Parse: index relation value
-            if (preg_match('/^([a-z0-9_.]+)\s*(=|==|exact|all|any|<|>|<=|>=)\s*(.+)$/i', $part, $matches)) {
-                $conditions[] = [
-                    'index' => trim($matches[1]),
-                    'relation' => trim($matches[2]),
-                    'value' => $this->unquote(trim($matches[3]))
-                ];
-            } else {
-                // If it doesn't match the pattern, treat it as a keyword search
-                $conditions[] = [
-                    'index' => 'cql.anywhere',
-                    'relation' => '=',
-                    'value' => $this->unquote($part)
-                ];
-            }
-        }
-
-        return $conditions;
+        return $ast;
     }
 
     /**
-     * Remove quotes from search term
-     *
-     * @param string $term Search term
-     * @return string Unquoted term
+     * Tokenize the query into a flat list of symbols.
      */
-    private function unquote(string $term): string
+    private function tokenize(string $query): array
     {
-        $term = trim($term);
+        $tokens = [];
+        $length = strlen($query);
+        $i = 0;
 
-        // Remove surrounding quotes
-        if ((substr($term, 0, 1) === '"' && substr($term, -1) === '"') ||
-            (substr($term, 0, 1) === "'" && substr($term, -1) === "'")) {
-            $term = substr($term, 1, -1);
+        while ($i < $length) {
+            $char = $query[$i];
+
+            if (ctype_space($char)) {
+                $i++;
+                continue;
+            }
+
+            if ($char === '(' || $char === ')') {
+                $tokens[] = ['type' => $char, 'value' => $char];
+                $i++;
+                continue;
+            }
+
+            $twoChar = $i + 1 < $length ? substr($query, $i, 2) : null;
+            if ($twoChar !== null && in_array($twoChar, ['>=', '<=', '<>', '=='], true)) {
+                $tokens[] = ['type' => 'REL_OP', 'value' => $twoChar];
+                $i += 2;
+                continue;
+            }
+
+            if (in_array($char, ['=', '<', '>'], true)) {
+                $tokens[] = ['type' => 'REL_OP', 'value' => $char];
+                $i++;
+                continue;
+            }
+
+            if ($char === '\"' || $char === "\'") {
+                $quote = $char;
+                $i++;
+                $value = '';
+                while ($i < $length) {
+                    $current = $query[$i];
+                    if ($current === $quote) {
+                        $i++;
+                        break;
+                    }
+                    if ($current === '\\' && $i + 1 < $length) {
+                        $value .= $query[$i + 1];
+                        $i += 2;
+                        continue;
+                    }
+                    $value .= $current;
+                    $i++;
+                }
+                $tokens[] = ['type' => 'STRING', 'value' => $value];
+                continue;
+            }
+
+            $start = $i;
+            while ($i < $length) {
+                $current = $query[$i];
+                if (ctype_space($current) || $current === '(' || $current === ')' || $current === '\"' || $current === "'" || $current === '=' || $current === '<' || $current === '>') {
+                    break;
+                }
+                $i++;
+            }
+
+            if ($start === $i) {
+                // Guard against infinite loop
+                $i++;
+                continue;
+            }
+
+            $word = substr($query, $start, $i - $start);
+            $upper = strtoupper($word);
+            $lower = strtolower($word);
+
+            if (in_array($upper, ['AND', 'OR', 'NOT'], true)) {
+                $tokens[] = ['type' => 'BOOLEAN', 'value' => $upper];
+                continue;
+            }
+
+            if (in_array($lower, ['exact', 'all', 'any'], true)) {
+                $tokens[] = ['type' => 'REL_WORD', 'value' => $lower];
+                continue;
+            }
+
+            $tokens[] = ['type' => 'WORD', 'value' => $word];
         }
 
-        return $term;
+        return $tokens;
+    }
+
+    private function parseOrExpression(): array
+    {
+        $node = $this->parseAndExpression();
+
+        while (($token = $this->peek()) !== null && $token['type'] === 'BOOLEAN' && $token['value'] === 'OR') {
+            $this->consume();
+            $right = $this->parseAndExpression();
+            $node = [
+                'type' => 'boolean',
+                'operator' => 'OR',
+                'left' => $node,
+                'right' => $right,
+            ];
+        }
+
+        return $node;
+    }
+
+    private function parseAndExpression(): array
+    {
+        $node = $this->parseNotExpression();
+
+        while (($token = $this->peek()) !== null && $token['type'] === 'BOOLEAN' && $token['value'] === 'AND') {
+            $this->consume();
+            $right = $this->parseNotExpression();
+            $node = [
+                'type' => 'boolean',
+                'operator' => 'AND',
+                'left' => $node,
+                'right' => $right,
+            ];
+        }
+
+        return $node;
+    }
+
+    private function parseNotExpression(): array
+    {
+        $token = $this->peek();
+        if ($token !== null && $token['type'] === 'BOOLEAN' && $token['value'] === 'NOT') {
+            $this->consume();
+            return [
+                'type' => 'not',
+                'operand' => $this->parseNotExpression(),
+            ];
+        }
+
+        return $this->parsePrimary();
+    }
+
+    private function parsePrimary(): array
+    {
+        $token = $this->peek();
+        if ($token === null) {
+            throw new \Exception('Unexpected end of query');
+        }
+
+        if ($token['type'] === '(') {
+            $this->consume();
+            $node = $this->parseOrExpression();
+            if (($next = $this->peek()) === null || $next['type'] !== ')') {
+                throw new \Exception('Missing closing parenthesis');
+            }
+            $this->consume();
+            return $node;
+        }
+
+        return $this->parseCondition();
+    }
+
+    private function parseCondition(): array
+    {
+        $token = $this->peek();
+        if ($token === null) {
+            throw new \Exception('Unexpected end of condition');
+        }
+
+        if ($token['type'] === 'WORD') {
+            $next = $this->peek(1);
+            if ($next !== null && $this->isRelationToken($next)) {
+                $indexToken = $this->consume();
+                $relation = $this->consumeRelation();
+                $valueToken = $this->consumeValueToken();
+
+                return [
+                    'type' => 'condition',
+                    'index' => strtolower($indexToken['value']),
+                    'relation' => $relation,
+                    'value' => $valueToken['value'],
+                ];
+            }
+        }
+
+        $valueToken = $this->consumeValueToken();
+        return [
+            'type' => 'condition',
+            'index' => 'cql.anywhere',
+            'relation' => '=',
+            'value' => $valueToken['value'],
+        ];
+    }
+
+    private function consume(): array
+    {
+        return $this->tokens[$this->position++] ?? ['type' => 'EOF', 'value' => null];
+    }
+
+    private function peek(int $offset = 0): ?array
+    {
+        $index = $this->position + $offset;
+        return $this->tokens[$index] ?? null;
+    }
+
+    private function isRelationToken(array $token): bool
+    {
+        return in_array($token['type'], ['REL_OP', 'REL_WORD'], true);
+    }
+
+    private function consumeRelation(): string
+    {
+        $token = $this->consume();
+        if (in_array($token['type'], ['REL_OP', 'REL_WORD'], true)) {
+            return $token['value'];
+        }
+
+        throw new \Exception('Expected relation operator near "' . ($token['value'] ?? '') . '"');
+    }
+
+    private function consumeValueToken(): array
+    {
+        $token = $this->consume();
+        if (in_array($token['type'], ['STRING', 'WORD'], true)) {
+            return ['type' => 'VALUE', 'value' => $token['value']];
+        }
+
+        throw new \Exception('Expected search term near "' . ($token['value'] ?? '') . '"');
     }
 }

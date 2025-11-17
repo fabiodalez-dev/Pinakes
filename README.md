@@ -53,6 +53,12 @@
 - ISBN import widget hooks into the scraping pipeline; the bundled Open Library plugin enriches data and falls back to Google Books if needed.
 - Dewey controller (`app/Controllers/DeweyController.php` + `DeweyApiController.php`) ships with 1369 classes already imported by the installer and exposes reseeding tools for librarians.
 
+### SRU Interoperability (HTTP successor to Z39.50)
+- Pinakes ships with an **SRU Server** plugin (`storage/plugins/z39-server/`) enabled by default: it doesn’t emulate legacy binary Z39.50, instead it implements the SRU 1.2 (Search/Retrieve via URL) standard—the modern HTTP-based protocol understood by most Z39.50/SRU clients.
+- Once activated from the Plugin Manager it exposes `/api/sru` with the `explain`, `searchRetrieve`, and `scan` operations, outputting MARCXML, Dublin Core, MODS, or OAI_DC, and it bundles rate limiting, logging, and optional authentication.
+- All parameters (supported schemas, record limits, host info, credentials) are configurable from Admin → Plugins → SRU Server, and the plugin provisions its logging / throttling tables on install.
+- Result: your Pinakes catalog becomes queryable via SRU out of the box—no core patches or external services required, just toggle the built-in plugin.
+
 ### Patron Experience & Frontend (app/Views/frontend/*)
 - Auto-generated pages for home, catalog, book detail, wishlist, profile and contact so a library can go live without building a separate site.
 - `app/Views/frontend/catalog.php` provides advanced filters (search, genre, Dewey, format, availability, year sliders) plus instant AJAX facets.
