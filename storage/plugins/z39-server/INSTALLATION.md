@@ -284,6 +284,18 @@ WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY);
 2. Controlla che il record esista nella tabella `plugins`
 3. Verifica i permessi dei file
 
+### Problema: `Column 'callback_class' doesn't have a default value`
+
+**Causa:** la versione precedente di `Z39ServerPlugin.php` non compilava il campo `callback_class` quando registrava gli hook nel database. MySQL blocca l'inserimento e l'installazione/attivazione del plugin fallisce.
+
+**Soluzione:**
+1. Aggiorna il file `storage/plugins/z39-server/Z39ServerPlugin.php` alla versione corrente (o effettua `git pull`).
+2. Elimina eventuali hook parzialmente registrati:
+   ```sql
+   DELETE FROM plugin_hooks WHERE plugin_id = (SELECT id FROM plugins WHERE name = 'z39-server');
+   ```
+3. Riattiva il plugin da **Admin → Plugin** per ricreare gli hook con il campo `callback_class` corretto.
+
 ### Problema: "Database connection failed"
 
 **Soluzione:**

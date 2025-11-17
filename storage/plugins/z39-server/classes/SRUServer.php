@@ -260,7 +260,7 @@ class SRUServer
 
             // Execute query
             $result = $this->db->query($sqlQuery['count']);
-            $totalRecords = $result ? $result->fetch_row()[0] : 0;
+            $totalRecords = $result ? (int)$result->fetch_row()[0] : 0;
             if ($result) {
                 $result->free();
             }
@@ -446,8 +446,8 @@ class SRUServer
             $recordEl = $xml->createElement('record');
             $root->appendChild($recordEl);
 
-            $recordSchema = $xml->createElement('recordSchema', $this->escapeXml($recordSchema));
-            $recordEl->appendChild($recordSchema);
+            $recordSchemaEl = $xml->createElement('recordSchema', $this->escapeXml($recordSchema));
+            $recordEl->appendChild($recordSchemaEl);
 
             $recordPacking = $xml->createElement('recordPacking', 'xml');
             $recordEl->appendChild($recordPacking);

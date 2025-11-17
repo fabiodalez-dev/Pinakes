@@ -29,6 +29,7 @@ class Z39ServerPlugin
     private mysqli $db;
     private HookManager $hookManager;
     private ?int $pluginId = null;
+    private static bool $routesRegistered = false;
 
     // Default settings
     private const DEFAULT_SETTINGS = [
@@ -149,6 +150,7 @@ class Z39ServerPlugin
      */
     public function onDeactivate(): void
     {
+        $this->setHooksActive(false);
         $this->log('info', 'Z39.50/SRU Server Plugin deactivated', [
             'data_preserved' => true
         ]);
@@ -193,27 +195,85 @@ class Z39ServerPlugin
             ]
         ];
 
+        $this->deleteHooks();
+
+        $callbackClass = 'Z39ServerPlugin';
+
         foreach ($hooks as $hook) {
             $stmt = $this->db->prepare("
-                INSERT INTO plugin_hooks (plugin_id, hook_name, callback_method, priority, is_active)
-                VALUES (?, ?, ?, ?, 1)
+                INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, 1, NOW())
                 ON DUPLICATE KEY UPDATE
+                    callback_class = VALUES(callback_class),
                     callback_method = VALUES(callback_method),
                     priority = VALUES(priority),
                     is_active = 1
             ");
 
+            if ($stmt === false) {
+                error_log('[Z39 Server Plugin] Failed to prepare hook registration statement: ' . $this->db->error);
+                continue;
+            }
+
             $stmt->bind_param(
-                'issi',
+                'isssi',
                 $this->pluginId,
                 $hook['hook_name'],
+                $callbackClass,
                 $hook['callback_method'],
                 $hook['priority']
             );
 
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                error_log('[Z39 Server Plugin] Failed to register hook ' . $hook['hook_name'] . ': ' . $stmt->error);
+            }
+
             $stmt->close();
         }
+    }
+
+    /**
+     * Disable hooks without deleting them (used during deactivate)
+     */
+    private function setHooksActive(bool $active): void
+    {
+        if ($this->pluginId === null) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE plugin_hooks
+            SET is_active = ?
+            WHERE plugin_id = ?
+        ");
+
+        if ($stmt === false) {
+            return;
+        }
+
+        $activeInt = $active ? 1 : 0;
+        $stmt->bind_param('ii', $activeInt, $this->pluginId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    /**
+     * Remove all hooks for this plugin (used before re-registering)
+     */
+    private function deleteHooks(): void
+    {
+        if ($this->pluginId === null) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
+        if ($stmt === false) {
+            return;
+        }
+
+        $stmt->bind_param('i', $this->pluginId);
+        $stmt->execute();
+        $stmt->close();
     }
 
     /**
@@ -224,6 +284,11 @@ class Z39ServerPlugin
      */
     public function registerRoutes($app): void
     {
+        if (self::$routesRegistered) {
+            return;
+        }
+        self::$routesRegistered = true;
+
         // Register SRU endpoint
         $app->get('/api/sru', function ($request, $response) use ($app) {
             $db = $app->getContainer()->get('db');

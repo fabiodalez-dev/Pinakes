@@ -1289,6 +1289,8 @@
     "Libro non trovato.": "Book not found.",
     "Libro non trovato su Open Library.": "Book not found on Open Library.",
     "ISBN non trovato nelle fonti disponibili.": "ISBN not found in available sources.",
+    "ISBN non valido. Specifica 10 o 13 cifre (eventualmente con X finale).": "Invalid ISBN. Please provide 10 or 13 digits (X allowed at the end).",
+    "Nessun dato trovato su LibreriaUniversitaria/Feltrinelli.": "No data found on LibreriaUniversitaria/Feltrinelli.",
     "Libro:": "Book:",
     "Libro Già Esistente": "Book Already Exists",
     "Libro Esistente:": "Existing Book:",

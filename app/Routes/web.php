@@ -69,6 +69,16 @@ return function (App $app): void {
     };
 
 
+    // ==========================================
+    // Plugin Routes Hook (register early)
+    // ==========================================
+    try {
+        $hookManager = $app->getContainer()->get('hookManager');
+        $hookManager->doAction('app.routes.register', [$app]);
+    } catch (\Throwable $e) {
+        error_log('[Routes] Error loading plugin routes: ' . $e->getMessage());
+    }
+
     $app->get('/', function ($request, $response) use ($app) {
         // Redirect to frontend home page
         $controller = new \App\Controllers\FrontendController();
@@ -2011,17 +2021,5 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->updateSettings($request, $response, $args);
     })->add(new AdminAuthMiddleware());
-
-    // ==========================================
-    // Plugin Routes Hook
-    // ==========================================
-    // Allow plugins to register their own routes dynamically
-    // Plugins can register routes by adding a hook to 'app.routes.register'
-    try {
-        $hookManager = $app->getContainer()->get('hookManager');
-        $hookManager->doAction('app.routes.register', [$app]);
-    } catch (\Throwable $e) {
-        error_log('[Routes] Error loading plugin routes: ' . $e->getMessage());
-    }
 
 };
