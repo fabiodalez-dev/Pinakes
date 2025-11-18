@@ -152,8 +152,6 @@ class DigitalLibraryPlugin
             return;
         }
 
-        error_log("[DigitalLibrary] registerHooks called for plugin ID {$this->pluginId}");
-
         $hooks = [
             [
                 'hook_name' => 'book.form.digital_fields',
@@ -180,6 +178,13 @@ class DigitalLibraryPlugin
                 'hook_name' => 'book.badge.digital_icons',
                 'callback_class' => 'DigitalLibraryPlugin',
                 'callback_method' => 'renderBadgeIcons',
+                'priority' => 10,
+                'is_active' => 1
+            ],
+            [
+                'hook_name' => 'app.routes.register',
+                'callback_class' => 'DigitalLibraryPlugin',
+                'callback_method' => 'registerRoutes',
                 'priority' => 10,
                 'is_active' => 1
             ],
@@ -223,6 +228,25 @@ class DigitalLibraryPlugin
 
             $stmt->close();
         }
+    }
+
+    /**
+     * Register plugin routes (file upload endpoint)
+     * Hook: app.routes.register
+     *
+     * @param \Slim\App $app
+     * @return void
+     */
+    public function registerRoutes($app): void
+    {
+        if (!$app) {
+            return;
+        }
+
+        $app->post('/admin/plugins/digital-library/upload', [$this, 'handleUploadRequest']);
+
+        // Serve plugin-specific assets without exposing storage/ directly
+        $app->get('/plugins/digital-library/assets/{type}/{filename}', [$this, 'serveAsset']);
     }
 
     // ========================================================================
@@ -273,21 +297,13 @@ class DigitalLibraryPlugin
      */
     public function enqueueAssets(): void
     {
-        // Green Audio Player CSS (local with CDN fallback)
-        $localCSS = '/assets/vendor/green-audio-player/css/green-audio-player.min.css';
-        $cdnCSS = 'https://cdn.jsdelivr.net/gh/greghub/green-audio-player/dist/css/green-audio-player.min.css';
-
-        $cssPath = file_exists($_SERVER['DOCUMENT_ROOT'] . $localCSS) ? $localCSS : $cdnCSS;
-
+        // Green Audio Player CSS (hosted locally to satisfy CSP)
+        $cssPath = '/assets/vendor/green-audio-player/css/green-audio-player.min.css';
         echo '<link rel="stylesheet" href="' . htmlspecialchars($cssPath, ENT_QUOTES, 'UTF-8') . '">' . "\n";
         echo '<link rel="stylesheet" href="/plugins/digital-library/assets/css/digital-library.css">' . "\n";
 
-        // Green Audio Player JS (local with CDN fallback)
-        $localJS = '/assets/vendor/green-audio-player/js/green-audio-player.min.js';
-        $cdnJS = 'https://cdn.jsdelivr.net/gh/greghub/green-audio-player/dist/js/green-audio-player.min.js';
-
-        $jsPath = file_exists($_SERVER['DOCUMENT_ROOT'] . $localJS) ? $localJS : $cdnJS;
-
+        // Green Audio Player JS (hosted locally to satisfy CSP)
+        $jsPath = '/assets/vendor/green-audio-player/js/green-audio-player.min.js';
         echo '<script src="' . htmlspecialchars($jsPath, ENT_QUOTES, 'UTF-8') . '" defer></script>' . "\n";
     }
 
@@ -320,5 +336,143 @@ class DigitalLibraryPlugin
             return '';
         }
         return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Handle AJAX upload request
+     */
+    public function handleUploadRequest($request, $response, array $args = [])
+    {
+        // Require admin/staff session
+        $user = $_SESSION['user'] ?? null;
+        $role = $user['tipo_utente'] ?? '';
+        if (!$user || !in_array($role, ['admin', 'staff'], true)) {
+            return $response->withStatus(403);
+        }
+
+        // CSRF validation
+        $params = (array)$request->getParsedBody();
+        $csrfToken = $request->getHeaderLine('X-CSRF-Token') ?: ($params['csrf_token'] ?? '');
+        if (!\App\Support\Csrf::validate($csrfToken)) {
+            return $this->json($response, ['success' => false, 'message' => __('Token CSRF non valido.')], 400);
+        }
+
+        $uploadedFiles = $request->getUploadedFiles();
+        if (empty($uploadedFiles['file'])) {
+            return $this->json($response, ['success' => false, 'message' => __('Nessun file caricato.')], 400);
+        }
+
+        $type = $params['type'] ?? 'ebook';
+        $file = $uploadedFiles['file'];
+
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            return $this->json($response, ['success' => false, 'message' => __('Errore durante il caricamento del file.')], 400);
+        }
+
+        // Validate size / mime
+        $maxSize = ($type === 'audio') ? (500 * 1024 * 1024) : (50 * 1024 * 1024);
+        if ($file->getSize() > $maxSize) {
+            return $this->json($response, ['success' => false, 'message' => __('File troppo grande.')], 400);
+        }
+
+        $allowedMime = ($type === 'audio')
+            ? ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-m4a', 'audio/wav']
+            : ['application/pdf', 'application/epub+zip', 'application/octet-stream'];
+
+        $clientMediaType = $file->getClientMediaType();
+        if (!in_array($clientMediaType, $allowedMime, true)) {
+            // Allow by extension as fallback
+            $filename = strtolower($file->getClientFilename());
+            $validExt = ($type === 'audio')
+                ? ['mp3', 'm4a', 'ogg', 'wav']
+                : ['pdf', 'epub'];
+            $ext = pathinfo($filename, PATHINFO_EXTENSION);
+            if (!in_array($ext, $validExt, true)) {
+                return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
+            }
+        }
+
+        $uploadsDir = realpath(__DIR__ . '/../../../public/uploads/digital');
+        if ($uploadsDir === false) {
+            $uploadsDir = __DIR__ . '/../../../public/uploads/digital';
+            if (!is_dir($uploadsDir)) {
+                mkdir($uploadsDir, 0755, true);
+            }
+        }
+
+        $safeName = $this->generateSafeFilename($file->getClientFilename(), $type);
+        $targetPath = rtrim($uploadsDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $safeName;
+
+        try {
+            $file->moveTo($targetPath);
+        } catch (\Throwable $e) {
+            return $this->json($response, ['success' => false, 'message' => __('Impossibile salvare il file.')], 500);
+        }
+
+        $publicUrl = '/uploads/digital/' . $safeName;
+        return $this->json($response, [
+            'success' => true,
+            'uploadURL' => $publicUrl,
+            'filename' => $safeName,
+            'type' => $type
+        ]);
+    }
+
+    /**
+     * Serve plugin assets (CSS/JS) from storage safely
+     */
+    public function serveAsset($request, $response, array $args = [])
+    {
+        $type = $args['type'] ?? '';
+        $filename = $args['filename'] ?? '';
+
+        if (!in_array($type, ['css', 'js'], true)) {
+            return $response->withStatus(404);
+        }
+
+        if (!preg_match('/^[A-Za-z0-9._-]+$/', (string)$filename)) {
+            return $response->withStatus(404);
+        }
+
+        $baseDir = __DIR__ . '/assets/' . $type;
+        $baseRealPath = realpath($baseDir);
+        if ($baseRealPath === false) {
+            return $response->withStatus(404);
+        }
+
+        $filePath = realpath($baseRealPath . DIRECTORY_SEPARATOR . $filename);
+        if ($filePath === false || strpos($filePath, $baseRealPath . DIRECTORY_SEPARATOR) !== 0 || !is_file($filePath)) {
+            return $response->withStatus(404);
+        }
+
+        $mime = $type === 'css' ? 'text/css; charset=UTF-8' : 'application/javascript; charset=UTF-8';
+        $response->getBody()->write((string)file_get_contents($filePath));
+
+        return $response
+            ->withHeader('Content-Type', $mime)
+            ->withHeader('Cache-Control', 'public, max-age=31536000');
+    }
+
+    /**
+     * Generate safe filename
+     */
+    private function generateSafeFilename(string $original, string $type): string
+    {
+        $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+        if ($ext === '') {
+            $ext = ($type === 'audio') ? 'mp3' : 'pdf';
+        }
+
+        $base = bin2hex(random_bytes(8));
+        return date('YmdHis') . '_' . $base . '.' . $ext;
+    }
+
+    /**
+     * Helper to output JSON response
+     */
+    private function json($response, array $data, int $status = 200)
+    {
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

@@ -56,7 +56,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
                    onchange="document.getElementById('file_url').value = this.value">
             <button type="button"
                     id="upload-ebook-btn"
-                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2">
+                    class="btn btn-primary flex items-center gap-2">
                 <i class="fas fa-upload"></i>
                 <?= __("Carica") ?>
             </button>
@@ -64,6 +64,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
 
         <div id="ebook-uploader" class="mt-3 hidden"></div>
         <div id="ebook-progress" class="mt-2 hidden"></div>
+        <div id="ebook-upload-result" class="mt-3 hidden"></div>
 
         <p class="text-xs text-gray-600 mt-2">
             <i class="fas fa-info-circle mr-1"></i>
@@ -105,7 +106,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
                    onchange="document.getElementById('audio_url').value = this.value">
             <button type="button"
                     id="upload-audio-btn"
-                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                    class="btn btn-primary flex items-center gap-2">
                 <i class="fas fa-upload"></i>
                 <?= __("Carica") ?>
             </button>
@@ -113,6 +114,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
 
         <div id="audio-uploader" class="mt-3 hidden"></div>
         <div id="audio-progress" class="mt-2 hidden"></div>
+        <div id="audio-upload-result" class="mt-3 hidden"></div>
 
         <p class="text-xs text-gray-600 mt-2">
             <i class="fas fa-info-circle mr-1"></i>
@@ -126,116 +128,186 @@ $currentAudioUrl = $book['audio_url'] ?? '';
  * Digital Library Upload Handlers
  * Uses existing Uppy instance to upload digital content
  */
-(function() {
+document.addEventListener('DOMContentLoaded', function() {
     'use strict';
 
-    // Wait for Uppy to be available
-    if (typeof Uppy === 'undefined') {
-        console.warn('Uppy not loaded - digital content upload disabled');
-        return;
-    }
+    const csrfToken =
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+        document.querySelector('input[name="csrf_token"]')?.value ||
+        '';
 
-    let ebookUppy = null;
-    let audioUppy = null;
+    const digitalUploaders = {
+        ebook: null,
+        audio: null
+    };
 
-    // eBook Upload
-    document.getElementById('upload-ebook-btn')?.addEventListener('click', function() {
-        const uploaderEl = document.getElementById('ebook-uploader');
-        const progressEl = document.getElementById('ebook-progress');
+    const libraryChecks = ['Uppy', 'UppyDragDrop', 'UppyProgressBar', 'UppyXHRUpload'];
 
-        // Toggle visibility
-        uploaderEl.classList.toggle('hidden');
-
-        if (!uploaderEl.classList.contains('hidden') && !ebookUppy) {
-            // Initialize Uppy for eBook
-            ebookUppy = new Uppy({
-                restrictions: {
-                    maxFileSize: 50 * 1024 * 1024, // 50MB
-                    maxNumberOfFiles: 1,
-                    allowedFileTypes: ['.pdf', '.epub', 'application/pdf', 'application/epub+zip']
-                },
-                autoProceed: false
+    const showAlert = (icon, title, text) => {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon,
+                title,
+                text,
+                timer: icon === 'success' ? 2200 : undefined,
+                showConfirmButton: icon !== 'success'
             });
+        } else {
+            alert(title + '\n' + text);
+        }
+    };
 
-            ebookUppy.use(UppyDragDrop, {
-                target: '#ebook-uploader',
-                note: '<?= __("PDF o ePub, max 50 MB") ?>'
-            });
+    const waitForLibraries = (callback, attempts = 20) => {
+        const missing = libraryChecks.filter((key) => typeof window[key] === 'undefined');
+        if (missing.length === 0) {
+            callback();
+            return;
+        }
 
-            ebookUppy.use(UppyProgressBar, {
-                target: '#ebook-progress',
-                hideAfterFinish: false
-            });
+        if (attempts <= 0) {
+            console.warn('Digital uploads unavailable. Missing:', missing.join(', '));
+            showAlert('error', '<?= __("Uploader non disponibile") ?>', '<?= __("Impossibile inizializzare Uppy per i contenuti digitali.") ?>');
+            return;
+        }
 
-            // Handle successful upload
-            ebookUppy.on('upload-success', (file, response) => {
-                const uploadedUrl = response.uploadURL || `/uploads/digital/${file.name}`;
-                document.getElementById('file_url').value = uploadedUrl;
-                document.getElementById('file_url_display').value = uploadedUrl;
+        setTimeout(() => waitForLibraries(callback, attempts - 1), 200);
+    };
 
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'success',
-                        title: '<?= __("eBook caricato!") ?>',
-                        text: file.name,
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
+    const bindUploadEvents = (uppyInstance, type) => {
+        const inputId = type === 'audio' ? 'audio_url' : 'file_url';
+        const displayId = type === 'audio' ? 'audio_url_display' : 'file_url_display';
+        const resultId = type === 'audio' ? 'audio-upload-result' : 'ebook-upload-result';
+        const resultEl = document.getElementById(resultId);
+
+        uppyInstance.on('upload-success', (file, response) => {
+            const body = response?.body || {};
+            const uploadedUrl = body.uploadURL || `/uploads/digital/${file.name}`;
+            const hiddenInput = document.getElementById(inputId);
+            const displayInput = document.getElementById(displayId);
+
+            if (hiddenInput) hiddenInput.value = uploadedUrl;
+            if (displayInput) displayInput.value = uploadedUrl;
+
+            if (resultEl) {
+                resultEl.classList.remove('hidden');
+                resultEl.innerHTML = `
+                    <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                        <div class="flex items-center gap-3 text-sm text-gray-800">
+                            <i class="fas fa-check-circle text-green-500 text-lg"></i>
+                            <div class="flex flex-col">
+                                <span class="font-semibold">${file.name}</span>
+                                <span class="text-xs text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                            </div>
+                        </div>
+                        <a href="${uploadedUrl}" target="_blank" class="text-xs text-purple-600 hover:underline"><?= __("Apri file") ?></a>
+                    </div>
+                `;
+            }
+
+            const successTitle = type === 'audio'
+                ? '<?= __("Audiobook caricato!") ?>'
+                : '<?= __("eBook caricato!") ?>';
+
+            showAlert('success', successTitle, file.name);
+        });
+
+        uppyInstance.on('upload-error', (file, error, response) => {
+            console.error(`Digital ${type} upload error:`, error, response);
+            if (resultEl) {
+                resultEl.classList.add('hidden');
+                resultEl.innerHTML = '';
+            }
+            const errorTitle = type === 'audio'
+                ? '<?= __("Errore caricamento Audiobook") ?>'
+                : '<?= __("Errore caricamento eBook") ?>';
+
+            showAlert('error', errorTitle, error?.message || 'Upload failed');
+        });
+    };
+
+    const initUploader = (type) => {
+        if (digitalUploaders[type]) {
+            return digitalUploaders[type];
+        }
+
+        const isAudio = type === 'audio';
+        const targetSelector = isAudio ? '#audio-uploader' : '#ebook-uploader';
+        const progressSelector = isAudio ? '#audio-progress' : '#ebook-progress';
+
+        const restrictionConfig = isAudio
+            ? {
+                maxFileSize: 500 * 1024 * 1024,
+                maxNumberOfFiles: 1,
+                allowedFileTypes: ['.mp3', '.m4a', '.ogg', 'audio/mpeg', 'audio/mp4', 'audio/ogg']
+            }
+            : {
+                maxFileSize: 50 * 1024 * 1024,
+                maxNumberOfFiles: 1,
+                allowedFileTypes: ['.pdf', '.epub', 'application/pdf', 'application/epub+zip']
+            };
+
+        const uppyInstance = new Uppy({
+            restrictions: restrictionConfig,
+            autoProceed: true,
+            meta: {
+                type: isAudio ? 'audio' : 'ebook',
+                csrf_token: csrfToken
+            }
+        });
+
+        uppyInstance.use(UppyDragDrop, {
+            target: targetSelector,
+            note: isAudio
+                ? '<?= __("MP3, M4A o OGG, max 500 MB") ?>'
+                : '<?= __("PDF o ePub, max 50 MB") ?>'
+        });
+
+        uppyInstance.use(UppyProgressBar, {
+            target: progressSelector,
+            hideAfterFinish: false
+        });
+
+        if (typeof UppyXHRUpload !== 'undefined') {
+            uppyInstance.use(UppyXHRUpload, {
+                endpoint: '/admin/plugins/digital-library/upload',
+                fieldName: 'file',
+                formData: true,
+                headers: {
+                    'X-CSRF-Token': csrfToken
                 }
             });
+        }
+
+        bindUploadEvents(uppyInstance, type);
+
+        digitalUploaders[type] = uppyInstance;
+        return uppyInstance;
+    };
+
+    const bindButton = (type) => {
+        const buttonId = type === 'audio' ? 'upload-audio-btn' : 'upload-ebook-btn';
+        const button = document.getElementById(buttonId);
+        const uploaderEl = document.getElementById(type === 'audio' ? 'audio-uploader' : 'ebook-uploader');
+        const progressEl = document.getElementById(type === 'audio' ? 'audio-progress' : 'ebook-progress');
+
+        if (!button || !uploaderEl || !progressEl) {
+            return;
+        }
+
+        button.addEventListener('click', function() {
+            uploaderEl.classList.toggle('hidden');
+
+            if (uploaderEl.classList.contains('hidden')) {
+                progressEl.classList.add('hidden');
+                return;
+            }
 
             progressEl.classList.remove('hidden');
-        }
-    });
+            waitForLibraries(() => initUploader(type));
+        });
+    };
 
-    // Audiobook Upload
-    document.getElementById('upload-audio-btn')?.addEventListener('click', function() {
-        const uploaderEl = document.getElementById('audio-uploader');
-        const progressEl = document.getElementById('audio-progress');
-
-        // Toggle visibility
-        uploaderEl.classList.toggle('hidden');
-
-        if (!uploaderEl.classList.contains('hidden') && !audioUppy) {
-            // Initialize Uppy for audiobook
-            audioUppy = new Uppy({
-                restrictions: {
-                    maxFileSize: 500 * 1024 * 1024, // 500MB
-                    maxNumberOfFiles: 1,
-                    allowedFileTypes: ['.mp3', '.m4a', '.ogg', 'audio/mpeg', 'audio/mp4', 'audio/ogg']
-                },
-                autoProceed: false
-            });
-
-            audioUppy.use(UppyDragDrop, {
-                target: '#audio-uploader',
-                note: '<?= __("MP3, M4A o OGG, max 500 MB") ?>'
-            });
-
-            audioUppy.use(UppyProgressBar, {
-                target: '#audio-progress',
-                hideAfterFinish: false
-            });
-
-            // Handle successful upload
-            audioUppy.on('upload-success', (file, response) => {
-                const uploadedUrl = response.uploadURL || `/uploads/digital/${file.name}`;
-                document.getElementById('audio_url').value = uploadedUrl;
-                document.getElementById('audio_url_display').value = uploadedUrl;
-
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'success',
-                        title: '<?= __("Audiobook caricato!") ?>',
-                        text: file.name,
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                }
-            });
-
-            progressEl.classList.remove('hidden');
-        }
-    });
-})();
+    bindButton('ebook');
+    bindButton('audio');
+});
 </script>
