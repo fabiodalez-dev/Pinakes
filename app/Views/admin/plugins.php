@@ -87,8 +87,12 @@ $pluginSettings = $pluginSettings ?? [];
                 <?php foreach ($plugins as $plugin): ?>
                     <?php
                         $isOpenLibrary = $plugin['name'] === 'open-library';
+                        $isApiBookScraper = $plugin['name'] === 'api-book-scraper';
                         $openLibrarySettings = $isOpenLibrary ? ($pluginSettings[$plugin['id']] ?? []) : [];
+                        $apiBookScraperSettings = $isApiBookScraper ? ($pluginSettings[$plugin['id']] ?? []) : [];
                         $hasGoogleKey = $isOpenLibrary && !empty($openLibrarySettings['google_books_api_key_exists'] ?? false);
+                        $hasApiConfig = $isApiBookScraper && !empty($apiBookScraperSettings['api_endpoint'] ?? false) && !empty($apiBookScraperSettings['api_key_exists'] ?? false);
+                        $isApiEnabled = $isApiBookScraper && !empty($apiBookScraperSettings['enabled'] ?? false);
                     ?>
                     <div class="p-6 hover:bg-gray-50 transition-colors" data-plugin-id="<?= $plugin['id'] ?>">
                         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -127,6 +131,25 @@ $pluginSettings = $pluginSettings ?? [];
                                                 </span>
                                             </div>
                                         <?php endif; ?>
+                                        <?php if ($isApiBookScraper && $hasApiConfig): ?>
+                                            <div class="mb-3 flex flex-wrap gap-2">
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded-lg border border-blue-200">
+                                                    <i class="fas fa-link"></i>
+                                                    <?= __("API configurata") ?>
+                                                </span>
+                                                <?php if ($isApiEnabled): ?>
+                                                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-800 text-xs font-semibold rounded-lg border border-green-200">
+                                                        <i class="fas fa-check-circle"></i>
+                                                        <?= __("Abilitato") ?>
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-800 text-xs font-semibold rounded-lg border border-orange-200">
+                                                        <i class="fas fa-pause-circle"></i>
+                                                        <?= __("Disabilitato") ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
                                         <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500">
                                             <?php if ($plugin['author']): ?>
                                                 <span>
@@ -163,6 +186,7 @@ $pluginSettings = $pluginSettings ?? [];
                                                 class="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-all duration-200 text-sm font-medium"
                                                 data-plugin-id="<?= $plugin['id'] ?>"
                                                 data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
+                                                data-plugin-type="open-library"
                                                 data-has-key="1"
                                                 onclick="openPluginSettingsModal(this)">
                                             <i class="fas fa-check-circle mr-1"></i>
@@ -173,12 +197,28 @@ $pluginSettings = $pluginSettings ?? [];
                                                 class="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-all duration-200 text-sm font-medium"
                                                 data-plugin-id="<?= $plugin['id'] ?>"
                                                 data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
+                                                data-plugin-type="open-library"
                                                 data-has-key="0"
                                                 onclick="openPluginSettingsModal(this)">
                                             <i class="fas fa-exclamation-triangle mr-1"></i>
                                             <?= __("Configura Google Books") ?>
                                         </button>
                                     <?php endif; ?>
+                                <?php endif; ?>
+                                <?php if ($isApiBookScraper): ?>
+                                    <button type="button"
+                                            class="px-4 py-2 <?= $hasApiConfig ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-orange-100 text-orange-700 hover:bg-orange-200' ?> rounded-lg transition-all duration-200 text-sm font-medium"
+                                            data-plugin-id="<?= $plugin['id'] ?>"
+                                            data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
+                                            data-plugin-type="api-book-scraper"
+                                            data-has-config="<?= $hasApiConfig ? '1' : '0' ?>"
+                                            data-api-endpoint="<?= HtmlHelper::e($apiBookScraperSettings['api_endpoint'] ?? '') ?>"
+                                            data-timeout="<?= HtmlHelper::e($apiBookScraperSettings['timeout'] ?? '10') ?>"
+                                            data-enabled="<?= $isApiEnabled ? '1' : '0' ?>"
+                                            onclick="openApiBookScraperModal(this)">
+                                        <i class="fas <?= $hasApiConfig ? 'fa-cog' : 'fa-exclamation-triangle' ?> mr-1"></i>
+                                        <?= __("Configura API") ?>
+                                    </button>
                                 <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= $plugin['id'] ?>)"
@@ -331,6 +371,121 @@ $pluginSettings = $pluginSettings ?? [];
     </div>
 </div>
 
+<!-- API Book Scraper Settings Modal -->
+<div id="apiBookScraperModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <i class="fas fa-cloud-download-alt text-blue-600"></i>
+                API Book Scraper - <?= __("Configurazione") ?>
+            </h3>
+            <button type="button" class="p-2 hover:bg-gray-100 rounded-lg transition-colors" onclick="closeApiBookScraperModal()">
+                <i class="fas fa-times text-gray-500"></i>
+            </button>
+        </div>
+        <form id="apiBookScraperForm" class="p-6 space-y-5" onsubmit="saveApiBookScraperSettings(event)">
+            <input type="hidden" id="apiScraperPluginId">
+
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
+                    <div class="text-xs text-blue-800">
+                        <p class="font-semibold mb-1"><?= __("Plugin API personalizzata per scraping dati libri") ?></p>
+                        <p><?= __("Questo plugin interroga un servizio API esterno per recuperare dati libri tramite ISBN/EAN. Ha priorità 3 (più alta di Open Library).") ?></p>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label for="apiEndpointInput" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-link mr-1"></i>
+                    <?= __("URL Endpoint API") ?> *
+                </label>
+                <input type="url"
+                       id="apiEndpointInput"
+                       required
+                       class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 font-mono"
+                       placeholder="https://api.example.com/books/{isbn}">
+                <p class="mt-2 text-xs text-gray-600">
+                    <i class="fas fa-lightbulb mr-1"></i>
+                    <?= __("Usa {isbn} come placeholder. Es: https://api.example.com/books/{isbn}") ?>
+                </p>
+            </div>
+
+            <div>
+                <label for="apiKeyInput" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-key mr-1"></i>
+                    <?= __("API Key") ?> *
+                </label>
+                <div class="relative">
+                    <input type="password"
+                           id="apiKeyInput"
+                           required
+                           autocomplete="off"
+                           class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 pr-10 font-mono"
+                           placeholder="sk_live_xxxxxxxxxx">
+                    <button type="button"
+                            onclick="toggleApiKeyVisibility()"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                        <i id="apiKeyIcon" class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <p class="mt-2 text-xs text-gray-600">
+                    <i class="fas fa-shield-alt mr-1"></i>
+                    <?= __("L'API key viene criptata con AES-256-GCM prima di essere salvata.") ?>
+                </p>
+            </div>
+
+            <div>
+                <label for="apiTimeoutInput" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-clock mr-1"></i>
+                    <?= __("Timeout (secondi)") ?>
+                </label>
+                <div class="flex items-center gap-4">
+                    <input type="number"
+                           id="apiTimeoutInput"
+                           min="5"
+                           max="60"
+                           value="10"
+                           class="block w-32 rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 text-center">
+                    <span class="text-sm text-gray-600"><?= __("secondi (min: 5, max: 60)") ?></span>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <label class="inline-flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox"
+                           id="apiEnabledInput"
+                           value="1"
+                           class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <div>
+                        <span class="text-sm font-semibold text-gray-900">
+                            <i class="fas fa-power-off mr-1"></i>
+                            <?= __("Abilita Plugin") ?>
+                        </span>
+                        <p class="text-xs text-gray-600 mt-1">
+                            <?= __("Quando abilitato, il plugin interrogherà l'API durante l'importazione dati libri.") ?>
+                        </p>
+                    </div>
+                </label>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-4 border-t">
+                <button type="button"
+                        onclick="closeApiBookScraperModal()"
+                        class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all text-sm font-medium">
+                    <?= __("Annulla") ?>
+                </button>
+                <button type="submit"
+                        class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-semibold">
+                    <i class="fas fa-save"></i>
+                    <?= __("Salva Configurazione") ?>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Uppy is loaded from vendor.bundle.js (self-hosted, no CDN) -->
 <script>
 const csrfToken = '<?= Csrf::ensureToken() ?>';
@@ -344,6 +499,7 @@ const pluginSettingsTitle = document.getElementById('pluginSettingsTitle');
 const pluginSettingsHelper = document.getElementById('pluginSettingsHelper');
 const pluginSettingsPluginIdInput = document.getElementById('pluginSettingsPluginId');
 const googleBooksKeyInput = document.getElementById('googleBooksKeyInput');
+const apiBookScraperModal = document.getElementById('apiBookScraperModal');
 let uppyInstance = null;
 let selectedFile = null;
 
@@ -748,6 +904,133 @@ async function saveGoogleBooksKey(event) {
             icon: 'error',
             title: '<?= addslashes(__("Errore")) ?>',
             text: '<?= addslashes(__("Errore durante l\'aggiornamento della chiave Google Books.")) ?>'
+        });
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = `<i class="fas fa-save"></i> ${buttonLabel}`;
+        }
+    }
+}
+
+// ============================================================================
+// API Book Scraper Modal Functions
+// ============================================================================
+
+function openApiBookScraperModal(button) {
+    const pluginId = button.dataset.pluginId;
+    const apiEndpoint = button.dataset.apiEndpoint || '';
+    const timeout = button.dataset.timeout || '10';
+    const enabled = button.dataset.enabled === '1';
+
+    // Populate form fields
+    document.getElementById('apiScraperPluginId').value = pluginId;
+    document.getElementById('apiEndpointInput').value = apiEndpoint;
+    document.getElementById('apiKeyInput').value = ''; // Always empty for security
+    document.getElementById('apiTimeoutInput').value = timeout;
+    document.getElementById('apiEnabledInput').checked = enabled;
+
+    // Show modal
+    document.getElementById('apiBookScraperModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('apiEndpointInput').focus(), 100);
+}
+
+function closeApiBookScraperModal() {
+    // Hide modal
+    document.getElementById('apiBookScraperModal').classList.add('hidden');
+
+    // Reset form
+    document.getElementById('apiScraperPluginId').value = '';
+    document.getElementById('apiEndpointInput').value = '';
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('apiTimeoutInput').value = '10';
+    document.getElementById('apiEnabledInput').checked = false;
+}
+
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('apiKeyInput');
+    const icon = document.getElementById('apiKeyIcon');
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+async function saveApiBookScraperSettings(event) {
+    event.preventDefault();
+    console.log('🔧 saveApiBookScraperSettings() called');
+
+    const pluginId = document.getElementById('apiScraperPluginId').value;
+    console.log('📋 Plugin ID:', pluginId);
+
+    if (!pluginId) {
+        console.error('❌ No plugin ID found');
+        return;
+    }
+
+    const apiEndpoint = document.getElementById('apiEndpointInput').value.trim();
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
+    const timeout = document.getElementById('apiTimeoutInput').value;
+    const enabled = document.getElementById('apiEnabledInput').checked ? '1' : '0';
+
+    console.log('🔐 Settings:', { apiEndpoint, timeout, enabled, hasApiKey: apiKey.length > 0 });
+
+    const submitButton = event.target.querySelector('button[type="submit"]');
+    const formData = new FormData();
+    formData.append('csrf_token', csrfToken);
+    formData.append('settings[api_endpoint]', apiEndpoint);
+    formData.append('settings[api_key]', apiKey);
+    formData.append('settings[timeout]', timeout);
+    formData.append('settings[enabled]', enabled);
+
+    let buttonLabel = '';
+    if (submitButton) {
+        buttonLabel = submitButton.textContent.trim();
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
+
+    try {
+        console.log('📤 Sending request to:', `/admin/plugins/${pluginId}/settings`);
+
+        const response = await fetch(`/admin/plugins/${pluginId}/settings`, {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('📥 Response status:', response.status);
+
+        const data = await response.json();
+        console.log('📦 Response data:', data);
+
+        if (data.success) {
+            await Swal.fire({
+                icon: 'success',
+                title: '<?= addslashes(__("Successo")) ?>',
+                text: '<?= addslashes(__("Impostazioni API Book Scraper salvate correttamente.")) ?>'
+            });
+            closeApiBookScraperModal();
+            // Reload to show updated status
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            await Swal.fire({
+                icon: 'error',
+                title: '<?= addslashes(__("Errore")) ?>',
+                text: data.message || '<?= addslashes(__("Impossibile salvare le impostazioni.")) ?>'
+            });
+        }
+    } catch (error) {
+        console.error('💥 Error:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: '<?= addslashes(__("Errore")) ?>',
+            text: '<?= addslashes(__("Errore durante il salvataggio delle impostazioni.")) ?>'
         });
     } finally {
         if (submitButton) {

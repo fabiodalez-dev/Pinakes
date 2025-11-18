@@ -37,10 +37,19 @@ class PluginController
         $pluginSettings = [];
         foreach ($plugins as $plugin) {
             $settings = $this->pluginManager->getSettings((int)$plugin['id']);
+
+            // Handle Google Books API key
             if (array_key_exists('google_books_api_key', $settings)) {
                 $settings['google_books_api_key_exists'] = $settings['google_books_api_key'] !== '';
                 unset($settings['google_books_api_key']);
             }
+
+            // Handle API Book Scraper settings - never expose the actual API key
+            if ($plugin['name'] === 'api-book-scraper' && array_key_exists('api_key', $settings)) {
+                $settings['api_key_exists'] = $settings['api_key'] !== '' && $settings['api_key'] !== '••••••••';
+                $settings['api_key'] = $settings['api_key_exists'] ? '••••••••' : '';
+            }
+
             $pluginSettings[$plugin['id']] = $settings;
         }
 
@@ -326,8 +335,66 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Currently only Open Library supports editable settings
-        if ($plugin['name'] !== 'open-library') {
+        // Handle settings based on plugin type
+        if ($plugin['name'] === 'open-library') {
+            // Open Library: Google Books API key
+            $apiKey = trim((string)($settings['google_books_api_key'] ?? ''));
+            $apiKeyLength = strlen($apiKey);
+            error_log('[PluginController] Google Books API key length: ' . $apiKeyLength);
+
+            $saveResult = $this->pluginManager->setSetting($pluginId, 'google_books_api_key', $apiKey, false);
+            error_log('[PluginController] Save result: ' . ($saveResult ? 'true' : 'false'));
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => $apiKey !== ''
+                    ? __('Chiave Google Books salvata correttamente.')
+                    : __('Chiave Google Books rimossa.'),
+                'data' => [
+                    'google_books_api_key' => $apiKey !== '' ? 'saved' : 'removed',
+                    'key_length' => $apiKeyLength
+                ]
+            ]));
+        } elseif ($plugin['name'] === 'api-book-scraper') {
+            // API Book Scraper: endpoint, api_key, timeout, enabled
+            $apiEndpoint = trim((string)($settings['api_endpoint'] ?? ''));
+            $apiKey = trim((string)($settings['api_key'] ?? ''));
+            $timeout = max(5, min(60, (int)($settings['timeout'] ?? 10)));
+            $enabled = isset($settings['enabled']) && $settings['enabled'] === '1';
+
+            error_log('[PluginController] API Book Scraper settings - endpoint: ' . $apiEndpoint . ', timeout: ' . $timeout . ', enabled: ' . ($enabled ? 'yes' : 'no'));
+
+            // Save all settings
+            $this->pluginManager->setSetting($pluginId, 'api_endpoint', $apiEndpoint, true);
+            $this->pluginManager->setSetting($pluginId, 'api_key', $apiKey, true);
+            $this->pluginManager->setSetting($pluginId, 'timeout', (string)$timeout, true);
+            $this->pluginManager->setSetting($pluginId, 'enabled', $enabled ? '1' : '0', true);
+
+            // Load the plugin instance to re-register hooks
+            $pluginPath = $this->pluginManager->getPluginPath($plugin['name']);
+            $wrapperFile = $pluginPath . '/wrapper.php';
+
+            if (file_exists($wrapperFile)) {
+                $db = $this->db;
+                $pluginInstance = require $wrapperFile;
+
+                if ($pluginInstance && method_exists($pluginInstance, 'setPluginId')) {
+                    $pluginInstance->setPluginId($pluginId);
+                }
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Impostazioni API Book Scraper salvate correttamente.'),
+                'data' => [
+                    'api_endpoint' => $apiEndpoint !== '' ? 'saved' : 'empty',
+                    'api_key' => $apiKey !== '' ? 'saved' : 'empty',
+                    'timeout' => $timeout,
+                    'enabled' => $enabled
+                ]
+            ]));
+        } else {
+            // Plugin not supported
             error_log('[PluginController] Plugin does not support settings: ' . $plugin['name']);
             $response->getBody()->write(json_encode([
                 'success' => false,
@@ -335,24 +402,6 @@ class PluginController
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
-
-        $apiKey = trim((string)($settings['google_books_api_key'] ?? ''));
-        $apiKeyLength = strlen($apiKey);
-        error_log('[PluginController] API key length: ' . $apiKeyLength);
-
-        $saveResult = $this->pluginManager->setSetting($pluginId, 'google_books_api_key', $apiKey, false);
-        error_log('[PluginController] Save result: ' . ($saveResult ? 'true' : 'false'));
-
-        $response->getBody()->write(json_encode([
-            'success' => true,
-            'message' => $apiKey !== ''
-                ? __('Chiave Google Books salvata correttamente.')
-                : __('Chiave Google Books rimossa.'),
-            'data' => [
-                'google_books_api_key' => $apiKey !== '' ? 'saved' : 'removed',
-                'key_length' => $apiKeyLength
-            ]
-        ]));
 
         error_log('[PluginController] Settings saved successfully');
         return $response->withHeader('Content-Type', 'application/json');
