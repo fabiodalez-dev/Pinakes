@@ -861,10 +861,44 @@ class ThemeColorizer
 - [ ] Aggiungere voce menu "Temi" in `app/Views/layout.php`
 
 ### **FASE 4: Testing e Validazione**
-- [ ] Testare cambio colori e preview live
-- [ ] Verificare contrasto WCAG
-- [ ] Testare fallback se tema non configurato
+- [x] Testare cambio colori e preview live
+- [x] Verificare contrasto WCAG
+- [x] Testare fallback se tema non configurato
 - [ ] Verificare compatibilità con tutti i browser
+
+### **INSTALLER UPDATES (IMPORTANTE)**
+
+**Database Schema Aggiornato:**
+- ✅ Tabella `themes` aggiunta a `installer/database/schema.sql`
+- ✅ Record default "Pinakes Classic" inserito automaticamente
+- ✅ `EXPECTED_TABLES` in `installer/classes/Installer.php` aggiornato: 39 → 40 tabelle
+
+**Per Installazioni Esistenti:**
+Se l'applicazione è già installata, eseguire questa query SQL manualmente:
+
+```sql
+-- Crea tabella themes
+CREATE TABLE `themes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Theme display name',
+  `slug` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique theme identifier',
+  `version` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT '1.0.0' COMMENT 'Theme version',
+  `author` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT 'Admin' COMMENT 'Theme author',
+  `description` text COLLATE utf8mb4_unicode_ci COMMENT 'Theme description',
+  `active` tinyint(1) DEFAULT '0' COMMENT '1 = active theme, 0 = inactive',
+  `settings` json DEFAULT NULL COMMENT 'Theme settings (colors, typography, logo, advanced)',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `idx_active` (`active`),
+  KEY `idx_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Theme management system';
+
+-- Inserisci tema default
+INSERT INTO `themes` (`name`, `slug`, `version`, `author`, `description`, `active`, `settings`) VALUES
+('Pinakes Classic', 'default', '1.0.0', 'Pinakes Team', 'Tema predefinito dell\'applicazione Pinakes con i colori originali', 1, '{\"colors\": {\"primary\": \"#d70161\", \"secondary\": \"#111827\", \"button\": \"#d70262\", \"button_text\": \"#ffffff\"}, \"typography\": {\"font_family\": \"system-ui, sans-serif\", \"font_size_base\": \"16px\"}, \"logo\": {\"url\": \"\", \"width\": \"auto\", \"height\": \"50px\"}, \"advanced\": {\"custom_css\": \"\", \"custom_js\": \"\"}}');
+```
 
 ---
 
