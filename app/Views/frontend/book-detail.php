@@ -1853,6 +1853,10 @@ ob_start();
                         <?php if (($related['copie_disponibili'] ?? 0) > 0): ?>
                         <span class="related-availability-badge available-badge">
                             <i class="fas fa-check-circle"></i>
+                            <?php
+                            // Hook: Allow plugins to add icons to related book badge (e.g., eBook/audio icons)
+                            do_action('book.badge.digital_icons', $related);
+                            ?>
                         </span>
                         <?php endif; ?>
                     </div>

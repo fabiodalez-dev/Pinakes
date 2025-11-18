@@ -484,6 +484,10 @@ function createBookUrl($book) {
                             <span class="book-status-badge <?= ($book['copie_disponibili'] > 0) ? 'status-available' : 'status-borrowed' ?>">
                                 <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?>"></i>
                                 <?= ($book['copie_disponibili'] > 0) ? __('Disponibile') : __('Prestato') ?>
+                                <?php
+                                // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
+                                do_action('book.badge.digital_icons', $book);
+                                ?>
                             </span>
                         </div>
                         <div class="book-content">
