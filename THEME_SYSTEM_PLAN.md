@@ -533,6 +533,106 @@ VALUES (
 );
 ```
 
+### **🎨 10 Temi Predefiniti**
+
+L'installer ora include **10 temi predefiniti** con palette colori moderne e accessibili WCAG AA. Solo **Pinakes Classic** è attivo di default.
+
+#### **1. Pinakes Classic** ⭐ *(Attivo)*
+- **Slug**: `default`
+- **Descrizione**: Tema originale con magenta vibrante
+- **Colori**:
+  - Primary: `#d70161` (magenta)
+  - Secondary: `#111827` (dark gray)
+  - Button: `#d70262` (magenta)
+  - Button Text: `#ffffff` (white)
+
+#### **2. Minimal**
+- **Slug**: `minimal-bw`
+- **Descrizione**: Design minimale con nero, grigio e bianco
+- **Colori**:
+  - Primary: `#404040` (dark gray)
+  - Secondary: `#000000` (black)
+  - Button: `#808080` (silver)
+  - Button Text: `#ffffff` (white)
+
+#### **3. Ocean Blue**
+- **Slug**: `ocean-blue`
+- **Descrizione**: Tonalità blu oceano moderne e professionali
+- **Colori**:
+  - Primary: `#0284c7` (sky blue)
+  - Secondary: `#0c4a6e` (deep blue)
+  - Button: `#0ea5e9` (bright blue)
+  - Button Text: `#ffffff` (white)
+
+#### **4. Forest Green**
+- **Slug**: `forest-green`
+- **Descrizione**: Verde smeraldo naturale e tranquillo
+- **Colori**:
+  - Primary: `#059669` (emerald)
+  - Secondary: `#064e3b` (dark green)
+  - Button: `#10b981` (green)
+  - Button Text: `#ffffff` (white)
+
+#### **5. Sunset Orange**
+- **Slug**: `sunset-orange`
+- **Descrizione**: Arancione caldo ispirato ai tramonti mediterranei
+- **Colori**:
+  - Primary: `#ea580c` (orange)
+  - Secondary: `#7c2d12` (dark orange)
+  - Button: `#f97316` (bright orange)
+  - Button Text: `#ffffff` (white)
+
+#### **6. Burgundy**
+- **Slug**: `burgundy-red`
+- **Descrizione**: Rosso borgogna elegante e raffinato
+- **Colori**:
+  - Primary: `#be123c` (rose)
+  - Secondary: `#881337` (dark burgundy)
+  - Button: `#e11d48` (red)
+  - Button Text: `#ffffff` (white)
+
+#### **7. Teal Professional**
+- **Slug**: `teal-professional`
+- **Descrizione**: Verde acqua professionale per ambienti corporate
+- **Colori**:
+  - Primary: `#0d9488` (teal)
+  - Secondary: `#134e4a` (dark teal)
+  - Button: `#14b8a6` (bright teal)
+  - Button Text: `#ffffff` (white)
+
+#### **8. Slate Gray**
+- **Slug**: `slate-gray`
+- **Descrizione**: Grigio ardesia moderno e contemporaneo
+- **Colori**:
+  - Primary: `#475569` (slate)
+  - Secondary: `#1e293b` (dark slate)
+  - Button: `#64748b` (medium slate)
+  - Button Text: `#ffffff` (white)
+
+#### **9. Coral Warm**
+- **Slug**: `coral-warm`
+- **Descrizione**: Tonalità corallo calde e invitanti
+- **Colori**:
+  - Primary: `#f43f5e` (coral rose)
+  - Secondary: `#9f1239` (dark rose)
+  - Button: `#fb7185` (light coral)
+  - Button Text: `#ffffff` (white)
+
+#### **10. Navy Classic**
+- **Slug**: `navy-classic`
+- **Descrizione**: Blu navy classico e intramontabile
+- **Colori**:
+  - Primary: `#1e40af` (blue)
+  - Secondary: `#1e3a8a` (dark blue)
+  - Button: `#3b82f6` (bright blue)
+  - Button Text: `#ffffff` (white)
+
+**Note**:
+- Tutti i colori sono testati per accessibilità WCAG AA (contrasto minimo 4.5:1)
+- Nessun gradiente, solo colori solidi
+- Palette moderne senza viola e senza colori troppo forti
+- Ogni tema è completamente personalizzabile dall'admin
+
 ---
 
 ## 📁 STRUTTURA FILE
