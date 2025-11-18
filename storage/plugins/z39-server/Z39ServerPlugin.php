@@ -22,7 +22,6 @@
 declare(strict_types=1);
 
 use App\Support\HookManager;
-use mysqli;
 
 class Z39ServerPlugin
 {

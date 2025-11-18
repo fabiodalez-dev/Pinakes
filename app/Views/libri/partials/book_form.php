@@ -402,6 +402,11 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
           </div>
 
+          <?php
+          // Hook: Allow plugins to add digital content upload fields (e.g., Uppy uploaders)
+          do_action('book.form.digital_fields', $book ?? []);
+          ?>
+
           <!-- Notes -->
           <div>
             <label for="note_varie" class="form-label"><?= __("Note Varie") ?></label>

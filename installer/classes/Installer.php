@@ -1041,8 +1041,9 @@ HTACCESS;
     }
 
     /**
-     * Register and activate default plugins (open-library and z39-server)
-     * Plugins are already in storage/plugins/ - just register them in DB
+     * Register and activate default plugins
+     * Plugins: open-library, z39-server, api-book-scraper, digital-library
+     * Excluded: scraping-pro (commercial/proprietary)
      */
     public function installPluginsFromZip() {
         $pdo = $this->getDatabaseConnection();
@@ -1074,14 +1075,27 @@ HTACCESS;
             }
         };
 
-        // Plugin 1: Open Library
-        try {
-            $pluginDir = $this->baseDir . '/storage/plugins/open-library';
+        // Generic plugin installer
+        $installPlugin = function(string $pluginName, array $additionalHooks = []) use ($pdo, $ensureHooks, &$results) {
+            try {
+                $pluginDir = $this->baseDir . '/storage/plugins/' . $pluginName;
 
-            if (!is_dir($pluginDir)) {
-                $results[] = ['name' => 'open-library', 'status' => 'error', 'message' => 'Directory not found'];
-            } else {
-                $pluginJson = json_decode(file_get_contents($pluginDir . '/plugin.json'), true);
+                if (!is_dir($pluginDir)) {
+                    $results[] = ['name' => $pluginName, 'status' => 'error', 'message' => 'Directory not found'];
+                    return;
+                }
+
+                $pluginJsonPath = $pluginDir . '/plugin.json';
+                if (!file_exists($pluginJsonPath)) {
+                    $results[] = ['name' => $pluginName, 'status' => 'error', 'message' => 'plugin.json not found'];
+                    return;
+                }
+
+                $pluginJson = json_decode(file_get_contents($pluginJsonPath), true);
+                if (!$pluginJson) {
+                    $results[] = ['name' => $pluginName, 'status' => 'error', 'message' => 'Invalid plugin.json'];
+                    return;
+                }
 
                 $stmt = $pdo->prepare("SELECT id FROM plugins WHERE name = :name LIMIT 1");
                 $stmt->execute(['name' => $pluginJson['name']]);
@@ -1100,81 +1114,47 @@ HTACCESS;
                         'display_name' => $pluginJson['display_name'],
                         'description' => $pluginJson['description'],
                         'version' => $pluginJson['version'],
-                        'author' => $pluginJson['author'],
+                        'author' => $pluginJson['author'] ?? '',
                         'author_url' => $pluginJson['author_url'] ?? '',
                         'plugin_url' => $pluginJson['plugin_url'] ?? '',
-                        'path' => 'open-library',
+                        'path' => $pluginName,
                         'main_file' => $pluginJson['main_file'],
-                        'requires_php' => $pluginJson['requires_php'],
-                        'requires_app' => $pluginJson['requires_app'],
+                        'requires_php' => $pluginJson['requires_php'] ?? '8.0',
+                        'requires_app' => $pluginJson['requires_app'] ?? '1.0',
                         'metadata' => json_encode($pluginJson['metadata'] ?? [])
                     ]);
 
                     $pluginId = (int)$pdo->lastInsertId();
                 }
 
+                // Register hooks from plugin.json
                 $hooks = $pluginJson['metadata']['hooks'] ?? [];
-                $ensureHooks($pluginId, $hooks, 'OpenLibraryPlugin');
+                // Merge with additional hooks
+                $hooks = array_merge($hooks, $additionalHooks);
 
-                $results[] = ['name' => 'open-library', 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
-            }
-        } catch (Exception $e) {
-            $results[] = ['name' => 'open-library', 'status' => 'error', 'message' => $e->getMessage()];
-        }
+                // Determine callback class from plugin name (CamelCase convention)
+                $callbackClass = str_replace(' ', '', ucwords(str_replace('-', ' ', $pluginName))) . 'Plugin';
 
-        // Plugin 2: Z39-Server
-        try {
-            $pluginDir = $this->baseDir . '/storage/plugins/z39-server';
-
-            if (!is_dir($pluginDir)) {
-                $results[] = ['name' => 'z39-server', 'status' => 'error', 'message' => 'Directory not found'];
-            } else {
-                $pluginJson = json_decode(file_get_contents($pluginDir . '/plugin.json'), true);
-
-                $stmt = $pdo->prepare("SELECT id FROM plugins WHERE name = :name LIMIT 1");
-                $stmt->execute(['name' => $pluginJson['name']]);
-                $pluginId = (int)$stmt->fetchColumn();
-
-                if (!$pluginId) {
-                    $insertStmt = $pdo->prepare("
-                        INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
-                            is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
-                        VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
-                            1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
-                    ");
-
-                    $insertStmt->execute([
-                        'name' => $pluginJson['name'],
-                        'display_name' => $pluginJson['display_name'],
-                        'description' => $pluginJson['description'],
-                        'version' => $pluginJson['version'],
-                        'author' => $pluginJson['author'],
-                        'author_url' => $pluginJson['author_url'] ?? '',
-                        'plugin_url' => $pluginJson['plugin_url'] ?? '',
-                        'path' => 'z39-server',
-                        'main_file' => $pluginJson['main_file'],
-                        'requires_php' => $pluginJson['requires_php'],
-                        'requires_app' => $pluginJson['requires_app'],
-                        'metadata' => json_encode($pluginJson['metadata'] ?? [])
-                    ]);
-
-                    $pluginId = (int)$pdo->lastInsertId();
+                if (!empty($hooks)) {
+                    $ensureHooks($pluginId, $hooks, $callbackClass);
                 }
 
-                // Register hook for route registration
-                $ensureHooks($pluginId, [
-                    [
-                        'name' => 'app.routes.register',
-                        'callback_method' => 'registerRoutes',
-                        'priority' => 10
-                    ]
-                ], 'Z39ServerPlugin');
+                $results[] = ['name' => $pluginName, 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
 
-                $results[] = ['name' => 'z39-server', 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
+            } catch (Exception $e) {
+                $results[] = ['name' => $pluginName, 'status' => 'error', 'message' => $e->getMessage()];
             }
-        } catch (Exception $e) {
-            $results[] = ['name' => 'z39-server', 'status' => 'error', 'message' => $e->getMessage()];
-        }
+        };
+
+        // Install all default plugins (excluding scraping-pro)
+        $installPlugin('open-library');
+        $installPlugin('z39-server', [
+            ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
+        ]);
+        $installPlugin('api-book-scraper');
+        $installPlugin('digital-library', [
+            ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
+        ]);
 
         return $results;
     }

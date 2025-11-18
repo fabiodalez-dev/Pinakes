@@ -1455,7 +1455,17 @@ ob_start();
                         <i class="fas fa-heart me-2"></i><?= __("Accedi per aggiungere ai Preferiti") ?>
                       </a>
                     <?php endif; ?>
+
+                    <?php
+                    // Hook: Allow plugins to add digital content buttons (e.g., Download eBook, Play Audio)
+                    do_action('book.detail.digital_buttons', $book);
+                    ?>
                 </div>
+
+                <?php
+                // Hook: Allow plugins to add digital content player (e.g., Green Audio Player)
+                do_action('book.detail.digital_player', $book);
+                ?>
 
                 <!-- Alerts Section -->
                 <div id="book-alerts">
@@ -1843,6 +1853,10 @@ ob_start();
                         <?php if (($related['copie_disponibili'] ?? 0) > 0): ?>
                         <span class="related-availability-badge available-badge">
                             <i class="fas fa-check-circle"></i>
+                            <?php
+                            // Hook: Allow plugins to add icons to related book badge (e.g., eBook/audio icons)
+                            do_action('book.badge.digital_icons', $related);
+                            ?>
                         </span>
                         <?php endif; ?>
                     </div>

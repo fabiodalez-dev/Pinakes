@@ -78,6 +78,8 @@
 ### Plugins, Scraping & Integrations
 - `app/Support/Hooks.php` exposes action/filter hooks used across cataloging, scraping, login and frontend widgets; plugins register in `plugins`, `plugin_hooks`, `plugin_settings`, `plugin_data` and `plugin_logs` tables.
 - The **Open Library + Google Books plugin** (`storage/plugins/open-library/`) wires into `scrape.sources`, `scrape.fetch.custom` and `scrape.data.modify` to fetch high-quality metadata and covers. Google Books API keys are stored in encrypted plugin settings (using `PLUGIN_ENCRYPTION_KEY` / `APP_KEY`).
+- The **Digital Library plugin** (`storage/plugins/digital-library/`) adds eBook (PDF/ePub) and audiobook (MP3/M4A/OGG) support directly to the book cataloging form. It provides Uppy-powered upload widgets with progress tracking, file type validation (50MB for eBooks, 500MB for audiobooks), and frontend players with streaming support. Uploaded files are stored in `public/uploads/digital/` and accessible to patrons via the book detail page.
+- The **API Book Scraper plugin** (`storage/plugins/api-book-scraper/`) enables integration with external book metadata APIs using API key authentication, prioritized above Open Library for faster ISBN lookups.
 - Google Books is available as a fallback source inside the same plugin, so even ISBNs missing from Open Library can be prefilled.
 - Plugin ZIPs can be uploaded from Admin → Plugins; lifecycle hooks (install/activate/deactivate/uninstall) are handled without touching core code.
 
@@ -142,7 +144,8 @@ Pinakes ships with `vendor/` and compiled frontend assets committed, so Composer
 ## Installer Overview
 The bundled installer (`installer/README.md`):
 - validates PHP extensions and directory permissions;
-- creates 30+ tables, triggers and seed data (Dewey, genres, CMS placeholders, email templates);
+- creates 39 tables, triggers and seed data (Dewey, genres, CMS placeholders, email templates, plugin system);
+- **automatically installs 4 default plugins**: Open Library (metadata scraping), Z39 Server (SRU API), API Book Scraper (ISBN enrichment), and Digital Library (eBook/audiobook management);
 - writes an `.env` with production defaults (APP_ENV=production, debug off) plus `.installed` lock;
 - supports step-by-step deletion of itself once the instance is ready.
 If you ever need to reinstall, delete `.installed` + `.env` or hit `/installer?force=1`.
@@ -190,6 +193,9 @@ If you ever need to reinstall, delete `.installed` + `.env` or hit `/installer?f
 - `app/Views/partials/cookie-banner.php` – consent banner configuration.
 - `app/Controllers/SeoController.php` – sitemap + robots.
 - `storage/plugins/open-library/` – Open Library + Google Books integration example.
+- `storage/plugins/digital-library/` – Digital Library plugin (eBook/audiobook upload and streaming).
+- `storage/plugins/z39-server/` – SRU Server plugin (SRU 1.2 API for catalog interoperability).
+- `storage/plugins/api-book-scraper/` – API Book Scraper plugin (external metadata integration).
 
 ---
 

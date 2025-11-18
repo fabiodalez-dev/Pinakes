@@ -4,11 +4,16 @@ function createBookUrl($book) {
 }
 
 function getBookStatusBadge($book) {
+    ob_start();
     if (($book['copie_disponibili'] ?? 0) > 0) {
-        return '<span class="book-status-badge status-available">' . __("Disponibile") . '</span>';
+        echo '<span class="book-status-badge status-available">' . __("Disponibile");
     } else {
-        return '<span class="book-status-badge status-borrowed">' . __("In prestito") . '</span>';
+        echo '<span class="book-status-badge status-borrowed">' . __("In prestito");
     }
+    // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
+    do_action('book.badge.digital_icons', $book);
+    echo '</span>';
+    return ob_get_clean();
 }
 ?>
 <?php if (!empty($books)): ?>

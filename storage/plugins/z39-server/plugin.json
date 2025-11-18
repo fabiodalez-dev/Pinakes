@@ -3,7 +3,7 @@
   "display_name": "Z39.50/SRU Server",
   "description": "Server SRU (Search/Retrieve via URL) per esporre il catalogo bibliografico tramite protocollo standard Z39.50/SRU. Supporta formati MARC21, MARCXML, Dublin Core e MODS per l'integrazione con reti bibliotecarie.",
   "version": "1.0.0",
-  "author": "Biblioteca",
+  "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.loc.gov/standards/sru/",
   "main_file": "Z39ServerPlugin.php",

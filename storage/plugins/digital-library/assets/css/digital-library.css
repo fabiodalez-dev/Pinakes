@@ -1,0 +1,272 @@
+/**
+ * Digital Library Plugin - Custom Styles
+ * Styles for eBook/audiobook functionality
+ */
+
+/* ==========================================================================
+   Status Badge Icons
+   ========================================================================== */
+
+.digital-badge-icon {
+    display: inline-block;
+    margin-left: 0.25rem;
+    font-size: 0.75em;
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+}
+
+.digital-badge-icon:hover {
+    opacity: 1;
+}
+
+.digital-badge-icon.ebook-icon {
+    color: #dc2626; /* red-600 for PDF */
+}
+
+.digital-badge-icon.audio-icon {
+    color: #16a34a; /* green-600 for audio */
+}
+
+/* Ensure icons don't break layout in small badges */
+.book-status-badge .digital-badge-icon,
+.related-availability-badge .digital-badge-icon {
+    vertical-align: middle;
+    line-height: 1;
+}
+
+/* ==========================================================================
+   Action Buttons - Digital Content
+   ========================================================================== */
+
+.action-buttons .btn-outline-danger {
+    color: #dc2626;
+    border-color: #dc2626;
+    background: transparent;
+    transition: all 0.3s ease;
+}
+
+.action-buttons .btn-outline-danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #ffffff;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.action-buttons .btn-outline-success {
+    color: #16a34a;
+    border-color: #16a34a;
+    background: transparent;
+    transition: all 0.3s ease;
+}
+
+.action-buttons .btn-outline-success:hover {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #ffffff;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+/* ==========================================================================
+   Audiobook Player Container
+   ========================================================================== */
+
+#audiobook-player-container {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#audiobook-player-container .card {
+    border: 2px solid #e5e7eb;
+    border-radius: 16px;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+}
+
+#audiobook-player-container .card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   Green Audio Player Custom Theme
+   ========================================================================== */
+
+.player-digital-library {
+    margin: 0;
+    width: 100%;
+}
+
+.player-digital-library .player {
+    box-shadow: none !important;
+    border-radius: 12px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    padding: 1rem;
+}
+
+.player-digital-library .play-pause-btn {
+    background-color: #16a34a !important;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.player-digital-library .play-pause-btn:hover {
+    background-color: #15803d !important;
+    transform: scale(1.1);
+}
+
+.player-digital-library .slider .gap-progress {
+    background-color: #16a34a !important;
+}
+
+.player-digital-library .controls__slider {
+    background-color: #e5e7eb;
+}
+
+.player-digital-library .controls__current-time,
+.player-digital-library .controls__total-time {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Volume controls */
+.player-digital-library .volume__button {
+    color: #6b7280;
+}
+
+.player-digital-library .volume__controls .slider .gap-progress {
+    background-color: #16a34a !important;
+}
+
+/* Download button (if enabled) */
+.player-digital-library .download {
+    color: #6b7280;
+    transition: color 0.2s ease;
+}
+
+.player-digital-library .download:hover {
+    color: #16a34a;
+}
+
+/* ==========================================================================
+   Admin Form - Digital Content Section
+   ========================================================================== */
+
+.bg-gradient-to-br.from-purple-50.to-indigo-50 {
+    background: linear-gradient(135deg, #faf5ff 0%, #eef2ff 100%);
+}
+
+/* Upload button states */
+#upload-ebook-btn,
+#upload-audio-btn {
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+#upload-ebook-btn:hover {
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    transform: translateY(-2px);
+}
+
+#upload-audio-btn:hover {
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+    transform: translateY(-2px);
+}
+
+#upload-ebook-btn:active,
+#upload-audio-btn:active {
+    transform: translateY(0);
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .action-buttons .btn-outline-danger,
+    .action-buttons .btn-outline-success {
+        min-width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    #audiobook-player-container .card-body {
+        padding: 1rem;
+    }
+
+    .player-digital-library .player {
+        padding: 0.75rem;
+    }
+
+    .player-digital-library .play-pause-btn {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* ==========================================================================
+   Accessibility Enhancements
+   ========================================================================== */
+
+/* Focus states for keyboard navigation */
+.player-accessible *:focus {
+    outline: 2px solid #16a34a;
+    outline-offset: 2px;
+}
+
+/* Screen reader only text */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .player-digital-library .player {
+        border: 2px solid currentColor;
+    }
+
+    .digital-badge-icon {
+        opacity: 1;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .action-buttons .btn:hover {
+        transform: none;
+    }
+
+    #audiobook-player-container .card:hover {
+        transform: none;
+    }
+}

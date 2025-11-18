@@ -165,3 +165,53 @@ if (!function_exists('book_url')) {
         return '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
     }
 }
+
+// ============================================================================
+// Hook System Helper Functions
+// ============================================================================
+
+if (!function_exists('do_action')) {
+    /**
+     * Execute an action hook
+     *
+     * Action hooks allow plugins to inject custom functionality at specific points
+     * in the application without modifying core code.
+     *
+     * Usage example:
+     *   do_action('book.detail.digital_buttons', $book);
+     *
+     * @param string $hookName The name of the hook to execute
+     * @param mixed ...$args Arguments to pass to the hook callbacks
+     * @return void
+     */
+    function do_action(string $hookName, ...$args): void
+    {
+        if (isset($GLOBALS['hookManager'])) {
+            $GLOBALS['hookManager']->doAction($hookName, $args);
+        }
+    }
+}
+
+if (!function_exists('apply_filters')) {
+    /**
+     * Apply a filter hook
+     *
+     * Filter hooks allow plugins to modify and return values at specific points
+     * in the application.
+     *
+     * Usage example:
+     *   $bookData = apply_filters('book.data.get', $bookData, $bookId);
+     *
+     * @param string $hookName The name of the hook to apply
+     * @param mixed $value The initial value to filter
+     * @param mixed ...$args Additional arguments to pass to the hook callbacks
+     * @return mixed The filtered value
+     */
+    function apply_filters(string $hookName, $value, ...$args)
+    {
+        if (isset($GLOBALS['hookManager'])) {
+            return $GLOBALS['hookManager']->applyFilters($hookName, $value, $args);
+        }
+        return $value;
+    }
+}

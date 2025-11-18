@@ -363,7 +363,6 @@ if (!function_exists('assetUrl')) {
         .mobile-search-container {
             display: none;
             max-height: 0;
-            overflow: hidden;
             transition: max-height 0.3s ease-in-out;
             width: 100%;
         }
