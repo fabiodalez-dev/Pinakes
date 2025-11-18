@@ -98,6 +98,19 @@ storage/plugins/api-book-scraper/*
 !storage/plugins/api-book-scraper/*.md
 !storage/plugins/api-book-scraper/views/
 !storage/plugins/api-book-scraper/views/*.php
+!storage/plugins/digital-library/
+storage/plugins/digital-library/*
+!storage/plugins/digital-library/*.php
+!storage/plugins/digital-library/*.json
+!storage/plugins/digital-library/*.md
+!storage/plugins/digital-library/views/
+!storage/plugins/digital-library/views/*.php
+!storage/plugins/digital-library/assets/
+!storage/plugins/digital-library/assets/css/
+!storage/plugins/digital-library/assets/css/*.css
+!storage/plugins/digital-library/migrations/
+!storage/plugins/digital-library/migrations/*.php
+!storage/plugins/digital-library/migrations/*.sql
 
 # Cache & Temp
 cache/*
