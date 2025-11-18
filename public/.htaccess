@@ -46,3 +46,37 @@
     </IfModule>
 </FilesMatch>
 
+# Audio/Video Streaming Support (for Digital Library plugin)
+<IfModule mod_headers.c>
+    # Enable Range Requests for audio/video streaming
+    # Required for seek functionality in audio players
+    <FilesMatch "\.(mp3|m4a|ogg|wav|mp4|webm|ogv)$">
+        Header set Accept-Ranges bytes
+        # Allow CORS for audio/video files (required for cross-origin playback)
+        Header set Access-Control-Allow-Origin "*"
+        Header set Access-Control-Allow-Methods "GET, OPTIONS"
+        Header set Access-Control-Allow-Headers "Range, Content-Type"
+        Header set Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges"
+    </FilesMatch>
+
+    # CORS for digital content in uploads/digital/ directory
+    <If "%{REQUEST_URI} =~ m#^/uploads/digital/#">
+        Header set Access-Control-Allow-Origin "*"
+        Header set Access-Control-Allow-Methods "GET, OPTIONS"
+    </If>
+</IfModule>
+
+# Correct MIME types for audio files
+<IfModule mod_mime.c>
+    AddType audio/mpeg .mp3
+    AddType audio/mp4 .m4a
+    AddType audio/ogg .ogg
+    AddType audio/wav .wav
+    AddType audio/webm .weba
+    AddType video/mp4 .mp4
+    AddType video/webm .webm
+    AddType video/ogg .ogv
+    AddType application/pdf .pdf
+    AddType application/epub+zip .epub
+</IfModule>
+
