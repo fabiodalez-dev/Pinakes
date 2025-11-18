@@ -459,4 +459,88 @@ class CmsController
 
         return $response->withHeader('Location', '/admin/cms/home')->withStatus(302);
     }
+
+    /**
+     * Reorder home sections via AJAX
+     * Updates display_order for multiple sections at once
+     */
+    public function reorderHomeSections(Request $request, Response $response, \mysqli $db): Response
+    {
+        $db->set_charset('utf8mb4');
+
+        $body = (string)$request->getBody();
+        $data = json_decode($body, true);
+
+        if (!isset($data['order']) || !is_array($data['order'])) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Invalid data format']));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $db->begin_transaction();
+
+        try {
+            $stmt = $db->prepare("UPDATE home_content SET display_order = ? WHERE id = ?");
+
+            foreach ($data['order'] as $item) {
+                if (!isset($item['id']) || !isset($item['display_order'])) {
+                    continue;
+                }
+
+                $displayOrder = (int)$item['display_order'];
+                $sectionId = (int)$item['id'];
+
+                $stmt->bind_param('ii', $displayOrder, $sectionId);
+                $stmt->execute();
+            }
+
+            $stmt->close();
+            $db->commit();
+
+            $response->getBody()->write(json_encode(['success' => true, 'message' => 'Order updated successfully']));
+            return $response->withHeader('Content-Type', 'application/json');
+
+        } catch (\Exception $e) {
+            $db->rollback();
+            $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Toggle section visibility via AJAX
+     * Updates is_active field for a specific section
+     */
+    public function toggleSectionVisibility(Request $request, Response $response, \mysqli $db): Response
+    {
+        $db->set_charset('utf8mb4');
+
+        $body = (string)$request->getBody();
+        $data = json_decode($body, true);
+
+        if (!isset($data['section_id']) || !isset($data['is_active'])) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Missing required fields']));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $sectionId = (int)$data['section_id'];
+        $isActive = (int)$data['is_active'];
+
+        try {
+            $stmt = $db->prepare("UPDATE home_content SET is_active = ? WHERE id = ?");
+            $stmt->bind_param('ii', $isActive, $sectionId);
+            $success = $stmt->execute();
+            $stmt->close();
+
+            if ($success) {
+                $response->getBody()->write(json_encode(['success' => true, 'message' => 'Visibility updated']));
+                return $response->withHeader('Content-Type', 'application/json');
+            } else {
+                $response->getBody()->write(json_encode(['success' => false, 'message' => 'Update failed']));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+        } catch (\Exception $e) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
 }

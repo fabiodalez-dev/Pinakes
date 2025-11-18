@@ -655,6 +655,20 @@ return function (App $app): void {
         return $controller->updateHome($request, $response, $db, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
+    // Reorder home sections (AJAX)
+    $app->post('/admin/cms/home/reorder', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\CmsController();
+        return $controller->reorderHomeSections($request, $response, $db);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
+    // Toggle home section visibility (AJAX)
+    $app->post('/admin/cms/home/toggle-visibility', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\CmsController();
+        return $controller->toggleSectionVisibility($request, $response, $db);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+
     // Admin Events routes (MUST be before the catch-all /admin/cms/{slug} route)
     $app->get('/admin/cms/events', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
