@@ -72,16 +72,17 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
 
 <script>
 /**
- * Initialize Green Audio Player
+ * Initialize Green Audio Player with Media Session API
+ * Enables OS-level controls (lock screen, media keys, notifications)
  */
 document.addEventListener('DOMContentLoaded', function() {
+    const audioEl = document.querySelector('.player-digital-library audio');
+    if (!audioEl) return;
+
     // Wait for Green Audio Player to be available
     if (typeof GreenAudioPlayer === 'undefined') {
         console.warn('Green Audio Player not loaded - using native controls');
-        const audioEl = document.querySelector('.player-digital-library audio');
-        if (audioEl) {
-            audioEl.controls = true;
-        }
+        audioEl.controls = true;
         return;
     }
 
@@ -96,13 +97,88 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         console.log('✓ Green Audio Player initialized successfully');
+
+        // === Media Session API Integration ===
+        if ('mediaSession' in navigator) {
+            // Set metadata for OS-level display (lock screen, notifications, media keys)
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: <?= json_encode($bookTitle, JSON_UNESCAPED_UNICODE) ?>,
+                artist: <?= json_encode($book['autori_nomi'] ?? 'Audiobook', JSON_UNESCAPED_UNICODE) ?>,
+                album: 'Biblioteca',
+                artwork: [
+                    <?php if (!empty($book['copertina_url'])): ?>
+                    { src: <?= json_encode($book['copertina_url'], JSON_UNESCAPED_UNICODE) ?>, sizes: '512x512', type: 'image/jpeg' },
+                    { src: <?= json_encode($book['copertina_url'], JSON_UNESCAPED_UNICODE) ?>, sizes: '256x256', type: 'image/jpeg' },
+                    { src: <?= json_encode($book['copertina_url'], JSON_UNESCAPED_UNICODE) ?>, sizes: '128x128', type: 'image/jpeg' }
+                    <?php else: ?>
+                    { src: '/public/uploads/copertine/placeholder.jpg', sizes: '512x512', type: 'image/jpeg' }
+                    <?php endif; ?>
+                ]
+            });
+
+            // Handle play action from OS controls
+            navigator.mediaSession.setActionHandler('play', function() {
+                audioEl.play();
+                navigator.mediaSession.playbackState = 'playing';
+            });
+
+            // Handle pause action from OS controls
+            navigator.mediaSession.setActionHandler('pause', function() {
+                audioEl.pause();
+                navigator.mediaSession.playbackState = 'paused';
+            });
+
+            // Handle seek backward (usually 10 seconds)
+            navigator.mediaSession.setActionHandler('seekbackward', function(details) {
+                const skipTime = details.seekOffset || 10;
+                audioEl.currentTime = Math.max(audioEl.currentTime - skipTime, 0);
+            });
+
+            // Handle seek forward (usually 10 seconds)
+            navigator.mediaSession.setActionHandler('seekforward', function(details) {
+                const skipTime = details.seekOffset || 10;
+                audioEl.currentTime = Math.min(audioEl.currentTime + skipTime, audioEl.duration);
+            });
+
+            // Handle seek to specific position
+            navigator.mediaSession.setActionHandler('seekto', function(details) {
+                if (details.fastSeek && ('fastSeek' in audioEl)) {
+                    audioEl.fastSeek(details.seekTime);
+                } else {
+                    audioEl.currentTime = details.seekTime;
+                }
+            });
+
+            // Update position state periodically for progress bar in OS controls
+            audioEl.addEventListener('timeupdate', function() {
+                if ('setPositionState' in navigator.mediaSession) {
+                    if (audioEl.duration && !isNaN(audioEl.duration)) {
+                        navigator.mediaSession.setPositionState({
+                            duration: audioEl.duration,
+                            playbackRate: audioEl.playbackRate,
+                            position: audioEl.currentTime
+                        });
+                    }
+                }
+            });
+
+            // Update playback state on play/pause
+            audioEl.addEventListener('play', function() {
+                navigator.mediaSession.playbackState = 'playing';
+            });
+
+            audioEl.addEventListener('pause', function() {
+                navigator.mediaSession.playbackState = 'paused';
+            });
+
+            console.log('✓ Media Session API enabled (OS controls active)');
+        } else {
+            console.info('Media Session API not supported in this browser');
+        }
     } catch (error) {
         console.error('Failed to initialize Green Audio Player:', error);
         // Fallback to native controls
-        const audioEl = document.querySelector('.player-digital-library audio');
-        if (audioEl) {
-            audioEl.controls = true;
-        }
+        audioEl.controls = true;
     }
 });
 </script>
