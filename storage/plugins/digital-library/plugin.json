@@ -2,17 +2,17 @@
   "name": "digital-library",
   "display_name": "Digital Library (eBooks/Audiobooks)",
   "version": "1.0.0",
-  "author": "Pinakes Team",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "",
   "description": "Gestione eBooks (PDF/ePub) e audiobooks con player integrato Green Audio Player. Consente upload e riproduzione di contenuti digitali direttamente nella biblioteca.",
   "main_file": "wrapper.php",
-  "settings_page": true,
+  "requires_php": "8.0",
+  "requires_app": "1.0",
   "metadata": {
     "category": "media",
     "priority": 10,
-    "requires": {
-      "php_version": "8.0",
-      "php_extensions": ["gd", "fileinfo"]
-    },
+    "php_extensions": ["gd", "fileinfo"],
     "assets": {
       "css": [
         "public/assets/vendor/green-audio-player/css/green-audio-player.min.css",
@@ -21,6 +21,7 @@
       "js": [
         "public/assets/vendor/green-audio-player/js/green-audio-player.min.js"
       ]
-    }
+    },
+    "hooks": []
   }
 }

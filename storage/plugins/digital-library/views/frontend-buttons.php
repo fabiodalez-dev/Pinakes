@@ -50,41 +50,59 @@ if (!$hasEbook && !$hasAudiobook) {
 }
 
 .action-buttons .btn-outline-success {
-    color: #16a34a;
-    border-color: #16a34a;
+    color: var(--success-color) !important;
+    border-color: var(--success-color) !important;
     background: transparent;
 }
 
 .action-buttons .btn-outline-success:hover {
-    background: #16a34a;
-    border-color: #16a34a;
-    color: #ffffff;
+    background: var(--success-color) !important;
+    border-color: var(--success-color) !important;
+    color: #ffffff !important;
 }
 </style>
 
 <script>
-// Toggle audiobook player visibility
+// Toggle audiobook player visibility and stop playback if needed
 document.addEventListener('DOMContentLoaded', function() {
     const toggleBtn = document.getElementById('btn-toggle-audiobook');
     const playerContainer = document.getElementById('audiobook-player-container');
 
-    if (toggleBtn && playerContainer) {
-        toggleBtn.addEventListener('click', function() {
-            const isHidden = playerContainer.style.display === 'none' || !playerContainer.style.display;
-
-            if (isHidden) {
-                playerContainer.style.display = 'block';
-                toggleBtn.querySelector('i').classList.remove('fa-headphones');
-                toggleBtn.querySelector('i').classList.add('fa-times');
-                toggleBtn.innerHTML = '<i class="fas fa-times me-2"></i>' + '<?= __("Chiudi Player") ?>';
-            } else {
-                playerContainer.style.display = 'none';
-                toggleBtn.querySelector('i').classList.remove('fa-times');
-                toggleBtn.querySelector('i').classList.add('fa-headphones');
-                toggleBtn.innerHTML = '<i class="fas fa-headphones me-2"></i>' + '<?= __("Ascolta Audiobook") ?>';
-            }
-        });
+    if (!toggleBtn || !playerContainer) {
+        return;
     }
+
+    const audioEl = playerContainer.querySelector('audio');
+
+    const openContent = '<i class="fas fa-headphones me-2"></i>' + '<?= __("Ascolta Audiobook") ?>';
+    const closeContent = '<i class="fas fa-times me-2"></i>' + '<?= __("Chiudi Player") ?>';
+
+    const setButtonState = (isOpen) => {
+        toggleBtn.innerHTML = isOpen ? closeContent : openContent;
+    };
+
+    const pauseAudioIfPlaying = () => {
+        if (audioEl && !audioEl.paused) {
+            audioEl.pause();
+        }
+    };
+
+    toggleBtn.addEventListener('click', function() {
+        const isHidden = playerContainer.style.display === 'none' || playerContainer.style.display === '';
+
+        if (isHidden) {
+            playerContainer.style.display = 'block';
+            setButtonState(true);
+        } else {
+            playerContainer.style.display = 'none';
+            pauseAudioIfPlaying();
+            setButtonState(false);
+        }
+    });
+
+    // Ensure initial state reflects closed player
+    playerContainer.style.display = 'none';
+    setButtonState(false);
 });
 </script>
 <?php endif; ?>

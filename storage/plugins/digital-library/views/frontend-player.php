@@ -19,7 +19,7 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
             <!-- Header -->
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h5 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fas fa-play-circle text-success" style="font-size: 1.5rem;"></i>
+                    <i class="fas fa-play-circle" style="font-size: 1.5rem; color: var(--success-color) !important;"></i>
                     <span class="fw-bold"><?= __("Audiobook") ?></span>
                 </h5>
                 <button type="button"
@@ -121,19 +121,27 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .player-digital-library .play-pause-btn {
-    background-color: #16a34a !important;
+    background-color: var(--success-color) !important;
 }
 
 .player-digital-library .play-pause-btn:hover {
-    background-color: #15803d !important;
+    background-color: var(--success-color) !important;
+    opacity: 0.9;
 }
 
 .player-digital-library .slider .gap-progress {
-    background-color: #16a34a !important;
+    background-color: var(--success-color) !important;
 }
 
 .player-digital-library .controls__slider {
     background-color: #e5e7eb;
+}
+
+#audiobook-player-container .btn-success,
+#audiobook-player-container .btn-success:hover,
+#audiobook-player-container .btn-success:focus {
+    background-color: var(--success-color) !important;
+    border-color: var(--success-color) !important;
 }
 
 /* Card Styling */

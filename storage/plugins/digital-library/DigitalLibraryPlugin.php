@@ -23,6 +23,7 @@ class DigitalLibraryPlugin
     private ?object $hookManager = null;
     private int $pluginId = 0;
     private array $settings = [];
+    private static bool $routesRegistered = false;
 
     /**
      * Constructor
@@ -243,10 +244,26 @@ class DigitalLibraryPlugin
             return;
         }
 
-        $app->post('/admin/plugins/digital-library/upload', [$this, 'handleUploadRequest']);
+        // Prevent duplicate registration
+        if (self::$routesRegistered) {
+            return;
+        }
+        self::$routesRegistered = true;
+
+        // Capture plugin instance for use in closures
+        $plugin = $this;
+
+        // Register upload endpoint
+        $app->post('/admin/plugins/digital-library/upload', function ($request, $response) use ($plugin) {
+            return $plugin->handleUploadRequest($request, $response, []);
+        });
 
         // Serve plugin-specific assets without exposing storage/ directly
-        $app->get('/plugins/digital-library/assets/{type}/{filename}', [$this, 'serveAsset']);
+        $app->get('/plugins/digital-library/assets/{type}/{filename}', function ($request, $response, array $args) use ($plugin) {
+            return $plugin->serveAsset($request, $response, $args);
+        });
+
+        error_log('[Digital Library Plugin] Routes registered: /admin/plugins/digital-library/upload, /plugins/digital-library/assets/{type}/{filename}');
     }
 
     // ========================================================================
@@ -347,23 +364,42 @@ class DigitalLibraryPlugin
         $user = $_SESSION['user'] ?? null;
         $role = $user['tipo_utente'] ?? '';
         if (!$user || !in_array($role, ['admin', 'staff'], true)) {
-            return $response->withStatus(403);
+            error_log('[Digital Library] Upload rejected: No valid admin/staff session');
+            return $this->json($response, ['success' => false, 'message' => __('Accesso negato.')], 403);
         }
 
-        // CSRF validation
+        // CSRF validation (using standard App\Support\Csrf class)
+        // Read from both parsed body and POST superglobal (for multipart/form-data compatibility)
         $params = (array)$request->getParsedBody();
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token') ?: ($params['csrf_token'] ?? '');
+        $postParams = $_POST;
+        $csrfToken = $request->getHeaderLine('X-CSRF-Token') ?: ($params['csrf_token'] ?? $postParams['csrf_token'] ?? '');
+
+        error_log('[Digital Library] Upload request - User: ' . ($user['username'] ?? 'unknown') . ', CSRF from header: ' . ($request->getHeaderLine('X-CSRF-Token') ?: 'NONE') . ', from body: ' . ($params['csrf_token'] ?? 'NONE') . ', from POST: ' . ($postParams['csrf_token'] ?? 'NONE'));
+        error_log('[Digital Library] POST params: ' . json_encode($postParams));
+        error_log('[Digital Library] Parsed body: ' . json_encode($params));
+
         if (!\App\Support\Csrf::validate($csrfToken)) {
+            error_log('[Digital Library] Upload rejected: Invalid CSRF token. Session token: ' . ($_SESSION['csrf_token'] ?? 'NONE') . ', Received: ' . ($csrfToken ?: 'NONE'));
             return $this->json($response, ['success' => false, 'message' => __('Token CSRF non valido.')], 400);
         }
 
         $uploadedFiles = $request->getUploadedFiles();
         if (empty($uploadedFiles['file'])) {
+            error_log('[Digital Library] Upload rejected: No file in request');
             return $this->json($response, ['success' => false, 'message' => __('Nessun file caricato.')], 400);
         }
 
-        $type = $params['type'] ?? 'ebook';
+        $type = $params['digital_type']
+            ?? $postParams['digital_type']
+            ?? $params['type']
+            ?? $postParams['type']
+            ?? 'ebook';
+
+        if (!in_array($type, ['audio', 'ebook'], true)) {
+            $type = 'ebook';
+        }
         $file = $uploadedFiles['file'];
+        error_log('[Digital Library] Upload processing - Type: ' . $type . ', Filename: ' . $file->getClientFilename());
 
         if ($file->getError() !== UPLOAD_ERR_OK) {
             return $this->json($response, ['success' => false, 'message' => __('Errore durante il caricamento del file.')], 400);

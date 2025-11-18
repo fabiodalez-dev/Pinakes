@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
             restrictions: restrictionConfig,
             autoProceed: true,
             meta: {
-                type: isAudio ? 'audio' : 'ebook',
+                digital_type: isAudio ? 'audio' : 'ebook',
                 csrf_token: csrfToken
             }
         });

@@ -258,7 +258,7 @@ $app = AppFactory::create();
 $app->addRoutingMiddleware();
 
 // Global security headers
-$app->add(function ($request, $handler) {
+$app->add(function ($request, $handler) use ($httpsDetected) {
     $response = $handler->handle($request);
 
     // Content Security Policy - restrictive but allows inline scripts/styles (required by app)
