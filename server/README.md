@@ -1,18 +1,49 @@
 # API Book Scraper Server
 
-**Version:** 1.0.0
+**Version:** 2.0.0
 
 Standalone PHP server for scraping book metadata from Italian bookstores (Libreria Universitaria, Feltrinelli).
 
 ## 🚀 Features
 
 - **Standalone**: No framework dependencies (no Slim, Laravel, etc.)
+- **Modular Architecture**: Clean separation of concerns (MVC-inspired)
+- **Easy to Extend**: Add new scrapers in 2 simple steps (see [ADDING_SCRAPERS.md](ADDING_SCRAPERS.md))
 - **Multiple API Keys**: SQLite-based key management
 - **File-based Rate Limiting**: High limits with simple file storage
 - **Statistics Tracking**: Monitor usage and performance
 - **Apache Compatible**: Works on shared hosting
 - **Simple Admin Interface**: Web-based key management
 - **Compatible**: Works with existing api-book-scraper plugin without modifications
+
+## 🏗️ Architecture
+
+**New in v2.0:** Refactored with clean architecture!
+
+```
+src/
+├── Router.php              # HTTP routing
+├── Response.php            # JSON response handler
+├── Config.php              # Configuration manager
+├── Middleware/             # Authentication, rate limiting
+├── Controllers/            # HTTP request handlers
+├── Services/               # Business logic
+├── Scraping/               # ⭐ Scraping layer (separate!)
+│   ├── ScraperManager.php  # Manages scraper execution
+│   ├── ScraperRegistry.php # Scraper registration
+│   └── Scrapers/           # Individual scrapers
+├── Database.php            # SQLite database
+└── RateLimit.php           # File-based rate limiter
+
+config/
+└── scrapers.php            # ⭐ Scraper configuration
+```
+
+**Benefits:**
+- ✅ Add scrapers without modifying core code
+- ✅ Configurable scraper priority and enable/disable
+- ✅ Testable components
+- ✅ Maintainable codebase
 
 ## 📋 Requirements
 
@@ -379,10 +410,59 @@ chmod 644 data/api_keys.db  # if exists
 - 🔍 Feltrinelli scraper
 - 📖 Complete API documentation
 
+## 🔧 Adding New Scrapers
+
+**New in v2.0!** Adding scrapers is now super easy:
+
+### Step 1: Create Scraper Class
+
+Create `src/Scraping/Scrapers/YourScraper.php`:
+
+```php
+<?php
+class YourScraper extends AbstractScraper
+{
+    public function getName(): string
+    {
+        return 'Your Scraper Name';
+    }
+
+    public function scrape(string $isbn): ?array
+    {
+        // Scraping logic here
+        return $this->normalizeBookData($data);
+    }
+}
+```
+
+### Step 2: Register in Config
+
+Add to `config/scrapers.php`:
+
+```php
+[
+    'name' => 'your-scraper',
+    'class' => YourScraper::class,
+    'priority' => 7,
+    'enabled' => true,
+]
+```
+
+### Done!
+
+No core code modifications needed. See [ADDING_SCRAPERS.md](ADDING_SCRAPERS.md) for detailed guide.
+
 ## 📄 License
 
 GPL-3.0-only - Same as Pinakes project
 
 ---
+
+## 📚 Documentation
+
+- [Installation Guide](INSTALL.md) - Detailed installation instructions
+- [Adding Scrapers](ADDING_SCRAPERS.md) - How to add new book scrapers
+- [Compatibility Test](COMPATIBILITY_TEST.md) - Plugin compatibility verification
+- [Refactoring Plan](REFACTORING_PLAN.md) - Architecture design document
 
 **Need Help?** Check logs in `/server/logs/` or open an issue on GitHub.
