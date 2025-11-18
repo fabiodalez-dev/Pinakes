@@ -259,7 +259,7 @@ class CmsController
                         twitter_card, twitter_title, twitter_description, twitter_image,
                         is_active, display_order
                     )
-                    VALUES ('hero', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, -2)
+                    VALUES ('hero', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, -1)
                     ON DUPLICATE KEY UPDATE
                         title = VALUES(title),
                         subtitle = VALUES(subtitle),
@@ -367,7 +367,7 @@ class CmsController
             // UPSERT: Insert if not exists, update if exists
             $stmt = $db->prepare("
                 INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
-                VALUES ('latest_books_title', ?, ?, ?, 5)
+                VALUES ('latest_books_title', ?, ?, ?, 6)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
                     subtitle = VALUES(subtitle),
@@ -387,7 +387,7 @@ class CmsController
 
             $stmt = $db->prepare("
                 INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
-                VALUES ('genre_carousel', ?, ?, ?, 6)
+                VALUES ('genre_carousel', ?, ?, ?, 7)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
                     subtitle = VALUES(subtitle),
@@ -409,7 +409,7 @@ class CmsController
             // UPSERT: Insert if not exists, update if exists
             $stmt = $db->prepare("
                 INSERT INTO home_content (section_key, title, content, is_active, display_order)
-                VALUES ('text_content', ?, ?, ?, 4)
+                VALUES ('text_content', ?, ?, ?, 5)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
                     content = VALUES(content),
@@ -437,7 +437,7 @@ class CmsController
                 // UPSERT: Insert if not exists, update if exists
                 $stmt = $db->prepare("
                 INSERT INTO home_content (section_key, title, subtitle, button_text, button_link, is_active, display_order)
-                VALUES ('cta', ?, ?, ?, ?, ?, 7)
+                VALUES ('cta', ?, ?, ?, ?, ?, 8)
                     ON DUPLICATE KEY UPDATE
                         title = VALUES(title),
                         subtitle = VALUES(subtitle),

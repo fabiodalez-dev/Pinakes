@@ -252,6 +252,23 @@ CREATE TABLE `home_content` (
   KEY `idx_order` (`display_order`)
 ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contenuti editabili homepage';
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `home_content`
+--
+
+INSERT INTO `home_content` (`section_key`, `title`, `subtitle`, `content`, `button_text`, `button_link`, `background_image`, `is_active`, `display_order`) VALUES
+('hero', 'La Tua Biblioteca Digitale', 'Scopri, prenota e gestisci i tuoi libri preferiti con la nostra piattaforma elegante e moderna.', NULL, NULL, NULL, '/assets/books.jpg', 1, -1),
+('features_title', 'Perché Scegliere la Nostra Biblioteca', 'Un\'esperienza di lettura moderna, intuitiva e sempre a portata di mano', NULL, NULL, NULL, NULL, 1, 0),
+('feature_1', 'Catalogo Completo', 'Migliaia di libri disponibili', 'fas fa-book', NULL, NULL, NULL, 1, 1),
+('feature_2', 'Ricerca Avanzata', 'Trova rapidamente ciò che cerchi', 'fas fa-search', NULL, NULL, NULL, 1, 2),
+('feature_3', 'Prenotazioni Online', 'Prenota i tuoi libri preferiti', 'fas fa-calendar-check', NULL, NULL, NULL, 1, 3),
+('feature_4', 'Gestione Facile', 'Tieni traccia dei tuoi prestiti', 'fas fa-tasks', NULL, NULL, NULL, 1, 4),
+('text_content', 'Benvenuto nella nostra Biblioteca Digitale', NULL, '<p>Un servizio moderno per accedere alla cultura e alla conoscenza. Naviga nel catalogo, prenota i tuoi libri preferiti e scopri le nostre novità.</p>', NULL, NULL, NULL, 1, 5),
+('latest_books_title', 'Ultimi Libri Aggiunti', 'Scopri le ultime novità della nostra collezione', NULL, NULL, NULL, NULL, 1, 6),
+('genre_carousel', 'Esplora i generi principali', 'Scopri le nostre raccolte tematiche e lasciati ispirare dai titoli disponibili', NULL, NULL, NULL, NULL, 1, 7),
+('cta', 'Inizia la Tua Avventura Letteraria', 'Unisciti alla nostra community di lettori e scopri il piacere della lettura con la nostra piattaforma moderna.', NULL, 'Registrati Ora', '/register', NULL, 1, 8);
+
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `events` (
