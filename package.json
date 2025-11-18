@@ -13,7 +13,13 @@
     "type": "git",
     "url": "git+https://github.com/fabiodalez-dev/pinakes.git"
   },
-  "keywords": ["library", "management", "biblioteca", "pinakes", "cataloging"],
+  "keywords": [
+    "library",
+    "management",
+    "biblioteca",
+    "pinakes",
+    "cataloging"
+  ],
   "author": "fabiodalez-dev",
   "license": "GPL-3.0-only",
   "type": "commonjs",
@@ -22,6 +28,7 @@
   },
   "homepage": "https://github.com/fabiodalez-dev/pinakes#readme",
   "dependencies": {
+    "sortablejs": "^1.15.6",
     "star-rating.js": "^4.3.1",
     "tinymce": "^8.1.2"
   },

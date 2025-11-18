@@ -12,6 +12,23 @@ $latestBooksTitle = $sections['latest_books_title'] ?? null;
 $genreCarousel = $sections['genre_carousel'] ?? null;
 $cta = $sections['cta'] ?? null;
 $catalogRoute = route_path('catalog');
+
+// Helper function to get section display names
+function getSectionDisplayName($key) {
+    $names = [
+        'hero' => __('Hero - Testata principale'),
+        'features_title' => __('Features - Caratteristiche'),
+        'feature_1' => __('Feature 1'),
+        'feature_2' => __('Feature 2'),
+        'feature_3' => __('Feature 3'),
+        'feature_4' => __('Feature 4'),
+        'text_content' => __('Contenuto Testuale'),
+        'latest_books_title' => __('Ultimi Libri Aggiunti'),
+        'genre_carousel' => __('Caroselli Generi'),
+        'cta' => __('Call to Action')
+    ];
+    return $names[$key] ?? ucfirst(str_replace('_', ' ', $key));
+}
 ?>
 
 <div class="max-w-7xl mx-auto py-6 px-4">
@@ -45,6 +62,55 @@ $catalogRoute = route_path('catalog');
       </div>
       <?php unset($_SESSION['error_message']); ?>
     <?php endif; ?>
+  </div>
+
+  <!-- Section Order Manager -->
+  <div class="bg-white rounded-3xl shadow-xl border border-gray-200 mb-6">
+    <div class="border-b border-gray-200 px-6 py-4">
+      <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-sort text-purple-600"></i>
+        <?= __("Ordina Sezioni Homepage") ?>
+      </h2>
+      <p class="text-sm text-gray-600 mt-1">
+        <?= __("Trascina le sezioni per riordinarle. L'ordine sarà salvato automaticamente e rispecchiato nella homepage.") ?>
+      </p>
+    </div>
+    <div class="p-6">
+      <ul id="sections-sortable" class="space-y-3">
+        <?php
+        // Get all sections ordered by display_order
+        $allSections = $sections;
+        uasort($allSections, function($a, $b) {
+          return ($a['display_order'] ?? 0) <=> ($b['display_order'] ?? 0);
+        });
+
+        foreach ($allSections as $key => $section):
+          if (!isset($section['id'])) continue; // Skip sections without ID
+        ?>
+          <li class="section-item bg-gray-50 rounded-xl p-4 border border-gray-200 cursor-move hover:bg-gray-100 transition-colors"
+              data-section-id="<?= $section['id'] ?>"
+              data-section-key="<?= HtmlHelper::e($key) ?>">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <i class="fas fa-grip-vertical text-gray-400"></i>
+                <span class="font-medium text-gray-900"><?= getSectionDisplayName($key) ?></span>
+                <span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">ordine: <?= $section['display_order'] ?? 0 ?></span>
+              </div>
+              <div class="flex items-center gap-3">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox"
+                         class="toggle-visibility rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                         data-section-id="<?= $section['id'] ?>"
+                         <?= !empty($section['is_active']) ? 'checked' : '' ?>>
+                  <span class="text-sm text-gray-700"><?= __("Visibile") ?></span>
+                </label>
+              </div>
+            </div>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+      <div id="sort-status" class="mt-4 text-sm text-gray-600"></div>
+    </div>
   </div>
 
   <form action="/admin/cms/home" method="post" enctype="multipart/form-data" class="space-y-6">
@@ -919,4 +985,118 @@ document.addEventListener('DOMContentLoaded', function() {
    });
  }
 });
+
+// Section Order Management with Sortable.js
+document.addEventListener('DOMContentLoaded', function() {
+  const sortableEl = document.getElementById('sections-sortable');
+  const statusEl = document.getElementById('sort-status');
+
+  if (sortableEl) {
+    // Initialize Sortable.js
+    const sortable = new Sortable(sortableEl, {
+      animation: 150,
+      handle: '.section-item',
+      ghostClass: 'bg-purple-100',
+      chosenClass: 'bg-purple-50',
+      dragClass: 'opacity-50',
+      onEnd: function (evt) {
+        saveSectionOrder();
+      }
+    });
+
+    // Save order via AJAX
+    function saveSectionOrder() {
+      const items = document.querySelectorAll('#sections-sortable .section-item');
+      const order = [];
+      items.forEach((item, index) => {
+        order.push({
+          id: parseInt(item.dataset.sectionId),
+          display_order: index
+        });
+      });
+
+      statusEl.textContent = '<?= __("Salvataggio in corso...") ?>';
+      statusEl.className = 'mt-4 text-sm text-blue-600';
+
+      fetch('/admin/cms/home/reorder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'
+        },
+        body: JSON.stringify({ order: order })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          statusEl.textContent = '✓ <?= __("Ordine salvato con successo!") ?>';
+          statusEl.className = 'mt-4 text-sm text-green-600';
+          // Update order numbers in UI
+          items.forEach((item, index) => {
+            const orderBadge = item.querySelector('.text-xs.text-gray-500');
+            if (orderBadge) {
+              orderBadge.textContent = 'ordine: ' + index;
+            }
+          });
+          setTimeout(() => {
+            statusEl.textContent = '';
+          }, 3000);
+        } else {
+          statusEl.textContent = '✗ <?= __("Errore durante il salvataggio") ?>';
+          statusEl.className = 'mt-4 text-sm text-red-600';
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        statusEl.textContent = '✗ <?= __("Errore di rete") ?>';
+        statusEl.className = 'mt-4 text-sm text-red-600';
+      });
+    }
+
+    // Toggle visibility
+    document.querySelectorAll('.toggle-visibility').forEach(toggle => {
+      toggle.addEventListener('change', function() {
+        const sectionId = parseInt(this.dataset.sectionId);
+        const isActive = this.checked ? 1 : 0;
+
+        fetch('/admin/cms/home/toggle-visibility', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'
+          },
+          body: JSON.stringify({
+            section_id: sectionId,
+            is_active: isActive
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            statusEl.textContent = '✓ <?= __("Visibilità aggiornata!") ?>';
+            statusEl.className = 'mt-4 text-sm text-green-600';
+            setTimeout(() => {
+              statusEl.textContent = '';
+            }, 2000);
+          } else {
+            statusEl.textContent = '✗ <?= __("Errore durante l\'aggiornamento") ?>';
+            statusEl.className = 'mt-4 text-sm text-red-600';
+            // Revert checkbox
+            this.checked = !this.checked;
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          statusEl.textContent = '✗ <?= __("Errore di rete") ?>';
+          statusEl.className = 'mt-4 text-sm text-red-600';
+          // Revert checkbox
+          this.checked = !this.checked;
+        });
+      });
+    });
+  }
+});
 </script>
+
+<!-- Load Sortable.js -->
+<script src="/assets/vendor/sortablejs/Sortable.min.js"></script>

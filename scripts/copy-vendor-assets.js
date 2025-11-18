@@ -50,6 +50,11 @@ const assets = [
         name: 'Green Audio Player',
         from: 'node_modules/green-audio-player/dist',
         to: 'public/assets/vendor/green-audio-player'
+    },
+    {
+        name: 'Sortable.js',
+        from: 'node_modules/sortablejs',
+        to: 'public/assets/vendor/sortablejs'
     }
 ];
 

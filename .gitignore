@@ -284,3 +284,5 @@ models/tokenizer.json
 models/tokenizer_config.json
 vectors.db
 /.qoder
+/public/assets/vendor/sortablejs/*
+!/public/assets/vendor/sortablejs/Sortable.min.js

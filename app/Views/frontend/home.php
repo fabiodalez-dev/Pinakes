@@ -814,6 +814,31 @@ form.hero-search-form {
 ob_start();
 ?>
 
+<?php
+/**
+ * Dynamic Section Rendering
+ * Render all active sections in the order specified by display_order
+ */
+if (!empty($sectionsOrdered)) {
+    foreach ($sectionsOrdered as $sectionKey => $section) {
+        // Skip inactive sections
+        if (empty($section['is_active'])) {
+            continue;
+        }
+
+        // Determine template file path
+        $templateFile = __DIR__ . "/home-sections/{$sectionKey}.php";
+
+        // Include template if it exists
+        if (file_exists($templateFile)) {
+            include $templateFile;
+        }
+    }
+}
+?>
+
+<!-- LEGACY FALLBACK: Hero Section (kept for reference, remove after testing) -->
+<?php if (false): // Set to true to use legacy static rendering ?>
 <!-- Hero Section -->
 <section class="hero-section" style="background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), url('<?php echo htmlspecialchars($homeContent['hero']['background_image'] ?? '/assets/books.jpg', ENT_QUOTES, 'UTF-8'); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;">
     <div class="container">
@@ -1143,7 +1168,7 @@ ob_start();
         </div>
     </div>
 </section>
-<?php endif; ?>
+<?php endif; // End legacy fallback ?>
 
 <?php
 $additional_js = "

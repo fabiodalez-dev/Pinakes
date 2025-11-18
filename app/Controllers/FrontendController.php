@@ -31,6 +31,20 @@ class FrontendController
             }
         }
 
+        // Create ordered sections array for dynamic rendering
+        // This array maintains the display_order and includes all section data
+        $sectionsOrdered = [];
+        $query_sections_ordered = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
+                                          is_active, display_order
+                                   FROM home_content
+                                   ORDER BY display_order ASC, section_key ASC";
+        $result_ordered = $db->query($query_sections_ordered);
+        if ($result_ordered) {
+            while ($row = $result_ordered->fetch_assoc()) {
+                $sectionsOrdered[$row['section_key']] = $row;
+            }
+        }
+
         // Query per gli ultimi 10 libri inseriti
         $query_slider = "
             SELECT l.*,
