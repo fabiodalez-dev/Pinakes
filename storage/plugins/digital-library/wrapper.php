@@ -2,15 +2,12 @@
 /**
  * Digital Library Plugin Wrapper
  *
- * This file is loaded by the PluginManager to instantiate the plugin.
+ * This wrapper is loaded by the PluginManager and creates
+ * a class that can be instantiated by the PluginManager.
  */
 
+// Load the main plugin file
 require_once __DIR__ . '/DigitalLibraryPlugin.php';
 
-// Instantiate plugin with dependencies
-$plugin = new DigitalLibraryPlugin($db ?? $GLOBALS['db'] ?? null, $hookManager ?? null);
-
-// Register in global plugins array
-$GLOBALS['plugins']['digital-library'] = $plugin;
-
-return $plugin;
+// The PluginManager will instantiate this class directly
+// No need to create instances here - just load the class definition

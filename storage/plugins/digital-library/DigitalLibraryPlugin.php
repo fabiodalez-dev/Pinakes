@@ -152,6 +152,8 @@ class DigitalLibraryPlugin
             return;
         }
 
+        error_log("[DigitalLibrary] registerHooks called for plugin ID {$this->pluginId}");
+
         $hooks = [
             [
                 'hook_name' => 'book.form.digital_fields',
@@ -208,7 +210,7 @@ class DigitalLibraryPlugin
                     VALUES (?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->bind_param(
-                    "issiii",
+                    "isssii",
                     $this->pluginId,
                     $hook['hook_name'],
                     $hook['callback_class'],
