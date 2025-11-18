@@ -21,10 +21,12 @@ class Config
             throw new RuntimeException("Configuration file not found: {$envFile}");
         }
 
-        $env = parse_ini_file($envFile);
+        // Try parse_ini_file first
+        $env = @parse_ini_file($envFile);
 
+        // If it fails, parse manually (handles edge cases)
         if ($env === false) {
-            throw new RuntimeException("Failed to parse configuration file: {$envFile}");
+            $env = self::parseEnvManually($envFile);
         }
 
         self::$config = array_merge(self::$config, $env);
@@ -35,6 +37,39 @@ class Config
         }
 
         self::$loaded = true;
+    }
+
+    /**
+     * Manually parse .env file (fallback for edge cases)
+     */
+    private static function parseEnvManually(string $envFile): array
+    {
+        $env = [];
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        foreach ($lines as $line) {
+            // Skip comments
+            if (str_starts_with(trim($line), '#')) {
+                continue;
+            }
+
+            // Parse KEY=VALUE
+            if (strpos($line, '=') !== false) {
+                [$key, $value] = explode('=', $line, 2);
+                $key = trim($key);
+                $value = trim($value);
+
+                // Remove quotes if present
+                if ((str_starts_with($value, '"') && str_ends_with($value, '"')) ||
+                    (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+                    $value = substr($value, 1, -1);
+                }
+
+                $env[$key] = $value;
+            }
+        }
+
+        return $env;
     }
 
     /**
