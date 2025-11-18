@@ -22,6 +22,13 @@ $profileRoute = route_path('profile');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 
+// Load theme colors
+$themeManager = $container->get('themeManager');
+$themeColorizer = $container->get('themeColorizer');
+$activeTheme = $themeManager->getActiveTheme();
+$themeColors = $themeManager->getThemeColors($activeTheme);
+$themePalette = $themeColorizer->generateColorPalette($themeColors);
+
 // Check if events page is enabled
 $eventsEnabled = false;
 if (isset($db)) {
@@ -183,8 +190,17 @@ if (!function_exists('assetUrl')) {
 
         <style>
         :root {
-            --primary-color: #d70161;
-            --secondary-color: #111827;
+            /* Theme colors - Dynamically loaded from database */
+            --primary-color: <?= htmlspecialchars($themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>;
+            --primary-hover: <?= htmlspecialchars($themePalette['primary_hover'], ENT_QUOTES, 'UTF-8') ?>;
+            --primary-focus: <?= htmlspecialchars($themePalette['primary_focus'], ENT_QUOTES, 'UTF-8') ?>;
+            --secondary-color: <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>;
+            --secondary-hover: <?= htmlspecialchars($themePalette['secondary_hover'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-color: <?= htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-text-color: <?= htmlspecialchars($themePalette['button_text'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-hover: <?= htmlspecialchars($themePalette['button_hover'], ENT_QUOTES, 'UTF-8') ?>;
+
+            /* System colors - Not configurable (semantic colors) */
             --accent-color: #f1f5f9;
             --text-color: #0f172a;
             --text-light: #6b7280;
@@ -420,9 +436,9 @@ if (!function_exists('assetUrl')) {
             gap: 0.6rem;
             padding: 0.9rem 2.2rem;
             border-radius: 999px;
-            border: 1.5px solid #d70262;
-            background: #d70262;
-            color: #fff;
+            border: 1.5px solid var(--button-color);
+            background: var(--button-color);
+            color: var(--button-text-color);
             font-weight: 600;
             font-size: 1rem;
             letter-spacing: -0.01em;
@@ -435,9 +451,9 @@ if (!function_exists('assetUrl')) {
 
         .btn-cta:hover,
         .btn-cta:focus {
-            color: #fff;
-            background: #b70154;
-            border-color: #b70154;
+            color: var(--button-text-color);
+            background: var(--button-hover);
+            border-color: var(--button-hover);
             transform: translateY(-2px);
             box-shadow: none;
             text-decoration: none;
@@ -454,15 +470,15 @@ if (!function_exists('assetUrl')) {
 
         .btn-cta-outline {
             background: transparent;
-            color: #d70262;
-            border: 1.5px solid #d70262;
+            color: var(--button-color);
+            border: 1.5px solid var(--button-color);
             box-shadow: none;
         }
 
         .btn-cta-outline:hover,
         .btn-cta-outline:focus {
-            background: #d70262;
-            color: #fff;
+            background: var(--button-color);
+            color: var(--button-text-color);
             box-shadow: none;
         }
 
@@ -486,8 +502,8 @@ if (!function_exists('assetUrl')) {
             gap: 0.55rem;
             padding: 0.8rem 2rem;
             border-radius: 999px;
-            border: 1.5px solid #111827;
-            background: #111827;
+            border: 1.5px solid var(--secondary-color);
+            background: var(--secondary-color);
             color: #ffffff;
             font-weight: 600;
             letter-spacing: -0.01em;
@@ -500,8 +516,8 @@ if (!function_exists('assetUrl')) {
         .btn.btn-primary:focus,
         .btn-primary:hover,
         .btn-primary:focus {
-            background: #000000;
-            border-color: #000000;
+            background: var(--secondary-hover);
+            border-color: var(--secondary-hover);
             color: #ffffff;
             transform: translateY(-2px);
             box-shadow: none;
@@ -516,9 +532,9 @@ if (!function_exists('assetUrl')) {
             gap: 0.55rem;
             padding: 0.8rem 2rem;
             border-radius: 999px;
-            border: 1.5px solid #111827;
+            border: 1.5px solid var(--secondary-color);
             background: transparent;
-            color: #111827;
+            color: var(--secondary-color);
             font-weight: 600;
             letter-spacing: -0.01em;
             transition: all 0.2s ease;
@@ -528,7 +544,7 @@ if (!function_exists('assetUrl')) {
         .btn.btn-outline-primary:focus,
         .btn-outline-primary:hover,
         .btn-outline-primary:focus {
-            background: #111827;
+            background: var(--secondary-color);
             color: #ffffff;
             box-shadow: none;
             text-decoration: none;

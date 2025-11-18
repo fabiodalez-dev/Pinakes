@@ -545,9 +545,9 @@ $additional_css = "
     }
 
     .role-principale {
-        background: #d70161;
+        background: var(--primary-color);
         color: #fff;
-        border-color: #d70161;
+        border-color: var(--primary-color);
     }
 
     .role-principale:hover {
@@ -674,27 +674,27 @@ $additional_css = "
     }
 
     .action-buttons .btn-primary {
-        background: #111827;
-        border-color: #111827;
+        background: var(--secondary-color);
+        border-color: var(--secondary-color);
         color: #ffffff;
     }
 
     .action-buttons .btn-primary:hover {
-        background: #000000;
-        border-color: #000000;
+        background: var(--secondary-hover);
+        border-color: var(--secondary-hover);
         color: #ffffff;
         box-shadow: none;
     }
 
     .action-buttons .btn-outline-primary {
-        color: #111827;
-        border-color: #111827;
+        color: var(--secondary-color);
+        border-color: var(--secondary-color);
         background: transparent;
     }
 
     .action-buttons .btn-outline-primary:hover {
-        background: #111827;
-        border-color: #111827;
+        background: var(--secondary-color);
+        border-color: var(--secondary-color);
         color: #ffffff;
     }
 
@@ -737,22 +737,23 @@ $additional_css = "
     }
 
     .swal2-popup .swal2-styled.swal2-confirm {
-        background: #111827 !important;
-        border: 1px solid #111827 !important;
+        background: var(--secondary-color) !important;
+        border: 1px solid var(--secondary-color) !important;
         color: #ffffff !important;
     }
 
     .swal2-popup .swal2-styled.swal2-confirm:hover,
     .swal2-popup .swal2-styled.swal2-confirm:focus {
-        background: #000000 !important;
-        border-color: #000000 !important;
+        background: var(--secondary-hover) !important;
+        border-color: var(--secondary-hover) !important;
         color: #ffffff !important;
     }
 
     .swal2-popup .swal2-styled.swal2-cancel {
         background: transparent !important;
-        color: #111827 !important;
-        border: 1px solid rgba(17, 24, 39, 0.25) !important;
+        color: var(--secondary-color) !important;
+        border: 1px solid var(--secondary-color) !important;
+        opacity: 0.6;
     }
 
     .swal2-popup .swal2-styled.swal2-cancel:hover,

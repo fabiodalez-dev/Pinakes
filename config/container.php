@@ -176,6 +176,16 @@ $containerDefinitions = [
             $container->get('hookManager')
         );
     },
+
+    // Theme Manager
+    'themeManager' => function ($container) {
+        return new \App\Support\ThemeManager($container->get('db'));
+    },
+
+    // Theme Colorizer (color manipulation and WCAG contrast checking)
+    'themeColorizer' => function () {
+        return new \App\Support\ThemeColorizer();
+    },
 ];
 
 return $containerDefinitions;

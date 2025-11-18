@@ -155,7 +155,7 @@ $additional_css = "
         width: 80px;
         height: 80px;
         margin: 0 auto 2rem;
-        background: #d70161;
+        background: var(--primary-color);
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -690,15 +690,15 @@ form.hero-search-form {
         gap: 0.5rem;
         padding: 0.65rem 1.5rem;
         border-radius: 999px;
-        border: 1px solid #111827;
-        color: #111827;
+        border: 1px solid var(--secondary-color);
+        color: var(--secondary-color);
         font-weight: 600;
         text-decoration: none;
         transition: all 0.2s ease;
     }
 
     .home-events__all-link:hover {
-        background: #111827;
+        background: var(--secondary-color);
         color: #ffffff;
     }
 
@@ -797,15 +797,15 @@ form.hero-search-form {
         gap: 0.4rem;
         padding: 0.65rem 1rem;
         border-radius: 999px;
-        border: 1px solid #111827;
-        color: #111827;
+        border: 1px solid var(--secondary-color);
+        color: var(--secondary-color);
         font-weight: 600;
         text-decoration: none;
         transition: all 0.2s ease;
     }
 
     .home-events-grid .event-card__button:hover {
-        background: #111827;
+        background: var(--secondary-color);
         color: #ffffff;
     }
 </style>
