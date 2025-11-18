@@ -1028,6 +1028,20 @@ document.addEventListener('DOMContentLoaded', function() {
       })
       .then(r => r.json())
       .then(data => {
+        // Check for CSRF/session errors from middleware
+        if (data.error || data.code) {
+          statusEl.textContent = '✗ ' + (data.error || '<?= __("Errore di sicurezza") ?>');
+          statusEl.className = 'mt-4 text-sm text-red-600';
+
+          // Handle session expiration - reload page to get new CSRF token
+          if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          }
+          return;
+        }
+
         if (data.success) {
           statusEl.textContent = '✓ <?= __("Ordine salvato con successo!") ?>';
           statusEl.className = 'mt-4 text-sm text-green-600';
@@ -1042,7 +1056,7 @@ document.addEventListener('DOMContentLoaded', function() {
             statusEl.textContent = '';
           }, 3000);
         } else {
-          statusEl.textContent = '✗ <?= __("Errore durante il salvataggio") ?>';
+          statusEl.textContent = '✗ ' + (data.message || '<?= __("Errore durante il salvataggio") ?>');
           statusEl.className = 'mt-4 text-sm text-red-600';
         }
       })
@@ -1072,6 +1086,22 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(r => r.json())
         .then(data => {
+          // Check for CSRF/session errors from middleware
+          if (data.error || data.code) {
+            statusEl.textContent = '✗ ' + (data.error || '<?= __("Errore di sicurezza") ?>');
+            statusEl.className = 'mt-4 text-sm text-red-600';
+            // Revert checkbox
+            toggle.checked = !toggle.checked;
+
+            // Handle session expiration - reload page to get new CSRF token
+            if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            }
+            return;
+          }
+
           if (data.success) {
             statusEl.textContent = '✓ <?= __("Visibilità aggiornata!") ?>';
             statusEl.className = 'mt-4 text-sm text-green-600';
@@ -1079,10 +1109,10 @@ document.addEventListener('DOMContentLoaded', function() {
               statusEl.textContent = '';
             }, 2000);
           } else {
-            statusEl.textContent = '✗ <?= __("Errore durante l\'aggiornamento") ?>';
+            statusEl.textContent = '✗ ' + (data.message || '<?= __("Errore durante l\'aggiornamento") ?>');
             statusEl.className = 'mt-4 text-sm text-red-600';
             // Revert checkbox
-            this.checked = !this.checked;
+            toggle.checked = !toggle.checked;
           }
         })
         .catch(err => {
