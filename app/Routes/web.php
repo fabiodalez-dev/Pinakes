@@ -2078,4 +2078,56 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         return $controller->updateSettings($request, $response, $args);
     })->add(new AdminAuthMiddleware());
 
+    // ==========================================
+    // Theme Management Routes (Admin Only)
+    // ==========================================
+
+    $app->get('/admin/themes', function ($request, $response) use ($app) {
+        $themeManager = $app->getContainer()->get('themeManager');
+        $themeColorizer = $app->getContainer()->get('themeColorizer');
+        $view = $app->getContainer()->get('view');
+        $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
+        return $controller->index($request, $response);
+    })->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/themes/{id}/customize', function ($request, $response, $args) use ($app) {
+        $themeManager = $app->getContainer()->get('themeManager');
+        $themeColorizer = $app->getContainer()->get('themeColorizer');
+        $view = $app->getContainer()->get('view');
+        $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
+        return $controller->customize($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/themes/{id}/save', function ($request, $response, $args) use ($app) {
+        $themeManager = $app->getContainer()->get('themeManager');
+        $themeColorizer = $app->getContainer()->get('themeColorizer');
+        $view = $app->getContainer()->get('view');
+        $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
+        return $controller->save($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/themes/{id}/activate', function ($request, $response, $args) use ($app) {
+        $themeManager = $app->getContainer()->get('themeManager');
+        $themeColorizer = $app->getContainer()->get('themeColorizer');
+        $view = $app->getContainer()->get('view');
+        $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
+        return $controller->activate($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/themes/{id}/reset', function ($request, $response, $args) use ($app) {
+        $themeManager = $app->getContainer()->get('themeManager');
+        $themeColorizer = $app->getContainer()->get('themeColorizer');
+        $view = $app->getContainer()->get('view');
+        $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
+        return $controller->reset($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/themes/check-contrast', function ($request, $response) use ($app) {
+        $themeManager = $app->getContainer()->get('themeManager');
+        $themeColorizer = $app->getContainer()->get('themeColorizer');
+        $view = $app->getContainer()->get('view');
+        $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
+        return $controller->checkContrast($request, $response);
+    })->add(new AdminAuthMiddleware());
+
 };

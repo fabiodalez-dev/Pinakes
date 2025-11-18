@@ -41,6 +41,7 @@ class Installer {
         'staff',
         'system_settings',
         'tag',
+        'themes',
         'utenti',
         'wishlist',
         'z39_access_logs',
