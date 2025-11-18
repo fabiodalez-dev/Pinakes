@@ -48,6 +48,10 @@ $appVersion = $versionData['version'] ?? '0.1.0';
       })();
     </script>
 
+    <?php
+    // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
+    do_action('assets.head');
+    ?>
   </head>
   <body class="bg-gray-50 text-gray-900 antialiased">
     <!-- Mobile Menu Overlay -->
@@ -1257,5 +1261,10 @@ $appVersion = $versionData['version'] ?? '0.1.0';
             };
         })();
     </script>
+
+    <?php
+    // Hook: Allow plugins to enqueue scripts before closing body tag
+    do_action('assets.footer');
+    ?>
   </body>
   </html>

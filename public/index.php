@@ -247,6 +247,9 @@ if (!$isCli) {
 // Initialize Hook System
 \App\Support\Hooks::init($container->get('hookManager'));
 
+// Make HookManager globally accessible for helper functions (do_action, apply_filters)
+$GLOBALS['hookManager'] = $container->get('hookManager');
+
 // Load active plugins
 $container->get('pluginManager')->loadActivePlugins();
 

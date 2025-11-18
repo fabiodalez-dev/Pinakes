@@ -1455,7 +1455,17 @@ ob_start();
                         <i class="fas fa-heart me-2"></i><?= __("Accedi per aggiungere ai Preferiti") ?>
                       </a>
                     <?php endif; ?>
+
+                    <?php
+                    // Hook: Allow plugins to add digital content buttons (e.g., Download eBook, Play Audio)
+                    do_action('book.detail.digital_buttons', $book);
+                    ?>
                 </div>
+
+                <?php
+                // Hook: Allow plugins to add digital content player (e.g., Green Audio Player)
+                do_action('book.detail.digital_player', $book);
+                ?>
 
                 <!-- Alerts Section -->
                 <div id="book-alerts">
