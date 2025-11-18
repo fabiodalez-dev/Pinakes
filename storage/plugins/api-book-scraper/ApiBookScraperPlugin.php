@@ -10,60 +10,141 @@
  */
 
 use App\Support\Hooks;
-use App\Support\PluginManager;
 
 class ApiBookScraperPlugin
 {
-    private $db;
-    private $hookManager;
-    private $pluginId;
-    private $pluginManager;
+    private ?\mysqli $db = null;
+    private ?object $hookManager = null;
+    private ?int $pluginId = null;
 
     // Default settings
-    private $apiEndpoint;
-    private $apiKey;
-    private $timeout = 10;
-    private $enabled = false;
+    private string $apiEndpoint = '';
+    private string $apiKey = '';
+    private int $timeout = 10;
+    private bool $enabled = false;
 
     /**
      * Costruttore del plugin
      */
-    public function __construct(\mysqli $db, $hookManager = null)
+    public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
         $this->db = $db;
         $this->hookManager = $hookManager;
-        $this->pluginManager = new PluginManager($db);
+    }
 
-        // Recupera ID plugin dal database
-        $this->pluginId = $this->getPluginId();
-
-        // Carica impostazioni
+    /**
+     * Set the plugin ID (called by PluginManager after installation)
+     */
+    public function setPluginId(int $pluginId): void
+    {
+        $this->pluginId = $pluginId;
         $this->loadSettings();
+    }
 
-        // Registra hooks solo se il plugin è abilitato
-        if ($this->enabled && !empty($this->apiEndpoint) && !empty($this->apiKey)) {
+    /**
+     * Called when plugin is installed via PluginManager
+     */
+    public function onInstall(): void
+    {
+        error_log('[ApiBookScraper] Plugin installed');
+        if ($this->pluginId) {
             $this->registerHooks();
         }
     }
 
     /**
-     * Recupera l'ID del plugin dal database
+     * Called when plugin is activated via PluginManager
      */
-    private function getPluginId(): ?int
+    public function onActivate(): void
     {
-        $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
-        if (!$stmt) {
-            return null;
+        $this->loadSettings();
+        $this->registerHooks();
+        error_log('[ApiBookScraper] Plugin activated');
+    }
+
+    /**
+     * Called when plugin is deactivated
+     */
+    public function onDeactivate(): void
+    {
+        $this->deleteHooks();
+        error_log('[ApiBookScraper] Plugin deactivated');
+    }
+
+    /**
+     * Called when plugin is uninstalled
+     */
+    public function onUninstall(): void
+    {
+        $this->deleteHooks();
+        // Opzionale: rimuovi anche le settings
+        error_log('[ApiBookScraper] Plugin uninstalled');
+    }
+
+    /**
+     * Register hooks in the database for persistence
+     */
+    private function registerHooks(): void
+    {
+        if ($this->db === null || $this->pluginId === null) {
+            error_log('[ApiBookScraper] Cannot register hooks: missing DB or plugin ID');
+            return;
         }
 
-        $pluginName = 'api-book-scraper';
-        $stmt->bind_param('s', $pluginName);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
-        $stmt->close();
+        // Se il plugin non è abilitato, non registrare gli hooks
+        if (!$this->enabled || empty($this->apiEndpoint) || empty($this->apiKey)) {
+            error_log('[ApiBookScraper] Plugin not enabled or missing configuration');
+            return;
+        }
 
-        return $row ? (int)$row['id'] : null;
+        $hooks = [
+            ['scrape.sources', 'addApiSource', 3],
+            ['scrape.fetch.custom', 'fetchFromApi', 3],
+            ['scrape.isbn.validate', 'validateIsbn', 3],
+        ];
+
+        // Delete existing hooks for this plugin
+        $this->deleteHooks();
+
+        foreach ($hooks as [$hookName, $method, $priority]) {
+            $stmt = $this->db->prepare(
+                "INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                 VALUES (?, ?, ?, ?, ?, 1, NOW())"
+            );
+
+            if (!$stmt) {
+                error_log('[ApiBookScraper] Failed to prepare statement: ' . $this->db->error);
+                continue;
+            }
+
+            $className = __CLASS__;
+            $stmt->bind_param('isssi', $this->pluginId, $hookName, $className, $method, $priority);
+
+            if (!$stmt->execute()) {
+                error_log('[ApiBookScraper] Failed to register hook ' . $hookName . ': ' . $stmt->error);
+            }
+
+            $stmt->close();
+        }
+
+        error_log('[ApiBookScraper] Hooks registered successfully');
+    }
+
+    /**
+     * Delete all hooks for this plugin
+     */
+    private function deleteHooks(): void
+    {
+        if ($this->db === null || $this->pluginId === null) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
+        if ($stmt) {
+            $stmt->bind_param('i', $this->pluginId);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
 
     /**
@@ -71,29 +152,79 @@ class ApiBookScraperPlugin
      */
     private function loadSettings(): void
     {
-        if (!$this->pluginId) {
+        if (!$this->pluginId || !$this->db) {
             return;
         }
 
-        $this->apiEndpoint = $this->pluginManager->getSetting($this->pluginId, 'api_endpoint', '');
-        $this->apiKey = $this->pluginManager->getSetting($this->pluginId, 'api_key', '');
-        $this->timeout = (int)$this->pluginManager->getSetting($this->pluginId, 'timeout', 10);
-        $this->enabled = (bool)$this->pluginManager->getSetting($this->pluginId, 'enabled', false);
+        $stmt = $this->db->prepare(
+            "SELECT setting_key, setting_value FROM plugin_settings WHERE plugin_id = ?"
+        );
+
+        if (!$stmt) {
+            return;
+        }
+
+        $stmt->bind_param('i', $this->pluginId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        while ($row = $result->fetch_assoc()) {
+            $key = $row['setting_key'];
+            $value = $this->decryptIfNeeded($row['setting_value']);
+
+            switch ($key) {
+                case 'api_endpoint':
+                    $this->apiEndpoint = $value;
+                    break;
+                case 'api_key':
+                    $this->apiKey = $value;
+                    break;
+                case 'timeout':
+                    $this->timeout = (int)$value;
+                    break;
+                case 'enabled':
+                    $this->enabled = (bool)$value;
+                    break;
+            }
+        }
+
+        $stmt->close();
     }
 
     /**
-     * Registra gli hooks del plugin
+     * Decrypt value if it starts with ENC:
      */
-    private function registerHooks(): void
+    private function decryptIfNeeded(string $value): string
     {
-        // Hook principale con priorità 3 (più alta di Open Library che usa 5)
-        Hooks::add('scrape.fetch.custom', [$this, 'fetchFromApi'], 3);
+        if (strpos($value, 'ENC:') !== 0) {
+            return $value;
+        }
 
-        // Hook per aggiungere la sorgente
-        Hooks::add('scrape.sources', [$this, 'addApiSource'], 3);
+        // Rimuovi prefisso ENC:
+        $encrypted = substr($value, 4);
 
-        // Hook per validazione ISBN
-        Hooks::add('scrape.isbn.validate', [$this, 'validateIsbn'], 3);
+        // Ottieni chiave di crittografia
+        $key = getenv('PLUGIN_ENCRYPTION_KEY') ?: getenv('APP_KEY');
+        if (!$key) {
+            return $value;
+        }
+
+        // Decodifica base64
+        $decoded = base64_decode($encrypted);
+        if ($decoded === false) {
+            return $value;
+        }
+
+        // Estrai IV, tag e ciphertext
+        $ivLength = openssl_cipher_iv_length('aes-256-gcm');
+        $iv = substr($decoded, 0, $ivLength);
+        $tag = substr($decoded, $ivLength, 16);
+        $ciphertext = substr($decoded, $ivLength + 16);
+
+        // Decripta
+        $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+        return $decrypted !== false ? $decrypted : $value;
     }
 
     /**
@@ -127,19 +258,9 @@ class ApiBookScraperPlugin
 
     /**
      * Fetch dati libro da API personalizzata
-     *
-     * @param mixed $data Dati esistenti (null se nessun dato precedente)
-     * @param array $sources Lista sorgenti disponibili
-     * @param string $isbn ISBN/EAN del libro
-     * @return array|null Dati libro o null
      */
     public function fetchFromApi($data, array $sources, string $isbn): ?array
     {
-        // Se già abbiamo dati e vogliamo usare solo questa API come fallback, decommentare:
-        // if ($data !== null) {
-        //     return $data;
-        // }
-
         if (!$this->enabled || empty($this->apiEndpoint) || empty($this->apiKey)) {
             return $data;
         }
@@ -148,7 +269,6 @@ class ApiBookScraperPlugin
             $bookData = $this->callApi($isbn);
 
             if ($bookData) {
-                // Log successo
                 $this->log('info', "Dati recuperati per ISBN: $isbn", ['isbn' => $isbn]);
                 return $bookData;
             }
@@ -156,32 +276,24 @@ class ApiBookScraperPlugin
             return $data;
 
         } catch (\Exception $e) {
-            // Log errore
             $this->log('error', "Errore scraping ISBN $isbn: " . $e->getMessage(), [
                 'isbn' => $isbn,
                 'error' => $e->getMessage()
             ]);
 
-            // Hook per gestione errori
             Hooks::do('scrape.error', [$e, $isbn, 'custom-api']);
-
             return $data;
         }
     }
 
     /**
      * Effettua la chiamata all'API esterna
-     *
-     * @param string $isbn ISBN/EAN del libro
-     * @return array|null Dati del libro
-     * @throws \Exception In caso di errore
      */
     private function callApi(string $isbn): ?array
     {
         // Costruisce URL con ISBN
         $url = rtrim($this->apiEndpoint, '/');
 
-        // Supporta placeholder {isbn} nell'URL oppure aggiunge come query param
         if (strpos($url, '{isbn}') !== false) {
             $url = str_replace('{isbn}', urlencode($isbn), $url);
         } else {
@@ -224,36 +336,26 @@ class ApiBookScraperPlugin
             throw new \Exception("Risposta API vuota");
         }
 
-        // Parse JSON response
         $jsonData = json_decode($response, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \Exception("Errore parsing JSON: " . json_last_error_msg());
         }
 
-        // Mappa i dati dalla risposta al formato Pinakes
         return $this->mapApiResponse($jsonData, $isbn);
     }
 
     /**
      * Mappa la risposta API al formato standard Pinakes
-     *
-     * @param array $apiData Dati dalla API
-     * @param string $isbn ISBN originale
-     * @return array|null Dati mappati
      */
     private function mapApiResponse(array $apiData, string $isbn): ?array
     {
-        // Se la risposta indica errore o nessun risultato
-        if (isset($apiData['error']) || isset($apiData['success']) && !$apiData['success']) {
+        if (isset($apiData['error']) || (isset($apiData['success']) && !$apiData['success'])) {
             return null;
         }
 
-        // Se i dati sono annidati in un campo 'data'
         $data = $apiData['data'] ?? $apiData;
 
-        // Mapping campi API -> Pinakes
-        // Adatta questi campi in base alla struttura della TUA API
         $mappedData = [
             'title' => $data['title'] ?? $data['titolo'] ?? null,
             'subtitle' => $data['subtitle'] ?? $data['sottotitolo'] ?? null,
@@ -276,7 +378,6 @@ class ApiBookScraperPlugin
             'subjects' => $data['subjects'] ?? $data['argomenti'] ?? [],
         ];
 
-        // Rimuove campi null
         $mappedData = array_filter($mappedData, function($value) {
             return $value !== null && $value !== '' && $value !== [];
         });
@@ -286,15 +387,11 @@ class ApiBookScraperPlugin
 
     /**
      * Parse autori dalla risposta API
-     *
-     * @param array $data Dati API
-     * @return array Lista autori
      */
     private function parseAuthors(array $data): array
     {
         $authors = [];
 
-        // Supporta diversi formati autori
         if (isset($data['authors']) && is_array($data['authors'])) {
             foreach ($data['authors'] as $author) {
                 if (is_string($author)) {
@@ -323,107 +420,115 @@ class ApiBookScraperPlugin
      */
     private function log(string $level, string $message, array $context = []): void
     {
-        if ($this->pluginId) {
-            $this->pluginManager->log($this->pluginId, $level, $message, $context);
+        if (!$this->pluginId || !$this->db) {
+            error_log("[ApiBookScraper] $level: $message");
+            return;
+        }
+
+        $contextJson = json_encode($context);
+
+        $stmt = $this->db->prepare(
+            "INSERT INTO plugin_logs (plugin_id, level, message, context, created_at)
+             VALUES (?, ?, ?, ?, NOW())"
+        );
+
+        if ($stmt) {
+            $stmt->bind_param('isss', $this->pluginId, $level, $message, $contextJson);
+            $stmt->execute();
+            $stmt->close();
         }
     }
 
     /**
      * Salva le impostazioni del plugin
-     *
-     * @param array $settings Impostazioni da salvare
-     * @return bool Successo operazione
      */
     public function saveSettings(array $settings): bool
     {
-        if (!$this->pluginId) {
+        if (!$this->pluginId || !$this->db) {
             return false;
         }
 
         $success = true;
 
-        // Salva endpoint API
-        if (isset($settings['api_endpoint'])) {
-            $endpoint = filter_var(trim($settings['api_endpoint']), FILTER_SANITIZE_URL);
-            $success = $success && $this->pluginManager->setSetting(
-                $this->pluginId,
-                'api_endpoint',
-                $endpoint
-            );
-        }
+        foreach ($settings as $key => $value) {
+            $shouldEncrypt = ($key === 'api_key');
+            $finalValue = $shouldEncrypt ? $this->encryptValue($value) : $value;
 
-        // Salva API key (viene criptata automaticamente da PluginManager)
-        if (isset($settings['api_key'])) {
-            $success = $success && $this->pluginManager->setSetting(
-                $this->pluginId,
-                'api_key',
-                trim($settings['api_key'])
+            // Delete existing
+            $deleteStmt = $this->db->prepare(
+                "DELETE FROM plugin_settings WHERE plugin_id = ? AND setting_key = ?"
             );
-        }
+            if ($deleteStmt) {
+                $deleteStmt->bind_param('is', $this->pluginId, $key);
+                $deleteStmt->execute();
+                $deleteStmt->close();
+            }
 
-        // Salva timeout
-        if (isset($settings['timeout'])) {
-            $timeout = max(5, min(60, (int)$settings['timeout']));
-            $success = $success && $this->pluginManager->setSetting(
-                $this->pluginId,
-                'timeout',
-                $timeout
+            // Insert new
+            $insertStmt = $this->db->prepare(
+                "INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, autoload)
+                 VALUES (?, ?, ?, 1)"
             );
-        }
 
-        // Salva stato abilitazione
-        if (isset($settings['enabled'])) {
-            $success = $success && $this->pluginManager->setSetting(
-                $this->pluginId,
-                'enabled',
-                (bool)$settings['enabled']
-            );
+            if ($insertStmt) {
+                $insertStmt->bind_param('iss', $this->pluginId, $key, $finalValue);
+                $success = $success && $insertStmt->execute();
+                $insertStmt->close();
+            } else {
+                $success = false;
+            }
         }
 
         if ($success) {
-            // Ricarica impostazioni
             $this->loadSettings();
+            // Re-register hooks con nuove impostazioni
+            $this->registerHooks();
         }
 
         return $success;
     }
 
     /**
-     * Ottiene le impostazioni correnti
+     * Encrypt value with AES-256-GCM
+     */
+    private function encryptValue(string $value): string
+    {
+        $key = getenv('PLUGIN_ENCRYPTION_KEY') ?: getenv('APP_KEY');
+        if (!$key) {
+            return $value;
+        }
+
+        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-gcm'));
+        $tag = '';
+
+        $encrypted = openssl_encrypt(
+            $value,
+            'aes-256-gcm',
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag
+        );
+
+        if ($encrypted === false) {
+            return $value;
+        }
+
+        // Combina IV + tag + ciphertext e codifica in base64
+        $combined = $iv . $tag . $encrypted;
+        return 'ENC:' . base64_encode($combined);
+    }
+
+    /**
+     * Ottiene le impostazioni correnti (per la UI)
      */
     public function getSettings(): array
     {
         return [
             'api_endpoint' => $this->apiEndpoint,
-            'api_key' => $this->apiKey ? '••••••••' : '', // Maschera API key per sicurezza
+            'api_key' => $this->apiKey ? '••••••••' : '',
             'timeout' => $this->timeout,
             'enabled' => $this->enabled
         ];
-    }
-
-    /**
-     * Hook chiamato durante l'attivazione del plugin
-     */
-    public function onActivate(): void
-    {
-        // Inizializzazione se necessaria
-        $this->log('info', 'Plugin API Book Scraper attivato');
-    }
-
-    /**
-     * Hook chiamato durante la disattivazione del plugin
-     */
-    public function onDeactivate(): void
-    {
-        $this->log('info', 'Plugin API Book Scraper disattivato');
-    }
-
-    /**
-     * Hook chiamato durante la disinstallazione del plugin
-     */
-    public function onUninstall(): void
-    {
-        // Pulizia dati se necessaria
-        $this->log('info', 'Plugin API Book Scraper disinstallato');
     }
 }
