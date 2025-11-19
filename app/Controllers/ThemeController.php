@@ -9,22 +9,18 @@ use App\Support\Csrf;
 use App\Support\HtmlHelper;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Slim\Views\PhpRenderer;
 
 class ThemeController
 {
     private ThemeManager $themeManager;
     private ThemeColorizer $themeColorizer;
-    private PhpRenderer $view;
 
     public function __construct(
         ThemeManager $themeManager,
-        ThemeColorizer $themeColorizer,
-        PhpRenderer $view
+        ThemeColorizer $themeColorizer
     ) {
         $this->themeManager = $themeManager;
         $this->themeColorizer = $themeColorizer;
-        $this->view = $view;
     }
 
     /**
@@ -32,16 +28,26 @@ class ThemeController
      */
     public function index(Request $request, Response $response): Response
     {
+        // Check authorization
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+        }
+
         $themes = $this->themeManager->getAllThemes();
         $activeTheme = $this->themeManager->getActiveTheme();
+        $pageTitle = __('Gestione Temi');
 
-        $data = [
-            'themes' => $themes,
-            'activeTheme' => $activeTheme,
-            'pageTitle' => __('Gestione Temi')
-        ];
+        // Render view
+        ob_start();
+        require __DIR__ . '/../Views/admin/themes.php';
+        $content = ob_get_clean();
 
-        return $this->view->render($response, 'admin/themes.php', $data);
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
     }
 
     /**
@@ -49,29 +55,37 @@ class ThemeController
      */
     public function customize(Request $request, Response $response, array $args): Response
     {
+        // Check authorization
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+        }
+
         $themeId = (int)($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);
 
         if (!$theme) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Tema non trovato')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            $_SESSION['error'] = __('Tema non trovato');
+            return $response
+                ->withHeader('Location', '/admin/themes')
+                ->withStatus(302);
         }
 
         $settings = json_decode($theme['settings'], true) ?? [];
         $colors = $settings['colors'] ?? [];
         $advanced = $settings['advanced'] ?? [];
+        $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
 
-        $data = [
-            'theme' => $theme,
-            'colors' => $colors,
-            'advanced' => $advanced,
-            'pageTitle' => __('Personalizza Tema') . ': ' . $theme['name']
-        ];
+        // Render view
+        ob_start();
+        require __DIR__ . '/../Views/admin/theme-customize.php';
+        $content = ob_get_clean();
 
-        return $this->view->render($response, 'admin/theme-customize.php', $data);
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
     }
 
     /**

@@ -67,7 +67,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     <?= __("Colore Primario") ?>
-                                    <span class="text-gray-500 font-normal">(link, accenti)</span>
+                                    <span class="text-gray-500 font-normal">(<?= __("link, accenti") ?>)</span>
                                 </label>
                                 <div class="flex gap-3 items-center">
                                     <input type="color"
@@ -87,7 +87,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     <?= __("Colore Secondario") ?>
-                                    <span class="text-gray-500 font-normal">(bottoni principali)</span>
+                                    <span class="text-gray-500 font-normal">(<?= __("bottoni principali") ?>)</span>
                                 </label>
                                 <div class="flex gap-3 items-center">
                                     <input type="color"
@@ -107,7 +107,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     <?= __("Colore Bottoni CTA") ?>
-                                    <span class="text-gray-500 font-normal">(bottoni nelle card)</span>
+                                    <span class="text-gray-500 font-normal">(<?= __("bottoni nelle card") ?>)</span>
                                 </label>
                                 <div class="flex gap-3 items-center">
                                     <input type="color"
@@ -312,13 +312,13 @@ function checkContrast() {
         let html = `<p><strong><?= __("Contrasto") ?>:</strong> ${ratio}:1</p>`;
 
         if (passAA) {
-            html += '<p class="text-green-700 font-medium"><i class="fas fa-check-circle mr-1"></i> WCAG AA</p>';
+            html += '<p class="text-green-700 font-medium"><i class="fas fa-check-circle mr-1"></i> <?= __("WCAG AA Conforme") ?></p>';
             warning.className = 'bg-green-50 border border-green-200 rounded-lg p-4';
         } else if (ratio >= 3.0) {
-            html += '<p class="text-yellow-700 font-medium">AA Large Text</p>';
+            html += '<p class="text-yellow-700 font-medium"><?= __("AA Testo Grande") ?></p>';
             warning.className = 'bg-yellow-50 border border-yellow-200 rounded-lg p-4';
         } else {
-            html += '<p class="text-red-700 font-medium"><i class="fas fa-times-circle mr-1"></i> Insufficiente</p>';
+            html += '<p class="text-red-700 font-medium"><i class="fas fa-times-circle mr-1"></i> <?= __("Insufficiente") ?></p>';
             warning.className = 'bg-red-50 border border-red-200 rounded-lg p-4';
         }
 

@@ -111,7 +111,7 @@ class UserDashboardController
         return $response;
     }
 
-    public function prenotazioni(Request $request, Response $response, mysqli $db): Response
+    public function prenotazioni(Request $request, Response $response, mysqli $db, $container = null): Response
     {
         // Verifica autenticazione
         if (empty($_SESSION['user']['id'])) {

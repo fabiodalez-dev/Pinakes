@@ -41,12 +41,16 @@ $seoSchema = json_encode([
     ]
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
+// Load theme colors for catalog-specific styles
+$themeManager = $container->get('themeManager');
+$themeColorizer = $container->get('themeColorizer');
+$activeTheme = $themeManager->getActiveTheme();
+$themeColors = $themeManager->getThemeColors($activeTheme);
+$themePalette = $themeColorizer->generateColorPalette($themeColors);
+
 $additional_css = "
 <style>
     :root {
-        --primary-color: #1f2937;
-        --primary-hover: #111827;
-        --secondary-color: #7c3aed;
         --accent-color: #f59e0b;
         --success-color: #10b981;
         --warning-color: #f59e0b;
@@ -71,7 +75,7 @@ $additional_css = "
     }
 
     .catalog-header {
-        background: #d70161;
+        background: " . htmlspecialchars($themePalette['primary'], ENT_QUOTES, 'UTF-8') . ";
         color: white;
         padding: 4rem 0 3rem;
         position: relative;
@@ -925,9 +929,9 @@ $additional_css = "
         display: inline-flex;
         align-items: center;
         padding: 0.75rem 1.5rem;
-        background: #d70262;
-        color: white;
-        border: 1px solid #d70262;
+        background: " . htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') . ";
+        color: " . htmlspecialchars($themePalette['button_text'], ENT_QUOTES, 'UTF-8') . ";
+        border: 1px solid " . htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') . ";
         border-radius: var(--radius-md);
         font-size: 0.875rem;
         font-weight: 600;
@@ -936,8 +940,8 @@ $additional_css = "
     }
 
     .btn-cta:hover {
-        background: #b70154;
-        border-color: #b70154;
+        background: " . htmlspecialchars($themePalette['button_hover'], ENT_QUOTES, 'UTF-8') . ";
+        border-color: " . htmlspecialchars($themePalette['button_hover'], ENT_QUOTES, 'UTF-8') . ";
         transform: translateY(-1px);
     }
 

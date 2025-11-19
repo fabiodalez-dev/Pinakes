@@ -130,7 +130,7 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
     <?php endif; ?>
 <h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;"><?= __("Riepilogo Installazione") ?></h3>
 <ul class="summary-list">
-    <li><i class="fas fa-check-circle"></i> Database installato (38 tabelle)</li>
+    <li><i class="fas fa-check-circle"></i> Database installato (40 tabelle)</li>
     <li><i class="fas fa-check-circle"></i> Trigger database configurati</li>
     <li><i class="fas fa-check-circle"></i> Dati essenziali caricati</li>
     <?php if ($adminUser): ?>

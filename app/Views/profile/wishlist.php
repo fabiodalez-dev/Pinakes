@@ -18,7 +18,7 @@ $reservationsRoute = route_path('reservations');
 
 <style>
   .wishlist-hero {
-    background: #d70161;
+    background: var(--primary-color);
     color: var(--white);
     padding: 4.5rem 0 3.5rem;
     margin-bottom: 3rem;

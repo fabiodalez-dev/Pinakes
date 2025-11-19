@@ -12,7 +12,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class ProfileController
 {
-    public function show(Request $request, Response $response, mysqli $db): Response
+    public function show(Request $request, Response $response, mysqli $db, $container = null): Response
     {
         $uid = (int)($_SESSION['user']['id'] ?? 0);
         if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
@@ -30,7 +30,7 @@ class ProfileController
                          ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff');
 
         ob_start();
-        $title = 'Profilo - Biblioteca';
+        $title = __('Profilo') . ' - ' . __('Biblioteca');
         if ($isAdminOrStaff) {
             require __DIR__ . '/../Views/layout.php';
         } else {

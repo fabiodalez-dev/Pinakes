@@ -88,6 +88,13 @@
 - Cookie banner, consent logging and selective script loading keep you compliant with EU requirements.
 - All public assets (Bootstrap, Tailwind utilities, Inter font, Font Awesome, Uppy, TinyMCE, etc.) are self-hosted to avoid external trackers.
 
+### Theme System (Admin → Themes)
+- 10 pre-built themes ship with the installer: Pinakes Classic (default magenta), Minimal B&W, Ocean Blue, Forest Green, Sunset Orange, Burgundy, Teal Professional, Slate Gray, Coral Warm and Navy Classic.
+- Activate any theme with one click; colors are applied instantly across the entire frontend (catalog, profile, wishlist, reservations, book details).
+- The customization page lets you tweak primary, secondary and CTA button colors with live preview and WCAG contrast validation (AA/AAA compliance indicators).
+- Theme colors are stored in the database and injected as CSS custom properties (`--primary-color`, `--button-color`, etc.), so no CSS rebuild is needed.
+- Custom CSS field available for advanced styling without touching core files.
+
 ---
 
 ## Built-in API (app/Routes/web.php)
@@ -144,7 +151,7 @@ Pinakes ships with `vendor/` and compiled frontend assets committed, so Composer
 ## Installer Overview
 The bundled installer (`installer/README.md`):
 - validates PHP extensions and directory permissions;
-- creates 39 tables, triggers and seed data (Dewey, genres, CMS placeholders, email templates, plugin system);
+- creates 40 tables, triggers and seed data (Dewey, genres, themes, CMS placeholders, email templates, plugin system);
 - **automatically installs 4 default plugins**: Open Library (metadata scraping), Z39 Server (SRU API), API Book Scraper (ISBN enrichment), and Digital Library (eBook/audiobook management);
 - writes an `.env` with production defaults (APP_ENV=production, debug off) plus `.installed` lock;
 - supports step-by-step deletion of itself once the instance is ready.

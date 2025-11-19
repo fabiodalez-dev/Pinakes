@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 final class UserWishlistController
 {
-    public function page(Request $request, Response $response, mysqli $db): Response
+    public function page(Request $request, Response $response, mysqli $db, $container = null): Response
     {
         $user = $_SESSION['user'] ?? null;
         if (!$user || empty($user['id'])) { return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302); }
@@ -26,7 +26,7 @@ final class UserWishlistController
         while ($r = $res->fetch_assoc()) { $items[] = $r; }
         $stmt->close();
 
-        $title = 'I miei preferiti - Biblioteca';
+        $title = __('I miei preferiti') . ' - ' . __('Biblioteca');
         ob_start();
         require __DIR__ . '/../Views/profile/wishlist.php';
         $content = ob_get_clean();

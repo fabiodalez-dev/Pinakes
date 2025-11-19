@@ -4,6 +4,27 @@ use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 
+// Load theme colors
+if (isset($container)) {
+    $themeManager = $container->get('themeManager');
+    $themeColorizer = $container->get('themeColorizer');
+    $activeTheme = $themeManager->getActiveTheme();
+    $themeColors = $themeManager->getThemeColors($activeTheme);
+    $themePalette = $themeColorizer->generateColorPalette($themeColors);
+} else {
+    // Fallback colors if container not available
+    $themePalette = [
+        'primary' => '#d70161',
+        'primary_hover' => '#b8014f',
+        'primary_focus' => '#9a0142',
+        'secondary' => '#111827',
+        'secondary_hover' => '#0a0f17',
+        'button' => '#d70262',
+        'button_text' => '#ffffff',
+        'button_hover' => '#b8014f',
+    ];
+}
+
 $appName = (string)ConfigStore::get('app.name', 'Pinakes');
 $appLogo = Branding::logo();
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
@@ -93,8 +114,15 @@ if (!function_exists('assetUrl')) {
 
     <style>
         :root {
-            --primary-color: #d70161;
-            --secondary-color: #111827;
+            /* Theme colors - Dynamically loaded from database */
+            --primary-color: <?= htmlspecialchars($themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>;
+            --primary-hover: <?= htmlspecialchars($themePalette['primary_hover'], ENT_QUOTES, 'UTF-8') ?>;
+            --primary-focus: <?= htmlspecialchars($themePalette['primary_focus'], ENT_QUOTES, 'UTF-8') ?>;
+            --secondary-color: <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>;
+            --secondary-hover: <?= htmlspecialchars($themePalette['secondary_hover'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-color: <?= htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-text-color: <?= htmlspecialchars($themePalette['button_text'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-hover: <?= htmlspecialchars($themePalette['button_hover'], ENT_QUOTES, 'UTF-8') ?>;
             --accent-color: #f1f5f9;
             --text-color: #0f172a;
             --text-light: #6b7280;
