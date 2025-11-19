@@ -81,21 +81,24 @@ return function (App $app): void {
 
     $app->get('/', function ($request, $response) use ($app) {
         // Redirect to frontend home page
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->home($request, $response, $db);
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
+        return $controller->home($request, $response, $db, $container);
     });
 
     // Frontend Events routes
     $app->get('/events', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
         return $controller->events($request, $response, $db);
     });
 
     $app->get('/events/{slug}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
         return $controller->event($request, $response, $db, $args);
     });
 
@@ -1559,9 +1562,10 @@ return function (App $app): void {
 
     // Frontend routes (public)
     $app->get('/home.php', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
-        return $controller->home($request, $response, $db);
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
+        return $controller->home($request, $response, $db, $container);
     });
 
 // Legacy redirect for backward compatibility (all language variants)
@@ -1574,8 +1578,9 @@ foreach ($supportedLocales as $locale) {
 // Catalog page (all language variants)
 foreach ($supportedLocales as $locale) {
     $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('catalog', $locale), function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
         return $controller->catalog($request, $response, $db);
     });
 }
@@ -1583,8 +1588,9 @@ foreach ($supportedLocales as $locale) {
 // Legacy book detail redirect (all language variants)
 foreach ($supportedLocales as $locale) {
     $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('book_legacy', $locale), function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
         return $controller->bookDetail($request, $response, $db);
     });
 }
@@ -1595,23 +1601,26 @@ foreach ($supportedLocales as $locale) {
 
     // Route without slug
     $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
         return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], '');
     });
 
     // Route with slug
     $registerRouteIfUnique('GET', $bookRoute . '/{id:\d+}/{slug}', function ($request, $response, $args) use ($app) {
-        $controller = new \App\Controllers\FrontendController();
-        $db = $app->getContainer()->get('db');
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
         return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['slug']);
     });
 }
 
 // Canonical SEO route: /{author-slug}/{book-slug}/{id}
 $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($request, $response, $args) use ($app) {
-    $controller = new \App\Controllers\FrontendController();
-    $db = $app->getContainer()->get('db');
+    $container = $app->getContainer();
+    $controller = new \App\Controllers\FrontendController($container);
+    $db = $container->get('db');
     return $controller->bookDetailSEO($request, $response, $db, (int)$args['id'], $args['bookSlug']);
 });
 
@@ -1633,8 +1642,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     // API endpoint for AJAX catalog filtering (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('api_catalog', $locale), function ($request, $response) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
             return $controller->catalogAPI($request, $response, $db);
         });
     }
@@ -1642,8 +1652,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     // API endpoint for home page sections (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('api_home', $locale) . '/{section}', function ($request, $response, $args) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
             return $controller->homeAPI($request, $response, $db, $args['section']);
         });
     }
@@ -1651,8 +1662,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     // Author archive page by ID (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('author', $locale) . '/{id:\d+}', function ($request, $response, $args) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
             return $controller->authorArchiveById($request, $response, $db, (int)$args['id']);
         });
     }
@@ -1660,8 +1672,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     // Author archive page by name (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('author', $locale) . '/{name}', function ($request, $response, $args) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
             return $controller->authorArchive($request, $response, $db, $args['name']);
         });
     }
@@ -1669,8 +1682,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     // Publisher archive page (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('publisher', $locale) . '/{name}', function ($request, $response, $args) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
             return $controller->publisherArchive($request, $response, $db, $args['name']);
         });
     }
@@ -1678,8 +1692,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     // Genre archive page (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('genre', $locale) . '/{name}', function ($request, $response, $args) use ($app) {
-            $controller = new \App\Controllers\FrontendController();
-            $db = $app->getContainer()->get('db');
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
             return $controller->genreArchive($request, $response, $db, $args['name']);
         });
     }

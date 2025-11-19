@@ -6,13 +6,23 @@ namespace App\Controllers;
 use App\Repositories\RecensioniRepository;
 use App\Support\Branding;
 use mysqli;
+use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class FrontendController
 {
-    public function home(Request $request, Response $response, mysqli $db): Response
+    private ?ContainerInterface $container = null;
+
+    public function __construct(?ContainerInterface $container = null)
     {
+        $this->container = $container;
+    }
+
+    public function home(Request $request, Response $response, mysqli $db, ContainerInterface $container = null): Response
+    {
+        // Use provided container or fallback to instance container
+        $container = $container ?? $this->container;
         // Carica i contenuti CMS della home (inclusi campi SEO completi)
         $homeContent = [];
         $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
@@ -338,6 +348,7 @@ class FrontendController
         }
 
         // Render template
+        $container = $container ?? $this->container;
         ob_start();
         include __DIR__ . '/../Views/frontend/home.php';
         $content = ob_get_clean();
@@ -419,6 +430,7 @@ class FrontendController
         $genre_display = $this->getDisplayGenres($filter_options['generi'], $filters['genere'] ?? null);
 
         // Render template
+        $container = $this->container;
         ob_start();
         // Rendi disponibili tutte le variabili necessarie nel template
         include __DIR__ . '/../Views/frontend/catalog.php';
@@ -614,6 +626,7 @@ class FrontendController
         $reviewStats = $recensioniRepo->getReviewStats($book_id);
 
         // Render template
+        $container = $this->container;
         ob_start();
         include __DIR__ . '/../Views/frontend/book-detail.php';
         $content = ob_get_clean();
@@ -1034,6 +1047,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $books[] = $book;
         }
 
+        $container = $this->container;
         ob_start();
         $title = "Libri di " . htmlspecialchars($author['nome']);
         $archive_type = 'autore';
@@ -1118,6 +1132,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         $archive_type = 'editore';
         $archive_info = $publisher;
+        $container = $this->container;
         include __DIR__ . '/../Views/frontend/archive.php';
         $content = ob_get_clean();
 
@@ -1205,6 +1220,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         $archive_type = 'genere';
         $archive_info = $genre;
+        $container = $this->container;
         include __DIR__ . '/../Views/frontend/archive.php';
         $content = ob_get_clean();
 
@@ -1462,6 +1478,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         ];
 
         // Render template
+        $container = $this->container;
         ob_start();
         $title = "Libri di " . htmlspecialchars($author['nome']);
         $archive_type = 'autore';
@@ -1643,6 +1660,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $seoDescription = __("Scopri tutti gli eventi organizzati dalla biblioteca");
         $seoCanonical = \App\Support\ConfigStore::get('app.canonical_url') . '/events';
 
+        $container = $this->container;
         ob_start();
         include __DIR__ . '/../Views/frontend/events.php';
         $html = ob_get_clean();
@@ -1720,6 +1738,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $twitterDescription = $event['twitter_description'] ?: $ogDescription;
         $twitterImage = $event['twitter_image'] ?: $ogImage;
 
+        $container = $this->container;
         ob_start();
         include __DIR__ . '/../Views/frontend/event-detail.php';
         $html = ob_get_clean();
