@@ -1735,8 +1735,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $privacyRoute = RouteTranslator::getRouteForLocale('privacy', $locale);
 
         $registerRouteIfUnique('GET', $privacyRoute, function ($request, $response) use ($app) {
+            $container = $app->getContainer();
             $controller = new \App\Controllers\PrivacyController();
-            return $controller->showPage($request, $response);
+            return $controller->showPage($request, $response, $container);
         });
     }
 
@@ -1745,8 +1746,9 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $cookiesRoute = RouteTranslator::getRouteForLocale('cookies', $locale);
 
         $registerRouteIfUnique('GET', $cookiesRoute, function ($request, $response) use ($app) {
+            $container = $app->getContainer();
             $controller = new \App\Controllers\CookiesController();
-            return $controller->showPage($request, $response);
+            return $controller->showPage($request, $response, $container);
         });
     }
 

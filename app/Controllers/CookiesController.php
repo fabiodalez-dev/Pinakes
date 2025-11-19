@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class CookiesController
 {
-    public function showPage(Request $request, Response $response): Response
+    public function showPage(Request $request, Response $response, $container = null): Response
     {
         $config = ConfigStore::get('privacy', []);
 
@@ -18,6 +18,7 @@ class CookiesController
         $appName = ConfigStore::get('app.name', 'Biblioteca');
         $title = 'Cookie Policy - ' . $appName;
 
+        // cookies-page.php will include layout.php which needs $container for theme colors
         ob_start();
         include __DIR__ . '/../Views/frontend/cookies-page.php';
         $html = ob_get_clean();

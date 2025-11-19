@@ -23,11 +23,25 @@ $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 
 // Load theme colors
-$themeManager = $container->get('themeManager');
-$themeColorizer = $container->get('themeColorizer');
-$activeTheme = $themeManager->getActiveTheme();
-$themeColors = $themeManager->getThemeColors($activeTheme);
-$themePalette = $themeColorizer->generateColorPalette($themeColors);
+if (isset($container)) {
+    $themeManager = $container->get('themeManager');
+    $themeColorizer = $container->get('themeColorizer');
+    $activeTheme = $themeManager->getActiveTheme();
+    $themeColors = $themeManager->getThemeColors($activeTheme);
+    $themePalette = $themeColorizer->generateColorPalette($themeColors);
+} else {
+    // Fallback colors when container is not available
+    $themePalette = [
+        'primary' => '#d70161',
+        'secondary' => '#111827',
+        'button' => '#d70262',
+        'button_text' => '#ffffff',
+        'primary_light' => '#f9e6ef',
+        'primary_dark' => '#b8014f',
+        'primary_rgb' => '215, 1, 97',
+        'button_rgb' => '215, 2, 98',
+    ];
+}
 
 // Check if events page is enabled
 $eventsEnabled = false;

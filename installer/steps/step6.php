@@ -32,16 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Load .env and connect to database
             $installer->loadEnvConfig();
 
-            // Save email settings
-            $installer->saveSetting('email', 'driver_mode', $driver);
-            $installer->saveSetting('email', 'type', $driver);
-            $installer->saveSetting('email', 'from_email', $fromEmail);
-            $installer->saveSetting('email', 'from_name', $fromName);
-            $installer->saveSetting('email', 'smtp_host', $smtpHost);
-            $installer->saveSetting('email', 'smtp_port', (string)$smtpPort);
-            $installer->saveSetting('email', 'smtp_username', $smtpUsername);
-            $installer->saveSetting('email', 'smtp_password', $smtpPassword);
-            $installer->saveSetting('email', 'smtp_security', $smtpEncryption);
+            // Save email settings using 'mail' key to match app expectations
+            // The app reads from 'mail.from_email', not 'email.from_email'
+            $installer->saveSetting('mail', 'driver', $driver);
+            $installer->saveSetting('mail', 'from_email', $fromEmail);
+            $installer->saveSetting('mail', 'from_name', $fromName);
+
+            // SMTP settings in nested structure
+            require_once __DIR__ . '/../../app/Support/ConfigStore.php';
+            \App\Support\ConfigStore::set('mail.smtp.host', $smtpHost);
+            \App\Support\ConfigStore::set('mail.smtp.port', (int)$smtpPort);
+            \App\Support\ConfigStore::set('mail.smtp.username', $smtpUsername);
+            \App\Support\ConfigStore::set('mail.smtp.password', $smtpPassword);
+            \App\Support\ConfigStore::set('mail.smtp.encryption', $smtpEncryption);
 
             completeStep(6);
             header('Location: index.php?step=7');
@@ -58,7 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Default values
 $appName = $_SESSION['app_settings']['name'] ?? 'Pinakes';
 $driver = $_POST['email_driver'] ?? 'mail';
-$domain = $_SERVER['HTTP_HOST'] ?? 'localhost';
+// Extract domain without port for email generation
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$domain = preg_replace('/:\d+$/', '', $host); // Remove port if present
 $fromEmail = $_POST['from_email'] ?? "no-reply@{$domain}";
 $fromName = $_POST['from_name'] ?? $appName;
 $smtpHost = $_POST['smtp_host'] ?? $domain;

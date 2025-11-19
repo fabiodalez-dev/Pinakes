@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class PrivacyController
 {
-    public function showPage(Request $request, Response $response): Response
+    public function showPage(Request $request, Response $response, $container = null): Response
     {
         $config = ConfigStore::get('privacy', []);
 
@@ -25,12 +25,9 @@ class PrivacyController
         $appName = ConfigStore::get('app.name', 'Biblioteca');
         $title = $pageTitle . ' - ' . $appName;
 
+        // privacy-page.php will include layout.php which needs $container for theme colors
         ob_start();
         include __DIR__ . '/../Views/frontend/privacy-page.php';
-        $content = ob_get_clean();
-
-        ob_start();
-        include __DIR__ . '/../Views/frontend/layout.php';
         $html = ob_get_clean();
 
         $response->getBody()->write($html);
