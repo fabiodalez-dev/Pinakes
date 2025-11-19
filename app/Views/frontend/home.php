@@ -833,8 +833,8 @@ if (!empty($sectionsOrdered)) {
         if (file_exists($templateFile)) {
             include $templateFile;
         }
-    }
-}
+    } // End foreach
+} // End if sectionsOrdered
 ?>
 
 <!-- LEGACY FALLBACK: Hero Section (kept for reference, remove after testing) -->
@@ -1145,6 +1145,7 @@ if (!empty($sectionsOrdered)) {
     <?php endforeach; ?>
 </section>
 <?php endif; ?>
+<?php endif; // End legacy fallback (if false) ?>
 
 <!-- Call to Action Section -->
 <?php if (!empty($homeContent['cta'])): ?>
@@ -1168,7 +1169,7 @@ if (!empty($sectionsOrdered)) {
         </div>
     </div>
 </section>
-<?php endif; // End legacy fallback ?>
+<?php endif; // End CTA section ?>
 
 <?php
 $additional_js = "

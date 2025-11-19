@@ -2099,7 +2099,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     $app->get('/admin/themes', function ($request, $response) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
-        $view = $app->getContainer()->get('view');
+        $view = new \Slim\Views\PhpRenderer(__DIR__ . '/../app/Views/');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->index($request, $response);
     })->add(new AdminAuthMiddleware());
@@ -2107,7 +2107,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     $app->get('/admin/themes/{id}/customize', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
-        $view = $app->getContainer()->get('view');
+        $view = new \Slim\Views\PhpRenderer(__DIR__ . '/../app/Views/');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->customize($request, $response, $args);
     })->add(new AdminAuthMiddleware());
@@ -2115,7 +2115,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     $app->post('/admin/themes/{id}/save', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
-        $view = $app->getContainer()->get('view');
+        $view = new \Slim\Views\PhpRenderer(__DIR__ . '/../app/Views/');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->save($request, $response, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
@@ -2123,7 +2123,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     $app->post('/admin/themes/{id}/activate', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
-        $view = $app->getContainer()->get('view');
+        $view = new \Slim\Views\PhpRenderer(__DIR__ . '/../app/Views/');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->activate($request, $response, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
@@ -2131,7 +2131,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     $app->post('/admin/themes/{id}/reset', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
-        $view = $app->getContainer()->get('view');
+        $view = new \Slim\Views\PhpRenderer(__DIR__ . '/../app/Views/');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->reset($request, $response, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
@@ -2139,7 +2139,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
     $app->post('/admin/themes/check-contrast', function ($request, $response) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
-        $view = $app->getContainer()->get('view');
+        $view = new \Slim\Views\PhpRenderer(__DIR__ . '/../app/Views/');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->checkContrast($request, $response);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
