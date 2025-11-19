@@ -279,17 +279,31 @@ function updatePreview() {
     btnPrimary.style.borderColor = secondary;
 }
 
+const csrfToken = '<?= \App\Support\Csrf::ensureToken() ?>';
+
 function checkContrast() {
     const button = document.getElementById('color-button').value;
     const buttonText = document.getElementById('color-button-text').value;
 
     fetch('/admin/themes/check-contrast', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+        },
         body: JSON.stringify({bg: button, fg: buttonText})
     })
     .then(r => r.json())
     .then(data => {
+        // Check for CSRF/session errors
+        if (data.error || data.code) {
+            alert(data.error || '<?= addslashes(__("Errore di sicurezza")) ?>');
+            if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+                setTimeout(() => window.location.reload(), 2000);
+            }
+            return;
+        }
+
         const ratio = data.ratio.toFixed(2);
         const passAA = data.passAA;
         const warning = document.getElementById('contrast-warning');
@@ -339,10 +353,22 @@ function resetToDefaults() {
 
     fetch('/admin/themes/<?= $theme['id'] ?>/reset', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'}
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+        }
     })
     .then(r => r.json())
     .then(data => {
+        // Check for CSRF/session errors
+        if (data.error || data.code) {
+            alert(data.error || '<?= addslashes(__("Errore di sicurezza")) ?>');
+            if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+                setTimeout(() => window.location.reload(), 2000);
+            }
+            return;
+        }
+
         if (data.success) window.location.reload();
         else alert(data.message);
     });

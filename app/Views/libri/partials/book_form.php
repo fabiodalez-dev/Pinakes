@@ -552,6 +552,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 <script>
 const FORM_MODE = <?php echo json_encode($mode); ?>;
 const INITIAL_BOOK = <?php echo $initialDataJsonRaw; ?>;
+const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
 
 // i18n translations for JavaScript - Inject PHP translations into JS
 const i18nTranslations = <?= json_encode([
@@ -2019,12 +2020,28 @@ async function increaseCopies(book) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRF-Token': CSRF_TOKEN
                 },
                 body: JSON.stringify({ copies: copiesToAdd })
             });
 
-            if (response.ok) {
-                const data = await response.json();
+            const data = await response.json();
+
+            // Check for CSRF/session errors
+            if (data.error || data.code) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: __('Errore di sicurezza'),
+                    text: data.error || __('Errore di sicurezza'),
+                    confirmButtonText: __('OK')
+                });
+                if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+                return;
+            }
+
+            if (response.ok && data.success) {
                 await Swal.fire({
                     icon: 'success',
                     title: __('Copie Aggiunte!'),
@@ -2038,7 +2055,7 @@ async function increaseCopies(book) {
                 // Redirect to book list
                 window.location.href = '/admin/libri';
             } else {
-                const error = await response.json();
+                const error = data;
                 Swal.fire({
                     icon: 'error',
                     title: __('Errore'),

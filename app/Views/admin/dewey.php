@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', function(){
   const l3 = document.getElementById('stat-l3');
   const out = document.getElementById('reseed-result');
   const btn = document.getElementById('btn-reseed');
+  const csrfToken = '<?= \App\Support\Csrf::ensureToken() ?>';
 
   async function loadCounts(){
     try {
@@ -83,7 +84,23 @@ document.addEventListener('DOMContentLoaded', function(){
   btn.addEventListener('click', async ()=>{
     btn.disabled = true; const prev = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= addslashes(__("Working...")) ?>';
     try {
-      const res = await fetch('/api/dewey/reseed', { method: 'POST' }).then(r=>r.json());
+      const res = await fetch('/api/dewey/reseed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        }
+      }).then(r=>r.json());
+
+      // Check for CSRF/session errors
+      if (res.error || res.code) {
+        out.textContent = res.error || '<?= addslashes(__("Errore di sicurezza")) ?>';
+        if (res.code === 'SESSION_EXPIRED' || res.code === 'CSRF_INVALID') {
+          setTimeout(() => window.location.reload(), 2000);
+        }
+        return;
+      }
+
       if (res && res.ok) {
         out.textContent = `<?= addslashes(__("Seed completato.")) ?> L1=${res.counts.l1 || 0}, L2=${res.counts.l2 || 0}, L3=${res.counts.l3 || 0}`;
         await loadCounts();

@@ -183,7 +183,7 @@ return function (App $app): void {
     $app->post(RouteTranslator::route('login'), function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->login($request, $response, $app->getContainer()->get('db'));
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 300)); // 5 attempts per 5 minutes
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // 5 attempts per 5 minutes
 
     $app->get(RouteTranslator::route('logout'), function ($request, $response) use ($app) {
         $controller = new AuthController();
@@ -256,7 +256,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->register($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(3, 3600)); // 3 attempts per hour
+    })->add(new \App\Middleware\RateLimitMiddleware(3, 3600))->add(new CsrfMiddleware($app->getContainer())); // 3 attempts per hour
     $app->get(RouteTranslator::route('register_success'), function ($request, $response) use ($app) {
         $controller = new RegistrationController();
         return $controller->success($request, $response);
@@ -276,7 +276,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->forgot($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(3, 900)); // 3 attempts per 15 minutes
+    })->add(new \App\Middleware\RateLimitMiddleware(3, 900))->add(new CsrfMiddleware($app->getContainer())); // 3 attempts per 15 minutes
     $app->get(RouteTranslator::route('reset_password'), function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
@@ -286,7 +286,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->reset($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 300)); // 5 attempts per 5 minutes
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // 5 attempts per 5 minutes
 
     // Frontend user actions: loan/reserve
     $app->post('/user/loan', function ($request, $response) use ($app) {
@@ -352,7 +352,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\RecensioniController();
         return $controller->create($request, $response, $db);
-    })->add(new AuthMiddleware(['admin','staff','standard','premium']));
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin','staff','standard','premium']));
 
     // Admin review management routes
     $app->get('/admin/recensioni', function ($request, $response) use ($app) {
@@ -591,19 +591,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->delete($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/messages/{id:\d+}/archive', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->archive($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/messages/mark-all-read', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->markAllRead($request, $response);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Admin Notifications routes
     $app->get('/admin/notifications', function ($request, $response) use ($app) {
@@ -628,19 +628,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->markAsRead($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/notifications/mark-all-read', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->markAllAsRead($request, $response);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->delete('/admin/notifications/{id:\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->delete($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Admin CMS routes - Homepage
     $app->get('/admin/cms/home', function ($request, $response, $args) use ($app) {
@@ -1555,7 +1555,7 @@ return function (App $app): void {
         ], JSON_UNESCAPED_UNICODE));
 
         return $response->withHeader('Content-Type', 'application/json');
-    })->add(new AuthMiddleware(['admin']));
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
 
     // Frontend routes (public)
     $app->get('/home.php', function ($request, $response) use ($app) {
@@ -2055,28 +2055,28 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->upload($request, $response);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Plugin activate
     $app->post('/admin/plugins/{id}/activate', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->activate($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Plugin deactivate
     $app->post('/admin/plugins/{id}/deactivate', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->deactivate($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Plugin uninstall
     $app->post('/admin/plugins/{id}/uninstall', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->uninstall($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Plugin details
     $app->get('/admin/plugins/{id}/details', function ($request, $response, $args) use ($app) {
@@ -2090,7 +2090,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->updateSettings($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // ==========================================
     // Theme Management Routes (Admin Only)
@@ -2118,7 +2118,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $view = $app->getContainer()->get('view');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->save($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/themes/{id}/activate', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
@@ -2126,7 +2126,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $view = $app->getContainer()->get('view');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->activate($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/themes/{id}/reset', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
@@ -2134,7 +2134,7 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $view = $app->getContainer()->get('view');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->reset($request, $response, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/themes/check-contrast', function ($request, $response) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
@@ -2142,6 +2142,6 @@ $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($re
         $view = $app->getContainer()->get('view');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer, $view);
         return $controller->checkContrast($request, $response);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
 };
