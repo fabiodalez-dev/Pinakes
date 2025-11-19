@@ -170,7 +170,7 @@ $additional_css = "
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
-        color: #d70161;
+        color: var(--primary-color, #d70161);
         font-weight: 600;
         text-decoration: none;
     }
@@ -263,7 +263,7 @@ $additional_css = "
     }
 
     .related-title a:hover {
-        color: #d70161;
+        color: var(--primary-color, #d70161);
     }
 
     .related-link {
@@ -271,7 +271,7 @@ $additional_css = "
         align-items: center;
         gap: 0.4rem;
         font-weight: 600;
-        color: #d70161;
+        color: var(--primary-color, #d70161);
         text-decoration: none;
     }
 

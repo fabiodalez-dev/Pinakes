@@ -1020,6 +1020,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       fetch('/admin/cms/home/reorder', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'
@@ -1074,7 +1075,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const isActive = this.checked ? 1 : 0;
 
         fetch('/admin/cms/home/toggle-visibility', {
-          method: 'POST',
+            method: 'POST',
+            credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'

@@ -157,6 +157,7 @@ function activateTheme(themeId) {
 
     fetch(`/admin/themes/${themeId}/activate`, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'

@@ -2018,6 +2018,7 @@ async function increaseCopies(book) {
         try {
             const response = await fetch(`/api/libri/${book.id}/increase-copies`, {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': CSRF_TOKEN

@@ -110,31 +110,51 @@ class RegistrationController
         $data_scadenza_tessera = gmdate('Y-m-d', strtotime('+5 years')); // Scadenza tessera tra 5 anni in UTC
         $data_scadenza_token = gmdate('Y-m-d H:i:s', time() + 24 * 60 * 60); // Token scade tra 24 ore in UTC
 
-        $stmt = $db->prepare("
-            INSERT INTO utenti (
-                nome, cognome, email, password, telefono, indirizzo, data_nascita, sesso, cod_fiscale,
-                codice_tessera, stato, tipo_utente, email_verificata,
-                token_verifica_email, data_token_verifica, data_scadenza_tessera
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
-        ");
-        $stmt->bind_param(
-            'sssssssssssssss',
+        // Build dynamic INSERT to handle NULL values properly for ENUM fields
+        $columns = 'nome, cognome, email, password, telefono, indirizzo, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera';
+        $placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?';
+        $types = 'ssssssssssss';
+        $values = [
             $nome,
             $cognome,
             $email,
             $hash,
             $telefono,
             $indirizzo,
-            $dataNascita,
-            $sesso,
-            $cod_fiscale,
             $codice_tessera,
             $stato,
             $ruolo,
             $token,
             $data_scadenza_token,
             $data_scadenza_tessera
-        );
+        ];
+
+        // Add optional fields only if they have values (to avoid ENUM truncation errors)
+        if ($dataNascita !== null) {
+            $columns .= ', data_nascita';
+            $placeholders .= ', ?';
+            $types .= 's';
+            $values[] = $dataNascita;
+        }
+
+        if ($sesso !== null) {
+            $columns .= ', sesso';
+            $placeholders .= ', ?';
+            $types .= 's';
+            $values[] = $sesso;
+        }
+
+        if ($cod_fiscale !== null) {
+            $columns .= ', cod_fiscale';
+            $placeholders .= ', ?';
+            $types .= 's';
+            $values[] = $cod_fiscale;
+        }
+
+        $stmt = $db->prepare("
+            INSERT INTO utenti ({$columns}) VALUES ({$placeholders})
+        ");
+        $stmt->bind_param($types, ...$values);
         if (!$stmt->execute()) {
             $stmt->close();
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);

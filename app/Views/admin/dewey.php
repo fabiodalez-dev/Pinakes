@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', function(){
     try {
       const res = await fetch('/api/dewey/reseed', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrfToken

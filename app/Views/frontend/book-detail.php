@@ -1970,6 +1970,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       const res = await fetch('/api/user/wishlist/toggle', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ csrf_token: csrf, libro_id: String(libroId) })
       });
@@ -2152,6 +2153,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const res = await fetch(`/api/libro/${libroId}/reservation`, {
               method: 'POST',
+              credentials: 'same-origin',
+              credentials: 'same-origin',
               headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-Token': csrf
@@ -2192,6 +2195,7 @@ document.addEventListener('DOMContentLoaded', function() {
           try {
             const res = await fetch(`/api/libro/${libroId}/reservation`, {
               method: 'POST',
+              credentials: 'same-origin',
               headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-Token': csrf

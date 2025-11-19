@@ -287,6 +287,7 @@ function checkContrast() {
 
     fetch('/admin/themes/check-contrast', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': csrfToken
@@ -353,6 +354,7 @@ function resetToDefaults() {
 
     fetch('/admin/themes/<?= $theme['id'] ?>/reset', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': csrfToken

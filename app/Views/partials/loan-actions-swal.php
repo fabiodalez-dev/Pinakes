@@ -121,6 +121,7 @@ $loanActionTranslations = array_merge([
   const sendRequest = async (url, payload, csrf) => {
     const response = await fetch(url, {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': csrf

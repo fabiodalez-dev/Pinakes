@@ -780,7 +780,7 @@ form.hero-search-form {
     }
 
     .home-events-grid .event-card__title a:hover {
-        color: #d70161;
+        color: var(--primary-color, #d70161);
     }
 
     .home-events-grid .event-card__meta {

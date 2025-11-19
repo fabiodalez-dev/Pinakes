@@ -234,16 +234,16 @@ function reservationBookUrl(array $item): string {
   }
 
   .btn-review {
-    background: #d60361;
-    color: #ffffff;
+    background: var(--button-color, #d60361);
+    color: var(--button-text-color, #ffffff);
   }
 
   .btn-review:hover {
-    background: #b4024f;
+    background: var(--primary-dark, #b4024f);
   }
 
   .btn-review:disabled {
-    background: #d60361;
+    background: var(--button-color, #d60361);
     cursor: not-allowed;
     opacity: 0.7;
   }

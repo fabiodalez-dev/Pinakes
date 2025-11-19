@@ -179,6 +179,7 @@ function formatLoanStatus($status) {
             try {
                 const response = await fetch('/admin/loans/approve', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': csrf
@@ -248,6 +249,7 @@ function formatLoanStatus($status) {
             try {
                 const response = await fetch('/admin/loans/reject', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': csrf

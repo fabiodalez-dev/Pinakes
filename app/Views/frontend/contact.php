@@ -287,8 +287,8 @@ $additional_css = "
     .btn-submit {
         width: 100%;
         padding: 1rem 2rem;
-        background: #d70262;
-        color: white;
+        background: var(--button-color, #d70262);
+        color: var(--button-text-color, white);
         border: none;
         border-radius: 12px;
         font-size: 1.0625rem;
@@ -302,7 +302,7 @@ $additional_css = "
     }
 
     .btn-submit:hover {
-        background: #b6014f;
+        background: var(--primary-dark, #b6014f);
         transform: translateY(-2px);
         box-shadow: none;
     }

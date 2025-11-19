@@ -198,7 +198,7 @@ $additional_css = "
     }
 
     .event-card__title a:hover {
-        color: #d70161;
+        color: var(--primary-color, #d70161);
     }
 
     .event-card__meta {
@@ -253,7 +253,7 @@ $additional_css = "
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        color: #d70161;
+        color: var(--primary-color, #d70161);
         font-size: 1.5rem;
         margin-bottom: 1rem;
     }
@@ -279,8 +279,8 @@ $additional_css = "
     }
 
     .events-pagination a:hover {
-        border-color: #d70161;
-        color: #d70161;
+        border-color: var(--primary-color, #d70161);
+        color: var(--primary-color, #d70161);
     }
 
     .events-pagination .is-active {

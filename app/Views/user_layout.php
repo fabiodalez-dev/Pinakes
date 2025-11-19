@@ -5,6 +5,29 @@ use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 
+// Load theme colors
+if (isset($container)) {
+    $themeManager = $container->get('themeManager');
+    $themeColorizer = $container->get('themeColorizer');
+    $activeTheme = $themeManager->getActiveTheme();
+    $themeColors = $themeManager->getThemeColors($activeTheme);
+    $themePalette = $themeColorizer->generateColorPalette($themeColors);
+} else {
+    // Fallback colors if container not available
+    $themePalette = [
+        'primary' => '#d70161',
+        'primary_hover' => '#b8014f',
+        'primary_focus' => '#9a0142',
+        'primary_light' => '#f9e6ef',
+        'primary_dark' => '#b8014f',
+        'secondary' => '#111827',
+        'button' => '#d70262',
+        'button_text' => '#ffffff',
+        'primary_rgb' => '215, 1, 97',
+        'button_rgb' => '215, 2, 98',
+    ];
+}
+
 $appName = (string) ConfigStore::get('app.name', 'Biblioteca');
 $appLogo = Branding::logo();
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
@@ -45,8 +68,11 @@ if (isset($db)) {
 
     <style>
         :root {
-            --primary-color: #d70161;
-            --secondary-color: #111827;
+            --primary-color: <?= htmlspecialchars($themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>;
+            --primary-dark: <?= htmlspecialchars($themePalette['primary_dark'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>;
+            --secondary-color: <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-color: <?= htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') ?>;
+            --button-text-color: <?= htmlspecialchars($themePalette['button_text'], ENT_QUOTES, 'UTF-8') ?>;
             --accent-color: #f1f5f9;
             --text-color: #0f172a;
             --text-light: #6b7280;

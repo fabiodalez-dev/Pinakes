@@ -235,16 +235,16 @@ function profileReservationBookUrl(array $item): string {
   }
 
   .btn-review {
-    background: #d60361;
-    color: #fff;
+    background: var(--button-color, #d60361);
+    color: var(--button-text-color, #fff);
   }
 
   .btn-review:hover {
-    background: #b4024f;
+    background: var(--primary-dark, #b4024f);
   }
 
   .btn-review:disabled {
-    background: #d60361;
+    background: var(--button-color, #d60361);
     cursor: not-allowed;
     opacity: 0.7;
   }
@@ -743,6 +743,7 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
   try {
     const response = await fetch('/api/user/recensioni', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': data.csrf_token

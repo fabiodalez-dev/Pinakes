@@ -305,6 +305,7 @@ function toggleSection(section) {
             try {
                 const response = await fetch(`/admin/recensioni/${reviewId}/${endpoint}`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': csrf
