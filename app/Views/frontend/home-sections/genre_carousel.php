@@ -61,9 +61,9 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                 <?php foreach ($homeEvents as $event): ?>
                     <?php $eventDateText = $homeEventsFormatDate($event['event_date'] ?? ''); ?>
                     <article class="event-card">
-                        <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__thumb">
+                        <a href="/events/<?= htmlspecialchars($event['slug'], ENT_QUOTES, 'UTF-8') ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
-                                <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                                <img src="<?= htmlspecialchars($event['featured_image'], ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>">
                             <?php else: ?>
                                 <div class="event-card__placeholder">
                                     <i class="fas fa-calendar"></i>
@@ -72,14 +72,14 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                         </a>
                         <div class="event-card__body">
                             <div class="event-card__meta">
-                                <?= HtmlHelper::e($eventDateText) ?>
+                                <?= htmlspecialchars($eventDateText, ENT_QUOTES, 'UTF-8') ?>
                             </div>
                             <h3 class="event-card__title">
-                                <a href="/events/<?= HtmlHelper::e($event['slug']) ?>">
-                                    <?= HtmlHelper::e($event['title']) ?>
+                                <a href="/events/<?= htmlspecialchars($event['slug'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>
                                 </a>
                             </h3>
-                            <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__button">
+                            <a href="/events/<?= htmlspecialchars($event['slug'], ENT_QUOTES, 'UTF-8') ?>" class="event-card__button">
                                 <?= __("Scopri l'evento") ?>
                                 <i class="fas fa-arrow-right"></i>
                             </a>
