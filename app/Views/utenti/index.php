@@ -62,6 +62,85 @@
       </div>
     <?php endif; ?>
 
+    <!-- Pending Users Approval Widget -->
+    <?php if (!empty($pendingUsers)): ?>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up">
+      <div class="p-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+          <i class="fas fa-user-clock text-amber-600 mr-2"></i>
+          <?= __("Utenti in Attesa di Approvazione") ?>
+          <span class="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full"><?= count($pendingUsers) ?></span>
+        </h2>
+      </div>
+      <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <?php foreach ($pendingUsers as $user): ?>
+            <div class="flex flex-col bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm">
+              <div class="flex flex-col gap-3">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <h3 class="font-semibold text-gray-900 mb-1">
+                      <?= \App\Support\HtmlHelper::e($user['nome'] . ' ' . $user['cognome']) ?>
+                    </h3>
+                    <p class="text-xs text-gray-500 font-mono">
+                      <i class="fas fa-id-card mr-1"></i><?= \App\Support\HtmlHelper::e($user['codice_tessera'] ?? 'N/A') ?>
+                    </p>
+                  </div>
+                  <a href="/admin/utenti/dettagli/<?= (int)$user['id'] ?>"
+                     class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                     title="<?= __("Visualizza dettagli") ?>">
+                    <i class="fas fa-external-link-alt text-sm"></i>
+                  </a>
+                </div>
+
+                <div class="space-y-1">
+                  <?php if (!empty($user['email'])): ?>
+                    <p class="text-sm text-gray-600 flex items-center">
+                      <i class="fas fa-envelope mr-2 text-blue-500 w-4"></i>
+                      <a href="mailto:<?= \App\Support\HtmlHelper::e($user['email']) ?>" class="hover:underline truncate">
+                        <?= \App\Support\HtmlHelper::e($user['email']) ?>
+                      </a>
+                    </p>
+                  <?php endif; ?>
+                  <?php if (!empty($user['telefono'])): ?>
+                    <p class="text-sm text-gray-600 flex items-center">
+                      <i class="fas fa-phone mr-2 text-green-500 w-4"></i>
+                      <a href="tel:<?= \App\Support\HtmlHelper::e($user['telefono']) ?>" class="hover:underline">
+                        <?= \App\Support\HtmlHelper::e($user['telefono']) ?>
+                      </a>
+                    </p>
+                  <?php endif; ?>
+                </div>
+              </div>
+
+              <div class="mt-4 flex flex-col sm:flex-row gap-2">
+                <form method="POST" action="/admin/utenti/<?= (int)$user['id'] ?>/approve-and-send-activation" class="flex-1">
+                  <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
+                  <button type="submit" class="w-full bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
+                    <i class="fas fa-envelope"></i>
+                    <span><?= __("Invia Email") ?></span>
+                  </button>
+                </form>
+                <form method="POST" action="/admin/utenti/<?= (int)$user['id'] ?>/activate-directly" class="flex-1" onsubmit="return confirm('<?= addslashes(__('Confermi di voler attivare direttamente questo utente?')) ?>')">
+                  <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
+                  <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
+                    <i class="fas fa-user-check"></i>
+                    <span><?= __("Attiva") ?></span>
+                  </button>
+                </form>
+              </div>
+
+              <div class="mt-3 text-xs text-gray-400 flex items-center">
+                <i class="fas fa-clock mr-2"></i>
+                <?= __("Registrato il") ?> <?= !empty($user['created_at']) ? date('d-m-Y H:i', strtotime((string)$user['created_at'])) : 'N/D' ?>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <!-- White Filters Card -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up">
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">

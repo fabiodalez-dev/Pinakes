@@ -195,10 +195,10 @@ $registerRoute = route_path('register');
               name="sesso"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             >
-              <option><?= __("-- Seleziona --") ?></option>
+              <option value=""><?= __("-- Seleziona --") ?></option>
               <option value="M"><?= __('Maschio') ?></option>
               <option value="F"><?= __('Femmina') ?></option>
-              <option value="<?= __('Altro') ?>"><?= __('Altro') ?></option>
+              <option value="Altro"><?= __('Altro') ?></option>
             </select>
           </div>
         </div>

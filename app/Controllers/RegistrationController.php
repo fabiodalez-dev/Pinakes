@@ -33,53 +33,56 @@ class RegistrationController
         // Ensure data_token_verifica column exists (migration for existing installations)
         $this->ensureTokenVerificaColumn($db);
 
-        $data = (array)($request->getParsedBody() ?? []);
+        $data = (array) ($request->getParsedBody() ?? []);
 
         // Validate CSRF using helper - handles session expiry automatically
         if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('register'))) {
             return $error;
         }
-        $nome = \App\Support\HtmlHelper::decode(trim((string)($data['nome'] ?? '')));
-        $cognome = \App\Support\HtmlHelper::decode(trim((string)($data['cognome'] ?? '')));
-        $email = trim((string)($data['email'] ?? ''));
-        $telefono = trim((string)($data['telefono'] ?? ''));
-        $indirizzo = \App\Support\HtmlHelper::decode(trim((string)($data['indirizzo'] ?? '')));
-        $password = (string)($data['password'] ?? '');
-        $password2 = (string)($data['password_confirm'] ?? '');
+        $nome = \App\Support\HtmlHelper::decode(trim((string) ($data['nome'] ?? '')));
+        $cognome = \App\Support\HtmlHelper::decode(trim((string) ($data['cognome'] ?? '')));
+        $email = trim((string) ($data['email'] ?? ''));
+        $telefono = trim((string) ($data['telefono'] ?? ''));
+        $indirizzo = \App\Support\HtmlHelper::decode(trim((string) ($data['indirizzo'] ?? '')));
+        $password = (string) ($data['password'] ?? '');
+        $password2 = (string) ($data['password_confirm'] ?? '');
 
         // Optional fields
-        $dataNascita = trim((string)($data['data_nascita'] ?? ''));
+        $dataNascita = trim((string) ($data['data_nascita'] ?? ''));
         $dataNascita = $dataNascita !== '' ? $dataNascita : null;
 
-        $sesso = trim((string)($data['sesso'] ?? ''));
+        $sesso = trim((string) ($data['sesso'] ?? ''));
         $sesso = $sesso !== '' ? $sesso : null;
+        if ($sesso !== null && !in_array($sesso, ['M', 'F', 'Altro'], true)) {
+            $sesso = null;
+        }
 
-        $cod_fiscale = strtoupper(trim((string)($data['cod_fiscale'] ?? '')));
+        $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;
 
         // Validate required fields
         if ($nome === '' || $cognome === '' || $email === '' || $telefono === '' || $indirizzo === '' || $password === '' || $password !== $password2) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=missing_fields')->withStatus(302);
         }
-        
+
         // Validate input lengths
         if (strlen($nome) > 100 || strlen($cognome) > 100) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=name_too_long')->withStatus(302);
         }
-        
+
         if (strlen($email) > 255) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=email_too_long')->withStatus(302);
         }
-        
+
         if (strlen($password) > 128) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_too_long')->withStatus(302);
         }
-        
+
         // Validate password complexity
         if (strlen($password) < 8) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_too_short')->withStatus(302);
         }
-        
+
         if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_needs_upper_lower_number')->withStatus(302);
         }
@@ -116,14 +119,28 @@ class RegistrationController
         ");
         $stmt->bind_param(
             'sssssssssssssss',
-            $nome, $cognome, $email, $hash, $telefono, $indirizzo, $dataNascita, $sesso, $cod_fiscale,
-            $codice_tessera, $stato, $ruolo, $token, $data_scadenza_token, $data_scadenza_tessera
+            $nome,
+            $cognome,
+            $email,
+            $hash,
+            $telefono,
+            $indirizzo,
+            $dataNascita,
+            $sesso,
+            $cod_fiscale,
+            $codice_tessera,
+            $stato,
+            $ruolo,
+            $token,
+            $data_scadenza_token,
+            $data_scadenza_tessera
         );
         if (!$stmt->execute()) {
             $stmt->close();
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);
         }
-        $userId = (int)$stmt->insert_id; $stmt->close();
+        $userId = (int) $stmt->insert_id;
+        $stmt->close();
 
         // Send notification emails using new service
         $notificationService = new NotificationService($db);
@@ -152,7 +169,7 @@ class RegistrationController
 
     public function verifyEmail(Request $request, Response $response, mysqli $db): Response
     {
-        $token = (string)($request->getQueryParams()['token'] ?? '');
+        $token = (string) ($request->getQueryParams()['token'] ?? '');
         // Sanitize token to prevent HTTP response splitting
         $token = str_replace(["\r", "\n"], '', $token);
         if ($token === '') {
@@ -168,7 +185,7 @@ class RegistrationController
         $stmt->execute();
         $res = $stmt->get_result();
         if ($row = $res->fetch_assoc()) {
-            $uid = (int)$row['id'];
+            $uid = (int) $row['id'];
             $stmt->close();
             $stmt = $db->prepare("UPDATE utenti SET email_verificata = 1, token_verifica_email = NULL, data_token_verifica = NULL WHERE id = ?");
             $stmt->bind_param('i', $uid);

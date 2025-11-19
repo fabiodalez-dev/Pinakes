@@ -1513,6 +1513,7 @@
     "Mappa non disponibile": "Map not available",
     "Mario": "John",
     "Maschio": "Male",
+    "Femmina": "Female",
     "Max 10.000 righe • Max 100 copie per libro": "Max 10,000 rows • Max 100 copies per book",
     "Mediocre": "Fair",
     "Membro": "Member",
@@ -2892,5 +2893,8 @@
     "Contrasto insufficiente tra bottone e testo (minimo 3:1). Attuale": "Insufficient contrast between button and text (minimum 3:1). Current",
     "Tema salvato con successo": "Theme saved successfully",
     "Errore nel salvataggio del tema": "Error saving theme",
-    "Autore": "Author"
+    "Autore": "Author",
+    "Utenti in Attesa di Approvazione": "Users Awaiting Approval",
+    "Invia Email": "Send Email",
+    "Confermi di voler attivare direttamente questo utente?": "Are you sure you want to activate this user directly?"
 }

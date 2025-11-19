@@ -17,6 +17,23 @@ class UsersController
         if ($guard = $this->guardAdminStaff($response)) {
             return $guard;
         }
+
+        // Fetch pending users (suspended, awaiting approval)
+        $pendingUsers = [];
+        $result = $db->query("
+            SELECT id, nome, cognome, email, telefono, created_at, codice_tessera
+            FROM utenti
+            WHERE stato = 'sospeso'
+            ORDER BY created_at DESC
+            LIMIT 10
+        ");
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $pendingUsers[] = $row;
+            }
+            $result->free();
+        }
+
         ob_start();
         require __DIR__ . '/../Views/utenti/index.php';
         $content = ob_get_clean();
