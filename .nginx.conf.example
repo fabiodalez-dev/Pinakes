@@ -1,0 +1,254 @@
+# ========================================
+# Pinakes - Nginx Configuration Example
+# ========================================
+#
+# This file shows how to configure Nginx for Pinakes.
+# Copy this to your Nginx sites-available directory and modify as needed.
+#
+# For production: Replace bibliodoc.fabiodalez.it with your domain
+# For development: Use localhost or your local domain
+#
+# ========================================
+
+server {
+    listen 80;
+    listen [::]:80;
+
+    # Replace with your domain
+    server_name bibliodoc.fabiodalez.it;
+
+    # Document root should point to the project root (NOT /public/)
+    root /path/to/biblioteca;
+
+    # Index file
+    index index.php;
+
+    # Charset
+    charset utf-8;
+
+    # Max upload size (adjust as needed)
+    client_max_body_size 100M;
+
+    # ========================================
+    # Logging
+    # ========================================
+    access_log /var/log/nginx/pinakes_access.log;
+    error_log /var/log/nginx/pinakes_error.log;
+
+    # ========================================
+    # Security Headers (same as .htaccess)
+    # ========================================
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https: http: blob:; connect-src 'self'; frame-src 'self' https://www.openstreetmap.org; frame-ancestors 'self';" always;
+
+    # ========================================
+    # Block access to sensitive files
+    # ========================================
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    location ~ ^/(\.env|\.env\..+|\.git.*|composer\.(json|lock)|package(-lock)?\.json|\.installed|version\.json|CLAUDE\.md)$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Block access to vendor, storage, cache, etc.
+    location ~ ^/(vendor|storage|cache|tmp|logs|tests|node_modules)/ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # ========================================
+    # Installer handling
+    # ========================================
+    location /installer/ {
+        # Check if .installed file exists - block installer access
+        if (-f $document_root/.installed) {
+            # Allow ?force=1 to bypass
+            set $block_installer 1;
+            if ($arg_force = "1") {
+                set $block_installer 0;
+            }
+            if ($block_installer = 1) {
+                return 301 /;
+            }
+        }
+
+        # Allow direct access to installer assets (CSS, JS, images)
+        location ~* /installer/assets/.*\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$ {
+            try_files $uri =404;
+        }
+
+        # Route all other installer requests to installer/index.php
+        location /installer/ {
+            try_files $uri $uri/ /installer/index.php?$query_string;
+        }
+
+        # Process PHP files in installer
+        location ~ ^/installer/.*\.php$ {
+            # Only allow index.php to be executed directly
+            if ($request_uri !~* "/installer/index\.php") {
+                return 403;
+            }
+
+            fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;  # Adjust PHP version as needed
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include fastcgi_params;
+            fastcgi_param PHP_VALUE "upload_max_filesize=100M \n post_max_size=100M";
+        }
+    }
+
+    # ========================================
+    # Public directory (main application)
+    # ========================================
+    location / {
+        # Redirect root to /public/
+        rewrite ^/$ /public/ redirect;
+        rewrite ^/(.*)$ /public/$1 redirect;
+    }
+
+    location /public/ {
+        # Rewrite to remove /public/ prefix for cleaner URLs (optional)
+        # Comment this if you want to keep /public/ in URLs
+        rewrite ^/public/(.*)$ /$1 last;
+    }
+
+    location ~ ^/public/ {
+        # Strip /public/ from internal processing
+        rewrite ^/public/(.*)$ /$1 break;
+
+        # Allow direct access to uploads directory
+        location ~ ^/uploads/ {
+            try_files $uri =404;
+
+            # CORS headers for audio/video streaming (Digital Library plugin)
+            location ~* /uploads/digital/.*\.(mp3|m4a|ogg|wav|mp4|webm|ogv)$ {
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "Range, Content-Type" always;
+                add_header Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges" always;
+                add_header Accept-Ranges bytes always;
+
+                # Handle OPTIONS preflight
+                if ($request_method = 'OPTIONS') {
+                    return 204;
+                }
+
+                try_files $uri =404;
+            }
+        }
+
+        # Static files in /public/assets/
+        location ~ ^/assets/ {
+            try_files $uri =404;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # Front controller - route everything else to index.php
+        try_files $uri $uri/ /public/index.php?$query_string;
+    }
+
+    # ========================================
+    # PHP Processing (main application)
+    # ========================================
+    location ~ ^/public/.*\.php$ {
+        # Only allow index.php
+        if ($request_uri !~* "/public/index\.php") {
+            return 403;
+        }
+
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;  # Adjust PHP version as needed
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+
+        # Pass Authorization header to PHP
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+
+        # Increase timeouts for long-running scripts
+        fastcgi_read_timeout 300;
+        fastcgi_send_timeout 300;
+
+        # Upload limits
+        fastcgi_param PHP_VALUE "upload_max_filesize=100M \n post_max_size=100M \n max_execution_time=300";
+    }
+
+    # ========================================
+    # MIME Types for Digital Content
+    # ========================================
+    types {
+        audio/mpeg mp3;
+        audio/mp4 m4a;
+        audio/ogg ogg oga;
+        audio/wav wav;
+        audio/webm weba;
+        video/mp4 mp4;
+        video/webm webm;
+        video/ogg ogv;
+        application/pdf pdf;
+        application/epub+zip epub;
+    }
+
+    # ========================================
+    # Deny access to other PHP files
+    # ========================================
+    location ~ \.php$ {
+        # Block all PHP files except those explicitly allowed above
+        return 403;
+    }
+
+    # ========================================
+    # Static files caching
+    # ========================================
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Prevent access to hidden files
+    location ~ /\. {
+        deny all;
+    }
+}
+
+# ========================================
+# SSL Configuration (HTTPS) - Optional but Recommended
+# ========================================
+# Uncomment and configure for production with SSL certificate
+#
+# server {
+#     listen 443 ssl http2;
+#     listen [::]:443 ssl http2;
+#
+#     server_name bibliodoc.fabiodalez.it;
+#
+#     # SSL Certificate (use Let's Encrypt with certbot)
+#     ssl_certificate /etc/letsencrypt/live/bibliodoc.fabiodalez.it/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/bibliodoc.fabiodalez.it/privkey.pem;
+#
+#     # SSL Configuration
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#     ssl_ciphers HIGH:!aNULL:!MD5;
+#     ssl_prefer_server_ciphers on;
+#
+#     # ... (rest of configuration same as HTTP block above)
+# }
+#
+# # Redirect HTTP to HTTPS
+# server {
+#     listen 80;
+#     listen [::]:80;
+#     server_name bibliodoc.fabiodalez.it;
+#     return 301 https://$server_name$request_uri;
+# }

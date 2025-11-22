@@ -1,0 +1,20 @@
+{
+  "name": "api-book-scraper",
+  "display_name": "API Book Scraper",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "",
+  "description": "Client per servizi web di scraping dati libri tramite ISBN/EAN con API key authentication. Priorità più alta di Open Library.",
+  "main_file": "wrapper.php",
+  "requires_php": "8.0",
+  "requires_app": "1.0",
+  "metadata": {
+    "category": "scraping",
+    "priority": 3,
+    "api_version": "1.0",
+    "documentation": "README.md",
+    "php_extensions": ["curl", "json"],
+    "hooks": []
+  }
+}

@@ -1,0 +1,327 @@
+# ========================================
+# Pinakes - Git Ignore Rules
+# ========================================
+
+# ========================================
+# CRITICAL: Environment & Credentials
+# ========================================
+.env
+.env.*
+!.env.example
+.installed
+config.local.php
+config.local.sample.php
+
+# ========================================
+# CRITICAL: Database Backups & Archives
+# ========================================
+backups/*
+!backups/.gitkeep
+!backups/.htaccess
+*.sql
+!installer/database/*.sql
+*.backup
+*.backup*
+!/backups/.htaccess
+!/storage/backups/.htaccess
+*.bak
+*.old
+backup_*.sql
+migration-*.php
+
+# Temporary maintenance scripts
+clean-*.sh
+convert-*.php
+export-*.php
+fix-*.php
+
+# ========================================
+# CRITICAL: Archives
+# ========================================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+Archive.zip
+old.sql
+
+# ========================================
+# Runtime Data (user-generated)
+# ========================================
+public/uploads/settings/
+public/uploads/*
+!public/uploads/.gitkeep
+public/uploads/copertine/*.jpg
+!public/uploads/copertine/placeholder.jpg
+
+# Storage
+storage/*
+!storage/.gitkeep
+!storage/.htaccess
+!storage/logs/
+storage/logs/*
+!storage/logs/.gitkeep
+storage/*.log
+!storage/tmp/
+storage/tmp/*
+!storage/tmp/.gitkeep
+!storage/uploads/
+storage/uploads/*
+!storage/uploads/.gitkeep
+!storage/uploads/.htaccess
+!storage/uploads/plugins/
+storage/uploads/plugins/*
+!storage/uploads/plugins/.gitkeep
+!storage/backups/
+storage/backups/*
+!storage/backups/.gitkeep
+!storage/backups/.htaccess
+!storage/plugins/
+storage/plugins/*
+!storage/plugins/open-library/
+storage/plugins/open-library/*
+!storage/plugins/open-library/*.php
+!storage/plugins/open-library/*.json
+!storage/plugins/open-library/*.md
+!storage/plugins/z39-server/
+storage/plugins/z39-server/*
+!storage/plugins/z39-server/*.php
+!storage/plugins/z39-server/*.json
+!storage/plugins/z39-server/*.md
+!storage/plugins/z39-server/classes/
+!storage/plugins/z39-server/classes/*.php
+!storage/plugins/api-book-scraper/
+storage/plugins/api-book-scraper/*
+!storage/plugins/api-book-scraper/*.php
+!storage/plugins/api-book-scraper/*.json
+!storage/plugins/api-book-scraper/*.md
+!storage/plugins/api-book-scraper/views/
+!storage/plugins/api-book-scraper/views/*.php
+!storage/plugins/digital-library/
+storage/plugins/digital-library/*
+!storage/plugins/digital-library/*.php
+!storage/plugins/digital-library/*.json
+!storage/plugins/digital-library/*.md
+!storage/plugins/digital-library/views/
+!storage/plugins/digital-library/views/*.php
+!storage/plugins/digital-library/assets/
+!storage/plugins/digital-library/assets/css/
+!storage/plugins/digital-library/assets/css/*.css
+!storage/plugins/digital-library/migrations/
+!storage/plugins/digital-library/migrations/*.php
+!storage/plugins/digital-library/migrations/*.sql
+
+# Cache & Temp
+cache/*
+tmp/*
+temp/*
+*.tmp
+*.cache
+*.temp
+
+# ========================================
+# Server & Development Directories
+# ========================================
+/server/
+/server/*
+
+# ========================================
+# Logs
+# ========================================
+*.log
+logs/*.log
+error_log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================================
+# Operating System Files
+# ========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ========================================
+# IDE & Editors
+# ========================================
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+.project
+.buildpath
+.settings/
+
+# ========================================
+# Test Artifacts
+# ========================================
+.playwright-mcp/
+
+# ========================================
+# Development Documentation (not for distribution)
+# ========================================
+docs/
+security.md
+
+# Internationalization planning (contains untranslated strings)
+traduzione_piano.md
+traduzione_stringhe.md
+
+# ========================================
+# Git History Backups
+# ========================================
+.git-backup-*/
+
+# ========================================
+# Git Service Files
+# ========================================
+.github/
+**/.gitkeep
+
+# ========================================
+# Dependencies
+# ========================================
+node_modules/
+frontend/node_modules/
+# composer.lock - MUST be in git for applications (ensures consistent dependency versions)
+package-lock.json
+yarn.lock
+
+# ========================================
+# Build Artifacts
+# ========================================
+dist/
+build/
+frontend/dist/
+frontend/build/
+public/assets/*.map
+
+# ========================================
+# PHPUnit & Tests
+# ========================================
+.phpunit.result.cache
+.phpunit.cache/
+phpunit.xml
+tests/
+test/
+coverage/
+.nyc_output/
+.coverage
+htmlcov/
+
+# ========================================
+# Package Managers
+# ========================================
+.npm
+.yarn
+.pnpm-store
+bower_components/
+
+# ========================================
+# Security
+# ========================================
+.htpasswd
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+
+# ========================================
+# CI/CD
+# ========================================
+.travis.yml
+.circleci/
+azure-pipelines.yml
+.gitlab-ci.yml
+
+# ========================================
+# Git
+# ========================================
+.gitattributes
+.gitmodules
+
+# ========================================
+# Release artifacts
+# ========================================
+releases/
+releases/*.zip
+releases/*.sha256
+releases/*.md
+
+# ========================================
+# IMPORTANT: Keep these files
+# ========================================
+# - .env.example (template for users)
+# - installer/database/*.sql (installer data)
+# - cron/automatic-notifications.php (cron job)
+# - uploads/copertine/placeholder.jpg (default cover)
+docs/demini.md
+docs/email.MD
+docs/gpt.md
+docs/impostazioni_dettagliate.md
+docs/kimi.md
+docs/qwen.md
+models/config.json
+models/model.onnx
+models/special_tokens_map.json
+models/tokenizer.json
+models/tokenizer_config.json
+vectors.db
+/.qoder
+/public/assets/vendor/sortablejs/*
+!/public/assets/vendor/sortablejs/Sortable.min.js
+comments-filtered-clean.md
+comments-filtered.md
+storage/plugins/z39-server/IMPROVEMENTS.md
+storage/plugins/z39-server/TESTING.md
+comments.MD
+
+# Settings are now in database ONLY
+storage/settings.json
+
+# Verbose documentation (config examples are self-documenting)
+SERVER_CONFIG.md
+NGINX_SETUP.md
+public/assets/tinymce/CHANGELOG.md
+vendor/emleons/sim-rating/vendor/phar-io/manifest/CHANGELOG.md
+vendor/emleons/sim-rating/vendor/phar-io/version/CHANGELOG.md
+vendor/emleons/sim-rating/vendor/phpunit/php-file-iterator/ChangeLog.md
+vendor/emleons/sim-rating/vendor/phpunit/php-invoker/ChangeLog.md
+vendor/emleons/sim-rating/vendor/phpunit/php-text-template/ChangeLog.md
+vendor/emleons/sim-rating/vendor/phpunit/php-timer/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/cli-parser/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/code-unit-reverse-lookup/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/code-unit/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/comparator/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/complexity/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/diff/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/environment/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/exporter/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/global-state/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/lines-of-code/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/object-enumerator/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/object-reflector/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/recursion-context/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/type/ChangeLog.md
+vendor/emleons/sim-rating/vendor/sebastian/version/ChangeLog.md
+vendor/emleons/sim-rating/vendor/theseer/tokenizer/CHANGELOG.md
+vendor/fig/http-message-util/CHANGELOG.md
+vendor/monolog/monolog/CHANGELOG.md
+vendor/psr/http-message/CHANGELOG.md
+vendor/slim/csrf/CHANGELOG.md
+vendor/slim/slim/CHANGELOG.md
+vendor/thepixeldeveloper/sitemap/CHANGELOG.md
+claude.md
+
+# Internal documentation
+FEATURES_IT.md

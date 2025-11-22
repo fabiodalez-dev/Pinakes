@@ -1,0 +1,11 @@
+/* SortableJS - No CSS required (library is JS-only) */
+/* This file exists only to prevent 404 errors */
+
+/* Optional: Basic styling for sortable ghost element */
+.sortable-ghost {
+  opacity: 0.4;
+}
+
+.sortable-chosen {
+  background-color: #f0f0f0;
+}
