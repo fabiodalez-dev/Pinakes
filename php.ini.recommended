@@ -1,0 +1,66 @@
+; PHP.ini Recommended Configuration for Biblioteca Application
+; Production Performance Optimizations
+; Copy relevant settings to your php.ini or .user.ini file
+
+; ===================================
+; OPCODE CACHE (OPcache) - CRITICAL
+; ===================================
+; OpCache stores precompiled script bytecode in memory
+; Eliminates the need to load and parse PHP files on every request
+; Expected performance improvement: +30-50% for PHP applications
+
+opcache.enable=1
+opcache.enable_cli=0
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+opcache.fast_shutdown=1
+
+; In production, set to 0 for maximum performance
+; In development, set to 1 to see changes immediately
+opcache.validate_timestamps=1
+
+; ===================================
+; MEMORY & PERFORMANCE
+; ===================================
+memory_limit=256M
+max_execution_time=60
+max_input_time=60
+post_max_size=20M
+upload_max_filesize=10M
+
+; ===================================
+; SESSION CONFIGURATION
+; ===================================
+session.cookie_httponly=1
+session.cookie_samesite="Strict"
+session.use_strict_mode=1
+session.cookie_secure=0  ; Set to 1 in production with HTTPS
+
+; ===================================
+; ERROR HANDLING
+; ===================================
+; Production
+display_errors=Off
+display_startup_errors=Off
+log_errors=On
+error_log=/var/log/php_errors.log
+
+; Development (comment out in production)
+; display_errors=On
+; display_startup_errors=On
+; error_reporting=E_ALL
+
+; ===================================
+; SECURITY
+; ===================================
+expose_php=Off
+allow_url_fopen=On
+allow_url_include=Off
+
+; ===================================
+; DATE/TIME
+; ===================================
+date.timezone=UTC
+

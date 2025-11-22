@@ -1,0 +1,5228 @@
+{
+  "classificazione_dewey": [
+    {
+      "type": "classe_principale",
+      "codice": "000",
+      "descrizione": "Informatica, informazione e opere generali",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "000",
+          "descrizione": "Informatica, conoscenza e sistemi",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "001",
+              "descrizione": "Conoscenza"
+            },
+            {
+              "type": "sezione",
+              "codice": "002",
+              "descrizione": "Il libro (scrittura, biblioteche e argomenti correlati)"
+            },
+            {
+              "type": "sezione",
+              "codice": "003",
+              "descrizione": "Sistemi"
+            },
+            {
+              "type": "sezione",
+              "codice": "004",
+              "descrizione": "Elaborazione dati e informatica"
+            },
+            {
+              "type": "sezione",
+              "codice": "005",
+              "descrizione": "Programmazione, programmi e dati informatici"
+            },
+            {
+              "type": "sezione",
+              "codice": "006",
+              "descrizione": "Metodi informatici speciali (ad es. IA, multimedia, VR)"
+            },
+            {
+              "type": "sezione",
+              "codice": "007",
+              "descrizione": "[Non assegnato]"
+            },
+            {
+              "type": "sezione",
+              "codice": "008",
+              "descrizione": "[Non assegnato]"
+            },
+            {
+              "type": "sezione",
+              "codice": "009",
+              "descrizione": "[Non assegnato]"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "010",
+          "descrizione": "Bibliografie",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "011",
+              "descrizione": "Bibliografie"
+            },
+            {
+              "type": "sezione",
+              "codice": "012",
+              "descrizione": "Bibliografie di individui"
+            },
+            {
+              "type": "sezione",
+              "codice": "013",
+              "descrizione": "[Non assegnato]"
+            },
+            {
+              "type": "sezione",
+              "codice": "014",
+              "descrizione": "Bibliografie di opere anonime e pseudonime"
+            },
+            {
+              "type": "sezione",
+              "codice": "015",
+              "descrizione": "Bibliografie di opere di luoghi specifici"
+            },
+            {
+              "type": "sezione",
+              "codice": "016",
+              "descrizione": "Bibliografie di opere su soggetti specifici"
+            },
+            {
+              "type": "sezione",
+              "codice": "017",
+              "descrizione": "Cataloghi sistematici generali"
+            },
+            {
+              "type": "sezione",
+              "codice": "018",
+              "descrizione": "Cataloghi per autore, data, ecc. [spostato a 017]"
+            },
+            {
+              "type": "sezione",
+              "codice": "019",
+              "descrizione": "Cataloghi dizionario [spostato a 017]"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "020",
+          "descrizione": "Biblioteconomia e scienze dell'informazione",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "021",
+              "descrizione": "Relazioni della biblioteca (con archivi, centri di informazione, ecc.)"
+            },
+            {
+              "type": "sezione",
+              "codice": "022",
+              "descrizione": "Amministrazione della struttura fisica"
+            },
+            {
+              "type": "sezione",
+              "codice": "023",
+              "descrizione": "Gestione del personale"
+            },
+            {
+              "type": "sezione",
+              "codice": "024",
+              "descrizione": "[Non assegnato]"
+            },
+            {
+              "type": "sezione",
+              "codice": "025",
+              "descrizione": "Attività bibliotecarie"
+            },
+            {
+              "type": "sezione",
+              "codice": "026",
+              "descrizione": "Biblioteche per soggetti specifici"
+            },
+            {
+              "type": "sezione",
+              "codice": "027",
+              "descrizione": "Biblioteche generali"
+            },
+            {
+              "type": "sezione",
+              "codice": "028",
+              "descrizione": "Lettura e uso di altri mezzi di informazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "029",
+              "descrizione": "[Non assegnato]"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "030",
+          "descrizione": "Enciclopedie e libri di fatti",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "031",
+              "descrizione": "Enciclopedie in inglese americano"
+            },
+            {
+              "type": "sezione",
+              "codice": "032",
+              "descrizione": "Enciclopedie in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "033",
+              "descrizione": "Enciclopedie in altre lingue germaniche"
+            },
+            {
+              "type": "sezione",
+              "codice": "034",
+              "descrizione": "Enciclopedie in francese, occitano e catalano"
+            },
+            {
+              "type": "sezione",
+              "codice": "035",
+              "descrizione": "Enciclopedie in italiano, romeno e lingue correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "036",
+              "descrizione": "Enciclopedie in spagnolo e portoghese"
+            },
+            {
+              "type": "sezione",
+              "codice": "037",
+              "descrizione": "Enciclopedie in lingue slave"
+            },
+            {
+              "type": "sezione",
+              "codice": "038",
+              "descrizione": "Enciclopedie in lingue scandinave"
+            },
+            {
+              "type": "sezione",
+              "codice": "039",
+              "descrizione": "Enciclopedie in altre lingue"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "040",
+          "descrizione": "Non assegnato — in precedenza Biografie",
+          "sezioni": []
+        },
+        {
+          "type": "divisione",
+          "codice": "050",
+          "descrizione": "Riviste, giornali e pubblicazioni seriali",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "051",
+              "descrizione": "Pubblicazioni seriali in inglese americano"
+            },
+            {
+              "type": "sezione",
+              "codice": "052",
+              "descrizione": "Pubblicazioni seriali in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "053",
+              "descrizione": "Pubblicazioni seriali in altre lingue germaniche"
+            },
+            {
+              "type": "sezione",
+              "codice": "054",
+              "descrizione": "Pubblicazioni seriali in francese, occitano e catalano"
+            },
+            {
+              "type": "sezione",
+              "codice": "055",
+              "descrizione": "Pubblicazioni seriali in italiano, romeno e lingue correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "056",
+              "descrizione": "Pubblicazioni seriali in spagnolo e portoghese"
+            },
+            {
+              "type": "sezione",
+              "codice": "057",
+              "descrizione": "Pubblicazioni seriali in lingue slave"
+            },
+            {
+              "type": "sezione",
+              "codice": "058",
+              "descrizione": "Pubblicazioni seriali in lingue scandinave"
+            },
+            {
+              "type": "sezione",
+              "codice": "059",
+              "descrizione": "Pubblicazioni seriali in altre lingue"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "060",
+          "descrizione": "Associazioni, organizzazioni e musei",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "061",
+              "descrizione": "Organizzazioni in Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "062",
+              "descrizione": "Organizzazioni nelle Isole Britanniche; in Inghilterra"
+            },
+            {
+              "type": "sezione",
+              "codice": "063",
+              "descrizione": "Organizzazioni in Europa centrale; in Germania"
+            },
+            {
+              "type": "sezione",
+              "codice": "064",
+              "descrizione": "Organizzazioni in Francia e Monaco"
+            },
+            {
+              "type": "sezione",
+              "codice": "065",
+              "descrizione": "Organizzazioni in Italia e isole adiacenti"
+            },
+            {
+              "type": "sezione",
+              "codice": "066",
+              "descrizione": "Organizzazioni nella Penisola Iberica e isole adiacenti"
+            },
+            {
+              "type": "sezione",
+              "codice": "067",
+              "descrizione": "Organizzazioni in Europa orientale; in Russia"
+            },
+            {
+              "type": "sezione",
+              "codice": "068",
+              "descrizione": "Organizzazioni in altre aree geografiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "069",
+              "descrizione": "Museologia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "070",
+          "descrizione": "Mezzi di informazione, giornalismo ed editoria",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "071",
+              "descrizione": "Giornali in Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "072",
+              "descrizione": "Giornali nelle Isole Britanniche; in Inghilterra"
+            },
+            {
+              "type": "sezione",
+              "codice": "073",
+              "descrizione": "Giornali in Europa centrale; in Germania"
+            },
+            {
+              "type": "sezione",
+              "codice": "074",
+              "descrizione": "Giornali in Francia e Monaco"
+            },
+            {
+              "type": "sezione",
+              "codice": "075",
+              "descrizione": "Giornali in Italia e isole adiacenti"
+            },
+            {
+              "type": "sezione",
+              "codice": "076",
+              "descrizione": "Giornali nella penisola iberica e isole adiacenti"
+            },
+            {
+              "type": "sezione",
+              "codice": "077",
+              "descrizione": "Giornali in Europa orientale; in Russia"
+            },
+            {
+              "type": "sezione",
+              "codice": "078",
+              "descrizione": "Giornali in Scandinavia"
+            },
+            {
+              "type": "sezione",
+              "codice": "079",
+              "descrizione": "Giornali in altre aree geografiche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "080",
+          "descrizione": "Citazioni",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "081",
+              "descrizione": "Raccolte in inglese americano"
+            },
+            {
+              "type": "sezione",
+              "codice": "082",
+              "descrizione": "Raccolte in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "083",
+              "descrizione": "Raccolte in altre lingue germaniche"
+            },
+            {
+              "type": "sezione",
+              "codice": "084",
+              "descrizione": "Raccolte in francese, occitano, catalano"
+            },
+            {
+              "type": "sezione",
+              "codice": "085",
+              "descrizione": "Raccolte in italiano, romeno e lingue correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "086",
+              "descrizione": "Raccolte in spagnolo e portoghese"
+            },
+            {
+              "type": "sezione",
+              "codice": "087",
+              "descrizione": "Raccolte in lingue slave"
+            },
+            {
+              "type": "sezione",
+              "codice": "088",
+              "descrizione": "Raccolte in lingue scandinave"
+            },
+            {
+              "type": "sezione",
+              "codice": "089",
+              "descrizione": "Raccolte in altre lingue"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "090",
+          "descrizione": "Manoscritti e libri rari",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "091",
+              "descrizione": "Manoscritti"
+            },
+            {
+              "type": "sezione",
+              "codice": "092",
+              "descrizione": "Libri silografici"
+            },
+            {
+              "type": "sezione",
+              "codice": "093",
+              "descrizione": "Incunaboli"
+            },
+            {
+              "type": "sezione",
+              "codice": "094",
+              "descrizione": "Libri a stampa"
+            },
+            {
+              "type": "sezione",
+              "codice": "095",
+              "descrizione": "Libri notevoli per la legatura"
+            },
+            {
+              "type": "sezione",
+              "codice": "096",
+              "descrizione": "Libri notevoli per le illustrazioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "097",
+              "descrizione": "Libri notevoli per la proprietà o l'origine"
+            },
+            {
+              "type": "sezione",
+              "codice": "098",
+              "descrizione": "Opere proibite, falsificazioni e inganni"
+            },
+            {
+              "type": "sezione",
+              "codice": "099",
+              "descrizione": "Libri notevoli per il formato"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "100",
+      "descrizione": "Filosofia e psicologia",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "100",
+          "descrizione": "Filosofia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "101",
+              "descrizione": "Teoria della filosofia"
+            },
+            {
+              "type": "sezione",
+              "codice": "102",
+              "descrizione": "Miscellanea"
+            },
+            {
+              "type": "sezione",
+              "codice": "103",
+              "descrizione": "Dizionari ed enciclopedie"
+            },
+            {
+              "type": "sezione",
+              "codice": "104",
+              "descrizione": "Non più in uso — in precedenza Saggi"
+            },
+            {
+              "type": "sezione",
+              "codice": "105",
+              "descrizione": "Pubblicazioni seriali"
+            },
+            {
+              "type": "sezione",
+              "codice": "106",
+              "descrizione": "Organizzazioni e gestione"
+            },
+            {
+              "type": "sezione",
+              "codice": "107",
+              "descrizione": "Educazione, ricerca, argomenti correlati di filosofia"
+            },
+            {
+              "type": "sezione",
+              "codice": "108",
+              "descrizione": "Gruppi di persone"
+            },
+            {
+              "type": "sezione",
+              "codice": "109",
+              "descrizione": "Storia e biografia collettiva"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "110",
+          "descrizione": "Metafisica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "111",
+              "descrizione": "Ontologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "112",
+              "descrizione": "Non più in uso — in precedenza Metodologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "113",
+              "descrizione": "Cosmologia (Filosofia della natura)"
+            },
+            {
+              "type": "sezione",
+              "codice": "114",
+              "descrizione": "Spazio"
+            },
+            {
+              "type": "sezione",
+              "codice": "115",
+              "descrizione": "Tempo"
+            },
+            {
+              "type": "sezione",
+              "codice": "116",
+              "descrizione": "Cambiamento"
+            },
+            {
+              "type": "sezione",
+              "codice": "117",
+              "descrizione": "Struttura"
+            },
+            {
+              "type": "sezione",
+              "codice": "118",
+              "descrizione": "Forza ed energia"
+            },
+            {
+              "type": "sezione",
+              "codice": "119",
+              "descrizione": "Numero e quantità"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "120",
+          "descrizione": "Epistemologia, causalità e genere umano",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "121",
+              "descrizione": "Epistemologia (teoria della conoscenza)"
+            },
+            {
+              "type": "sezione",
+              "codice": "122",
+              "descrizione": "Causalità"
+            },
+            {
+              "type": "sezione",
+              "codice": "123",
+              "descrizione": "Determinismo e indeterminismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "124",
+              "descrizione": "Teleologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "125",
+              "descrizione": "Non più in uso — in precedenza Infinito"
+            },
+            {
+              "type": "sezione",
+              "codice": "126",
+              "descrizione": "Il sé"
+            },
+            {
+              "type": "sezione",
+              "codice": "127",
+              "descrizione": "L'inconscio e il subconscio"
+            },
+            {
+              "type": "sezione",
+              "codice": "128",
+              "descrizione": "Genere umano"
+            },
+            {
+              "type": "sezione",
+              "codice": "129",
+              "descrizione": "Origine e destino delle anime individuali"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "130",
+          "descrizione": "Parapsicologia e occultismo",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "131",
+              "descrizione": "Metodi parapsicologici e occulti per raggiungere benessere, felicità, successo"
+            },
+            {
+              "type": "sezione",
+              "codice": "132",
+              "descrizione": "Non più in uso — in precedenza Disturbi mentali"
+            },
+            {
+              "type": "sezione",
+              "codice": "133",
+              "descrizione": "Argomenti specifici in parapsicologia e occultismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "134",
+              "descrizione": "Non più in uso — in precedenza Mesmerismo e chiaroveggenza"
+            },
+            {
+              "type": "sezione",
+              "codice": "135",
+              "descrizione": "Sogni e misteri"
+            },
+            {
+              "type": "sezione",
+              "codice": "136",
+              "descrizione": "Non più in uso — in precedenza Caratteristiche mentali"
+            },
+            {
+              "type": "sezione",
+              "codice": "137",
+              "descrizione": "Grafologia divinatoria"
+            },
+            {
+              "type": "sezione",
+              "codice": "138",
+              "descrizione": "Fisiognomica"
+            },
+            {
+              "type": "sezione",
+              "codice": "139",
+              "descrizione": "Frenologia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "140",
+          "descrizione": "Scuole di pensiero filosofiche",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "141",
+              "descrizione": "Idealismo e sistemi e dottrine correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "142",
+              "descrizione": "Filosofia critica"
+            },
+            {
+              "type": "sezione",
+              "codice": "143",
+              "descrizione": "Bergsonismo e intuizionismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "144",
+              "descrizione": "Umanesimo e sistemi e dottrine correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "145",
+              "descrizione": "Sensazionalismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "146",
+              "descrizione": "Naturalismo e sistemi e dottrine correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "147",
+              "descrizione": "Panteismo e sistemi e dottrine correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "148",
+              "descrizione": "Dogmatismo, eclettismo, liberalismo, sincretismo e tradizionalismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "149",
+              "descrizione": "Altri sistemi e dottrine filosofiche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "150",
+          "descrizione": "Psicologia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "151",
+              "descrizione": "Non più in uso — in precedenza Intelletto"
+            },
+            {
+              "type": "sezione",
+              "codice": "152",
+              "descrizione": "Percezione sensoriale, movimento, emozioni e pulsioni fisiologiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "153",
+              "descrizione": "Processi mentali coscienti e intelligenza"
+            },
+            {
+              "type": "sezione",
+              "codice": "154",
+              "descrizione": "Stati e processi subconsci e alterati"
+            },
+            {
+              "type": "sezione",
+              "codice": "155",
+              "descrizione": "Psicologia differenziale e dello sviluppo"
+            },
+            {
+              "type": "sezione",
+              "codice": "156",
+              "descrizione": "Psicologia comparata"
+            },
+            {
+              "type": "sezione",
+              "codice": "157",
+              "descrizione": "Non più in uso — in precedenza Emozioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "158",
+              "descrizione": "Psicologia applicata"
+            },
+            {
+              "type": "sezione",
+              "codice": "159",
+              "descrizione": "Non più in uso — in precedenza Volontà"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "160",
+          "descrizione": "Logica filosofica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "161",
+              "descrizione": "Induzione"
+            },
+            {
+              "type": "sezione",
+              "codice": "162",
+              "descrizione": "Deduzione"
+            },
+            {
+              "type": "sezione",
+              "codice": "163",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "164",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "165",
+              "descrizione": "Fallacie e fonti di errore"
+            },
+            {
+              "type": "sezione",
+              "codice": "166",
+              "descrizione": "Sillogismi"
+            },
+            {
+              "type": "sezione",
+              "codice": "167",
+              "descrizione": "Ipotesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "168",
+              "descrizione": "Argomentazione e persuasione"
+            },
+            {
+              "type": "sezione",
+              "codice": "169",
+              "descrizione": "Analogia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "170",
+          "descrizione": "Etica (filosofia morale)",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "171",
+              "descrizione": "Sistemi etici"
+            },
+            {
+              "type": "sezione",
+              "codice": "172",
+              "descrizione": "Etica politica"
+            },
+            {
+              "type": "sezione",
+              "codice": "173",
+              "descrizione": "Etica delle relazioni familiari"
+            },
+            {
+              "type": "sezione",
+              "codice": "174",
+              "descrizione": "Etica professionale"
+            },
+            {
+              "type": "sezione",
+              "codice": "175",
+              "descrizione": "Etica della ricreazione, del tempo libero, delle esibizioni pubbliche, della comunicazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "176",
+              "descrizione": "Etica della sessualità e della riproduzione"
+            },
+            {
+              "type": "sezione",
+              "codice": "177",
+              "descrizione": "Etica delle relazioni sociali"
+            },
+            {
+              "type": "sezione",
+              "codice": "178",
+              "descrizione": "Etica del consumo"
+            },
+            {
+              "type": "sezione",
+              "codice": "179",
+              "descrizione": "Altre norme etiche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "180",
+          "descrizione": "Filosofia antica, medievale e orientale",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "181",
+              "descrizione": "Filosofia orientale"
+            },
+            {
+              "type": "sezione",
+              "codice": "182",
+              "descrizione": "Filosofie greche presocratiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "183",
+              "descrizione": "Filosofie sofistiche, socratiche e greche correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "184",
+              "descrizione": "Filosofia platonica"
+            },
+            {
+              "type": "sezione",
+              "codice": "185",
+              "descrizione": "Filosofia aristotelica"
+            },
+            {
+              "type": "sezione",
+              "codice": "186",
+              "descrizione": "Filosofie scettiche e neoplatoniche"
+            },
+            {
+              "type": "sezione",
+              "codice": "187",
+              "descrizione": "Filosofia epicurea"
+            },
+            {
+              "type": "sezione",
+              "codice": "188",
+              "descrizione": "Filosofia stoica"
+            },
+            {
+              "type": "sezione",
+              "codice": "189",
+              "descrizione": "Filosofia occidentale medievale"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "190",
+          "descrizione": "Filosofia occidentale moderna e altra filosofia non orientale",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "191",
+              "descrizione": "Filosofia degli Stati Uniti e del Canada"
+            },
+            {
+              "type": "sezione",
+              "codice": "192",
+              "descrizione": "Filosofia delle Isole Britanniche"
+            },
+            {
+              "type": "sezione",
+              "codice": "193",
+              "descrizione": "Filosofia della Germania e dell'Austria"
+            },
+            {
+              "type": "sezione",
+              "codice": "194",
+              "descrizione": "Filosofia della Francia"
+            },
+            {
+              "type": "sezione",
+              "codice": "195",
+              "descrizione": "Filosofia dell'Italia"
+            },
+            {
+              "type": "sezione",
+              "codice": "196",
+              "descrizione": "Filosofia della Spagna e del Portogallo"
+            },
+            {
+              "type": "sezione",
+              "codice": "197",
+              "descrizione": "Filosofia della Russia"
+            },
+            {
+              "type": "sezione",
+              "codice": "198",
+              "descrizione": "Filosofia della Scandinavia e della Finlandia"
+            },
+            {
+              "type": "sezione",
+              "codice": "199",
+              "descrizione": "Filosofia in altre aree geografiche"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "200",
+      "descrizione": "Religione",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "200",
+          "descrizione": "Religione",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "201",
+              "descrizione": "Mitologia religiosa, classi generali di religione, relazioni e atteggiamenti interreligiosi, teologia sociale"
+            },
+            {
+              "type": "sezione",
+              "codice": "202",
+              "descrizione": "Dottrine"
+            },
+            {
+              "type": "sezione",
+              "codice": "203",
+              "descrizione": "Culto pubblico e altre pratiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "204",
+              "descrizione": "Esperienza, vita, pratica religiosa"
+            },
+            {
+              "type": "sezione",
+              "codice": "205",
+              "descrizione": "Etica religiosa"
+            },
+            {
+              "type": "sezione",
+              "codice": "206",
+              "descrizione": "Capi e organizzazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "207",
+              "descrizione": "Missioni ed educazione religiosa"
+            },
+            {
+              "type": "sezione",
+              "codice": "208",
+              "descrizione": "Fonti"
+            },
+            {
+              "type": "sezione",
+              "codice": "209",
+              "descrizione": "Sette e movimenti di riforma"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "210",
+          "descrizione": "Filosofia e teoria della religione",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "211",
+              "descrizione": "Concetti di Dio"
+            },
+            {
+              "type": "sezione",
+              "codice": "212",
+              "descrizione": "Esistenza, modi di conoscere Dio, attributi di Dio"
+            },
+            {
+              "type": "sezione",
+              "codice": "213",
+              "descrizione": "Creazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "214",
+              "descrizione": "Teodicea"
+            },
+            {
+              "type": "sezione",
+              "codice": "215",
+              "descrizione": "Scienza e religione"
+            },
+            {
+              "type": "sezione",
+              "codice": "216",
+              "descrizione": "Non più in uso—in precedenza Male"
+            },
+            {
+              "type": "sezione",
+              "codice": "217",
+              "descrizione": "Non più in uso—in precedenza Preghiera"
+            },
+            {
+              "type": "sezione",
+              "codice": "218",
+              "descrizione": "Genere umano"
+            },
+            {
+              "type": "sezione",
+              "codice": "219",
+              "descrizione": "Non più in uso—in precedenza Analogies"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "220",
+          "descrizione": "La Bibbia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "221",
+              "descrizione": "Antico Testamento (Tanakh)"
+            },
+            {
+              "type": "sezione",
+              "codice": "222",
+              "descrizione": "Libri storici dell'Antico Testamento"
+            },
+            {
+              "type": "sezione",
+              "codice": "223",
+              "descrizione": "Libri poetici dell'Antico Testamento"
+            },
+            {
+              "type": "sezione",
+              "codice": "224",
+              "descrizione": "Libri profetici dell'Antico Testamento"
+            },
+            {
+              "type": "sezione",
+              "codice": "225",
+              "descrizione": "Nuovo Testamento"
+            },
+            {
+              "type": "sezione",
+              "codice": "226",
+              "descrizione": "Vangeli e Atti"
+            },
+            {
+              "type": "sezione",
+              "codice": "227",
+              "descrizione": "Epistole"
+            },
+            {
+              "type": "sezione",
+              "codice": "228",
+              "descrizione": "Rivelazione (Apocalisse)"
+            },
+            {
+              "type": "sezione",
+              "codice": "229",
+              "descrizione": "Apocrifi, pseudepigrafi e opere intertestamentali"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "230",
+          "descrizione": "Cristianesimo",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "231",
+              "descrizione": "Dio"
+            },
+            {
+              "type": "sezione",
+              "codice": "232",
+              "descrizione": "Gesù Cristo e la sua famiglia"
+            },
+            {
+              "type": "sezione",
+              "codice": "233",
+              "descrizione": "Genere umano"
+            },
+            {
+              "type": "sezione",
+              "codice": "234",
+              "descrizione": "Salvezza e grazia"
+            },
+            {
+              "type": "sezione",
+              "codice": "235",
+              "descrizione": "Esseri spirituali"
+            },
+            {
+              "type": "sezione",
+              "codice": "236",
+              "descrizione": "Escatologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "237",
+              "descrizione": "Non più in uso—in precedenza Stato futuro"
+            },
+            {
+              "type": "sezione",
+              "codice": "238",
+              "descrizione": "Credo, confessioni di fede, patti e catechismi"
+            },
+            {
+              "type": "sezione",
+              "codice": "239",
+              "descrizione": "Apologetica e polemica"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "240",
+          "descrizione": "Teologia morale e devozionale cristiana",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "241",
+              "descrizione": "Etica cristiana"
+            },
+            {
+              "type": "sezione",
+              "codice": "242",
+              "descrizione": "Letteratura devozionale"
+            },
+            {
+              "type": "sezione",
+              "codice": "243",
+              "descrizione": "Scritti evangelistici per individui e famiglie"
+            },
+            {
+              "type": "sezione",
+              "codice": "244",
+              "descrizione": "Non più in uso—in precedenza Narrativa religiosa"
+            },
+            {
+              "type": "sezione",
+              "codice": "245",
+              "descrizione": "Non più in uso—in precedenza Innologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "246",
+              "descrizione": "Uso dell'arte nel Cristianesimo"
+            },
+            {
+              "type": "sezione",
+              "codice": "247",
+              "descrizione": "Arredi ecclesiastici e articoli correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "248",
+              "descrizione": "Esperienza, pratica, vita cristiana"
+            },
+            {
+              "type": "sezione",
+              "codice": "249",
+              "descrizione": "Osservanze cristiane nella vita familiare"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "250",
+          "descrizione": "Chiesa cristiana locale e ordini religiosi cristiani",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "251",
+              "descrizione": "Predicazione (Omiletica)"
+            },
+            {
+              "type": "sezione",
+              "codice": "252",
+              "descrizione": "Testi di sermoni"
+            },
+            {
+              "type": "sezione",
+              "codice": "253",
+              "descrizione": "Ufficio e lavoro pastorale (Teologia pastorale)"
+            },
+            {
+              "type": "sezione",
+              "codice": "254",
+              "descrizione": "Amministrazione parrocchiale"
+            },
+            {
+              "type": "sezione",
+              "codice": "255",
+              "descrizione": "Congregazioni e ordini religiosi"
+            },
+            {
+              "type": "sezione",
+              "codice": "256",
+              "descrizione": "Non più in uso — in precedenza Società religiose"
+            },
+            {
+              "type": "sezione",
+              "codice": "257",
+              "descrizione": "Non più in uso — in precedenza Scuole parrocchiali, biblioteche, ecc."
+            },
+            {
+              "type": "sezione",
+              "codice": "258",
+              "descrizione": "Non più in uso — in precedenza Medicina parrocchiale"
+            },
+            {
+              "type": "sezione",
+              "codice": "259",
+              "descrizione": "Cura pastorale delle famiglie, di gruppi specifici di persone"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "260",
+          "descrizione": "Teologia sociale ed ecclesiastica cristiana",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "261",
+              "descrizione": "Teologia sociale e relazioni e atteggiamenti interreligiosi"
+            },
+            {
+              "type": "sezione",
+              "codice": "262",
+              "descrizione": "Ecclesiologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "263",
+              "descrizione": "Giorni, tempi, luoghi di osservanza religiosa"
+            },
+            {
+              "type": "sezione",
+              "codice": "264",
+              "descrizione": "Culto pubblico"
+            },
+            {
+              "type": "sezione",
+              "codice": "265",
+              "descrizione": "Sacramenti, altri riti e atti"
+            },
+            {
+              "type": "sezione",
+              "codice": "266",
+              "descrizione": "Missioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "267",
+              "descrizione": "Associazioni per opere religiose"
+            },
+            {
+              "type": "sezione",
+              "codice": "268",
+              "descrizione": "Educazione religiosa"
+            },
+            {
+              "type": "sezione",
+              "codice": "269",
+              "descrizione": "Rinnovamento spirituale"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "270",
+          "descrizione": "Storia, trattamento geografico, biografia del Cristianesimo",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "271",
+              "descrizione": "Congregazioni e ordini religiosi nella storia della Chiesa"
+            },
+            {
+              "type": "sezione",
+              "codice": "272",
+              "descrizione": "Persecuzioni nella storia della Chiesa"
+            },
+            {
+              "type": "sezione",
+              "codice": "273",
+              "descrizione": "Controversie dottrinali ed eresie nella storia generale della Chiesa"
+            },
+            {
+              "type": "sezione",
+              "codice": "274",
+              "descrizione": "Cristianesimo in Europa"
+            },
+            {
+              "type": "sezione",
+              "codice": "275",
+              "descrizione": "Cristianesimo in Asia"
+            },
+            {
+              "type": "sezione",
+              "codice": "276",
+              "descrizione": "Cristianesimo in Africa"
+            },
+            {
+              "type": "sezione",
+              "codice": "277",
+              "descrizione": "Cristianesimo in Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "278",
+              "descrizione": "Cristianesimo in Sud America"
+            },
+            {
+              "type": "sezione",
+              "codice": "279",
+              "descrizione": "Storia del Cristianesimo in altre aree"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "280",
+          "descrizione": "Denominazioni e sette della Chiesa cristiana",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "281",
+              "descrizione": "Chiesa primitiva e Chiese orientali"
+            },
+            {
+              "type": "sezione",
+              "codice": "282",
+              "descrizione": "Chiesa cattolica romana"
+            },
+            {
+              "type": "sezione",
+              "codice": "283",
+              "descrizione": "Chiese anglicane"
+            },
+            {
+              "type": "sezione",
+              "codice": "284",
+              "descrizione": "Denominazioni protestanti di origine continentale (luterana, riformata continentale)"
+            },
+            {
+              "type": "sezione",
+              "codice": "285",
+              "descrizione": "Chiese presbiteriane, Chiese riformate con centro in America, Chiese congregazionaliste"
+            },
+            {
+              "type": "sezione",
+              "codice": "286",
+              "descrizione": "Chiese battiste, del Movimento di Restaurazione, avventiste"
+            },
+            {
+              "type": "sezione",
+              "codice": "287",
+              "descrizione": "Chiese metodiste; chiese legate al Metodismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "288",
+              "descrizione": "Non più in uso — in precedenza Unitariano"
+            },
+            {
+              "type": "sezione",
+              "codice": "289",
+              "descrizione": "Altre denominazioni e sette"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "290",
+          "descrizione": "Altre religioni",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "291",
+              "descrizione": "Non più in uso — in precedenza Religione comparata"
+            },
+            {
+              "type": "sezione",
+              "codice": "292",
+              "descrizione": "Religione classica (religione greca e romana)"
+            },
+            {
+              "type": "sezione",
+              "codice": "293",
+              "descrizione": "Religione germanica"
+            },
+            {
+              "type": "sezione",
+              "codice": "294",
+              "descrizione": "Religioni di origine indiana"
+            },
+            {
+              "type": "sezione",
+              "codice": "295",
+              "descrizione": "Zoroastrismo (Mazdeismo, Parsismo)"
+            },
+            {
+              "type": "sezione",
+              "codice": "296",
+              "descrizione": "Ebraismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "297",
+              "descrizione": "Islam, Bábismo e Fede Baháʼí"
+            },
+            {
+              "type": "sezione",
+              "codice": "298",
+              "descrizione": "Non più in uso — in precedenza Mormonismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "299",
+              "descrizione": "Religioni non previste altrove"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "300",
+      "descrizione": "Scienze sociali",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "300",
+          "descrizione": "Scienze sociali, sociologia e antropologia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "301",
+              "descrizione": "Sociologia e antropologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "302",
+              "descrizione": "Interazione sociale"
+            },
+            {
+              "type": "sezione",
+              "codice": "303",
+              "descrizione": "Processi sociali"
+            },
+            {
+              "type": "sezione",
+              "codice": "304",
+              "descrizione": "Fattori che influenzano il comportamento sociale"
+            },
+            {
+              "type": "sezione",
+              "codice": "305",
+              "descrizione": "Gruppi di persone"
+            },
+            {
+              "type": "sezione",
+              "codice": "306",
+              "descrizione": "Cultura e istituzioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "307",
+              "descrizione": "Comunità"
+            },
+            {
+              "type": "sezione",
+              "codice": "308",
+              "descrizione": "Non più in uso — in precedenza Poligrafia"
+            },
+            {
+              "type": "sezione",
+              "codice": "309",
+              "descrizione": "Non più in uso — in precedenza Storia della sociologia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "310",
+          "descrizione": "Statistica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "311",
+              "descrizione": "Non più in uso — in precedenza Teoria e metodi"
+            },
+            {
+              "type": "sezione",
+              "codice": "312",
+              "descrizione": "Non più in uso — in precedenza Popolazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "313",
+              "descrizione": "Non più in uso — in precedenza Argomenti speciali"
+            },
+            {
+              "type": "sezione",
+              "codice": "314",
+              "descrizione": "Statistiche generali dell'Europa"
+            },
+            {
+              "type": "sezione",
+              "codice": "315",
+              "descrizione": "Statistiche generali dell'Asia"
+            },
+            {
+              "type": "sezione",
+              "codice": "316",
+              "descrizione": "Statistiche generali dell'Africa"
+            },
+            {
+              "type": "sezione",
+              "codice": "317",
+              "descrizione": "Statistiche generali del Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "318",
+              "descrizione": "Statistiche generali del Sud America"
+            },
+            {
+              "type": "sezione",
+              "codice": "319",
+              "descrizione": "Statistiche generali di Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "320",
+          "descrizione": "Scienza politica (politica e governo)",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "321",
+              "descrizione": "Sistemi di governi e stati"
+            },
+            {
+              "type": "sezione",
+              "codice": "322",
+              "descrizione": "Relazione dello stato con i gruppi organizzati e i loro membri"
+            },
+            {
+              "type": "sezione",
+              "codice": "323",
+              "descrizione": "Diritti civili e politici"
+            },
+            {
+              "type": "sezione",
+              "codice": "324",
+              "descrizione": "Processo politico"
+            },
+            {
+              "type": "sezione",
+              "codice": "325",
+              "descrizione": "Migrazione internazionale e colonizzazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "326",
+              "descrizione": "Schiavitù ed emancipazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "327",
+              "descrizione": "Relazioni internazionali"
+            },
+            {
+              "type": "sezione",
+              "codice": "328",
+              "descrizione": "Il processo legislativo"
+            },
+            {
+              "type": "sezione",
+              "codice": "329",
+              "descrizione": "Non più in uso— in precedenza Partiti politici"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "330",
+          "descrizione": "Economia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "331",
+              "descrizione": "Economia del lavoro"
+            },
+            {
+              "type": "sezione",
+              "codice": "332",
+              "descrizione": "Economia finanziaria"
+            },
+            {
+              "type": "sezione",
+              "codice": "333",
+              "descrizione": "Economia della terra e dell'energia"
+            },
+            {
+              "type": "sezione",
+              "codice": "334",
+              "descrizione": "Cooperative"
+            },
+            {
+              "type": "sezione",
+              "codice": "335",
+              "descrizione": "Socialismo e sistemi correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "336",
+              "descrizione": "Finanza pubblica"
+            },
+            {
+              "type": "sezione",
+              "codice": "337",
+              "descrizione": "Economia internazionale"
+            },
+            {
+              "type": "sezione",
+              "codice": "338",
+              "descrizione": "Produzione"
+            },
+            {
+              "type": "sezione",
+              "codice": "339",
+              "descrizione": "Macroeconomia e argomenti correlati"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "340",
+          "descrizione": "Diritto",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "341",
+              "descrizione": "Diritto delle genti"
+            },
+            {
+              "type": "sezione",
+              "codice": "342",
+              "descrizione": "Diritto costituzionale e amministrativo"
+            },
+            {
+              "type": "sezione",
+              "codice": "343",
+              "descrizione": "Diritto militare, della difesa, della proprietà pubblica, della finanza pubblica, fiscale, commerciale (scambi), industriale"
+            },
+            {
+              "type": "sezione",
+              "codice": "344",
+              "descrizione": "Diritto del lavoro, dei servizi sociali, dell'istruzione, culturale"
+            },
+            {
+              "type": "sezione",
+              "codice": "345",
+              "descrizione": "Diritto penale"
+            },
+            {
+              "type": "sezione",
+              "codice": "346",
+              "descrizione": "Diritto privato"
+            },
+            {
+              "type": "sezione",
+              "codice": "347",
+              "descrizione": "Procedura e tribunali"
+            },
+            {
+              "type": "sezione",
+              "codice": "348",
+              "descrizione": "Leggi, regolamenti, casi"
+            },
+            {
+              "type": "sezione",
+              "codice": "349",
+              "descrizione": "Diritto di giurisdizioni, aree, regioni socioeconomiche, organizzazioni intergovernative regionali specifiche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "350",
+          "descrizione": "Amministrazione pubblica e scienza militare",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "351",
+              "descrizione": "Amministrazione pubblica"
+            },
+            {
+              "type": "sezione",
+              "codice": "352",
+              "descrizione": "Considerazioni generali sull'amministrazione pubblica"
+            },
+            {
+              "type": "sezione",
+              "codice": "353",
+              "descrizione": "Campi specifici dell'amministrazione pubblica"
+            },
+            {
+              "type": "sezione",
+              "codice": "354",
+              "descrizione": "Amministrazione pubblica dell'economia e dell'ambiente"
+            },
+            {
+              "type": "sezione",
+              "codice": "355",
+              "descrizione": "Scienza militare"
+            },
+            {
+              "type": "sezione",
+              "codice": "356",
+              "descrizione": "Forze di fanteria e guerra terrestre"
+            },
+            {
+              "type": "sezione",
+              "codice": "357",
+              "descrizione": "Forze a cavallo e guerra a cavallo"
+            },
+            {
+              "type": "sezione",
+              "codice": "358",
+              "descrizione": "Forze aeree e altre forze e guerre specializzate; ingegneria e servizi correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "359",
+              "descrizione": "Forze navali e guerra marittima"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "360",
+          "descrizione": "Problemi e servizi sociali; associazioni",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "361",
+              "descrizione": "Problemi e servizi sociali"
+            },
+            {
+              "type": "sezione",
+              "codice": "362",
+              "descrizione": "Problemi sociali e servizi a gruppi di persone"
+            },
+            {
+              "type": "sezione",
+              "codice": "363",
+              "descrizione": "Altri problemi e servizi sociali"
+            },
+            {
+              "type": "sezione",
+              "codice": "364",
+              "descrizione": "Criminologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "365",
+              "descrizione": "Istituti penali e correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "366",
+              "descrizione": "Associazioni e società segrete"
+            },
+            {
+              "type": "sezione",
+              "codice": "367",
+              "descrizione": "Circoli generali"
+            },
+            {
+              "type": "sezione",
+              "codice": "368",
+              "descrizione": "Assicurazioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "369",
+              "descrizione": "Associazioni"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "370",
+          "descrizione": "Educazione",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "371",
+              "descrizione": "Scuole e loro attività, educazione speciale"
+            },
+            {
+              "type": "sezione",
+              "codice": "372",
+              "descrizione": "Educazione primaria (educazione elementare)"
+            },
+            {
+              "type": "sezione",
+              "codice": "373",
+              "descrizione": "Educazione secondaria"
+            },
+            {
+              "type": "sezione",
+              "codice": "374",
+              "descrizione": "Educazione degli adulti"
+            },
+            {
+              "type": "sezione",
+              "codice": "375",
+              "descrizione": "Curriculum"
+            },
+            {
+              "type": "sezione",
+              "codice": "376",
+              "descrizione": "Non più in uso — in precedenza Educazione delle donne"
+            },
+            {
+              "type": "sezione",
+              "codice": "377",
+              "descrizione": "Non più in uso — in precedenza Educazione etica"
+            },
+            {
+              "type": "sezione",
+              "codice": "378",
+              "descrizione": "Istruzione superiore (istruzione terziaria)"
+            },
+            {
+              "type": "sezione",
+              "codice": "379",
+              "descrizione": "Questioni di politica pubblica nell'educazione"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "380",
+          "descrizione": "Commercio, comunicazioni, trasporti",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "381",
+              "descrizione": "Commercio (scambi)"
+            },
+            {
+              "type": "sezione",
+              "codice": "382",
+              "descrizione": "Commercio internazionale (commercio estero)"
+            },
+            {
+              "type": "sezione",
+              "codice": "383",
+              "descrizione": "Comunicazione postale"
+            },
+            {
+              "type": "sezione",
+              "codice": "384",
+              "descrizione": "Comunicazioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "385",
+              "descrizione": "Trasporto ferroviario"
+            },
+            {
+              "type": "sezione",
+              "codice": "386",
+              "descrizione": "Trasporto per vie navigabili interne e traghetti"
+            },
+            {
+              "type": "sezione",
+              "codice": "387",
+              "descrizione": "Trasporto marittimo, aereo, spaziale"
+            },
+            {
+              "type": "sezione",
+              "codice": "388",
+              "descrizione": "Trasporti"
+            },
+            {
+              "type": "sezione",
+              "codice": "389",
+              "descrizione": "Metrologia e standardizzazione"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "390",
+          "descrizione": "Usi e costumi, galateo, folclore",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "391",
+              "descrizione": "Costume e aspetto personale"
+            },
+            {
+              "type": "sezione",
+              "codice": "392",
+              "descrizione": "Usi e costumi del ciclo della vita e della vita domestica"
+            },
+            {
+              "type": "sezione",
+              "codice": "393",
+              "descrizione": "Usi e costumi funebri"
+            },
+            {
+              "type": "sezione",
+              "codice": "394",
+              "descrizione": "Usi e costumi generali"
+            },
+            {
+              "type": "sezione",
+              "codice": "395",
+              "descrizione": "Galateo (buone maniere)"
+            },
+            {
+              "type": "sezione",
+              "codice": "396",
+              "descrizione": "Non più in uso — in precedenza Posizione e trattamento delle donne"
+            },
+            {
+              "type": "sezione",
+              "codice": "397",
+              "descrizione": "Non più in uso — in precedenza Studi sugli emarginati"
+            },
+            {
+              "type": "sezione",
+              "codice": "398",
+              "descrizione": "Folclore"
+            },
+            {
+              "type": "sezione",
+              "codice": "399",
+              "descrizione": "Usi e costumi di guerra e diplomazia"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "400",
+      "descrizione": "Linguaggio",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "400",
+          "descrizione": "Linguaggio",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "401",
+              "descrizione": "Filosofia e teoria, lingue internazionali"
+            },
+            {
+              "type": "sezione",
+              "codice": "402",
+              "descrizione": "Miscellanea"
+            },
+            {
+              "type": "sezione",
+              "codice": "403",
+              "descrizione": "Dizionari, enciclopedie, concordanze"
+            },
+            {
+              "type": "sezione",
+              "codice": "404",
+              "descrizione": "Argomenti speciali di linguaggio"
+            },
+            {
+              "type": "sezione",
+              "codice": "405",
+              "descrizione": "Pubblicazioni seriali"
+            },
+            {
+              "type": "sezione",
+              "codice": "406",
+              "descrizione": "Organizzazioni e gestione"
+            },
+            {
+              "type": "sezione",
+              "codice": "407",
+              "descrizione": "Educazione, ricerca, argomenti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "408",
+              "descrizione": "Gruppi di persone"
+            },
+            {
+              "type": "sezione",
+              "codice": "409",
+              "descrizione": "Trattamento geografico e biografia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "410",
+          "descrizione": "Linguistica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "411",
+              "descrizione": "Sistemi di scrittura delle forme standard delle lingue"
+            },
+            {
+              "type": "sezione",
+              "codice": "412",
+              "descrizione": "Etimologia delle forme standard delle lingue"
+            },
+            {
+              "type": "sezione",
+              "codice": "413",
+              "descrizione": "Dizionari delle forme standard delle lingue"
+            },
+            {
+              "type": "sezione",
+              "codice": "414",
+              "descrizione": "Fonologia e fonetica delle forme standard delle lingue"
+            },
+            {
+              "type": "sezione",
+              "codice": "415",
+              "descrizione": "Grammatica delle forme standard delle lingue"
+            },
+            {
+              "type": "sezione",
+              "codice": "416",
+              "descrizione": "Non più in uso — in precedenza Prosodia"
+            },
+            {
+              "type": "sezione",
+              "codice": "417",
+              "descrizione": "Dialettologia e linguistica storica"
+            },
+            {
+              "type": "sezione",
+              "codice": "418",
+              "descrizione": "Uso standard (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "419",
+              "descrizione": "Lingue dei segni"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "420",
+          "descrizione": "Inglese e antico inglese (anglosassone)",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "421",
+              "descrizione": "Sistema di scrittura, fonologia, fonetica dell'inglese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "422",
+              "descrizione": "Etimologia dell'inglese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "423",
+              "descrizione": "Dizionari di inglese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "424",
+              "descrizione": "Non più in uso — in precedenza Thesaurus inglesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "425",
+              "descrizione": "Grammatica dell'inglese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "426",
+              "descrizione": "Non più in uso — in precedenza Prosodie inglesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "427",
+              "descrizione": "Variazioni storiche e geografiche, variazioni moderne non geografiche dell'inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "428",
+              "descrizione": "Uso dell'inglese standard (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "429",
+              "descrizione": "Antico inglese (anglosassone)"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "430",
+          "descrizione": "Lingue germaniche e correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "431",
+              "descrizione": "Sistemi di scrittura, fonologia, fonetica del tedesco standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "432",
+              "descrizione": "Etimologia del tedesco standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "433",
+              "descrizione": "Dizionari di tedesco standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "434",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "435",
+              "descrizione": "Grammatica del tedesco standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "436",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "437",
+              "descrizione": "Variazioni storiche e geografiche, variazioni moderne non geografiche del tedesco"
+            },
+            {
+              "type": "sezione",
+              "codice": "438",
+              "descrizione": "Uso del tedesco standard (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "439",
+              "descrizione": "Altre lingue germaniche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "440",
+          "descrizione": "Francese e lingue romanze correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "441",
+              "descrizione": "Sistemi di scrittura, fonologia, fonetica del francese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "442",
+              "descrizione": "Etimologia del francese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "443",
+              "descrizione": "Dizionari di francese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "444",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "445",
+              "descrizione": "Grammatica del francese standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "446",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "447",
+              "descrizione": "Variazioni storiche e geografiche, variazioni moderne non geografiche del francese"
+            },
+            {
+              "type": "sezione",
+              "codice": "448",
+              "descrizione": "Uso del francese standard (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "449",
+              "descrizione": "Occitano, catalano, francoprovenzale"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "450",
+          "descrizione": "Italiano, dalmatico, romeno, retoromanzo, sardo, corso",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "451",
+              "descrizione": "Sistemi di scrittura, fonologia, fonetica dell'italiano standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "452",
+              "descrizione": "Etimologia dell'italiano standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "453",
+              "descrizione": "Dizionari di italiano standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "454",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "455",
+              "descrizione": "Grammatica dell'italiano standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "456",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "457",
+              "descrizione": "Variazioni storiche e geografiche, variazioni moderne non geografiche dell'italiano"
+            },
+            {
+              "type": "sezione",
+              "codice": "458",
+              "descrizione": "Uso dell'italiano standard (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "459",
+              "descrizione": "Romeno, retoromanzo, sardo, corso"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "460",
+          "descrizione": "Spagnolo, portoghese, galiziano",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "461",
+              "descrizione": "Sistemi di scrittura, fonologia, fonetica dello spagnolo standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "462",
+              "descrizione": "Etimologia dello spagnolo standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "463",
+              "descrizione": "Dizionari di spagnolo standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "464",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "465",
+              "descrizione": "Grammatica dello spagnolo standard"
+            },
+            {
+              "type": "sezione",
+              "codice": "466",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "467",
+              "descrizione": "Variazioni storiche e geografiche, variazioni moderne non geografiche dello spagnolo"
+            },
+            {
+              "type": "sezione",
+              "codice": "468",
+              "descrizione": "Uso dello spagnolo standard (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "469",
+              "descrizione": "Portoghese"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "470",
+          "descrizione": "Latino e lingue italiche correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "471",
+              "descrizione": "Sistemi di scrittura, fonologia, fonetica del latino classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "472",
+              "descrizione": "Etimologia del latino classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "473",
+              "descrizione": "Dizionari di latino classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "474",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "475",
+              "descrizione": "Grammatica del latino classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "476",
+              "descrizione": "Non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "477",
+              "descrizione": "Latino antico, postclassico, volgare"
+            },
+            {
+              "type": "sezione",
+              "codice": "478",
+              "descrizione": "Uso del latino classico (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "479",
+              "descrizione": "Altre lingue italiche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "480",
+          "descrizione": "Greco classico e lingue elleniche correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "481",
+              "descrizione": "Sistemi di scrittura, fonologia, fonetica del greco classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "482",
+              "descrizione": "Etimologia del greco classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "483",
+              "descrizione": "Dizionari di greco classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "484",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "485",
+              "descrizione": "Grammatica del greco classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "486",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "487",
+              "descrizione": "Greco preclassico e postclassico"
+            },
+            {
+              "type": "sezione",
+              "codice": "488",
+              "descrizione": "Uso del greco classico (Linguistica prescrittiva)"
+            },
+            {
+              "type": "sezione",
+              "codice": "489",
+              "descrizione": "Altre lingue elleniche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "490",
+          "descrizione": "Altre lingue",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "491",
+              "descrizione": "Lingue indoeuropee orientali e celtiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "492",
+              "descrizione": "Lingue afro-asiatiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "493",
+              "descrizione": "Lingue afro-asiatiche non semitiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "494",
+              "descrizione": "Lingue altaiche, uraliche, iperboree, dravidiche, lingue varie dell'Asia meridionale"
+            },
+            {
+              "type": "sezione",
+              "codice": "495",
+              "descrizione": "Lingue dell'Asia orientale e sud-orientale"
+            },
+            {
+              "type": "sezione",
+              "codice": "496",
+              "descrizione": "Lingue africane"
+            },
+            {
+              "type": "sezione",
+              "codice": "497",
+              "descrizione": "Lingue native del Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "498",
+              "descrizione": "Lingue native del Sud America"
+            },
+            {
+              "type": "sezione",
+              "codice": "499",
+              "descrizione": "Lingue non austronesiane dell'Oceania, lingue austronesiane, lingue varie"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "500",
+      "descrizione": "Scienze naturali e matematica",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "500",
+          "descrizione": "Scienza",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "501",
+              "descrizione": "Filosofia e teoria"
+            },
+            {
+              "type": "sezione",
+              "codice": "502",
+              "descrizione": "Miscellanea"
+            },
+            {
+              "type": "sezione",
+              "codice": "503",
+              "descrizione": "Dizionari, enciclopedie, concordanze"
+            },
+            {
+              "type": "sezione",
+              "codice": "504",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "505",
+              "descrizione": "Pubblicazioni seriali"
+            },
+            {
+              "type": "sezione",
+              "codice": "506",
+              "descrizione": "Organizzazioni e gestione"
+            },
+            {
+              "type": "sezione",
+              "codice": "507",
+              "descrizione": "Educazione, ricerca, argomenti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "508",
+              "descrizione": "Storia naturale"
+            },
+            {
+              "type": "sezione",
+              "codice": "509",
+              "descrizione": "Storia, trattamento geografico, biografia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "510",
+          "descrizione": "Matematica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "511",
+              "descrizione": "Principi generali di matematica"
+            },
+            {
+              "type": "sezione",
+              "codice": "512",
+              "descrizione": "Algebra"
+            },
+            {
+              "type": "sezione",
+              "codice": "513",
+              "descrizione": "Aritmetica"
+            },
+            {
+              "type": "sezione",
+              "codice": "514",
+              "descrizione": "Topologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "515",
+              "descrizione": "Analisi"
+            },
+            {
+              "type": "sezione",
+              "codice": "516",
+              "descrizione": "Geometria"
+            },
+            {
+              "type": "sezione",
+              "codice": "517",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "518",
+              "descrizione": "Analisi numerica"
+            },
+            {
+              "type": "sezione",
+              "codice": "519",
+              "descrizione": "Probabilità e matematica applicata"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "520",
+          "descrizione": "Astronomia e scienze affini",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "521",
+              "descrizione": "Meccanica celeste"
+            },
+            {
+              "type": "sezione",
+              "codice": "522",
+              "descrizione": "Tecniche, procedure, apparati, attrezzature, materiali"
+            },
+            {
+              "type": "sezione",
+              "codice": "523",
+              "descrizione": "Corpi e fenomeni celesti specifici"
+            },
+            {
+              "type": "sezione",
+              "codice": "524",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "525",
+              "descrizione": "Terra (geografia astronomica)"
+            },
+            {
+              "type": "sezione",
+              "codice": "526",
+              "descrizione": "Geografia matematica"
+            },
+            {
+              "type": "sezione",
+              "codice": "527",
+              "descrizione": "Navigazione astronomica"
+            },
+            {
+              "type": "sezione",
+              "codice": "528",
+              "descrizione": "Effemeridi"
+            },
+            {
+              "type": "sezione",
+              "codice": "529",
+              "descrizione": "Cronologia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "530",
+          "descrizione": "Fisica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "531",
+              "descrizione": "Meccanica classica"
+            },
+            {
+              "type": "sezione",
+              "codice": "532",
+              "descrizione": "Meccanica dei fluidi"
+            },
+            {
+              "type": "sezione",
+              "codice": "533",
+              "descrizione": "Pneumatica (Meccanica dei gas)"
+            },
+            {
+              "type": "sezione",
+              "codice": "534",
+              "descrizione": "Suono e vibrazioni correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "535",
+              "descrizione": "Luce e radiazioni correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "536",
+              "descrizione": "Calore"
+            },
+            {
+              "type": "sezione",
+              "codice": "537",
+              "descrizione": "Elettricità ed elettronica"
+            },
+            {
+              "type": "sezione",
+              "codice": "538",
+              "descrizione": "Magnetismo"
+            },
+            {
+              "type": "sezione",
+              "codice": "539",
+              "descrizione": "Fisica moderna"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "540",
+          "descrizione": "Chimica e scienze affini",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "541",
+              "descrizione": "Chimica fisica"
+            },
+            {
+              "type": "sezione",
+              "codice": "542",
+              "descrizione": "Tecniche, procedure, apparati, attrezzature, materiali"
+            },
+            {
+              "type": "sezione",
+              "codice": "543",
+              "descrizione": "Chimica analitica"
+            },
+            {
+              "type": "sezione",
+              "codice": "544",
+              "descrizione": "Non più in uso — in precedenza Analisi qualitativa"
+            },
+            {
+              "type": "sezione",
+              "codice": "545",
+              "descrizione": "Non più in uso — in precedenza Analisi quantitativa"
+            },
+            {
+              "type": "sezione",
+              "codice": "546",
+              "descrizione": "Chimica inorganica"
+            },
+            {
+              "type": "sezione",
+              "codice": "547",
+              "descrizione": "Chimica organica"
+            },
+            {
+              "type": "sezione",
+              "codice": "548",
+              "descrizione": "Cristallografia"
+            },
+            {
+              "type": "sezione",
+              "codice": "549",
+              "descrizione": "Mineralogia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "550",
+          "descrizione": "Scienze della Terra e geologia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "551",
+              "descrizione": "Geologia, idrologia, meteorologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "552",
+              "descrizione": "Petrologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "553",
+              "descrizione": "Geologia economica"
+            },
+            {
+              "type": "sezione",
+              "codice": "554",
+              "descrizione": "Scienze della Terra in Europa"
+            },
+            {
+              "type": "sezione",
+              "codice": "555",
+              "descrizione": "Scienze della Terra in Asia"
+            },
+            {
+              "type": "sezione",
+              "codice": "556",
+              "descrizione": "Scienze della Terra in Africa"
+            },
+            {
+              "type": "sezione",
+              "codice": "557",
+              "descrizione": "Scienze della Terra in Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "558",
+              "descrizione": "Scienze della Terra in Sud America"
+            },
+            {
+              "type": "sezione",
+              "codice": "559",
+              "descrizione": "Scienze della Terra in Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide, mondi extraterrestri"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "560",
+          "descrizione": "Fossili e vita preistorica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "561",
+              "descrizione": "Paleobotanica, microrganismi fossili"
+            },
+            {
+              "type": "sezione",
+              "codice": "562",
+              "descrizione": "Invertebrati fossili"
+            },
+            {
+              "type": "sezione",
+              "codice": "563",
+              "descrizione": "Invertebrati marini e costieri fossili vari"
+            },
+            {
+              "type": "sezione",
+              "codice": "564",
+              "descrizione": "Molluschi e Molluscoidi fossili"
+            },
+            {
+              "type": "sezione",
+              "codice": "565",
+              "descrizione": "Artropodi fossili"
+            },
+            {
+              "type": "sezione",
+              "codice": "566",
+              "descrizione": "Cordati fossili"
+            },
+            {
+              "type": "sezione",
+              "codice": "567",
+              "descrizione": "Vertebrati a sangue freddo fossili"
+            },
+            {
+              "type": "sezione",
+              "codice": "568",
+              "descrizione": "Aves (uccelli) fossili"
+            },
+            {
+              "type": "sezione",
+              "codice": "569",
+              "descrizione": "Mammiferi fossili"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "570",
+          "descrizione": "Biologia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "571",
+              "descrizione": "Fisiologia e argomenti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "572",
+              "descrizione": "Biochimica"
+            },
+            {
+              "type": "sezione",
+              "codice": "573",
+              "descrizione": "Sistemi fisiologici specifici negli animali, istologia e fisiologia regionale negli animali"
+            },
+            {
+              "type": "sezione",
+              "codice": "574",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "575",
+              "descrizione": "Parti specifiche e sistemi fisiologici nelle piante"
+            },
+            {
+              "type": "sezione",
+              "codice": "576",
+              "descrizione": "Genetica ed evoluzione"
+            },
+            {
+              "type": "sezione",
+              "codice": "577",
+              "descrizione": "Ecologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "578",
+              "descrizione": "Storia naturale degli organismi e argomenti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "579",
+              "descrizione": "Storia naturale di microrganismi, funghi, alghe"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "580",
+          "descrizione": "Piante",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "581",
+              "descrizione": "Argomenti specifici nella storia naturale delle piante"
+            },
+            {
+              "type": "sezione",
+              "codice": "582",
+              "descrizione": "Piante note per specifiche caratteristiche vegetative e fiori"
+            },
+            {
+              "type": "sezione",
+              "codice": "583",
+              "descrizione": "Magnoliopsida (Dicotiledoni)"
+            },
+            {
+              "type": "sezione",
+              "codice": "584",
+              "descrizione": "Liliopsida (Monocotiledoni)"
+            },
+            {
+              "type": "sezione",
+              "codice": "585",
+              "descrizione": "Pinophyta (Gimnosperme)"
+            },
+            {
+              "type": "sezione",
+              "codice": "586",
+              "descrizione": "Crittogame (piante senza semi)"
+            },
+            {
+              "type": "sezione",
+              "codice": "587",
+              "descrizione": "Pteridophyta"
+            },
+            {
+              "type": "sezione",
+              "codice": "588",
+              "descrizione": "Bryophyta"
+            },
+            {
+              "type": "sezione",
+              "codice": "589",
+              "descrizione": "Non più in uso—in precedenza Silvicoltura"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "590",
+          "descrizione": "Animali (Zoologia)",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "591",
+              "descrizione": "Argomenti specifici nella storia naturale degli animali"
+            },
+            {
+              "type": "sezione",
+              "codice": "592",
+              "descrizione": "Invertebrati"
+            },
+            {
+              "type": "sezione",
+              "codice": "593",
+              "descrizione": "Invertebrati marini e costieri vari"
+            },
+            {
+              "type": "sezione",
+              "codice": "594",
+              "descrizione": "Molluschi e Molluscoidi"
+            },
+            {
+              "type": "sezione",
+              "codice": "595",
+              "descrizione": "Artropodi"
+            },
+            {
+              "type": "sezione",
+              "codice": "596",
+              "descrizione": "Cordati"
+            },
+            {
+              "type": "sezione",
+              "codice": "597",
+              "descrizione": "Vertebrati a sangue freddo"
+            },
+            {
+              "type": "sezione",
+              "codice": "598",
+              "descrizione": "Aves (uccelli)"
+            },
+            {
+              "type": "sezione",
+              "codice": "599",
+              "descrizione": "Mammalia (mammiferi)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "600",
+      "descrizione": "Tecnologia (scienze applicate)",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "600",
+          "descrizione": "Tecnologia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "601",
+              "descrizione": "Filosofia e teoria"
+            },
+            {
+              "type": "sezione",
+              "codice": "602",
+              "descrizione": "Miscellanea"
+            },
+            {
+              "type": "sezione",
+              "codice": "603",
+              "descrizione": "Dizionari, enciclopedie, concordanze"
+            },
+            {
+              "type": "sezione",
+              "codice": "604",
+              "descrizione": "Disegno tecnico, tecnologia dei materiali pericolosi; gruppi di persone"
+            },
+            {
+              "type": "sezione",
+              "codice": "605",
+              "descrizione": "Pubblicazioni seriali"
+            },
+            {
+              "type": "sezione",
+              "codice": "606",
+              "descrizione": "Organizzazioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "607",
+              "descrizione": "Educazione, ricerca, argomenti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "608",
+              "descrizione": "Brevetti"
+            },
+            {
+              "type": "sezione",
+              "codice": "609",
+              "descrizione": "Storia, trattamento geografico, biografia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "610",
+          "descrizione": "Medicina e salute",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "611",
+              "descrizione": "Anatomia umana, citologia, istologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "612",
+              "descrizione": "Fisiologia umana"
+            },
+            {
+              "type": "sezione",
+              "codice": "613",
+              "descrizione": "Salute e sicurezza personale"
+            },
+            {
+              "type": "sezione",
+              "codice": "614",
+              "descrizione": "Medicina legale; incidenza di lesioni, ferite, malattie; medicina preventiva pubblica"
+            },
+            {
+              "type": "sezione",
+              "codice": "615",
+              "descrizione": "Farmacologia e terapeutica"
+            },
+            {
+              "type": "sezione",
+              "codice": "616",
+              "descrizione": "Malattie"
+            },
+            {
+              "type": "sezione",
+              "codice": "617",
+              "descrizione": "Chirurgia, medicina regionale, odontoiatria, oftalmologia, otologia, audiologia"
+            },
+            {
+              "type": "sezione",
+              "codice": "618",
+              "descrizione": "Ginecologia, ostetricia, pediatria, geriatria"
+            },
+            {
+              "type": "sezione",
+              "codice": "619",
+              "descrizione": "Non più in uso—in precedenza Medicina sperimentale"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "620",
+          "descrizione": "Ingegneria e operazioni applicate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "621",
+              "descrizione": "Fisica applicata"
+            },
+            {
+              "type": "sezione",
+              "codice": "622",
+              "descrizione": "Attività minerarie e correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "623",
+              "descrizione": "Ingegneria militare e navale"
+            },
+            {
+              "type": "sezione",
+              "codice": "624",
+              "descrizione": "Ingegneria civile"
+            },
+            {
+              "type": "sezione",
+              "codice": "625",
+              "descrizione": "Ingegneria di ferrovie, strade"
+            },
+            {
+              "type": "sezione",
+              "codice": "626",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "627",
+              "descrizione": "Ingegneria idraulica"
+            },
+            {
+              "type": "sezione",
+              "codice": "628",
+              "descrizione": "Ingegneria sanitaria"
+            },
+            {
+              "type": "sezione",
+              "codice": "629",
+              "descrizione": "Altri rami dell'ingegneria"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "630",
+          "descrizione": "Agricoltura e tecnologie correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "631",
+              "descrizione": "Tecniche specifiche; apparati, attrezzature, materiali"
+            },
+            {
+              "type": "sezione",
+              "codice": "632",
+              "descrizione": "Danni alle piante, malattie, parassiti"
+            },
+            {
+              "type": "sezione",
+              "codice": "633",
+              "descrizione": "Colture di campo e di piantagione"
+            },
+            {
+              "type": "sezione",
+              "codice": "634",
+              "descrizione": "Frutteti, frutti, silvicoltura"
+            },
+            {
+              "type": "sezione",
+              "codice": "635",
+              "descrizione": "Colture da giardino (orticoltura)"
+            },
+            {
+              "type": "sezione",
+              "codice": "636",
+              "descrizione": "Zootecnia"
+            },
+            {
+              "type": "sezione",
+              "codice": "637",
+              "descrizione": "Lavorazione di prodotti lattiero-caseari e correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "638",
+              "descrizione": "Insetticoltura"
+            },
+            {
+              "type": "sezione",
+              "codice": "639",
+              "descrizione": "Caccia, pesca, conservazione, tecnologie correlate"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "640",
+          "descrizione": "Economia domestica e familiare",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "641",
+              "descrizione": "Cibo e bevande"
+            },
+            {
+              "type": "sezione",
+              "codice": "642",
+              "descrizione": "Pasti e servizio a tavola"
+            },
+            {
+              "type": "sezione",
+              "codice": "643",
+              "descrizione": "Alloggi e attrezzature domestiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "644",
+              "descrizione": "Utenze domestiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "645",
+              "descrizione": "Arredamento domestico"
+            },
+            {
+              "type": "sezione",
+              "codice": "646",
+              "descrizione": "Cucito, abbigliamento, gestione della vita personale e familiare"
+            },
+            {
+              "type": "sezione",
+              "codice": "647",
+              "descrizione": "Gestione di esercizi pubblici (governo di istituzioni)"
+            },
+            {
+              "type": "sezione",
+              "codice": "648",
+              "descrizione": "Lavori domestici"
+            },
+            {
+              "type": "sezione",
+              "codice": "649",
+              "descrizione": "Puericultura; assistenza domiciliare a persone con disabilità e malattie"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "650",
+          "descrizione": "Gestione e servizi ausiliari",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "651",
+              "descrizione": "Servizi d'ufficio"
+            },
+            {
+              "type": "sezione",
+              "codice": "652",
+              "descrizione": "Processi di comunicazione scritta"
+            },
+            {
+              "type": "sezione",
+              "codice": "653",
+              "descrizione": "Stenografia"
+            },
+            {
+              "type": "sezione",
+              "codice": "654",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "655",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "656",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "657",
+              "descrizione": "Contabilità"
+            },
+            {
+              "type": "sezione",
+              "codice": "658",
+              "descrizione": "Gestione generale"
+            },
+            {
+              "type": "sezione",
+              "codice": "659",
+              "descrizione": "Pubblicità e pubbliche relazioni"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "660",
+          "descrizione": "Ingegneria chimica e tecnologie correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "661",
+              "descrizione": "Tecnologia dei prodotti chimici industriali"
+            },
+            {
+              "type": "sezione",
+              "codice": "662",
+              "descrizione": "Tecnologia di esplosivi, combustibili, prodotti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "663",
+              "descrizione": "Tecnologia delle bevande"
+            },
+            {
+              "type": "sezione",
+              "codice": "664",
+              "descrizione": "Tecnologia alimentare"
+            },
+            {
+              "type": "sezione",
+              "codice": "665",
+              "descrizione": "Tecnologia di oli, grassi, cere, gas industriali"
+            },
+            {
+              "type": "sezione",
+              "codice": "666",
+              "descrizione": "Tecnologie ceramiche e affini"
+            },
+            {
+              "type": "sezione",
+              "codice": "667",
+              "descrizione": "Pulizia, colore, rivestimento, tecnologie correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "668",
+              "descrizione": "Tecnologia di altri prodotti organici"
+            },
+            {
+              "type": "sezione",
+              "codice": "669",
+              "descrizione": "Metallurgia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "670",
+          "descrizione": "Manifattura",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "671",
+              "descrizione": "Processi di lavorazione dei metalli e prodotti metallici primari"
+            },
+            {
+              "type": "sezione",
+              "codice": "672",
+              "descrizione": "Ferro, acciaio, altre leghe di ferro"
+            },
+            {
+              "type": "sezione",
+              "codice": "673",
+              "descrizione": "Metalli non ferrosi"
+            },
+            {
+              "type": "sezione",
+              "codice": "674",
+              "descrizione": "Lavorazione del legname, prodotti in legno, sughero"
+            },
+            {
+              "type": "sezione",
+              "codice": "675",
+              "descrizione": "Lavorazione della pelle e della pelliccia"
+            },
+            {
+              "type": "sezione",
+              "codice": "676",
+              "descrizione": "Tecnologia della cellulosa e della carta"
+            },
+            {
+              "type": "sezione",
+              "codice": "677",
+              "descrizione": "Tessili"
+            },
+            {
+              "type": "sezione",
+              "codice": "678",
+              "descrizione": "Elastomeri e prodotti in elastomero"
+            },
+            {
+              "type": "sezione",
+              "codice": "679",
+              "descrizione": "Altri prodotti di specifici tipi di materiali"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "680",
+          "descrizione": "Fabbricazione di prodotti for usi specifici",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "681",
+              "descrizione": "Strumenti di precisione e altri dispositivi"
+            },
+            {
+              "type": "sezione",
+              "codice": "682",
+              "descrizione": "Piccoli lavori di forgiatura (fabbro)"
+            },
+            {
+              "type": "sezione",
+              "codice": "683",
+              "descrizione": "Ferramenta ed elettrodomestici"
+            },
+            {
+              "type": "sezione",
+              "codice": "684",
+              "descrizione": "Arredamento e laboratori domestici"
+            },
+            {
+              "type": "sezione",
+              "codice": "685",
+              "descrizione": "Articoli in pelle e pelliccia e prodotti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "686",
+              "descrizione": "Stampa e attività correlate"
+            },
+            {
+              "type": "sezione",
+              "codice": "687",
+              "descrizione": "Abbigliamento e accessori"
+            },
+            {
+              "type": "sezione",
+              "codice": "688",
+              "descrizione": "Altri prodotti finali e tecnologia di imballaggio"
+            },
+            {
+              "type": "sezione",
+              "codice": "689",
+              "descrizione": "Non assegnato o non più in uso"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "690",
+          "descrizione": "Costruzione di edifici",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "691",
+              "descrizione": "Materiali da costruzione"
+            },
+            {
+              "type": "sezione",
+              "codice": "692",
+              "descrizione": "Pratiche ausiliarie di costruzione"
+            },
+            {
+              "type": "sezione",
+              "codice": "693",
+              "descrizione": "Costruzione in tipi specifici di materiali e per scopi specifici"
+            },
+            {
+              "type": "sezione",
+              "codice": "694",
+              "descrizione": "Costruzione in legno"
+            },
+            {
+              "type": "sezione",
+              "codice": "695",
+              "descrizione": "Coperture per tetti"
+            },
+            {
+              "type": "sezione",
+              "codice": "696",
+              "descrizione": "Utenze"
+            },
+            {
+              "type": "sezione",
+              "codice": "697",
+              "descrizione": "Ingegneria del riscaldamento, della ventilazione e del condizionamento dell'aria"
+            },
+            {
+              "type": "sezione",
+              "codice": "698",
+              "descrizione": "Finiture di dettaglio"
+            },
+            {
+              "type": "sezione",
+              "codice": "699",
+              "descrizione": "Non assegnato o non più in uso"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "700",
+      "descrizione": "Arti e ricreazione",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "700",
+          "descrizione": "Le arti",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "701",
+              "descrizione": "Filosofia e teoria delle belle arti e delle arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "702",
+              "descrizione": "Miscellanea di belle arti e arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "703",
+              "descrizione": "Dizionari, enciclopedie, concordanze di belle arti e arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "704",
+              "descrizione": "Argomenti speciali in belle arti e arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "705",
+              "descrizione": "Pubblicazioni seriali di belle arti e arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "706",
+              "descrizione": "Organizzazioni e gestione di belle arti e arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "707",
+              "descrizione": "Educazione, ricerca, argomenti correlati di belle arti e arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "708",
+              "descrizione": "Gallerie, musei, collezioni private di belle arti e arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "709",
+              "descrizione": "Storia, trattamento geografico, biografia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "710",
+          "descrizione": "Pianificazione territoriale e architettura del paesaggio",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "711",
+              "descrizione": "Pianificazione territoriale (arte civica)"
+            },
+            {
+              "type": "sezione",
+              "codice": "712",
+              "descrizione": "Architettura del paesaggio (Progettazione del paesaggio)"
+            },
+            {
+              "type": "sezione",
+              "codice": "713",
+              "descrizione": "Architettura del paesaggio delle vie di comunicazione"
+            },
+            {
+              "type": "sezione",
+              "codice": "714",
+              "descrizione": "Elementi acquatici nell'architettura del paesaggio"
+            },
+            {
+              "type": "sezione",
+              "codice": "715",
+              "descrizione": "Piante legnose nell'architettura del paesaggio"
+            },
+            {
+              "type": "sezione",
+              "codice": "716",
+              "descrizione": "Piante erbacee nell'architettura del paesaggio"
+            },
+            {
+              "type": "sezione",
+              "codice": "717",
+              "descrizione": "Strutture nell'architettura del paesaggio"
+            },
+            {
+              "type": "sezione",
+              "codice": "718",
+              "descrizione": "Progettazione paesaggistica dei cimiteri"
+            },
+            {
+              "type": "sezione",
+              "codice": "719",
+              "descrizione": "Paesaggi naturali"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "720",
+          "descrizione": "Architettura",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "721",
+              "descrizione": "Materiali architettonici ed elementi strutturali"
+            },
+            {
+              "type": "sezione",
+              "codice": "722",
+              "descrizione": "Architettura dai tempi più antichi al 300 circa"
+            },
+            {
+              "type": "sezione",
+              "codice": "723",
+              "descrizione": "Architettura dal 300 al 1399 circa"
+            },
+            {
+              "type": "sezione",
+              "codice": "724",
+              "descrizione": "Architettura dal 1400"
+            },
+            {
+              "type": "sezione",
+              "codice": "725",
+              "descrizione": "Strutture pubbliche"
+            },
+            {
+              "type": "sezione",
+              "codice": "726",
+              "descrizione": "Edifici per scopi religiosi e correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "727",
+              "descrizione": "Edifici per scopi educativi e di ricerca"
+            },
+            {
+              "type": "sezione",
+              "codice": "728",
+              "descrizione": "Edifici residenziali e correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "729",
+              "descrizione": "Progettazione e decorazione di strutture e accessori"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "730",
+          "descrizione": "Scultura e arti correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "731",
+              "descrizione": "Processi, forme, soggetti della scultura"
+            },
+            {
+              "type": "sezione",
+              "codice": "732",
+              "descrizione": "Scultura dai tempi più antichi al 500 circa, scultura di popoli non letterati"
+            },
+            {
+              "type": "sezione",
+              "codice": "733",
+              "descrizione": "Scultura greca, etrusca, romana"
+            },
+            {
+              "type": "sezione",
+              "codice": "734",
+              "descrizione": "Scultura dal 500 al 1399 circa"
+            },
+            {
+              "type": "sezione",
+              "codice": "735",
+              "descrizione": "Scultura dal 1400"
+            },
+            {
+              "type": "sezione",
+              "codice": "736",
+              "descrizione": "Intaglio e incisioni"
+            },
+            {
+              "type": "sezione",
+              "codice": "737",
+              "descrizione": "Numismatica e sigillografia"
+            },
+            {
+              "type": "sezione",
+              "codice": "738",
+              "descrizione": "Arti ceramiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "739",
+              "descrizione": "Lavorazione artistica dei metalli"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "740",
+          "descrizione": "Arti grafiche",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "741",
+              "descrizione": "Disegno e disegni"
+            },
+            {
+              "type": "sezione",
+              "codice": "742",
+              "descrizione": "Prospettiva nel disegno"
+            },
+            {
+              "type": "sezione",
+              "codice": "743",
+              "descrizione": "Disegno e disegni per soggetto"
+            },
+            {
+              "type": "sezione",
+              "codice": "744",
+              "descrizione": "Progettazione della comunicazione e progettazione visiva (proposto)"
+            },
+            {
+              "type": "sezione",
+              "codice": "745",
+              "descrizione": "Arti decorative"
+            },
+            {
+              "type": "sezione",
+              "codice": "746",
+              "descrizione": "Arti tessili"
+            },
+            {
+              "type": "sezione",
+              "codice": "747",
+              "descrizione": "Decorazione di interni"
+            },
+            {
+              "type": "sezione",
+              "codice": "748",
+              "descrizione": "Vetro"
+            },
+            {
+              "type": "sezione",
+              "codice": "749",
+              "descrizione": "Mobili e accessori"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "750",
+          "descrizione": "Pittura e dipinti",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "751",
+              "descrizione": "Tecniche, procedure, apparati, attrezzature, materiali, forme"
+            },
+            {
+              "type": "sezione",
+              "codice": "752",
+              "descrizione": "Colore"
+            },
+            {
+              "type": "sezione",
+              "codice": "753",
+              "descrizione": "Simbolismo, allegoria, mitologia, leggenda"
+            },
+            {
+              "type": "sezione",
+              "codice": "754",
+              "descrizione": "Pittura di genere"
+            },
+            {
+              "type": "sezione",
+              "codice": "755",
+              "descrizione": "Religione"
+            },
+            {
+              "type": "sezione",
+              "codice": "756",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "757",
+              "descrizione": "Figure umane"
+            },
+            {
+              "type": "sezione",
+              "codice": "758",
+              "descrizione": "Natura, soggetti architettonici e paesaggi urbani, altri soggetti specifici"
+            },
+            {
+              "type": "sezione",
+              "codice": "759",
+              "descrizione": "Storia, trattamento geografico, biografia"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "760",
+          "descrizione": "Incisione e stampe",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "761",
+              "descrizione": "Processi a rilievo (stampa a blocchi)"
+            },
+            {
+              "type": "sezione",
+              "codice": "762",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "763",
+              "descrizione": "Processi litografici (processi planografici)"
+            },
+            {
+              "type": "sezione",
+              "codice": "764",
+              "descrizione": "Cromolitografia e serigrafia"
+            },
+            {
+              "type": "sezione",
+              "codice": "765",
+              "descrizione": "Incisione su metallo"
+            },
+            {
+              "type": "sezione",
+              "codice": "766",
+              "descrizione": "Mezzatinta, acquatinta e processi correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "767",
+              "descrizione": "Acquaforte e puntasecca"
+            },
+            {
+              "type": "sezione",
+              "codice": "768",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "769",
+              "descrizione": "Stampe"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "770",
+          "descrizione": "Fotografia, computer art, cinematografia, videografia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "771",
+              "descrizione": "Tecniche, procedure, apparati, attrezzature, materiali"
+            },
+            {
+              "type": "sezione",
+              "codice": "772",
+              "descrizione": "Processi a sali metallici"
+            },
+            {
+              "type": "sezione",
+              "codice": "773",
+              "descrizione": "Processi di stampa a pigmenti"
+            },
+            {
+              "type": "sezione",
+              "codice": "774",
+              "descrizione": "Non più in uso—in precedenza Olografia"
+            },
+            {
+              "type": "sezione",
+              "codice": "775",
+              "descrizione": "Non più in uso—in precedenza Fotografia digitale"
+            },
+            {
+              "type": "sezione",
+              "codice": "776",
+              "descrizione": "Computer art (arte digitale)"
+            },
+            {
+              "type": "sezione",
+              "codice": "777",
+              "descrizione": "Cinematografia e videografia"
+            },
+            {
+              "type": "sezione",
+              "codice": "778",
+              "descrizione": "Campi specifici e tipi speciali di fotografia"
+            },
+            {
+              "type": "sezione",
+              "codice": "779",
+              "descrizione": "Immagini fotografiche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "780",
+          "descrizione": "Musica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "781",
+              "descrizione": "Principi generali e forme musicali"
+            },
+            {
+              "type": "sezione",
+              "codice": "782",
+              "descrizione": "Musica vocale"
+            },
+            {
+              "type": "sezione",
+              "codice": "783",
+              "descrizione": "Musica per voci singole"
+            },
+            {
+              "type": "sezione",
+              "codice": "784",
+              "descrizione": "Strumenti e complessi strumentali e la loro musica"
+            },
+            {
+              "type": "sezione",
+              "codice": "785",
+              "descrizione": "Complessi con un solo strumento per parte"
+            },
+            {
+              "type": "sezione",
+              "codice": "786",
+              "descrizione": "Strumenti a tastiera, meccanici, elettrofonici, a percussione"
+            },
+            {
+              "type": "sezione",
+              "codice": "787",
+              "descrizione": "Strumenti a corda (cordofoni)"
+            },
+            {
+              "type": "sezione",
+              "codice": "788",
+              "descrizione": "Strumenti a fiato (aerofoni)"
+            },
+            {
+              "type": "sezione",
+              "codice": "789",
+              "descrizione": "Non assegnato o non più in uso"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "790",
+          "descrizione": "Arti ricreative e dello spettacolo",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "791",
+              "descrizione": "Spettacoli pubblici"
+            },
+            {
+              "type": "sezione",
+              "codice": "792",
+              "descrizione": "Rappresentazioni teatrali"
+            },
+            {
+              "type": "sezione",
+              "codice": "793",
+              "descrizione": "Giochi e divertimenti al coperto"
+            },
+            {
+              "type": "sezione",
+              "codice": "794",
+              "descrizione": "Giochi di abilità al coperto"
+            },
+            {
+              "type": "sezione",
+              "codice": "795",
+              "descrizione": "Giochi d'azzardo"
+            },
+            {
+              "type": "sezione",
+              "codice": "796",
+              "descrizione": "Sport e giochi atletici e all'aperto"
+            },
+            {
+              "type": "sezione",
+              "codice": "797",
+              "descrizione": "Sport acquatici e aerei"
+            },
+            {
+              "type": "sezione",
+              "codice": "798",
+              "descrizione": "Sport equestri e corse di animali"
+            },
+            {
+              "type": "sezione",
+              "codice": "799",
+              "descrizione": "Pesca, caccia, tiro"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "800",
+      "descrizione": "Letteratura, retorica e critica",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "800",
+          "descrizione": "Letteratura (Belles-lettres) e retorica",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "801",
+              "descrizione": "Filosofia e teoria"
+            },
+            {
+              "type": "sezione",
+              "codice": "802",
+              "descrizione": "Miscellanea"
+            },
+            {
+              "type": "sezione",
+              "codice": "803",
+              "descrizione": "Dizionari, enciclopedie, concordanze"
+            },
+            {
+              "type": "sezione",
+              "codice": "804",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "805",
+              "descrizione": "Pubblicazioni seriali"
+            },
+            {
+              "type": "sezione",
+              "codice": "806",
+              "descrizione": "Organizzazioni e gestione"
+            },
+            {
+              "type": "sezione",
+              "codice": "807",
+              "descrizione": "Educazione, ricerca, argomenti correlati"
+            },
+            {
+              "type": "sezione",
+              "codice": "808",
+              "descrizione": "Retorica e raccolte di testi letterari da più di due letterature"
+            },
+            {
+              "type": "sezione",
+              "codice": "809",
+              "descrizione": "Storia, descrizione, valutazione critica di più di due letterature"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "810",
+          "descrizione": "Letteratura americana in inglese",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "811",
+              "descrizione": "Poesia americana in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "812",
+              "descrizione": "Teatro americano in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "813",
+              "descrizione": "Narrativa americana in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "814",
+              "descrizione": "Saggi americani in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "815",
+              "descrizione": "Discorsi americani in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "816",
+              "descrizione": "Lettere americane in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "817",
+              "descrizione": "Umorismo e satira americani in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "818",
+              "descrizione": "Scritti vari americani in inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "819",
+              "descrizione": "Non più in uso—in precedenza Attività di puzzle"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "820",
+          "descrizione": "Letterature inglese e antico inglese (anglosassone)",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "821",
+              "descrizione": "Poesia inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "822",
+              "descrizione": "Teatro inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "823",
+              "descrizione": "Narrativa inglese"
+            },
+            {
+              "type": "sezione",
+              "codice": "824",
+              "descrizione": "Saggi inglesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "825",
+              "descrizione": "Discorsi inglesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "826",
+              "descrizione": "Lettere inglesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "827",
+              "descrizione": "Umorismo e satira inglesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "828",
+              "descrizione": "Scritti vari inglesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "829",
+              "descrizione": "Letteratura antico inglese (anglosassone)"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "830",
+          "descrizione": "Letteratura tedesca e letterature di lingue correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "831",
+              "descrizione": "Poesia tedesca"
+            },
+            {
+              "type": "sezione",
+              "codice": "832",
+              "descrizione": "Teatro tedesco"
+            },
+            {
+              "type": "sezione",
+              "codice": "833",
+              "descrizione": "Narrativa tedesca"
+            },
+            {
+              "type": "sezione",
+              "codice": "834",
+              "descrizione": "Saggi tedeschi"
+            },
+            {
+              "type": "sezione",
+              "codice": "835",
+              "descrizione": "Discorsi tedeschi"
+            },
+            {
+              "type": "sezione",
+              "codice": "836",
+              "descrizione": "Lettere tedesche"
+            },
+            {
+              "type": "sezione",
+              "codice": "837",
+              "descrizione": "Umorismo e satira tedeschi"
+            },
+            {
+              "type": "sezione",
+              "codice": "838",
+              "descrizione": "Scritti vari tedeschi"
+            },
+            {
+              "type": "sezione",
+              "codice": "839",
+              "descrizione": "Altre letterature germaniche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "840",
+          "descrizione": "Letteratura francese e letterature di lingue romanze correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "841",
+              "descrizione": "Poesia francese"
+            },
+            {
+              "type": "sezione",
+              "codice": "842",
+              "descrizione": "Teatro francese"
+            },
+            {
+              "type": "sezione",
+              "codice": "843",
+              "descrizione": "Narrativa francese"
+            },
+            {
+              "type": "sezione",
+              "codice": "844",
+              "descrizione": "Saggi francesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "845",
+              "descrizione": "Discorsi francesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "846",
+              "descrizione": "Lettere francesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "847",
+              "descrizione": "Umorismo e satira francesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "848",
+              "descrizione": "Scritti vari francesi"
+            },
+            {
+              "type": "sezione",
+              "codice": "849",
+              "descrizione": "Letterature occitana, catalana, francoprovenzale"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "850",
+          "descrizione": "Letterature delle lingue italiana, dalmatica, romena, retoromanza, sarda, corsa",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "851",
+              "descrizione": "Poesia italiana"
+            },
+            {
+              "type": "sezione",
+              "codice": "852",
+              "descrizione": "Teatro italiano"
+            },
+            {
+              "type": "sezione",
+              "codice": "853",
+              "descrizione": "Narrativa italiana"
+            },
+            {
+              "type": "sezione",
+              "codice": "854",
+              "descrizione": "Saggi italiani"
+            },
+            {
+              "type": "sezione",
+              "codice": "855",
+              "descrizione": "Discorsi italiani"
+            },
+            {
+              "type": "sezione",
+              "codice": "856",
+              "descrizione": "Lettere italiane"
+            },
+            {
+              "type": "sezione",
+              "codice": "857",
+              "descrizione": "Umorismo e satira italiani"
+            },
+            {
+              "type": "sezione",
+              "codice": "858",
+              "descrizione": "Scritti vari italiani"
+            },
+            {
+              "type": "sezione",
+              "codice": "859",
+              "descrizione": "Letterature delle lingue romena, retoromanza, sarda, corsa"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "860",
+          "descrizione": "Letterature delle lingue spagnola, portoghese, galiziana",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "861",
+              "descrizione": "Poesia spagnola"
+            },
+            {
+              "type": "sezione",
+              "codice": "862",
+              "descrizione": "Teatro spagnolo"
+            },
+            {
+              "type": "sezione",
+              "codice": "863",
+              "descrizione": "Narrativa spagnola"
+            },
+            {
+              "type": "sezione",
+              "codice": "864",
+              "descrizione": "Saggi spagnoli"
+            },
+            {
+              "type": "sezione",
+              "codice": "865",
+              "descrizione": "Discorsi spagnoli"
+            },
+            {
+              "type": "sezione",
+              "codice": "866",
+              "descrizione": "Lettere spagnole"
+            },
+            {
+              "type": "sezione",
+              "codice": "867",
+              "descrizione": "Umorismo e satira spagnoli"
+            },
+            {
+              "type": "sezione",
+              "codice": "868",
+              "descrizione": "Scritti vari spagnoli"
+            },
+            {
+              "type": "sezione",
+              "codice": "869",
+              "descrizione": "Letterature delle lingue portoghese e galiziana"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "870",
+          "descrizione": "Letteratura latina e letterature di lingue italiche correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "871",
+              "descrizione": "Poesia latina"
+            },
+            {
+              "type": "sezione",
+              "codice": "872",
+              "descrizione": "Poesia drammatica e teatro latini"
+            },
+            {
+              "type": "sezione",
+              "codice": "873",
+              "descrizione": "Poesia epica e narrativa latine"
+            },
+            {
+              "type": "sezione",
+              "codice": "874",
+              "descrizione": "Poesia lirica latina"
+            },
+            {
+              "type": "sezione",
+              "codice": "875",
+              "descrizione": "Discorsi latini"
+            },
+            {
+              "type": "sezione",
+              "codice": "876",
+              "descrizione": "Lettere latine"
+            },
+            {
+              "type": "sezione",
+              "codice": "877",
+              "descrizione": "Umorismo e satira latini"
+            },
+            {
+              "type": "sezione",
+              "codice": "878",
+              "descrizione": "Scritti vari latini"
+            },
+            {
+              "type": "sezione",
+              "codice": "879",
+              "descrizione": "Letterature di altre lingue italiche"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "880",
+          "descrizione": "Letteratura greca classica e letterature di lingue elleniche correlate",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "881",
+              "descrizione": "Poesia greca classica"
+            },
+            {
+              "type": "sezione",
+              "codice": "882",
+              "descrizione": "Teatro greco classico"
+            },
+            {
+              "type": "sezione",
+              "codice": "883",
+              "descrizione": "Poesia epica e narrativa greche classiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "884",
+              "descrizione": "Poesia lirica greca classica"
+            },
+            {
+              "type": "sezione",
+              "codice": "885",
+              "descrizione": "Discorsi greci classici"
+            },
+            {
+              "type": "sezione",
+              "codice": "886",
+              "descrizione": "Lettere greche classiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "887",
+              "descrizione": "Umorismo e satira greci classici"
+            },
+            {
+              "type": "sezione",
+              "codice": "888",
+              "descrizione": "Scritti vari greci classici"
+            },
+            {
+              "type": "sezione",
+              "codice": "889",
+              "descrizione": "Letteratura greca moderna"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "890",
+          "descrizione": "Letterature di altre lingue e famiglie linguistiche specifiche",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "891",
+              "descrizione": "Letterature indoeuropee orientali e celtiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "892",
+              "descrizione": "Letterature afro-asiatiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "893",
+              "descrizione": "Letterature afro-asiatiche non semitiche"
+            },
+            {
+              "type": "sezione",
+              "codice": "894",
+              "descrizione": "Letterature delle lingue altaiche, uraliche, iperboree, dravidiche; letterature di lingue varie dell'Asia meridionale"
+            },
+            {
+              "type": "sezione",
+              "codice": "895",
+              "descrizione": "Letterature dell'Asia orientale e sud-orientale"
+            },
+            {
+              "type": "sezione",
+              "codice": "896",
+              "descrizione": "Letterature africane"
+            },
+            {
+              "type": "sezione",
+              "codice": "897",
+              "descrizione": "Letterature delle lingue native del Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "898",
+              "descrizione": "Letterature delle lingue native del Sud America"
+            },
+            {
+              "type": "sezione",
+              "codice": "899",
+              "descrizione": "Letterature delle lingue non austronesiane dell'Oceania, delle lingue austronesiane, di lingue varie"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "classe_principale",
+      "codice": "900",
+      "descrizione": "Storia, geografia e discipline ausiliarie",
+      "divisioni": [
+        {
+          "type": "divisione",
+          "codice": "900",
+          "descrizione": "Storia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "901",
+              "descrizione": "Filosofia e teoria della storia"
+            },
+            {
+              "type": "sezione",
+              "codice": "902",
+              "descrizione": "Miscellanea di storia"
+            },
+            {
+              "type": "sezione",
+              "codice": "903",
+              "descrizione": "Dizionari, enciclopedie, concordanze di storia"
+            },
+            {
+              "type": "sezione",
+              "codice": "904",
+              "descrizione": "Raccolte di resoconti di eventi"
+            },
+            {
+              "type": "sezione",
+              "codice": "905",
+              "descrizione": "Pubblicazioni seriali di storia"
+            },
+            {
+              "type": "sezione",
+              "codice": "906",
+              "descrizione": "Organizzazioni e gestione della storia"
+            },
+            {
+              "type": "sezione",
+              "codice": "907",
+              "descrizione": "Educazione, ricerca, argomenti correlati di storia"
+            },
+            {
+              "type": "sezione",
+              "codice": "908",
+              "descrizione": "Storia rispetto a gruppi di persone"
+            },
+            {
+              "type": "sezione",
+              "codice": "909",
+              "descrizione": "Storia mondiale"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "910",
+          "descrizione": "Geografia e viaggi",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "911",
+              "descrizione": "Geografia storica"
+            },
+            {
+              "type": "sezione",
+              "codice": "912",
+              "descrizione": "Rappresentazioni grafiche della superficie terrestre e di mondi extraterrestri"
+            },
+            {
+              "type": "sezione",
+              "codice": "913",
+              "descrizione": "Geografia e viaggi nel mondo antico"
+            },
+            {
+              "type": "sezione",
+              "codice": "914",
+              "descrizione": "Geografia e viaggi in Europa"
+            },
+            {
+              "type": "sezione",
+              "codice": "915",
+              "descrizione": "Geografia e viaggi in Asia"
+            },
+            {
+              "type": "sezione",
+              "codice": "916",
+              "descrizione": "Geografia e viaggi in Africa"
+            },
+            {
+              "type": "sezione",
+              "codice": "917",
+              "descrizione": "Geografia e viaggi in Nord America"
+            },
+            {
+              "type": "sezione",
+              "codice": "918",
+              "descrizione": "Geografia e viaggi in Sud America"
+            },
+            {
+              "type": "sezione",
+              "codice": "919",
+              "descrizione": "Geografia e viaggi in Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide e su mondi extraterrestri"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "920",
+          "descrizione": "Biografia, genealogia, insegne",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "921",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "922",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "923",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "924",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "925",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "926",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "927",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "928",
+              "descrizione": "Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto."
+            },
+            {
+              "type": "sezione",
+              "codice": "929",
+              "descrizione": "Genealogia, nomi, insegne"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "930",
+          "descrizione": "Storia del mondo antico fino al 499 circa",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "931",
+              "descrizione": "Cina fino al 420"
+            },
+            {
+              "type": "sezione",
+              "codice": "932",
+              "descrizione": "Egitto fino al 640"
+            },
+            {
+              "type": "sezione",
+              "codice": "933",
+              "descrizione": "Palestina fino al 70"
+            },
+            {
+              "type": "sezione",
+              "codice": "934",
+              "descrizione": "Asia meridionale fino al 647"
+            },
+            {
+              "type": "sezione",
+              "codice": "935",
+              "descrizione": "Mesopotamia e Altopiano iranico fino al 637"
+            },
+            {
+              "type": "sezione",
+              "codice": "936",
+              "descrizione": "Europa a nord e a ovest della Penisola italiana fino al 499 circa"
+            },
+            {
+              "type": "sezione",
+              "codice": "937",
+              "descrizione": "Italia e territori adiacenti fino al 476"
+            },
+            {
+              "type": "sezione",
+              "codice": "938",
+              "descrizione": "Grecia fino al 323"
+            },
+            {
+              "type": "sezione",
+              "codice": "939",
+              "descrizione": "Altre parti del mondo antico"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "940",
+          "descrizione": "Storia d'Europa",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "941",
+              "descrizione": "Isole Britanniche"
+            },
+            {
+              "type": "sezione",
+              "codice": "942",
+              "descrizione": "Inghilterra e Galles"
+            },
+            {
+              "type": "sezione",
+              "codice": "943",
+              "descrizione": "Germania e paesi limitrofi dell'Europa centrale"
+            },
+            {
+              "type": "sezione",
+              "codice": "944",
+              "descrizione": "Francia e Monaco"
+            },
+            {
+              "type": "sezione",
+              "codice": "945",
+              "descrizione": "Italia, San Marino, Città del Vaticano, Malta"
+            },
+            {
+              "type": "sezione",
+              "codice": "946",
+              "descrizione": "Spagna, Andorra, Gibilterra, Portogallo"
+            },
+            {
+              "type": "sezione",
+              "codice": "947",
+              "descrizione": "Russia e paesi limitrofi dell'Europa orientale"
+            },
+            {
+              "type": "sezione",
+              "codice": "948",
+              "descrizione": "Scandinavia"
+            },
+            {
+              "type": "sezione",
+              "codice": "949",
+              "descrizione": "Altre parti d'Europa"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "950",
+          "descrizione": "Storia dell'Asia",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "951",
+              "descrizione": "Cina e aree adiacenti"
+            },
+            {
+              "type": "sezione",
+              "codice": "952",
+              "descrizione": "Giappone"
+            },
+            {
+              "type": "sezione",
+              "codice": "953",
+              "descrizione": "Penisola arabica e aree adiacenti"
+            },
+            {
+              "type": "sezione",
+              "codice": "954",
+              "descrizione": "India e paesi limitrofi dell'Asia meridionale"
+            },
+            {
+              "type": "sezione",
+              "codice": "955",
+              "descrizione": "Iran"
+            },
+            {
+              "type": "sezione",
+              "codice": "956",
+              "descrizione": "Medio Oriente (Vicino Oriente)"
+            },
+            {
+              "type": "sezione",
+              "codice": "957",
+              "descrizione": "Siberia (Russia asiatica)"
+            },
+            {
+              "type": "sezione",
+              "codice": "958",
+              "descrizione": "Asia centrale"
+            },
+            {
+              "type": "sezione",
+              "codice": "959",
+              "descrizione": "Sud-est asiatico"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "960",
+          "descrizione": "Storia dell'Africa",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "961",
+              "descrizione": "Tunisia e Libia"
+            },
+            {
+              "type": "sezione",
+              "codice": "962",
+              "descrizione": "Egitto, Sudan, Sud Sudan"
+            },
+            {
+              "type": "sezione",
+              "codice": "963",
+              "descrizione": "Etiopia ed Eritrea"
+            },
+            {
+              "type": "sezione",
+              "codice": "964",
+              "descrizione": "Marocco, Ceuta, Melilla, Sahara Occidentale, Isole Canarie"
+            },
+            {
+              "type": "sezione",
+              "codice": "965",
+              "descrizione": "Algeria"
+            },
+            {
+              "type": "sezione",
+              "codice": "966",
+              "descrizione": "Africa occidentale e isole al largo"
+            },
+            {
+              "type": "sezione",
+              "codice": "967",
+              "descrizione": "Africa centrale e isole al largo"
+            },
+            {
+              "type": "sezione",
+              "codice": "968",
+              "descrizione": "Sudafrica e Africa australe"
+            },
+            {
+              "type": "sezione",
+              "codice": "969",
+              "descrizione": "Isole dell'Oceano Indiano meridionale"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "970",
+          "descrizione": "Storia del Nord America",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "971",
+              "descrizione": "Canada"
+            },
+            {
+              "type": "sezione",
+              "codice": "972",
+              "descrizione": "Messico, America Centrale, Indie Occidentali, Bermuda"
+            },
+            {
+              "type": "sezione",
+              "codice": "973",
+              "descrizione": "Stati Uniti"
+            },
+            {
+              "type": "sezione",
+              "codice": "974",
+              "descrizione": "Stati Uniti nord-orientali (stati del New England e del Medio Atlantico)"
+            },
+            {
+              "type": "sezione",
+              "codice": "975",
+              "descrizione": "Stati Uniti sud-orientali (stati dell'Atlantico meridionale)"
+            },
+            {
+              "type": "sezione",
+              "codice": "976",
+              "descrizione": "Stati Uniti centro-meridionali"
+            },
+            {
+              "type": "sezione",
+              "codice": "977",
+              "descrizione": "Stati Uniti centro-settentrionali"
+            },
+            {
+              "type": "sezione",
+              "codice": "978",
+              "descrizione": "Stati Uniti occidentali"
+            },
+            {
+              "type": "sezione",
+              "codice": "979",
+              "descrizione": "Regione del Gran Bacino e del Versante Pacifico degli Stati Uniti"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "980",
+          "descrizione": "Storia del Sud America",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "981",
+              "descrizione": "Brasile"
+            },
+            {
+              "type": "sezione",
+              "codice": "982",
+              "descrizione": "Argentina"
+            },
+            {
+              "type": "sezione",
+              "codice": "983",
+              "descrizione": "Cile"
+            },
+            {
+              "type": "sezione",
+              "codice": "984",
+              "descrizione": "Bolivia"
+            },
+            {
+              "type": "sezione",
+              "codice": "985",
+              "descrizione": "Perù"
+            },
+            {
+              "type": "sezione",
+              "codice": "986",
+              "descrizione": "Colombia ed Ecuador"
+            },
+            {
+              "type": "sezione",
+              "codice": "987",
+              "descrizione": "Venezuela"
+            },
+            {
+              "type": "sezione",
+              "codice": "988",
+              "descrizione": "Guiana"
+            },
+            {
+              "type": "sezione",
+              "codice": "989",
+              "descrizione": "Paraguay e Uruguay"
+            }
+          ]
+        },
+        {
+          "type": "divisione",
+          "codice": "990",
+          "descrizione": "Storia di Australasia, isole dell'Oceano Pacifico, isole dell'Oceano Atlantico, isole artiche, Antartide, mondi extraterrestri",
+          "sezioni": [
+            {
+              "type": "sezione",
+              "codice": "991",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "992",
+              "descrizione": "Non assegnato o non più in uso"
+            },
+            {
+              "type": "sezione",
+              "codice": "993",
+              "descrizione": "Nuova Zelanda"
+            },
+            {
+              "type": "sezione",
+              "codice": "994",
+              "descrizione": "Australia"
+            },
+            {
+              "type": "sezione",
+              "codice": "995",
+              "descrizione": "Nuova Guinea e paesi vicini della Melanesia"
+            },
+            {
+              "type": "sezione",
+              "codice": "996",
+              "descrizione": "Polinesia e altre isole dell'Oceano Pacifico"
+            },
+            {
+              "type": "sezione",
+              "codice": "997",
+              "descrizione": "Isole dell'Oceano Atlantico"
+            },
+            {
+              "type": "sezione",
+              "codice": "998",
+              "descrizione": "Isole artiche e Antartide"
+            },
+            {
+              "type": "sezione",
+              "codice": "999",
+              "descrizione": "Mondi extraterrestri"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

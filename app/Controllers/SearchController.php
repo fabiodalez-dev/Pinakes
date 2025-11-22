@@ -1,0 +1,421 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use mysqli;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\HtmlHelper;
+
+class SearchController
+{
+    public function authors(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $rows=[];
+        if ($q !== '') {
+            $s = '%'.$q.'%';
+            $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT 100");
+            $stmt->bind_param('s', $s);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) {
+                $r['label'] = HtmlHelper::decode($r['label']);
+                $rows[] = $r;
+            }
+        } else {
+            // Return all authors when no query is provided (for initial load)
+            $stmt = $db->prepare("SELECT id, nome AS label FROM autori ORDER BY nome LIMIT 200");
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) {
+                $r['label'] = HtmlHelper::decode($r['label']);
+                $rows[] = $r;
+            }
+        }
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function publishers(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $rows=[];
+        if ($q !== '') {
+            $s = '%'.$q.'%';
+            $stmt = $db->prepare("SELECT id, nome AS label FROM editori WHERE nome LIKE ? ORDER BY nome LIMIT 20");
+            $stmt->bind_param('s', $s);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) { 
+                $r['label'] = HtmlHelper::decode($r['label']); 
+                $rows[] = $r; 
+            }
+        }
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function users(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $rows=[];
+        if ($q !== '') {
+            $s = '%'.$q.'%';
+            $stmt = $db->prepare("
+                SELECT id,
+                       CONCAT(
+                           nome, ' ', cognome,
+                           CASE
+                               WHEN codice_tessera IS NOT NULL AND codice_tessera <> '' THEN CONCAT(' (Tessera: ', codice_tessera, ')')
+                               ELSE ''
+                           END
+                       ) AS label
+                FROM utenti
+                WHERE nome LIKE ?
+                   OR cognome LIKE ?
+                   OR telefono LIKE ?
+                   OR email LIKE ?
+                   OR codice_tessera LIKE ?
+                ORDER BY cognome, nome
+                LIMIT 20
+            ");
+            $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) {
+                $r['label'] = HtmlHelper::decode($r['label']);
+                $rows[] = $r;
+            }
+        }
+        
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function books(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $rows=[];
+        if ($q !== '') {
+            $s = '%'.$q.'%';
+            $stmt = $db->prepare("SELECT id, titolo AS label FROM libri WHERE titolo LIKE ? OR sottotitolo LIKE ? ORDER BY titolo LIMIT 20");
+            $stmt->bind_param('ss', $s, $s);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) { 
+                $r['label'] = HtmlHelper::decode($r['label']); 
+                $rows[] = $r; 
+            }
+        }
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function unifiedSearch(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $results = [];
+
+        if ($q !== '') {
+            // Search books by ISBN, EAN, title, subtitle
+            $bookResults = $this->searchBooks($db, $q);
+            $results = array_merge($results, $bookResults);
+
+            // Search authors
+            $authorResults = $this->searchAuthors($db, $q);
+            $results = array_merge($results, $authorResults);
+
+            // Search publishers
+            $publisherResults = $this->searchPublishers($db, $q);
+            $results = array_merge($results, $publisherResults);
+
+            // Note: User search is excluded from frontend unified search to keep admin data separate.
+        }
+
+        // Limit to 20 results total
+        $results = array_slice($results, 0, 20);
+
+        $response->getBody()->write(json_encode($results, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function searchPreview(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $results = [];
+
+        if ($q !== '') {
+            // Search books with full details for preview
+            $bookResults = $this->searchBooksWithDetails($db, $q);
+            $results = array_merge($results, $bookResults);
+
+            // Search authors with details
+            $authorResults = $this->searchAuthorsWithDetails($db, $q);
+            $results = array_merge($results, $authorResults);
+
+            // Search publishers with details
+            $publisherResults = $this->searchPublishersWithDetails($db, $q);
+            $results = array_merge($results, $publisherResults);
+        }
+
+        // Limit to 15 results total
+        $results = array_slice($results, 0, 15);
+
+        $response->getBody()->write(json_encode($results, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+    
+    private function searchBooks(mysqli $db, string $query): array
+    {
+        $results = [];
+        $s = '%'.$query.'%';
+        
+        // Search by ISBN, EAN, title, subtitle
+        $stmt = $db->prepare("SELECT id, titolo AS label, isbn10, isbn13, ean FROM libri WHERE isbn10 LIKE ? OR isbn13 LIKE ? OR ean LIKE ? OR titolo LIKE ? OR sottotitolo LIKE ? ORDER BY titolo LIMIT 10");
+        $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        while ($row = $res->fetch_assoc()) {
+            $label = HtmlHelper::decode($row['label']);
+            $identifier = '';
+            
+            // Determine which identifier to show
+            if (!empty($row['isbn13'])) {
+                $identifier = 'ISBN: ' . $row['isbn13'];
+            } elseif (!empty($row['isbn10'])) {
+                $identifier = 'ISBN: ' . $row['isbn10'];
+            } elseif (!empty($row['ean'])) {
+                $identifier = 'EAN: ' . $row['ean'];
+            }
+            
+            $results[] = [
+                'id' => $row['id'],
+                'label' => $label,
+                'identifier' => $identifier,
+                'type' => 'book',
+                'url' => '/admin/libri/' . $row['id']
+            ];
+        }
+        
+        return $results;
+    }
+    
+    private function searchAuthors(mysqli $db, string $query): array
+    {
+        $results = [];
+        $s = '%'.$query.'%';
+        
+        $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT 5");
+        $stmt->bind_param('s', $s);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        while ($row = $res->fetch_assoc()) {
+            $results[] = [
+                'id' => $row['id'],
+                'label' => HtmlHelper::decode($row['label']),
+                'type' => 'author',
+                'url' => '/admin/autori/' . $row['id']
+            ];
+        }
+        
+        return $results;
+    }
+    
+    private function searchPublishers(mysqli $db, string $query): array
+    {
+        $results = [];
+        $s = '%'.$query.'%';
+        
+        $stmt = $db->prepare("SELECT id, nome AS label FROM editori WHERE nome LIKE ? ORDER BY nome LIMIT 5");
+        $stmt->bind_param('s', $s);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        while ($row = $res->fetch_assoc()) {
+            $results[] = [
+                'id' => $row['id'],
+                'label' => HtmlHelper::decode($row['label']),
+                'type' => 'publisher',
+                'url' => '/admin/editori/' . $row['id']
+            ];
+        }
+        
+        return $results;
+    }
+    
+    private function searchUsers(mysqli $db, string $query): array
+    {
+        $results = [];
+        $s = '%'.$query.'%';
+        
+        $stmt = $db->prepare("SELECT id, CONCAT(nome,' ',cognome) AS label FROM utenti WHERE nome LIKE ? OR cognome LIKE ? ORDER BY cognome, nome LIMIT 5");
+        $stmt->bind_param('ss', $s, $s);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        while ($row = $res->fetch_assoc()) {
+            $results[] = [
+                'id' => $row['id'],
+                'label' => HtmlHelper::decode($row['label']),
+                'type' => 'user',
+                'url' => '/admin/utenti/' . $row['id']
+            ];
+        }
+        
+        return $results;
+    }
+
+    private function searchBooksWithDetails(mysqli $db, string $query): array
+    {
+        $results = [];
+        $s = '%'.$query.'%';
+
+        // Search books with author and cover details for preview
+        // Include books where the title, subtitle, ISBN, OR author name matches
+        $stmt = $db->prepare("
+            SELECT DISTINCT l.id, l.titolo, l.copertina_url, l.anno_pubblicazione,
+                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale
+            FROM libri l
+            LEFT JOIN libri_autori la ON l.id = la.libro_id
+            LEFT JOIN autori a ON la.autore_id = a.id
+            WHERE l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR a.nome LIKE ?
+            ORDER BY l.titolo LIMIT 8
+        ");
+        $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        while ($row = $res->fetch_assoc()) {
+            $coverUrl = $row['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
+            $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl :
+                ((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $coverUrl);
+
+            $results[] = [
+                'id' => $row['id'],
+                'title' => HtmlHelper::decode($row['titolo']),
+                'author' => HtmlHelper::decode($row['autore_principale'] ?? ''),
+                'year' => $row['anno_pubblicazione'],
+                'cover' => $absoluteCoverUrl,
+                'type' => 'book',
+                'url' => book_url([
+                    'id' => $row['id'],
+                    'titolo' => $row['titolo'],
+                    'autore_principale' => $row['autore_principale'] ?? ''
+                ])
+            ];
+        }
+
+        return $results;
+    }
+
+    private function searchAuthorsWithDetails(mysqli $db, string $query): array
+    {
+        $results = [];
+        $s = '%'.$query.'%';
+
+        $stmt = $db->prepare("
+            SELECT a.id, a.nome, a.biografia,
+                   COUNT(la.libro_id) as libro_count
+            FROM autori a
+            LEFT JOIN libri_autori la ON a.id = la.autore_id
+            WHERE a.nome LIKE ?
+            GROUP BY a.id, a.nome, a.biografia
+            ORDER BY a.nome LIMIT 4
+        ");
+        $stmt->bind_param('s', $s);
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        while ($row = $res->fetch_assoc()) {
+            $biografia = $row['biografia'] ? substr(strip_tags(HtmlHelper::decode($row['biografia'])), 0, 100) . '...' : '';
+
+            $results[] = [
+                'id' => $row['id'],
+                'name' => HtmlHelper::decode($row['nome']),
+                'biography' => $biografia,
+                'book_count' => (int)$row['libro_count'],
+                'type' => 'author',
+                'url' => '/autore/' . $row['id']
+            ];
+        }
+
+        return $results;
+    }
+
+    private function searchPublishersWithDetails(mysqli $db, string $query): array
+    {
+        $results = [];
+        $s = '%'.$query.'%';
+
+        $stmt = $db->prepare("
+            SELECT e.id, e.nome, e.indirizzo,
+                   COUNT(l.id) as libro_count
+            FROM editori e
+            LEFT JOIN libri l ON e.id = l.editore_id
+            WHERE e.nome LIKE ?
+            GROUP BY e.id, e.nome, e.indirizzo
+            ORDER BY e.nome LIMIT 3
+        ");
+        $stmt->bind_param('s', $s);
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        while ($row = $res->fetch_assoc()) {
+            $indirizzo = $row['indirizzo'] ? substr(strip_tags(HtmlHelper::decode($row['indirizzo'])), 0, 100) . '...' : '';
+
+            $results[] = [
+                'id' => $row['id'],
+                'name' => HtmlHelper::decode($row['nome']),
+                'description' => $indirizzo,
+                'book_count' => (int)$row['libro_count'],
+                'type' => 'publisher',
+                'url' => '/editore/' . $row['id']
+            ];
+        }
+
+        return $results;
+    }
+
+    public function genres(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $rows=[];
+        if ($q !== '') {
+            $s = '%'.$q.'%';
+            $stmt = $db->prepare("SELECT id, nome AS label FROM generi WHERE nome LIKE ? ORDER BY nome LIMIT 20");
+            $stmt->bind_param('s', $s);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) {
+                $r['label'] = HtmlHelper::decode($r['label']);
+                $rows[] = $r;
+            }
+        }
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function locations(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $rows=[];
+        if ($q !== '') {
+            $s = '%'.$q.'%';
+            $stmt = $db->prepare("SELECT id, CONCAT(nome, COALESCE(CONCAT(' - ', posizione), '')) AS label FROM collocazione WHERE nome LIKE ? OR posizione LIKE ? ORDER BY nome, posizione LIMIT 20");
+            $stmt->bind_param('ss', $s, $s);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) {
+                $r['label'] = HtmlHelper::decode($r['label']);
+                $rows[] = $r;
+            }
+        }
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+}

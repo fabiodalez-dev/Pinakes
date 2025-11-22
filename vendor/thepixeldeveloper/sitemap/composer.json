@@ -1,0 +1,35 @@
+{
+	"name": "thepixeldeveloper/sitemap",
+	"type": "library",
+	"description": "PHP XML sitemap generation",
+	"keywords": ["php", "sitemap", "xml", "sitemap-php", "sitemap-builder", "sitemap-generator", "sitemap-xml", "xml-sitemap"],
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Mathew Davies",
+			"role": "Developer"
+		}
+	],
+	"require": {
+		"php": ">=7.1"
+	},
+	"require-dev": {
+		"phpunit/phpunit": "^7",
+		"phpstan/phpstan": "^0",
+		"phpstan/phpstan-phpunit": "^0"
+	},
+	"autoload": {
+		"psr-4": {
+			"Thepixeldeveloper\\Sitemap\\": "src/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"Tests\\Thepixeldeveloper\\Sitemap\\": "tests/"
+		}
+	},
+	"scripts": {
+		"test": "phpdbg -qrr vendor/bin/phpunit --coverage-text --colors=never --coverage-html ./coverage",
+		"lint": "phpstan analyse src tests --level=7 -c phpstan.neon"
+	}
+}
