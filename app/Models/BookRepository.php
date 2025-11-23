@@ -824,4 +824,107 @@ class BookRepository
         }
         return $this->enumCache[$key] = $opts;
     }
+
+    public function findAllForCsvExport(array $filters = []): \mysqli_result
+    {
+        $search = $filters['search'] ?? '';
+        $stato = $filters['stato'] ?? '';
+        $editoreId = isset($filters['editore_id']) && is_numeric($filters['editore_id']) ? (int)$filters['editore_id'] : 0;
+        $genereId = isset($filters['genere_id']) && is_numeric($filters['genere_id']) ? (int)$filters['genere_id'] : 0;
+        $autoreId = isset($filters['autore_id']) && is_numeric($filters['autore_id']) ? (int)$filters['autore_id'] : 0;
+
+        $whereClauses = [];
+        $bindTypes = '';
+        $bindValues = [];
+
+        if (!empty($search)) {
+            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
+            $searchParam = "%{$search}%";
+            for ($i = 0; $i < 6; $i++) {
+                $bindTypes .= 's';
+                $bindValues[] = $searchParam;
+            }
+        }
+
+        if (!empty($stato)) {
+            $whereClauses[] = "l.stato = ?";
+            $bindTypes .= 's';
+            $bindValues[] = $stato;
+        }
+
+        if ($editoreId > 0) {
+            $whereClauses[] = "l.editore_id = ?";
+            $bindTypes .= 'i';
+            $bindValues[] = $editoreId;
+        }
+
+        if ($genereId > 0) {
+            $whereClauses[] = "l.genere_id = ?";
+            $bindTypes .= 'i';
+            $bindValues[] = $genereId;
+        }
+
+        if ($autoreId > 0) {
+            $whereClauses[] = "la.autore_id = ?";
+            $bindTypes .= 'i';
+            $bindValues[] = $autoreId;
+        }
+
+        $query = "
+            SELECT
+                l.*,
+                GROUP_CONCAT(DISTINCT a.nome ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
+                e.nome as editore_nome,
+                g.nome as genere_nome
+            FROM libri l
+            LEFT JOIN libri_autori la ON l.id = la.libro_id
+            LEFT JOIN autori a ON la.autore_id = a.id
+            LEFT JOIN editori e ON l.editore_id = e.id
+            LEFT JOIN generi g ON l.genere_id = g.id
+        ";
+
+        if (!empty($whereClauses)) {
+            $query .= " WHERE " . implode(' AND ', $whereClauses);
+        }
+
+        $query .= " GROUP BY l.id ORDER BY l.id DESC";
+
+        if (!empty($bindValues)) {
+            $stmt = $this->db->prepare($query);
+            $refs = [];
+            foreach ($bindValues as $key => $value) {
+                $refs[$key] = &$bindValues[$key];
+            }
+            array_unshift($refs, $bindTypes);
+            call_user_func_array([$stmt, 'bind_param'], $refs);
+            $stmt->execute();
+            return $stmt->get_result();
+        } else {
+            return $this->db->query($query);
+        }
+    }
+
+    public function findBooksToSyncCovers(): array
+    {
+        $query = "SELECT id, isbn13, isbn10, titolo
+                  FROM libri
+                  WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
+                    AND (copertina_url IS NULL OR copertina_url = '')
+                  ORDER BY id DESC";
+
+        $result = $this->db->query($query);
+        $books = [];
+        while ($row = $result->fetch_assoc()) {
+            $books[] = $row;
+        }
+        return $books;
+    }
+
+    public function updateCoverUrl(int $bookId, string $coverUrl): void
+    {
+        $stmt = $this->db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
+        $stmt->bind_param('si', $coverUrl, $bookId);
+        $stmt->execute();
+        $stmt->close();
+    }
 }

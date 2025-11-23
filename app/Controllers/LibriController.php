@@ -1215,134 +1215,21 @@ class LibriController
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
         $repo = new \App\Models\BookRepository($db);
-
-        // Get filters from query parameters
         $params = $request->getQueryParams();
-        $search = $params['search'] ?? '';
-        $stato = $params['stato'] ?? '';
-        $editoreId = isset($params['editore_id']) && is_numeric($params['editore_id']) ? (int)$params['editore_id'] : 0;
-        $genereId = isset($params['genere_id']) && is_numeric($params['genere_id']) ? (int)$params['genere_id'] : 0;
-        $autoreId = isset($params['autore_id']) && is_numeric($params['autore_id']) ? (int)$params['autore_id'] : 0;
+        $result = $repo->findAllForCsvExport($params);
 
-        // Build WHERE clause based on filters
-        $whereClauses = [];
-        $bindTypes = '';
-        $bindValues = [];
-
-        // Global search filter
-        if (!empty($search)) {
-            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
-            $searchParam = "%{$search}%";
-            for ($i = 0; $i < 6; $i++) {
-                $bindTypes .= 's';
-                $bindValues[] = $searchParam;
-            }
-        }
-
-        // Status filter
-        if (!empty($stato)) {
-            $whereClauses[] = "l.stato = ?";
-            $bindTypes .= 's';
-            $bindValues[] = $stato;
-        }
-
-        // Editore filter
-        if ($editoreId > 0) {
-            $whereClauses[] = "l.editore_id = ?";
-            $bindTypes .= 'i';
-            $bindValues[] = $editoreId;
-        }
-
-        // Genere filter
-        if ($genereId > 0) {
-            $whereClauses[] = "l.genere_id = ?";
-            $bindTypes .= 'i';
-            $bindValues[] = $genereId;
-        }
-
-        // Autore filter
-        if ($autoreId > 0) {
-            $whereClauses[] = "la.autore_id = ?";
-            $bindTypes .= 'i';
-            $bindValues[] = $autoreId;
-        }
-
-        // Build the query
-        $query = "
-            SELECT
-                l.*,
-                GROUP_CONCAT(DISTINCT a.nome ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
-                e.nome as editore_nome,
-                g.nome as genere_nome
-            FROM libri l
-            LEFT JOIN libri_autori la ON l.id = la.libro_id
-            LEFT JOIN autori a ON la.autore_id = a.id
-            LEFT JOIN editori e ON l.editore_id = e.id
-            LEFT JOIN generi g ON l.genere_id = g.id
-        ";
-
-        if (!empty($whereClauses)) {
-            $query .= " WHERE " . implode(' AND ', $whereClauses);
-        }
-
-        $query .= " GROUP BY l.id ORDER BY l.id DESC";
-
-        // Execute query with prepared statement if filters are applied
-        if (!empty($bindValues)) {
-            $stmt = $db->prepare($query);
-            $refs = [];
-            foreach ($bindValues as $key => $value) {
-                $refs[$key] = &$bindValues[$key];
-            }
-            array_unshift($refs, $bindTypes);
-            call_user_func_array([$stmt, 'bind_param'], $refs);
-            $stmt->execute();
-            $result = $stmt->get_result();
-        } else {
-            $result = $db->query($query);
-        }
-
-        $libri = [];
-        while ($row = $result->fetch_assoc()) {
-            $libri[] = $row;
-        }
-
-        if (isset($stmt)) {
-            $stmt->close();
-        }
-
-        // Generate CSV with same format as import
         $headers = [
-            'id',
-            'isbn10',
-            'isbn13',
-            'ean',
-            'titolo',
-            'sottotitolo',
-            'autori',
-            'editore',
-            'anno_pubblicazione',
-            'lingua',
-            'edizione',
-            'numero_pagine',
-            'genere',
-            'descrizione',
-            'formato',
-            'prezzo',
-            'copie_totali',
-            'collana',
-            'numero_serie',
-            'traduttore',
-            'parole_chiave'
+            'id', 'isbn10', 'isbn13', 'ean', 'titolo', 'sottotitolo', 'autori',
+            'editore', 'anno_pubblicazione', 'lingua', 'edizione', 'numero_pagine',
+            'genere', 'descrizione', 'formato', 'prezzo', 'copie_totali', 'collana',
+            'numero_serie', 'traduttore', 'parole_chiave'
         ];
 
-        $output = "\xEF\xBB\xBF"; // UTF-8 BOM
-        $output .= implode(';', $headers) . "\n";
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, "\xEF\xBB\xBF");
+        fputcsv($stream, $headers, ';');
 
-        foreach ($libri as $libro) {
-            // Use anno_pubblicazione directly (SMALLINT UNSIGNED type in DB, range 0-65535)
-            $anno = $libro['anno_pubblicazione'] ?? '';
-
+        while ($libro = $result->fetch_assoc()) {
             $row = [
                 $libro['id'] ?? '',
                 $libro['isbn10'] ?? '',
@@ -1352,7 +1239,7 @@ class LibriController
                 $libro['sottotitolo'] ?? '',
                 $libro['autori_nomi'] ?? '',
                 $libro['editore_nome'] ?? '',
-                $anno,
+                $libro['anno_pubblicazione'] ?? '',
                 $libro['lingua'] ?? '',
                 $libro['edizione'] ?? '',
                 $libro['numero_pagine'] ?? '',
@@ -1366,32 +1253,19 @@ class LibriController
                 $libro['traduttore'] ?? '',
                 $libro['parole_chiave'] ?? ''
             ];
-
-            // Escape fields for CSV
-            $escapedRow = array_map(function($field) {
-                $field = str_replace('"', '""', (string)$field);
-                // Only quote if contains semicolon, newline, or quotes
-                if (strpos($field, ';') !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
-                    return '"' . $field . '"';
-                }
-                return $field;
-            }, $row);
-
-            $output .= implode(';', $escapedRow) . "\n";
+            fputcsv($stream, $row, ';');
         }
 
-        $stream = fopen('php://temp', 'r+');
-        fwrite($stream, $output);
-        rewind($stream);
+        if (is_object($result)) {
+            $result->close();
+        }
 
+        rewind($stream);
         $filename = 'libri_export_' . date('Y-m-d_His') . '.csv';
 
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=UTF-8')
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
-            ->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-            ->withHeader('Pragma', 'no-cache')
-            ->withHeader('Expires', '0')
             ->withBody(new \Slim\Psr7\Stream($stream));
     }
 
@@ -1402,22 +1276,11 @@ class LibriController
     {
         set_time_limit(600); // 10 minutes max
 
+        $bookRepo = new \App\Models\BookRepository($db);
+        $books = $bookRepo->findBooksToSyncCovers();
         $synced = 0;
         $skipped = 0;
         $errors = 0;
-
-        // Find all books with ISBN but without cover
-        $query = "SELECT id, isbn13, isbn10, titolo
-                  FROM libri
-                  WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
-                    AND (copertina_url IS NULL OR copertina_url = '')
-                  ORDER BY id DESC";
-
-        $result = $db->query($query);
-        $books = [];
-        while ($row = $result->fetch_assoc()) {
-            $books[] = $row;
-        }
 
         error_log("[Cover Sync] Found " . count($books) . " books without covers");
 
@@ -1432,16 +1295,10 @@ class LibriController
             try {
                 error_log("[Cover Sync] Attempting to scrape cover for book ID {$book['id']}, ISBN: $isbn");
 
-                // Use scraping controller to get book data
                 $scrapedData = $this->scrapeBookCover($isbn);
 
                 if (!empty($scrapedData['image'])) {
-                    // Update only cover URL
-                    $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
-                    $stmt->bind_param('si', $scrapedData['image'], $book['id']);
-                    $stmt->execute();
-                    $stmt->close();
-
+                    $bookRepo->updateCoverUrl($book['id'], $scrapedData['image']);
                     $synced++;
                     error_log("[Cover Sync] Cover updated for book ID {$book['id']}: {$scrapedData['image']}");
                 } else {
@@ -1449,7 +1306,6 @@ class LibriController
                     error_log("[Cover Sync] No cover found for book ID {$book['id']}, ISBN: $isbn");
                 }
 
-                // Rate limiting: wait 2 seconds between requests
                 sleep(2);
 
             } catch (\Exception $e) {
@@ -1474,61 +1330,15 @@ class LibriController
      */
     private function scrapeBookCover(string $isbn): array
     {
-        $scrapeController = new \App\Controllers\ScrapeController();
-        $maxAttempts = 3;
-        $delaySeconds = 1;
+        $scraper = new \App\Support\ScrapingService();
+        $result = $scraper->byIsbn($isbn);
 
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                // Build a fresh request for every attempt
-                $serverParams = ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/scrape/isbn'];
-                $queryParams = ['isbn' => $isbn];
-
-                $request = new \Slim\Psr7\Request(
-                    'GET',
-                    new \Slim\Psr7\Uri('http', 'localhost', null, '/scrape/isbn'),
-                    new \Slim\Psr7\Headers(),
-                    [],
-                    $serverParams,
-                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
-                );
-
-                $request = $request->withQueryParams($queryParams);
-                $response = new \Slim\Psr7\Response();
-                $response = $scrapeController->byIsbn($request, $response);
-
-                if ($response->getStatusCode() === 200) {
-                    $body = (string)$response->getBody();
-                    $data = json_decode($body, true);
-
-                    // Return only image data
-                    return [
-                        'image' => $data['image'] ?? null
-                    ];
-                }
-
-                error_log(sprintf(
-                    '[Cover Sync] Scraping attempt %d/%d failed for ISBN %s with status %d',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $response->getStatusCode()
-                ));
-            } catch (\Throwable $scrapeException) {
-                error_log(sprintf(
-                    '[Cover Sync] Scraping attempt %d/%d threw for ISBN %s: %s',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $scrapeException->getMessage()
-                ));
-            }
-
-            if ($attempt < $maxAttempts) {
-                sleep($delaySeconds);
-            }
+        if (isset($result['error'])) {
+            return [];
         }
 
-        return [];
+        return [
+            'image' => $result['image'] ?? null,
+        ];
     }
 }
