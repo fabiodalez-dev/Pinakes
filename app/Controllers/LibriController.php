@@ -16,11 +16,10 @@ class LibriController
         // SECURITY: Logging disabilitato in produzione per prevenire information disclosure
         if (getenv('APP_ENV') === 'development') {
             $file = __DIR__ . '/../../storage/cover_debug.log';
-            // Sanitizza dati sensibili prima di loggare
             $sanitized = $data;
             unset($sanitized['password'], $sanitized['token'], $sanitized['csrf_token']);
             $line = date('Y-m-d H:i:s') . " [$label] " . json_encode($sanitized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
-            @file_put_contents($file, $line, FILE_APPEND);
+            file_put_contents($file, $line, FILE_APPEND);
         }
     }
     public function index(Request $request, Response $response, mysqli $db): Response
@@ -55,37 +54,7 @@ class LibriController
         $copyRepo = new \App\Models\CopyRepository($db);
         $copie = $copyRepo->getByBookId($id);
 
-        // Get loan history for this book
-        $loanHistoryQuery = "
-            SELECT
-                p.id,
-                p.data_prestito,
-                p.data_scadenza,
-                p.data_restituzione,
-                p.stato,
-                p.renewals,
-                p.note,
-                u.nome as utente_nome,
-                u.cognome as utente_cognome,
-                u.email as utente_email,
-                u.id as utente_id,
-                staff.nome as staff_nome,
-                staff.cognome as staff_cognome
-            FROM prestiti p
-            LEFT JOIN utenti u ON p.utente_id = u.id
-            LEFT JOIN utenti staff ON p.processed_by = staff.id
-            WHERE p.libro_id = ?
-            ORDER BY p.data_prestito DESC
-        ";
-        $stmt = $db->prepare($loanHistoryQuery);
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $loanHistory = [];
-        while ($row = $result->fetch_assoc()) {
-            $loanHistory[] = $row;
-        }
-        $stmt->close();
+        $loanHistory = $loanRepo->getLoanHistoryByBookId($id);
 
         ob_start();
         // extract([
@@ -133,22 +102,7 @@ class LibriController
         // SECURITY: Debug logging rimosso per prevenire information disclosure
         // Il logging dettagliato è disponibile solo in ambiente development tramite AppLog
         
-        // Merge all supported fields with defaults
-        $fields = [
-            'titolo'=>'', 'sottotitolo'=>'', 'isbn10'=>'', 'isbn13'=>'', 'ean'=>'',
-            'genere_id'=>0, 'sottogenere_id'=>0, 'editore_id'=>0,
-            'data_acquisizione'=>null, 'tipo_acquisizione'=>'', 'descrizione'=>'', 'parole_chiave'=>'',
-            'formato'=>'', 'peso'=>null, 'dimensioni'=>'', 'prezzo'=>null,
-            'copie_totali'=>1, 'copie_disponibili'=>1, 'numero_inventario'=>'',
-            'classificazione_dowey'=>'', 'collana'=>'', 'numero_serie'=>'', 'note_varie'=>'',
-            'file_url'=>'', 'audio_url'=>'', 'copertina_url'=>'',
-            'scaffale_id'=>0, 'mensola_id'=>0, 'posizione_progressiva'=>0,
-            'posizione_id'=>0, 'collocazione'=>'', 'stato'=>'',
-            'lingua'=>'', 'anno_pubblicazione'=>null, 'edizione'=>'', 'data_pubblicazione'=>'', 'traduttore'=>''
-        ];
-        foreach ($fields as $k=>$v) { if (array_key_exists($k, $data)) $fields[$k] = $data[$k]; }
-
-        // Merge scraped subtitle and notes if present
+        $fields = $this->_prepareBookData($data, $db);
         $subtitleFromScrape = trim((string)($data['subtitle'] ?? ''));
         if ($subtitleFromScrape !== '') {
             $fields['sottotitolo'] = $subtitleFromScrape;
@@ -180,61 +134,6 @@ class LibriController
             }
             $fields['note_varie'] = implode("\n", $uniqueNotes);
         }
-
-        // Sanitize ISBN/EAN: strip spaces and dashes (server-side safety)
-        foreach (['isbn10','isbn13','ean'] as $codeKey) {
-            if (isset($fields[$codeKey])) {
-                $fields[$codeKey] = preg_replace('/[\s-]+/', '', (string)$fields[$codeKey]);
-            }
-        }
-
-        // Convert 0 to NULL for optional foreign keys to avoid constraint failures
-        $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int)$fields['editore_id'];
-        $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int)$fields['genere_id'];
-        $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int)$fields['sottogenere_id'];
-        $fields['copie_totali'] = (int)$fields['copie_totali'];
-        // Add bounds checking to prevent integer overflow
-        if ($fields['copie_totali'] < 1) {
-            $fields['copie_totali'] = 1;
-        } elseif ($fields['copie_totali'] > 9999) {
-            $fields['copie_totali'] = 9999;
-        }
-        // In creazione, copie_disponibili = copie_totali (le copie sono tutte nuove e disponibili)
-        $fields['copie_disponibili'] = $fields['copie_totali'];
-        $fields['scaffale_id'] = empty($fields['scaffale_id']) ? null : (int)$fields['scaffale_id'];
-        $fields['mensola_id'] = empty($fields['mensola_id']) ? null : (int)$fields['mensola_id'];
-        $fields['posizione_progressiva'] = isset($fields['posizione_progressiva']) && $fields['posizione_progressiva'] !== '' ? (int)$fields['posizione_progressiva'] : null;
-        $fields['posizione_id'] = null;
-        $fields['peso'] = $fields['peso'] !== null && $fields['peso'] !== '' ? (float)$fields['peso'] : null;
-        $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float)$fields['prezzo'] : null;
-        if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
-            $fields['copertina_url'] = null;
-        }
-
-        // Ensure hierarchical consistency between genere_id (parent) and sottogenere_id (child)
-        try {
-            $genRepoTmp = new \App\Models\GenereRepository($db);
-            if (!empty($fields['sottogenere_id'])) {
-                $sub = $genRepoTmp->getById((int)$fields['sottogenere_id']);
-                if ($sub && !empty($sub['parent_id'])) {
-                    $fields['genere_id'] = (int)$sub['parent_id'];
-                }
-            } elseif (!empty($fields['genere_id'])) {
-                // If a leaf has been posted as genere, promote its parent
-                $g = $genRepoTmp->getById((int)$fields['genere_id']);
-                if ($g && !empty($g['parent_id'])) {
-                    // Posted value is actually a child; move it to sottogenere and set its parent as genere
-                    $fields['sottogenere_id'] = (int)$fields['genere_id'];
-                    $fields['genere_id'] = (int)$g['parent_id'];
-                }
-            }
-        } catch (\Throwable $e) {
-            // fail-safe: ignore and continue
-        }
-
-
-        // DEBUG: Log field processing for store method
-        // SECURITY: Logging disabilitato in produzione per prevenire information disclosure
         if (getenv('APP_ENV') === 'development') {
             $debugFile = __DIR__ . '/../../storage/field_debug.log';
             $debugEntry = "FIELD PROCESSING (STORE):\n";
@@ -244,10 +143,9 @@ class LibriController
                 if (strlen($displayValue) > 100) $displayValue = substr($displayValue, 0, 100) . '...';
                 $debugEntry .= "  {$key} ({$type}): '{$displayValue}'\n";
             }
-            @file_put_contents($debugFile, $debugEntry, FILE_APPEND);
+            file_put_contents($debugFile, $debugEntry, FILE_APPEND);
         }
         
-        // Duplicate check on identifiers (EAN/ISBN)
         $codes = [];
         foreach (['isbn10','isbn13','ean'] as $k) {
             $v = trim((string)($fields[$k] ?? ''));
@@ -262,7 +160,6 @@ class LibriController
             $stmt->execute();
             $dup = $stmt->get_result()->fetch_assoc();
             if ($dup) {
-                // Return JSON with duplicate book info for frontend to handle
                 $response->getBody()->write(json_encode([
                     'error' => 'duplicate',
                     'message' => __('Esiste già un libro con lo stesso identificatore (ISBN/EAN).'),
@@ -279,110 +176,6 @@ class LibriController
         }
 
         $repo = new \App\Models\BookRepository($db);
-        $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
-
-        // Gestione autori nuovi da creare
-        if (!empty($data['autori_new'])) {
-            $authRepo = new \App\Models\AuthorRepository($db);
-            foreach ((array)$data['autori_new'] as $nomeCompleto) {
-                $nomeCompleto = trim((string)$nomeCompleto);
-                if ($nomeCompleto !== '') {
-                    $authorId = $authRepo->create([
-                        'nome' => $nomeCompleto,
-                        'pseudonimo' => '',
-                        'data_nascita' => null,
-                        'data_morte' => null,
-                        'nazionalita' => '',
-                        'biografia' => '',
-                        'sito_web' => ''
-                    ]);
-                    $fields['autori_ids'][] = $authorId;
-                }
-            }
-        }
-        
-        // Auto-create author from scraped data if no authors selected
-        if (empty($fields['autori_ids']) && !empty($data['scraped_author'])) {
-            $authRepo = new \App\Models\AuthorRepository($db);
-            $scrapedAuthor = trim((string)$data['scraped_author']);
-            if ($scrapedAuthor !== '') {
-                $found = $authRepo->findByName($scrapedAuthor);
-                if ($found) {
-                    $fields['autori_ids'][] = $found;
-                } else {
-                    $authorId = $authRepo->create([
-                        'nome' => $scrapedAuthor,
-                        'pseudonimo' => '',
-                        'data_nascita' => null,
-                        'data_morte' => null,
-                        'nazionalita' => '',
-                        'biografia' => '',
-                        'sito_web' => ''
-                    ]);
-                    $fields['autori_ids'][] = $authorId;
-                }
-            }
-        }
-        
-        // Handle publisher auto-creation from manual entry or scraped data
-        if ((int)$fields['editore_id'] === 0) {
-            $pubRepo = new \App\Models\PublisherRepository($db);
-            $publisherName = '';
-
-            // First try manual entry (editore_search field)
-            if (!empty($data['editore_search'])) {
-                $publisherName = trim((string)$data['editore_search']);
-            }
-            // Fall back to scraped data
-            elseif (!empty($data['scraped_publisher'])) {
-                $publisherName = trim((string)$data['scraped_publisher']);
-            }
-
-            if ($publisherName !== '') {
-                $found = $pubRepo->findByName($publisherName);
-                if ($found) {
-                    $fields['editore_id'] = $found;
-                } else {
-                    $fields['editore_id'] = $pubRepo->create(['nome' => $publisherName, 'sito_web' => '']);
-                }
-            }
-        }
-
-        // Handle genere auto-creation from manual entry
-        if ((int)$fields['genere_id'] === 0 && !empty($data['genere_search'])) {
-            $genereRepo = new \App\Models\GenereRepository($db);
-            $genereName = trim((string)$data['genere_search']);
-
-            if ($genereName !== '') {
-                $found = $genereRepo->findByName($genereName);
-                if ($found) {
-                    $fields['genere_id'] = $found;
-                } else {
-                    $fields['genere_id'] = $genereRepo->create(['nome' => $genereName]);
-                }
-            }
-        }
-
-        // Handle sottogenere auto-creation from manual entry
-        if ((int)$fields['sottogenere_id'] === 0 && !empty($data['sottogenere_search'])) {
-            $genereRepo = new \App\Models\GenereRepository($db);
-            $sottogenereName = trim((string)$data['sottogenere_search']);
-
-            if ($sottogenereName !== '') {
-                // If we have a parent genere, use it
-                $parent_id = !empty($fields['genere_id']) ? (int)$fields['genere_id'] : null;
-
-                $found = $genereRepo->findByName($sottogenereName, $parent_id);
-                if ($found) {
-                    $fields['sottogenere_id'] = $found;
-                } else {
-                    $fields['sottogenere_id'] = $genereRepo->create([
-                        'nome' => $sottogenereName,
-                        'parent_id' => $parent_id
-                    ]);
-                }
-            }
-        }
         $collRepo = new \App\Models\CollocationRepository($db);
         if ($fields['scaffale_id'] && $fields['mensola_id']) {
             $pos = $fields['posizione_progressiva'] ?? null;
@@ -470,28 +263,8 @@ class LibriController
         $repo = new \App\Models\BookRepository($db);
         $currentBook = $repo->getById($id);
         if (!$currentBook) { return $response->withStatus(404); }
-        $fields = [
-            'titolo'=>'', 'sottotitolo'=>'', 'isbn10'=>'', 'isbn13'=>'', 'ean'=>'',
-            'genere_id'=>0, 'sottogenere_id'=>0, 'editore_id'=>0,
-            'data_acquisizione'=>null, 'tipo_acquisizione'=>'', 'descrizione'=>'', 'parole_chiave'=>'',
-            'formato'=>'', 'peso'=>null, 'dimensioni'=>'', 'prezzo'=>null,
-            'copie_totali'=>1, 'copie_disponibili'=>1, 'numero_inventario'=>'',
-            'classificazione_dowey'=>'', 'collana'=>'', 'numero_serie'=>'', 'note_varie'=>'',
-            'file_url'=>'', 'audio_url'=>'', 'copertina_url'=>'',
-            'scaffale_id'=>0, 'mensola_id'=>0, 'posizione_progressiva'=>0,
-            'posizione_id'=>0, 'collocazione'=>'', 'stato'=>'',
-            'lingua'=>'', 'anno_pubblicazione'=>null, 'edizione'=>'', 'data_pubblicazione'=>'', 'traduttore'=>''
-        ];
-        foreach ($fields as $k=>$v) { if (array_key_exists($k, $data)) $fields[$k] = $data[$k]; }
 
-        // Sanitize ISBN/EAN on update as well
-        foreach (['isbn10','isbn13','ean'] as $codeKey) {
-            if (isset($fields[$codeKey])) {
-                $fields[$codeKey] = preg_replace('/[\s-]+/', '', (string)$fields[$codeKey]);
-            }
-        }
-
-        // Merge scraped subtitle and notes if present
+        $fields = $this->_prepareBookData($data, $db);
         $subtitleFromScrape = trim((string)($data['subtitle'] ?? ''));
         if ($subtitleFromScrape !== '' && trim((string)($fields['sottotitolo'] ?? '')) === '') {
             $fields['sottotitolo'] = $subtitleFromScrape;
@@ -523,20 +296,11 @@ class LibriController
             }
             $fields['note_varie'] = implode("\n", $uniqueNotes);
         }
-
-        // Convert 0 to NULL for optional foreign keys to avoid constraint failures
-        $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int)$fields['editore_id'];
-        $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int)$fields['genere_id'];
-        $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int)$fields['sottogenere_id'];
-        $fields['copie_totali'] = (int)$fields['copie_totali'];
-
-        // Validazione copie: verifica che sia possibile ridurre il numero di copie
         $copyRepo = new \App\Models\CopyRepository($db);
         $currentCopieCount = $copyRepo->countByBookId($id);
         $newCopieCount = $fields['copie_totali'];
 
         if ($newCopieCount < $currentCopieCount) {
-            // Conta quante copie sono disponibili per la rimozione
             $copie = $copyRepo->getByBookId($id);
             $removableCopies = 0;
             $nonRemovableCopies = 0;
@@ -562,53 +326,22 @@ class LibriController
             }
         }
 
-        // Non aggiorniamo copie_disponibili dall'utente, sarà ricalcolato automaticamente
         unset($fields['copie_disponibili']);
 
-        $fields['scaffale_id'] = empty($fields['scaffale_id']) || $fields['scaffale_id'] == 0 ? null : (int)$fields['scaffale_id'];
-        $fields['mensola_id'] = empty($fields['mensola_id']) || $fields['mensola_id'] == 0 ? null : (int)$fields['mensola_id'];
-        $fields['posizione_progressiva'] = isset($fields['posizione_progressiva']) && $fields['posizione_progressiva'] !== '' ? (int)$fields['posizione_progressiva'] : null;
-        $fields['posizione_id'] = null;
-        $fields['peso'] = $fields['peso'] !== null && $fields['peso'] !== '' ? (float)$fields['peso'] : null;
-        $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float)$fields['prezzo'] : null;
-
-        // Gestione rimozione copertina
         if (isset($data['remove_cover']) && $data['remove_cover'] === '1') {
-            // Cancella il file della copertina esistente se presente
             if (!empty($currentBook['copertina_url'])) {
                 $oldCoverPath = $currentBook['copertina_url'];
-                // Solo se è un file locale (non URL esterno)
                 if (strpos($oldCoverPath, '/uploads/') === 0) {
                     $fullPath = __DIR__ . '/../../public' . $oldCoverPath;
                     if (file_exists($fullPath)) {
-                        @unlink($fullPath);
+                        unlink($fullPath);
                     }
                 }
             }
-            // Imposta a NULL per rimuovere dal database
             $fields['copertina_url'] = null;
         } elseif ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
         }
-
-        // Ensure hierarchical consistency between genere_id and sottogenere_id also on update
-        try {
-            $genRepoTmp = new \App\Models\GenereRepository($db);
-            if (!empty($fields['sottogenere_id'])) {
-                $sub = $genRepoTmp->getById((int)$fields['sottogenere_id']);
-                if ($sub && !empty($sub['parent_id'])) {
-                    $fields['genere_id'] = (int)$sub['parent_id'];
-                }
-            } elseif (!empty($fields['genere_id'])) {
-                $g = $genRepoTmp->getById((int)$fields['genere_id']);
-                if ($g && !empty($g['parent_id'])) {
-                    $fields['sottogenere_id'] = (int)$fields['genere_id'];
-                    $fields['genere_id'] = (int)$g['parent_id'];
-                }
-            }
-        } catch (\Throwable $e) { /* ignore */ }
-        
-        // Duplicate check on update (exclude current record)
         $codes = [];
         foreach (['isbn10','isbn13','ean'] as $k) {
             $v = trim((string)($fields[$k] ?? ''));
@@ -642,7 +375,6 @@ class LibriController
                 return $response->withStatus(409);
             }
         }
-        $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
 
         $collRepo = new \App\Models\CollocationRepository($db);
         if ($fields['scaffale_id'] && $fields['mensola_id']) {
@@ -657,109 +389,6 @@ class LibriController
         } else {
             $fields['posizione_progressiva'] = null;
             $fields['collocazione'] = '';
-        }
-        
-        // Gestione autori nuovi da creare
-        if (!empty($data['autori_new'])) {
-            $authRepo = new \App\Models\AuthorRepository($db);
-            foreach ((array)$data['autori_new'] as $nomeCompleto) {
-                $nomeCompleto = trim((string)$nomeCompleto);
-                if ($nomeCompleto !== '') {
-                    $authorId = $authRepo->create([
-                        'nome' => $nomeCompleto,
-                        'pseudonimo' => '',
-                        'data_nascita' => null,
-                        'data_morte' => null,
-                        'nazionalita' => '',
-                        'biografia' => '',
-                        'sito_web' => ''
-                    ]);
-                    $fields['autori_ids'][] = $authorId;
-                }
-            }
-        }
-        
-        // Auto-create author from scraped data if no authors selected
-        if (empty($fields['autori_ids']) && !empty($data['scraped_author'])) {
-            $authRepo = new \App\Models\AuthorRepository($db);
-            $scrapedAuthor = trim((string)$data['scraped_author']);
-            if ($scrapedAuthor !== '') {
-                $found = $authRepo->findByName($scrapedAuthor);
-                if ($found) {
-                    $fields['autori_ids'][] = $found;
-                } else {
-                    $authorId = $authRepo->create([
-                        'nome' => $scrapedAuthor,
-                        'pseudonimo' => '',
-                        'data_nascita' => null,
-                        'data_morte' => null,
-                        'nazionalita' => '',
-                        'biografia' => '',
-                        'sito_web' => ''
-                    ]);
-                    $fields['autori_ids'][] = $authorId;
-                }
-            }
-        }
-        
-        // Handle publisher auto-creation from manual entry or scraped data
-        if ((int)$fields['editore_id'] === 0) {
-            $pubRepo = new \App\Models\PublisherRepository($db);
-            $publisherName = '';
-
-            // First try manual entry (editore_search field)
-            if (!empty($data['editore_search'])) {
-                $publisherName = trim((string)$data['editore_search']);
-            }
-            // Fall back to scraped data
-            elseif (!empty($data['scraped_publisher'])) {
-                $publisherName = trim((string)$data['scraped_publisher']);
-            }
-
-            if ($publisherName !== '') {
-                $found = $pubRepo->findByName($publisherName);
-                if ($found) {
-                    $fields['editore_id'] = $found;
-                } else {
-                    $fields['editore_id'] = $pubRepo->create(['nome' => $publisherName, 'sito_web' => '']);
-                }
-            }
-        }
-
-        // Handle genere auto-creation from manual entry
-        if ((int)$fields['genere_id'] === 0 && !empty($data['genere_search'])) {
-            $genereRepo = new \App\Models\GenereRepository($db);
-            $genereName = trim((string)$data['genere_search']);
-
-            if ($genereName !== '') {
-                $found = $genereRepo->findByName($genereName);
-                if ($found) {
-                    $fields['genere_id'] = $found;
-                } else {
-                    $fields['genere_id'] = $genereRepo->create(['nome' => $genereName]);
-                }
-            }
-        }
-
-        // Handle sottogenere auto-creation from manual entry
-        if ((int)$fields['sottogenere_id'] === 0 && !empty($data['sottogenere_search'])) {
-            $genereRepo = new \App\Models\GenereRepository($db);
-            $sottogenereName = trim((string)$data['sottogenere_search']);
-
-            if ($sottogenereName !== '') {
-                // If we have a parent genere, use it
-                $parent_id = !empty($fields['genere_id']) ? (int)$fields['genere_id'] : null;
-
-                $found = $genereRepo->findByName($sottogenereName, $parent_id);
-                if ($found) {
-                    $fields['sottogenere_id'] = $found;
-                } else {
-                    $fields['sottogenere_id'] = $genereRepo->create([
-                        'nome' => $sottogenereName,
-                        'parent_id' => $parent_id
-                    ]);
-                }
-            }
         }
 
         // Plugin hook: Before book save (update)
@@ -829,6 +458,165 @@ class LibriController
         return $response->withHeader('Location', '/admin/libri/'.$id)->withStatus(302);
     }
 
+    private function _prepareBookData(array $data, mysqli $db): array
+    {
+        $fields = [
+            'titolo'=>'', 'sottotitolo'=>'', 'isbn10'=>'', 'isbn13'=>'', 'ean'=>'',
+            'genere_id'=>0, 'sottogenere_id'=>0, 'editore_id'=>0,
+            'data_acquisizione'=>null, 'tipo_acquisizione'=>'', 'descrizione'=>'', 'parole_chiave'=>'',
+            'formato'=>'', 'peso'=>null, 'dimensioni'=>'', 'prezzo'=>null,
+            'copie_totali'=>1, 'copie_disponibili'=>1, 'numero_inventario'=>'',
+            'classificazione_dowey'=>'', 'collana'=>'', 'numero_serie'=>'', 'note_varie'=>'',
+            'file_url'=>'', 'audio_url'=>'', 'copertina_url'=>'',
+            'scaffale_id'=>0, 'mensola_id'=>0, 'posizione_progressiva'=>0,
+            'posizione_id'=>0, 'collocazione'=>'', 'stato'=>'',
+            'lingua'=>'', 'anno_pubblicazione'=>null, 'edizione'=>'', 'data_pubblicazione'=>'', 'traduttore'=>''
+        ];
+        foreach ($fields as $k=>$v) { if (array_key_exists($k, $data)) $fields[$k] = $data[$k]; }
+
+        foreach (['isbn10','isbn13','ean'] as $codeKey) {
+            if (isset($fields[$codeKey])) {
+                $fields[$codeKey] = preg_replace('/[\s-]+/', '', (string)$fields[$codeKey]);
+            }
+        }
+
+        $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int)$fields['editore_id'];
+        $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int)$fields['genere_id'];
+        $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int)$fields['sottogenere_id'];
+        $fields['copie_totali'] = (int)$fields['copie_totali'];
+
+        if ($fields['copie_totali'] < 1) {
+            $fields['copie_totali'] = 1;
+        } elseif ($fields['copie_totali'] > 9999) {
+            $fields['copie_totali'] = 9999;
+        }
+        
+        $fields['copie_disponibili'] = $fields['copie_totali'];
+        $fields['scaffale_id'] = empty($fields['scaffale_id']) ? null : (int)$fields['scaffale_id'];
+        $fields['mensola_id'] = empty($fields['mensola_id']) ? null : (int)$fields['mensola_id'];
+        $fields['posizione_progressiva'] = isset($fields['posizione_progressiva']) && $fields['posizione_progressiva'] !== '' ? (int)$fields['posizione_progressiva'] : null;
+        $fields['posizione_id'] = null;
+        $fields['peso'] = $fields['peso'] !== null && $fields['peso'] !== '' ? (float)$fields['peso'] : null;
+        $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float)$fields['prezzo'] : null;
+        if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
+            $fields['copertina_url'] = null;
+        }
+
+        try {
+            $genRepoTmp = new \App\Models\GenereRepository($db);
+            if (!empty($fields['sottogenere_id'])) {
+                $sub = $genRepoTmp->getById((int)$fields['sottogenere_id']);
+                if ($sub && !empty($sub['parent_id'])) {
+                    $fields['genere_id'] = (int)$sub['parent_id'];
+                }
+            } elseif (!empty($fields['genere_id'])) {
+                $g = $genRepoTmp->getById((int)$fields['genere_id']);
+                if ($g && !empty($g['parent_id'])) {
+                    $fields['sottogenere_id'] = (int)$fields['genere_id'];
+                    $fields['genere_id'] = (int)$g['parent_id'];
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+        $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
+
+        if (!empty($data['autori_new'])) {
+            $authRepo = new \App\Models\AuthorRepository($db);
+            foreach ((array)$data['autori_new'] as $nomeCompleto) {
+                $nomeCompleto = trim((string)$nomeCompleto);
+                if ($nomeCompleto !== '') {
+                    $authorId = $authRepo->create([
+                        'nome' => $nomeCompleto,
+                        'pseudonimo' => '',
+                        'data_nascita' => null,
+                        'data_morte' => null,
+                        'nazionalita' => '',
+                        'biografia' => '',
+                        'sito_web' => ''
+                    ]);
+                    $fields['autori_ids'][] = $authorId;
+                }
+            }
+        }
+        
+        if (empty($fields['autori_ids']) && !empty($data['scraped_author'])) {
+            $authRepo = new \App\Models\AuthorRepository($db);
+            $scrapedAuthor = trim((string)$data['scraped_author']);
+            if ($scrapedAuthor !== '') {
+                $found = $authRepo->findByName($scrapedAuthor);
+                if ($found) {
+                    $fields['autori_ids'][] = $found;
+                } else {
+                    $authorId = $authRepo->create([
+                        'nome' => $scrapedAuthor,
+                        'pseudonimo' => '',
+                        'data_nascita' => null,
+                        'data_morte' => null,
+                        'nazionalita' => '',
+                        'biografia' => '',
+                        'sito_web' => ''
+                    ]);
+                    $fields['autori_ids'][] = $authorId;
+                }
+            }
+        }
+        
+        if ((int)$fields['editore_id'] === 0) {
+            $pubRepo = new \App\Models\PublisherRepository($db);
+            $publisherName = '';
+
+            if (!empty($data['editore_search'])) {
+                $publisherName = trim((string)$data['editore_search']);
+            }
+            elseif (!empty($data['scraped_publisher'])) {
+                $publisherName = trim((string)$data['scraped_publisher']);
+            }
+
+            if ($publisherName !== '') {
+                $found = $pubRepo->findByName($publisherName);
+                if ($found) {
+                    $fields['editore_id'] = $found;
+                } else {
+                    $fields['editore_id'] = $pubRepo->create(['nome' => $publisherName, 'sito_web' => '']);
+                }
+            }
+        }
+
+        if ((int)$fields['genere_id'] === 0 && !empty($data['genere_search'])) {
+            $genereRepo = new \App\Models\GenereRepository($db);
+            $genereName = trim((string)$data['genere_search']);
+
+            if ($genereName !== '') {
+                $found = $genereRepo->findByName($genereName);
+                if ($found) {
+                    $fields['genere_id'] = $found;
+                } else {
+                    $fields['genere_id'] = $genereRepo->create(['nome' => $genereName]);
+                }
+            }
+        }
+
+        if ((int)$fields['sottogenere_id'] === 0 && !empty($data['sottogenere_search'])) {
+            $genereRepo = new \App\Models\GenereRepository($db);
+            $sottogenereName = trim((string)$data['sottogenere_search']);
+
+            if ($sottogenereName !== '') {
+                $parent_id = !empty($fields['genere_id']) ? (int)$fields['genere_id'] : null;
+
+                $found = $genereRepo->findByName($sottogenereName, $parent_id);
+                if ($found) {
+                    $fields['sottogenere_id'] = $found;
+                } else {
+                    $fields['sottogenere_id'] = $genereRepo->create([
+                        'nome' => $sottogenereName,
+                        'parent_id' => $parent_id
+                    ]);
+                }
+            }
+        }
+        return $fields;
+    }
+
     private function handleCoverUrl(mysqli $db, int $bookId, string $url): void
     {
         if (!$url) return;
@@ -865,7 +653,7 @@ class LibriController
 
             // Otherwise, download and save locally
             $ctx = stream_context_create(['http' => ['timeout' => 10, 'header' => "User-Agent: BibliotecaBot/1.0\r\n"]]);
-            $img = @file_get_contents($url, false, $ctx);
+            $img = file_get_contents($url, false, $ctx);
             if ($img === false) { $this->logCoverDebug('handleCoverUrl.download.fail', ['bookId' => $bookId, 'url' => $url]); return; }
 
             // Security: Validate MIME type of downloaded content
@@ -874,11 +662,11 @@ class LibriController
                 return;
             }
             $dir = __DIR__ . '/../../public/uploads/copertine/';
-            if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
+            if (!is_dir($dir)) { mkdir($dir, 0755, true); }
             $ext = pathinfo(parse_url($url, PHP_URL_PATH) ?? 'jpg', PATHINFO_EXTENSION) ?: 'jpg';
             $name = 'libro_'.$bookId.'_'.time().'.'.$ext;
             $dst = $dir.$name;
-            if (@file_put_contents($dst, $img) !== false) {
+            if (file_put_contents($dst, $img) !== false) {
                 $cover = '/uploads/copertine/'.$name;
                 $stmt = $db->prepare('UPDATE libri SET copertina_url=?, updated_at=NOW() WHERE id=?');
                 $stmt->bind_param('si', $cover, $bookId);
@@ -906,7 +694,7 @@ class LibriController
         }
 
         // 3. Read actual file content
-        $content = @file_get_contents($tmpPath);
+        $content = file_get_contents($tmpPath);
         if ($content === false || $content === '') {
             $this->logCoverDebug('handleCoverUpload.skip.read_fail', ['bookId'=>$bookId]);
             return;
@@ -927,11 +715,11 @@ class LibriController
 
         // 6. Save file with safe name
         $dir = __DIR__ . '/../../public/uploads/copertine/';
-        if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
+        if (!is_dir($dir)) { mkdir($dir, 0755, true); }
         $name = 'libro_'.$bookId.'_'.time().'.'.$ext;
         $dst = $dir.$name;
 
-        if (@file_put_contents($dst, $content) !== false) {
+        if (file_put_contents($dst, $content) !== false) {
             $url = '/uploads/copertine/'.$name;
             $stmt = $db->prepare('UPDATE libri SET copertina_url=?, updated_at=NOW() WHERE id=?');
             $stmt->bind_param('si', $url, $bookId);

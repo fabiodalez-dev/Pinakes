@@ -164,4 +164,39 @@ class LoanRepository
 
         return true;
     }
+
+    public function getLoanHistoryByBookId(int $bookId): array
+    {
+        $loanHistoryQuery = "
+            SELECT
+                p.id,
+                p.data_prestito,
+                p.data_scadenza,
+                p.data_restituzione,
+                p.stato,
+                p.renewals,
+                p.note,
+                u.nome as utente_nome,
+                u.cognome as utente_cognome,
+                u.email as utente_email,
+                u.id as utente_id,
+                staff.nome as staff_nome,
+                staff.cognome as staff_cognome
+            FROM prestiti p
+            LEFT JOIN utenti u ON p.utente_id = u.id
+            LEFT JOIN utenti staff ON p.processed_by = staff.id
+            WHERE p.libro_id = ?
+            ORDER BY p.data_prestito DESC
+        ";
+        $stmt = $this->db->prepare($loanHistoryQuery);
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $loanHistory = [];
+        while ($row = $result->fetch_assoc()) {
+            $loanHistory[] = $row;
+        }
+        $stmt->close();
+        return $loanHistory;
+    }
 }
