@@ -13,9 +13,12 @@ class LibriController
 {
     private function logCoverDebug(string $label, array $data): void
     {
-        // SECURITY: Logging disabilitato in produzione per prevenire information disclosure
         if (getenv('APP_ENV') === 'development') {
-            $file = __DIR__ . '/../../storage/cover_debug.log';
+            $logDir = __DIR__ . '/../../storage';
+            if (!is_dir($logDir)) {
+                mkdir($logDir, 0755, true);
+            }
+            $file = $logDir . '/cover_debug.log';
             $sanitized = $data;
             unset($sanitized['password'], $sanitized['token'], $sanitized['csrf_token']);
             $line = date('Y-m-d H:i:s') . " [$label] " . json_encode($sanitized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
@@ -54,6 +57,7 @@ class LibriController
         $copyRepo = new \App\Models\CopyRepository($db);
         $copie = $copyRepo->getByBookId($id);
 
+        // La variabile $loanHistory viene utilizzata nella vista scheda_libro.php
         $loanHistory = $loanRepo->getLoanHistoryByBookId($id);
 
         ob_start();
@@ -135,7 +139,11 @@ class LibriController
             $fields['note_varie'] = implode("\n", $uniqueNotes);
         }
         if (getenv('APP_ENV') === 'development') {
-            $debugFile = __DIR__ . '/../../storage/field_debug.log';
+            $logDir = __DIR__ . '/../../storage';
+            if (!is_dir($logDir)) {
+                mkdir($logDir, 0755, true);
+            }
+            $debugFile = $logDir . '/field_debug.log';
             $debugEntry = "FIELD PROCESSING (STORE):\n";
             foreach ($fields as $key => $value) {
                 $type = gettype($value);
@@ -264,7 +272,7 @@ class LibriController
         $currentBook = $repo->getById($id);
         if (!$currentBook) { return $response->withStatus(404); }
 
-        $fields = $this->_prepareBookData($data, $db);
+        $fields = $this->_prepareBookData(array_merge($currentBook, $data), $db);
         $subtitleFromScrape = trim((string)($data['subtitle'] ?? ''));
         if ($subtitleFromScrape !== '' && trim((string)($fields['sottotitolo'] ?? '')) === '') {
             $fields['sottotitolo'] = $subtitleFromScrape;
@@ -400,8 +408,6 @@ class LibriController
         \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
         // Gestione copie: aggiorna il numero di copie se cambiato
-        $copyRepo = new \App\Models\CopyRepository($db);
-        $currentCopieCount = $copyRepo->countByBookId($id);
         $newCopieCount = (int)($fields['copie_totali'] ?? 1);
 
         if ($newCopieCount > $currentCopieCount) {
@@ -472,7 +478,11 @@ class LibriController
             'posizione_id'=>0, 'collocazione'=>'', 'stato'=>'',
             'lingua'=>'', 'anno_pubblicazione'=>null, 'edizione'=>'', 'data_pubblicazione'=>'', 'traduttore'=>''
         ];
-        foreach ($fields as $k=>$v) { if (array_key_exists($k, $data)) $fields[$k] = $data[$k]; }
+        foreach (array_keys($fields) as $k) {
+            if (array_key_exists($k, $data)) {
+                $fields[$k] = $data[$k];
+            }
+        }
 
         foreach (['isbn10','isbn13','ean'] as $codeKey) {
             if (isset($fields[$codeKey])) {
@@ -656,13 +666,23 @@ class LibriController
             $img = file_get_contents($url, false, $ctx);
             if ($img === false) { $this->logCoverDebug('handleCoverUrl.download.fail', ['bookId' => $bookId, 'url' => $url]); return; }
 
+            if (strlen($img) > 2 * 1024 * 1024) {
+                $this->logCoverDebug('handleCoverUrl.security.size_exceeded', ['bookId' => $bookId, 'url' => $url]);
+                return;
+            }
+
             // Security: Validate MIME type of downloaded content
             if (!$this->isValidImageMimeType($img)) {
                 $this->logCoverDebug('handleCoverUrl.security.invalid_mime', ['bookId' => $bookId, 'url' => $url]);
                 return;
             }
             $dir = __DIR__ . '/../../public/uploads/copertine/';
-            if (!is_dir($dir)) { mkdir($dir, 0755, true); }
+            if (!is_dir($dir)) {
+                if (!mkdir($dir, 0755, true)) {
+                    $this->logCoverDebug('handleCoverUrl.fail.mkdir', ['bookId' => $bookId, 'dir' => $dir]);
+                    return;
+                }
+            }
             $ext = pathinfo(parse_url($url, PHP_URL_PATH) ?? 'jpg', PATHINFO_EXTENSION) ?: 'jpg';
             $name = 'libro_'.$bookId.'_'.time().'.'.$ext;
             $dst = $dir.$name;
@@ -672,6 +692,8 @@ class LibriController
                 $stmt->bind_param('si', $cover, $bookId);
                 $stmt->execute();
                 $this->logCoverDebug('handleCoverUrl.download.ok', ['bookId' => $bookId, 'stored' => $cover]);
+            } else {
+                $this->logCoverDebug('handleCoverUrl.fail.file_put_contents', ['bookId' => $bookId, 'dst' => $dst]);
             }
         }
     }
@@ -715,7 +737,12 @@ class LibriController
 
         // 6. Save file with safe name
         $dir = __DIR__ . '/../../public/uploads/copertine/';
-        if (!is_dir($dir)) { mkdir($dir, 0755, true); }
+        if (!is_dir($dir)) {
+            if (!mkdir($dir, 0755, true)) {
+                $this->logCoverDebug('handleCoverUpload.fail.mkdir', ['bookId' => $bookId, 'dir' => $dir]);
+                return;
+            }
+        }
         $name = 'libro_'.$bookId.'_'.time().'.'.$ext;
         $dst = $dir.$name;
 
@@ -726,7 +753,7 @@ class LibriController
             $stmt->execute();
             $this->logCoverDebug('handleCoverUpload.ok', ['bookId'=>$bookId,'stored'=>$url]);
         } else {
-            $this->logCoverDebug('handleCoverUpload.fail', ['bookId'=>$bookId]);
+            $this->logCoverDebug('handleCoverUpload.fail.file_put_contents', ['bookId' => $bookId, 'dst' => $dst]);
         }
     }
 
@@ -1266,6 +1293,9 @@ class LibriController
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=UTF-8')
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Expires', '0')
             ->withBody(new \Slim\Psr7\Stream($stream));
     }
 

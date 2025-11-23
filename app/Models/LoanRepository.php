@@ -189,6 +189,10 @@ class LoanRepository
             ORDER BY p.data_prestito DESC
         ";
         $stmt = $this->db->prepare($loanHistoryQuery);
+        if ($stmt === false) {
+            error_log('Failed to prepare statement for loan history: ' . $this->db->error);
+            return [];
+        }
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
