@@ -318,8 +318,8 @@ class DigitalLibraryPlugin
         $cssPath = '/assets/vendor/green-audio-player/css/green-audio-player.min.css';
         echo '<link rel="stylesheet" href="' . htmlspecialchars($cssPath, ENT_QUOTES, 'UTF-8') . '">' . "\n";
 
-        // Digital Library CSS - only load if file exists in public directory
-        $pluginCssPath = __DIR__ . '/../../../public/plugins/digital-library/assets/css/digital-library.css';
+        // Digital Library CSS - only load if file exists in plugin directory
+        $pluginCssPath = __DIR__ . '/assets/css/digital-library.css';
         if (file_exists($pluginCssPath)) {
             echo '<link rel="stylesheet" href="/plugins/digital-library/assets/css/digital-library.css">' . "\n";
         }
