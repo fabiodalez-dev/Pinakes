@@ -193,7 +193,7 @@ function initializeFormValidation() {
         if (window.Swal) {
             const result = await Swal.fire({
                 title: '<?= __("Conferma Salvataggio") ?>',
-                text: __('Sei sicuro di voler salvare l\'editore "%s"?').replace('%s', nome),
+                text: '<?= addslashes(__("Sei sicuro di voler salvare l\'editore \"%s\"?")) ?>'.replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: '<?= __("Sì, Salva") ?>',
