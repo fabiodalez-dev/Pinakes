@@ -43,6 +43,8 @@ $wishlistRoute = route_path('wishlist');
 $profileRoute = route_path('profile');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
+$dashboardRoute = route_path('user_dashboard');
+$logoutRoute = route_path('logout');
 $eventsEnabled = false;
 if (isset($db)) {
     try {
@@ -264,6 +266,74 @@ if (isset($db)) {
             color: var(--primary-color);
             background: rgba(0, 0, 0, 0.02);
             transform: translateY(-1px);
+        }
+
+        /* User Dropdown */
+        .user-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .user-dropdown-toggle {
+            cursor: pointer;
+        }
+
+        .user-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            right: 0;
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            min-width: 200px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .user-dropdown.show .user-dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .user-dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem 1.25rem;
+            color: var(--text-color);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .user-dropdown-menu a:last-child {
+            border-bottom: none;
+        }
+
+        .user-dropdown-menu a:first-child {
+            border-radius: 12px 12px 0 0;
+        }
+
+        .user-dropdown-menu a:last-child {
+            border-radius: 0 0 12px 12px;
+        }
+
+        .user-dropdown-menu a:hover {
+            background: var(--light-bg);
+            color: var(--primary-color);
+            padding-left: 1.5rem;
+        }
+
+        .user-dropdown-menu a i {
+            width: 16px;
+            text-align: center;
         }
 
         .badge-notification {
@@ -772,11 +842,27 @@ if (isset($db)) {
                                         <span class="d-none d-md-inline"><?= __("Admin") ?></span>
                                     </a>
                                 <?php else: ?>
-                                    <a class="btn btn-primary-header" href="<?= $profileRoute ?>">
-                                        <i class="fas fa-user"></i>
-                                        <span
-                                            class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
-                                    </a>
+                                    <div class="user-dropdown">
+                                        <a class="btn btn-primary-header user-dropdown-toggle" href="javascript:void(0)">
+                                            <i class="fas fa-user"></i>
+                                            <span
+                                                class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
+                                        </a>
+                                        <div class="user-dropdown-menu">
+                                            <a href="<?= $dashboardRoute ?>">
+                                                <i class="fas fa-tachometer-alt"></i>
+                                                <?= __("Dashboard") ?>
+                                            </a>
+                                            <a href="<?= $profileRoute ?>">
+                                                <i class="fas fa-user"></i>
+                                                <?= __("Profilo") ?>
+                                            </a>
+                                            <a href="<?= $logoutRoute ?>">
+                                                <i class="fas fa-sign-out-alt"></i>
+                                                <?= __("Esci") ?>
+                                            </a>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
@@ -1270,6 +1356,37 @@ if (isset($db)) {
                     if (e.target === mobileMenuOverlay) {
                         mobileMenuOverlay.classList.remove('active');
                         document.body.style.overflow = '';
+                    }
+                });
+            }
+        })();
+    </script>
+
+    <!-- User Dropdown Script -->
+    <script>
+        (function () {
+            const userDropdown = document.querySelector('.user-dropdown');
+            const userDropdownToggle = document.querySelector('.user-dropdown-toggle');
+
+            if (userDropdown && userDropdownToggle) {
+                // Toggle dropdown on click
+                userDropdownToggle.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    userDropdown.classList.toggle('show');
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function (e) {
+                    if (!userDropdown.contains(e.target)) {
+                        userDropdown.classList.remove('show');
+                    }
+                });
+
+                // Close dropdown when pressing Escape
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        userDropdown.classList.remove('show');
                     }
                 });
             }

@@ -1,7 +1,7 @@
 <style>
   .profile-container {
     max-width: 1000px;
-    margin: 0 auto;
+    margin: 5rem auto;
     padding: 2rem 1rem;
   }
 
@@ -152,7 +152,6 @@
     font-size: 0.875rem;
     font-weight: 600;
     cursor: pointer;
-    border: none;
     transition: all 0.2s ease;
   }
 

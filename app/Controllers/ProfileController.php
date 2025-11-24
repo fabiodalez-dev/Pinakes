@@ -16,7 +16,7 @@ class ProfileController
     {
         $uid = (int)($_SESSION['user']['id'] ?? 0);
         if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
-        $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale FROM utenti WHERE id = ? LIMIT 1");
+        $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale, data_scadenza_tessera FROM utenti WHERE id = ? LIMIT 1");
         $stmt->bind_param('i', $uid);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc() ?: [];
