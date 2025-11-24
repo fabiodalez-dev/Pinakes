@@ -148,7 +148,18 @@ class MaintenanceController {
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
-        $body = $request->getParsedBody();
+        // Parse JSON body
+        $rawBody = (string) $request->getBody();
+        $body = json_decode($rawBody, true);
+
+        if (!is_array($body)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("Formato richiesta non valido")
+            ]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
         $issueType = $body['issue_type'] ?? '';
         $fixValue = $body['fix_value'] ?? '';
 

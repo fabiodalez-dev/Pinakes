@@ -215,22 +215,40 @@ class HtmlHelper
         }
 
         // Fallback sicuro: valida l'host corrente
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $httpHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+        // Separa host e porta
+        $port = null;
+        $host = $httpHost;
+        if (strpos($httpHost, ':') !== false) {
+            [$host, $portStr] = explode(':', $httpHost, 2);
+            $port = is_numeric($portStr) ? (int)$portStr : null;
+        }
 
         // Whitelist di host validi per sviluppo locale
         $allowedHosts = ['localhost', '127.0.0.1', '::1'];
 
         // Se l'host non è nella whitelist, validalo
         if (!in_array($host, $allowedHosts, true)) {
-            // Valida che sia un hostname valido
+            // Valida che sia un hostname valido (RFC 1123)
             if (!preg_match('/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?)*$/i', $host)) {
                 $host = 'localhost'; // Fallback sicuro
+                $port = null;
             }
         }
 
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 
-        return $protocol . '://' . $host;
+        // Ricostruisci l'URL con la porta se presente e non standard
+        $baseUrl = $protocol . '://' . $host;
+        if ($port !== null) {
+            $defaultPorts = ['http' => 80, 'https' => 443];
+            if (!isset($defaultPorts[$protocol]) || $defaultPorts[$protocol] !== $port) {
+                $baseUrl .= ':' . $port;
+            }
+        }
+
+        return $baseUrl;
     }
 
     /**
