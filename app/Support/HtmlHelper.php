@@ -208,7 +208,7 @@ class HtmlHelper
     public static function getBaseUrl(): string
     {
         // Usa sempre APP_CANONICAL_URL se configurato
-        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
+        $canonicalUrl = getenv('APP_CANONICAL_URL');
 
         if ($canonicalUrl && $canonicalUrl !== '') {
             return rtrim($canonicalUrl, '/');
