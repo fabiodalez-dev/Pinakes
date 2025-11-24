@@ -94,7 +94,7 @@
         <div class="card-body form-section">
           <div>
             <label for="biografia" class="form-label"><?= __("Biografia dell'autore") ?></label>
-            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci $1") ?>"></textarea>
+            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci una breve biografia dell'autore...") ?>"></textarea>
             <p class="text-xs text-gray-500 mt-1"><?= __("Una descrizione completa aiuta gli utenti a conoscere meglio l'autore") ?></p>
           </div>
         </div>
@@ -172,7 +172,7 @@ function initializeFormValidation() {
         if (window.Swal) {
             const result = await Swal.fire({
                 title: '<?= __("Conferma Salvataggio") ?>',
-                text: __('Sei sicuro di voler salvare l\'autore "%s"?').replace('%s', nome),
+                text: '<?= addslashes(__("Sei sicuro di voler salvare l\'autore \"%s\"?")) ?>'.replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: '<?= __("Sì, Salva") ?>',
@@ -196,7 +196,7 @@ function initializeFormValidation() {
                 form.submit();
             }
         } else {
-            if (confirm(__('Sei sicuro di voler salvare l\'autore "%s"?').replace('%s', nome))) {
+            if (confirm('<?= addslashes(__("Sei sicuro di voler salvare l\'autore \"%s\"?")) ?>'.replace('%s', nome))) {
                 form.submit();
             }
         }
