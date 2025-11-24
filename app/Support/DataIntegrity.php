@@ -280,7 +280,7 @@ class DataIntegrity {
         $stmt->close();
 
         // 8. Verifica configurazione APP_CANONICAL_URL nel .env
-        $canonicalUrl = getenv('APP_CANONICAL_URL');
+        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         $currentUrl = $this->detectCurrentCanonicalUrl();
 
         if ($canonicalUrl === false) {
