@@ -224,8 +224,8 @@ ob_start();
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">autori</code></td>
                                         <td class="px-4 py-3"><span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded"><?= __("Consigliato") ?></span></td>
-                                        <td class="px-4 py-3 text-gray-600"><?= __("Autori multipli separati da %s", '<code>|</code>') ?></td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs"><?= __("Umberto Eco") ?><br><small><?= __("o multipli separati da |") ?></small></td>
+                                        <td class="px-4 py-3 text-gray-600"><?= __("Autori multipli separati da %s o %s", '<code>;</code>', '<code>|</code>') ?></td>
+                                        <td class="px-4 py-3 text-gray-500 text-xs"><?= __("Umberto Eco") ?><br><small><?= __("o multipli: Engels;Marx") ?></small></td>
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3"><code class="bg-gray-100 px-2 py-0.5 rounded text-xs">editore</code></td>

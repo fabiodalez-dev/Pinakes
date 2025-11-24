@@ -924,6 +924,45 @@ HTACCESS;
         }
     }
 
+    /**
+     * Update a variable in the .env file
+     * @param string $key Variable name (e.g., 'APP_CANONICAL_URL')
+     * @param string $value New value
+     * @return bool Success status
+     */
+    public function updateEnvVariable(string $key, string $value): bool
+    {
+        $envPath = $this->baseDir . '/.env';
+
+        if (!file_exists($envPath)) {
+            return false;
+        }
+
+        $envContent = file_get_contents($envPath);
+        if ($envContent === false) {
+            return false;
+        }
+
+        // Escape special regex characters in key
+        $escapedKey = preg_quote($key, '/');
+
+        // Pattern to match the key with any value (handles empty values too)
+        $pattern = '/^' . $escapedKey . '=.*$/m';
+
+        // New line content
+        $replacement = $key . '=' . $value;
+
+        // Replace the line
+        if (preg_match($pattern, $envContent)) {
+            $newContent = preg_replace($pattern, $replacement, $envContent);
+        } else {
+            // If key doesn't exist, append it
+            $newContent = rtrim($envContent) . "\n" . $replacement . "\n";
+        }
+
+        return file_put_contents($envPath, $newContent) !== false;
+    }
+
     private function getInstallerLocale(): string
     {
         $locale = $this->config['APP_LOCALE'] ?? 'it_IT';

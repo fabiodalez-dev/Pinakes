@@ -1187,6 +1187,12 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->performMaintenance($request, $response, $db);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+
+    $app->post('/admin/maintenance/apply-config-fix', function ($request, $response) {
+        $controller = new MaintenanceController();
+        return $controller->applyConfigFix($request, $response);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+
     $app->get('/admin/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1498,7 +1504,7 @@ return function (App $app): void {
         }
 
         // Get current book data
-        $stmt = $db->prepare('SELECT copie_totali, copie_disponibili FROM libri WHERE id = ?');
+        $stmt = $db->prepare('SELECT copie_totali, numero_inventario FROM libri WHERE id = ?');
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -1513,20 +1519,49 @@ return function (App $app): void {
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
-        // Calculate new values
-        $newCopieTotali = $book['copie_totali'] + $copiesToAdd;
-        $newCopieDisponibili = $book['copie_disponibili'] + $copiesToAdd;
+        // Calculate new total
+        $currentCopieTotali = (int) $book['copie_totali'];
+        $newCopieTotali = $currentCopieTotali + $copiesToAdd;
 
-        // Update book
-        $stmt = $db->prepare('UPDATE libri SET copie_totali = ?, copie_disponibili = ? WHERE id = ?');
-        $stmt->bind_param('iii', $newCopieTotali, $newCopieDisponibili, $bookId);
+        // Update copie_totali counter in libri table
+        $stmt = $db->prepare('UPDATE libri SET copie_totali = ? WHERE id = ?');
+        $stmt->bind_param('ii', $newCopieTotali, $bookId);
         $stmt->execute();
+        $stmt->close();
+
+        // Create physical copies in copie table
+        $copyRepo = new \App\Models\CopyRepository($db);
+        $baseInventario = !empty($book['numero_inventario'])
+            ? $book['numero_inventario']
+            : "LIB-{$bookId}";
+
+        // Start from current total + 1 for new copies
+        for ($i = 1; $i <= $copiesToAdd; $i++) {
+            $copyNumber = $currentCopieTotali + $i;
+            $numeroInventario = $newCopieTotali > 1
+                ? "{$baseInventario}-C{$copyNumber}"
+                : $baseInventario;
+
+            $note = "Copia {$copyNumber} di {$newCopieTotali}";
+            $copyRepo->create($bookId, $numeroInventario, 'disponibile', $note);
+        }
+
+        // Recalculate availability using DataIntegrity
+        $integrity = new \App\Support\DataIntegrity($db);
+        $integrity->recalculateBookAvailability($bookId);
+
+        // Get updated availability
+        $stmt = $db->prepare('SELECT copie_disponibili FROM libri WHERE id = ?');
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $updatedBook = $result->fetch_assoc();
         $stmt->close();
 
         $response->getBody()->write(json_encode([
             'success' => true,
             'copie_totali' => $newCopieTotali,
-            'copie_disponibili' => $newCopieDisponibili,
+            'copie_disponibili' => (int) $updatedBook['copie_disponibili'],
             'added' => $copiesToAdd
         ], JSON_UNESCAPED_UNICODE));
 

@@ -125,18 +125,25 @@ class FrontendController
                     continue;
                 }
 
-                // Safe: genreIds are validated with intval
-                $genreIdList = implode(',', array_map('intval', array_unique($genreIds)));
+                // Use proper prepared statements with dynamic placeholders
+                $uniqueGenreIds = array_unique(array_map('intval', $genreIds));
+                $placeholders = implode(',', array_fill(0, count($uniqueGenreIds), '?'));
                 $query_genre_books = "
                     SELECT l.*,
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                     FROM libri l
-                    WHERE l.genere_id IN ({$genreIdList})
+                    WHERE l.genere_id IN ({$placeholders})
                     ORDER BY l.created_at DESC
                     LIMIT 4
                 ";
                 $stmt_genre_books = $db->prepare($query_genre_books);
+                if ($stmt_genre_books === false) {
+                    error_log('Failed to prepare genre books query: ' . $db->error);
+                    continue;
+                }
+                $types = str_repeat('i', count($uniqueGenreIds));
+                $stmt_genre_books->bind_param($types, ...$uniqueGenreIds);
                 $stmt_genre_books->execute();
                 $result_genre_books = $stmt_genre_books->get_result();
 

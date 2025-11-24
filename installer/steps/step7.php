@@ -131,27 +131,24 @@ if (!empty($triggerWarnings)):
     <div class="alert alert-warning" style="margin-top: 20px;">
         <h4 style="margin-bottom: 10px;"><i class="fas fa-exclamation-triangle"></i>
             <?= __("Attenzione: Azione Manuale Richiesta") ?></h4>
-        <p><?= __("L'utente del database non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.") ?>
-            < non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena
-                integrità dei dati è necessario installarli manualmente.</p>
-                <p style="margin-top: 10px;"><strong><?= __("Azione richiesta:") ?></strong>
-                    <?= __("Chiedi al tuo amministratore di database di eseguire i comandi contenuti nel file") ?> di
-                    database di eseguire i comandi contenuti nel file <code>installer/database/triggers.sql</code>.</p>
+        <p><?= __("L'utente del database non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.") ?></p>
+        <p style="margin-top: 10px;"><strong><?= __("Azione richiesta:") ?></strong>
+            <?= __("Chiedi al tuo amministratore di database di eseguire i comandi contenuti nel file") ?> <code>installer/database/triggers.sql</code>.</p>
     </div>
 <?php endif; ?>
 <h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;"><?= __("Riepilogo Installazione") ?></h3>
 <ul class="summary-list">
-    <li><i class="fas fa-check-circle"></i> Database installato (40 tabelle)</li>
-    <li><i class="fas fa-check-circle"></i> Trigger database configurati</li>
-    <li><i class="fas fa-check-circle"></i> Dati essenziali caricati</li>
+    <li><i class="fas fa-check-circle"></i> <?= __("Database installato (40 tabelle)") ?></li>
+    <li><i class="fas fa-check-circle"></i> <?= __("Trigger database configurati") ?></li>
+    <li><i class="fas fa-check-circle"></i> <?= __("Dati essenziali caricati") ?></li>
     <?php if ($adminUser): ?>
-        <li><i class="fas fa-check-circle"></i> Utente admin creato:
+        <li><i class="fas fa-check-circle"></i> <?= __("Utente admin creato:") ?>
             <strong><?= htmlspecialchars($adminUser['email']) ?></strong>
         </li>
     <?php endif; ?>
-    <li><i class="fas fa-check-circle"></i> Applicazione configurata: <strong><?= htmlspecialchars($appName) ?></strong>
+    <li><i class="fas fa-check-circle"></i> <?= __("Applicazione configurata:") ?> <strong><?= htmlspecialchars($appName) ?></strong>
     </li>
-    <li><i class="fas fa-check-circle"></i> Email configurata</li>
+    <li><i class="fas fa-check-circle"></i> <?= __("Email configurata") ?></li>
     <?php
     $installedPlugins = $_SESSION['installed_plugins'] ?? [];
     if (!empty($installedPlugins)):
@@ -159,15 +156,15 @@ if (!empty($triggerWarnings)):
             return $p['status'] === 'installed_and_activated';
         });
         ?>
-        <li><i class="fas fa-check-circle"></i> Plugin installati e attivati:
+        <li><i class="fas fa-check-circle"></i> <?= __("Plugin installati e attivati:") ?>
             <strong><?= count($successfulPlugins) ?></strong>
             <?php if (!empty($successfulPlugins)): ?>
                 (<?= implode(', ', array_column($successfulPlugins, 'name')) ?>)
             <?php endif; ?>
         </li>
     <?php endif; ?>
-    <li><i class="fas fa-check-circle"></i> File .htaccess creato</li>
-    <li><i class="fas fa-check-circle"></i> Lock file creato (installazione protetta)</li>
+    <li><i class="fas fa-check-circle"></i> <?= __("File .htaccess creato") ?></li>
+    <li><i class="fas fa-check-circle"></i> <?= __("Lock file creato (installazione protetta)") ?></li>
 </ul>
 
 <?php if ($adminUser): ?>
@@ -176,20 +173,16 @@ if (!empty($triggerWarnings)):
         <strong><?= __("Credenziali Admin:") ?></strong><br>
         <?= __("Email:") ?> <strong><?= htmlspecialchars($adminUser['email']) ?></strong><br>
         <?= __("Codice Tessera:") ?> <strong><?= htmlspecialchars($adminUser['codice_tessera']) ?></strong><br>
-        <small style="opacity: 0.8;"><?= __("Conserva queste informazioni in un luogo sicuro!") ?> in un luogo
-            sicuro!</small>
+        <small style="opacity: 0.8;"><?= __("Conserva queste informazioni in un luogo sicuro!") ?></small>
     </div>
 <?php endif; ?>
 
 <h3 style="margin-top: 40px; margin-bottom: 15px; color: #2d3748;"><?= __("Prossimi Passi") ?></h3>
 <ol style="list-style: decimal; margin-left: 20px; color: #4a5568;">
-    <li style="margin-bottom: 10px;"><?= __("Accedi all'area admin con le credenziali sopra indicate") ?> con le
-        credenziali sopra indicate</li>
-    <li style="margin-bottom: 10px;"><?= __("Configura le impostazioni rimanenti (privacy, contatti, etc.)") ?>
-        (privacy, contatti, etc.)</li>
-    <li style="margin-bottom: 10px;"><?= __("Aggiungi scaffali e mensole per la tua biblioteca") ?> per la tua
-        biblioteca</li>
-    <li style="margin-bottom: 10px;"><?= __("Inizia ad aggiungere libri al catalogo") ?> al catalogo</li>
+    <li style="margin-bottom: 10px;"><?= __("Accedi all'area admin con le credenziali sopra indicate") ?></li>
+    <li style="margin-bottom: 10px;"><?= __("Configura le impostazioni rimanenti (privacy, contatti, etc.)") ?></li>
+    <li style="margin-bottom: 10px;"><?= __("Aggiungi scaffali e mensole per la tua biblioteca") ?></li>
+    <li style="margin-bottom: 10px;"><?= __("Inizia ad aggiungere libri al catalogo") ?></li>
     <li style="margin-bottom: 10px;"><?= __("Invita gli utenti a registrarsi") ?></li>
 </ol>
 
@@ -209,7 +202,7 @@ if (!empty($triggerWarnings)):
             <i class="fas fa-trash"></i> <?= __("Elimina Installer (Richiede Composer)") ?>
         </button>
     <?php else: ?>
-        <form method="POST" action="/installer/index.php?step=7&action=delete_installer&force"
+        <form method="POST" action="?step=7&action=delete_installer&force"
             onsubmit="return confirmDeleteInstaller();" style="margin-top: 10px;">
             <button type="submit" class="btn btn-secondary">
                 <i class="fas fa-trash"></i> <?= __("Elimina Installer") ?>

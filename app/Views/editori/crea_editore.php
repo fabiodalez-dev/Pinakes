@@ -50,11 +50,11 @@
               <label for="nome" class="form-label">
                 <?= __("Nome Editore") ?> <span class="text-red-500">*</span>
               </label>
-              <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= __('Nome della casa editrice') ?>" />
+              <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= '<?= __("Nome della casa editrice") ?>' ?>" />
             </div>
             <div>
               <label for="sito_web" class="form-label"><?= __("Sito Web") ?></label>
-              <input id="sito_web" name="sito_web" type="url" class="form-input" placeholder="<?= __('https://www.editore.com') ?>" />
+              <input id="sito_web" name="sito_web" type="url" class="form-input" placeholder="<?= '<?= __("https://www.editore.com") ?>' ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Sito web ufficiale dell'editore") ?></p>
             </div>
           </div>
@@ -62,17 +62,17 @@
           <div class="form-grid-2">
             <div>
               <label for="email" class="form-label"><?= __("Email Contatto") ?></label>
-              <input id="email" name="email" type="email" class="form-input" placeholder="<?= __('info@editore.com') ?>" />
+              <input id="email" name="email" type="email" class="form-input" placeholder="<?= '<?= __("info@editore.com") ?>' ?>" />
             </div>
             <div>
               <label for="telefono" class="form-label"><?= __("Telefono") ?></label>
-              <input id="telefono" name="telefono" type="tel" class="form-input" placeholder="<?= __('+39 02 1234567') ?>" />
+              <input id="telefono" name="telefono" type="tel" class="form-input" placeholder="<?= '<?= __("+39 02 1234567") ?>' ?>" />
             </div>
           </div>
 
           <div>
             <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?></label>
-            <textarea id="indirizzo" name="indirizzo" rows="3" class="form-input" placeholder="<?= __('Via Roma 123, 00100 Roma RM, Italia') ?>"></textarea>
+            <textarea id="indirizzo" name="indirizzo" rows="3" class="form-input" placeholder="<?= '<?= __("Via Roma 123, 00100 Roma RM, Italia") ?>' ?>"></textarea>
           </div>
         </div>
       </div>
@@ -89,22 +89,22 @@
           <div class="form-grid-3">
             <div>
               <label for="referente_nome" class="form-label"><?= __("Nome Referente") ?></label>
-              <input id="referente_nome" name="referente_nome" class="form-input" placeholder="<?= __('Nome e cognome del referente') ?>" />
+              <input id="referente_nome" name="referente_nome" class="form-input" placeholder="<?= '<?= __("Nome e cognome del referente") ?>' ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Persona di riferimento presso l'editore") ?></p>
             </div>
             <div>
               <label for="referente_telefono" class="form-label"><?= __("Telefono Referente") ?></label>
-              <input id="referente_telefono" name="referente_telefono" type="tel" class="form-input" placeholder="<?= __('+39 02 1234567') ?>" />
+              <input id="referente_telefono" name="referente_telefono" type="tel" class="form-input" placeholder="<?= '<?= __("+39 02 1234567") ?>' ?>" />
             </div>
             <div>
               <label for="referente_email" class="form-label"><?= __("Email Referente") ?></label>
-              <input id="referente_email" name="referente_email" type="email" class="form-input" placeholder="<?= __('referente@editore.com') ?>" />
+              <input id="referente_email" name="referente_email" type="email" class="form-input" placeholder="<?= '<?= __("referente@editore.com") ?>' ?>" />
             </div>
           </div>
 
           <div>
             <label for="codice_fiscale" class="form-label"><?= __("Codice Fiscale") ?></label>
-            <input id="codice_fiscale" name="codice_fiscale" type="text" maxlength="16" class="form-input" placeholder="<?= __('es. RSSMRA80A01H501U') ?>" />
+            <input id="codice_fiscale" name="codice_fiscale" type="text" maxlength="16" class="form-input" placeholder="<?= '<?= __("es. RSSMRA80A01H501U") ?>' ?>" />
             <p class="text-xs text-gray-500 mt-1"><?= __("Codice fiscale dell'editore (opzionale)") ?></p>
           </div>
         </div>
@@ -150,11 +150,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Campo Obbligatorio'),
-                    text: __('Il nome dell\'editore è obbligatorio.')
+                    title: '<?= __("Campo Obbligatorio") ?>',
+                    text: '<?= __("Il nome dell\'editore è obbligatorio.") ?>'
                 });
             } else {
-                alert(__('Il nome dell\'editore è obbligatorio.'));
+                alert('<?= __("Il nome dell\'editore è obbligatorio.") ?>');
             }
             return;
         }
@@ -165,11 +165,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('URL Non Valido'),
-                    text: __('Il sito web deve essere un URL valido (es. https://www.esempio.com).')
+                    title: '<?= __("URL Non Valido") ?>',
+                    text: '<?= __("Il sito web deve essere un URL valido (es. https://www.esempio.com).") ?>'
                 });
             } else {
-                alert(__('Il sito web deve essere un URL valido.'));
+                alert('<?= __("Il sito web deve essere un URL valido.") ?>');
             }
             return;
         }
@@ -180,11 +180,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Email Non Valida'),
-                    text: __('L\'indirizzo email deve essere valido.')
+                    title: '<?= __("Email Non Valida") ?>',
+                    text: '<?= __("L\'indirizzo email deve essere valido.") ?>'
                 });
             } else {
-                alert(__('L\'indirizzo email deve essere valido.'));
+                alert('<?= __("L\'indirizzo email deve essere valido.") ?>');
             }
             return;
         }
@@ -192,20 +192,20 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: __('Conferma Salvataggio'),
+                title: '<?= __("Conferma Salvataggio") ?>',
                 text: __('Sei sicuro di voler salvare l\'editore "%s"?').replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: __('Sì, Salva'),
-                cancelButtonText: __('Annulla'),
+                confirmButtonText: '<?= __("Sì, Salva") ?>',
+                cancelButtonText: '<?= __("Annulla") ?>',
                 reverseButtons: true
             });
             
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: __('Salvataggio in corso...'),
-                    text: __('Attendere prego'),
+                    title: '<?= __("Salvataggio in corso...") ?>',
+                    text: '<?= __("Attendere prego") ?>',
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {
