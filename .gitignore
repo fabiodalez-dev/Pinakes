@@ -203,6 +203,7 @@ yarn.lock
 # Build Artifacts
 # ========================================
 dist/
+!public/assets/star-rating/dist/
 build/
 frontend/dist/
 frontend/build/
