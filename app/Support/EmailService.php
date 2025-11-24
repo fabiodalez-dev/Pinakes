@@ -473,7 +473,7 @@ class EmailService {
     {
         // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
         // This ensures emails always use the production URL even when sent from CLI/localhost
-        $canonicalUrl = getenv('APP_CANONICAL_URL');
+        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         if ($canonicalUrl !== false) {
             $canonicalUrl = trim((string)$canonicalUrl);
             if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
