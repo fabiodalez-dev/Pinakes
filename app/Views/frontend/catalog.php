@@ -1,4 +1,6 @@
 <?php
+use App\Support\HtmlHelper;
+
 $title = __("Catalogo Libri - Biblioteca");
 if (!isset($filters)) {
     $filters = [];
@@ -16,8 +18,8 @@ if ($searchQuery) {
 }
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
-$seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $catalogRoute;
-$seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
+$seoCanonical = HtmlHelper::getBaseUrl() . $catalogRoute;
+$seoImage = HtmlHelper::getBaseUrl() . '/uploads/copertine/placeholder.jpg';
 
 // Schema.org structured data
 $seoSchema = json_encode([

@@ -66,7 +66,7 @@ ob_start();
             <div class="privacy-divider"></div>
         </div>
         <div class="privacy-content">
-            <?= $pageContent; ?>
+            <?= HtmlHelper::sanitizeHtml($pageContent); ?>
         </div>
     </div>
 </section>

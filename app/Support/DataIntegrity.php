@@ -279,7 +279,84 @@ class DataIntegrity {
         }
         $stmt->close();
 
+        // 8. Verifica configurazione APP_CANONICAL_URL nel .env
+        $canonicalUrl = getenv('APP_CANONICAL_URL');
+        $currentUrl = $this->detectCurrentCanonicalUrl();
+
+        if ($canonicalUrl === false) {
+            $issues[] = [
+                'type' => 'missing_canonical_url',
+                'message' => "APP_CANONICAL_URL non configurato nel file .env. Link nelle email potrebbero non funzionare correttamente. Valore suggerito: {$currentUrl}",
+                'severity' => 'warning',
+                'fix_suggestion' => "Aggiungi al file .env: APP_CANONICAL_URL={$currentUrl}"
+            ];
+        } else {
+            $canonicalUrl = trim((string)$canonicalUrl);
+            if ($canonicalUrl === '') {
+                $issues[] = [
+                    'type' => 'empty_canonical_url',
+                    'message' => "APP_CANONICAL_URL configurato ma vuoto nel file .env. Link nelle email useranno fallback a HTTP_HOST. Valore suggerito: {$currentUrl}",
+                    'severity' => 'warning',
+                    'fix_suggestion' => "Imposta nel file .env: APP_CANONICAL_URL={$currentUrl}"
+                ];
+            } elseif (!filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
+                $issues[] = [
+                    'type' => 'invalid_canonical_url',
+                    'message' => "APP_CANONICAL_URL configurato con valore non valido: '{$canonicalUrl}'. Link nelle email potrebbero non funzionare. Valore suggerito: {$currentUrl}",
+                    'severity' => 'error',
+                    'fix_suggestion' => "Correggi nel file .env: APP_CANONICAL_URL={$currentUrl}"
+                ];
+            }
+        }
+
         return $issues;
+    }
+
+    /**
+     * Rileva l'URL canonico corrente dal server
+     */
+    private function detectCurrentCanonicalUrl(): string {
+        $scheme = 'http';
+
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+            $forwardedProto = explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0];
+            $scheme = strtolower($forwardedProto) === 'https' ? 'https' : 'http';
+        } elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            $scheme = 'https';
+        } elseif (!empty($_SERVER['REQUEST_SCHEME'])) {
+            $scheme = strtolower((string)$_SERVER['REQUEST_SCHEME']) === 'https' ? 'https' : 'http';
+        } elseif (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443) {
+            $scheme = 'https';
+        }
+
+        $host = 'localhost';
+        if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+            $host = explode(',', (string)$_SERVER['HTTP_X_FORWARDED_HOST'])[0];
+        } elseif (!empty($_SERVER['HTTP_HOST'])) {
+            $host = (string)$_SERVER['HTTP_HOST'];
+        } elseif (!empty($_SERVER['SERVER_NAME'])) {
+            $host = (string)$_SERVER['SERVER_NAME'];
+        }
+
+        // Remove port from host if it's already there
+        $port = null;
+        if (str_contains($host, ':')) {
+            [$hostOnly, $portPart] = explode(':', $host, 2);
+            $host = $hostOnly;
+            $port = is_numeric($portPart) ? (int)$portPart : null;
+        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_PORT'])) {
+            $port = (int)$_SERVER['HTTP_X_FORWARDED_PORT'];
+        } elseif (isset($_SERVER['SERVER_PORT']) && is_numeric((string)$_SERVER['SERVER_PORT'])) {
+            $port = (int)$_SERVER['SERVER_PORT'];
+        }
+
+        $base = $scheme . '://' . $host;
+        $defaultPorts = ['http' => 80, 'https' => 443];
+        if ($port !== null && ($defaultPorts[$scheme] ?? null) !== $port) {
+            $base .= ':' . $port;
+        }
+
+        return rtrim($base, '/');
     }
 
     /**

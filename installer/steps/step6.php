@@ -31,20 +31,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             // Load .env and connect to database
             $installer->loadEnvConfig();
+            $pdo = $installer->getDatabaseConnection();
 
-            // CRITICAL FIX: Use ConfigStore to save email settings
-            // ConfigStore maps 'mail' category to 'email' in database automatically
-            require_once __DIR__ . '/../../app/Support/ConfigStore.php';
-            \App\Support\ConfigStore::set('mail.driver', $driver);
-            \App\Support\ConfigStore::set('mail.from_email', $fromEmail);
-            \App\Support\ConfigStore::set('mail.from_name', $fromName);
+            // CRITICAL FIX: Save email settings directly to database
+            // During installation, ConfigStore doesn't work because config/settings.php doesn't exist yet
+            // We save directly to the settings table using PDO
 
-            // SMTP settings in nested structure
-            \App\Support\ConfigStore::set('mail.smtp.host', $smtpHost);
-            \App\Support\ConfigStore::set('mail.smtp.port', (int)$smtpPort);
-            \App\Support\ConfigStore::set('mail.smtp.username', $smtpUsername);
-            \App\Support\ConfigStore::set('mail.smtp.password', $smtpPassword);
-            \App\Support\ConfigStore::set('mail.smtp.encryption', $smtpEncryption);
+            // Prepare settings data
+            $settings = [
+                ['email', 'driver_mode', $driver],
+                ['email', 'from_email', $fromEmail],
+                ['email', 'from_name', $fromName],
+                ['email', 'smtp_host', $smtpHost],
+                ['email', 'smtp_port', (string)$smtpPort],
+                ['email', 'smtp_username', $smtpUsername],
+                ['email', 'smtp_password', $smtpPassword],
+                ['email', 'smtp_security', $smtpEncryption],
+            ];
+
+            // Insert or update each setting
+            $stmt = $pdo->prepare("
+                INSERT INTO system_settings (category, setting_key, setting_value, updated_at)
+                VALUES (?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE
+                    setting_value = VALUES(setting_value),
+                    updated_at = NOW()
+            ");
+
+            foreach ($settings as [$category, $key, $value]) {
+                $stmt->execute([$category, $key, $value]);
+            }
 
             completeStep(6);
             header('Location: index.php?step=7&force');

@@ -29,14 +29,14 @@ class PasswordController
         $data = (array)($request->getParsedBody() ?? []);
         // Validate CSRF using helper
 
-        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('forgot_password')?error=csrf')) {
+        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('forgot_password') . '?error=csrf')) {
 
             return $error;
 
         }
         $email = trim((string)($data['email'] ?? ''));
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=invalid')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=invalid')->withStatus(302);
         }
 
         // Ensure MySQL and PHP use the same timezone (UTC)
@@ -44,7 +44,7 @@ class PasswordController
 
         // Rate limiting: max 3 requests per 15 minutes per email
         if (!$this->checkRateLimit($db, $email, 'forgot_password', 3, 15)) {
-            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=rate_limit')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=rate_limit')->withStatus(302);
         }
 
         $stmt = $db->prepare("SELECT id, nome, cognome, email_verificata FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
@@ -65,7 +65,7 @@ class PasswordController
 
             // Use validated base URL to prevent Host Header Injection
             $baseUrl = $this->getValidatedBaseUrl();
-            $resetUrl = $baseUrl . RouteTranslator::route('reset_password')?token=' . urlencode($resetToken);
+            $resetUrl = $baseUrl . RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
             $name = trim((string)($row['nome'] ?? '') . ' ' . (string)($row['cognome'] ?? ''));
             $subject = 'Recupera la tua password';
             $html = '<h2>Recupera la tua password</h2>' .
@@ -89,7 +89,7 @@ class PasswordController
         } else {
             $stmt->close();
         }
-        return $response->withHeader('Location', RouteTranslator::route('forgot_password')?sent=1')->withStatus(302);
+        return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?sent=1')->withStatus(302);
     }
 
     public function resetForm(Request $request, Response $response, mysqli $db): Response
@@ -98,7 +98,7 @@ class PasswordController
         $token = (string)($params['token'] ?? '');
 
         if (empty($token)) {
-            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=invalid_token')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=invalid_token')->withStatus(302);
         }
 
         // Ensure MySQL and PHP use the same timezone (UTC)
@@ -114,7 +114,7 @@ class PasswordController
         $stmt->close();
 
         if (!$user) {
-            return $response->withHeader('Location', RouteTranslator::route('forgot_password')?error=token_expired')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=token_expired')->withStatus(302);
         }
 
         $csrf_token = Csrf::ensureToken();
@@ -130,7 +130,7 @@ class PasswordController
         $data = (array)($request->getParsedBody() ?? []);
         // Validate CSRF using helper
 
-        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('reset_password')?error=csrf')) {
+        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('reset_password') . '?error=csrf')) {
 
             return $error;
 
@@ -141,16 +141,16 @@ class PasswordController
         $pwd1 = (string)($data['password'] ?? '');
         $pwd2 = (string)($data['password_confirm'] ?? '');
         if ($token === '' || $pwd1 === '' || $pwd1 !== $pwd2) {
-            return $response->withHeader('Location', RouteTranslator::route('reset_password')?token='.urlencode($token).'&error=invalid')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token='.urlencode($token).'&error=invalid')->withStatus(302);
         }
 
         // Validate password complexity before checking token
         if (strlen($pwd1) < 8) {
-            return $response->withHeader('Location', RouteTranslator::route('reset_password')?token='.urlencode($token).'&error=password_too_short')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token='.urlencode($token).'&error=password_too_short')->withStatus(302);
         }
 
         if (!preg_match('/[A-Z]/', $pwd1) || !preg_match('/[a-z]/', $pwd1) || !preg_match('/[0-9]/', $pwd1)) {
-            return $response->withHeader('Location', RouteTranslator::route('reset_password')?token='.urlencode($token).'&error=password_needs_upper_lower_number')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token='.urlencode($token).'&error=password_needs_upper_lower_number')->withStatus(302);
         }
 
         // Ensure MySQL and PHP use the same timezone (UTC)
@@ -185,24 +185,28 @@ class PasswordController
      */
     private function getValidatedBaseUrl(): string
     {
-        // Define allowed hosts for this application
-        $allowedHosts = [
-            'localhost',
-            'localhost:8000',
-            'localhost:8001',
-            'biblioteca.local',
-            'biblioteca.fabiodalez.it',
-        ];
-
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
-
-        // Validate the host against whitelist
-        if (!in_array($host, $allowedHosts, true)) {
-            $host = 'localhost:8000'; // Fallback to safe default
+        // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
+        // This ensures emails always use the production URL even when sent from CLI/localhost
+        $canonicalUrl = getenv('APP_CANONICAL_URL');
+        if ($canonicalUrl !== false) {
+            $canonicalUrl = trim((string)$canonicalUrl);
+            if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
+                return rtrim($canonicalUrl, '/');
+            }
         }
 
+        // PRIORITY 2: Fallback to HTTP_HOST with security validation
         $protocol = (($_SERVER['HTTPS'] ?? 'off') === 'on') ? 'https' : 'http';
-        return $protocol . '://' . $host;
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+        // Validate hostname format to prevent Host Header Injection attacks
+        // Accepts: domain.com, subdomain.domain.com, localhost, localhost:8000, IP:port
+        if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
+            return $protocol . '://' . $host;
+        }
+
+        // Invalid hostname format - fallback to localhost
+        return $protocol . '://localhost';
     }
 
     /**

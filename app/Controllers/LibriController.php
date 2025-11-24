@@ -11,16 +11,89 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class LibriController
 {
+    /**
+     * Get the storage directory path
+     * Centralized configuration for storage location
+     */
+    private function getStoragePath(): string
+    {
+        return __DIR__ . '/../../storage';
+    }
+
+    /**
+     * Get the uploads directory path for covers
+     * Centralized configuration for upload location
+     */
+    private function getCoversUploadPath(): string
+    {
+        return __DIR__ . '/../../public/uploads/copertine';
+    }
+
+    /**
+     * Get the relative URL path for covers (from web root)
+     */
+    private function getCoversUrlPath(): string
+    {
+        return '/uploads/copertine';
+    }
+
+    /**
+     * Rotate log files to prevent unlimited growth
+     * Keeps only last 7 days of logs, max 10MB per file
+     */
+    private function rotateLogFile(string $logFile): void
+    {
+        if (!file_exists($logFile)) {
+            return;
+        }
+
+        $maxSize = 10 * 1024 * 1024; // 10MB
+        $maxAge = 7 * 24 * 60 * 60;  // 7 days
+
+        // Check size
+        if (filesize($logFile) > $maxSize) {
+            // Rotate by renaming
+            $rotated = $logFile . '.' . date('Y-m-d_His');
+            rename($logFile, $rotated);
+        }
+
+        // Clean old rotated logs
+        $dir = dirname($logFile);
+        $basename = basename($logFile);
+        $pattern = $dir . '/' . $basename . '.*';
+        foreach (glob($pattern) as $oldLog) {
+            if (filemtime($oldLog) < time() - $maxAge) {
+                unlink($oldLog);
+            }
+        }
+    }
+
     private function logCoverDebug(string $label, array $data): void
     {
-        // SECURITY: Logging disabilitato in produzione per prevenire information disclosure
         if (getenv('APP_ENV') === 'development') {
-            $file = __DIR__ . '/../../storage/cover_debug.log';
-            // Sanitizza dati sensibili prima di loggare
+            $logDir = $this->getStoragePath();
+
+            // Create directory if not exists
+            if (!is_dir($logDir)) {
+                mkdir($logDir, 0755, true);
+            }
+
+            $file = $logDir . '/cover_debug.log';
+
+            // Rotate log before writing
+            $this->rotateLogFile($file);
+
+            // Enhanced sanitization - remove any sensitive data
             $sanitized = $data;
-            unset($sanitized['password'], $sanitized['token'], $sanitized['csrf_token']);
+            $sensitiveKeys = ['password', 'token', 'csrf_token', 'api_key', 'secret', 'auth'];
+            foreach ($sensitiveKeys as $key) {
+                unset($sanitized[$key]);
+            }
+
             $line = date('Y-m-d H:i:s') . " [$label] " . json_encode($sanitized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
-            @file_put_contents($file, $line, FILE_APPEND);
+
+            // Use LOCK_EX to prevent race conditions
+            file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
         }
     }
     public function index(Request $request, Response $response, mysqli $db): Response
@@ -184,7 +257,16 @@ class LibriController
         // Sanitize ISBN/EAN: strip spaces and dashes (server-side safety)
         foreach (['isbn10','isbn13','ean'] as $codeKey) {
             if (isset($fields[$codeKey])) {
-                $fields[$codeKey] = preg_replace('/[\s-]+/', '', (string)$fields[$codeKey]);
+                $rawValue = (string)$fields[$codeKey];
+
+                // Input validation: prevent ReDoS by checking length before regex
+                // ISBN-10: max 13 chars (10 digits + 3 separators), ISBN-13: max 17 chars (13 digits + 4 separators), EAN: max 13
+                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 13);
+                if (strlen($rawValue) > $maxLength) {
+                    $rawValue = substr($rawValue, 0, $maxLength);
+                }
+
+                $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
             }
         }
 
@@ -236,7 +318,7 @@ class LibriController
         // DEBUG: Log field processing for store method
         // SECURITY: Logging disabilitato in produzione per prevenire information disclosure
         if (getenv('APP_ENV') === 'development') {
-            $debugFile = __DIR__ . '/../../storage/field_debug.log';
+            $debugFile = $this->getStoragePath() . '/field_debug.log';
             $debugEntry = "FIELD PROCESSING (STORE):\n";
             foreach ($fields as $key => $value) {
                 $type = gettype($value);
@@ -246,37 +328,77 @@ class LibriController
             }
             @file_put_contents($debugFile, $debugEntry, FILE_APPEND);
         }
-        
-        // Duplicate check on identifiers (EAN/ISBN)
+
+        // Duplicate check on identifiers (EAN/ISBN) with advisory lock to prevent race conditions
         $codes = [];
         foreach (['isbn10','isbn13','ean'] as $k) {
             $v = trim((string)($fields[$k] ?? ''));
             if ($v !== '') { $codes[$k] = $v; }
         }
+
+        // Acquire advisory lock to make duplicate check + insert atomic
+        $lockKey = null;
         if (!empty($codes)) {
-            $clauses = [];$types='';$params=[];
-            foreach ($codes as $k=>$v) { $clauses[] = "l.$k = ?"; $types .= 's'; $params[] = $v; }
-            $sql = 'SELECT id, titolo, isbn10, isbn13, ean FROM libri l WHERE '.implode(' OR ', $clauses).' LIMIT 1';
-            $stmt = $db->prepare($sql);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $dup = $stmt->get_result()->fetch_assoc();
-            if ($dup) {
-                // Return JSON with duplicate book info for frontend to handle
+            // Create unique lock key from identifiers
+            $lockKey = 'book_create_' . md5(implode('|', array_values($codes)));
+            $lockResult = $db->query("SELECT GET_LOCK('{$db->real_escape_string($lockKey)}', 10)");
+            $locked = $lockResult ? (int)$lockResult->fetch_row()[0] : 0;
+
+            if (!$locked) {
+                // Failed to acquire lock (timeout or error)
                 $response->getBody()->write(json_encode([
-                    'error' => 'duplicate',
-                    'message' => __('Esiste già un libro con lo stesso identificatore (ISBN/EAN).'),
-                    'existing_book' => [
-                        'id' => (int)$dup['id'],
-                        'title' => (string)($dup['titolo'] ?? ''),
-                        'isbn10' => (string)($dup['isbn10'] ?? ''),
-                        'isbn13' => (string)($dup['isbn13'] ?? ''),
-                        'ean' => (string)($dup['ean'] ?? '')
-                    ]
+                    'error' => 'lock_timeout',
+                    'message' => __('Impossibile acquisire il lock. Riprova tra qualche secondo.')
                 ], JSON_UNESCAPED_UNICODE));
-                return $response->withStatus(409)->withHeader('Content-Type', 'application/json');
+                return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
             }
         }
+
+        try {
+            // Perform duplicate check within the lock
+            if (!empty($codes)) {
+                $clauses = [];$types='';$params=[];
+                foreach ($codes as $k=>$v) { $clauses[] = "l.$k = ?"; $types .= 's'; $params[] = $v; }
+                $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
+                        s.codice as scaffale_codice, m.numero_livello as mensola_livello
+                        FROM libri l
+                        LEFT JOIN scaffali s ON l.scaffale_id = s.id
+                        LEFT JOIN mensole m ON l.mensola_id = m.id
+                        WHERE '.implode(' OR ', $clauses).' LIMIT 1';
+                $stmt = $db->prepare($sql);
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $dup = $stmt->get_result()->fetch_assoc();
+                if ($dup) {
+                    // Release lock before returning
+                    if ($lockKey) {
+                        $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+                    }
+
+                    // Build location string
+                    $location = '';
+                    if (!empty($dup['scaffale_codice']) && !empty($dup['mensola_livello']) && !empty($dup['posizione_progressiva'])) {
+                        $location = $dup['scaffale_codice'] . '.' . $dup['mensola_livello'] . '.' . $dup['posizione_progressiva'];
+                    } elseif (!empty($dup['collocazione'])) {
+                        $location = $dup['collocazione'];
+                    }
+
+                    // Return JSON with duplicate book info for frontend to handle
+                    $response->getBody()->write(json_encode([
+                        'error' => 'duplicate',
+                        'message' => __('Esiste già un libro con lo stesso identificatore (ISBN/EAN).'),
+                        'existing_book' => [
+                            'id' => (int)$dup['id'],
+                            'title' => (string)($dup['titolo'] ?? ''),
+                            'isbn10' => (string)($dup['isbn10'] ?? ''),
+                            'isbn13' => (string)($dup['isbn13'] ?? ''),
+                            'ean' => (string)($dup['ean'] ?? ''),
+                            'location' => $location
+                        ]
+                    ], JSON_UNESCAPED_UNICODE));
+                    return $response->withStatus(409)->withHeader('Content-Type', 'application/json');
+                }
+            }
 
         $repo = new \App\Models\BookRepository($db);
         $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
@@ -434,6 +556,13 @@ class LibriController
         $_SESSION['success_message'] = __('Libro aggiunto con successo!');
 
         return $response->withHeader('Location', '/admin/libri/'.$id)->withStatus(302);
+
+        } finally {
+            // Release advisory lock
+            if ($lockKey) {
+                $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+            }
+        }
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -487,7 +616,16 @@ class LibriController
         // Sanitize ISBN/EAN on update as well
         foreach (['isbn10','isbn13','ean'] as $codeKey) {
             if (isset($fields[$codeKey])) {
-                $fields[$codeKey] = preg_replace('/[\s-]+/', '', (string)$fields[$codeKey]);
+                $rawValue = (string)$fields[$codeKey];
+
+                // Input validation: prevent ReDoS by checking length before regex
+                // ISBN-10: max 13 chars (10 digits + 3 separators), ISBN-13: max 17 chars (13 digits + 4 separators), EAN: max 13
+                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 13);
+                if (strlen($rawValue) > $maxLength) {
+                    $rawValue = substr($rawValue, 0, $maxLength);
+                }
+
+                $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
             }
         }
 
@@ -578,10 +716,22 @@ class LibriController
             if (!empty($currentBook['copertina_url'])) {
                 $oldCoverPath = $currentBook['copertina_url'];
                 // Solo se è un file locale (non URL esterno)
-                if (strpos($oldCoverPath, '/uploads/') === 0) {
-                    $fullPath = __DIR__ . '/../../public' . $oldCoverPath;
-                    if (file_exists($fullPath)) {
-                        @unlink($fullPath);
+                if (strpos($oldCoverPath, '/uploads/copertine/') === 0) {
+                    // SECURITY FIX #2 (CRITICAL): Prevent path traversal attacks
+                    $requestedPath = __DIR__ . '/../../public' . $oldCoverPath;
+                    $safePath = realpath($requestedPath);
+                    $baseDir = realpath($this->getCoversUploadPath());
+
+                    // Ensure resolved path is within allowed directory
+                    if ($safePath && $baseDir && strpos($safePath, $baseDir) === 0 && file_exists($safePath)) {
+                        unlink($safePath);
+                        $this->logCoverDebug('cover.deleted', ['path' => $oldCoverPath]);
+                    } else {
+                        $this->logCoverDebug('cover.delete.security_block', [
+                            'requested' => $oldCoverPath,
+                            'resolved' => $safePath,
+                            'baseDir' => $baseDir
+                        ]);
                     }
                 }
             }
@@ -607,41 +757,64 @@ class LibriController
                 }
             }
         } catch (\Throwable $e) { /* ignore */ }
-        
-        // Duplicate check on update (exclude current record)
+
+        // Duplicate check on update (exclude current record) with advisory lock to prevent race conditions
         $codes = [];
         foreach (['isbn10','isbn13','ean'] as $k) {
             $v = trim((string)($fields[$k] ?? ''));
             if ($v !== '') { $codes[$k] = $v; }
         }
+
+        // Acquire advisory lock to make duplicate check + update atomic
+        $lockKey = null;
         if (!empty($codes)) {
-            $clauses = [];$types='';$params=[];
-            foreach ($codes as $k=>$v) { $clauses[] = "l.$k = ?"; $types .= 's'; $params[] = $v; }
-            $sql = 'SELECT id, titolo FROM libri l WHERE ('.implode(' OR ', $clauses).') AND id <> ? LIMIT 1';
-            $types .= 'i'; $params[] = $id;
-            $stmt = $db->prepare($sql);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $dup = $stmt->get_result()->fetch_assoc();
-            if ($dup) {
-                $editRepo = new \App\Models\PublisherRepository($db);
-                $autRepo = new \App\Models\AuthorRepository($db);
-                $editori = $editRepo->listBasic();
-                $autori = $autRepo->listBasic(500);
-                $colRepo = new \App\Models\CollocationRepository($db);
-                $taxRepo = new \App\Models\TaxonomyRepository($db);
-                $scaffali = $colRepo->getScaffali();
-                $generi = $taxRepo->genres();
-                $sottogeneri = $taxRepo->subgenres();
-                $error_message = 'Esiste già un altro libro con lo stesso identificatore (ISBN/EAN). ID: #'
-                    . (int)$dup['id'] . ' — "' . (string)($dup['titolo'] ?? '') . '"';
-                $libroView = array_merge($currentBook, $fields);
-                ob_start(); require __DIR__ . '/../Views/libri/modifica_libro.php'; $content = ob_get_clean();
-                ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-                $response->getBody()->write($html);
-                return $response->withStatus(409);
+            // Create unique lock key from identifiers
+            $lockKey = 'book_update_' . md5(implode('|', array_values($codes)));
+            $lockResult = $db->query("SELECT GET_LOCK('{$db->real_escape_string($lockKey)}', 10)");
+            $locked = $lockResult ? (int)$lockResult->fetch_row()[0] : 0;
+
+            if (!$locked) {
+                // Failed to acquire lock (timeout or error)
+                $_SESSION['error_message'] = __('Impossibile acquisire il lock. Riprova tra qualche secondo.');
+                return $response->withHeader('Location', '/admin/libri/modifica/'.$id)->withStatus(302);
             }
         }
+
+        try {
+            // Perform duplicate check within the lock
+            if (!empty($codes)) {
+                $clauses = [];$types='';$params=[];
+                foreach ($codes as $k=>$v) { $clauses[] = "l.$k = ?"; $types .= 's'; $params[] = $v; }
+                $sql = 'SELECT id, titolo FROM libri l WHERE ('.implode(' OR ', $clauses).') AND id <> ? LIMIT 1';
+                $types .= 'i'; $params[] = $id;
+                $stmt = $db->prepare($sql);
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $dup = $stmt->get_result()->fetch_assoc();
+                if ($dup) {
+                    // Release lock before returning
+                    if ($lockKey) {
+                        $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+                    }
+
+                    $editRepo = new \App\Models\PublisherRepository($db);
+                    $autRepo = new \App\Models\AuthorRepository($db);
+                    $editori = $editRepo->listBasic();
+                    $autori = $autRepo->listBasic(500);
+                    $colRepo = new \App\Models\CollocationRepository($db);
+                    $taxRepo = new \App\Models\TaxonomyRepository($db);
+                    $scaffali = $colRepo->getScaffali();
+                    $generi = $taxRepo->genres();
+                    $sottogeneri = $taxRepo->subgenres();
+                    $error_message = 'Esiste già un altro libro con lo stesso identificatore (ISBN/EAN). ID: #'
+                        . (int)$dup['id'] . ' — "' . (string)($dup['titolo'] ?? '') . '"';
+                    $libroView = array_merge($currentBook, $fields);
+                    ob_start(); require __DIR__ . '/../Views/libri/modifica_libro.php'; $content = ob_get_clean();
+                    ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
+                    $response->getBody()->write($html);
+                    return $response->withStatus(409);
+                }
+            }
         $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
 
         $collRepo = new \App\Models\CollocationRepository($db);
@@ -827,6 +1000,13 @@ class LibriController
         $_SESSION['success_message'] = __('Libro aggiornato con successo!');
 
         return $response->withHeader('Location', '/admin/libri/'.$id)->withStatus(302);
+
+        } finally {
+            // Release advisory lock
+            if ($lockKey) {
+                $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+            }
+        }
     }
 
     private function handleCoverUrl(mysqli $db, int $bookId, string $url): void
@@ -864,22 +1044,132 @@ class LibriController
             }
 
             // Otherwise, download and save locally
-            $ctx = stream_context_create(['http' => ['timeout' => 10, 'header' => "User-Agent: BibliotecaBot/1.0\r\n"]]);
-            $img = @file_get_contents($url, false, $ctx);
-            if ($img === false) { $this->logCoverDebug('handleCoverUrl.download.fail', ['bookId' => $bookId, 'url' => $url]); return; }
+
+            // SECURITY FIX #1 (CRITICAL): Prevent SSRF via DNS rebinding
+            // Resolve hostname to IP and validate it's not a private/reserved IP
+            $host = parse_url($url, PHP_URL_HOST);
+            if ($host) {
+                $ip = gethostbyname($host);
+
+                // Block private IP ranges (RFC 1918), link-local, loopback, and reserved ranges
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                    $this->logCoverDebug('handleCoverUrl.security.private_ip_blocked', [
+                        'bookId' => $bookId,
+                        'url' => $url,
+                        'host' => $host,
+                        'resolved_ip' => $ip
+                    ]);
+                    return;
+                }
+            }
+
+            // SECURITY FIX: DoS Prevention - Check Content-Length BEFORE downloading
+            // Prevent memory exhaustion attacks by verifying file size before streaming
+
+            // Step 1: HEAD request to check Content-Length
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_NOBODY => true,  // Only headers, no body
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_TIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_USERAGENT => 'BibliotecaBot/1.0'
+            ]);
+            curl_exec($ch);
+            $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            // Reject if size is known and exceeds limit (2MB)
+            if ($contentLength > 0 && $contentLength > 2 * 1024 * 1024) {
+                $this->logCoverDebug('handleCoverUrl.security.size_exceeded_precheck', [
+                    'bookId' => $bookId,
+                    'url' => $url,
+                    'size' => $contentLength
+                ]);
+                return;
+            }
+
+            // Reject if HEAD request failed
+            if ($httpCode >= 400) {
+                $this->logCoverDebug('handleCoverUrl.download.head_fail', [
+                    'bookId' => $bookId,
+                    'url' => $url,
+                    'httpCode' => $httpCode
+                ]);
+                return;
+            }
+
+            // Step 2: Download with streaming and size limit enforcement
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => false,  // Prevent redirect bypass
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_USERAGENT => 'BibliotecaBot/1.0',
+                CURLOPT_BUFFERSIZE => 128 * 1024,  // 128KB chunks
+                CURLOPT_NOPROGRESS => false,
+                CURLOPT_PROGRESSFUNCTION => function($resource, $download_size, $downloaded, $upload_size, $uploaded) {
+                    // Abort download if it exceeds 2MB during streaming
+                    return ($downloaded > 2 * 1024 * 1024) ? 1 : 0;
+                }
+            ]);
+            $img = curl_exec($ch);
+            $curlError = curl_errno($ch);
+            $curlHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            // Handle abort from progress function
+            if ($curlError === CURLE_ABORTED_BY_CALLBACK) {
+                $this->logCoverDebug('handleCoverUrl.security.size_exceeded_during_download', [
+                    'bookId' => $bookId,
+                    'url' => $url
+                ]);
+                return;
+            }
+
+            // Handle download failure
+            if ($img === false || $curlError !== 0 || $curlHttpCode >= 400) {
+                $this->logCoverDebug('handleCoverUrl.download.fail', [
+                    'bookId' => $bookId,
+                    'url' => $url,
+                    'curlError' => $curlError,
+                    'httpCode' => $curlHttpCode
+                ]);
+                return;
+            }
+
+            // Final size check (defense in depth)
+            if (strlen($img) > 2 * 1024 * 1024) {
+                $this->logCoverDebug('handleCoverUrl.security.size_exceeded_final', [
+                    'bookId' => $bookId,
+                    'url' => $url,
+                    'size' => strlen($img)
+                ]);
+                return;
+            }
 
             // Security: Validate MIME type of downloaded content
             if (!$this->isValidImageMimeType($img)) {
                 $this->logCoverDebug('handleCoverUrl.security.invalid_mime', ['bookId' => $bookId, 'url' => $url]);
                 return;
             }
-            $dir = __DIR__ . '/../../public/uploads/copertine/';
-            if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
+            $dir = $this->getCoversUploadPath() . '/';
+            if (!is_dir($dir)) {
+                if (!mkdir($dir, 0755, true)) {
+                    $this->logCoverDebug('handleCoverUrl.fail.mkdir', ['bookId' => $bookId, 'dir' => $dir]);
+                    return;
+                }
+            }
             $ext = pathinfo(parse_url($url, PHP_URL_PATH) ?? 'jpg', PATHINFO_EXTENSION) ?: 'jpg';
             $name = 'libro_'.$bookId.'_'.time().'.'.$ext;
             $dst = $dir.$name;
-            if (@file_put_contents($dst, $img) !== false) {
-                $cover = '/uploads/copertine/'.$name;
+            if (file_put_contents($dst, $img) !== false) {
+                $cover = $this->getCoversUrlPath() . '/' . $name;
                 $stmt = $db->prepare('UPDATE libri SET copertina_url=?, updated_at=NOW() WHERE id=?');
                 $stmt->bind_param('si', $cover, $bookId);
                 $stmt->execute();
@@ -926,13 +1216,18 @@ class LibriController
         }
 
         // 6. Save file with safe name
-        $dir = __DIR__ . '/../../public/uploads/copertine/';
-        if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
+        $dir = $this->getCoversUploadPath() . '/';
+        if (!is_dir($dir)) {
+            if (!mkdir($dir, 0755, true)) {
+                $this->logCoverDebug('handleCoverUpload.fail.mkdir', ['bookId' => $bookId, 'dir' => $dir]);
+                return;
+            }
+        }
         $name = 'libro_'.$bookId.'_'.time().'.'.$ext;
         $dst = $dir.$name;
 
-        if (@file_put_contents($dst, $content) !== false) {
-            $url = '/uploads/copertine/'.$name;
+        if (file_put_contents($dst, $content) !== false) {
+            $url = $this->getCoversUrlPath() . '/' . $name;
             $stmt = $db->prepare('UPDATE libri SET copertina_url=?, updated_at=NOW() WHERE id=?');
             $stmt->bind_param('si', $url, $bookId);
             $stmt->execute();
@@ -1001,6 +1296,15 @@ class LibriController
             return false;
         }
 
+        // SECURITY FIX #3 (CRITICAL): Block SVG files (can contain JavaScript)
+        // SVG files can start with <?xml, <svg, or <!DOCTYPE
+        $contentStart = substr($content, 0, 100);
+        if (substr($contentStart, 0, 5) === '<?xml' ||
+            stripos($contentStart, '<svg') !== false ||
+            stripos($contentStart, '<!DOCTYPE svg') !== false) {
+            return false;
+        }
+
         // Check magic bytes for common image formats
         $magicBytes = substr($content, 0, 12);
 
@@ -1021,6 +1325,19 @@ class LibriController
 
         // WebP: 52 49 46 46 + 57 45 42 50 (RIFF + WEBP)
         if (substr($magicBytes, 0, 4) === "RIFF" && substr($magicBytes, 8, 4) === "WEBP") {
+            return true;
+        }
+
+        // AVIF: ftypavif or ftypavis (offset 4-12)
+        if (strpos(substr($content, 4, 8), 'ftyp') === 0) {
+            $brand = substr($content, 8, 4);
+            if ($brand === 'avif' || $brand === 'avis') {
+                return true;
+            }
+        }
+
+        // BMP: 42 4D (BM in ASCII)
+        if (substr($magicBytes, 0, 2) === "\x42\x4D") {
             return true;
         }
 
@@ -1057,6 +1374,19 @@ class LibriController
         // WebP: RIFF + WEBP
         if (strlen($magic) >= 12 && substr($magic, 0, 4) === "RIFF" && substr($magic, 8, 4) === "WEBP") {
             return 'webp';
+        }
+
+        // AVIF: ftypavif or ftypavis (offset 4-12)
+        if (strlen($content) >= 12 && strpos(substr($content, 4, 8), 'ftyp') === 0) {
+            $brand = substr($content, 8, 4);
+            if ($brand === 'avif' || $brand === 'avis') {
+                return 'avif';
+            }
+        }
+
+        // BMP: 42 4D (BM in ASCII)
+        if (substr($magic, 0, 2) === "\x42\x4D") {
+            return 'bmp';
         }
 
         return null;
@@ -1523,7 +1853,14 @@ class LibriController
             $stmt->close();
         }
 
-        // Generate CSV with same format as import
+        // OPTIMIZATION: Use php://temp with memory limit to handle large datasets
+        // Stream data instead of building giant string in memory
+        $stream = fopen('php://temp/maxmemory:' . (5 * 1024 * 1024), 'r+'); // 5MB limit
+
+        // UTF-8 BOM
+        fwrite($stream, "\xEF\xBB\xBF");
+
+        // CSV headers
         $headers = [
             'id',
             'isbn10',
@@ -1548,9 +1885,9 @@ class LibriController
             'parole_chiave'
         ];
 
-        $output = "\xEF\xBB\xBF"; // UTF-8 BOM
-        $output .= implode(';', $headers) . "\n";
+        fwrite($stream, implode(';', $headers) . "\n");
 
+        $rowCount = 0;
         foreach ($libri as $libro) {
             // Use anno_pubblicazione directly (SMALLINT UNSIGNED type in DB, range 0-65535)
             $anno = $libro['anno_pubblicazione'] ?? '';
@@ -1589,11 +1926,14 @@ class LibriController
                 return $field;
             }, $row);
 
-            $output .= implode(';', $escapedRow) . "\n";
+            fwrite($stream, implode(';', $escapedRow) . "\n");
+
+            // OPTIMIZATION: Garbage collection every 1000 rows to prevent memory buildup
+            if (++$rowCount % 1000 === 0) {
+                gc_collect_cycles();
+            }
         }
 
-        $stream = fopen('php://temp', 'r+');
-        fwrite($stream, $output);
         rewind($stream);
 
         $filename = 'libri_export_' . date('Y-m-d_His') . '.csv';
@@ -1604,6 +1944,9 @@ class LibriController
             ->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
             ->withHeader('Pragma', 'no-cache')
             ->withHeader('Expires', '0')
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('X-Frame-Options', 'DENY')
+            ->withHeader('Content-Security-Policy', "default-src 'none'")
             ->withBody(new \Slim\Psr7\Stream($stream));
     }
 

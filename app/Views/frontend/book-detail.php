@@ -1,4 +1,6 @@
 <?php
+use App\Support\HtmlHelper;
+
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
 $bookAuthor = !empty($authors) ? html_entity_decode($authors[0]['nome'] ?? '', ENT_QUOTES, 'UTF-8') : '';
@@ -79,11 +81,11 @@ if ($bookDescription) {
     }
 }
 
-// Canonical URL
-$canonicalUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+// Canonical URL - Safe from Host header injection
+$canonicalUrl = HtmlHelper::getCurrentUrl();
 
 // Open Graph Image - Ensure absolute URLs
-$baseUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+$baseUrl = HtmlHelper::getBaseUrl();
 if ($bookCover) {
     // Se l'URL è relativo, renderlo assoluto
     $ogImage = (strpos($bookCover, 'http') === 0) ? $bookCover : $baseUrl . $bookCover;
@@ -100,13 +102,13 @@ $breadcrumbSchema = [
             "@type" => "ListItem",
             "position" => 1,
             "name" => __("Home"),
-            "item" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
+            "item" => HtmlHelper::getBaseUrl()
         ],
         [
             "@type" => "ListItem",
             "position" => 2,
             "name" => __("Catalogo"),
-            "item" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $catalogRoute
+            "item" => HtmlHelper::getBaseUrl() . $catalogRoute
         ]
     ]
 ];
@@ -2267,12 +2269,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await res.json();
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              alert(__('Prenotazione effettuata per ') + date);
+              alert('<?= __("Prenotazione effettuata per ") ?>' + date);
             } else {
-              alert(__('Errore: ') + (result.message || __('Impossibile creare la prenotazione')));
+              alert('<?= __("Errore: ") ?>' + (result.message || '<?= __("Impossibile creare la prenotazione") ?>'));
             }
           } catch(_) {
-            alert(__('Errore nella prenotazione'));
+            alert('<?= __("Errore nella prenotazione") ?>');
           }
         }
       }

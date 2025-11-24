@@ -729,23 +729,28 @@ class NotificationService {
      * Get base URL
      */
     private function getBaseUrl(): string {
-        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-
-        // Validate host against whitelist to prevent Host Header Injection
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8001';
-        $allowedHosts = [
-            'localhost',
-            'localhost:8000',
-            'localhost:8001',
-            'biblioteca.local',
-            'biblioteca.fabiodalez.it',
-        ];
-
-        if (!in_array($host, $allowedHosts, true)) {
-            $host = 'localhost:8001'; // Fallback to safe default
+        // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
+        // This ensures emails always use the production URL even when sent from CLI/localhost
+        $canonicalUrl = getenv('APP_CANONICAL_URL');
+        if ($canonicalUrl !== false) {
+            $canonicalUrl = trim((string)$canonicalUrl);
+            if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
+                return rtrim($canonicalUrl, '/');
+            }
         }
 
-        return $protocol . '://' . $host;
+        // PRIORITY 2: Fallback to HTTP_HOST with security validation
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+        // Validate hostname format to prevent Host Header Injection attacks
+        // Accepts: domain.com, subdomain.domain.com, localhost, localhost:8000, IP:port
+        if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
+            return $protocol . '://' . $host;
+        }
+
+        // Invalid hostname format - fallback to localhost
+        return $protocol . '://localhost';
     }
 
     /**
@@ -940,8 +945,8 @@ class NotificationService {
     {
         return $this->createNotification(
             'new_message',
-            'Nuovo messaggio di contatto',
-            sprintf('Da %s (%s)', $senderName, $senderEmail),
+            __('Nuovo messaggio di contatto'),
+            sprintf(__('Da %s (%s)'), $senderName, $senderEmail),
             '/admin/settings?tab=messages',
             $messageId
         );
@@ -954,8 +959,8 @@ class NotificationService {
     {
         return $this->createNotification(
             'new_user',
-            'Nuova registrazione utente',
-            sprintf('Utente %s (%s) si è registrato', $username, $email),
+            __('Nuova registrazione utente'),
+            sprintf(__('Utente %s (%s) si è registrato'), $username, $email),
             '/admin/utenti',
             $userId
         );
@@ -968,8 +973,8 @@ class NotificationService {
     {
         return $this->createNotification(
             'new_reservation',
-            'Nuova prenotazione',
-            sprintf('%s ha prenotato "%s"', $username, $bookTitle),
+            __('Nuova prenotazione'),
+            sprintf(__('%s ha prenotato "%s"'), $username, $bookTitle),
             '/admin/prenotazioni',
             $reservationId
         );
@@ -982,8 +987,8 @@ class NotificationService {
     {
         return $this->createNotification(
             'overdue_loan',
-            'Prestito in ritardo',
-            sprintf('"%s" prestato a %s è in ritardo di %d giorni', $bookTitle, $username, $daysOverdue),
+            __('Prestito in ritardo'),
+            sprintf(__('"%s" prestato a %s è in ritardo di %d giorni'), $bookTitle, $username, $daysOverdue),
             '/admin/prestiti',
             $loanId
         );

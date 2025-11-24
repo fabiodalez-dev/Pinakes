@@ -258,9 +258,15 @@ class UsersController
         }
         $data = (array)$request->getParsedBody();
         $currentUserRole = (string)($_SESSION['user']['tipo_utente'] ?? '');
+        $currentUserId = (int)($_SESSION['user']['id'] ?? 0);
 
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
             return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=csrf')->withStatus(302);
+        }
+
+        // IDOR Protection: Staff can only edit themselves, admins can edit anyone
+        if ($currentUserRole === 'staff' && $currentUserId !== $id) {
+            return $response->withStatus(403);
         }
 
         $stmt = $db->prepare("SELECT * FROM utenti WHERE id = ? LIMIT 1");
@@ -459,9 +465,18 @@ class UsersController
         if ($guard = $this->guardAdminStaff($response)) {
             return $guard;
         }
+        $currentUserRole = (string)($_SESSION['user']['tipo_utente'] ?? '');
+        $currentUserId = (int)($_SESSION['user']['id'] ?? 0);
+
         $token = ($request->getParsedBody()['csrf_token'] ?? '') ?: '';
         if (!\App\Support\Csrf::validate($token)) { return $response->withStatus(400); }
-        
+
+        // IDOR Protection: Staff cannot delete any user, only admins can delete
+        // (Staff shouldn't even delete themselves to preserve audit trail)
+        if ($currentUserRole !== 'admin') {
+            return $response->withStatus(403);
+        }
+
         // Get user details for audit logging before deletion
         $stmt = $db->prepare("SELECT nome, cognome, email, tipo_utente FROM utenti WHERE id = ?");
         $stmt->bind_param("i", $id);

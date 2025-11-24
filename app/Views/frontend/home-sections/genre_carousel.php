@@ -1,4 +1,6 @@
 <?php
+use App\Support\HtmlHelper;
+
 /**
  * Genre Carousel Section Template
  * Displays genre-based book carousels and optional events section
@@ -132,8 +134,8 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
 
                         // Use same image logic as home-books-grid.php
                         $coverUrl = $book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg';
-                        $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : ((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $coverUrl);
-                        $defaultCoverUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
+                        $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : HtmlHelper::getBaseUrl() . $coverUrl;
+                        $defaultCoverUrl = HtmlHelper::getBaseUrl() . '/uploads/copertine/placeholder.jpg';
                     ?>
                     <a href="<?php echo $bookDetailUrl; ?>" class="carousel-book-card">
                         <img src="<?php echo htmlspecialchars($absoluteCoverUrl, ENT_QUOTES, 'UTF-8'); ?>"
