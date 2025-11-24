@@ -72,12 +72,12 @@
 
           <div>
             <label for="nazionalita" class="form-label"><?= __("Nazionalità") ?></label>
-            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= '<?= __("Es. Italiana, Americana, Francese...") ?>' ?>" />
+            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= __("Es. Italiana, Americana, Francese...") ?>" />
           </div>
 
           <div>
             <label for="sito_web" class="form-label"><?= __("Sito Web") ?></label>
-            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= '<?= __("https://www.esempio.com") ?>' ?>" />
+            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= __("https://www.esempio.com") ?>" />
             <p class="text-xs text-gray-500 mt-1"><?= __("Sito web ufficiale dell'autore (se disponibile)") ?></p>
           </div>
         </div>
