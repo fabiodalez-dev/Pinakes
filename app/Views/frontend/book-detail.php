@@ -581,7 +581,7 @@ $additional_css = "
 
     .description-content {
         line-height: 1.8;
-        color: var(--text-light);
+        color: #000000;
         font-size: 1.1rem;
         font-weight: 400;
     }

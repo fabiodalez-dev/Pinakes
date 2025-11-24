@@ -169,7 +169,8 @@ return function (App $app): void {
     });
 
     // Canonical login route
-    $app->get(RouteTranslator::route('login'), function ($request, $response) use ($app) {
+    // Login - support both English and localized routes
+    $loginGetHandler = function ($request, $response) use ($app) {
         // If already logged in, redirect appropriately
         if (!empty($_SESSION['user'])) {
             $userRole = $_SESSION['user']['tipo_utente'] ?? '';
@@ -181,12 +182,16 @@ return function (App $app): void {
         }
         $controller = new AuthController();
         return $controller->loginForm($request, $response);
-    });
+    };
+    $app->get('/login', $loginGetHandler); // English fallback (always works)
+    $app->get(RouteTranslator::route('login'), $loginGetHandler); // Localized route
 
-    $app->post(RouteTranslator::route('login'), function ($request, $response) use ($app) {
+    $loginPostHandler = function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->login($request, $response, $app->getContainer()->get('db'));
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // 5 attempts per 5 minutes
+    };
+    $app->post('/login', $loginPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // English fallback
+    $app->post(RouteTranslator::route('login'), $loginPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // Localized route
 
     $app->get(RouteTranslator::route('logout'), function ($request, $response) use ($app) {
         $controller = new AuthController();
@@ -255,10 +260,18 @@ return function (App $app): void {
 
     // Public registration routes (translated)
     $app->get(RouteTranslator::route('register'), function ($request, $response) use ($app) {
+        // Redirect logged-in users to dashboard
+        if (!empty($_SESSION['user']['id'])) {
+            return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
+        }
         $controller = new RegistrationController();
         return $controller->form($request, $response);
     });
     $app->post(RouteTranslator::route('register'), function ($request, $response) use ($app) {
+        // Redirect logged-in users to dashboard
+        if (!empty($_SESSION['user']['id'])) {
+            return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
+        }
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->register($request, $response, $db);
@@ -267,32 +280,46 @@ return function (App $app): void {
         $controller = new RegistrationController();
         return $controller->success($request, $response);
     });
-    $app->get(RouteTranslator::route('verify_email'), function ($request, $response) use ($app) {
+    // Email verification - support both English and localized routes
+    $verifyEmailHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->verifyEmail($request, $response, $db);
-    });
+    };
+    $app->get('/verify-email', $verifyEmailHandler); // English fallback (always works)
+    $app->get(RouteTranslator::route('verify_email'), $verifyEmailHandler); // Localized route
 
-    // Password reset public (translated)
-    $app->get(RouteTranslator::route('forgot_password'), function ($request, $response) use ($app) {
+    // Password reset - support both English and localized routes
+    $forgotPasswordGetHandler = function ($request, $response) use ($app) {
         $controller = new PasswordController();
         return $controller->forgotForm($request, $response);
-    });
-    $app->post(RouteTranslator::route('forgot_password'), function ($request, $response) use ($app) {
+    };
+    $app->get('/forgot-password', $forgotPasswordGetHandler); // English fallback (always works)
+    $app->get(RouteTranslator::route('forgot_password'), $forgotPasswordGetHandler); // Localized route
+
+    $forgotPasswordPostHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->forgot($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(3, 900))->add(new CsrfMiddleware($app->getContainer())); // 3 attempts per 15 minutes
-    $app->get(RouteTranslator::route('reset_password'), function ($request, $response) use ($app) {
+    };
+    $app->post('/forgot-password', $forgotPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(3, 900))->add(new CsrfMiddleware($app->getContainer())); // English fallback
+    $app->post(RouteTranslator::route('forgot_password'), $forgotPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(3, 900))->add(new CsrfMiddleware($app->getContainer())); // Localized route
+
+    $resetPasswordGetHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->resetForm($request, $response, $db);
-    });
-    $app->post(RouteTranslator::route('reset_password'), function ($request, $response) use ($app) {
+    };
+    $app->get('/reset-password', $resetPasswordGetHandler); // English fallback (always works)
+    $app->get(RouteTranslator::route('reset_password'), $resetPasswordGetHandler); // Localized route
+
+    $resetPasswordPostHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->reset($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // 5 attempts per 5 minutes
+    };
+    $app->post('/reset-password', $resetPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // English fallback
+    $app->post(RouteTranslator::route('reset_password'), $resetPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // Localized route
 
     // Frontend user actions: loan/reserve
     $app->post('/user/loan', function ($request, $response) use ($app) {

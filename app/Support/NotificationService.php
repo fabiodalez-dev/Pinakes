@@ -61,7 +61,7 @@ class NotificationService {
     public function sendUserRegistrationPending(int $userId): bool {
         try {
             $stmt = $this->db->prepare("
-                SELECT nome, cognome, email, codice_tessera, created_at
+                SELECT nome, cognome, email, codice_tessera, created_at, token_verifica_email
                 FROM utenti
                 WHERE id = ?
             ");
@@ -76,6 +76,7 @@ class NotificationService {
 
             $verifySection = '';
             if (!empty($user['token_verifica_email'])) {
+                // Use /verify-email (English route) as it's supported in all languages
                 $verifyUrl = $this->getBaseUrl() . '/verify-email?token=' . urlencode((string)$user['token_verifica_email']);
                 $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">Conferma la tua email</a></p>';
             }
@@ -90,7 +91,9 @@ class NotificationService {
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
-            return $this->emailService->sendTemplate($user['email'], 'user_registration_pending', $variables);
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+            return $this->emailService->sendTemplate($user['email'], 'user_registration_pending', $variables, $locale);
 
         } catch (Exception $e) {
             error_log("Failed to send user registration pending email: " . $e->getMessage());
@@ -125,7 +128,9 @@ class NotificationService {
                 'login_url' => $this->getBaseUrl() . '/login'
             ];
 
-            return $this->emailService->sendTemplate($user['email'], 'user_account_approved', $variables);
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+            return $this->emailService->sendTemplate($user['email'], 'user_account_approved', $variables, $locale);
 
         } catch (Exception $e) {
             error_log("Failed to send user account approved email: " . $e->getMessage());
@@ -164,7 +169,9 @@ class NotificationService {
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
-            return $this->emailService->sendTemplate($user['email'], 'user_activation_with_verification', $variables);
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+            return $this->emailService->sendTemplate($user['email'], 'user_activation_with_verification', $variables, $locale);
 
         } catch (Exception $e) {
             error_log("Failed to send user activation with verification email: " . $e->getMessage());
@@ -203,7 +210,9 @@ class NotificationService {
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
-            return $this->emailService->sendTemplate($user['email'], 'user_password_setup', $variables);
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+            return $this->emailService->sendTemplate($user['email'], 'user_password_setup', $variables, $locale);
 
         } catch (Exception $e) {
             error_log('Failed to send user password setup email: ' . $e->getMessage());
@@ -243,7 +252,9 @@ class NotificationService {
                 'dashboard_url' => $this->getBaseUrl() . '/admin/dashboard'
             ];
 
-            return $this->emailService->sendTemplate($user['email'], 'admin_invitation', $variables);
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+            return $this->emailService->sendTemplate($user['email'], 'admin_invitation', $variables, $locale);
 
         } catch (Exception $e) {
             error_log('Failed to send admin invitation: ' . $e->getMessage());
@@ -658,9 +669,12 @@ class NotificationService {
                 return false;
             }
 
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+
             $sentCount = 0;
             while ($row = $result->fetch_assoc()) {
-                if ($this->emailService->sendTemplate($row['email'], $templateName, $variables)) {
+                if ($this->emailService->sendTemplate($row['email'], $templateName, $variables, $locale)) {
                     $sentCount++;
                 }
             }
@@ -731,7 +745,7 @@ class NotificationService {
     private function getBaseUrl(): string {
         // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
         // This ensures emails always use the production URL even when sent from CLI/localhost
-        $canonicalUrl = getenv('APP_CANONICAL_URL');
+        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         if ($canonicalUrl !== false) {
             $canonicalUrl = trim((string)$canonicalUrl);
             if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
