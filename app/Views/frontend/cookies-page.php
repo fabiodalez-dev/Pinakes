@@ -67,7 +67,7 @@ ob_start();
             <div class="cookie-divider"></div>
         </div>
         <div class="cookie-content">
-            <?= $pageContent; ?>
+            <?= HtmlHelper::sanitizeHtml($pageContent); ?>
         </div>
     </div>
 </section>
