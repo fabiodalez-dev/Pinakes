@@ -34,6 +34,8 @@ clean-*.sh
 convert-*.php
 export-*.php
 fix-*.php
+debug_*.php
+test_*.php
 
 # ========================================
 # CRITICAL: Archives
@@ -171,6 +173,7 @@ desktop.ini
 # ========================================
 docs/
 security.md
+fix.md
 
 # Internationalization planning (contains untranslated strings)
 traduzione_piano.md

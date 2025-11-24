@@ -65,25 +65,91 @@
             </div>
         </div>
 
-        <!-- Consistency Issues -->
+        <!-- Configuration Issues -->
+        <?php
+        $configIssues = array_filter($report['consistency_issues'] ?? [], function($issue) {
+            return in_array($issue['type'] ?? '', ['missing_canonical_url', 'empty_canonical_url', 'invalid_canonical_url']);
+        });
+        $dbIssues = array_filter($report['consistency_issues'] ?? [], function($issue) {
+            return !in_array($issue['type'] ?? '', ['missing_canonical_url', 'empty_canonical_url', 'invalid_canonical_url']);
+        });
+        ?>
+        <?php if (!empty($configIssues)): ?>
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white"><?= __("Problemi di Integrità") ?></h2>
-                    <?php if (empty($report['consistency_issues'])): ?>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white"><?= __("Problemi di Configurazione") ?></h2>
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                        <i class="fas fa-exclamation-triangle mr-2"></i><?= sprintf(__("%d Problemi"), count($configIssues)) ?>
+                    </span>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <div class="space-y-4">
+                    <?php
+                    $configIcons = [
+                        'missing_canonical_url' => 'fas fa-link-slash text-orange-500',
+                        'empty_canonical_url' => 'fas fa-unlink text-yellow-500',
+                        'invalid_canonical_url' => 'fas fa-exclamation-circle text-red-500'
+                    ];
+
+                    $configLabels = [
+                        'missing_canonical_url' => __('URL Canonico Mancante'),
+                        'empty_canonical_url' => __('URL Canonico Vuoto'),
+                        'invalid_canonical_url' => __('URL Canonico Non Valido')
+                    ];
+
+                    foreach ($configIssues as $issue):
+                        $icon = $configIcons[$issue['type']] ?? 'fas fa-exclamation-circle text-gray-500';
+                        $label = $configLabels[$issue['type']] ?? ucfirst($issue['type']);
+
+                        // Estrai il valore suggerito dalla fix_suggestion
+                        preg_match('/APP_CANONICAL_URL=(.+)$/', $issue['fix_suggestion'] ?? '', $matches);
+                        $suggestedUrl = $matches[1] ?? '';
+                    ?>
+                        <div class="flex items-start space-x-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border-l-4 <?= $issue['severity'] === 'error' ? 'border-red-500' : 'border-yellow-500' ?>">
+                            <i class="<?= $icon ?> mt-1"></i>
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-900 dark:text-white mb-1"><?= htmlspecialchars($label) ?></div>
+                                <div class="text-sm text-gray-600 dark:text-gray-400 mb-2"><?= htmlspecialchars($issue['message']) ?></div>
+                                <div class="text-xs text-gray-500 dark:text-gray-500 mb-3">
+                                    <i class="fas fa-lightbulb mr-1"></i><?= htmlspecialchars($issue['fix_suggestion'] ?? '') ?>
+                                </div>
+                                <?php if (!empty($suggestedUrl)): ?>
+                                <button
+                                    onclick="applyConfigFix('<?= htmlspecialchars($issue['type'], ENT_QUOTES) ?>', '<?= htmlspecialchars($suggestedUrl, ENT_QUOTES) ?>')"
+                                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                    <i class="fas fa-magic mr-2"></i><?= __("Applica Fix") ?>
+                                </button>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Database Consistency Issues -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white"><?= __("Problemi di Integrità Database") ?></h2>
+                    <?php if (empty($dbIssues)): ?>
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
                             <i class="fas fa-check-circle mr-2"></i><?= __("Nessun Problema") ?>
                         </span>
                     <?php else: ?>
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
-                            <i class="fas fa-exclamation-triangle mr-2"></i><?= sprintf(__("%d Problemi"), count($report['consistency_issues'])) ?>
+                            <i class="fas fa-exclamation-triangle mr-2"></i><?= sprintf(__("%d Problemi"), count($dbIssues)) ?>
                         </span>
                     <?php endif; ?>
                 </div>
             </div>
 
             <div class="p-6">
-                <?php if (empty($report['consistency_issues'])): ?>
+                <?php if (empty($dbIssues)): ?>
                     <div class="text-center py-8">
                         <i class="fas fa-check-circle text-4xl text-green-500 mb-4"></i>
                         <p class="text-gray-600 dark:text-gray-400 text-lg"><?= __("Tutti i controlli di integrità sono passati con successo!") ?></p>
@@ -112,7 +178,7 @@
                             'overlap_reservation_reservation' => __('Prenotazioni sovrapposte')
                         ];
 
-                        foreach ($report['consistency_issues'] as $issue):
+                        foreach ($dbIssues as $issue):
                             $icon = $typeIcons[$issue['type']] ?? 'fas fa-exclamation-circle text-gray-500';
                             $label = $typeLabels[$issue['type']] ?? ucfirst($issue['type']);
                         ?>
@@ -170,12 +236,10 @@
 
 <script>
 async function recalculateAvailability() {
-    const currentLocale = '<?= strtolower(\App\Support\I18n::getLocale()) ?>';
-    const isEn = currentLocale.startsWith('en');
-    const processingTitle = isEn ? 'Processing...' : __('Elaborazione...');
-    const doneTitle = isEn ? 'Operation completed' : __('Operazione completata');
-    const failTitle = isEn ? 'Operation failed' : __('Operazione fallita');
-    const commErr = isEn ? 'Communication error with the server' : __('Errore di comunicazione con il server');
+    const processingTitle = '<?= __("Elaborazione...") ?>';
+    const doneTitle = '<?= __("Operazione completata") ?>';
+    const failTitle = '<?= __("Operazione fallita") ?>';
+    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
 
     Swal.fire({
         title: processingTitle,
@@ -200,24 +264,20 @@ async function recalculateAvailability() {
 }
 
 async function fixIssues() {
-    const currentLocale = '<?= strtolower(\App\Support\I18n::getLocale()) ?>';
-    const isEn = currentLocale.startsWith('en');
-    const processingTitle = isEn ? 'Processing...' : __('Elaborazione...');
-    const doneTitle = isEn ? 'Operation completed' : __('Operazione completata');
-    const failTitle = isEn ? 'Operation failed' : __('Operazione fallita');
-    const commErr = isEn ? 'Communication error with the server' : __('Errore di comunicazione con il server');
+    const processingTitle = '<?= __("Elaborazione...") ?>';
+    const doneTitle = '<?= __("Operazione completata") ?>';
+    const failTitle = '<?= __("Operazione fallita") ?>';
+    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
 
-    const confirmTitle = isEn ? 'Confirm?' : __('Confermi?');
-    const confirmText = isEn
-        ? 'Do you want to automatically fix the detected integrity issues?'
-        : __('Vuoi correggere automaticamente i problemi di integrità rilevati?');
+    const confirmTitle = '<?= __("Confermi?") ?>';
+    const confirmText = '<?= __("Vuoi correggere automaticamente i problemi di integrità rilevati?") ?>';
     const confirmResult = await Swal.fire({
         title: confirmTitle,
         text: confirmText,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: isEn ? 'Yes, fix' : __('Sì, correggi'),
-        cancelButtonText: isEn ? 'Cancel' : __('Annulla')
+        confirmButtonText: '<?= __("Sì, correggi") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>'
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -245,24 +305,20 @@ async function fixIssues() {
 }
 
 async function performMaintenance() {
-    const currentLocale = '<?= strtolower(\App\Support\I18n::getLocale()) ?>';
-    const isEn = currentLocale.startsWith('en');
-    const processingTitle = isEn ? 'Processing...' : __('Elaborazione...');
-    const doneTitle = isEn ? 'Operation completed' : __('Operazione completata');
-    const failTitle = isEn ? 'Operation failed' : __('Operazione fallita');
-    const commErr = isEn ? 'Communication error with the server' : __('Errore di comunicazione con il server');
+    const processingTitle = '<?= __("Elaborazione...") ?>';
+    const doneTitle = '<?= __("Operazione completata") ?>';
+    const failTitle = '<?= __("Operazione fallita") ?>';
+    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
 
-    const confirmTitle = isEn ? 'Confirm?' : __('Confermi?');
-    const confirmText = isEn
-        ? 'Do you want to run full system maintenance? This may take a few minutes.'
-        : __('Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti.');
+    const confirmTitle = '<?= __("Confermi?") ?>';
+    const confirmText = '<?= __("Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti.") ?>';
     const confirmResult = await Swal.fire({
         title: confirmTitle,
         text: confirmText,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: isEn ? 'Yes, run' : __('Sì, esegui'),
-        cancelButtonText: isEn ? 'Cancel' : __('Annulla')
+        confirmButtonText: '<?= __("Sì, esegui") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>'
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -289,8 +345,58 @@ async function performMaintenance() {
     }
 }
 
+async function applyConfigFix(issueType, fixValue) {
+    const processingTitle = '<?= __("Applicazione del fix...") ?>';
+    const doneTitle = '<?= __("Fix applicato") ?>';
+    const failTitle = '<?= __("Operazione fallita") ?>';
+    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
+
+    const confirmTitle = '<?= __("Confermi?") ?>';
+    const confirmTextTemplate = '<?= __("Vuoi impostare APP_CANONICAL_URL a:") ?>';
+    const confirmText = `${confirmTextTemplate}\n${fixValue}`;
+    const confirmResult = await Swal.fire({
+        title: confirmTitle,
+        text: confirmText,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<?= __("Sì, applica") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>'
+    });
+    if (!confirmResult.isConfirmed) return;
+
+    Swal.fire({
+        title: processingTitle,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const response = await csrfFetch('/admin/maintenance/apply-config-fix', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                issue_type: issueType,
+                fix_value: fixValue
+            })
+        });
+        const result = await response.json();
+        Swal.close();
+        Swal.fire({
+            icon: result.success ? 'success' : 'error',
+            title: result.success ? doneTitle : failTitle,
+            text: result.message || ''
+        }).then(() => {
+            if (result.success) location.reload();
+        });
+    } catch (error) {
+        Swal.close();
+        Swal.fire({ icon: 'error', title: failTitle, text: commErr });
+    }
+}
+
 // Expose functions to global scope for inline handlers
 window.recalculateAvailability = recalculateAvailability;
 window.fixIssues = fixIssues;
 window.performMaintenance = performMaintenance;
+window.applyConfigFix = applyConfigFix;
 </script>

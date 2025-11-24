@@ -30,7 +30,7 @@ class MaintenanceController {
     public function fixIntegrityIssues(Request $request, Response $response, mysqli $db): Response {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -65,7 +65,7 @@ class MaintenanceController {
     public function recalculateAvailability(Request $request, Response $response, mysqli $db): Response {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -93,7 +93,7 @@ class MaintenanceController {
     public function performMaintenance(Request $request, Response $response, mysqli $db): Response {
         $csrfToken = $request->getHeaderLine('X-CSRF-Token');
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => 'Invalid CSRF token']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
             return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
         }
 
@@ -132,6 +132,93 @@ class MaintenanceController {
                 'success' => false,
                 'message' => __("Errore durante la manutenzione:") . ' ' . $e->getMessage(),
                 'results' => $results
+            ]));
+        }
+
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Applica un fix specifico alla configurazione .env
+     */
+    public function applyConfigFix(Request $request, Response $response): Response {
+        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
+        if (!\App\Support\Csrf::validate($csrfToken)) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
+            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Parse JSON body
+        $rawBody = (string) $request->getBody();
+        $body = json_decode($rawBody, true);
+
+        if (!is_array($body)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("Formato richiesta non valido")
+            ]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        $issueType = $body['issue_type'] ?? '';
+        $fixValue = $body['fix_value'] ?? '';
+
+        // Valida tipo di issue
+        $allowedTypes = ['missing_canonical_url', 'empty_canonical_url', 'invalid_canonical_url'];
+        if (!in_array($issueType, $allowedTypes, true)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("Tipo di issue non valido")
+            ]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Valida URL
+        if (!filter_var($fixValue, FILTER_VALIDATE_URL)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("L'URL fornito non è valido")
+            ]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        try {
+            // Aggiorna il file .env
+            $envPath = __DIR__ . '/../../.env';
+            if (!file_exists($envPath)) {
+                throw new \Exception(__("File .env non trovato"));
+            }
+
+            $envContent = file_get_contents($envPath);
+            if ($envContent === false) {
+                throw new \Exception(__("Impossibile leggere il file .env"));
+            }
+
+            // Cerca e sostituisci APP_CANONICAL_URL
+            $pattern = '/^APP_CANONICAL_URL=.*$/m';
+            $replacement = 'APP_CANONICAL_URL=' . $fixValue;
+
+            if (preg_match($pattern, $envContent)) {
+                // Esiste già, sostituisci
+                $newContent = preg_replace($pattern, $replacement, $envContent);
+            } else {
+                // Non esiste, aggiungi alla fine
+                $newContent = rtrim($envContent) . "\n" . $replacement . "\n";
+            }
+
+            if (file_put_contents($envPath, $newContent) === false) {
+                throw new \Exception(__("Impossibile scrivere nel file .env"));
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __("Configurazione aggiornata con successo!")
+            ]));
+
+        } catch (\Exception $e) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("Errore durante l'applicazione del fix:") . ' ' . $e->getMessage()
             ]));
         }
 
