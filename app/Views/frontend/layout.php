@@ -50,40 +50,8 @@ $eventsEnabled = ConfigStore::get('cms.events_page_enabled', '1') === '1';
 if (!function_exists('absoluteUrl')) {
     function absoluteUrl($path = '')
     {
-        if ($path !== '' && (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, '//'))) {
-            return $path;
-        }
-
-        $normalizedPath = '/' . ltrim($path, '/');
-
-        $protocol = 'http';
-        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
-            $forwardedProto = explode(',', (string) $_SERVER['HTTP_X_FORWARDED_PROTO'])[0];
-            $protocol = strtolower($forwardedProto) === 'https' ? 'https' : 'http';
-        } elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
-            $protocol = 'https';
-        } elseif (!empty($_SERVER['REQUEST_SCHEME'])) {
-            $protocol = $_SERVER['REQUEST_SCHEME'] === 'https' ? 'https' : 'http';
-        } elseif (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443) {
-            $protocol = 'https';
-        }
-
-        $host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? ($_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost'));
-
-        if (!str_contains($host, ':')) {
-            $port = null;
-            if (!empty($_SERVER['HTTP_X_FORWARDED_PORT'])) {
-                $port = (int) $_SERVER['HTTP_X_FORWARDED_PORT'];
-            } elseif (isset($_SERVER['SERVER_PORT'])) {
-                $port = (int) $_SERVER['SERVER_PORT'];
-            }
-
-            if ($port !== null && !in_array([$protocol, $port], [['http', 80], ['https', 443]], true)) {
-                $host .= ':' . $port;
-            }
-        }
-
-        return $protocol . '://' . $host . $normalizedPath;
+        // Delegate to HtmlHelper for secure URL generation
+        return HtmlHelper::absoluteUrl($path);
     }
 }
 
@@ -111,11 +79,11 @@ if (!function_exists('assetUrl')) {
         <meta name="keywords" content="<?= htmlspecialchars($seoKeywords) ?>">
     <?php endif; ?>
     <link rel="canonical"
-        href="<?= htmlspecialchars($seoCanonical ?? (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']) ?>">
+        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrl()) ?>">
 
     <!-- Hreflang Tags for Multilingual SEO -->
     <?php
-    $currentUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    $currentUrl = HtmlHelper::getCurrentUrl();
     $currentLang = $_SESSION['locale'] ?? 'it_IT';
     $isItalian = str_starts_with($currentLang, 'it');
 

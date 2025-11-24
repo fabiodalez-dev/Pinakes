@@ -72,12 +72,12 @@
 
           <div>
             <label for="nazionalita" class="form-label"><?= __("Nazionalità") ?></label>
-            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= __('Es. Italiana, Americana, Francese...') ?>" />
+            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= '<?= __("Es. Italiana, Americana, Francese...") ?>' ?>" />
           </div>
 
           <div>
             <label for="sito_web" class="form-label"><?= __("Sito Web") ?></label>
-            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= __('https://www.esempio.com') ?>" />
+            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= '<?= __("https://www.esempio.com") ?>' ?>" />
             <p class="text-xs text-gray-500 mt-1"><?= __("Sito web ufficiale dell'autore (se disponibile)") ?></p>
           </div>
         </div>
@@ -140,11 +140,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: __('Campo Obbligatorio'),
-                    text: __('Il nome dell\'autore è obbligatorio.')
+                    title: '<?= __("Campo Obbligatorio") ?>',
+                    text: '<?= __("Il nome dell\'autore è obbligatorio.") ?>'
                 });
             } else {
-                alert(__('Il nome dell\'autore è obbligatorio.'));
+                alert('<?= __("Il nome dell\'autore è obbligatorio.") ?>');
             }
             return;
         }
@@ -158,11 +158,11 @@ function initializeFormValidation() {
                 if (window.Swal) {
                     Swal.fire({
                         icon: 'error',
-                        title: __('Date Non Valide'),
-                        text: __('La data di nascita deve essere precedente alla data di morte.')
+                        title: '<?= __("Date Non Valide") ?>',
+                        text: '<?= __("La data di nascita deve essere precedente alla data di morte.") ?>'
                     });
                 } else {
-                    alert(__('La data di nascita deve essere precedente alla data di morte.'));
+                    alert('<?= __("La data di nascita deve essere precedente alla data di morte.") ?>');
                 }
                 return;
             }
@@ -171,20 +171,20 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: __('Conferma Salvataggio'),
+                title: '<?= __("Conferma Salvataggio") ?>',
                 text: __('Sei sicuro di voler salvare l\'autore "%s"?').replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: __('Sì, Salva'),
-                cancelButtonText: __('Annulla'),
+                confirmButtonText: '<?= __("Sì, Salva") ?>',
+                cancelButtonText: '<?= __("Annulla") ?>',
                 reverseButtons: true
             });
             
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: __('Salvataggio in corso...'),
-                    text: __('Attendere prego'),
+                    title: '<?= __("Salvataggio in corso...") ?>',
+                    text: '<?= __("Attendere prego") ?>',
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {

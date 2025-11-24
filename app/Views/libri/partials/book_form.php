@@ -1982,6 +1982,7 @@ async function handleDuplicateBook(existingBook) {
                 <p class="text-gray-700 mb-1"><strong>${__('Titolo:')}</strong> ${existingBook.title}</p>
                 ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${__('ISBN-13:')}</strong> ${existingBook.isbn13}</p>` : ''}
                 ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${__('EAN:')}</strong> ${existingBook.ean}</p>` : ''}
+                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${existingBook.location}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="text-gray-400">${__('Non specificata')}</span></p>`}
             </div>
             <p class="text-sm text-gray-600">${__('Vuoi aumentare il numero di copie di questo libro?')}</p>
         `,

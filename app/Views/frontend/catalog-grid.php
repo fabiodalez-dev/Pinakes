@@ -1,4 +1,6 @@
 <?php
+use App\Support\HtmlHelper;
+
 function createBookUrl($book) {
     return book_url($book);
 }
@@ -23,8 +25,8 @@ function getBookStatusBadge($book) {
                 <a href="<?= createBookUrl($book) ?>">
                     <?php
                     $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
-                    $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : ((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $coverUrl);
-                    $defaultCoverUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
+                    $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : HtmlHelper::getBaseUrl() . $coverUrl;
+                    $defaultCoverUrl = HtmlHelper::getBaseUrl() . '/uploads/copertine/placeholder.jpg';
                     ?>
                     <img class="book-image"
                          src="<?= htmlspecialchars($absoluteCoverUrl) ?>"

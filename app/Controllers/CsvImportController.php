@@ -457,13 +457,14 @@ class CsvImportController
                     $stmt->close();
                 }
 
-                // Gestione autori (possono essere multipli separati da pipe |)
+                // Gestione autori (possono essere multipli separati da ; o | per retrocompatibilità)
                 if (!empty($data['autori'])) {
-                    $authors = preg_split('/\|/', $data['autori']);
+                    // Usa ; come separatore principale (usato dall'export), fallback su | per vecchi CSV
+                    $separator = strpos($data['autori'], ';') !== false ? ';' : '|';
+                    $authors = array_map('trim', explode($separator, $data['autori']));
                     $authorOrder = 1;
 
                     foreach ($authors as $authorName) {
-                        $authorName = trim($authorName);
                         if (empty($authorName)) continue;
 
                         $authorId = $this->getOrCreateAuthor($db, $authorName);
