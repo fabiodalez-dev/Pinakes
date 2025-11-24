@@ -1256,7 +1256,8 @@ $appVersion = $versionData['version'] ?? '0.1.0';
           console.warn('Loans stats request failed', loansResponse.status);
         }
       } catch (error) {
-        console.error('Error loading quick stats:', error);
+        // Silently handle network errors - stats are optional
+        console.debug('Quick stats temporarily unavailable:', error.message);
       }
     }
 
