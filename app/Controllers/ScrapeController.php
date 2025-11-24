@@ -165,6 +165,12 @@ class ScrapeController
      */
     private function fallbackFromGoogleBooks(string $isbn): ?array
     {
+        // Rate limiting to prevent API bans
+        if (!$this->checkRateLimit('google_books', 10)) {
+            error_log("[ScrapeController] Google Books API rate limit exceeded for ISBN: $isbn");
+            return null;
+        }
+
         $apiKey = getenv('GOOGLE_BOOKS_API_KEY') ?: '';
         $url = "https://www.googleapis.com/books/v1/volumes?q=isbn:" . urlencode($isbn);
         if ($apiKey !== '') {
@@ -297,6 +303,12 @@ class ScrapeController
      */
     private function fallbackFromOpenLibrary(string $isbn): ?array
     {
+        // Rate limiting to prevent API bans
+        if (!$this->checkRateLimit('openlibrary', 10)) {
+            error_log("[ScrapeController] Open Library API rate limit exceeded for ISBN: $isbn");
+            return null;
+        }
+
         $url = "https://openlibrary.org/isbn/" . urlencode($isbn) . ".json";
         $json = $this->safeHttpGet($url, 10);
         if (!$json) {
@@ -370,5 +382,54 @@ class ScrapeController
         }
         curl_close($ch);
         return $result;
+    }
+
+    /**
+     * Check rate limit for external API calls
+     * Prevents IP bans from Google Books and Open Library due to excessive requests
+     *
+     * @param string $apiName Nome API (es. 'google_books', 'openlibrary')
+     * @param int $maxCallsPerMinute Max chiamate al minuto (default 10)
+     * @return bool True se OK, False se rate limit superato
+     */
+    private function checkRateLimit(string $apiName, int $maxCallsPerMinute = 10): bool
+    {
+        $storageDir = __DIR__ . '/../../storage/rate_limits';
+        if (!is_dir($storageDir)) {
+            mkdir($storageDir, 0755, true);
+        }
+
+        $rateLimitFile = $storageDir . '/' . $apiName . '.json';
+        $now = time();
+
+        // Load existing rate limit data
+        $data = ['calls' => [], 'last_cleanup' => $now];
+        if (file_exists($rateLimitFile)) {
+            $json = file_get_contents($rateLimitFile);
+            if ($json !== false) {
+                $decoded = json_decode($json, true);
+                if (is_array($decoded)) {
+                    $data = $decoded;
+                }
+            }
+        }
+
+        // Remove calls older than 60 seconds
+        $data['calls'] = array_filter($data['calls'], fn($timestamp) => ($now - $timestamp) < 60);
+
+        // Check if rate limit exceeded
+        if (count($data['calls']) >= $maxCallsPerMinute) {
+            error_log("[ScrapeController] Rate limit exceeded for $apiName: " . count($data['calls']) . " calls in last minute");
+            return false;
+        }
+
+        // Record this call
+        $data['calls'][] = $now;
+        $data['last_cleanup'] = $now;
+
+        // Save with lock
+        file_put_contents($rateLimitFile, json_encode($data), LOCK_EX);
+
+        return true;
     }
 }

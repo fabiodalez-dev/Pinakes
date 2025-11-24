@@ -185,23 +185,28 @@ class ReservationManager {
     }
 
     private function getBaseUrl(): string {
-        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-
-        // Validate host against whitelist to prevent Host Header Injection
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8001';
-        $allowedHosts = [
-            'localhost',
-            'localhost:8000',
-            'localhost:8001',
-            'biblioteca.local',
-            // Add your production domain here
-        ];
-
-        if (!in_array($host, $allowedHosts, true)) {
-            $host = 'localhost:8001'; // Fallback to safe default
+        // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
+        // This ensures emails always use the production URL even when sent from CLI/localhost
+        $canonicalUrl = getenv('APP_CANONICAL_URL');
+        if ($canonicalUrl !== false) {
+            $canonicalUrl = trim((string)$canonicalUrl);
+            if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
+                return rtrim($canonicalUrl, '/');
+            }
         }
 
-        return $protocol . '://' . $host;
+        // PRIORITY 2: Fallback to HTTP_HOST with security validation
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+        // Validate hostname format to prevent Host Header Injection attacks
+        // Accepts: domain.com, subdomain.domain.com, localhost, localhost:8000, IP:port
+        if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
+            return $protocol . '://' . $host;
+        }
+
+        // Invalid hostname format - fallback to localhost
+        return $protocol . '://localhost';
     }
 
     /**
