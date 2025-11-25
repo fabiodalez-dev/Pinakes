@@ -3055,5 +3055,7 @@
   "Email verificata con successo! Il tuo account è ora in attesa di approvazione da parte dell'amministratore. Riceverai un'email quando sarà attivato.": "Email verified successfully! Your account is now pending administrator approval. You will receive an email when it is activated.",
   "Il link di verifica email è scaduto o non valido. Registrati nuovamente per ricevere un nuovo link.": "The email verification link has expired or is invalid. Please register again to receive a new link.",
   "Il link di verifica non è valido. Assicurati di aver copiato l'intero link dall'email.": "The verification link is not valid. Make sure you copied the entire link from the email.",
-  "La mia bacheca": "My Dashboard"
+  "La mia bacheca": "My Dashboard",
+  "Creazione indici di ottimizzazione...": "Creating optimization indexes...",
+  "Indici di ottimizzazione creati OK": "Optimization indexes created OK"
 }
