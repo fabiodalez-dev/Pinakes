@@ -193,10 +193,13 @@ return function (App $app): void {
     $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // English fallback
     $registerRouteIfUnique('POST', RouteTranslator::route('login'), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // Localized route (skipped if same as English)
 
-    $app->get(RouteTranslator::route('logout'), function ($request, $response) use ($app) {
+    // Logout - support both English and localized routes
+    $logoutHandler = function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->logout($request, $response);
-    });
+    };
+    $registerRouteIfUnique('GET', '/logout', $logoutHandler); // English fallback
+    $registerRouteIfUnique('GET', RouteTranslator::route('logout'), $logoutHandler); // Localized route (e.g. /esci for Italian)
 
     // User profile (multi-language variants)
     foreach ($supportedLocales as $locale) {
