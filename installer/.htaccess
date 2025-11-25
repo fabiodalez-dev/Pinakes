@@ -4,9 +4,10 @@
     RewriteEngine On
     RewriteBase /installer/
 
-    # Block access if .installed file exists
+    # Block access if .installed file exists (allow ?force parameter)
     RewriteCond %{DOCUMENT_ROOT}/.installed -f
     RewriteCond %{REQUEST_URI} !force [NC]
+    RewriteCond %{QUERY_STRING} !force [NC]
     RewriteRule ^(.*)$ /../index.php [L,R=301]
 
     # Allow access to assets

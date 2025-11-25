@@ -131,7 +131,7 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
                         </ul>
 
                         <p class="text-center mt-4">
-                            <a href="?force=1" class="btn btn-warning">' . __("Reinstalla da Capo") . '</a>
+                            <a href="/installer/?force=1" class="btn btn-warning">' . __("Reinstalla da Capo") . '</a>
                             <a href="/" class="btn btn-secondary">' . __("Torna all'Applicazione") . '</a>
                         </p>
                     </div>
