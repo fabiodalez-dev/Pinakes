@@ -4,6 +4,8 @@ use App\Support\HtmlHelper;
 
 $csrfToken = Csrf::ensureToken();
 ?>
+<div class="min-h-screen bg-gray-50 py-6">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 <section class="space-y-6">
     <nav aria-label="breadcrumb" class="mb-2">
         <ol class="flex items-center space-x-2 text-sm text-slate-500">
@@ -141,10 +143,10 @@ $csrfToken = Csrf::ensureToken();
                     >
                         <?php
                         $options = [
-                            'restituito'   => 'Restituito',
-                            'in_ritardo'   => 'In ritardo',
-                            'perso'        => 'Perso',
-                            'danneggiato'  => 'Danneggiato',
+                            'restituito'   => __('Restituito'),
+                            'in_ritardo'   => __('In ritardo'),
+                            'perso'        => __('Perso'),
+                            'danneggiato'  => __('Danneggiato'),
                         ];
                         $currentStatus = (string)($prestito['stato'] ?? 'restituito');
                         foreach ($options as $value => $label):
@@ -182,3 +184,5 @@ $csrfToken = Csrf::ensureToken();
         </div>
     </form>
 </section>
+</div>
+</div>
