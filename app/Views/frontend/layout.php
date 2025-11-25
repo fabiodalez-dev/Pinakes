@@ -438,6 +438,92 @@ if (!function_exists('assetUrl')) {
             box-shadow: none;
         }
 
+        /* User Profile Dropdown */
+        .user-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .user-dropdown-toggle {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .user-dropdown-toggle::after {
+            content: '';
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 3px;
+            transform: rotate(45deg);
+            margin-left: 4px;
+            transition: transform 0.2s ease;
+        }
+
+        .user-dropdown.open .user-dropdown-toggle::after {
+            transform: rotate(-135deg);
+        }
+
+        .user-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            min-width: 200px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            z-index: 1050;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .user-dropdown.open .user-dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .user-dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: var(--text-color);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: background 0.15s ease;
+        }
+
+        .user-dropdown-menu a:hover {
+            background: var(--accent-color);
+        }
+
+        .user-dropdown-menu a i {
+            width: 18px;
+            text-align: center;
+            color: var(--text-light);
+        }
+
+        .user-dropdown-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 4px 0;
+        }
+
+        .user-dropdown-menu a.logout-link {
+            color: var(--danger-color);
+        }
+
+        .user-dropdown-menu a.logout-link i {
+            color: var(--danger-color);
+        }
+
         .btn-outline-header {
             background: transparent;
             color: var(--text-color);
@@ -1257,11 +1343,27 @@ if (!function_exists('assetUrl')) {
                                         <span class="d-none d-md-inline"><?= __('Admin') ?></span>
                                     </a>
                                 <?php else: ?>
-                                    <a class="btn btn-primary-header" href="<?= absoluteUrl($profileRoute) ?>">
-                                        <i class="fas fa-user"></i>
-                                        <span
-                                            class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
-                                    </a>
+                                    <div class="user-dropdown" id="userDropdown">
+                                        <button class="btn btn-primary-header user-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+                                            <i class="fas fa-user"></i>
+                                            <span class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
+                                        </button>
+                                        <div class="user-dropdown-menu" role="menu">
+                                            <a href="<?= absoluteUrl('/user/dashboard') ?>" role="menuitem">
+                                                <i class="fas fa-tachometer-alt"></i>
+                                                <?= __('La mia bacheca') ?>
+                                            </a>
+                                            <a href="<?= absoluteUrl($profileRoute) ?>" role="menuitem">
+                                                <i class="fas fa-user-circle"></i>
+                                                <?= __('Il mio profilo') ?>
+                                            </a>
+                                            <div class="user-dropdown-divider"></div>
+                                            <a href="<?= absoluteUrl('/logout') ?>" class="logout-link" role="menuitem">
+                                                <i class="fas fa-sign-out-alt"></i>
+                                                <?= __('Esci') ?>
+                                            </a>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
@@ -1843,6 +1945,45 @@ if (!function_exists('assetUrl')) {
                 }
             };
         })();
+    </script>
+
+    <!-- User Dropdown Toggle -->
+    <script>
+    (function() {
+        const dropdown = document.getElementById('userDropdown');
+        if (!dropdown) return;
+
+        const toggle = dropdown.querySelector('.user-dropdown-toggle');
+        const menu = dropdown.querySelector('.user-dropdown-menu');
+
+        if (!toggle || !menu) return;
+
+        // Toggle dropdown on click
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const isOpen = dropdown.classList.contains('open');
+            dropdown.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', !isOpen);
+        });
+
+        // Close on click outside
+        document.addEventListener('click', function(e) {
+            if (!dropdown.contains(e.target)) {
+                dropdown.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && dropdown.classList.contains('open')) {
+                dropdown.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+                toggle.focus();
+            }
+        });
+    })();
     </script>
 
     <?= $additional_js ?? '' ?>
