@@ -75,7 +75,7 @@ HTML,
             ],
             'wishlist_book_available' => [
                 'label' => 'Wishlist disponibile',
-                'description' => "Inviata agli utenti quando un libro nella wishlist torna disponibile. Il libro viene automaticamente rimosso dalla wishlist dopo l'invio della notifica per evitare duplicati.",
+                'description' => "Inviata agli utenti quando un libro nella wishlist torna disponibile. Il libro rimane nella wishlist ma non riceverà altre notifiche per lo stesso libro.",
                 'subject' => '📖 Libro della tua wishlist ora disponibile!',
                 'placeholders' => ['utente_nome', 'libro_titolo', 'libro_autore', 'libro_isbn', 'data_disponibilita', 'book_url', 'wishlist_url'],
                 'body' => <<<'HTML'
@@ -96,7 +96,7 @@ HTML,
     <a href="{{book_url}}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📚 Prenota ora</a>
     <a href="{{wishlist_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">❤️ Gestisci wishlist</a>
 </p>
-<p><em>📝 Questo libro è stato automaticamente rimosso dalla tua wishlist per evitare notifiche duplicate.</em></p>
+<p><em>📝 Puoi rimuovere questo libro dalla tua wishlist quando vuoi.</em></p>
 HTML,
             ],
             'loan_expiring_warning' => [
