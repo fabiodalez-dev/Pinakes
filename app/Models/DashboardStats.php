@@ -11,13 +11,26 @@ class DashboardStats
 
     public function counts(): array
     {
-        $c = ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0];
-        $c['libri'] = (int)($this->db->query("SELECT COUNT(*) AS c FROM libri")->fetch_assoc()['c'] ?? 0);
-        $c['utenti'] = (int)($this->db->query("SELECT COUNT(*) AS c FROM utenti")->fetch_assoc()['c'] ?? 0);
-        $c['prestiti_in_corso'] = (int)($this->db->query("SELECT COUNT(*) AS c FROM prestiti WHERE stato IN ('in_corso','in_ritardo') AND attivo = 1")->fetch_assoc()['c'] ?? 0);
-        $c['autori'] = (int)($this->db->query("SELECT COUNT(*) AS c FROM autori")->fetch_assoc()['c'] ?? 0);
-        $c['prestiti_pendenti'] = (int)($this->db->query("SELECT COUNT(*) AS c FROM prestiti WHERE stato='pendente'")->fetch_assoc()['c'] ?? 0);
-        return $c;
+        // Singola query invece di 5 query separate
+        $sql = "SELECT
+                    (SELECT COUNT(*) FROM libri) AS libri,
+                    (SELECT COUNT(*) FROM utenti) AS utenti,
+                    (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso','in_ritardo') AND attivo = 1) AS prestiti_in_corso,
+                    (SELECT COUNT(*) FROM autori) AS autori,
+                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti";
+
+        $result = $this->db->query($sql);
+        if ($result && $row = $result->fetch_assoc()) {
+            return [
+                'libri' => (int)($row['libri'] ?? 0),
+                'utenti' => (int)($row['utenti'] ?? 0),
+                'prestiti_in_corso' => (int)($row['prestiti_in_corso'] ?? 0),
+                'autori' => (int)($row['autori'] ?? 0),
+                'prestiti_pendenti' => (int)($row['prestiti_pendenti'] ?? 0)
+            ];
+        }
+
+        return ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0];
     }
 
     public function lastBooks(int $limit = 4): array
