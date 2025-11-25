@@ -202,7 +202,7 @@ if (!empty($triggerWarnings)):
             <i class="fas fa-trash"></i> <?= __("Elimina Installer (Richiede Composer)") ?>
         </button>
     <?php else: ?>
-        <form method="POST" action="?step=7&action=delete_installer&force"
+        <form method="POST" action="/installer/?step=7&action=delete_installer&force"
             onsubmit="return confirmDeleteInstaller();" style="margin-top: 10px;">
             <button type="submit" class="btn btn-secondary">
                 <i class="fas fa-trash"></i> <?= __("Elimina Installer") ?>
