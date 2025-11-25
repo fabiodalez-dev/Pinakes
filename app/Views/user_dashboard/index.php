@@ -138,6 +138,13 @@ $profileRoute = route_path('profile');
     color: var(--text-muted);
     font-size: 1.25rem;
     border: 1px solid var(--border-color);
+    overflow: hidden;
+  }
+
+  .book-card-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .book-card-content {
@@ -368,10 +375,15 @@ $profileRoute = route_path('profile');
             <?php
               $bookUrl = book_url($libro);
               $available = ((int)($libro['copie_disponibili'] ?? 0)) > 0;
+              $coverUrl = $libro['copertina_url'] ?? '';
             ?>
             <div class="book-card">
               <div class="book-card-icon">
-                <i class="fas fa-book"></i>
+                <?php if (!empty($coverUrl)): ?>
+                  <img src="<?= HtmlHelper::e($coverUrl) ?>" alt="<?= HtmlHelper::e($libro['titolo'] ?? '') ?>" loading="lazy">
+                <?php else: ?>
+                  <i class="fas fa-book"></i>
+                <?php endif; ?>
               </div>
               <div class="book-card-content">
                 <div class="book-card-title"><?= HtmlHelper::e($libro['titolo'] ?? '') ?></div>
@@ -431,10 +443,15 @@ $profileRoute = route_path('profile');
               $giorni_rimanenti = ceil(($scadenza - $oggi) / 86400);
               $scaduto = $giorni_rimanenti < 0;
               $in_scadenza = $giorni_rimanenti >= 0 && $giorni_rimanenti <= 3;
+              $coverUrl = $prestito['copertina_url'] ?? '';
             ?>
             <div class="book-card">
               <div class="book-card-icon">
-                <i class="fas fa-book"></i>
+                <?php if (!empty($coverUrl)): ?>
+                  <img src="<?= HtmlHelper::e($coverUrl) ?>" alt="<?= HtmlHelper::e($prestito['titolo_libro'] ?? '') ?>" loading="lazy">
+                <?php else: ?>
+                  <i class="fas fa-book"></i>
+                <?php endif; ?>
               </div>
               <div class="book-card-content">
                 <div class="book-card-title"><?= HtmlHelper::e($prestito['titolo_libro'] ?? '') ?></div>

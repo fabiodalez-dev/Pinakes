@@ -534,17 +534,11 @@ class NotificationService {
                 ];
 
                 if ($this->emailService->sendTemplate($wishlist['email'], 'wishlist_book_available', $variables)) {
-                    // Mark as notified and remove from wishlist
+                    // Mark as notified (keep in wishlist for user reference)
                     $updateStmt = $this->db->prepare("UPDATE wishlist SET notified = 1 WHERE id = ?");
                     $updateStmt->bind_param('i', $wishlist['wishlist_id']);
                     $updateStmt->execute();
                     $updateStmt->close();
-
-                    // Remove from wishlist after notification
-                    $deleteStmt = $this->db->prepare("DELETE FROM wishlist WHERE id = ?");
-                    $deleteStmt->bind_param('i', $wishlist['wishlist_id']);
-                    $deleteStmt->execute();
-                    $deleteStmt->close();
 
                     $sentCount++;
                 }
