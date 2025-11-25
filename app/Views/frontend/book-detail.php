@@ -515,7 +515,7 @@ $additional_css = "
     .meta-value {
         color: var(--text-light);
         font-size: 1.05rem;
-        font-weight: 500;
+        font-weight: 300;
     }
 
     .authors-list {

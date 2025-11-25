@@ -473,7 +473,7 @@ $appVersion = $versionData['version'] ?? '0.1.0';
 
                 <!-- Notifications Dropdown -->
                 <div id="notifications-dropdown"
-                  class="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 md:translate-x-0 mt-2 w-[calc(100vw-2rem)] md:w-96 max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50">
+                  class="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 md:translate-x-0 mt-2 w-[calc(100vw-2rem)] md:w-96 max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-[100]">
                   <div class="p-4 border-b border-gray-200 flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900"><?= __("Notifiche") ?></h3>
                     <button onclick="markAllNotificationsAsRead()"

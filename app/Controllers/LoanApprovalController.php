@@ -191,6 +191,15 @@ class LoanApprovalController {
 
         $bookId = $loan['libro_id'];
 
+        // Send rejection notification BEFORE deleting (need loan data)
+        try {
+            $notificationService = new \App\Support\NotificationService($db);
+            $notificationService->sendLoanRejectedNotification($loanId, $reason);
+        } catch (Exception $notifError) {
+            error_log("Error sending rejection notification for loan {$loanId}: " . $notifError->getMessage());
+            // Don't fail the rejection if notification fails
+        }
+
         // Reject the loan (delete it)
         $stmt = $db->prepare("DELETE FROM prestiti WHERE id = ? AND stato = 'pendente'");
         $stmt->bind_param('i', $loanId);

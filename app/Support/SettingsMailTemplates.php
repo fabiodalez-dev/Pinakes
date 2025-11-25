@@ -182,6 +182,23 @@ HTML,
 <p>Buona lettura!</p>
 HTML,
             ],
+            'loan_rejected' => [
+                'label' => 'Prestito rifiutato',
+                'description' => "Inviata all'utente quando un amministratore rifiuta una richiesta di prestito.",
+                'subject' => '❌ La tua richiesta di prestito non è stata approvata',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'motivo_rifiuto'],
+                'body' => <<<'HTML'
+<h2>La tua richiesta di prestito non è stata approvata</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Ci dispiace informarti che la tua richiesta di prestito per il libro <strong>"{{libro_titolo}}"</strong> non è stata approvata.</p>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>Motivo:</strong></p>
+    <p>{{motivo_rifiuto}}</p>
+</div>
+<p>Se hai domande o desideri maggiori informazioni, non esitare a contattarci.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
             'admin_new_review' => [
                 'label' => 'Nuova recensione (Admin)',
                 'description' => "Inviata agli amministratori quando viene ricevuta una nuova recensione da approvare.",
