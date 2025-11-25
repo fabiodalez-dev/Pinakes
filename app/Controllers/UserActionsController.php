@@ -166,11 +166,22 @@ class UserActionsController
         $utenteId = (int)$user['id'];
         $data_prestito = gmdate('Y-m-d');
         $data_scadenza = gmdate('Y-m-d', strtotime('+14 days'));
-        $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'in_corso', 1)");
+        // Insert as 'pendente' - requires admin approval
+        $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
         $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
         if ($stmt->execute()) {
+            $newLoanId = (int)$db->insert_id;
             $stmt->close();
-            return $this->back($response, ['loan_success' => 1]);
+
+            // Notify admins about new loan request
+            try {
+                $notificationService = new \App\Support\NotificationService($db);
+                $notificationService->notifyLoanRequest($newLoanId);
+            } catch (\Exception $e) {
+                error_log("Failed to send loan request notification: " . $e->getMessage());
+            }
+
+            return $this->back($response, ['loan_request_success' => 1]);
         }
         $stmt->close();
         return $this->back($response, ['loan_error' => 'db']);

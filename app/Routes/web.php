@@ -183,15 +183,15 @@ return function (App $app): void {
         $controller = new AuthController();
         return $controller->loginForm($request, $response);
     };
-    $app->get('/login', $loginGetHandler); // English fallback (always works)
-    $app->get(RouteTranslator::route('login'), $loginGetHandler); // Localized route
+    $registerRouteIfUnique('GET', '/login', $loginGetHandler); // English fallback (always works)
+    $registerRouteIfUnique('GET', RouteTranslator::route('login'), $loginGetHandler); // Localized route (skipped if same as English)
 
     $loginPostHandler = function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->login($request, $response, $app->getContainer()->get('db'));
     };
-    $app->post('/login', $loginPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // English fallback
-    $app->post(RouteTranslator::route('login'), $loginPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // Localized route
+    $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', RouteTranslator::route('login'), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // Localized route (skipped if same as English)
 
     $app->get(RouteTranslator::route('logout'), function ($request, $response) use ($app) {
         $controller = new AuthController();
@@ -286,40 +286,40 @@ return function (App $app): void {
         $controller = new RegistrationController();
         return $controller->verifyEmail($request, $response, $db);
     };
-    $app->get('/verify-email', $verifyEmailHandler); // English fallback (always works)
-    $app->get(RouteTranslator::route('verify_email'), $verifyEmailHandler); // Localized route
+    $registerRouteIfUnique('GET', '/verify-email', $verifyEmailHandler); // English fallback
+    $registerRouteIfUnique('GET', RouteTranslator::route('verify_email'), $verifyEmailHandler); // Localized (skipped if same)
 
     // Password reset - support both English and localized routes
     $forgotPasswordGetHandler = function ($request, $response) use ($app) {
         $controller = new PasswordController();
         return $controller->forgotForm($request, $response);
     };
-    $app->get('/forgot-password', $forgotPasswordGetHandler); // English fallback (always works)
-    $app->get(RouteTranslator::route('forgot_password'), $forgotPasswordGetHandler); // Localized route
+    $registerRouteIfUnique('GET', '/forgot-password', $forgotPasswordGetHandler); // English fallback
+    $registerRouteIfUnique('GET', RouteTranslator::route('forgot_password'), $forgotPasswordGetHandler); // Localized (skipped if same)
 
     $forgotPasswordPostHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->forgot($request, $response, $db);
     };
-    $app->post('/forgot-password', $forgotPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(3, 900))->add(new CsrfMiddleware($app->getContainer())); // English fallback
-    $app->post(RouteTranslator::route('forgot_password'), $forgotPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(3, 900))->add(new CsrfMiddleware($app->getContainer())); // Localized route
+    $registerRouteIfUnique('POST', '/forgot-password', $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', RouteTranslator::route('forgot_password'), $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900), new CsrfMiddleware()]); // Localized (skipped if same)
 
     $resetPasswordGetHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->resetForm($request, $response, $db);
     };
-    $app->get('/reset-password', $resetPasswordGetHandler); // English fallback (always works)
-    $app->get(RouteTranslator::route('reset_password'), $resetPasswordGetHandler); // Localized route
+    $registerRouteIfUnique('GET', '/reset-password', $resetPasswordGetHandler); // English fallback
+    $registerRouteIfUnique('GET', RouteTranslator::route('reset_password'), $resetPasswordGetHandler); // Localized (skipped if same)
 
     $resetPasswordPostHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->reset($request, $response, $db);
     };
-    $app->post('/reset-password', $resetPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // English fallback
-    $app->post(RouteTranslator::route('reset_password'), $resetPasswordPostHandler)->add(new \App\Middleware\RateLimitMiddleware(5, 300))->add(new CsrfMiddleware($app->getContainer())); // Localized route
+    $registerRouteIfUnique('POST', '/reset-password', $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', RouteTranslator::route('reset_password'), $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // Localized (skipped if same)
 
     // Frontend user actions: loan/reserve
     $app->post('/user/loan', function ($request, $response) use ($app) {

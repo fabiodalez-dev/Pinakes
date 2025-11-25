@@ -21,7 +21,6 @@ require_once __DIR__ . '/../vendor/autoload.php';
 $settings = require __DIR__ . '/../config/settings.php';
 
 use App\Support\NotificationService;
-use mysqli;
 
 // Funzione per logging
 function logMessage(string $message): void {

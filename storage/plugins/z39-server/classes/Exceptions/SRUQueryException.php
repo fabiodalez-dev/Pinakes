@@ -10,7 +10,7 @@ class SRUQueryException extends \Exception
         public readonly int $diagnosticCode,
         string $message,
         int $httpStatus = 400,
-        \Throwable $previous = null
+        ?\Throwable $previous = null
     ) {
         parent::__construct($message, $httpStatus, $previous);
     }

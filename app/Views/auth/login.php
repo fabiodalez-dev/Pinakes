@@ -51,6 +51,17 @@ $forgotPasswordRoute = route_path('forgot_password');
           <input type="hidden" name="return_url" value="<?php echo htmlspecialchars($return_url ?? '', ENT_QUOTES, 'UTF-8'); ?>">
         <?php endif; ?>
 
+        <?php if (isset($_GET['verified']) && $_GET['verified'] === '1'): ?>
+          <div class="bg-green-50 border border-green-200 rounded-xl p-4" role="alert">
+            <div class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-3"></i>
+              <div class="text-green-700 text-sm">
+                <?= __('Email verificata con successo! Il tuo account è ora in attesa di approvazione da parte dell\'amministratore. Riceverai un\'email quando sarà attivato.') ?>
+              </div>
+            </div>
+          </div>
+        <?php endif; ?>
+
         <?php if (isset($_GET['error'])): ?>
           <div class="bg-red-50 border border-red-200 rounded-xl p-4" role="alert">
             <div class="flex items-center">
@@ -71,7 +82,9 @@ $forgotPasswordRoute = route_path('forgot_password');
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
                   <?= __('Compila tutti i campi richiesti') ?>
                 <?php elseif ($_GET['error'] === 'token_expired'): ?>
-                  <?= __('Sessione scaduta, ti preghiamo di rifare il login') ?>
+                  <?= __('Il link di verifica email è scaduto o non valido. Registrati nuovamente per ricevere un nuovo link.') ?>
+                <?php elseif ($_GET['error'] === 'invalid_token'): ?>
+                  <?= __('Il link di verifica non è valido. Assicurati di aver copiato l\'intero link dall\'email.') ?>
                 <?php elseif ($_GET['error'] === 'auth_required'): ?>
                   <?= __('Sessione scaduta, ti preghiamo di rifare il login') ?>
                 <?php else: ?>

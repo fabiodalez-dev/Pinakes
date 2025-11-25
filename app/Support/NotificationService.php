@@ -500,7 +500,7 @@ class NotificationService {
             $stmt = $this->db->prepare("
                 SELECT w.utente_id, w.id as wishlist_id,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
-                       l.titolo, l.isbn,
+                       l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
                        GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
                 FROM wishlist w
                 JOIN utenti u ON w.utente_id = u.id
@@ -510,7 +510,7 @@ class NotificationService {
                 WHERE w.libro_id = ?
                   AND u.stato = 'attivo'
                   AND w.notified = 0
-                GROUP BY w.id, w.utente_id, u.nome, u.cognome, u.email, l.titolo, l.isbn
+                GROUP BY w.id, w.utente_id, u.nome, u.cognome, u.email, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $bookId);
             $stmt->execute();
@@ -728,6 +728,42 @@ class NotificationService {
 
         } catch (Exception $e) {
             error_log("Failed to send loan approved notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia email di rifiuto prestito all'utente
+     */
+    public function sendLoanRejectedNotification(int $loanId, string $reason = ''): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if (!$loan = $result->fetch_assoc()) {
+                return false;
+            }
+            $stmt->close();
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_rejected', $variables);
+
+        } catch (Exception $e) {
+            error_log("Failed to send loan rejected notification: " . $e->getMessage());
             return false;
         }
     }

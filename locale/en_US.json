@@ -1624,6 +1624,7 @@
   "Nessun log disponibile": "No logs available",
   "Nessun logo caricato": "No logo uploaded",
   "Nessun messaggio ricevuto": "No messages received",
+  "Nessun motivo specificato": "No reason specified",
   "Nessun plugin installato": "No plugins installed",
   "Nessun prestito attivo": "No active loans",
   "Nessun prestito disponibile per generare il grafico": "No loans available to generate chart",
@@ -1964,6 +1965,7 @@
   "Prestiti per Stato": "Loans by Status",
   "Prestito": "Loan",
   "Prestito aggiornato con successo!": "Loan updated successfully!",
+  "Prestito aggiornato correttamente.": "Loan updated successfully.",
   "Prestito approvato con successo": "Loan approved successfully",
   "Prestito approvato!": "Loan approved!",
   "Prestito attivo": "Active loan",
@@ -3049,5 +3051,9 @@
   "Nessun libro recente": "No recent books",
   "Non ci sono nuovi arrivi al momento.": "No new arrivals at the moment.",
   "Non hai prestiti in corso al momento.": "You have no active loans at the moment.",
-  "%d giorni": "%d days"
+  "%d giorni": "%d days",
+  "Email verificata con successo! Il tuo account è ora in attesa di approvazione da parte dell'amministratore. Riceverai un'email quando sarà attivato.": "Email verified successfully! Your account is now pending administrator approval. You will receive an email when it is activated.",
+  "Il link di verifica email è scaduto o non valido. Registrati nuovamente per ricevere un nuovo link.": "The email verification link has expired or is invalid. Please register again to receive a new link.",
+  "Il link di verifica non è valido. Assicurati di aver copiato l'intero link dall'email.": "The verification link is not valid. Make sure you copied the entire link from the email.",
+  "La mia bacheca": "My Dashboard"
 }

@@ -63,23 +63,6 @@ function getStatusBadge($status) {
       </div>
     </div>
 
-    <!-- Success Messages -->
-    <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
-      <div class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg border border-green-200 slide-in-up">
-        <div class="flex items-center gap-2">
-          <i class="fas fa-check-circle"></i>
-          <span><?= __("Prestito creato con successo!") ?></span>
-        </div>
-      </div>
-    <?php endif; ?>
-    <?php if(isset($_GET['updated']) && $_GET['updated'] == '1'): ?>
-      <div class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg border border-green-200 slide-in-up">
-        <div class="flex items-center gap-2">
-          <i class="fas fa-check-circle"></i>
-          <span><?= __("Prestito aggiornato con successo!") ?></span>
-        </div>
-      </div>
-    <?php endif; ?>
 
     <!-- Pending Loan Requests Widget -->
     <?php if (!empty($pending_loans)): ?>
@@ -335,8 +318,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         case 'restituito':
                             return `<span class='${baseClasses} bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i><?= __("Restituito") ?></span>`;
                         case 'perso':
+                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>${window.__('Perso')}</span>`;
                         case 'danneggiato':
-                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>${data.charAt(0).toUpperCase() + data.slice(1)}</span>`;
+                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>${window.__('Danneggiato')}</span>`;
                         default:
                             return `<span class='${baseClasses} bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>${data.charAt(0).toUpperCase() + data.slice(1)}</span>`;
                     }

@@ -128,13 +128,13 @@ class ReservationManager {
         try {
             // Get book details
             $stmt = $this->db->prepare("
-                SELECT l.titolo, l.isbn,
+                SELECT l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
                        GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
                 FROM libri l
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.id = ?
-                GROUP BY l.id, l.titolo, l.isbn
+                GROUP BY l.id, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $reservation['libro_id']);
             $stmt->execute();
