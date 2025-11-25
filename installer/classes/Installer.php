@@ -602,6 +602,67 @@ class Installer {
     }
 
     /**
+     * Import optimization indexes from indexes_optimization.sql
+     * These indexes improve query performance but are not critical for basic functionality
+     *
+     * @return bool
+     */
+    public function importOptimizationIndexes(): bool
+    {
+        $installerDir = dirname(__DIR__);
+        $indexesFile = $installerDir . '/database/indexes_optimization.sql';
+
+        if (!file_exists($indexesFile)) {
+            // File opzionale - non è un errore se manca
+            return true;
+        }
+
+        $sql = file_get_contents($indexesFile);
+        if (!is_string($sql) || trim($sql) === '') {
+            return true;
+        }
+
+        $pdo = $this->getDatabaseConnection();
+
+        // Rimuovi commenti e dividi in statement
+        $lines = explode("\n", $sql);
+        $statements = [];
+        $currentStatement = '';
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Salta commenti e linee vuote
+            if (empty($line) || strpos($line, '--') === 0 || strpos($line, '#') === 0) {
+                continue;
+            }
+            $currentStatement .= ' ' . $line;
+            if (substr($line, -1) === ';') {
+                $statements[] = trim($currentStatement);
+                $currentStatement = '';
+            }
+        }
+
+        foreach ($statements as $statement) {
+            if (empty($statement)) {
+                continue;
+            }
+            try {
+                $pdo->exec($statement);
+            } catch (\PDOException $e) {
+                // Ignora errori su indici duplicati (già esistenti)
+                // Error code 1061 = Duplicate key name
+                if (strpos($e->getMessage(), '1061') === false &&
+                    strpos($e->getMessage(), 'Duplicate') === false) {
+                    // Log altri errori ma continua
+                    error_log("Index optimization warning: " . $e->getMessage());
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Verify database installation
      */
     public function verifyInstallation() {

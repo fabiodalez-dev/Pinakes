@@ -21,15 +21,14 @@ class BookRepository
     public function listWithAuthors(int $limit = 100): array
     {
         $rows = [];
+        // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
         $sql = "SELECT l.id, l.titolo, e.nome AS editore,
-                (
-                  SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
-                  FROM libri_autori la
-                  JOIN autori a ON la.autore_id = a.id
-                  WHERE la.libro_id = l.id
-                ) AS autori
+                       GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN autori a ON la.autore_id = a.id
+                GROUP BY l.id, l.titolo, e.nome
                 ORDER BY l.titolo ASC
                 LIMIT ?";
         $stmt = $this->db->prepare($sql);
@@ -123,18 +122,16 @@ class BookRepository
 
     public function getByAuthorId(int $authorId): array
     {
+        // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
-                       (
-                         SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
-                         FROM libri_autori la
-                         JOIN autori a ON la.autore_id = a.id
-                         WHERE la.libro_id = l.id
-                       ) AS autori
+                       GROUP_CONCAT(DISTINCT a2.nome ORDER BY a2.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
-                INNER JOIN libri_autori la ON l.id = la.libro_id
-                WHERE la.autore_id = ?
+                INNER JOIN libri_autori la ON l.id = la.libro_id AND la.autore_id = ?
+                LEFT JOIN libri_autori la2 ON l.id = la2.libro_id
+                LEFT JOIN autori a2 ON la2.autore_id = a2.id
+                GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $authorId);
@@ -149,17 +146,16 @@ class BookRepository
 
     public function getByPublisherId(int $publisherId): array
     {
+        // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
-                       (
-                         SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
-                         FROM libri_autori la
-                         JOIN autori a ON la.autore_id = a.id
-                         WHERE la.libro_id = l.id
-                       ) AS autori
+                       GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.editore_id = ?
+                GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $publisherId);
