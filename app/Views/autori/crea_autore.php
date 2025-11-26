@@ -140,11 +140,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: '<?= __("Campo Obbligatorio") ?>',
-                    text: '<?= __("Il nome dell\'autore è obbligatorio.") ?>'
+                    title: '<?= addslashes(__("Campo Obbligatorio")) ?>',
+                    text: '<?= addslashes(__("Il nome dell\'autore è obbligatorio.")) ?>'
                 });
             } else {
-                alert('<?= __("Il nome dell\'autore è obbligatorio.") ?>');
+                alert('<?= addslashes(__("Il nome dell\'autore è obbligatorio.")) ?>');
             }
             return;
         }
@@ -158,11 +158,11 @@ function initializeFormValidation() {
                 if (window.Swal) {
                     Swal.fire({
                         icon: 'error',
-                        title: '<?= __("Date Non Valide") ?>',
-                        text: '<?= __("La data di nascita deve essere precedente alla data di morte.") ?>'
+                        title: '<?= addslashes(__("Date Non Valide")) ?>',
+                        text: '<?= addslashes(__("La data di nascita deve essere precedente alla data di morte.")) ?>'
                     });
                 } else {
-                    alert('<?= __("La data di nascita deve essere precedente alla data di morte.") ?>');
+                    alert('<?= addslashes(__("La data di nascita deve essere precedente alla data di morte.")) ?>');
                 }
                 return;
             }
@@ -171,27 +171,27 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: '<?= __("Conferma Salvataggio") ?>',
+                title: '<?= addslashes(__("Conferma Salvataggio")) ?>',
                 text: '<?= addslashes(__("Sei sicuro di voler salvare l\'autore \"%s\"?")) ?>'.replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: '<?= __("Sì, Salva") ?>',
-                cancelButtonText: '<?= __("Annulla") ?>',
+                confirmButtonText: '<?= addslashes(__("Sì, Salva")) ?>',
+                cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
                 reverseButtons: true
             });
-            
+
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: '<?= __("Salvataggio in corso...") ?>',
-                    text: '<?= __("Attendere prego") ?>',
+                    title: '<?= addslashes(__("Salvataggio in corso...")) ?>',
+                    text: '<?= addslashes(__("Attendere prego")) ?>',
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {
                         Swal.showLoading();
                     }
                 });
-                
+
                 // Submit the form
                 form.submit();
             }
