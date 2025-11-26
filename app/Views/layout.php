@@ -746,8 +746,12 @@ $appVersion = $versionData['version'] ?? '0.1.0';
                     case 'book':
                       iconClass = 'fas fa-book-open';
                       iconColor = 'text-blue-500';
+                      // Show author and optionally ISBN
                       if (item.identifier) {
-                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">${item.identifier}</div>`;
+                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${item.identifier}</div>`;
+                      }
+                      if (item.isbn) {
+                        identifierHtml += `<div class="text-xs text-gray-400 dark:text-gray-500 font-mono">${item.isbn}</div>`;
                       }
                       break;
                     case 'author':

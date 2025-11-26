@@ -2,13 +2,13 @@
 // Helper function to generate a human-readable status string
 function formatLoanStatus($status) {
     return match ($status) {
-        'pendente' => 'In Attesa di Approvazione',
-        'in_corso' => 'In Corso',
-        'in_ritardo' => 'In Ritardo',
-        'restituito' => 'Restituito',
-        'perso' => 'Perso',
-        'danneggiato' => 'Danneggiato',
-        default => 'Sconosciuto',
+        'pendente' => __('In Attesa di Approvazione'),
+        'in_corso' => __('In Corso'),
+        'in_ritardo' => __('In Ritardo'),
+        'restituito' => __('Restituito'),
+        'perso' => __('Perso'),
+        'danneggiato' => __('Danneggiato'),
+        default => __('Sconosciuto'),
     };
 }
 ?>
@@ -49,12 +49,12 @@ function formatLoanStatus($status) {
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Libro:") ?></span>
-            <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? 'Non disponibile'); ?></span>
+            <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? __('Non disponibile')); ?></span>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Utente:") ?></span>
             <span class="text-gray-800">
-              <?= App\Support\HtmlHelper::e($prestito['utente_nome'] ?? 'Non disponibile'); ?>
+              <?= App\Support\HtmlHelper::e($prestito['utente_nome'] ?? __('Non disponibile')); ?>
               <?php if (!empty($prestito['utente_email'])): ?>
                 <br><small class="text-gray-500"><?= App\Support\HtmlHelper::e($prestito['utente_email']); ?></small>
               <?php endif; ?>
@@ -99,7 +99,7 @@ function formatLoanStatus($status) {
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Attivo:") ?></span>
-            <span class="text-gray-800"><?= ((int)($prestito['attivo'] ?? 0)) ? 'Sì' : 'No'; ?></span>
+            <span class="text-gray-800"><?= ((int)($prestito['attivo'] ?? 0)) ? __('Sì') : __('No'); ?></span>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Rinnovi Effettuati:") ?></span>
