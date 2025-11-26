@@ -3178,5 +3178,7 @@
   "Errore validazione prestito:": "Loan validation error:",
   "Indice %s creato su %s": "Index %s created on %s",
   "Errore creazione %s su %s:": "Error creating %s on %s:",
-  "Eccezione creazione %s su %s:": "Exception creating %s on %s:"
+  "Eccezione creazione %s su %s:": "Exception creating %s on %s:",
+  "Dati libro recuperati con successo da Open Library": "Book data successfully retrieved from Open Library",
+  "Libro non trovato nel database Open Library": "Book not found in Open Library database"
 }
