@@ -488,7 +488,7 @@ function profileReservationBookUrl(array $item): string {
                   <span><?= !empty($p['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($p['data_scadenza_prenotazione'])) : __('Non specificata') ?></span>
                 </div>
               </div>
-              <form method="post" action="/reservation/cancel" onsubmit="return confirm(__('Annullare questa prenotazione?'))">
+              <form method="post" action="/reservation/cancel" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>')">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="reservation_id" value="<?php echo (int)$p['id']; ?>">
                 <button type="submit" class="btn-cancel">

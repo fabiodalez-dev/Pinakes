@@ -87,7 +87,7 @@ class PrestitiController
             $data_prestito = gmdate('Y-m-d');
         }
         if (empty($data_scadenza)) {
-            $data_scadenza = gmdate('Y-m-d', strtotime('+14 days'));
+            $data_scadenza = gmdate('Y-m-d', strtotime('+1 month'));
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
@@ -115,30 +115,181 @@ class PrestitiController
                 return $response->withHeader('Location', '/admin/prestiti/crea?error=book_not_found')->withStatus(302);
             }
 
-            // Check if book is available for loan
-            if (strcasecmp((string)$book['stato'], 'disponibile') !== 0 || (int)$book['copie_disponibili'] <= 0) {
-                $db->rollback();
-                return $response->withHeader('Location', '/admin/prestiti/crea?error=book_not_available')->withStatus(302);
-            }
+            // Check if loan starts today (immediate loan) or in the future (scheduled loan)
+            $today = gmdate('Y-m-d');
+            $isImmediateLoan = ($data_prestito <= $today);
 
-            // Select an available copy
+            // Select a copy for the loan
+            // For IMMEDIATE loans: find a copy that is currently 'disponibile'
+            // For FUTURE loans: find a copy that has no overlapping active loans in the requested period
             $copyRepo = new \App\Models\CopyRepository($db);
-            $availableCopies = $copyRepo->getAvailableByBookId($libro_id);
+            $selectedCopy = null;
 
-            if (empty($availableCopies)) {
-                // Recalculate availability and retry
-                $integrity = new DataIntegrity($db);
-                $integrity->recalculateBookAvailability($libro_id);
+            if ($isImmediateLoan) {
+                // For immediate loans, verify book-level availability (including prenotazioni)
+                // Step 1: Count total copies
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+                $totalCopiesStmt->bind_param('i', $libro_id);
+                $totalCopiesStmt->execute();
+                $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+                $totalCopiesStmt->close();
 
-                $availableCopies = $copyRepo->getAvailableByBookId($libro_id);
-                if (empty($availableCopies)) {
+                // Step 2: Count overlapping loans for today
+                $loanCountStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM prestiti
+                    WHERE libro_id = ? AND attivo = 1
+                    AND stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND data_prestito <= ? AND data_scadenza >= ?
+                ");
+                $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $loanCountStmt->execute();
+                $overlappingLoans = (int)($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $loanCountStmt->close();
+
+                // Step 3: Count overlapping prenotazioni for the loan period (include open-ended)
+                $resCountStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM prenotazioni
+                    WHERE libro_id = ? AND stato = 'attiva'
+                    AND data_inizio_richiesta IS NOT NULL
+                    AND data_inizio_richiesta <= ? 
+                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+                ");
+                $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $resCountStmt->execute();
+                $overlappingReservations = (int)($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $resCountStmt->close();
+
+                // Check if there's at least one slot available
+                $totalOccupied = $overlappingLoans + $overlappingReservations;
+                if ($totalOccupied >= $totalCopies) {
                     $db->rollback();
                     return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
                 }
+
+                // Find a copy without overlapping loans for the requested period
+                $overlapStmt = $db->prepare("
+                    SELECT c.id FROM copie c
+                    WHERE c.libro_id = ?
+                    AND NOT EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id
+                        AND p.attivo = 1
+                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo')
+                        AND p.data_prestito <= ?
+                        AND p.data_scadenza >= ?
+                    )
+                    LIMIT 1
+                ");
+                $overlapStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $overlapStmt->execute();
+                $overlapResult = $overlapStmt->get_result();
+                $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
+                $overlapStmt->close();
+
+                // Fallback: try getAvailableByBookId if no copy found
+                if (!$selectedCopy) {
+                    $availableCopies = $copyRepo->getAvailableByBookId($libro_id);
+                    if (!empty($availableCopies)) {
+                        $selectedCopy = $availableCopies[0];
+                    }
+                }
+            } else {
+                // For FUTURE loans, find a copy that has no overlapping active loans
+                // Also verify book-level availability (considering prenotazioni and pendente loans)
+
+                // Step 1: Count total copies for this book
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+                $totalCopiesStmt->bind_param('i', $libro_id);
+                $totalCopiesStmt->execute();
+                $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+                $totalCopiesStmt->close();
+
+                // Step 2: Count overlapping loans (all types, including pendente without copia_id)
+                $loanCountStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM prestiti
+                    WHERE libro_id = ? AND attivo = 1
+                    AND stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND data_prestito <= ? AND data_scadenza >= ?
+                ");
+                $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $loanCountStmt->execute();
+                $overlappingLoans = (int)($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $loanCountStmt->close();
+
+                // Step 3: Count overlapping prenotazioni
+                $resCountStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM prenotazioni
+                    WHERE libro_id = ? AND stato = 'attiva'
+                    AND data_inizio_richiesta IS NOT NULL
+                    AND data_inizio_richiesta <= ? 
+                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+                ");
+                $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $resCountStmt->execute();
+                $overlappingReservations = (int)($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $resCountStmt->close();
+
+                // Check if there's at least one slot available
+                $totalOccupied = $overlappingLoans + $overlappingReservations;
+                if ($totalOccupied >= $totalCopies) {
+                    // No slots available at book level
+                    $db->rollback();
+                    return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
+                }
+
+                // Step 4: Find a specific copy without overlapping assigned loans
+                // A copy is available if it has no active loan that overlaps with our requested period
+                $overlapStmt = $db->prepare("
+                    SELECT c.id FROM copie c
+                    WHERE c.libro_id = ?
+                    AND NOT EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id
+                        AND p.attivo = 1
+                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo')
+                        AND p.data_prestito <= ?
+                        AND p.data_scadenza >= ?
+                    )
+                    LIMIT 1
+                ");
+                $overlapStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $overlapStmt->execute();
+                $overlapResult = $overlapStmt->get_result();
+                $freeCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
+                $overlapStmt->close();
+
+                if ($freeCopy) {
+                    $selectedCopy = $freeCopy;
+                }
             }
 
-            // Take the first available copy
-            $selectedCopy = $availableCopies[0];
+            if (!$selectedCopy) {
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
+            }
+
+            // Lock selected copy and re-check overlap to prevent race conditions
+            $lockCopyStmt = $db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+            $lockCopyStmt->bind_param('i', $selectedCopy['id']);
+            $lockCopyStmt->execute();
+            $lockCopyStmt->close();
+
+            $overlapCopyStmt = $db->prepare("
+                SELECT 1 FROM prestiti
+                WHERE copia_id = ? AND attivo = 1
+                AND stato IN ('in_corso','prenotato','in_ritardo')
+                AND data_prestito <= ? AND data_scadenza >= ?
+                LIMIT 1
+            ");
+            $overlapCopyStmt->bind_param('iss', $selectedCopy['id'], $data_scadenza, $data_prestito);
+            $overlapCopyStmt->execute();
+            $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
+            $overlapCopyStmt->close();
+
+            if ($overlapCopy) {
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
+            }
 
             $processedBy = null;
             if (isset($_SESSION['user']['id'])) {
@@ -164,7 +315,8 @@ class PrestitiController
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $data_restituzione = null;
-            $stato_prestito = 'in_corso';
+            // For future loans, use 'prenotato' (reserved) status; for immediate loans, use 'in_corso'
+            $stato_prestito = $isImmediateLoan ? 'in_corso' : 'prenotato';
             $sanzione = 0.00;
             $renewals = 0;
             $attivo = 1;
@@ -176,8 +328,11 @@ class PrestitiController
             $newLoanId = (int)$db->insert_id;
             $stmt->close();
 
-            // Update copy status to 'prestato'
-            $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
+            // Only mark copy as 'prestato' for immediate loans
+            // For future loans (prenotato), copy status will be updated when the loan starts
+            if ($isImmediateLoan) {
+                $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
+            }
 
 
 
@@ -379,9 +534,11 @@ class PrestitiController
             $stmt->close();
 
             // Mappa stato prestito → stato copia
+            // Nota: questo è il form di RESTITUZIONE, quindi il libro torna sempre
+            // 'in_ritardo' qui significa "restituito in ritardo", non "ancora in prestito"
             $copia_stato = match($nuovo_stato) {
                 'restituito' => 'disponibile',
-                'in_ritardo' => 'prestato',  // Ancora in prestito
+                'in_ritardo' => 'disponibile',  // Restituito in ritardo = disponibile
                 'perso' => 'perso',
                 'danneggiato' => 'danneggiato',
                 default => 'disponibile'

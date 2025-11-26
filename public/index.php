@@ -253,6 +253,9 @@ $GLOBALS['hookManager'] = $container->get('hookManager');
 // Load active plugins
 $container->get('pluginManager')->loadActivePlugins();
 
+// Register maintenance hook for admin login (fallback for cron)
+\App\Support\Hooks::add('login.success', [\App\Support\MaintenanceService::class, 'onAdminLogin'], 100);
+
 // App
 $app = AppFactory::create();
 $app->addRoutingMiddleware();

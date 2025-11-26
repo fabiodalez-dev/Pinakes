@@ -42,11 +42,11 @@ class ReservationsController {
         $bookId = (int)$args['id'];
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending)
+        // Get current and future loans for this book (including pending and scheduled)
         $stmt = $this->db->prepare("
             SELECT data_prestito, data_scadenza, data_restituzione, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);
@@ -335,11 +335,11 @@ class ReservationsController {
     public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730) {
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending)
+        // Get current and future loans for this book (including pending and scheduled)
         $stmt = $this->db->prepare("
             SELECT data_prestito, data_scadenza, data_restituzione, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);
@@ -377,13 +377,27 @@ class ReservationsController {
 
     private function getBookTotalCopies(int $bookId): int
     {
-        $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
+        // Count actual copies from copie table (not from libri.copie_totali column)
+        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
 
-        return (int) ($row['copie_totali'] ?? 1);
+        $total = (int) ($row['total'] ?? 0);
+
+        // Fallback: if no copies exist in copie table, check libri.copie_totali as minimum
+        if ($total === 0) {
+            $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            $stmt->close();
+            $total = (int) ($row['copie_totali'] ?? 1);
+        }
+
+        return $total;
     }
 }
