@@ -3,6 +3,16 @@
 -- Eseguire dopo l'installazione per migliorare le performance
 -- Nota: molti indici sono già presenti in schema.sql
 -- =====================================================
+--
+-- COMPATIBILITÀ DATABASE:
+-- Questo script usa la sintassi "ADD INDEX IF NOT EXISTS" che è
+-- supportata SOLO da MariaDB 10.0.2+ e non da Oracle MySQL.
+--
+-- Per Oracle MySQL, usare invece: indexes_optimization_mysql.sql
+-- oppure eseguire manualmente ogni ALTER TABLE dopo aver verificato
+-- che l'indice non esista già con: SHOW INDEX FROM nome_tabella;
+--
+-- =====================================================
 
 -- =====================================================
 -- TABELLA: libri

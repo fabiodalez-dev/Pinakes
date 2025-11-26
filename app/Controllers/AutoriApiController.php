@@ -250,31 +250,47 @@ class AutoriApiController
         $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
         $types = str_repeat('i', count($cleanIds));
 
-        // Delete author-book relationships first
-        $delRelSql = "DELETE FROM libri_autori WHERE autore_id IN ($placeholders)";
-        $delRelStmt = $db->prepare($delRelSql);
-        if ($delRelStmt) {
-            $delRelStmt->bind_param($types, ...$cleanIds);
-            $delRelStmt->execute();
-            $delRelStmt->close();
-        }
+        // Start transaction for atomic delete
+        $db->begin_transaction();
 
-        // Delete the authors
-        $sql = "DELETE FROM autori WHERE id IN ($placeholders)";
-        $stmt = $db->prepare($sql);
-        if (!$stmt) {
-            AppLog::error('autori.bulk_delete.prepare_failed', ['error' => $db->error]);
+        try {
+            // Delete author-book relationships first
+            $delRelSql = "DELETE FROM libri_autori WHERE autore_id IN ($placeholders)";
+            $delRelStmt = $db->prepare($delRelSql);
+            if (!$delRelStmt) {
+                throw new \Exception('Failed to prepare relationship delete: ' . $db->error);
+            }
+            $delRelStmt->bind_param($types, ...$cleanIds);
+            if (!$delRelStmt->execute()) {
+                throw new \Exception('Failed to execute relationship delete: ' . $delRelStmt->error);
+            }
+            $delRelStmt->close();
+
+            // Delete the authors
+            $sql = "DELETE FROM autori WHERE id IN ($placeholders)";
+            $stmt = $db->prepare($sql);
+            if (!$stmt) {
+                throw new \Exception('Failed to prepare author delete: ' . $db->error);
+            }
+
+            $stmt->bind_param($types, ...$cleanIds);
+            if (!$stmt->execute()) {
+                throw new \Exception('Failed to execute author delete: ' . $stmt->error);
+            }
+            $affected = $stmt->affected_rows;
+            $stmt->close();
+
+            // Commit transaction
+            $db->commit();
+        } catch (\Exception $e) {
+            $db->rollback();
+            AppLog::error('autori.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => __('Errore interno del database')
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-
-        $stmt->bind_param($types, ...$cleanIds);
-        $stmt->execute();
-        $affected = $stmt->affected_rows;
-        $stmt->close();
 
         AppLog::info('autori.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
 

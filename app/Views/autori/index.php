@@ -190,6 +190,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const debounce = (fn, ms=300) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
   const selectedAuthors = new Set();
 
+  // HTML escape helper to prevent XSS
+  const escapeHtml = (str) => {
+    if (str === null || str === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  };
+
   // Toggle advanced filters
   const advancedBtn = document.getElementById('toggle-advanced');
   const advancedFilters = document.getElementById('advanced-filters');
@@ -236,8 +244,9 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '40px',
         className: 'text-center align-middle',
         render: function(_, __, row) {
-          const checked = selectedAuthors.has(row.id) ? 'checked' : '';
-          return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${row.id}" ${checked} />`;
+          const id = parseInt(row.id, 10);
+          const checked = selectedAuthors.has(id) ? 'checked' : '';
+          return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${id}" ${checked} />`;
         }
       },
       { // Name
@@ -245,10 +254,10 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '250px',
         className: 'align-middle',
         render: function(_, __, row) {
-          const nome = row.nome || '<?= __("Autore sconosciuto") ?>';
-          const bio = row.biografia ? `<p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${row.biografia.substring(0, 80)}...</p>` : '';
+          const nome = escapeHtml(row.nome) || '<?= __("Autore sconosciuto") ?>';
+          const bio = row.biografia ? `<p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${escapeHtml(row.biografia.substring(0, 80))}...</p>` : '';
           return `<div>
-            <a href="/admin/autori/${row.id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
+            <a href="/admin/autori/${parseInt(row.id, 10)}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
             ${bio}
           </div>`;
         }
@@ -258,7 +267,7 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '150px',
         className: 'align-middle',
         render: function(data) {
-          return data ? `<span class="italic text-gray-600">"${data}"</span>` : '<span class="text-gray-400">-</span>';
+          return data ? `<span class="italic text-gray-600">"${escapeHtml(data)}"</span>` : '<span class="text-gray-400">-</span>';
         }
       },
       { // Nazionalità
@@ -268,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data) {
           if (!data) return '<span class="text-gray-400">-</span>';
           return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800">
-            <i class="fas fa-flag mr-1"></i>${data}
+            <i class="fas fa-flag mr-1"></i>${escapeHtml(data)}
           </span>`;
         }
       },
@@ -291,14 +300,15 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '100px',
         className: 'text-center align-middle',
         render: function(data) {
+          const id = parseInt(data, 10);
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="/admin/autori/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+            <a href="/admin/autori/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="/admin/autori/modifica/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+            <a href="/admin/autori/modifica/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button onclick="deleteAuthor(${data})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
+            <button onclick="deleteAuthor(${id})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;
