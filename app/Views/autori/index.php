@@ -355,16 +355,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const filters = [];
 
     const nome = document.getElementById('search_nome').value;
-    if (nome) filters.push({ key: 'search_nome', label: `"${nome}"`, icon: 'fa-search' });
+    if (nome) filters.push({ key: 'search_nome', label: `"${escapeHtml(nome)}"`, icon: 'fa-search' });
 
     const naz = document.getElementById('search_nazionalita').value;
-    if (naz) filters.push({ key: 'search_nazionalita', label: `<?= __("Nazionalità") ?>: ${naz}`, icon: 'fa-flag' });
+    if (naz) filters.push({ key: 'search_nazionalita', label: `<?= __("Nazionalità") ?>: ${escapeHtml(naz)}`, icon: 'fa-flag' });
 
     const libri = document.getElementById('filter_libri_count').value;
     if (libri) filters.push({ key: 'filter_libri_count', label: `<?= __("Libri") ?>: ${libri}`, icon: 'fa-book' });
 
     const pseudo = document.getElementById('search_pseudonimo').value;
-    if (pseudo) filters.push({ key: 'search_pseudonimo', label: `<?= __("Pseudonimo") ?>: ${pseudo}`, icon: 'fa-id-card' });
+    if (pseudo) filters.push({ key: 'search_pseudonimo', label: `<?= __("Pseudonimo") ?>: ${escapeHtml(pseudo)}`, icon: 'fa-id-card' });
 
     if (filters.length === 0) {
       container.classList.add('hidden');

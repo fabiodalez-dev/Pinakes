@@ -363,16 +363,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const filters = [];
 
     const nome = document.getElementById('search_nome').value;
-    if (nome) filters.push({ key: 'search_nome', label: `"${nome}"`, icon: 'fa-search' });
+    if (nome) filters.push({ key: 'search_nome', label: `"${escapeHtml(nome)}"`, icon: 'fa-search' });
 
     const citta = document.getElementById('search_citta').value;
-    if (citta) filters.push({ key: 'search_citta', label: `<?= __("Città") ?>: ${citta}`, icon: 'fa-map-marker-alt' });
+    if (citta) filters.push({ key: 'search_citta', label: `<?= __("Città") ?>: ${escapeHtml(citta)}`, icon: 'fa-map-marker-alt' });
 
     const libri = document.getElementById('filter_libri_count').value;
     if (libri) filters.push({ key: 'filter_libri_count', label: `<?= __("Libri") ?>: ${libri}`, icon: 'fa-book' });
 
     const sito = document.getElementById('search_sito').value;
-    if (sito) filters.push({ key: 'search_sito', label: `<?= __("Sito") ?>: ${sito}`, icon: 'fa-globe' });
+    if (sito) filters.push({ key: 'search_sito', label: `<?= __("Sito") ?>: ${escapeHtml(sito)}`, icon: 'fa-globe' });
 
     if (filters.length === 0) {
       container.classList.add('hidden');
