@@ -171,35 +171,51 @@ class SearchController
     {
         $results = [];
         $s = '%'.$query.'%';
-        
-        // Search by ISBN, EAN, title, subtitle
-        $stmt = $db->prepare("SELECT id, titolo AS label, isbn10, isbn13, ean FROM libri WHERE isbn10 LIKE ? OR isbn13 LIKE ? OR ean LIKE ? OR titolo LIKE ? OR sottotitolo LIKE ? ORDER BY titolo LIMIT 10");
+
+        // Search by ISBN, EAN, title, subtitle - include author via subquery
+        $stmt = $db->prepare("
+            SELECT l.id, l.titolo AS label, l.isbn10, l.isbn13, l.ean,
+                   (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
+                    FROM libri_autori la
+                    JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id) AS autori
+            FROM libri l
+            WHERE l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ?
+            ORDER BY l.titolo LIMIT 10
+        ");
         $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
         $stmt->execute();
         $res = $stmt->get_result();
-        
+
         while ($row = $res->fetch_assoc()) {
             $label = HtmlHelper::decode($row['label']);
             $identifier = '';
-            
-            // Determine which identifier to show
-            if (!empty($row['isbn13'])) {
-                $identifier = 'ISBN: ' . $row['isbn13'];
-            } elseif (!empty($row['isbn10'])) {
-                $identifier = 'ISBN: ' . $row['isbn10'];
-            } elseif (!empty($row['ean'])) {
-                $identifier = 'EAN: ' . $row['ean'];
+
+            // Show author if available
+            if (!empty($row['autori'])) {
+                $identifier = HtmlHelper::decode($row['autori']);
             }
-            
+
+            // Add ISBN/EAN as secondary info
+            $isbn = '';
+            if (!empty($row['isbn13'])) {
+                $isbn = 'ISBN: ' . $row['isbn13'];
+            } elseif (!empty($row['isbn10'])) {
+                $isbn = 'ISBN: ' . $row['isbn10'];
+            } elseif (!empty($row['ean'])) {
+                $isbn = 'EAN: ' . $row['ean'];
+            }
+
             $results[] = [
                 'id' => $row['id'],
                 'label' => $label,
                 'identifier' => $identifier,
+                'isbn' => $isbn,
                 'type' => 'book',
                 'url' => '/admin/libri/' . $row['id']
             ];
         }
-        
+
         return $results;
     }
     

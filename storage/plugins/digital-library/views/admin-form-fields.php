@@ -47,16 +47,16 @@ $currentAudioUrl = $book['audio_url'] ?? '';
         </div>
         <?php endif; ?>
 
-        <div class="flex gap-2">
+        <div class="flex flex-col md:flex-row gap-2">
             <input type="text"
                    id="file_url_display"
-                   class="form-input flex-1"
+                   class="form-input w-full md:flex-1"
                    placeholder="<?= __('URL del file o carica usando il pulsante') ?>"
                    value="<?= HtmlHelper::e($currentFileUrl) ?>"
                    onchange="document.getElementById('file_url').value = this.value">
             <button type="button"
                     id="upload-ebook-btn"
-                    class="btn btn-primary flex items-center gap-2">
+                    class="btn btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
                 <i class="fas fa-upload"></i>
                 <?= __("Carica") ?>
             </button>
@@ -97,16 +97,16 @@ $currentAudioUrl = $book['audio_url'] ?? '';
         </div>
         <?php endif; ?>
 
-        <div class="flex gap-2">
+        <div class="flex flex-col md:flex-row gap-2">
             <input type="text"
                    id="audio_url_display"
-                   class="form-input flex-1"
+                   class="form-input w-full md:flex-1"
                    placeholder="<?= __('URL del file o carica usando il pulsante') ?>"
                    value="<?= HtmlHelper::e($currentAudioUrl) ?>"
                    onchange="document.getElementById('audio_url').value = this.value">
             <button type="button"
                     id="upload-audio-btn"
-                    class="btn btn-primary flex items-center gap-2">
+                    class="btn btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
                 <i class="fas fa-upload"></i>
                 <?= __("Carica") ?>
             </button>

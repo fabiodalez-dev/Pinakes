@@ -6,6 +6,7 @@ namespace App\Support;
 final class ConfigStore
 {
     private static ?array $runtimeCache = null;
+    private static ?array $dbSettingsCache = null;
 
     public static function all(): array
     {
@@ -136,6 +137,7 @@ final class ConfigStore
     public static function set(string $path, $value): void
     {
         self::$runtimeCache = null;
+        self::$dbSettingsCache = null;
 
         // Parse path (e.g., "app.name" => category="app", key="name")
         // Handle nested paths: "mail.smtp.host" => category="mail", key="smtp.host"
@@ -219,6 +221,7 @@ final class ConfigStore
     public static function clearCache(): void
     {
         self::$runtimeCache = null;
+        self::$dbSettingsCache = null;
     }
 
     private static function mergeRecursiveDistinct(array $base, array $replacements): array
@@ -308,22 +311,21 @@ final class ConfigStore
 
     private static function loadDatabaseSettings(): array
     {
-        static $cache = null;
-        if ($cache !== null) {
-            return $cache;
+        if (self::$dbSettingsCache !== null) {
+            return self::$dbSettingsCache;
         }
 
-        $cache = [];
+        self::$dbSettingsCache = [];
 
         $settingsPath = __DIR__ . '/../../config/settings.php';
         if (!is_file($settingsPath)) {
-            return $cache;
+            return self::$dbSettingsCache;
         }
 
         $config = require $settingsPath;
         $dbCfg = $config['db'] ?? null;
         if (!is_array($dbCfg)) {
-            return $cache;
+            return self::$dbSettingsCache;
         }
 
         $host = $dbCfg['hostname'] ?? 'localhost';
@@ -334,7 +336,7 @@ final class ConfigStore
         $charset = $dbCfg['charset'] ?? 'utf8mb4';
 
         if ($name === '' || $user === '') {
-            return $cache;
+            return self::$dbSettingsCache;
         }
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -350,7 +352,7 @@ final class ConfigStore
                     $tables->free();
                 }
                 $mysqli->close();
-                return $cache;
+                return self::$dbSettingsCache;
             }
             $tables->free();
 
@@ -370,33 +372,48 @@ final class ConfigStore
 
             // Map to ConfigStore structure
             if (!empty($raw['app'])) {
-                $cache['app'] = [];
+                self::$dbSettingsCache['app'] = [];
                 if (isset($raw['app']['name']) && $raw['app']['name'] !== '') {
-                    $cache['app']['name'] = (string) $raw['app']['name'];
+                    self::$dbSettingsCache['app']['name'] = (string) $raw['app']['name'];
                 }
                 // Handle logo: if logo_path exists in DB, use it; if not, explicitly set to empty
                 if (isset($raw['app']['logo_path'])) {
-                    $cache['app']['logo'] = !empty($raw['app']['logo_path']) ? (string) $raw['app']['logo_path'] : '';
+                    self::$dbSettingsCache['app']['logo'] = !empty($raw['app']['logo_path']) ? (string) $raw['app']['logo_path'] : '';
                 } else {
                     // Logo was deleted from DB - explicitly clear cached value
-                    $cache['app']['logo'] = '';
+                    self::$dbSettingsCache['app']['logo'] = '';
+                }
+                // Load footer_description
+                if (isset($raw['app']['footer_description'])) {
+                    self::$dbSettingsCache['app']['footer_description'] = (string) $raw['app']['footer_description'];
+                }
+                // Load locale
+                if (isset($raw['app']['locale'])) {
+                    self::$dbSettingsCache['app']['locale'] = (string) $raw['app']['locale'];
+                }
+                // Load social links
+                $socialKeys = ['social_facebook', 'social_twitter', 'social_instagram', 'social_linkedin', 'social_bluesky'];
+                foreach ($socialKeys as $socialKey) {
+                    if (isset($raw['app'][$socialKey])) {
+                        self::$dbSettingsCache['app'][$socialKey] = (string) $raw['app'][$socialKey];
+                    }
                 }
             }
 
             if (!empty($raw['email'])) {
-                $cache['mail'] = [];
+                self::$dbSettingsCache['mail'] = [];
                 if (!empty($raw['email']['driver_mode'])) {
-                    $cache['mail']['driver'] = (string) $raw['email']['driver_mode'];
+                    self::$dbSettingsCache['mail']['driver'] = (string) $raw['email']['driver_mode'];
                 } elseif (!empty($raw['email']['type'])) {
-                    $cache['mail']['driver'] = (string) $raw['email']['type'];
+                    self::$dbSettingsCache['mail']['driver'] = (string) $raw['email']['type'];
                 }
                 if (isset($raw['email']['from_email'])) {
-                    $cache['mail']['from_email'] = (string) $raw['email']['from_email'];
+                    self::$dbSettingsCache['mail']['from_email'] = (string) $raw['email']['from_email'];
                 }
                 if (isset($raw['email']['from_name'])) {
-                    $cache['mail']['from_name'] = (string) $raw['email']['from_name'];
+                    self::$dbSettingsCache['mail']['from_name'] = (string) $raw['email']['from_name'];
                 }
-                $cache['mail']['smtp'] = $cache['mail']['smtp'] ?? [];
+                self::$dbSettingsCache['mail']['smtp'] = self::$dbSettingsCache['mail']['smtp'] ?? [];
                 $smtpMap = [
                     'smtp_host' => 'host',
                     'smtp_port' => 'port',
@@ -408,27 +425,27 @@ final class ConfigStore
                     if (isset($raw['email'][$src])) {
                         $value = $raw['email'][$src];
                         if ($dst === 'port') {
-                            $cache['mail']['smtp'][$dst] = (int) $value;
+                            self::$dbSettingsCache['mail']['smtp'][$dst] = (int) $value;
                         } else {
-                            $cache['mail']['smtp'][$dst] = (string) $value;
+                            self::$dbSettingsCache['mail']['smtp'][$dst] = (string) $value;
                         }
                     }
                 }
             }
 
             if (!empty($raw['registration'])) {
-                $cache['registration'] = [];
+                self::$dbSettingsCache['registration'] = [];
                 if (isset($raw['registration']['require_admin_approval'])) {
                     $value = filter_var($raw['registration']['require_admin_approval'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
                     if ($value === null) {
                         $value = in_array((string) $raw['registration']['require_admin_approval'], ['1', 'true', 'yes'], true);
                     }
-                    $cache['registration']['require_admin_approval'] = $value;
+                    self::$dbSettingsCache['registration']['require_admin_approval'] = $value;
                 }
             }
 
             if (!empty($raw['cookie_banner'])) {
-                $cache['cookie_banner'] = [];
+                self::$dbSettingsCache['cookie_banner'] = [];
                 foreach ($raw['cookie_banner'] as $key => $value) {
                     // Handle boolean flags
                     if ($key === 'show_analytics' || $key === 'show_marketing') {
@@ -436,22 +453,22 @@ final class ConfigStore
                         if ($boolValue === null) {
                             $boolValue = in_array((string) $value, ['1', 'true', 'yes'], true);
                         }
-                        $cache['cookie_banner'][$key] = $boolValue;
+                        self::$dbSettingsCache['cookie_banner'][$key] = $boolValue;
                     } else {
-                        $cache['cookie_banner'][$key] = (string) $value;
+                        self::$dbSettingsCache['cookie_banner'][$key] = (string) $value;
                     }
                 }
             }
 
             if (!empty($raw['contacts'])) {
-                $cache['contacts'] = [];
+                self::$dbSettingsCache['contacts'] = [];
                 foreach ($raw['contacts'] as $key => $value) {
-                    $cache['contacts'][$key] = (string) $value;
+                    self::$dbSettingsCache['contacts'][$key] = (string) $value;
                 }
             }
 
             if (!empty($raw['privacy'])) {
-                $cache['privacy'] = [];
+                self::$dbSettingsCache['privacy'] = [];
                 foreach ($raw['privacy'] as $key => $value) {
                     // Handle boolean flag for cookie_banner_enabled
                     if ($key === 'cookie_banner_enabled') {
@@ -459,46 +476,46 @@ final class ConfigStore
                         if ($boolValue === null) {
                             $boolValue = in_array((string) $value, ['1', 'true', 'yes'], true);
                         }
-                        $cache['privacy'][$key] = $boolValue;
+                        self::$dbSettingsCache['privacy'][$key] = $boolValue;
                     } else {
-                        $cache['privacy'][$key] = (string) $value;
+                        self::$dbSettingsCache['privacy'][$key] = (string) $value;
                     }
                 }
             }
 
             if (!empty($raw['label'])) {
-                $cache['label'] = [];
+                self::$dbSettingsCache['label'] = [];
                 foreach ($raw['label'] as $key => $value) {
                     // Handle numeric values for width and height
                     if ($key === 'width' || $key === 'height') {
-                        $cache['label'][$key] = (int) $value;
+                        self::$dbSettingsCache['label'][$key] = (int) $value;
                     } else {
-                        $cache['label'][$key] = (string) $value;
+                        self::$dbSettingsCache['label'][$key] = (string) $value;
                     }
                 }
             }
 
             if (!empty($raw['advanced'])) {
-                $cache['advanced'] = [];
+                self::$dbSettingsCache['advanced'] = [];
                 foreach ($raw['advanced'] as $key => $value) {
                     // Handle numeric value for days_before_expiry_warning
                     if ($key === 'days_before_expiry_warning' || $key === 'sitemap_last_generated_total') {
-                        $cache['advanced'][$key] = (int) $value;
+                        self::$dbSettingsCache['advanced'][$key] = (int) $value;
                     } elseif ($key === 'api_enabled') {
                         // Handle boolean flag for api_enabled
                         $boolValue = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
                         if ($boolValue === null) {
                             $boolValue = in_array((string) $value, ['1', 'true', 'yes'], true);
                         }
-                        $cache['advanced'][$key] = $boolValue;
+                        self::$dbSettingsCache['advanced'][$key] = $boolValue;
                     } else {
-                        $cache['advanced'][$key] = (string) $value;
+                        self::$dbSettingsCache['advanced'][$key] = (string) $value;
                     }
                 }
             }
 
             if (!empty($raw['api'])) {
-                $cache['api'] = [];
+                self::$dbSettingsCache['api'] = [];
                 foreach ($raw['api'] as $key => $value) {
                     // Handle boolean flag for enabled
                     if ($key === 'enabled') {
@@ -506,26 +523,26 @@ final class ConfigStore
                         if ($boolValue === null) {
                             $boolValue = in_array((string) $value, ['1', 'true', 'yes'], true);
                         }
-                        $cache['api'][$key] = $boolValue;
+                        self::$dbSettingsCache['api'][$key] = $boolValue;
                     } else {
-                        $cache['api'][$key] = (string) $value;
+                        self::$dbSettingsCache['api'][$key] = (string) $value;
                     }
                 }
             }
 
             if (!empty($raw['cms'])) {
-                $cache['cms'] = [];
+                self::$dbSettingsCache['cms'] = [];
                 foreach ($raw['cms'] as $key => $value) {
                     // Keep as string '1' or '0' to match controller/view usage
-                    $cache['cms'][$key] = (string) $value;
+                    self::$dbSettingsCache['cms'][$key] = (string) $value;
                 }
             }
 
         } catch (\Throwable $e) {
             // Silently ignore DB issues and fallback to stored defaults
-            $cache = [];
+            self::$dbSettingsCache = [];
         }
 
-        return $cache;
+        return self::$dbSettingsCache;
     }
 }

@@ -49,11 +49,12 @@ class LibriApiController
             $types .= 'sss';
         }
         if ($search_isbn !== '') {
-            $where .= " AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ?) ";
+            $where .= " AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?) ";
             $isbnParam = '%' . $search_isbn . '%';
             $params[] = $isbnParam;
             $params[] = $isbnParam;
-            $types .= 'ss';
+            $params[] = $isbnParam;
+            $types .= 'sss';
         }
         if ($genere_id) {
             $where .= ' AND l.genere_id = ?';
@@ -415,6 +416,189 @@ class LibriApiController
             'success' => true,
             'books' => $books,
             'count' => count($books)
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Bulk update status for multiple books
+     */
+    public function bulkStatus(Request $request, Response $response, mysqli $db): Response
+    {
+        $body = $request->getParsedBody();
+        if (!$body) {
+            $body = json_decode((string) $request->getBody(), true);
+        }
+
+        $ids = $body['ids'] ?? [];
+        $stato = trim((string)($body['stato'] ?? ''));
+
+        // Validate input
+        if (empty($ids) || !is_array($ids)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Nessun libro selezionato')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Map frontend labels to database values
+        $stateMap = [
+            'disponibile' => 'disponibile',
+            'in_prestito' => 'in_prestito',
+            'prestato' => 'in_prestito',
+            'in_manutenzione' => 'in_manutenzione',
+            'danneggiato' => 'in_manutenzione',
+            'riservato' => 'riservato',
+            'smarrito' => 'smarrito',
+            'perso' => 'smarrito',
+            'non disponibile' => 'in_prestito'
+        ];
+        $statoLower = strtolower($stato);
+        if (!isset($stateMap[$statoLower])) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Stato non valido')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Filter and sanitize IDs
+        $cleanIds = array_filter(array_map('intval', $ids), fn($id) => $id > 0);
+        if (empty($cleanIds)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('ID libri non validi')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Build placeholders for IN clause
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $types = str_repeat('i', count($cleanIds));
+
+        $sql = "UPDATE libri SET stato = ? WHERE id IN ($placeholders)";
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            AppLog::error('libri.bulk_status.prepare_failed', ['error' => $db->error]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore interno del database')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Bind normalized stato + all IDs
+        $normalizedStato = $stateMap[$statoLower];
+        $params = array_merge([$normalizedStato], $cleanIds);
+        $stmt->bind_param('s' . $types, ...$params);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+
+        AppLog::info('libri.bulk_status', ['ids' => $cleanIds, 'stato' => $normalizedStato, 'affected' => $affected]);
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'affected' => $affected,
+            'message' => sprintf(__('Stato aggiornato per %d libri'), $affected)
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Bulk delete multiple books
+     */
+    public function bulkDelete(Request $request, Response $response, mysqli $db): Response
+    {
+        $body = $request->getParsedBody();
+        if (!$body) {
+            $body = json_decode((string) $request->getBody(), true);
+        }
+
+        $ids = $body['ids'] ?? [];
+
+        // Validate input
+        if (empty($ids) || !is_array($ids)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Nessun libro selezionato')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Filter and sanitize IDs
+        $cleanIds = array_filter(array_map('intval', $ids), fn($id) => $id > 0);
+        if (empty($cleanIds)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('ID libri non validi')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Check if any book has active loans
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $types = str_repeat('i', count($cleanIds));
+
+        $checkSql = "SELECT libro_id FROM prestiti WHERE libro_id IN ($placeholders) AND stato IN ('in_corso', 'in_ritardo') AND attivo = 1 LIMIT 1";
+        $checkStmt = $db->prepare($checkSql);
+        if ($checkStmt) {
+            $checkStmt->bind_param($types, ...$cleanIds);
+            $checkStmt->execute();
+            $checkResult = $checkStmt->get_result();
+            if ($checkResult->num_rows > 0) {
+                $checkStmt->close();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => __('Impossibile eliminare: alcuni libri hanno prestiti attivi')
+                ], JSON_UNESCAPED_UNICODE));
+                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            }
+            $checkStmt->close();
+        }
+
+        // Delete book-author relationships first
+        $delAuthSql = "DELETE FROM libri_autori WHERE libro_id IN ($placeholders)";
+        $delAuthStmt = $db->prepare($delAuthSql);
+        if ($delAuthStmt) {
+            $delAuthStmt->bind_param($types, ...$cleanIds);
+            $delAuthStmt->execute();
+            $delAuthStmt->close();
+        }
+
+        // Delete copies
+        $delCopySql = "DELETE FROM copie WHERE libro_id IN ($placeholders)";
+        $delCopyStmt = $db->prepare($delCopySql);
+        if ($delCopyStmt) {
+            $delCopyStmt->bind_param($types, ...$cleanIds);
+            $delCopyStmt->execute();
+            $delCopyStmt->close();
+        }
+
+        // Delete the books
+        $sql = "DELETE FROM libri WHERE id IN ($placeholders)";
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            AppLog::error('libri.bulk_delete.prepare_failed', ['error' => $db->error]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore interno del database')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        $stmt->bind_param($types, ...$cleanIds);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+
+        AppLog::info('libri.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'affected' => $affected,
+            'message' => sprintf(__('%d libri eliminati'), $affected)
         ], JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
     }
