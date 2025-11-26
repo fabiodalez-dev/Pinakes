@@ -233,7 +233,7 @@ class DataIntegrity {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
                     'type' => 'negative_copies',
-                    'message' => "Libro '{$row['titolo']}' (ID: {$row['id']}) ha copie disponibili negative: {$row['copie_disponibili']}"
+                    'message' => \sprintf(__("Libro '%s' (ID: %d) ha copie disponibili negative: %d"), $row['titolo'], $row['id'], $row['copie_disponibili'])
                 ];
             }
         }
@@ -247,7 +247,7 @@ class DataIntegrity {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
                     'type' => 'excess_copies',
-                    'message' => "Libro '{$row['titolo']}' (ID: {$row['id']}) ha più copie disponibili ({$row['copie_disponibili']}) che totali ({$row['copie_totali']})"
+                    'message' => \sprintf(__("Libro '%s' (ID: %d) ha più copie disponibili (%d) che totali (%d)"), $row['titolo'], $row['id'], $row['copie_disponibili'], $row['copie_totali'])
                 ];
             }
         }
@@ -267,7 +267,7 @@ class DataIntegrity {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
                     'type' => 'orphan_loan',
-                    'message' => "Prestito ID {$row['id']} riferisce libro/utente inesistente (libro: {$row['libro_id']}, utente: {$row['utente_id']})"
+                    'message' => \sprintf(__("Prestito ID %d riferisce libro/utente inesistente (libro: %d, utente: %d)"), $row['id'], $row['libro_id'], $row['utente_id'])
                 ];
             }
         }
@@ -287,7 +287,7 @@ class DataIntegrity {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
                     'type' => 'missing_due_date',
-                    'message' => "Prestito ID {$row['id']} attivo senza data scadenza"
+                    'message' => \sprintf(__("Prestito ID %d attivo senza data scadenza"), $row['id'])
                 ];
             }
         }
@@ -306,7 +306,7 @@ class DataIntegrity {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
                     'type' => 'status_mismatch',
-                    'message' => "Libro '{$row['titolo']}' (ID: {$row['id']}) ha stato '{$row['stato']}' ma copie disponibili: {$row['copie_disponibili']}"
+                    'message' => \sprintf(__("Libro '%s' (ID: %d) ha stato '%s' ma copie disponibili: %d"), $row['titolo'], $row['id'], $row['stato'], $row['copie_disponibili'])
                 ];
             }
         }
@@ -334,7 +334,7 @@ class DataIntegrity {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
                     'type' => 'overlap_reservation_loan',
-                    'message' => "Prenotazione ID {$row['prenotazione_id']} si sovrappone al prestito ID {$row['prestito_id']} per il libro {$row['libro_id']}"
+                    'message' => \sprintf(__("Prenotazione ID %d si sovrappone al prestito ID %d per il libro %d"), $row['prenotazione_id'], $row['prestito_id'], $row['libro_id'])
                 ];
             }
         }
@@ -357,7 +357,7 @@ class DataIntegrity {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
                     'type' => 'overlap_reservation_reservation',
-                    'message' => "Prenotazioni ID {$row['pren1']} e {$row['pren2']} si sovrappongono per il libro {$row['libro_id']}"
+                    'message' => \sprintf(__("Prenotazioni ID %d e %d si sovrappongono per il libro %d"), $row['pren1'], $row['pren2'], $row['libro_id'])
                 ];
             }
         }
@@ -370,25 +370,25 @@ class DataIntegrity {
         if ($canonicalUrl === false) {
             $issues[] = [
                 'type' => 'missing_canonical_url',
-                'message' => "APP_CANONICAL_URL non configurato nel file .env. Link nelle email potrebbero non funzionare correttamente. Valore suggerito: {$currentUrl}",
+                'message' => \sprintf(__("APP_CANONICAL_URL non configurato nel file .env. Link nelle email potrebbero non funzionare correttamente. Valore suggerito: %s"), $currentUrl),
                 'severity' => 'warning',
-                'fix_suggestion' => "Aggiungi al file .env: APP_CANONICAL_URL={$currentUrl}"
+                'fix_suggestion' => \sprintf(__("Aggiungi al file .env: APP_CANONICAL_URL=%s"), $currentUrl)
             ];
         } else {
             $canonicalUrl = trim((string)$canonicalUrl);
             if ($canonicalUrl === '') {
                 $issues[] = [
                     'type' => 'empty_canonical_url',
-                    'message' => "APP_CANONICAL_URL configurato ma vuoto nel file .env. Link nelle email useranno fallback a HTTP_HOST. Valore suggerito: {$currentUrl}",
+                    'message' => \sprintf(__("APP_CANONICAL_URL configurato ma vuoto nel file .env. Link nelle email useranno fallback a HTTP_HOST. Valore suggerito: %s"), $currentUrl),
                     'severity' => 'warning',
-                    'fix_suggestion' => "Imposta nel file .env: APP_CANONICAL_URL={$currentUrl}"
+                    'fix_suggestion' => \sprintf(__("Imposta nel file .env: APP_CANONICAL_URL=%s"), $currentUrl)
                 ];
             } elseif (!filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
                 $issues[] = [
                     'type' => 'invalid_canonical_url',
-                    'message' => "APP_CANONICAL_URL configurato con valore non valido: '{$canonicalUrl}'. Link nelle email potrebbero non funzionare. Valore suggerito: {$currentUrl}",
+                    'message' => \sprintf(__("APP_CANONICAL_URL configurato con valore non valido: '%s'. Link nelle email potrebbero non funzionare. Valore suggerito: %s"), $canonicalUrl, $currentUrl),
                     'severity' => 'error',
-                    'fix_suggestion' => "Correggi nel file .env: APP_CANONICAL_URL={$currentUrl}"
+                    'fix_suggestion' => \sprintf(__("Correggi nel file .env: APP_CANONICAL_URL=%s"), $currentUrl)
                 ];
             }
         }
@@ -545,7 +545,7 @@ class DataIntegrity {
             $loanResult = $stmt->get_result();
 
             if ($loanResult->num_rows === 0) {
-                $result['message'] = 'Prestito non trovato';
+                $result['message'] = __('Prestito non trovato');
                 return $result;
             }
 
@@ -588,11 +588,11 @@ class DataIntegrity {
 
             $this->db->commit();
             $result['success'] = true;
-            $result['message'] = 'Prestito validato e aggiornato';
+            $result['message'] = __('Prestito validato e aggiornato');
 
         } catch (Exception $e) {
             $this->db->rollback();
-            $result['message'] = 'Errore validazione prestito: ' . $e->getMessage();
+            $result['message'] = __('Errore validazione prestito:') . ' ' . $e->getMessage();
         }
 
         return $result;
@@ -781,10 +781,10 @@ class DataIntegrity {
                         'success' => true,
                         'table' => $table,
                         'index' => $indexName,
-                        'message' => "Indice $indexName creato su $table"
+                        'message' => \sprintf(__("Indice %s creato su %s"), $indexName, $table)
                     ];
                 } else {
-                    $results['errors'][] = "Errore creazione $indexName su $table: " . $this->db->error;
+                    $results['errors'][] = \sprintf(__("Errore creazione %s su %s:"), $indexName, $table) . ' ' . $this->db->error;
                     $results['details'][] = [
                         'success' => false,
                         'table' => $table,
@@ -793,7 +793,7 @@ class DataIntegrity {
                     ];
                 }
             } catch (Exception $e) {
-                $results['errors'][] = "Eccezione creazione $indexName su $table: " . $e->getMessage();
+                $results['errors'][] = \sprintf(__("Eccezione creazione %s su %s:"), $indexName, $table) . ' ' . $e->getMessage();
                 $results['details'][] = [
                     'success' => false,
                     'table' => $table,
