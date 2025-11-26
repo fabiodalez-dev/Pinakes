@@ -914,6 +914,7 @@
   "Esporta CSV (formato compatibile per import)": "Export CSV (compatible format for import)",
   "Esporta Excel": "Export Excel",
   "Esporta PDF": "Export PDF",
+  "Esporta selezionati": "Export selected",
   "Esportazione di %d utenti filtrati su %d totali": "Exporting %d filtered users out of %d total",
   "Esportazione di tutti i %d utenti": "Exporting all %d users",
   "Esportazione di %d libri filtrati su %d totali": "Exporting %d filtered books out of %d total",
