@@ -804,7 +804,12 @@ class LibriController
             if (!empty($codes)) {
                 $clauses = [];$types='';$params=[];
                 foreach ($codes as $k=>$v) { $clauses[] = "l.$k = ?"; $types .= 's'; $params[] = $v; }
-                $sql = 'SELECT id, titolo FROM libri l WHERE ('.implode(' OR ', $clauses).') AND id <> ? LIMIT 1';
+                $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione,
+                               s.codice AS scaffale_codice, m.livello AS mensola_livello, l.posizione_progressiva
+                        FROM libri l
+                        LEFT JOIN scaffali s ON l.scaffale_id = s.id
+                        LEFT JOIN mensole m ON l.mensola_id = m.id
+                        WHERE ('.implode(' OR ', $clauses).') AND l.id <> ? LIMIT 1';
                 $types .= 'i'; $params[] = $id;
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
@@ -816,22 +821,28 @@ class LibriController
                         $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
                     }
 
-                    $editRepo = new \App\Models\PublisherRepository($db);
-                    $autRepo = new \App\Models\AuthorRepository($db);
-                    $editori = $editRepo->listBasic();
-                    $autori = $autRepo->listBasic(500);
-                    $colRepo = new \App\Models\CollocationRepository($db);
-                    $taxRepo = new \App\Models\TaxonomyRepository($db);
-                    $scaffali = $colRepo->getScaffali();
-                    $generi = $taxRepo->genres();
-                    $sottogeneri = $taxRepo->subgenres();
-                    $error_message = 'Esiste già un altro libro con lo stesso identificatore (ISBN/EAN). ID: #'
-                        . (int)$dup['id'] . ' — "' . (string)($dup['titolo'] ?? '') . '"';
-                    $libroView = array_merge($currentBook, $fields);
-                    ob_start(); require __DIR__ . '/../Views/libri/modifica_libro.php'; $content = ob_get_clean();
-                    ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-                    $response->getBody()->write($html);
-                    return $response->withStatus(409);
+                    // Build location string
+                    $location = '';
+                    if (!empty($dup['scaffale_codice']) && !empty($dup['mensola_livello']) && !empty($dup['posizione_progressiva'])) {
+                        $location = $dup['scaffale_codice'] . '.' . $dup['mensola_livello'] . '.' . $dup['posizione_progressiva'];
+                    } elseif (!empty($dup['collocazione'])) {
+                        $location = $dup['collocazione'];
+                    }
+
+                    // Return JSON with duplicate book info for frontend to handle
+                    $response->getBody()->write(json_encode([
+                        'error' => 'duplicate',
+                        'message' => __('Esiste già un altro libro con lo stesso identificatore (ISBN/EAN).'),
+                        'existing_book' => [
+                            'id' => (int)$dup['id'],
+                            'title' => (string)($dup['titolo'] ?? ''),
+                            'isbn10' => (string)($dup['isbn10'] ?? ''),
+                            'isbn13' => (string)($dup['isbn13'] ?? ''),
+                            'ean' => (string)($dup['ean'] ?? ''),
+                            'location' => $location
+                        ]
+                    ], JSON_UNESCAPED_UNICODE));
+                    return $response->withStatus(409)->withHeader('Content-Type', 'application/json');
                 }
             }
         $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
