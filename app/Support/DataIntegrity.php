@@ -22,10 +22,17 @@ class DataIntegrity {
         try {
             $this->db->begin_transaction();
 
-            // Aggiorna stato copie basandosi sui prestiti attivi (include 'prenotato' per prestiti futuri)
+            // Aggiorna stato copie basandosi sui prestiti attivi OGGI
+            // - 'in_corso' e 'in_ritardo' → sempre prestato
+            // - 'prenotato' → prestato SOLO se data_prestito <= OGGI (il prestito è iniziato)
             $stmt = $this->db->prepare("
                 UPDATE copie c
-                LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                LEFT JOIN prestiti p ON c.id = p.copia_id
+                    AND p.attivo = 1
+                    AND (
+                        p.stato IN ('in_corso', 'in_ritardo')
+                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                    )
                 SET c.stato = CASE
                     WHEN p.id IS NOT NULL THEN 'prestato'
                     ELSE 'disponibile'
@@ -36,7 +43,7 @@ class DataIntegrity {
             $stmt->close();
 
             // Ricalcola copie_disponibili e stato per tutti i libri dalla tabella copie
-            // Include 'prenotato' per considerare anche prestiti futuri già assegnati
+            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, o prenotato già iniziato)
             // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
             $stmt = $this->db->prepare("
                 UPDATE libri l
@@ -44,7 +51,12 @@ class DataIntegrity {
                     (
                         SELECT COUNT(*)
                         FROM copie c
-                        LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                        LEFT JOIN prestiti p ON c.id = p.copia_id
+                            AND p.attivo = 1
+                            AND (
+                                p.stato IN ('in_corso', 'in_ritardo')
+                                OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                            )
                         WHERE c.libro_id = l.id
                         AND c.stato = 'disponibile'
                         AND p.id IS NULL
@@ -69,7 +81,12 @@ class DataIntegrity {
                         (
                             SELECT COUNT(*)
                             FROM copie c
-                            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                            LEFT JOIN prestiti p ON c.id = p.copia_id
+                                AND p.attivo = 1
+                                AND (
+                                    p.stato IN ('in_corso', 'in_ritardo')
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                                )
                             WHERE c.libro_id = l.id
                             AND c.stato = 'disponibile'
                             AND p.id IS NULL
@@ -106,10 +123,17 @@ class DataIntegrity {
      */
     public function recalculateBookAvailability(int $bookId): bool {
         try {
-            // Aggiorna stato copie del libro basandosi sui prestiti attivi (include 'prenotato')
+            // Aggiorna stato copie del libro basandosi sui prestiti attivi OGGI
+            // - 'in_corso' e 'in_ritardo' → sempre prestato
+            // - 'prenotato' → prestato SOLO se data_prestito <= OGGI (il prestito è iniziato)
             $stmt = $this->db->prepare("
                 UPDATE copie c
-                LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                LEFT JOIN prestiti p ON c.id = p.copia_id
+                    AND p.attivo = 1
+                    AND (
+                        p.stato IN ('in_corso', 'in_ritardo')
+                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                    )
                 SET c.stato = CASE
                     WHEN p.id IS NOT NULL THEN 'prestato'
                     ELSE 'disponibile'
@@ -122,14 +146,20 @@ class DataIntegrity {
             $stmt->close();
 
             // Aggiorna copie_disponibili e stato del libro dalla tabella copie
-            // Include 'prenotato' per prestiti futuri con copia e sottrae prenotazioni attive su oggi
+            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, o prenotato già iniziato)
+            // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
             $stmt = $this->db->prepare("
                 UPDATE libri l
                 SET copie_disponibili = GREATEST(
                     (
                         SELECT COUNT(*)
                         FROM copie c
-                        LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                        LEFT JOIN prestiti p ON c.id = p.copia_id
+                            AND p.attivo = 1
+                            AND (
+                                p.stato IN ('in_corso', 'in_ritardo')
+                                OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                            )
                         WHERE c.libro_id = ?
                         AND c.stato = 'disponibile'
                         AND p.id IS NULL
@@ -154,7 +184,12 @@ class DataIntegrity {
                         (
                             SELECT COUNT(*)
                             FROM copie c
-                            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                            LEFT JOIN prestiti p ON c.id = p.copia_id
+                                AND p.attivo = 1
+                                AND (
+                                    p.stato IN ('in_corso', 'in_ritardo')
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                                )
                             WHERE c.libro_id = ?
                             AND c.stato = 'disponibile'
                             AND p.id IS NULL
