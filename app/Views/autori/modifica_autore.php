@@ -178,32 +178,32 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: __('Conferma Aggiornamento'),
-                text: __('Sei sicuro di voler aggiornare l\'autore "%s"?').replace('%s', nome),
+                title: '<?= addslashes(__("Conferma Aggiornamento")) ?>',
+                text: '<?= addslashes(__("Sei sicuro di voler aggiornare l\'autore \"%s\"?")) ?>'.replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: __('Sì, Aggiorna'),
-                cancelButtonText: __('Annulla'),
+                confirmButtonText: '<?= addslashes(__("Sì, Aggiorna")) ?>',
+                cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
                 reverseButtons: true
             });
-            
+
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: __('Aggiornamento in corso...'),
-                    text: __('Attendere prego'),
+                    title: '<?= addslashes(__("Aggiornamento in corso...")) ?>',
+                    text: '<?= addslashes(__("Attendere prego")) ?>',
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {
                         Swal.showLoading();
                     }
                 });
-                
+
                 // Submit the form
                 form.submit();
             }
         } else {
-            if (confirm(__('Sei sicuro di voler aggiornare l\'autore "%s"?').replace('%s', nome))) {
+            if (confirm('<?= addslashes(__("Sei sicuro di voler aggiornare l\'autore \"%s\"?")) ?>'.replace('%s', nome))) {
                 form.submit();
             }
         }
