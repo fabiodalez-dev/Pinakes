@@ -1315,7 +1315,12 @@ HTACCESS;
             'storage/logs',
             'storage/plugins',
             'storage/uploads',
+            'storage/uploads/plugins',
+            'storage/backups',
+            'storage/tmp',
             'storage/sessions',
+            'cache',
+            'tmp',
             'public/assets',
             'public/uploads',
         ];
