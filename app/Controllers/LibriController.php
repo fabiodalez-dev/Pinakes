@@ -805,7 +805,7 @@ class LibriController
                 $clauses = [];$types='';$params=[];
                 foreach ($codes as $k=>$v) { $clauses[] = "l.$k = ?"; $types .= 's'; $params[] = $v; }
                 $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione,
-                               s.codice AS scaffale_codice, m.livello AS mensola_livello, l.posizione_progressiva
+                               s.codice AS scaffale_codice, m.numero_livello AS mensola_livello, l.posizione_progressiva
                         FROM libri l
                         LEFT JOIN scaffali s ON l.scaffale_id = s.id
                         LEFT JOIN mensole m ON l.mensola_id = m.id
@@ -1010,7 +1010,7 @@ class LibriController
 
             // Se non riusciamo a rimuovere abbastanza copie, avvisa l'utente
             if ($removed < $toRemove) {
-                $_SESSION['warning_message'] = "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.";
+                $_SESSION['warning_message'] = __("Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.");
             }
         }
 

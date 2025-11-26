@@ -208,6 +208,7 @@
   "Attenzione: %d prestiti in ritardo": "Warning: %d overdue loans",
   "Attenzione: %d prestito in ritardo": "Warning: %d overdue loan",
   "Attenzione: Azione Manuale Richiesta": "Warning: Manual Action Required",
+  "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Warning: Could not remove all requested copies. Some copies are currently on loan.",
   "Attiva": "Active",
   "Attiva Direttamente": "Activate Directly",
   "Attivato:": "Activated:",
