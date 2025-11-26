@@ -1165,6 +1165,25 @@ class OpenLibraryPlugin
     }
 
     /**
+     * Fetch book data from Open Library API directly
+     *
+     * @param string $isbn ISBN to search
+     * @return array|null Book data or null if not found
+     */
+    public function fetchFromOpenLibraryApi(string $isbn): ?array
+    {
+        // Create a minimal sources array to enable Open Library
+        $sources = [
+            'openlibrary' => [
+                'name' => 'Open Library',
+                'enabled' => true,
+            ]
+        ];
+
+        return $this->fetchFromOpenLibrary(null, $sources, $isbn);
+    }
+
+    /**
      * Register API routes for the plugin
      * Called by app.routes.register hook
      *
