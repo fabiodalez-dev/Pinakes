@@ -173,7 +173,7 @@ class DataIntegrity {
                 END
                 WHERE id = ?
             ");
-            $stmt->bind_param('iiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
+            $stmt->bind_param('iiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
             $result = $stmt->execute();
             $stmt->close();
 
