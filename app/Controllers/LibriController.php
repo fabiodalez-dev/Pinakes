@@ -160,24 +160,29 @@ class LibriController
         }
         $stmt->close();
 
-        // Active reservations for this book (for admin visibility)
+        // Active reservations for this book (admin/staff only - contains PII)
         $activeReservations = [];
-        $resStmt = $db->prepare("
-            SELECT r.id, r.data_inizio_richiesta, r.data_fine_richiesta, r.data_scadenza_prenotazione,
-                   r.stato, r.queue_position,
-                   u.nome, u.cognome, u.email
-            FROM prenotazioni r
-            JOIN utenti u ON u.id = r.utente_id
-            WHERE r.libro_id = ? AND r.stato = 'attiva'
-            ORDER BY r.data_inizio_richiesta IS NULL, r.data_inizio_richiesta ASC, r.id ASC
-        ");
-        $resStmt->bind_param('i', $id);
-        $resStmt->execute();
-        $resResult = $resStmt->get_result();
-        while ($row = $resResult->fetch_assoc()) {
-            $activeReservations[] = $row;
+        $currentUserRole = $_SESSION['user']['tipo_utente'] ?? '';
+        $isAdminOrStaff = \in_array($currentUserRole, ['admin', 'staff'], true);
+
+        if ($isAdminOrStaff) {
+            $resStmt = $db->prepare("
+                SELECT r.id, r.data_inizio_richiesta, r.data_fine_richiesta, r.data_scadenza_prenotazione,
+                       r.stato, r.queue_position,
+                       u.nome, u.cognome, u.email
+                FROM prenotazioni r
+                JOIN utenti u ON u.id = r.utente_id
+                WHERE r.libro_id = ? AND r.stato = 'attiva'
+                ORDER BY r.data_inizio_richiesta IS NULL, r.data_inizio_richiesta ASC, r.id ASC
+            ");
+            $resStmt->bind_param('i', $id);
+            $resStmt->execute();
+            $resResult = $resStmt->get_result();
+            while ($row = $resResult->fetch_assoc()) {
+                $activeReservations[] = $row;
+            }
+            $resStmt->close();
         }
-        $resStmt->close();
 
         ob_start();
         // extract([
@@ -1501,6 +1506,13 @@ class LibriController
         if ($imgHttpCode !== 200 || !$imageData) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+        }
+
+        // Check size limit (5MB max)
+        $maxSize = 5 * 1024 * 1024;
+        if (\strlen($imageData) > $maxSize) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('File troppo grande. Dimensione massima 5MB.')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         // Validate image
