@@ -6584,3 +6584,10 @@ table.dataTable thead td {
 
 
 /*# sourceMappingURL=main.css.map*/
+
+/* Ensure dayContainer doesn't justify-content: space-around (avoid misalignment) */
+.dayContainer {
+  -webkit-justify-content: unset !important;
+  -ms-flex-pack: unset !important;
+  justify-content: unset !important;
+}
