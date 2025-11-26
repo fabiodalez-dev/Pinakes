@@ -1208,7 +1208,7 @@ class OpenLibraryPlugin
                     'plugin' => 'Open Library',
                     'isbn' => $cleanIsbn,
                     'data' => $result,
-                    'message' => 'Book data successfully retrieved from Open Library'
+                    'message' => __('Dati libro recuperati con successo da Open Library')
                 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {
@@ -1216,7 +1216,7 @@ class OpenLibraryPlugin
                     'success' => false,
                     'plugin' => 'Open Library',
                     'isbn' => $cleanIsbn,
-                    'message' => 'Book not found in Open Library database'
+                    'message' => __('Libro non trovato nel database Open Library')
                 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
