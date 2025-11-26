@@ -617,19 +617,47 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <?php
-                  $copiaStatus = strtolower($copia['stato'] ?? '');
-                  $copiaStatusClasses = [
-                      'disponibile' => 'bg-green-100 text-green-800',
-                      'prestato'    => 'bg-red-100 text-red-800',
-                      'manutenzione' => 'bg-yellow-100 text-yellow-800',
-                      'perso'       => 'bg-gray-100 text-gray-800',
-                      'danneggiato' => 'bg-orange-100 text-orange-800',
-                  ];
-                  $copiaStatusClass = $copiaStatusClasses[$copiaStatus] ?? 'bg-gray-100 text-gray-800';
+                  // Determine effective status based on loan state and dates
+                  $rawCopiaStatus = strtolower($copia['stato'] ?? '');
+                  $loanStatus = $copia['prestito_stato'] ?? null;
+                  $loanStartDate = $copia['data_prestito'] ?? null;
+                  $todayDate = date('Y-m-d');
+
+                  // If copy is "prestato" but the loan is "prenotato" and hasn't started yet,
+                  // show as "prenotato" (reserved for future) instead of "prestato"
+                  if ($rawCopiaStatus === 'prestato' && $loanStatus === 'prenotato' && $loanStartDate > $todayDate) {
+                      $effectiveStatus = 'prenotato';
+                      $effectiveLabel = __('Prenotato');
+                      $effectiveClass = 'bg-purple-100 text-purple-800';
+                  } else {
+                      $effectiveStatus = $rawCopiaStatus;
+                      $copiaStatusLabels = [
+                          'disponibile' => __('Disponibile'),
+                          'prestato'    => __('Prestato'),
+                          'manutenzione' => __('In manutenzione'),
+                          'perso'       => __('Perso'),
+                          'danneggiato' => __('Danneggiato'),
+                      ];
+                      $copiaStatusClasses = [
+                          'disponibile' => 'bg-green-100 text-green-800',
+                          'prestato'    => 'bg-red-100 text-red-800',
+                          'manutenzione' => 'bg-yellow-100 text-yellow-800',
+                          'perso'       => 'bg-gray-100 text-gray-800',
+                          'danneggiato' => 'bg-orange-100 text-orange-800',
+                      ];
+                      $effectiveLabel = $copiaStatusLabels[$effectiveStatus] ?? ucfirst($effectiveStatus);
+                      $effectiveClass = $copiaStatusClasses[$effectiveStatus] ?? 'bg-gray-100 text-gray-800';
+                  }
                   ?>
-                  <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $copiaStatusClass; ?>">
-                    <?php echo App\Support\HtmlHelper::e(ucfirst($copia['stato'] ?? 'N/D')); ?>
+                  <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $effectiveClass; ?>">
+                    <?php echo $effectiveLabel; ?>
                   </span>
+                  <?php if ($effectiveStatus === 'prenotato' && $loanStartDate): ?>
+                  <div class="text-xs text-purple-600 mt-1">
+                    <i class="fas fa-calendar-alt mr-1"></i>
+                    <?= __('Dal') ?> <?php echo date('d/m/Y', strtotime($loanStartDate)); ?>
+                  </div>
+                  <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php if (!empty($copia['prestito_id'])): ?>
@@ -857,6 +885,221 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       </div>
     </div>
   </div>
+  <?php endif; ?>
+
+  <!-- Copy Availability Calendar -->
+  <?php if (!empty($copie) && count($copie) > 0): ?>
+  <div class="mt-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-calendar-alt text-primary"></i>
+          <?= __("Calendario Disponibilità") ?>
+          <span class="ml-2 text-sm font-normal text-gray-500">
+            (<?= __("visualizzazione per copia") ?>)
+          </span>
+        </h2>
+      </div>
+      <div class="card-body">
+        <!-- Legend -->
+        <div class="flex flex-wrap gap-4 mb-4 text-sm">
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-green-200 border border-green-400"></span>
+            <span class="text-gray-600"><?= __("Disponibile") ?></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-purple-200 border border-purple-400"></span>
+            <span class="text-gray-600"><?= __("Prenotato") ?></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-red-200 border border-red-400"></span>
+            <span class="text-gray-600"><?= __("Prestato") ?></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-yellow-200 border border-yellow-400"></span>
+            <span class="text-gray-600"><?= __("In ritardo") ?></span>
+          </div>
+        </div>
+
+        <!-- Calendar Container -->
+        <div id="copy-availability-calendar" class="w-full"></div>
+
+        <!-- Copy Details under calendar -->
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <?php foreach ($copie as $idx => $cal_copia): ?>
+          <div class="flex items-center gap-2 p-2 rounded-lg bg-gray-50">
+            <span class="w-3 h-3 rounded-full copy-color-indicator" data-copy-idx="<?php echo $idx; ?>" style="background-color: <?php echo ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'][$idx % 8]; ?>"></span>
+            <span class="text-sm font-medium text-gray-700"><?php echo App\Support\HtmlHelper::e($cal_copia['numero_inventario']); ?></span>
+            <?php
+            $calCopiaStatus = $cal_copia['prestito_stato'] ?? null;
+            $calLoanStart = $cal_copia['data_prestito'] ?? null;
+            $calLoanEnd = $cal_copia['data_scadenza'] ?? null;
+            $calToday = date('Y-m-d');
+            if ($calCopiaStatus === 'prenotato' && $calLoanStart > $calToday):
+            ?>
+            <span class="text-xs text-purple-600">
+              <?= __("Prenotato") ?> <?php echo date('d/m', strtotime($calLoanStart)); ?> - <?php echo date('d/m', strtotime($calLoanEnd)); ?>
+            </span>
+            <?php elseif (in_array($calCopiaStatus, ['in_corso', 'in_ritardo'])): ?>
+            <span class="text-xs text-red-600">
+              <?= __("In prestito fino al") ?> <?php echo date('d/m', strtotime($calLoanEnd)); ?>
+            </span>
+            <?php else: ?>
+            <span class="text-xs text-green-600"><?= __("Disponibile") ?></span>
+            <?php endif; ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Prepare copy availability data for calendar
+      const copyData = <?php
+        $calendarData = [];
+        foreach ($copie as $idx => $cal_copia) {
+            $copyInfo = [
+                'id' => (int)$cal_copia['id'],
+                'inventario' => $cal_copia['numero_inventario'],
+                'color' => ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'][$idx % 8],
+                'loans' => []
+            ];
+
+            // If this copy has an active loan
+            if (!empty($cal_copia['prestito_stato'])) {
+                $copyInfo['loans'][] = [
+                    'stato' => $cal_copia['prestito_stato'],
+                    'from' => $cal_copia['data_prestito'],
+                    'to' => $cal_copia['data_scadenza']
+                ];
+            }
+
+            $calendarData[] = $copyInfo;
+        }
+        echo json_encode($calendarData, JSON_UNESCAPED_UNICODE);
+      ?>;
+
+      // Initialize flatpickr calendar (read-only, with marked dates)
+      if (typeof flatpickr !== 'undefined') {
+        const today = new Date();
+        const threeMonthsLater = new Date(today);
+        threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+
+        // Collect all dates with their statuses
+        const dateStyles = {};
+
+        copyData.forEach((copy, idx) => {
+          copy.loans.forEach(loan => {
+            if (loan.from && loan.to) {
+              const startDate = new Date(loan.from);
+              const endDate = new Date(loan.to);
+
+              // Mark each day in the range
+              for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                if (!dateStyles[dateStr]) {
+                  dateStyles[dateStr] = [];
+                }
+                dateStyles[dateStr].push({
+                  copyIdx: idx,
+                  color: copy.color,
+                  stato: loan.stato,
+                  inventario: copy.inventario
+                });
+              }
+            }
+          });
+        });
+
+        flatpickr('#copy-availability-calendar', {
+          inline: true,
+          mode: 'multiple',
+          dateFormat: 'Y-m-d',
+          minDate: 'today',
+          maxDate: threeMonthsLater,
+          showMonths: 2,
+          clickOpens: false,
+          allowInput: false,
+          disable: [], // Don't disable any dates, just show them
+          onDayCreate: function(dObj, dStr, fp, dayElem) {
+            const dateStr = dayElem.dateObj.toISOString().split('T')[0];
+            const dayData = dateStyles[dateStr];
+
+            if (dayData && dayData.length > 0) {
+              // Create indicators container
+              const indicatorContainer = document.createElement('div');
+              indicatorContainer.className = 'copy-indicators';
+              indicatorContainer.style.cssText = 'position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px;';
+
+              dayData.forEach(info => {
+                const dot = document.createElement('span');
+                dot.style.cssText = `width: 6px; height: 6px; border-radius: 50%; background-color: ${info.color};`;
+
+                // Add opacity for different states
+                if (info.stato === 'prenotato') {
+                  dot.style.opacity = '0.6';
+                } else if (info.stato === 'in_ritardo') {
+                  dot.style.border = '1px solid #DC2626';
+                }
+
+                indicatorContainer.appendChild(dot);
+              });
+
+              dayElem.style.position = 'relative';
+              dayElem.appendChild(indicatorContainer);
+
+              // Add tooltip
+              const titles = dayData.map(d => d.inventario + ': ' + d.stato).join(', ');
+              dayElem.setAttribute('title', titles);
+            }
+          },
+          onChange: function() {
+            // Prevent selection
+            this.clear();
+          }
+        });
+      }
+    });
+  </script>
+
+  <style>
+    #copy-availability-calendar {
+      width: 100%;
+    }
+    #copy-availability-calendar .flatpickr-calendar {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-shadow: none;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.75rem;
+    }
+    #copy-availability-calendar .flatpickr-months {
+      padding: 0.5rem;
+    }
+    #copy-availability-calendar .flatpickr-innerContainer {
+      width: 100%;
+    }
+    #copy-availability-calendar .dayContainer {
+      width: 100%;
+      min-width: 100%;
+      max-width: 100%;
+    }
+    #copy-availability-calendar .flatpickr-day {
+      max-width: none;
+      height: 40px;
+      line-height: 40px;
+      flex-basis: 14.285%;
+    }
+    #copy-availability-calendar .flatpickr-day.selected {
+      background: transparent !important;
+      border-color: transparent !important;
+    }
+    .copy-indicators {
+      pointer-events: none;
+    }
+  </style>
   <?php endif; ?>
 
   <script>

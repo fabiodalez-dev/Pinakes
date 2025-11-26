@@ -3156,5 +3156,8 @@
   "Disponibile nella data selezionata": "Available on selected date",
   "Non disponibile nella data selezionata": "Not available on selected date",
   "Prima data disponibile: %s": "First available date: %s",
-  "Seleziona un libro per vedere la disponibilità": "Select a book to see availability"
+  "Seleziona un libro per vedere la disponibilità": "Select a book to see availability",
+  "Calendario Disponibilità": "Availability Calendar",
+  "visualizzazione per copia": "view by copy",
+  "In prestito fino al": "On loan until"
 }
