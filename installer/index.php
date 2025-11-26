@@ -75,6 +75,114 @@ if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {
     exit;
 }
 
+// Security: If force parameter is used, require admin authentication
+if (isset($_GET['force']) && $installer->isInstalled()) {
+    // Load .env to get database credentials
+    $envFile = $baseDir . '/.env';
+    if (file_exists($envFile)) {
+        $envContent = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($envContent as $line) {
+            if (strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value, " \t\n\r\0\x0B\"'");
+            $_ENV[$key] = $value;
+        }
+    }
+
+    $forceAuthenticated = false;
+
+    // Check if admin session exists from main app
+    if (isset($_SESSION['user_id']) && isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+        $forceAuthenticated = true;
+    }
+
+    // Allow login via POST
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_email'], $_POST['admin_password'])) {
+        $email = trim($_POST['admin_email']);
+        $password = $_POST['admin_password'];
+
+        // Connect to database and verify admin credentials
+        try {
+            $dbHost = $_ENV['DB_HOST'] ?? '127.0.0.1';
+            $dbUser = $_ENV['DB_USER'] ?? '';
+            $dbPass = $_ENV['DB_PASS'] ?? '';
+            $dbName = $_ENV['DB_NAME'] ?? '';
+            $dbPort = $_ENV['DB_PORT'] ?? '3306';
+
+            $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int)$dbPort);
+            if (!$mysqli->connect_error) {
+                $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND ruolo = 'admin' LIMIT 1");
+                if ($stmt) {
+                    $stmt->bind_param('s', $email);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    if ($row = $result->fetch_assoc()) {
+                        if (password_verify($password, $row['password'])) {
+                            $forceAuthenticated = true;
+                            $_SESSION['installer_admin_verified'] = true;
+                            $_SESSION['user_id'] = $row['id'];
+                            $_SESSION['user_role'] = 'admin';
+                        }
+                    }
+                    $stmt->close();
+                }
+                $mysqli->close();
+            }
+        } catch (Exception $e) {
+            // Silently fail - will show login form
+        }
+    }
+
+    // Check if previously authenticated in this session
+    if (isset($_SESSION['installer_admin_verified']) && $_SESSION['installer_admin_verified'] === true) {
+        $forceAuthenticated = true;
+    }
+
+    // If not authenticated, show login form
+    if (!$forceAuthenticated) {
+        $loginError = ($_SERVER['REQUEST_METHOD'] === 'POST') ? __('Credenziali non valide o utente non admin') : '';
+        die('
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>' . __("Autenticazione Richiesta") . '</title>
+                <link rel="stylesheet" href="/installer/assets/style.css">
+            </head>
+            <body>
+                <div class="installer-container">
+                    <div class="installer-header">
+                        <h1>' . __("Autenticazione Admin Richiesta") . '</h1>
+                        <p>' . __("Per reinstallare l'applicazione è necessario autenticarsi come amministratore.") . '</p>
+                    </div>
+                    <div class="installer-body">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-shield-alt"></i>
+                            ' . __("Questa operazione cancellerà tutti i dati esistenti. Assicurati di avere un backup.") . '
+                        </div>
+                        ' . ($loginError ? '<div class="alert alert-danger">' . htmlspecialchars($loginError) . '</div>' : '') . '
+                        <form method="POST" action="/installer/?force=1">
+                            <div class="form-group">
+                                <label for="admin_email">' . __("Email Admin") . '</label>
+                                <input type="email" name="admin_email" id="admin_email" class="form-control" required placeholder="admin@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="admin_password">' . __("Password") . '</label>
+                                <input type="password" name="admin_password" id="admin_password" class="form-control" required>
+                            </div>
+                            <div class="form-group text-center mt-4">
+                                <button type="submit" class="btn btn-warning">' . __("Accedi e Procedi") . '</button>
+                                <a href="/" class="btn btn-secondary">' . __("Annulla") . '</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ');
+    }
+}
+
 // Check if already installed
 if ($installer->isInstalled() && !isset($_GET['force'])) {
     // Try to verify installation status
