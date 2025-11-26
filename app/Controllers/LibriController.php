@@ -1522,6 +1522,7 @@ class LibriController
     /**
      * Render portrait (vertical) label layout
      * Optimized for narrow spine labels like 25x38mm, 25x40mm, 34x48mm
+     * Includes: App name, Title, Author, EAN barcode, EAN text, Dewey, Collocazione
      */
     private function renderPortraitLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
     {
@@ -1529,6 +1530,7 @@ class LibriController
         $fontSizeApp = max(4, min(7, $availableWidth * 0.25));
         $fontSizeTitle = max(4, min(6, $availableWidth * 0.22));
         $fontSizeAuthor = max(3, min(5, $availableWidth * 0.18));
+        $fontSizeSmall = max(3, min(4, $availableWidth * 0.15));
         $fontSizePosition = max(4, min(6, $availableWidth * 0.20));
 
         // Prepare text content
@@ -1539,6 +1541,12 @@ class LibriController
 
         $maxAuthorChars = (int)($availableWidth * 1.5);
         $autoreShort = !empty($autoriStr) ? mb_substr($autoriStr, 0, $maxAuthorChars) : '';
+
+        // EAN/ISBN text (for display under barcode)
+        $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
+
+        // Dewey classification
+        $dewey = $libro['classificazione_dowey'] ?? '';
 
         // Calculate total content height
         $totalHeight = 0;
@@ -1555,12 +1563,21 @@ class LibriController
             $totalHeight += 2.5;
         }
 
-        // Barcode
+        // Barcode + EAN text
         $includeBarcode = !empty($barcode['value']);
         $barcodeHeight = 0;
         if ($includeBarcode) {
-            $barcodeHeight = min(8, $availableHeight * 0.20);
-            $totalHeight += $barcodeHeight + 2;
+            $barcodeHeight = min(8, $availableHeight * 0.18);
+            $totalHeight += $barcodeHeight + 1;
+            if (!empty($eanText)) {
+                $totalHeight += 2; // EAN text under barcode
+            }
+        }
+
+        // Dewey
+        $includeDewey = !empty($dewey);
+        if ($includeDewey) {
+            $totalHeight += 2.5;
         }
 
         // Position/Collocazione
@@ -1600,9 +1617,26 @@ class LibriController
         if ($includeBarcode) {
             $barcodeWidth = $availableWidth * 0.85;
             $barcodeX = $margin + (($availableWidth - $barcodeWidth) / 2);
-            $currentY += 1;
+            $currentY += 0.5;
             $pdf->write1DBarcode($barcode['value'], $barcode['type'], $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.3, ['stretch' => true, 'fitwidth' => true]);
-            $currentY += $barcodeHeight + 1;
+            $currentY += $barcodeHeight;
+
+            // EAN text under barcode
+            if (!empty($eanText)) {
+                $pdf->SetFont('helvetica', '', $fontSizeSmall);
+                $pdf->SetXY($margin, $currentY);
+                $pdf->Cell($availableWidth, 2, $eanText, 0, 0, 'C');
+                $currentY += 2;
+            }
+        }
+
+        // Dewey classification
+        if ($includeDewey) {
+            $pdf->SetFont('helvetica', 'I', $fontSizeSmall);
+            $pdf->SetXY($margin, $currentY);
+            $deweyShort = mb_substr($dewey, 0, 15);
+            $pdf->Cell($availableWidth, 2, "Dewey: {$deweyShort}", 0, 0, 'C');
+            $currentY += 2.5;
         }
 
         // Position/Collocazione
@@ -1617,6 +1651,7 @@ class LibriController
     /**
      * Render landscape (horizontal) label layout
      * Optimized for larger labels like 70x36mm, 50x25mm, 52x30mm
+     * Includes: App name, Title, Author/Publisher, EAN barcode, EAN text, Dewey, Collocazione
      */
     private function renderLandscapeLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
     {
@@ -1624,6 +1659,7 @@ class LibriController
         $fontSizeApp = max(6, min(10, $availableHeight * 0.25));
         $fontSizeTitle = max(5, min(8, $availableHeight * 0.20));
         $fontSizeAuthor = max(4, min(6, $availableHeight * 0.15));
+        $fontSizeSmall = max(3, min(5, $availableHeight * 0.12));
         $fontSizePosition = max(5, min(8, $availableHeight * 0.22));
 
         // Prepare text content
@@ -1646,6 +1682,12 @@ class LibriController
             $infoText = mb_substr($infoText, 0, $maxInfoChars);
         }
 
+        // EAN/ISBN text (for display under barcode)
+        $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
+
+        // Dewey classification
+        $dewey = $libro['classificazione_dowey'] ?? '';
+
         // Calculate total content height
         $totalHeight = 0;
         $totalHeight += 4.5; // App name
@@ -1658,12 +1700,21 @@ class LibriController
             $totalHeight += 3;
         }
 
-        // Barcode
+        // Barcode + EAN text
         $includeBarcode = !empty($barcode['value']);
         $barcodeHeight = 0;
         if ($includeBarcode) {
-            $barcodeHeight = min(10, $availableHeight * 0.30);
-            $totalHeight += $barcodeHeight + 1;
+            $barcodeHeight = min(10, $availableHeight * 0.25);
+            $totalHeight += $barcodeHeight + 0.5;
+            if (!empty($eanText)) {
+                $totalHeight += 2.5; // EAN text under barcode
+            }
+        }
+
+        // Dewey
+        $includeDewey = !empty($dewey);
+        if ($includeDewey) {
+            $totalHeight += 2.5;
         }
 
         // Position text
@@ -1711,7 +1762,24 @@ class LibriController
             $barcodeX = $margin + (($availableWidth - $barcodeWidth) / 2);
             $currentY += 0.5;
             $pdf->write1DBarcode($barcode['value'], $barcode['type'], $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.4, ['stretch' => true]);
-            $currentY += $barcodeHeight + 0.5;
+            $currentY += $barcodeHeight;
+
+            // EAN text under barcode
+            if (!empty($eanText)) {
+                $pdf->SetFont('helvetica', '', $fontSizeSmall);
+                $pdf->SetXY($margin, $currentY);
+                $pdf->Cell($availableWidth, 2.5, $eanText, 0, 0, 'C');
+                $currentY += 2.5;
+            }
+        }
+
+        // Dewey classification
+        if ($includeDewey) {
+            $pdf->SetFont('helvetica', 'I', $fontSizeSmall);
+            $pdf->SetXY($margin, $currentY);
+            $deweyShort = mb_substr($dewey, 0, 20);
+            $pdf->Cell($availableWidth, 2.5, "Dewey: {$deweyShort}", 0, 0, 'C');
+            $currentY += 2.5;
         }
 
         // Position text
