@@ -456,7 +456,7 @@ ob_start();
             <div class="contact-form-section">
                 <h2 class="contact-info-title"><?= __("Inviaci un messaggio") ?></h2>
 
-                <form method="post" action="/contatti/invia" id="contact-form">
+                <form method="post" action="<?= \App\Support\RouteTranslator::route('contact_submit') ?>" id="contact-form">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="recaptcha_token" id="recaptcha_token">
 

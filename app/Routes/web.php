@@ -1407,12 +1407,26 @@ return function (App $app): void {
         return $controller->list($request, $response, $db);
     });
 
+    // API Autori - Bulk Delete
+    $app->post('/api/autori/bulk-delete', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\AutoriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkDelete($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
     // API Editori (server-side DataTables)
     $app->get('/api/editori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\EditoriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
     });
+
+    // API Editori - Bulk Delete
+    $app->post('/api/editori/bulk-delete', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\EditoriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkDelete($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
 
     $app->get('/api/search/autori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
@@ -1511,6 +1525,19 @@ return function (App $app): void {
             ['genre_id' => (int) $args['id']]
         )), $response, $db);
     });
+
+    // API Bulk operations (admin only)
+    $app->post('/api/libri/bulk-status', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkStatus($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/api/libri/bulk-delete', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkDelete($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
 
     // API Increase copies of a book (admin only)
     $app->post('/api/libri/{id:\d+}/increase-copies', function ($request, $response, $args) use ($app) {

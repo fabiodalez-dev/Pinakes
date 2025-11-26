@@ -2843,10 +2843,17 @@ style.textContent = `
         border: 1px solid #d1d5db !important;
         border-radius: 0.375rem !important;
         font-size: 0.875rem !important;
-        padding: 0 !important;
+        padding: 8px !important;
         min-height: 44px !important;
-        display: flex !important;
-        align-items: center !important;
+    }
+
+    /* Desktop: use flex layout */
+    @media screen and (min-width: 769px) {
+        .choices__inner {
+            display: flex !important;
+            align-items: center !important;
+            padding: 0 !important;
+        }
     }
     
     .choices__list--multiple .choices__item {
@@ -2958,6 +2965,69 @@ style.textContent = `
         border-radius: 50%;
         font-size: 12px;
         line-height: 1;
+    }
+
+    /* Mobile styles for Choices.js chips */
+    @media screen and (max-width: 768px) {
+        .choices .choices__inner,
+        div.choices__inner,
+        .choices__inner {
+            display: block !important;
+            padding: 8px !important;
+            min-height: auto !important;
+            height: auto !important;
+            flex-direction: unset !important;
+            align-items: unset !important;
+        }
+
+        .choices__list.choices__list--multiple,
+        .choices__list--multiple {
+            display: block !important;
+            width: 100% !important;
+            margin-bottom: 8px !important;
+        }
+
+        .choices__list--multiple .choices__item,
+        .choices__list--multiple .choices__item--selectable {
+            display: flex !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            white-space: normal !important;
+            padding: 8px 12px !important;
+            font-size: 0.875rem !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            border-radius: 8px !important;
+            margin-bottom: 6px !important;
+            box-sizing: border-box !important;
+        }
+
+        .choices__list--multiple .choices__item .choices__button {
+            flex-shrink: 0 !important;
+            margin-left: 8px !important;
+        }
+
+        .choices__input,
+        .choices__input--cloned,
+        input.choices__input--cloned {
+            min-width: 0 !important;
+            width: 100% !important;
+            display: block !important;
+        }
+
+        /* Editore chips mobile */
+        #editore_chip_list {
+            display: block !important;
+            width: 100% !important;
+        }
+
+        .editore-chip {
+            display: flex !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            justify-content: space-between !important;
+            margin-bottom: 6px !important;
+        }
     }
 `;
 document.head.appendChild(style);

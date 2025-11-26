@@ -214,4 +214,75 @@ class AutoriApiController
         $stmt->close();
         return null;
     }
+
+    /**
+     * Bulk delete multiple authors
+     */
+    public function bulkDelete(Request $request, Response $response, mysqli $db): Response
+    {
+        $body = $request->getParsedBody();
+        if (!$body) {
+            $body = json_decode((string) $request->getBody(), true);
+        }
+
+        $ids = $body['ids'] ?? [];
+
+        // Validate input
+        if (empty($ids) || !is_array($ids)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Nessun autore selezionato')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Filter and sanitize IDs
+        $cleanIds = array_filter(array_map('intval', $ids), fn($id) => $id > 0);
+        if (empty($cleanIds)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('ID autori non validi')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Build placeholders for IN clause
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $types = str_repeat('i', count($cleanIds));
+
+        // Delete author-book relationships first
+        $delRelSql = "DELETE FROM libri_autori WHERE autore_id IN ($placeholders)";
+        $delRelStmt = $db->prepare($delRelSql);
+        if ($delRelStmt) {
+            $delRelStmt->bind_param($types, ...$cleanIds);
+            $delRelStmt->execute();
+            $delRelStmt->close();
+        }
+
+        // Delete the authors
+        $sql = "DELETE FROM autori WHERE id IN ($placeholders)";
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            AppLog::error('autori.bulk_delete.prepare_failed', ['error' => $db->error]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore interno del database')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        $stmt->bind_param($types, ...$cleanIds);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+
+        AppLog::info('autori.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'affected' => $affected,
+            'message' => sprintf(__('%d autori eliminati'), $affected)
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
 }

@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 use App\Support\ConfigStore;
 
+// Check if cookie banner is enabled
+$cookieBannerEnabled = ConfigStore::get('privacy.cookie_banner_enabled', true);
+if ($cookieBannerEnabled === false || $cookieBannerEnabled === '0' || $cookieBannerEnabled === 0) {
+    return; // Don't show cookie banner if disabled
+}
+
 if (!function_exists('assetUrl')) {
     function assetUrl($path) {
         $normalizedPath = '/' . ltrim($path, '/');
