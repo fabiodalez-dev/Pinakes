@@ -1414,6 +1414,13 @@ return function (App $app): void {
         return $controller->bulkDelete($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // API Autori - Bulk Export
+    $app->post('/api/autori/bulk-export', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\AutoriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkExport($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // API Editori (server-side DataTables)
     $app->get('/api/editori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\EditoriApiController();
@@ -1426,6 +1433,13 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditoriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->bulkDelete($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // API Editori - Bulk Export
+    $app->post('/api/editori/bulk-export', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\EditoriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkExport($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/api/search/autori', function ($request, $response) use ($app) {
