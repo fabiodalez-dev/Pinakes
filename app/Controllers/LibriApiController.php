@@ -492,7 +492,15 @@ class LibriApiController
         $normalizedStato = $stateMap[$statoLower];
         $params = array_merge([$normalizedStato], $cleanIds);
         $stmt->bind_param('s' . $types, ...$params);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            AppLog::error('libri.bulk_status.execute_failed', ['error' => $stmt->error]);
+            $stmt->close();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore durante l\'aggiornamento dello stato')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
         $affected = $stmt->affected_rows;
         $stmt->close();
 
