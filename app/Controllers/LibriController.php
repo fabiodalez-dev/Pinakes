@@ -1448,8 +1448,8 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        // Call scraping API to get book data including cover
-        $scrapeUrl = '/api/scrape?isbn=' . urlencode($isbn);
+        // Call scraping API to get book data including cover (use /api/scrape/isbn route)
+        $scrapeUrl = '/api/scrape/isbn?isbn=' . urlencode($isbn);
 
         // Internal request to scraping endpoint
         $ch = curl_init();
@@ -1479,7 +1479,7 @@ class LibriController
         // Download and save the cover image
         $imageUrl = $scrapeData['image'];
 
-        $uploadDir = __DIR__ . '/../../storage/uploads/copertine/';
+        $uploadDir = $this->getCoversUploadPath() . '/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
@@ -1546,7 +1546,7 @@ class LibriController
         chmod($filepath, 0644);
 
         // Update book record with cover URL
-        $coverUrl = '/uploads/storage/copertine/' . $filename;
+        $coverUrl = $this->getCoversUrlPath() . '/' . $filename;
         $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
         $stmt->bind_param('si', $coverUrl, $id);
         $stmt->execute();
