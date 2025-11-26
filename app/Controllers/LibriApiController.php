@@ -442,17 +442,19 @@ class LibriApiController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        // Map frontend labels to database values
+        // Map frontend labels to database ENUM values
+        // Database ENUM: 'disponibile', 'prestato', 'prenotato', 'perso', 'danneggiato'
         $stateMap = [
             'disponibile' => 'disponibile',
-            'in_prestito' => 'in_prestito',
-            'prestato' => 'in_prestito',
-            'in_manutenzione' => 'in_manutenzione',
-            'danneggiato' => 'in_manutenzione',
-            'riservato' => 'riservato',
-            'smarrito' => 'smarrito',
-            'perso' => 'smarrito',
-            'non disponibile' => 'in_prestito'
+            'prestato' => 'prestato',
+            'in_prestito' => 'prestato',
+            'prenotato' => 'prenotato',
+            'riservato' => 'prenotato',
+            'perso' => 'perso',
+            'smarrito' => 'perso',
+            'danneggiato' => 'danneggiato',
+            'in_manutenzione' => 'danneggiato',
+            'non disponibile' => 'prestato'
         ];
         $statoLower = strtolower($stato);
         if (!isset($stateMap[$statoLower])) {

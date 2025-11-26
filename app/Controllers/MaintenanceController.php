@@ -139,6 +139,50 @@ class MaintenanceController {
     }
 
     /**
+     * Crea gli indici di ottimizzazione mancanti
+     */
+    public function createMissingIndexes(Request $request, Response $response, mysqli $db): Response {
+        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
+        if (!\App\Support\Csrf::validate($csrfToken)) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
+            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
+        }
+
+        $integrity = new DataIntegrity($db);
+
+        try {
+            $result = $integrity->createMissingIndexes();
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => sprintf(__("%d indici creati con successo"), $result['created']),
+                'details' => $result
+            ]));
+
+        } catch (\Exception $e) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("Errore durante la creazione degli indici:") . ' ' . $e->getMessage()
+            ]));
+        }
+
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Genera lo script SQL per gli indici mancanti
+     */
+    public function generateIndexesSQL(Request $request, Response $response, mysqli $db): Response {
+        $integrity = new DataIntegrity($db);
+        $sql = $integrity->generateMissingIndexesSQL();
+
+        $response->getBody()->write($sql);
+        return $response
+            ->withHeader('Content-Type', 'text/plain; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="missing_indexes_' . date('Y-m-d') . '.sql"');
+    }
+
+    /**
      * Applica un fix specifico alla configurazione .env
      */
     public function applyConfigFix(Request $request, Response $response): Response {

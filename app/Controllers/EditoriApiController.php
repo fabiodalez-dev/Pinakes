@@ -19,6 +19,10 @@ class EditoriApiController
 
         $search_text = trim((string)($q['search_text'] ?? ''));
         $search_sito = trim((string)($q['search_sito'] ?? ''));
+        $search_citta = trim((string)($q['search_citta'] ?? ''));
+        $search_via = trim((string)($q['search_via'] ?? ''));
+        $search_cap = trim((string)($q['search_cap'] ?? ''));
+        $filter_libri_count = trim((string)($q['filter_libri_count'] ?? ''));
         $created_from = trim((string)($q['created_from'] ?? ''));
 
         // Prepare WHERE clause and parameters for prepared statements
@@ -27,6 +31,9 @@ class EditoriApiController
         $param_types = '';
         $params_for_where = [];
         $param_types_for_where = '';
+
+        // HAVING clause for libri_count filter (applied after subquery)
+        $having_clause = '';
 
         if ($search_text !== '') {
             $where_prepared .= " AND e.nome LIKE ? ";
@@ -41,6 +48,45 @@ class EditoriApiController
             $param_types_for_where .= 's';
             $params[] = "%$search_sito%";
             $param_types .= 's';
+        }
+        // City, address, and CAP all search within the indirizzo field
+        if ($search_citta !== '') {
+            $where_prepared .= " AND e.indirizzo LIKE ? ";
+            $params_for_where[] = "%$search_citta%";
+            $param_types_for_where .= 's';
+            $params[] = "%$search_citta%";
+            $param_types .= 's';
+        }
+        if ($search_via !== '') {
+            $where_prepared .= " AND e.indirizzo LIKE ? ";
+            $params_for_where[] = "%$search_via%";
+            $param_types_for_where .= 's';
+            $params[] = "%$search_via%";
+            $param_types .= 's';
+        }
+        if ($search_cap !== '') {
+            $where_prepared .= " AND e.indirizzo LIKE ? ";
+            $params_for_where[] = "%$search_cap%";
+            $param_types_for_where .= 's';
+            $params[] = "%$search_cap%";
+            $param_types .= 's';
+        }
+        // Book count filter - uses HAVING since libri_count is computed
+        if ($filter_libri_count !== '') {
+            switch ($filter_libri_count) {
+                case '0':
+                    $having_clause = ' HAVING libri_count = 0 ';
+                    break;
+                case '1-10':
+                    $having_clause = ' HAVING libri_count BETWEEN 1 AND 10 ';
+                    break;
+                case '11-50':
+                    $having_clause = ' HAVING libri_count BETWEEN 11 AND 50 ';
+                    break;
+                case '51+':
+                    $having_clause = ' HAVING libri_count >= 51 ';
+                    break;
+            }
         }
         if ($created_from !== '') {
             $where_prepared .= " AND e.created_at >= ? ";
@@ -69,30 +115,54 @@ class EditoriApiController
         $total = (int)($total_res->fetch_assoc()['c'] ?? 0);
 
         // Use prepared statement for filtered count to prevent SQL injection
-        $count_sql = "SELECT COUNT(*) AS c FROM editori e $where_prepared";
+        // If we have a HAVING clause, we need to count from a subquery
+        if ($having_clause !== '') {
+            $count_sql = "SELECT COUNT(*) AS c FROM (
+                SELECT e.id, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id) AS libri_count
+                FROM editori e
+                $where_prepared
+                $having_clause
+            ) AS filtered_editori";
+        } else {
+            $count_sql = "SELECT COUNT(*) AS c FROM editori e $where_prepared";
+        }
+
         $count_stmt = $db->prepare($count_sql);
         if (!$count_stmt) {
             AppLog::error('editori.count.prepare_failed', ['error' => $db->error]);
             $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-        
+
         if (!empty($params_for_where)) {
             $count_stmt->bind_param($param_types_for_where, ...$params_for_where);
         }
         $count_stmt->execute();
         $filRes = $count_stmt->get_result();
         $filtered = (int)($filRes->fetch_assoc()['c'] ?? 0);
+        $count_stmt->close();
 
-        $sql_prepared = "SELECT e.*, (
-                    SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id
-                ) AS libri_count
-                FROM editori e
-                $where_prepared
-                ORDER BY e.nome ASC
+        // Main query - if HAVING is needed, wrap in subquery
+        if ($having_clause !== '') {
+            $sql_prepared = "SELECT * FROM (
+                    SELECT e.*, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id) AS libri_count
+                    FROM editori e
+                    $where_prepared
+                    $having_clause
+                ) AS sub
+                ORDER BY nome ASC
                 LIMIT ?, ?";
+        } else {
+            $sql_prepared = "SELECT e.*, (
+                        SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id
+                    ) AS libri_count
+                    FROM editori e
+                    $where_prepared
+                    ORDER BY e.nome ASC
+                    LIMIT ?, ?";
+        }
 
-        AppLog::debug('editori.list.query', ['params'=>array_intersect_key($q, ['draw'=>1,'start'=>1,'length'=>1,'search_text'=>1,'search_sito'=>1,'created_from'=>1])]);
+        AppLog::debug('editori.list.query', ['params'=>array_intersect_key($q, ['draw'=>1,'start'=>1,'length'=>1,'search_text'=>1,'search_sito'=>1,'search_citta'=>1,'filter_libri_count'=>1,'created_from'=>1])]);
 
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {

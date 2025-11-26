@@ -1914,7 +1914,7 @@ $jsTranslationKeys = [
     'Quando vuoi iniziare il prestito?',
     'Fino a quando? (opzionale):',
     'Lascia vuoto per 1 mese',
-    'Le date rosse non sono disponibili. La richiesta verrà valutata da un amministratore.',
+    'Le date rosse o gialle non sono disponibili. La richiesta verrà valutata da un amministratore.',
     'Seleziona una data di inizio',
     'Richiesta Inviata!',
     'Invia Richiesta',
@@ -1923,7 +1923,10 @@ $jsTranslationKeys = [
     'Inserisci la data di inizio (YYYY-MM-DD)',
     'Prenotazione effettuata per ',
     'Errore: ',
-    'Errore nella prenotazione'
+    'Errore nella prenotazione',
+    'Tutte le copie in prestito',
+    'Tutte le copie prenotate',
+    'Copie disponibili'
 ];
 $jsTranslations = [];
 foreach ($jsTranslationKeys as $key) {
@@ -2216,7 +2219,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const res = await fetch(`/api/libro/${libroId}/reservation`, {
               method: 'POST',
-              credentials: 'same-origin',
               credentials: 'same-origin',
               headers: {
                 'Content-Type': 'application/json',

@@ -4,6 +4,7 @@
 use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
+use App\Support\I18n;
 
 // Load theme colors
 if (isset($container)) {
@@ -54,8 +55,11 @@ if (isset($db)) {
         $eventsEnabled = false;
     }
 }
+
+$currentLocale = I18n::getLocale();
+$htmlLang = substr($currentLocale, 0, 2);
 ?><!doctype html>
-<html lang="it">
+<html lang="<?= $htmlLang ?>">
 
 <head>
     <meta charset="utf-8">

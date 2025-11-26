@@ -511,6 +511,64 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     </div>
   </div>
 
+  <?php if (!empty($activeReservations)): ?>
+  <div class="mt-6">
+    <div class="card">
+      <div class="card-header flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-calendar-check text-primary"></i>
+          <?= __("Prenotazioni attive (slot libro)") ?>
+        </h2>
+        <span class="text-sm text-gray-600"><?= count($activeReservations); ?> <?= __("prenotazioni") ?></span>
+      </div>
+      <div class="card-body p-0">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Utente") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Inizio") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Fine") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Scadenza prenotazione") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Coda") ?></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php foreach ($activeReservations as $res): ?>
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                  <div class="text-gray-900 font-medium">
+                    <?php echo App\Support\HtmlHelper::e(trim(($res['nome'] ?? '').' '.($res['cognome'] ?? ''))); ?>
+                  </div>
+                  <?php if (!empty($res['email'])): ?>
+                    <div class="text-gray-500 text-xs"><?php echo App\Support\HtmlHelper::e($res['email']); ?></div>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php echo $res['data_inizio_richiesta'] ? date('d/m/Y', strtotime($res['data_inizio_richiesta'])) : '—'; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php
+                    $endDate = $res['data_fine_richiesta'] ?: ($res['data_scadenza_prenotazione'] ? substr($res['data_scadenza_prenotazione'], 0, 10) : null);
+                    echo $endDate ? date('d/m/Y', strtotime($endDate)) : '—';
+                  ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php echo !empty($res['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($res['data_scadenza_prenotazione'])) : '—'; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php echo (int)($res['queue_position'] ?? 1); ?>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- Copies Section -->
   <?php if (!empty($copie) && count($copie) > 0): ?>
   <div class="mt-6">
@@ -719,29 +777,48 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <?php
                     $statusClass = 'bg-gray-100 text-gray-800';
                     $statusIcon = 'fa-circle';
+                    $statusLabel = __('Sconosciuto');
                     switch ($loan['stato']) {
                       case 'restituito':
                         $statusClass = 'bg-green-100 text-green-800';
                         $statusIcon = 'fa-check-circle';
+                        $statusLabel = __('Restituito');
+                        break;
+                      case 'prenotato':
+                        $statusClass = 'bg-purple-100 text-purple-800';
+                        $statusIcon = 'fa-calendar-check';
+                        $statusLabel = __('Prenotato');
                         break;
                       case 'in_corso':
                         $statusClass = 'bg-blue-100 text-blue-800';
                         $statusIcon = 'fa-book-open';
+                        $statusLabel = __('In Corso');
                         break;
                       case 'in_ritardo':
                         $statusClass = 'bg-red-100 text-red-800';
                         $statusIcon = 'fa-exclamation-triangle';
+                        $statusLabel = __('In Ritardo');
                         break;
                       case 'perso':
+                        $statusClass = 'bg-yellow-100 text-yellow-800';
+                        $statusIcon = 'fa-exclamation-circle';
+                        $statusLabel = __('Perso');
+                        break;
                       case 'danneggiato':
                         $statusClass = 'bg-yellow-100 text-yellow-800';
                         $statusIcon = 'fa-exclamation-circle';
+                        $statusLabel = __('Danneggiato');
+                        break;
+                      case 'pendente':
+                        $statusClass = 'bg-orange-100 text-orange-800';
+                        $statusIcon = 'fa-clock';
+                        $statusLabel = __('In Attesa');
                         break;
                     }
                   ?>
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $statusClass; ?>">
                     <i class="fas <?php echo $statusIcon; ?> mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e(ucfirst(str_replace('_', ' ', $loan['stato']))); ?>
+                    <?php echo App\Support\HtmlHelper::e($statusLabel); ?>
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

@@ -12,8 +12,10 @@ $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $versionFile = __DIR__ . '/../../version.json';
 $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
 $appVersion = $versionData['version'] ?? '0.1.0';
+$currentLocale = I18n::getLocale();
+$htmlLang = substr($currentLocale, 0, 2);
 ?><!doctype html>
-<html lang="it">
+<html lang="<?= $htmlLang ?>">
 
 <head>
   <meta charset="utf-8" />

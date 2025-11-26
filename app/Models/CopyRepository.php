@@ -30,7 +30,7 @@ class CopyRepository
                    u.cognome as utente_cognome,
                    u.email as utente_email
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('pendente', 'in_corso', 'in_ritardo')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('pendente', 'prenotato', 'in_corso', 'in_ritardo')
             LEFT JOIN utenti u ON p.utente_id = u.id
             WHERE c.libro_id = ?
             ORDER BY c.numero_inventario ASC
@@ -113,14 +113,14 @@ class CopyRepository
     }
 
     /**
-     * Ottiene le copie disponibili di un libro
+     * Ottiene le copie disponibili di un libro (non assegnate a prestiti attivi o futuri)
      */
     public function getAvailableByBookId(int $bookId): array
     {
         $stmt = $this->db->prepare("
             SELECT c.*
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL
@@ -140,14 +140,14 @@ class CopyRepository
     }
 
     /**
-     * Conta il numero di copie disponibili per un libro
+     * Conta il numero di copie disponibili per un libro (non assegnate a prestiti attivi o futuri)
      */
     public function countAvailableByBookId(int $bookId): int
     {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL

@@ -22,10 +22,10 @@ class DataIntegrity {
         try {
             $this->db->begin_transaction();
 
-            // Aggiorna stato copie basandosi sui prestiti attivi
+            // Aggiorna stato copie basandosi sui prestiti attivi (include 'prenotato' per prestiti futuri)
             $stmt = $this->db->prepare("
                 UPDATE copie c
-                LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
+                LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
                 SET c.stato = CASE
                     WHEN p.id IS NOT NULL THEN 'prestato'
                     ELSE 'disponibile'
@@ -36,15 +36,28 @@ class DataIntegrity {
             $stmt->close();
 
             // Ricalcola copie_disponibili e stato per tutti i libri dalla tabella copie
+            // Include 'prenotato' per considerare anche prestiti futuri già assegnati
+            // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
             $stmt = $this->db->prepare("
                 UPDATE libri l
-                SET copie_disponibili = (
-                    SELECT COUNT(*)
-                    FROM copie c
-                    LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
-                    WHERE c.libro_id = l.id
-                    AND c.stato = 'disponibile'
-                    AND p.id IS NULL
+                SET copie_disponibili = GREATEST(
+                    (
+                        SELECT COUNT(*)
+                        FROM copie c
+                        LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                        WHERE c.libro_id = l.id
+                        AND c.stato = 'disponibile'
+                        AND p.id IS NULL
+                    ) - (
+                        SELECT COUNT(*)
+                        FROM prenotazioni pr
+                        WHERE pr.libro_id = l.id
+                        AND pr.stato = 'attiva'
+                        AND pr.data_inizio_richiesta IS NOT NULL
+                        AND pr.data_inizio_richiesta <= CURDATE()
+                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                    ),
+                    0
                 ),
                 copie_totali = (
                     SELECT COUNT(*)
@@ -52,13 +65,24 @@ class DataIntegrity {
                     WHERE c.libro_id = l.id
                 ),
                 stato = CASE
-                    WHEN (
-                        SELECT COUNT(*)
-                        FROM copie c
-                        LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
-                        WHERE c.libro_id = l.id
-                        AND c.stato = 'disponibile'
-                        AND p.id IS NULL
+                    WHEN GREATEST(
+                        (
+                            SELECT COUNT(*)
+                            FROM copie c
+                            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                            WHERE c.libro_id = l.id
+                            AND c.stato = 'disponibile'
+                            AND p.id IS NULL
+                        ) - (
+                            SELECT COUNT(*)
+                            FROM prenotazioni pr
+                            WHERE pr.libro_id = l.id
+                            AND pr.stato = 'attiva'
+                            AND pr.data_inizio_richiesta IS NOT NULL
+                            AND pr.data_inizio_richiesta <= CURDATE()
+                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                        ),
+                        0
                     ) > 0 THEN 'disponibile'
                     ELSE 'prestato'
                 END
@@ -82,10 +106,10 @@ class DataIntegrity {
      */
     public function recalculateBookAvailability(int $bookId): bool {
         try {
-            // Aggiorna stato copie del libro basandosi sui prestiti attivi
+            // Aggiorna stato copie del libro basandosi sui prestiti attivi (include 'prenotato')
             $stmt = $this->db->prepare("
                 UPDATE copie c
-                LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
+                LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
                 SET c.stato = CASE
                     WHEN p.id IS NOT NULL THEN 'prestato'
                     ELSE 'disponibile'
@@ -98,15 +122,27 @@ class DataIntegrity {
             $stmt->close();
 
             // Aggiorna copie_disponibili e stato del libro dalla tabella copie
+            // Include 'prenotato' per prestiti futuri con copia e sottrae prenotazioni attive su oggi
             $stmt = $this->db->prepare("
                 UPDATE libri l
-                SET copie_disponibili = (
-                    SELECT COUNT(*)
-                    FROM copie c
-                    LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
-                    WHERE c.libro_id = ?
-                    AND c.stato = 'disponibile'
-                    AND p.id IS NULL
+                SET copie_disponibili = GREATEST(
+                    (
+                        SELECT COUNT(*)
+                        FROM copie c
+                        LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                        WHERE c.libro_id = ?
+                        AND c.stato = 'disponibile'
+                        AND p.id IS NULL
+                    ) - (
+                        SELECT COUNT(*)
+                        FROM prenotazioni pr
+                        WHERE pr.libro_id = ?
+                        AND pr.stato = 'attiva'
+                        AND pr.data_inizio_richiesta IS NOT NULL
+                        AND pr.data_inizio_richiesta <= CURDATE()
+                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                    ),
+                    0
                 ),
                 copie_totali = (
                     SELECT COUNT(*)
@@ -114,19 +150,30 @@ class DataIntegrity {
                     WHERE c.libro_id = ?
                 ),
                 stato = CASE
-                    WHEN (
-                        SELECT COUNT(*)
-                        FROM copie c
-                        LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
-                        WHERE c.libro_id = ?
-                        AND c.stato = 'disponibile'
-                        AND p.id IS NULL
+                    WHEN GREATEST(
+                        (
+                            SELECT COUNT(*)
+                            FROM copie c
+                            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+                            WHERE c.libro_id = ?
+                            AND c.stato = 'disponibile'
+                            AND p.id IS NULL
+                        ) - (
+                            SELECT COUNT(*)
+                            FROM prenotazioni pr
+                            WHERE pr.libro_id = ?
+                            AND pr.stato = 'attiva'
+                            AND pr.data_inizio_richiesta IS NOT NULL
+                            AND pr.data_inizio_richiesta <= CURDATE()
+                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                        ),
+                        0
                     ) > 0 THEN 'disponibile'
                     ELSE 'prestato'
                 END
                 WHERE id = ?
             ");
-            $stmt->bind_param('iiii', $bookId, $bookId, $bookId, $bookId);
+            $stmt->bind_param('iiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
             $result = $stmt->execute();
             $stmt->close();
 
@@ -196,6 +243,7 @@ class DataIntegrity {
             SELECT id, libro_id, utente_id, stato
             FROM prestiti
             WHERE stato IN ('in_corso', 'in_ritardo')
+            AND attivo = 1
             AND (data_scadenza IS NULL OR DATE(data_scadenza) IS NULL OR data_scadenza < '1900-01-01')
         ");
         $stmt->execute();
@@ -237,6 +285,7 @@ class DataIntegrity {
             JOIN prestiti p ON pr.libro_id = p.libro_id
             WHERE pr.stato = 'attiva'
               AND p.stato IN ('in_corso','in_ritardo','pendente')
+              AND p.attivo = 1
               AND (
                     (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
                  OR (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NULL AND pr.data_inizio_richiesta <= COALESCE(p.data_scadenza, p.data_restituzione, p.data_prestito))
@@ -404,6 +453,7 @@ class DataIntegrity {
                 SET pr.stato = 'annullata'
                 WHERE pr.stato = 'attiva'
                   AND p.stato IN ('in_corso','in_ritardo','pendente')
+                  AND p.attivo = 1
                   AND (
                         (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
                      OR (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NULL AND pr.data_inizio_richiesta <= COALESCE(p.data_scadenza, p.data_restituzione, p.data_prestito))
@@ -549,6 +599,221 @@ class DataIntegrity {
             $report['statistics'] = array_map('intval', $stats);
         }
 
+        // Add missing indexes check
+        $report['missing_indexes'] = $this->checkMissingIndexes();
+
         return $report;
+    }
+
+    /**
+     * Definisce gli indici di ottimizzazione attesi
+     * Basato su installer/database/indexes_optimization.sql
+     */
+    private function getExpectedIndexes(): array {
+        return [
+            // TABELLA: libri
+            'libri' => [
+                'idx_created_at' => ['columns' => ['created_at']],
+                'idx_isbn10' => ['columns' => ['isbn10']],
+                'idx_genere_scaffale' => ['columns' => ['genere_id', 'scaffale_id']],
+                'idx_sottogenere_scaffale' => ['columns' => ['sottogenere_id', 'scaffale_id']],
+            ],
+            // TABELLA: libri_autori (CRITICA - JOIN efficienti)
+            'libri_autori' => [
+                'idx_libro_autore' => ['columns' => ['libro_id', 'autore_id']],
+                'idx_autore_libro' => ['columns' => ['autore_id', 'libro_id']],
+                'idx_ordine_credito' => ['columns' => ['ordine_credito']],
+                'idx_ruolo' => ['columns' => ['ruolo']],
+            ],
+            // TABELLA: autori
+            'autori' => [
+                'idx_nome' => ['columns' => ['nome'], 'prefix_length' => 100],
+            ],
+            // TABELLA: editori
+            'editori' => [
+                'idx_nome' => ['columns' => ['nome'], 'prefix_length' => 100],
+            ],
+            // TABELLA: prestiti
+            'prestiti' => [
+                'idx_stato_attivo' => ['columns' => ['stato', 'attivo']],
+                'idx_data_prestito' => ['columns' => ['data_prestito']],
+            ],
+            // TABELLA: utenti
+            'utenti' => [
+                'idx_nome' => ['columns' => ['nome'], 'prefix_length' => 50],
+                'idx_cognome' => ['columns' => ['cognome'], 'prefix_length' => 50],
+                'idx_nome_cognome' => ['columns' => ['nome', 'cognome'], 'prefix_length' => 50],
+                'idx_ruolo' => ['columns' => ['ruolo']],
+            ],
+            // TABELLA: generi
+            'generi' => [
+                'idx_nome' => ['columns' => ['nome'], 'prefix_length' => 50],
+            ],
+            // TABELLA: posizioni
+            'posizioni' => [
+                'idx_scaffale_mensola' => ['columns' => ['scaffale_id', 'mensola_id']],
+            ],
+            // TABELLA: copie
+            'copie' => [
+                'idx_numero_inventario' => ['columns' => ['numero_inventario']],
+            ],
+            // TABELLA: prenotazioni
+            'prenotazioni' => [
+                'idx_libro_id' => ['columns' => ['libro_id']],
+                'idx_utente_id' => ['columns' => ['utente_id']],
+                'idx_stato' => ['columns' => ['stato']],
+            ],
+        ];
+    }
+
+    /**
+     * Verifica quali indici sono mancanti rispetto a quelli attesi
+     */
+    public function checkMissingIndexes(): array {
+        $expected = $this->getExpectedIndexes();
+        $missing = [];
+
+        foreach ($expected as $table => $indexes) {
+            // Verifica se la tabella esiste
+            $tableCheck = $this->db->query("SHOW TABLES LIKE '$table'");
+            if (!$tableCheck || $tableCheck->num_rows === 0) {
+                continue; // Salta tabelle che non esistono
+            }
+            if ($tableCheck instanceof \mysqli_result) {
+                $tableCheck->free();
+            }
+
+            // Ottieni gli indici esistenti per questa tabella
+            $existingIndexes = [];
+            $indexResult = $this->db->query("SHOW INDEX FROM `$table`");
+            if ($indexResult) {
+                while ($row = $indexResult->fetch_assoc()) {
+                    $indexName = $row['Key_name'];
+                    if (!isset($existingIndexes[$indexName])) {
+                        $existingIndexes[$indexName] = [];
+                    }
+                    $existingIndexes[$indexName][] = $row['Column_name'];
+                }
+                $indexResult->free();
+            }
+
+            // Confronta con gli indici attesi
+            foreach ($indexes as $indexName => $indexDef) {
+                if (!isset($existingIndexes[$indexName])) {
+                    $missing[] = [
+                        'table' => $table,
+                        'index_name' => $indexName,
+                        'columns' => $indexDef['columns'],
+                        'prefix_length' => $indexDef['prefix_length'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Crea gli indici mancanti
+     */
+    public function createMissingIndexes(): array {
+        $missing = $this->checkMissingIndexes();
+        $results = ['created' => 0, 'errors' => [], 'details' => []];
+
+        foreach ($missing as $index) {
+            $table = $index['table'];
+            $indexName = $index['index_name'];
+            $columns = $index['columns'];
+            $prefixLength = $index['prefix_length'] ?? null;
+
+            // Costruisci la definizione delle colonne
+            $columnDefs = [];
+            foreach ($columns as $col) {
+                if ($prefixLength !== null) {
+                    $columnDefs[] = "`$col`($prefixLength)";
+                } else {
+                    $columnDefs[] = "`$col`";
+                }
+            }
+            $columnStr = implode(', ', $columnDefs);
+
+            $sql = "ALTER TABLE `$table` ADD INDEX `$indexName` ($columnStr)";
+
+            try {
+                if ($this->db->query($sql)) {
+                    $results['created']++;
+                    $results['details'][] = [
+                        'success' => true,
+                        'table' => $table,
+                        'index' => $indexName,
+                        'message' => "Indice $indexName creato su $table"
+                    ];
+                } else {
+                    $results['errors'][] = "Errore creazione $indexName su $table: " . $this->db->error;
+                    $results['details'][] = [
+                        'success' => false,
+                        'table' => $table,
+                        'index' => $indexName,
+                        'message' => $this->db->error
+                    ];
+                }
+            } catch (Exception $e) {
+                $results['errors'][] = "Eccezione creazione $indexName su $table: " . $e->getMessage();
+                $results['details'][] = [
+                    'success' => false,
+                    'table' => $table,
+                    'index' => $indexName,
+                    'message' => $e->getMessage()
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Genera lo script SQL per creare gli indici mancanti
+     */
+    public function generateMissingIndexesSQL(): string {
+        $missing = $this->checkMissingIndexes();
+
+        if (empty($missing)) {
+            return "-- Nessun indice mancante. Il database è già ottimizzato.\n";
+        }
+
+        $sql = "-- =====================================================\n";
+        $sql .= "-- SCRIPT INDICI MANCANTI - Generato automaticamente\n";
+        $sql .= "-- Data: " . date('Y-m-d H:i:s') . "\n";
+        $sql .= "-- =====================================================\n\n";
+
+        $currentTable = '';
+        foreach ($missing as $index) {
+            $table = $index['table'];
+            $indexName = $index['index_name'];
+            $columns = $index['columns'];
+            $prefixLength = $index['prefix_length'] ?? null;
+
+            if ($currentTable !== $table) {
+                $sql .= "\n-- TABELLA: $table\n";
+                $currentTable = $table;
+            }
+
+            // Costruisci la definizione delle colonne
+            $columnDefs = [];
+            foreach ($columns as $col) {
+                if ($prefixLength !== null) {
+                    $columnDefs[] = "`$col`($prefixLength)";
+                } else {
+                    $columnDefs[] = "`$col`";
+                }
+            }
+            $columnStr = implode(', ', $columnDefs);
+
+            $sql .= "ALTER TABLE `$table` ADD INDEX `$indexName` ($columnStr);\n";
+        }
+
+        $sql .= "\n-- Fine script\n";
+
+        return $sql;
     }
 }
