@@ -227,4 +227,82 @@ class EditoriApiController
         ], JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
     }
+
+    /**
+     * Bulk export publishers by IDs - server-side export for full data
+     */
+    public function bulkExport(Request $request, Response $response, mysqli $db): Response
+    {
+        $body = $request->getParsedBody();
+        if (!$body) {
+            $body = json_decode((string) $request->getBody(), true);
+        }
+
+        $ids = $body['ids'] ?? [];
+
+        // Validate input
+        if (empty($ids) || !is_array($ids)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Nessun editore selezionato')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Filter and sanitize IDs
+        $cleanIds = array_filter(array_map('intval', $ids), fn($id) => $id > 0);
+        if (empty($cleanIds)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('ID editori non validi')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Build placeholders for IN clause
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $types = str_repeat('i', count($cleanIds));
+
+        $sql = "SELECT e.id, e.nome, e.sito_web, e.citta, e.indirizzo, e.telefono, e.email,
+                       (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id) AS libri_count
+                FROM editori e
+                WHERE e.id IN ($placeholders)
+                ORDER BY e.nome ASC";
+
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            AppLog::error('editori.bulk_export.prepare_failed', ['error' => $db->error]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore interno del database')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        $stmt->bind_param($types, ...$cleanIds);
+        if (!$stmt->execute()) {
+            AppLog::error('editori.bulk_export.execute_failed', ['error' => $stmt->error]);
+            $stmt->close();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore durante il recupero dei dati')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        $result = $stmt->get_result();
+        $data = [];
+        while ($row = $result->fetch_assoc()) {
+            $data[] = $row;
+        }
+        $stmt->close();
+
+        AppLog::info('editori.bulk_export', ['ids' => $cleanIds, 'count' => count($data)]);
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'data' => $data
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
 }
