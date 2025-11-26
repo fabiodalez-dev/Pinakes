@@ -10,6 +10,24 @@ use App\Support\CsrfHelper;
 
 class CoverController
 {
+    /**
+     * Get the uploads directory path for covers
+     * Consistent with LibriController::getCoversUploadPath()
+     */
+    private function getCoversUploadPath(): string
+    {
+        return __DIR__ . '/../../public/uploads/copertine';
+    }
+
+    /**
+     * Get the relative URL path for covers (from web root)
+     * Consistent with LibriController::getCoversUrlPath()
+     */
+    private function getCoversUrlPath(): string
+    {
+        return '/uploads/copertine';
+    }
+
     public function download(Request $request, Response $response): Response
     {
         // Get raw input data
@@ -60,8 +78,8 @@ class CoverController
             'domain' => $parsedUrl['host'] ?? ''
         ]);
 
-        // Set upload directory
-        $uploadDir = __DIR__ . '/../../storage/uploads/copertine/';
+        // Set upload directory (consistent with LibriController)
+        $uploadDir = $this->getCoversUploadPath() . '/';
         if (!is_dir($uploadDir)) {
             if (!mkdir($uploadDir, 0755, true)) {
                 $response->getBody()->write(json_encode(['error' => __('Impossibile creare la cartella di upload.')]));
@@ -141,8 +159,8 @@ class CoverController
         // Set proper file permissions
         chmod($filepath, 0644);
 
-        // Build relative URL of the saved file pointing to the storage route
-        $fileUrl = '/uploads/storage/copertine/' . $filename;
+        // Build relative URL of the saved file (consistent with LibriController)
+        $fileUrl = $this->getCoversUrlPath() . '/' . $filename;
         
         $response->getBody()->write(json_encode(['file_url' => $fileUrl]));
         return $response->withHeader('Content-Type', 'application/json');

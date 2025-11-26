@@ -112,11 +112,13 @@ class LoanApprovalController {
             $loanCountStmt->close();
 
             // Step 3: Count overlapping prenotazioni
+            // Use COALESCE to handle NULL data_fine_richiesta (open-ended reservations)
             $resCountStmt = $db->prepare("
                 SELECT COUNT(*) as count FROM prenotazioni
                 WHERE libro_id = ? AND stato = 'attiva'
-                AND data_inizio_richiesta IS NOT NULL AND data_fine_richiesta IS NOT NULL
-                AND data_inizio_richiesta <= ? AND data_fine_richiesta >= ?
+                AND data_inizio_richiesta IS NOT NULL
+                AND data_inizio_richiesta <= ?
+                AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
             ");
             $resCountStmt->bind_param('iss', $libroId, $dataScadenza, $dataPrestito);
             $resCountStmt->execute();
