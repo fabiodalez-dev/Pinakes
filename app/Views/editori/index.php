@@ -485,27 +485,45 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Bulk export
-  document.getElementById('bulk-export').addEventListener('click', function() {
+  // Bulk export - server-side to get all selected data across pages
+  document.getElementById('bulk-export').addEventListener('click', async function() {
     if (selectedPublishers.size === 0) return;
 
-    const allData = table.rows().data().toArray();
-    const selectedData = allData.filter(row => selectedPublishers.has(row.id));
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const ids = Array.from(selectedPublishers);
 
-    let csvContent = '<?= __("Nome") ?>,<?= __("Sito Web") ?>,<?= __("Città") ?>,<?= __("N. Libri") ?>\n';
-    selectedData.forEach(row => {
-      const nome = (row.nome || '').replace(/"/g, '""');
-      const sito = (row.sito_web || '').replace(/"/g, '""');
-      const citta = (row.citta || '').replace(/"/g, '""');
-      const libri = row.libri_count || 0;
-      csvContent += `"${nome}","${sito}","${citta}","${libri}"\n`;
-    });
+    try {
+      const response = await fetch('/api/editori/bulk-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ ids })
+      });
+      const result = await response.json();
 
-    const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'editori_export_' + new Date().toISOString().slice(0, 10) + '.csv';
-    link.click();
+      if (!result.success) {
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: result.error });
+        return;
+      }
+
+      // Generate CSV from server data
+      let csvContent = '<?= __("Nome") ?>,<?= __("Sito Web") ?>,<?= __("Città") ?>,<?= __("N. Libri") ?>\n';
+      result.data.forEach(row => {
+        const nome = (row.nome || '').replace(/"/g, '""');
+        const sito = (row.sito_web || '').replace(/"/g, '""');
+        const citta = (row.citta || '').replace(/"/g, '""');
+        const libri = row.libri_count || 0;
+        csvContent += `"${nome}","${sito}","${citta}","${libri}"\n`;
+      });
+
+      const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'editori_export_' + new Date().toISOString().slice(0, 10) + '.csv';
+      link.click();
+    } catch (err) {
+      console.error(err);
+      Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Errore di connessione") ?>' });
+    }
   });
 
   // Single delete
