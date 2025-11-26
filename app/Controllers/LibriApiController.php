@@ -613,6 +613,18 @@ class LibriApiController
             }
             $delCopyStmt->close();
 
+            // Delete reservations (prenotazioni) to prevent orphaned records
+            $delResSql = "DELETE FROM prenotazioni WHERE libro_id IN ($placeholders)";
+            $delResStmt = $db->prepare($delResSql);
+            if (!$delResStmt) {
+                throw new \Exception('Failed to prepare reservations delete: ' . $db->error);
+            }
+            $delResStmt->bind_param($types, ...$cleanIds);
+            if (!$delResStmt->execute()) {
+                throw new \Exception('Failed to execute reservations delete: ' . $delResStmt->error);
+            }
+            $delResStmt->close();
+
             // Delete the books
             $sql = "DELETE FROM libri WHERE id IN ($placeholders)";
             $stmt = $db->prepare($sql);

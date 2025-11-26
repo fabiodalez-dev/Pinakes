@@ -135,6 +135,7 @@ class LoanApprovalController {
             }
 
             // Step 4: Find a specific copy without overlapping assigned loans for this period
+            // Include 'pendente' to match Step 2's counting logic
             $overlapStmt = $db->prepare("
                 SELECT c.id FROM copie c
                 WHERE c.libro_id = ?
@@ -142,7 +143,7 @@ class LoanApprovalController {
                     SELECT 1 FROM prestiti p
                     WHERE p.copia_id = c.id
                     AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo')
+                    AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
                     AND p.data_prestito <= ?
                     AND p.data_scadenza >= ?
                 )
@@ -179,7 +180,7 @@ class LoanApprovalController {
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1 AND id != ?
-                AND stato IN ('in_corso','prenotato','in_ritardo')
+                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
             ");
