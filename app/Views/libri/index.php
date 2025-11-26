@@ -300,26 +300,9 @@ $libri = $data['libri'];
           <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
-          <div class="relative">
-            <button id="bulk-status-btn" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
-              <i class="fas fa-exchange-alt mr-2"></i><?= __("Cambia stato") ?>
-              <i class="fas fa-chevron-down ml-1 text-xs"></i>
-            </button>
-            <div id="bulk-status-dropdown" class="hidden absolute bottom-full mb-2 right-0 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-              <button data-status="Disponibile" class="bulk-status-option w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-green-500"></span><?= __("Disponibile") ?>
-              </button>
-              <button data-status="Prestato" class="bulk-status-option w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-red-500"></span><?= __("Prestato") ?>
-              </button>
-              <button data-status="Riservato" class="bulk-status-option w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-yellow-500"></span><?= __("Riservato") ?>
-              </button>
-              <button data-status="Danneggiato" class="bulk-status-option w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-orange-500"></span><?= __("Danneggiato") ?>
-              </button>
-            </div>
-          </div>
+          <button id="bulk-fetch-covers" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors text-sm">
+            <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
+          </button>
           <button id="bulk-delete" class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors text-sm">
             <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
           </button>
@@ -651,22 +634,6 @@ document.addEventListener('DOMContentLoaded', function() {
             <a href="/admin/libri/modifica/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <div class="relative">
-              <button onclick="toggleStatusMenu(${data}, event)" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Cambia stato') ?>">
-                <i class="fas fa-exchange-alt text-xs"></i>
-              </button>
-              <div id="status-menu-${data}" class="hidden absolute right-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-                <button onclick="changeBookStatus(${data}, 'Disponibile')" class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-green-500"></span><?= __("Disponibile") ?>
-                </button>
-                <button onclick="changeBookStatus(${data}, 'Prestato')" class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-red-500"></span><?= __("Prestato") ?>
-                </button>
-                <button onclick="changeBookStatus(${data}, 'Riservato')" class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-yellow-500"></span><?= __("Riservato") ?>
-                </button>
-              </div>
-            </div>
             <button onclick="deleteBook(${data})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
               <i class="fas fa-trash text-xs"></i>
             </button>
@@ -866,46 +833,74 @@ document.addEventListener('DOMContentLoaded', function() {
     updateBulkActionsBar();
   });
 
-  // Bulk status dropdown
-  document.getElementById('bulk-status-btn').addEventListener('click', function(e) {
-    e.stopPropagation();
-    document.getElementById('bulk-status-dropdown').classList.toggle('hidden');
-  });
-
-  document.querySelectorAll('.bulk-status-option').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const status = this.dataset.status;
-      bulkChangeStatus(status);
-    });
-  });
-
-  async function bulkChangeStatus(status) {
+  // Bulk fetch covers
+  document.getElementById('bulk-fetch-covers').addEventListener('click', async function() {
     if (selectedBooks.size === 0) return;
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const ids = Array.from(selectedBooks);
 
-    try {
-      const response = await fetch('/api/libri/bulk-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-        body: JSON.stringify({ ids, stato: status })
+    // Show progress dialog
+    if (window.Swal) {
+      Swal.fire({
+        title: '<?= __("Scaricamento copertine...") ?>',
+        html: `<div class="text-sm text-gray-600"><span id="cover-progress">0</span> / ${ids.length}</div>`,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => { Swal.showLoading(); }
       });
-      const data = await response.json();
-
-      if (data.success) {
-        if (window.Swal) {
-          Swal.fire({ icon: 'success', title: '<?= __("Stato aggiornato") ?>', text: `${ids.length} <?= __("libri aggiornati") ?>`, timer: 2000, showConfirmButton: false });
-        }
-        selectedBooks.clear();
-        table.ajax.reload();
-        updateBulkActionsBar();
-      }
-    } catch (err) {
-      console.error(err);
     }
-    document.getElementById('bulk-status-dropdown').classList.add('hidden');
-  }
+
+    let fetched = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const id of ids) {
+      try {
+        const response = await fetch(`/api/libri/${id}/fetch-cover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          if (data.fetched) fetched++;
+          else skipped++; // Already had cover or no ISBN
+        } else {
+          errors++;
+        }
+      } catch (err) {
+        errors++;
+      }
+
+      // Update progress
+      const progressEl = document.getElementById('cover-progress');
+      if (progressEl) {
+        progressEl.textContent = fetched + skipped + errors;
+      }
+    }
+
+    // Show result
+    if (window.Swal) {
+      let message = '';
+      if (fetched > 0) message += `<?= __("Copertine scaricate:") ?> ${fetched}\n`;
+      if (skipped > 0) message += `<?= __("Già presenti o senza ISBN:") ?> ${skipped}\n`;
+      if (errors > 0) message += `<?= __("Errori:") ?> ${errors}`;
+
+      Swal.fire({
+        icon: fetched > 0 ? 'success' : 'info',
+        title: '<?= __("Completato") ?>',
+        text: message.trim() || '<?= __("Nessuna copertina da scaricare") ?>',
+        timer: 3000,
+        showConfirmButton: false
+      });
+    }
+
+    selectedBooks.clear();
+    table.ajax.reload();
+    updateBulkActionsBar();
+  });
 
   // Bulk delete
   document.getElementById('bulk-delete').addEventListener('click', function() {
@@ -1064,38 +1059,6 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('shortcuts-modal').addEventListener('click', function(e) {
     if (e.target === this) this.classList.add('hidden');
   });
-
-  // Status menu toggle
-  window.toggleStatusMenu = function(id, e) {
-    e.stopPropagation();
-    document.querySelectorAll('[id^="status-menu-"]').forEach(m => {
-      if (m.id !== `status-menu-${id}`) m.classList.add('hidden');
-    });
-    document.getElementById(`status-menu-${id}`).classList.toggle('hidden');
-  };
-
-  document.addEventListener('click', () => {
-    document.querySelectorAll('[id^="status-menu-"]').forEach(m => m.classList.add('hidden'));
-    document.getElementById('bulk-status-dropdown').classList.add('hidden');
-  });
-
-  // Quick status change
-  window.changeBookStatus = async function(id, status) {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    try {
-      const response = await fetch('/api/libri/bulk-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-        body: JSON.stringify({ ids: [id], stato: status })
-      });
-      const data = await response.json();
-      if (data.success) {
-        table.ajax.reload(null, false);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   // Delete book
   window.deleteBook = function(bookId) {

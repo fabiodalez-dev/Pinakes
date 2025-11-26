@@ -991,6 +991,13 @@ return function (App $app): void {
         return $controller->generateLabelPDF($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
+    // Fetch cover for a book via scraping
+    $app->post('/api/libri/{id:\d+}/fetch-cover', function ($request, $response, $args) use ($app) {
+        $controller = new LibriController();
+        $db = $app->getContainer()->get('db');
+        return $controller->fetchCover($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute for bulk operations
+
     // CSV Import routes
     $app->get('/admin/libri/import', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();

@@ -1411,6 +1411,140 @@ class LibriController
         return null;
     }
 
+    /**
+     * Fetch cover for a book via scraping (if missing)
+     */
+    public function fetchCover(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        $repo = new \App\Models\BookRepository($db);
+        $libro = $repo->getById($id);
+
+        if (!$libro) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Libro non trovato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        // Check if already has cover
+        if (!empty($libro['copertina_url'])) {
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // Get ISBN for scraping
+        $isbn = $libro['isbn13'] ?? $libro['isbn10'] ?? $libro['ean'] ?? '';
+        if (empty($isbn)) {
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'no_isbn']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // Call scraping API to get book data including cover
+        $scrapeUrl = '/api/scrape?isbn=' . urlencode($isbn);
+
+        // Internal request to scraping endpoint
+        $ch = curl_init();
+        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $baseUrl . $scrapeUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false, // Internal request
+        ]);
+        $scrapeResult = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !$scrapeResult) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Scraping fallito')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+        }
+
+        $scrapeData = json_decode($scrapeResult, true);
+        if (!$scrapeData || empty($scrapeData['image'])) {
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'no_cover_found']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // Download and save the cover image
+        $imageUrl = $scrapeData['image'];
+
+        $uploadDir = __DIR__ . '/../../storage/uploads/copertine/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        // Download image
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $imageUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
+        ]);
+        $imageData = curl_exec($ch);
+        $imgHttpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($imgHttpCode !== 200 || !$imageData) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+        }
+
+        // Validate image
+        $imageInfo = @getimagesizefromstring($imageData);
+        if ($imageInfo === false) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Immagine non valida')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $mimeType = $imageInfo['mime'] ?? '';
+        $extension = match ($mimeType) {
+            'image/jpeg', 'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            default => null,
+        };
+
+        if ($extension === null) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Formato immagine non supportato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Save image
+        $filename = 'copertina_' . $id . '_' . time() . '.' . $extension;
+        $filepath = $uploadDir . $filename;
+
+        $image = imagecreatefromstring($imageData);
+        if ($image === false) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore processamento immagine')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+
+        $saveResult = match ($extension) {
+            'png' => imagepng($image, $filepath, 9),
+            default => imagejpeg($image, $filepath, 85),
+        };
+        imagedestroy($image);
+
+        if (!$saveResult) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore salvataggio immagine')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+
+        chmod($filepath, 0644);
+
+        // Update book record with cover URL
+        $coverUrl = '/uploads/storage/copertine/' . $filename;
+        $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
+        $stmt->bind_param('si', $coverUrl, $id);
+        $stmt->execute();
+        $stmt->close();
+
+        $response->getBody()->write(json_encode(['success' => true, 'fetched' => true, 'cover_url' => $coverUrl]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
     public function generateLabelPDF(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $repo = new \App\Models\BookRepository($db);
