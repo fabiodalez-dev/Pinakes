@@ -6,6 +6,10 @@ include __DIR__ . '/../partials/loan-actions-swal.php';
 function getStatusBadge($status) {
     $baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
     switch ($status) {
+        case 'pendente':
+            return "<span class='$baseClasses bg-orange-100 text-orange-800'><i class='fas fa-hourglass-half mr-2'></i>" . __("Pendente") . "</span>";
+        case 'prenotato':
+            return "<span class='$baseClasses bg-purple-100 text-purple-800'><i class='fas fa-calendar-check mr-2'></i>" . __("Prenotato") . "</span>";
         case 'in_corso':
             return "<span class='$baseClasses bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>" . __("In Corso") . "</span>";
         case 'in_ritardo':
@@ -13,10 +17,11 @@ function getStatusBadge($status) {
         case 'restituito':
             return "<span class='$baseClasses bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i>" . __("Restituito") . "</span>";
         case 'perso':
+            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Perso") . "</span>";
         case 'danneggiato':
-            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . ucfirst(__(ucfirst($status))) . "</span>";
+            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Danneggiato") . "</span>";
         default:
-            return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . ucfirst($status) . "</span>";
+            return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . __("Sconosciuto") . "</span>";
     }
 }
 ?>
@@ -172,8 +177,10 @@ function getStatusBadge($status) {
         <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-800"><?= __("Elenco Prestiti") ?></h2>
             <div class="flex flex-wrap items-center gap-2 text-sm">
-              <button data-status="in_corso" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In corso") ?></button>
-              <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In ritardo") ?></button>
+              <button data-status="pendente" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Pendente") ?></button>
+              <button data-status="prenotato" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Prenotato") ?></button>
+              <button data-status="in_corso" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In Corso") ?></button>
+              <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In Ritardo") ?></button>
               <button data-status="restituito" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Restituito") ?></button>
               <button data-status="" class="status-filter-btn btn-primary px-3 py-1.5"><?= __("Tutti") ?></button>
             </div>
@@ -311,6 +318,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     const baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
                     switch (data) {
+                        case 'pendente':
+                            return `<span class='${baseClasses} bg-orange-100 text-orange-800'><i class='fas fa-hourglass-half mr-2'></i><?= __("Pendente") ?></span>`;
+                        case 'prenotato':
+                            return `<span class='${baseClasses} bg-purple-100 text-purple-800'><i class='fas fa-calendar-check mr-2'></i><?= __("Prenotato") ?></span>`;
                         case 'in_corso':
                             return `<span class='${baseClasses} bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i><?= __("In Corso") ?></span>`;
                         case 'in_ritardo':
@@ -318,11 +329,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         case 'restituito':
                             return `<span class='${baseClasses} bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i><?= __("Restituito") ?></span>`;
                         case 'perso':
-                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>${window.__('Perso')}</span>`;
+                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i><?= __("Perso") ?></span>`;
                         case 'danneggiato':
-                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>${window.__('Danneggiato')}</span>`;
+                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i><?= __("Danneggiato") ?></span>`;
                         default:
-                            return `<span class='${baseClasses} bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>${data.charAt(0).toUpperCase() + data.slice(1)}</span>`;
+                            return `<span class='${baseClasses} bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i><?= __("Sconosciuto") ?></span>`;
                     }
                 }
             },

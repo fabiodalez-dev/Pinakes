@@ -160,6 +160,25 @@ class LibriController
         }
         $stmt->close();
 
+        // Active reservations for this book (for admin visibility)
+        $activeReservations = [];
+        $resStmt = $db->prepare("
+            SELECT r.id, r.data_inizio_richiesta, r.data_fine_richiesta, r.data_scadenza_prenotazione,
+                   r.stato, r.queue_position,
+                   u.nome, u.cognome, u.email
+            FROM prenotazioni r
+            JOIN utenti u ON u.id = r.utente_id
+            WHERE r.libro_id = ? AND r.stato = 'attiva'
+            ORDER BY r.data_inizio_richiesta IS NULL, r.data_inizio_richiesta ASC, r.id ASC
+        ");
+        $resStmt->bind_param('i', $id);
+        $resStmt->execute();
+        $resResult = $resStmt->get_result();
+        while ($row = $resResult->fetch_assoc()) {
+            $activeReservations[] = $row;
+        }
+        $resStmt->close();
+
         ob_start();
         // extract([
         //     'libro' => $libro,

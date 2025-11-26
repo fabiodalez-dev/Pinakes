@@ -3,6 +3,7 @@
 function formatLoanStatus($status) {
     return match ($status) {
         'pendente' => __('In Attesa di Approvazione'),
+        'prenotato' => __('Prenotato'),
         'in_corso' => __('In Corso'),
         'in_ritardo' => __('In Ritardo'),
         'restituito' => __('Restituito'),
@@ -89,6 +90,7 @@ function formatLoanStatus($status) {
             <span class="inline-block px-2 py-1 rounded text-sm <?php
               echo match($prestito['stato'] ?? '') {
                 'pendente' => 'bg-orange-100 text-orange-800',
+                'prenotato' => 'bg-purple-100 text-purple-800',
                 'restituito' => 'bg-green-100 text-green-800',
                 'in_corso' => 'bg-blue-100 text-blue-800',
                 'in_ritardo' => 'bg-yellow-100 text-yellow-800',
@@ -151,6 +153,43 @@ function formatLoanStatus($status) {
   </div>
 </section>
 
+<?php
+$jsTranslationKeys = [
+    'Approva prestito?',
+    'Sei sicuro di voler approvare questa richiesta di prestito?',
+    'Sì, approva',
+    'Annulla',
+    'Approvato!',
+    'Il prestito è stato approvato con successo.',
+    'OK',
+    'Errore',
+    'Errore durante l\'approvazione',
+    'Errore nella comunicazione con il server',
+    'Rifiuta prestito',
+    'Motivo del rifiuto (opzionale)',
+    'Inserisci il motivo del rifiuto...',
+    'Rifiuta',
+    'Rifiutato',
+    'Il prestito è stato rifiutato.',
+    'Errore durante il rifiuto'
+];
+$jsTranslations = [];
+foreach ($jsTranslationKeys as $key) {
+    $jsTranslations[$key] = __($key);
+}
+?>
+<script>
+(function() {
+    const translations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE); ?>;
+    window.APP_TRANSLATIONS = Object.assign(window.APP_TRANSLATIONS || {}, translations);
+    if (typeof window.__ !== 'function') {
+        window.__ = function(key) {
+            const dict = window.APP_TRANSLATIONS || translations;
+            return Object.prototype.hasOwnProperty.call(dict, key) ? dict[key] : key;
+        };
+    }
+})();
+</script>
 <script>
 (function() {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
