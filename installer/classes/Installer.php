@@ -1290,6 +1290,158 @@ HTACCESS;
     }
 
     /**
+     * Set secure file permissions after installation
+     * - Directories: 755 (rwxr-xr-x)
+     * - Files: 644 (rw-r--r--)
+     * - Writable directories (storage, logs): 775
+     * - Sensitive files (.env): 600
+     *
+     * @return array Results with counts of modified items
+     */
+    public function setSecurePermissions(): array
+    {
+        $results = [
+            'directories' => 0,
+            'files' => 0,
+            'writable_dirs' => 0,
+            'sensitive_files' => 0,
+            'errors' => []
+        ];
+
+        // Directories that need write permissions (775)
+        $writableDirs = [
+            'storage',
+            'storage/cache',
+            'storage/logs',
+            'storage/plugins',
+            'storage/uploads',
+            'storage/sessions',
+            'public/assets',
+            'public/uploads',
+        ];
+
+        // Sensitive files that need restricted permissions (600)
+        $sensitiveFiles = [
+            '.env',
+            '.installed',
+        ];
+
+        // Directories to skip (vendor, node_modules, .git)
+        $skipDirs = ['vendor', 'node_modules', '.git', 'installer'];
+
+        // First, handle sensitive files
+        foreach ($sensitiveFiles as $file) {
+            $path = $this->baseDir . '/' . $file;
+            if (file_exists($path)) {
+                if (@chmod($path, 0600)) {
+                    $results['sensitive_files']++;
+                } else {
+                    $results['errors'][] = "Cannot set permissions on: $file";
+                }
+            }
+        }
+
+        // Handle writable directories first (create if missing)
+        foreach ($writableDirs as $dir) {
+            $path = $this->baseDir . '/' . $dir;
+            if (!is_dir($path)) {
+                @mkdir($path, 0775, true);
+            }
+            if (is_dir($path)) {
+                if (@chmod($path, 0775)) {
+                    $results['writable_dirs']++;
+                } else {
+                    $results['errors'][] = "Cannot set permissions on directory: $dir";
+                }
+            }
+        }
+
+        // Recursively set permissions on all other files and directories
+        $this->setPermissionsRecursive(
+            $this->baseDir,
+            $skipDirs,
+            $writableDirs,
+            $sensitiveFiles,
+            $results
+        );
+
+        return $results;
+    }
+
+    /**
+     * Recursively set permissions on files and directories
+     */
+    private function setPermissionsRecursive(
+        string $dir,
+        array $skipDirs,
+        array $writableDirs,
+        array $sensitiveFiles,
+        array &$results,
+        string $relativePath = ''
+    ): void {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = @scandir($dir);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $dir . '/' . $item;
+            $relPath = $relativePath ? $relativePath . '/' . $item : $item;
+
+            // Skip certain directories
+            if (is_dir($path) && in_array($item, $skipDirs)) {
+                continue;
+            }
+
+            // Skip files/dirs we already handled
+            if (in_array($relPath, $sensitiveFiles)) {
+                continue;
+            }
+
+            // Check if this is a writable directory (or inside one)
+            $isWritableDir = false;
+            foreach ($writableDirs as $wDir) {
+                if ($relPath === $wDir || strpos($relPath, $wDir . '/') === 0) {
+                    $isWritableDir = true;
+                    break;
+                }
+            }
+
+            if (is_dir($path)) {
+                // Set directory permissions
+                $targetPerm = $isWritableDir ? 0775 : 0755;
+                if (@chmod($path, $targetPerm)) {
+                    $results['directories']++;
+                }
+
+                // Recurse into subdirectory
+                $this->setPermissionsRecursive(
+                    $path,
+                    $skipDirs,
+                    $writableDirs,
+                    $sensitiveFiles,
+                    $results,
+                    $relPath
+                );
+            } else {
+                // Set file permissions (644 for normal, 664 for files in writable dirs)
+                $targetPerm = $isWritableDir ? 0664 : 0644;
+                if (@chmod($path, $targetPerm)) {
+                    $results['files']++;
+                }
+            }
+        }
+    }
+
+    /**
      * Delete installer directory for security
      */
     public function deleteInstaller() {

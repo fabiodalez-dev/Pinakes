@@ -1911,6 +1911,8 @@
   "Permessi": "Permissions",
   "Permessi Directory": "Directory Permissions",
   "Permessi corretti con successo!": "Permissions fixed successfully!",
+  "Permessi file impostati:": "File permissions set:",
+  "%d file sensibili protetti": "%d sensitive files protected",
   "Perso": "Lost",
   "Persona di riferimento presso l'editore": "Reference person at the publisher",
   "Personale": "Personal",
