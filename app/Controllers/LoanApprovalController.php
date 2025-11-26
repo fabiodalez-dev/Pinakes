@@ -208,9 +208,13 @@ class LoanApprovalController {
             $stmt->execute();
             $stmt->close();
 
-            // Aggiorna stato della copia a 'prestato'
+            // Aggiorna stato della copia a 'prestato' SOLO se il prestito inizia oggi
+            // Per i prestiti futuri (prenotato), la copia rimane disponibile
+            // MaintenanceService::activateScheduledLoans() la segnerà come 'prestato' quando il prestito inizia
             $copyRepo = new \App\Models\CopyRepository($db);
-            $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
+            if (!$isFutureLoan) {
+                $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
+            }
 
             // Update book availability with integrity check
             $integrity = new DataIntegrity($db);
