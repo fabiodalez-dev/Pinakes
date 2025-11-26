@@ -162,20 +162,36 @@ class EditoriApiController
         // Check if any publisher has books
         $checkSql = "SELECT id FROM libri WHERE editore_id IN ($placeholders) LIMIT 1";
         $checkStmt = $db->prepare($checkSql);
-        if ($checkStmt) {
-            $checkStmt->bind_param($types, ...$cleanIds);
-            $checkStmt->execute();
-            $checkResult = $checkStmt->get_result();
-            if ($checkResult->num_rows > 0) {
-                $checkStmt->close();
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'error' => __('Impossibile eliminare: alcuni editori hanno libri associati')
-                ], JSON_UNESCAPED_UNICODE));
-                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
-            }
-            $checkStmt->close();
+        if (!$checkStmt) {
+            AppLog::error('editori.bulk_delete.check_prepare_failed', ['error' => $db->error]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore interno del database durante la verifica')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
+
+        $checkStmt->bind_param($types, ...$cleanIds);
+        if (!$checkStmt->execute()) {
+            AppLog::error('editori.bulk_delete.check_execute_failed', ['error' => $checkStmt->error]);
+            $checkStmt->close();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore durante la verifica dei libri associati')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        $checkResult = $checkStmt->get_result();
+        if ($checkResult && $checkResult->num_rows > 0) {
+            $checkStmt->close();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Impossibile eliminare: alcuni editori hanno libri associati')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+        $checkStmt->close();
 
         // Delete the publishers
         $sql = "DELETE FROM editori WHERE id IN ($placeholders)";
@@ -190,7 +206,15 @@ class EditoriApiController
         }
 
         $stmt->bind_param($types, ...$cleanIds);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            AppLog::error('editori.bulk_delete.execute_failed', ['error' => $stmt->error]);
+            $stmt->close();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore durante l\'eliminazione degli editori')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
         $affected = $stmt->affected_rows;
         $stmt->close();
 
