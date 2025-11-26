@@ -4,6 +4,7 @@ use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\ContentSanitizer;
 use App\Support\HtmlHelper;
+use App\Support\I18n;
 
 $appName = (string) ConfigStore::get('app.name', 'Pinakes');
 $appLogo = Branding::logo();
@@ -63,9 +64,12 @@ if (!function_exists('assetUrl')) {
         return absoluteUrl('/assets' . $normalizedPath);
     }
 }
+
+$currentLocale = I18n::getLocale();
+$htmlLang = substr($currentLocale, 0, 2);
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?= $htmlLang ?>">
 
 <head>
     <meta charset="UTF-8">

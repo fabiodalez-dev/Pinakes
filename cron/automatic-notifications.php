@@ -80,6 +80,48 @@ try {
     if ($hour === 6) { // Run at 6 AM
         logMessage("Running daily maintenance tasks");
 
+        // Activate scheduled loans (prenotato -> in_corso) when their start date arrives
+        $stmt = $db->prepare("
+            SELECT id, copia_id, libro_id FROM prestiti
+            WHERE stato = 'prenotato'
+            AND data_prestito <= CURDATE()
+            AND attivo = 1
+        ");
+        $stmt->execute();
+        $scheduledLoans = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $activatedLoans = 0;
+        foreach ($scheduledLoans as $loan) {
+            // Update loan status to in_corso
+            $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ?");
+            $updateStmt->bind_param('i', $loan['id']);
+            $updateStmt->execute();
+            $updateStmt->close();
+
+            // Mark the copy as 'prestato'
+            $copyStmt = $db->prepare("UPDATE copie SET stato = 'prestato' WHERE id = ?");
+            $copyStmt->bind_param('i', $loan['copia_id']);
+            $copyStmt->execute();
+            $copyStmt->close();
+
+            // Recalculate book availability
+            $availStmt = $db->prepare("
+                UPDATE libri l
+                SET copie_disponibili = (
+                    SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile'
+                )
+                WHERE l.id = ?
+            ");
+            $availStmt->bind_param('i', $loan['libro_id']);
+            $availStmt->execute();
+            $availStmt->close();
+
+            $activatedLoans++;
+        }
+
+        logMessage("Activated {$activatedLoans} scheduled loans (prenotato -> in_corso)");
+
         // Update overdue loans status
         $stmt = $db->prepare("
             UPDATE prestiti

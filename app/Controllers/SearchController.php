@@ -100,13 +100,50 @@ class SearchController
         $rows=[];
         if ($q !== '') {
             $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, titolo AS label FROM libri WHERE titolo LIKE ? OR sottotitolo LIKE ? ORDER BY titolo LIMIT 20");
-            $stmt->bind_param('ss', $s, $s);
+            // Search by title, subtitle, ISBN10, ISBN13, or EAN
+            $stmt = $db->prepare("
+                SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.stato,
+                       (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
+                        FROM libri_autori la
+                        JOIN autori a ON la.autore_id = a.id
+                        WHERE la.libro_id = l.id) AS autori,
+                       (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile') AS copie_disponibili,
+                       (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id) AS copie_totali
+                FROM libri l
+                WHERE l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?
+                ORDER BY l.titolo LIMIT 20
+            ");
+            $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
             $stmt->execute();
             $res = $stmt->get_result();
-            while ($r = $res->fetch_assoc()) { 
-                $r['label'] = HtmlHelper::decode($r['label']); 
-                $rows[] = $r; 
+            while ($r = $res->fetch_assoc()) {
+                $titolo = HtmlHelper::decode($r['titolo']);
+                $autori = !empty($r['autori']) ? HtmlHelper::decode($r['autori']) : '';
+
+                // Build label with author
+                $label = $titolo;
+                if ($autori) {
+                    $label .= ' - ' . $autori;
+                }
+
+                // Add ISBN/EAN info
+                $isbn = '';
+                if (!empty($r['isbn13'])) {
+                    $isbn = $r['isbn13'];
+                } elseif (!empty($r['isbn10'])) {
+                    $isbn = $r['isbn10'];
+                } elseif (!empty($r['ean'])) {
+                    $isbn = $r['ean'];
+                }
+
+                $rows[] = [
+                    'id' => $r['id'],
+                    'label' => $label,
+                    'isbn' => $isbn,
+                    'copie_disponibili' => (int)$r['copie_disponibili'],
+                    'copie_totali' => (int)$r['copie_totali'],
+                    'stato' => $r['stato']
+                ];
             }
         }
         $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));

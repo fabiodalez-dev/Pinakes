@@ -1,4 +1,11 @@
-<?php use App\Support\Csrf; $csrf = Csrf::ensureToken(); ?>
+<?php
+use App\Support\Csrf;
+
+$csrf = Csrf::ensureToken();
+// Get locale from session (same as frontend/layout.php)
+$currentLocale = $_SESSION['locale'] ?? 'it_IT';
+$isItalian = str_starts_with($currentLocale, 'it');
+?>
 <section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
   <!-- Breadcrumb -->
   <nav aria-label="breadcrumb" class="mb-2">
@@ -28,9 +35,10 @@
   <!-- Visualizzazione eventuale messaggio d'errore -->
   <?php if(isset($_GET['error'])): ?>
     <div class="mb-4 p-4 bg-red-100 text-red-800 rounded">
-      <?php 
+      <?php
       switch($_GET['error']) {
         case 'libro_in_prestito':
+        case 'book_not_available':
           echo __('Il libro selezionato è già in prestito. Seleziona un altro libro.');
           break;
         case 'missing_fields':
@@ -38,6 +46,9 @@
           break;
         case 'invalid_dates':
           echo __('Errore: la data di scadenza deve essere successiva alla data di prestito.');
+          break;
+        case 'no_copies_available':
+          echo __('Tutte le copie di questo libro hanno già un prestito attivo o prenotato. Attendi che una copia venga restituita.');
           break;
         default:
           echo __('Errore durante la creazione del prestito.');
@@ -55,31 +66,58 @@
 
     <!-- Ricerca Utente -->
     <div class="relative">
-      <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Ricerca Utente") ?> *</label>
-      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+      <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Utente") ?> *</label>
+      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off">
       <div id="utente_suggest" class="suggestions-box"></div>
-      <input type="hidden" name="utente_id" id="utente_id" value="0" />
+      <input type="hidden" name="utente_id" id="utente_id" value="0" required />
     </div>
 
     <!-- Ricerca Libro -->
     <div class="relative">
-      <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Ricerca Libro") ?> *</label>
-      <input type="text" id="libro_search" placeholder="<?= __('Cerca per titolo o sottotitolo') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+      <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Libro") ?> *</label>
+      <input type="text" id="libro_search" placeholder="<?= __('Cerca per titolo, ISBN o EAN') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off">
       <div id="libro_suggest" class="suggestions-box"></div>
-      <input type="hidden" name="libro_id" id="libro_id" value="0" />
+      <input type="hidden" name="libro_id" id="libro_id" value="0" required />
+      <!-- Availability indicator -->
+      <div id="libro_availability" class="mt-2 hidden">
+        <div class="flex items-center gap-2 p-3 rounded-lg border" id="availability_card">
+          <div id="availability_icon"></div>
+          <div class="flex-1">
+            <div id="availability_text" class="text-sm font-medium"></div>
+            <div id="availability_detail" class="text-xs text-gray-500"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Data Prestito -->
       <div>
         <label for="data_prestito" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Prestito") ?> *</label>
-        <input type="date" name="data_prestito" id="data_prestito" value="<?php echo date('Y-m-d'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+        <input type="text" name="data_prestito" id="data_prestito" value="<?php echo date('Y-m-d'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+        <p id="data_prestito_hint" class="mt-1 text-xs text-gray-500 hidden"></p>
       </div>
 
       <!-- Data Scadenza -->
       <div>
         <label for="data_scadenza" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Scadenza") ?> *</label>
-        <input type="date" name="data_scadenza" id="data_scadenza" value="<?php echo date('Y-m-d', strtotime('+14 days')); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+        <input type="text" name="data_scadenza" id="data_scadenza" value="<?php echo date('Y-m-d', strtotime('+1 month')); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+      </div>
+    </div>
+
+    <!-- Calendar Legend -->
+    <div id="calendar_legend" class="hidden flex flex-wrap gap-4 text-xs">
+      <div class="flex items-center gap-1">
+        <span class="inline-block w-4 h-4 rounded" style="background-color: #dcfce7;"></span>
+        <span><?= __("Disponibile") ?></span>
+      </div>
+      <div class="flex items-center gap-1">
+        <span class="inline-block w-4 h-4 rounded" style="background-color: #fef3c7;"></span>
+        <span><?= __("Occupato (prestito attivo)") ?></span>
+      </div>
+      <div class="flex items-center gap-1">
+        <span class="inline-block w-4 h-4 rounded" style="background-color: #fee2e2;"></span>
+        <span><?= __("Occupato (in ritardo)") ?></span>
       </div>
     </div>
 
@@ -93,9 +131,9 @@
     <div class="flex items-center gap-4">
       <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
-<a href="/admin/prestiti" class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+      <a href="/admin/prestiti" class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-times mr-2"></i><?= __("Annulla") ?>
-</a>
+      </a>
     </div>
   </form>
 
@@ -104,79 +142,355 @@
       position: absolute;
       background: white;
       border: 1px solid #e2e8f0;
-      z-index: 10;
+      z-index: 50;
       width: 100%;
-      max-height: 200px;
+      max-height: 250px;
       overflow-y: auto;
-      border-radius: 0.375rem;
+      border-radius: 0.5rem;
       display: none;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     .suggestion-item {
-      padding: 0.5rem;
+      padding: 0.75rem 1rem;
       cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .suggestion-item:last-child {
+      border-bottom: none;
     }
     .suggestion-item:hover {
+      background-color: #f8fafc;
+    }
+    .suggestion-item.selected {
       background-color: #f1f5f9;
+    }
+    /* Flatpickr calendar date coloring */
+    .flatpickr-day.date-available {
+      background-color: #dcfce7 !important;
+      border-color: #86efac !important;
+    }
+    .flatpickr-day.date-available:hover {
+      background-color: #bbf7d0 !important;
+    }
+    .flatpickr-day.date-occupied {
+      background-color: #fef3c7 !important;
+      border-color: #fcd34d !important;
+      color: #92400e !important;
+    }
+    .flatpickr-day.date-occupied:hover {
+      background-color: #fde68a !important;
+    }
+    .flatpickr-day.date-overdue {
+      background-color: #fee2e2 !important;
+      border-color: #fca5a5 !important;
+      color: #991b1b !important;
+    }
+    .flatpickr-day.date-overdue:hover {
+      background-color: #fecaca !important;
+    }
+    .flatpickr-day.date-occupied.selected,
+    .flatpickr-day.date-overdue.selected {
+      color: white !important;
     }
   </style>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const setupAutocomplete = ({ inputId, suggestId, hiddenId, endpoint, minLength = 2 }) => {
+    document.addEventListener('DOMContentLoaded', function() {
+      // Translations
+      const i18n = {
+        noResults: <?= json_encode(__("Nessun risultato"), JSON_UNESCAPED_UNICODE) ?>,
+        available: <?= json_encode(__("Disponibile"), JSON_UNESCAPED_UNICODE) ?>,
+        notAvailable: <?= json_encode(__("Non disponibile ora"), JSON_UNESCAPED_UNICODE) ?>,
+        reservable: <?= json_encode(__("Prenotabile per date future"), JSON_UNESCAPED_UNICODE) ?>,
+        copies: <?= json_encode(__("copie"), JSON_UNESCAPED_UNICODE) ?>,
+        firstAvailable: <?= json_encode(__("Prima data disponibile: %s"), JSON_UNESCAPED_UNICODE) ?>,
+        availableOnDate: <?= json_encode(__("Disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE) ?>,
+        notAvailableOnDate: <?= json_encode(__("Non disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE) ?>,
+        selectBook: <?= json_encode(__("Seleziona un libro per vedere la disponibilità"), JSON_UNESCAPED_UNICODE) ?>
+      };
+
+      // Book availability data
+      let bookAvailability = {
+        occupiedRanges: [],
+        firstAvailable: null,
+        isAvailableNow: true
+      };
+
+      // Date picker elements
+      const dataPrestitoEl = document.getElementById('data_prestito');
+      const dataScadenzaEl = document.getElementById('data_scadenza');
+      const dataPrestitoHint = document.getElementById('data_prestito_hint');
+      const calendarLegend = document.getElementById('calendar_legend');
+
+      // Flatpickr instances
+      let fpPrestito = null;
+      let fpScadenza = null;
+
+      // Availability data by date (same structure as frontend)
+      let availabilityByDate = {};
+
+      // Format date as YYYY-MM-DD
+      function formatDate(date) {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      // Flatpickr onDayCreate callback to color dates (same logic as frontend)
+      function colorCalendarDates(dObj, dStr, fp, dayElem) {
+        if (!dayElem || !dayElem.dateObj) return;
+        if (dayElem.classList.contains('prevMonthDay') || dayElem.classList.contains('nextMonthDay')) return;
+
+        const isoDate = fp.formatDate(dayElem.dateObj, 'Y-m-d');
+        const today = formatDate(new Date());
+        const info = availabilityByDate[isoDate];
+
+        // Don't color past dates
+        if (isoDate < today) {
+          return;
+        }
+
+        if (info) {
+          // Apply inline styles to ensure colors show (same as frontend)
+          if (info.state === 'borrowed') {
+            dayElem.style.backgroundColor = '#fef2f2';
+            dayElem.style.borderColor = '#fecaca';
+            dayElem.style.color = '#b91c1c';
+          } else if (info.state === 'reserved') {
+            dayElem.style.backgroundColor = '#fffbeb';
+            dayElem.style.borderColor = '#fef3c7';
+            dayElem.style.color = '#b45309';
+          } else if (info.state === 'free') {
+            dayElem.style.backgroundColor = '#f0fdf4';
+            dayElem.style.borderColor = '#bbf7d0';
+            dayElem.style.color = '#166534';
+          }
+        } else if (Object.keys(availabilityByDate).length > 0) {
+          // Default to free if we have data but this date isn't in it
+          dayElem.style.backgroundColor = '#f0fdf4';
+          dayElem.style.borderColor = '#bbf7d0';
+          dayElem.style.color = '#166534';
+        }
+      }
+
+      // Check if a date is occupied (for hint text)
+      function isDateOccupied(dateStr) {
+        const info = availabilityByDate[dateStr];
+        if (info && info.state !== 'free') {
+          return info.state === 'borrowed' ? 'in_ritardo' : 'in_corso';
+        }
+        return false;
+      }
+
+      // Get locale for flatpickr
+      const appLocale = document.documentElement.lang?.startsWith('it') ? 'it' : 'en';
+      const isItalian = appLocale === 'it';
+      const localeObj = window.flatpickrLocales ? window.flatpickrLocales[appLocale] : null;
+
+      // Initialize flatpickr for data_prestito
+      const fpConfig = {
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: isItalian ? 'd/m/Y' : 'm/d/Y',
+        allowInput: true,
+        minDate: 'today',
+        locale: localeObj || undefined,
+        onDayCreate: colorCalendarDates,
+        onChange: function(selectedDates, dateStr) {
+          if (dateStr) {
+            // Auto-update end date
+            const startDate = new Date(dateStr);
+            const endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + 1);
+            if (fpScadenza) {
+              fpScadenza.set('minDate', dateStr);
+              fpScadenza.setDate(endDate);
+            }
+
+            // Update hint about availability
+            updateDateHint(dateStr);
+          }
+        }
+      };
+
+      fpPrestito = flatpickr(dataPrestitoEl, fpConfig);
+
+      // Initialize flatpickr for data_scadenza
+      fpScadenza = flatpickr(dataScadenzaEl, {
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: isItalian ? 'd/m/Y' : 'm/d/Y',
+        allowInput: true,
+        minDate: dataPrestitoEl.value || 'today',
+        locale: localeObj || undefined
+      });
+
+      // Update hint text based on selected date
+      function updateDateHint(dateStr) {
+        if (!dataPrestitoHint) return;
+
+        const occupiedStatus = isDateOccupied(dateStr);
+
+        if (occupiedStatus) {
+          dataPrestitoHint.textContent = i18n.notAvailableOnDate;
+          dataPrestitoHint.className = 'mt-1 text-xs text-amber-600';
+          dataPrestitoHint.classList.remove('hidden');
+        } else {
+          dataPrestitoHint.textContent = i18n.availableOnDate;
+          dataPrestitoHint.className = 'mt-1 text-xs text-green-600';
+          dataPrestitoHint.classList.remove('hidden');
+        }
+      }
+
+      // Fetch and apply book availability (same API as frontend)
+      function fetchBookAvailability(bookId) {
+        if (!bookId || bookId === '0') {
+          availabilityByDate = {};
+          bookAvailability = { occupiedRanges: [], firstAvailable: null, isAvailableNow: true };
+          if (calendarLegend) calendarLegend.classList.add('hidden');
+          if (dataPrestitoHint) dataPrestitoHint.classList.add('hidden');
+          if (fpPrestito) fpPrestito.redraw();
+          return;
+        }
+
+        // Use same API as frontend
+        fetch('/api/libro/' + bookId + '/availability')
+          .then(function(response) {
+            if (!response.ok) throw new Error('Failed to fetch availability');
+            return response.json();
+          })
+          .then(function(data) {
+            if (data.success && data.availability) {
+              // Build availabilityByDate map (same structure as frontend)
+              availabilityByDate = {};
+              if (Array.isArray(data.availability.days)) {
+                data.availability.days.forEach(function(day) {
+                  if (day && day.date) {
+                    availabilityByDate[day.date] = day;
+                  }
+                });
+              }
+
+              // Also keep old structure for backward compatibility
+              bookAvailability = {
+                occupiedRanges: [],
+                firstAvailable: data.availability.earliest_available || null,
+                isAvailableNow: !data.availability.unavailable_dates || data.availability.unavailable_dates.length === 0
+              };
+            }
+
+            // Show legend
+            if (calendarLegend) calendarLegend.classList.remove('hidden');
+
+            // Redraw calendars with new colors
+            if (fpPrestito) fpPrestito.redraw();
+
+            // Update hint if date is already selected
+            if (dataPrestitoEl.value) {
+              updateDateHint(dataPrestitoEl.value);
+            }
+
+            // If not available now, show first available date hint
+            if (!bookAvailability.isAvailableNow && bookAvailability.firstAvailable && dataPrestitoHint) {
+              const firstAvailFormatted = isItalian
+                ? bookAvailability.firstAvailable.split('-').reverse().join('/')
+                : bookAvailability.firstAvailable;
+              dataPrestitoHint.textContent = i18n.firstAvailable.replace('%s', firstAvailFormatted);
+              dataPrestitoHint.className = 'mt-1 text-xs text-amber-600';
+              dataPrestitoHint.classList.remove('hidden');
+            }
+          })
+          .catch(function(error) {
+            console.error('Error fetching availability:', error);
+          });
+      }
+
+      // Simple autocomplete setup
+      function setupAutocomplete(inputId, suggestId, hiddenId, endpoint, isBook) {
         const inputEl = document.getElementById(inputId);
         const suggestEl = document.getElementById(suggestId);
         const hiddenEl = document.getElementById(hiddenId);
         let debounceTimer = null;
 
-        if (!inputEl || !suggestEl || !hiddenEl) {
-          console.warn('Impossibile configurare autocomplete: elementi mancanti', { inputId, suggestId, hiddenId });
-          return;
-        }
+        if (!inputEl || !suggestEl || !hiddenEl) return;
 
-        const hideSuggestions = () => {
+        function hideSuggestions() {
           suggestEl.style.display = 'none';
           suggestEl.innerHTML = '';
-        };
+        }
 
-        const renderSuggestions = (items) => {
+        function showSuggestions(items) {
           if (!items || items.length === 0) {
-            suggestEl.innerHTML = "<div class='suggestion-item suggestion-empty'><?= __("Nessun risultato") ?></div>";
+            suggestEl.innerHTML = '<div class="suggestion-item" style="color: #9ca3af; cursor: default;">' + i18n.noResults + '</div>';
             suggestEl.style.display = 'block';
             return;
           }
 
-          suggestEl.innerHTML = items.map((item) => (
-            `<div class='suggestion-item' data-id='${item.id}'>${item.label}</div>`
-          )).join('');
+          suggestEl.innerHTML = items.map(function(item) {
+            if (isBook) {
+              const copieDisponibili = item.copie_disponibili || 0;
+              const copieTotali = item.copie_totali || 0;
+              const isAvailable = copieDisponibili > 0;
+              // Green for available, Amber for reservable (not available now but can be scheduled)
+              const iconColor = isAvailable ? '#22c55e' : '#f59e0b';
+              const statusIcon = isAvailable ? 'fa-check-circle' : 'fa-clock';
+              const countColor = isAvailable ? '#16a34a' : '#92400e';
+
+              return '<div class="suggestion-item" data-id="' + item.id + '" data-copies="' + copieDisponibili + '" data-total="' + copieTotali + '">' +
+                '<div style="display: flex; align-items: center; gap: 0.5rem;">' +
+                '<i class="fas ' + statusIcon + '" style="color: ' + iconColor + ';"></i>' +
+                '<span style="flex: 1;">' + escapeHtml(item.label) + '</span>' +
+                '<span style="font-size: 0.75rem; font-weight: 600; color: ' + countColor + ';">' + copieDisponibili + '/' + copieTotali + '</span>' +
+                '</div>' +
+                '</div>';
+            }
+            return '<div class="suggestion-item" data-id="' + item.id + '">' + escapeHtml(item.label) + '</div>';
+          }).join('');
 
           suggestEl.style.display = 'block';
-        };
+        }
 
-        inputEl.addEventListener('input', () => {
+        function escapeHtml(str) {
+          if (!str) return '';
+          return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        inputEl.addEventListener('input', function() {
           hiddenEl.value = '0';
-          const query = inputEl.value.trim();
+          hideAvailability();
 
+          // Reset calendar availability when book changes
+          if (isBook) {
+            fetchBookAvailability(null);
+          }
+
+          const query = this.value.trim();
           clearTimeout(debounceTimer);
 
-          if (query.length < minLength) {
+          if (query.length < 2) {
             hideSuggestions();
             return;
           }
 
-          debounceTimer = setTimeout(async () => {
-            try {
-              const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
-              if (!response.ok) throw new Error(`Richiesta fallita: ${response.status}`);
-              const data = await response.json();
-              renderSuggestions(Array.isArray(data) ? data : []);
-            } catch (error) {
-              console.error(`Errore durante la ricerca su ${endpoint}:`, error);
-              hideSuggestions();
-            }
-          }, 250);
+          debounceTimer = setTimeout(function() {
+            fetch(endpoint + '?q=' + encodeURIComponent(query))
+              .then(function(response) {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+              })
+              .then(function(data) {
+                showSuggestions(Array.isArray(data) ? data : []);
+              })
+              .catch(function(error) {
+                console.error('Search error:', error);
+                hideSuggestions();
+              });
+          }, 300);
         });
 
-        suggestEl.addEventListener('click', (event) => {
+        suggestEl.addEventListener('click', function(event) {
           const item = event.target.closest('.suggestion-item');
           if (!item) return;
 
@@ -184,30 +498,77 @@
           if (!selectedId) return;
 
           hiddenEl.value = selectedId;
-          inputEl.value = item.textContent.trim();
+
+          // Get text content
+          const textSpan = item.querySelector('span');
+          inputEl.value = textSpan ? textSpan.textContent.trim() : item.textContent.trim();
+
+          // Show availability for books and fetch calendar dates
+          if (isBook) {
+            const copies = parseInt(item.getAttribute('data-copies') || '0', 10);
+            const total = parseInt(item.getAttribute('data-total') || '0', 10);
+            showAvailability(copies, total);
+            // Fetch availability dates for calendar coloring
+            fetchBookAvailability(selectedId);
+          }
+
           hideSuggestions();
         });
 
-        document.addEventListener('click', (event) => {
+        document.addEventListener('click', function(event) {
           if (!inputEl.contains(event.target) && !suggestEl.contains(event.target)) {
             hideSuggestions();
           }
         });
-      };
 
-      setupAutocomplete({
-        inputId: 'utente_search',
-        suggestId: 'utente_suggest',
-        hiddenId: 'utente_id',
-        endpoint: '/api/search/utenti'
-      });
+        // Keyboard navigation
+        inputEl.addEventListener('keydown', function(event) {
+          if (event.key === 'Escape') {
+            hideSuggestions();
+          }
+        });
+      }
 
-      setupAutocomplete({
-        inputId: 'libro_search',
-        suggestId: 'libro_suggest',
-        hiddenId: 'libro_id',
-        endpoint: '/api/search/libri'
-      });
+      // Availability display
+      const availabilityContainer = document.getElementById('libro_availability');
+      const availabilityCard = document.getElementById('availability_card');
+      const availabilityIcon = document.getElementById('availability_icon');
+      const availabilityText = document.getElementById('availability_text');
+      const availabilityDetail = document.getElementById('availability_detail');
+
+      function hideAvailability() {
+        if (availabilityContainer) {
+          availabilityContainer.classList.add('hidden');
+        }
+      }
+
+      function showAvailability(copies, total) {
+        if (!availabilityContainer) return;
+
+        availabilityContainer.classList.remove('hidden');
+
+        if (copies > 0) {
+          // Green - available now
+          availabilityCard.style.backgroundColor = '#f0fdf4';
+          availabilityCard.style.borderColor = '#86efac';
+          availabilityIcon.innerHTML = '<i class="fas fa-check-circle" style="color: #22c55e; font-size: 1.25rem;"></i>';
+          availabilityText.textContent = i18n.available;
+          availabilityText.style.color = '#166534';
+          availabilityDetail.textContent = copies + '/' + total + ' ' + i18n.copies;
+        } else {
+          // Amber/Yellow - not available now but can be reserved for future
+          availabilityCard.style.backgroundColor = '#fffbeb';
+          availabilityCard.style.borderColor = '#fcd34d';
+          availabilityIcon.innerHTML = '<i class="fas fa-clock" style="color: #f59e0b; font-size: 1.25rem;"></i>';
+          availabilityText.textContent = i18n.notAvailable;
+          availabilityText.style.color = '#92400e';
+          availabilityDetail.textContent = i18n.reservable;
+        }
+      }
+
+      // Initialize autocompletes
+      setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', '/api/search/utenti', false);
+      setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', '/api/search/libri', true);
     });
   </script>
 </section>
