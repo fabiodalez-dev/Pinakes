@@ -705,7 +705,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <div class="flex items-center justify-end gap-2">
                     <?php
                     $canEdit = empty($copia['prestito_id']);
-                    $canDelete = $canEdit && in_array($copiaStatus, ['perso', 'danneggiato', 'manutenzione']);
+                    $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione']);
                     ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
@@ -978,7 +978,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
             $calendarData[] = $copyInfo;
         }
-        echo json_encode($calendarData, JSON_UNESCAPED_UNICODE);
+        // Use JSON_HEX_* flags to prevent XSS when embedding in HTML/script contexts
+        echo json_encode($calendarData, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
       ?>;
 
       // Initialize flatpickr calendar (read-only, with marked dates)
