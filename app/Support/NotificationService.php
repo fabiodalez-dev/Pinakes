@@ -583,12 +583,13 @@ class NotificationService {
 
     /**
      * Controlla e notifica disponibilità libri in wishlist
+     * Uses comprehensive check for actual physical copy availability
      */
     private function checkAndNotifyWishlistAvailability(): int {
         $totalNotified = 0;
 
         try {
-            // Get books that are now available and have users in wishlist
+            // Get books that have users in wishlist waiting for notification
             $stmt = $this->db->prepare("
                 SELECT DISTINCT w.libro_id
                 FROM wishlist w
@@ -602,17 +603,131 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
+            $bookIds = [];
             while ($row = $result->fetch_assoc()) {
-                $notified = $this->notifyWishlistBookAvailability($row['libro_id']);
-                $totalNotified += $notified;
+                $bookIds[] = (int)$row['libro_id'];
             }
             $stmt->close();
+
+            // For each book, verify actual physical copy availability before notifying
+            foreach ($bookIds as $bookId) {
+                if ($this->hasActualAvailableCopy($bookId)) {
+                    $notified = $this->notifyWishlistBookAvailability($bookId);
+                    $totalNotified += $notified;
+                }
+            }
 
         } catch (Exception $e) {
             error_log("Failed to check wishlist availability: " . $e->getMessage());
         }
 
         return $totalNotified;
+    }
+
+    /**
+     * Checks if a book has at least one actual physical copy available TODAY
+     * Considers:
+     * - Physical copy state ('disponibile' in copie table)
+     * - Active loans overlapping with today
+     * - Active reservations overlapping with today
+     */
+    public function hasActualAvailableCopy(int $bookId): bool {
+        $today = date('Y-m-d');
+
+        // Count total usable copies (not damaged, lost, or in maintenance)
+        $totalStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ? AND stato = 'disponibile'
+        ");
+        $totalStmt->bind_param('i', $bookId);
+        $totalStmt->execute();
+        $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $totalStmt->close();
+
+        if ($totalCopies === 0) {
+            return false;
+        }
+
+        // Count active loans overlapping with today
+        $loanStmt = $this->db->prepare("
+            SELECT COUNT(*) as count FROM prestiti
+            WHERE libro_id = ? AND attivo = 1
+            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND data_prestito <= ? AND data_scadenza >= ?
+        ");
+        $loanStmt->bind_param('iss', $bookId, $today, $today);
+        $loanStmt->execute();
+        $activeLoans = (int)($loanStmt->get_result()->fetch_assoc()['count'] ?? 0);
+        $loanStmt->close();
+
+        // Count active reservations overlapping with today
+        $resStmt = $this->db->prepare("
+            SELECT COUNT(*) as count FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+            AND data_inizio_richiesta IS NOT NULL
+            AND data_inizio_richiesta <= ?
+            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+        ");
+        $resStmt->bind_param('iss', $bookId, $today, $today);
+        $resStmt->execute();
+        $activeReservations = (int)($resStmt->get_result()->fetch_assoc()['count'] ?? 0);
+        $resStmt->close();
+
+        // Available if total occupied < total copies
+        $totalOccupied = $activeLoans + $activeReservations;
+        return $totalOccupied < $totalCopies;
+    }
+
+    /**
+     * Calculate the next availability date for a book
+     * Returns the earliest date when a copy will become available
+     * @return string|null Date in Y-m-d format, or null if no loans/reservations
+     */
+    public function getNextAvailabilityDate(int $bookId): ?string {
+        $today = date('Y-m-d');
+
+        // First check if book is already available
+        if ($this->hasActualAvailableCopy($bookId)) {
+            return $today;
+        }
+
+        // Find the earliest end date among active loans
+        $loanStmt = $this->db->prepare("
+            SELECT MIN(data_scadenza) as earliest_end
+            FROM prestiti
+            WHERE libro_id = ? AND attivo = 1
+            AND stato IN ('in_corso', 'in_ritardo', 'prenotato')
+            AND data_scadenza >= ?
+        ");
+        $loanStmt->bind_param('is', $bookId, $today);
+        $loanStmt->execute();
+        $loanResult = $loanStmt->get_result()->fetch_assoc();
+        $earliestLoanEnd = $loanResult['earliest_end'] ?? null;
+        $loanStmt->close();
+
+        // Find the earliest end date among active reservations
+        $resStmt = $this->db->prepare("
+            SELECT MIN(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) as earliest_end
+            FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+            AND data_inizio_richiesta IS NOT NULL
+            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+        ");
+        $resStmt->bind_param('is', $bookId, $today);
+        $resStmt->execute();
+        $resResult = $resStmt->get_result()->fetch_assoc();
+        $earliestResEnd = $resResult['earliest_end'] ?? null;
+        $resStmt->close();
+
+        // Return the earliest of the two (the day after it ends, the book becomes available)
+        $dates = array_filter([$earliestLoanEnd, $earliestResEnd]);
+        if (empty($dates)) {
+            return null;
+        }
+
+        $earliestEnd = min($dates);
+        // Return the day after the earliest end date
+        return date('Y-m-d', strtotime($earliestEnd . ' +1 day'));
     }
 
     /**

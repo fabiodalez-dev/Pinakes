@@ -4,21 +4,36 @@
 SET NAMES utf8mb4;
 SET foreign_key_checks = 0;
 
--- Trigger: trg_check_active_prestito_before_insert
--- Verifica che una copia fisica non sia già in prestito
 DROP TRIGGER IF EXISTS `trg_check_active_prestito_before_insert`;
 DELIMITER $$
 CREATE TRIGGER `trg_check_active_prestito_before_insert`
 BEFORE INSERT ON `prestiti`
 FOR EACH ROW
 BEGIN
-    IF (NEW.attivo = 1) THEN
-        IF EXISTS (
-            SELECT 1 FROM prestiti
-            WHERE copia_id = NEW.copia_id AND attivo = 1
+    IF (NEW.attivo = 1 AND NEW.copia_id IS NOT NULL) THEN
+        -- 1) La copia deve essere utilizzabile
+        IF NOT EXISTS (
+            SELECT 1
+            FROM copie c
+            WHERE c.id = NEW.copia_id
+              AND c.stato = 'disponibile'
         ) THEN
             SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'Esiste già un prestito attivo per questa copia.';
+                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito.';
+        END IF;
+
+        -- 2) Nessuna sovrapposizione di date con prestiti attivi della stessa copia
+        IF EXISTS (
+            SELECT 1
+            FROM prestiti p
+            WHERE p.copia_id = NEW.copia_id
+              AND p.attivo = 1
+              AND p.stato IN ('in_corso','in_ritardo','prenotato','pendente')
+              AND p.data_prestito <= NEW.data_scadenza
+              AND p.data_scadenza >= NEW.data_prestito
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Esiste già un prestito attivo e sovrapposto per questa copia.';
         END IF;
     END IF;
 END$$
@@ -32,13 +47,31 @@ CREATE TRIGGER `trg_check_active_prestito_before_update`
 BEFORE UPDATE ON `prestiti`
 FOR EACH ROW
 BEGIN
-    IF (NEW.attivo = 1) THEN
-        IF EXISTS (
-            SELECT 1 FROM prestiti
-            WHERE copia_id = NEW.copia_id AND attivo = 1 AND id <> NEW.id
+    IF (NEW.attivo = 1 AND NEW.copia_id IS NOT NULL) THEN
+        -- 1) La copia deve essere utilizzabile
+        IF NOT EXISTS (
+            SELECT 1
+            FROM copie c
+            WHERE c.id = NEW.copia_id
+              AND c.stato = 'disponibile'
         ) THEN
             SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'Esiste già un prestito attivo per questa copia.';
+                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito.';
+        END IF;
+
+        -- 2) Nessuna sovrapposizione di date con altri prestiti attivi della stessa copia
+        IF EXISTS (
+            SELECT 1
+            FROM prestiti p
+            WHERE p.copia_id = NEW.copia_id
+              AND p.attivo = 1
+              AND p.id <> NEW.id
+              AND p.stato IN ('in_corso','in_ritardo','prenotato','pendente')
+              AND p.data_prestito <= NEW.data_scadenza
+              AND p.data_scadenza >= NEW.data_prestito
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Esiste già un prestito attivo e sovrapposto per questa copia.';
         END IF;
     END IF;
 END$$

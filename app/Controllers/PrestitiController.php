@@ -167,9 +167,11 @@ class PrestitiController
                 }
 
                 // Find a copy without overlapping loans for the requested period
+                // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
+                    AND c.stato = 'disponibile'
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
@@ -239,9 +241,11 @@ class PrestitiController
 
                 // Step 4: Find a specific copy without overlapping assigned loans
                 // A copy is available if it has no active loan that overlaps with our requested period
+                // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
+                    AND c.stato = 'disponibile'
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
@@ -616,20 +620,6 @@ class PrestitiController
         $content = ob_get_clean();
         ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
         $response->getBody()->write($html); return $response;
-    }
-
-    private function updateBookAvailability(mysqli $db, int $bookId): void {
-        // Update book availability based on active loans
-        $stmt = $db->prepare("
-            UPDATE libri SET copie_disponibili = copie_totali - (
-                SELECT COUNT(*) FROM prestiti
-                WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo')
-            )
-            WHERE id = ?
-        ");
-        $stmt->bind_param('ii', $bookId, $bookId);
-        $stmt->execute();
-        $stmt->close();
     }
 
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response

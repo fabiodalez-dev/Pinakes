@@ -377,8 +377,14 @@ class ReservationsController {
 
     private function getBookTotalCopies(int $bookId): int
     {
-        // Count actual copies from copie table (not from libri.copie_totali column)
-        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+        // Count only loanable copies from copie table
+        // Exclude permanently unavailable copies: 'perso' (lost), 'danneggiato' (damaged), 'manutenzione' (maintenance)
+        // Include 'disponibile' and 'prestato' (currently on loan but will return)
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ?
+            AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+        ");
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();

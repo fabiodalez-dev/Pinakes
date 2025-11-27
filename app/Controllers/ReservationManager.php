@@ -88,14 +88,15 @@ class ReservationManager {
         $stmt->close();
 
         // Count overlapping active reservations
+        // Use COALESCE to handle NULL data_fine_richiesta (open-ended reservations)
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as conflicts
             FROM prenotazioni
             WHERE libro_id = ?
             AND stato = 'attiva'
             AND data_inizio_richiesta IS NOT NULL
-            AND data_fine_richiesta IS NOT NULL
-            AND data_inizio_richiesta <= ? AND data_fine_richiesta >= ?
+            AND data_inizio_richiesta <= ?
+            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
         ");
         $stmt->bind_param('iss', $bookId, $endDate, $startDate);
         $stmt->execute();
@@ -118,9 +119,11 @@ class ReservationManager {
         $newState = $isFutureLoan ? 'prenotato' : 'in_corso';
 
         // Find an available copy for this date range (no overlapping loans)
+        // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
         $copyStmt = $this->db->prepare("
             SELECT c.id FROM copie c
             WHERE c.libro_id = ?
+            AND c.stato = 'disponibile'
             AND NOT EXISTS (
                 SELECT 1 FROM prestiti p
                 WHERE p.copia_id = c.id
@@ -327,12 +330,14 @@ class ReservationManager {
         $stmt->close();
 
         // Count active reservations that overlap with today
+        // Use COALESCE to handle NULL data_fine_richiesta (open-ended reservations)
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as active_reservations
             FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
-            AND data_inizio_richiesta IS NOT NULL AND data_fine_richiesta IS NOT NULL
-            AND data_inizio_richiesta <= ? AND data_fine_richiesta >= ?
+            AND data_inizio_richiesta IS NOT NULL
+            AND data_inizio_richiesta <= ?
+            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
         ");
         $stmt->bind_param('iss', $bookId, $today, $today);
         $stmt->execute();
