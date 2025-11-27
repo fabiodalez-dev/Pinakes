@@ -608,9 +608,9 @@ function profileReservationBookUrl(array $item): string {
         if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
 
         $statusLabels = [
-          'pendente' => 'In attesa di approvazione',
-          'approvata' => 'Approvata',
-          'rifiutata' => 'Rifiutata'
+          'pendente' => __('In attesa di approvazione'),
+          'approvata' => __('Approvata'),
+          'rifiutata' => __('Rifiutata')
         ];
         $statusLabel = $statusLabels[$r['stato']] ?? $r['stato'];
         $statusColors = [
