@@ -1032,9 +1032,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           });
         });
 
-        flatpickr('#copy-availability-calendar', {
+        const calendarInstance = flatpickr('#copy-availability-calendar', {
           inline: true,
-          mode: 'multiple',
+          mode: 'single',
           dateFormat: 'Y-m-d',
           minDate: 'today',
           maxDate: threeMonthsLater,
@@ -1045,6 +1045,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             firstDayOfWeek: 1 // Monday
           },
           onDayCreate: function(dObj, dStr, fp, dayElem) {
+            // Skip if already processed (prevent re-processing on redraw)
+            if (dayElem.dataset.processed) return;
+            dayElem.dataset.processed = 'true';
+
             const dateStr = formatLocalDate(dayElem.dateObj);
             const dayData = dateStyles[dateStr];
 
@@ -1088,9 +1092,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               dayElem.setAttribute('title', titles);
             }
           },
-          onChange: function() {
-            // Prevent selection - read only calendar
-            this.clear();
+          onChange: function(selectedDates, dateStr, instance) {
+            // Prevent selection - read only calendar (use setTimeout to avoid recursion)
+            if (selectedDates.length > 0) {
+              setTimeout(() => instance.clear(), 0);
+            }
           }
         });
       }
