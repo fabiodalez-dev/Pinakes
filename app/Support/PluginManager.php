@@ -40,11 +40,15 @@ class PluginManager
 
     /**
      * Get all installed plugins
+     * Automatically cleans up orphan plugins (missing folders)
      *
      * @return array
      */
     public function getAllPlugins(): array
     {
+        // First, clean up any orphan plugins
+        $this->cleanupOrphanPlugins();
+
         $query = "SELECT * FROM plugins ORDER BY display_name ASC";
         $result = $this->db->query($query);
 
@@ -58,6 +62,54 @@ class PluginManager
         }
 
         return $plugins;
+    }
+
+    /**
+     * Clean up orphan plugins (plugins in database but missing folders)
+     * Automatically deactivates and removes them from database
+     *
+     * @return int Number of orphan plugins removed
+     */
+    public function cleanupOrphanPlugins(): int
+    {
+        $query = "SELECT id, name, path, is_active FROM plugins";
+        $result = $this->db->query($query);
+
+        if (!$result) {
+            return 0;
+        }
+
+        $orphanIds = [];
+        while ($row = $result->fetch_assoc()) {
+            $pluginPath = $this->pluginsDir . '/' . $row['path'];
+
+            // Check if plugin folder exists
+            if (!is_dir($pluginPath)) {
+                $orphanIds[] = (int)$row['id'];
+                error_log("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
+            }
+        }
+        $result->free();
+
+        if (empty($orphanIds)) {
+            return 0;
+        }
+
+        // Delete orphan plugins from database (cascade will delete hooks, settings, data, logs)
+        $placeholders = implode(',', array_fill(0, count($orphanIds), '?'));
+        $types = str_repeat('i', count($orphanIds));
+
+        $stmt = $this->db->prepare("DELETE FROM plugins WHERE id IN ($placeholders)");
+        $stmt->bind_param($types, ...$orphanIds);
+        $stmt->execute();
+        $deleted = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($deleted > 0) {
+            error_log("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
+        }
+
+        return $deleted;
     }
 
     /**
@@ -912,6 +964,9 @@ class PluginManager
      */
     public function loadActivePlugins(): void
     {
+        // Clean up orphan plugins first
+        $this->cleanupOrphanPlugins();
+
         // Get all active plugins
         $activePlugins = $this->getActivePlugins();
 

@@ -914,11 +914,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span style="width: 16px; height: 16px; border-radius: 4px; background-color: #FECACA; border: 1px solid #EF4444;"></span>
-            <span style="color: #4B5563;"><?= __("In Prestito") ?></span>
+            <span style="color: #4B5563;"><?= __("In prestito") ?></span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span style="width: 16px; height: 16px; border-radius: 4px; background-color: #FEF08A; border: 1px solid #EAB308;"></span>
-            <span style="color: #4B5563;"><?= __("In Ritardo") ?></span>
+            <span style="color: #4B5563;"><?= __("In ritardo") ?></span>
           </div>
         </div>
 
@@ -998,8 +998,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         };
 
         // Helper to parse date string as local date (not UTC)
+        // Handles both YYYY-MM-DD and YYYY-MM-DD HH:MM:SS formats
         const parseLocalDate = (dateStr) => {
-          const [year, month, day] = dateStr.split('-').map(Number);
+          // Extract YYYY-MM-DD portion, ignoring any time component
+          const datePart = String(dateStr).substring(0, 10);
+          const [year, month, day] = datePart.split('-').map(Number);
           return new Date(year, month - 1, day);
         };
 

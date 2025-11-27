@@ -127,11 +127,12 @@ class ReservationManager {
         $newState = $isFutureLoan ? 'prenotato' : 'in_corso';
 
         // Find an available copy for this date range (no overlapping loans)
-        // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
+        // Consider 'disponibile' and 'prenotato' copies (exclude perso/danneggiato/manutenzione)
+        // The NOT EXISTS clause ensures no overlapping loans for the requested dates
         $copyStmt = $this->db->prepare("
             SELECT c.id FROM copie c
             WHERE c.libro_id = ?
-            AND c.stato = 'disponibile'
+            AND c.stato IN ('disponibile', 'prenotato')
             AND NOT EXISTS (
                 SELECT 1 FROM prestiti p
                 WHERE p.copia_id = c.id
@@ -147,15 +148,6 @@ class ReservationManager {
         $copyResult = $copyStmt->get_result();
         $copy = $copyResult->fetch_assoc();
         $copyStmt->close();
-
-        if (!$copy) {
-            // Fallback: try to get any available copy (for immediate loans)
-            $copyRepo = new \App\Models\CopyRepository($this->db);
-            $availableCopies = $copyRepo->getAvailableByBookId($bookId);
-            if (!empty($availableCopies)) {
-                $copy = $availableCopies[0];
-            }
-        }
 
         $copyId = $copy ? (int)$copy['id'] : null;
 
@@ -201,9 +193,11 @@ class ReservationManager {
         $stmt->close();
 
         // Update copy status if assigned
-        if ($copyId && !$isFutureLoan) {
+        // Future loans: 'prenotato', immediate loans: 'prestato'
+        if ($copyId) {
             $copyRepo = new \App\Models\CopyRepository($this->db);
-            $copyRepo->updateStatus($copyId, 'prestato');
+            $copyStatus = $isFutureLoan ? 'prenotato' : 'prestato';
+            $copyRepo->updateStatus($copyId, $copyStatus);
         }
 
         // Update book availability
