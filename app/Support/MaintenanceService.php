@@ -13,7 +13,6 @@ use mysqli;
 class MaintenanceService
 {
     private mysqli $db;
-    private static ?int $lastRun = null;
 
     public function __construct(mysqli $db)
     {
