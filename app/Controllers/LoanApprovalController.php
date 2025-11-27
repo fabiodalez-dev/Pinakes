@@ -322,25 +322,4 @@ class LoanApprovalController {
         }
     }
 
-    private function updateBookAvailability(mysqli $db, int $loanId): void {
-        // Get book ID from loan
-        $stmt = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
-        $stmt->bind_param('i', $loanId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $bookId = $result->fetch_assoc()['libro_id'] ?? null;
-
-        if ($bookId) {
-            // Update book availability
-            $stmt = $db->prepare("
-                UPDATE libri SET copie_disponibili = copie_totali - (
-                    SELECT COUNT(*) FROM prestiti
-                    WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo')
-                )
-                WHERE id = ?
-            ");
-            $stmt->bind_param('ii', $bookId, $bookId);
-            $stmt->execute();
-        }
-    }
 }

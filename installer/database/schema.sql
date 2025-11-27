@@ -617,7 +617,6 @@ CREATE TABLE `prestiti` (
   `warning_sent` tinyint(1) DEFAULT '0',
   `overdue_notification_sent` tinyint(1) DEFAULT '0',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_prestiti_copia_attiva` (`copia_id`,`attivo`),
   KEY `libro_id` (`libro_id`),
   KEY `utente_id` (`utente_id`),
   KEY `processed_by` (`processed_by`),

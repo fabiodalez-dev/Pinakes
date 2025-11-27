@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\RouteTranslator;
+use App\Support\NotificationService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -25,6 +26,21 @@ final class UserWishlistController
         $items = [];
         while ($r = $res->fetch_assoc()) { $items[] = $r; }
         $stmt->close();
+
+        // Enhance items with actual availability check and next availability date
+        $notificationService = new NotificationService($db);
+        foreach ($items as &$item) {
+            $bookId = (int)$item['id'];
+            // Check actual physical copy availability (considering reservations and loans)
+            $item['has_actual_copy'] = $notificationService->hasActualAvailableCopy($bookId);
+            // Get next availability date if not currently available
+            if (!$item['has_actual_copy']) {
+                $item['next_available'] = $notificationService->getNextAvailabilityDate($bookId);
+            } else {
+                $item['next_available'] = null;
+            }
+        }
+        unset($item);
 
         $title = __('I miei preferiti') . ' - ' . __('Biblioteca');
         ob_start();
