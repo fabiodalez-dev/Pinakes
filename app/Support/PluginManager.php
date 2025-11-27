@@ -96,13 +96,23 @@ class PluginManager
         }
 
         // Delete orphan plugins from database (cascade will delete hooks, settings, data, logs)
-        $placeholders = implode(',', array_fill(0, count($orphanIds), '?'));
-        $types = str_repeat('i', count($orphanIds));
+        // Use a loop to avoid mysqli bind_param by-reference issues with spread operator
+        $stmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
+        if ($stmt === false) {
+            error_log('[PluginManager] Failed to prepare orphan plugin cleanup statement: ' . $this->db->error);
+            return 0;
+        }
 
-        $stmt = $this->db->prepare("DELETE FROM plugins WHERE id IN ($placeholders)");
-        $stmt->bind_param($types, ...$orphanIds);
-        $stmt->execute();
-        $deleted = $stmt->affected_rows;
+        $pluginId = 0;
+        $stmt->bind_param('i', $pluginId);
+        $deleted = 0;
+
+        foreach ($orphanIds as $pluginId) {
+            if ($stmt->execute()) {
+                $deleted += $stmt->affected_rows;
+            }
+        }
+
         $stmt->close();
 
         if ($deleted > 0) {
