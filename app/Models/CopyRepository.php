@@ -120,7 +120,7 @@ class CopyRepository
         $stmt = $this->db->prepare("
             SELECT c.*
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL
@@ -147,7 +147,7 @@ class CopyRepository
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL

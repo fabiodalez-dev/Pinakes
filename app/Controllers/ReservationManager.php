@@ -308,8 +308,11 @@ class ReservationManager {
     public function isBookAvailableForImmediateLoan($bookId) {
         $today = date('Y-m-d');
 
-        // Count total copies for this book
-        $totalStmt = $this->db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+        // Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
+        $totalStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+        ");
         $totalStmt->bind_param('i', $bookId);
         $totalStmt->execute();
         $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);

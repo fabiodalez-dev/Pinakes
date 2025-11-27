@@ -268,8 +268,8 @@
                                     <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                                         <?php
                                         $cols = array_map(function($col) use ($index) {
-                                            $prefix = isset($index['prefix_length']) ? "({$index['prefix_length']})" : '';
-                                            return "<code class='bg-gray-100 dark:bg-gray-700 px-1 rounded'>{$col}{$prefix}</code>";
+                                            $prefix = isset($index['prefix_length']) ? '(' . htmlspecialchars((string)$index['prefix_length'], ENT_QUOTES, 'UTF-8') . ')' : '';
+                                            return "<code class='bg-gray-100 dark:bg-gray-700 px-1 rounded'>" . htmlspecialchars($col, ENT_QUOTES, 'UTF-8') . $prefix . "</code>";
                                         }, $index['columns']);
                                         echo implode(', ', $cols);
                                         ?>

@@ -92,8 +92,8 @@ class LoanApprovalController {
             $isFutureLoan = ($dataPrestito > $today);
             $newState = $isFutureLoan ? 'prenotato' : 'in_corso';
 
-            // Step 1: Count total copies for this book
-            $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+            // Step 1: Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
+            $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
             $totalCopiesStmt->bind_param('i', $libroId);
             $totalCopiesStmt->execute();
             $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -136,11 +136,13 @@ class LoanApprovalController {
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Step 4: Find a specific copy without overlapping assigned loans for this period
+            // Step 4: Find a specific lendable copy without overlapping assigned loans for this period
             // Include 'pendente' to match Step 2's counting logic
+            // Exclude non-lendable copies (perso, danneggiato, manutenzione)
             $overlapStmt = $db->prepare("
                 SELECT c.id FROM copie c
                 WHERE c.libro_id = ?
+                AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
                 AND NOT EXISTS (
                     SELECT 1 FROM prestiti p
                     WHERE p.copia_id = c.id

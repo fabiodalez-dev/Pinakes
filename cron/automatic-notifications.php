@@ -93,31 +93,38 @@ try {
 
         $activatedLoans = 0;
         foreach ($scheduledLoans as $loan) {
-            // Update loan status to in_corso
-            $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ?");
-            $updateStmt->bind_param('i', $loan['id']);
-            $updateStmt->execute();
-            $updateStmt->close();
+            $db->begin_transaction();
+            try {
+                // Update loan status to in_corso
+                $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ?");
+                $updateStmt->bind_param('i', $loan['id']);
+                $updateStmt->execute();
+                $updateStmt->close();
 
-            // Mark the copy as 'prestato'
-            $copyStmt = $db->prepare("UPDATE copie SET stato = 'prestato' WHERE id = ?");
-            $copyStmt->bind_param('i', $loan['copia_id']);
-            $copyStmt->execute();
-            $copyStmt->close();
+                // Mark the copy as 'prestato'
+                $copyStmt = $db->prepare("UPDATE copie SET stato = 'prestato' WHERE id = ?");
+                $copyStmt->bind_param('i', $loan['copia_id']);
+                $copyStmt->execute();
+                $copyStmt->close();
 
-            // Recalculate book availability
-            $availStmt = $db->prepare("
-                UPDATE libri l
-                SET copie_disponibili = (
-                    SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile'
-                )
-                WHERE l.id = ?
-            ");
-            $availStmt->bind_param('i', $loan['libro_id']);
-            $availStmt->execute();
-            $availStmt->close();
+                // Recalculate book availability
+                $availStmt = $db->prepare("
+                    UPDATE libri l
+                    SET copie_disponibili = (
+                        SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile'
+                    )
+                    WHERE l.id = ?
+                ");
+                $availStmt->bind_param('i', $loan['libro_id']);
+                $availStmt->execute();
+                $availStmt->close();
 
-            $activatedLoans++;
+                $db->commit();
+                $activatedLoans++;
+            } catch (Throwable $e) {
+                $db->rollback();
+                logMessage("Failed to activate loan {$loan['id']}: " . $e->getMessage());
+            }
         }
 
         logMessage("Activated {$activatedLoans} scheduled loans (prenotato -> in_corso)");

@@ -113,6 +113,7 @@ class EditoriApiController
         $total_stmt->execute();
         $total_res = $total_stmt->get_result();
         $total = (int)($total_res->fetch_assoc()['c'] ?? 0);
+        $total_stmt->close();
 
         // Use prepared statement for filtered count to prevent SQL injection
         // If we have a HAVING clause, we need to count from a subquery
