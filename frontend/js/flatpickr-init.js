@@ -113,13 +113,34 @@
   /**
    * Re-initialize on dynamic content changes (e.g., modals, AJAX)
    */
+  let initPending = false;
   const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.addedNodes.length) {
-        // Wait a bit for the DOM to settle
-        setTimeout(initFlatpickr, 100);
+    // Skip if already scheduled
+    if (initPending) return;
+
+    // Check if any mutation is outside flatpickr calendars
+    const hasRelevantMutation = mutations.some(function(mutation) {
+      // Skip mutations inside flatpickr calendar elements
+      if (mutation.target.closest && mutation.target.closest('.flatpickr-calendar')) {
+        return false;
       }
+      // Only care about added nodes that might contain date inputs
+      return Array.from(mutation.addedNodes).some(function(node) {
+        if (node.nodeType !== Node.ELEMENT_NODE) return false;
+        // Skip flatpickr elements
+        if (node.classList && node.classList.contains('flatpickr-calendar')) return false;
+        // Check if node contains date inputs
+        return node.querySelector && node.querySelector('input[type="date"]:not(.flatpickr-input)');
+      });
     });
+
+    if (hasRelevantMutation) {
+      initPending = true;
+      setTimeout(function() {
+        initPending = false;
+        initFlatpickr();
+      }, 100);
+    }
   });
 
   // Observe the entire document for changes
