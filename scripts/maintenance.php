@@ -81,18 +81,28 @@ $result = $stmt->get_result();
 $processedBooks = 0;
 while ($row = $result->fetch_assoc()) {
     $bookId = (int)$row['libro_id'];
-    // Wrap in transaction to ensure FOR UPDATE locks are effective
-    $db->begin_transaction();
+    $inTransaction = false;
     try {
+        // Wrap in transaction to ensure FOR UPDATE locks are effective
+        $db->begin_transaction();
+        $inTransaction = true;
+
         if ($reservationManager->processBookAvailability($bookId)) {
             echo "✓ Processed reservations for book ID: $bookId\n";
             $processedBooks++;
         }
         $db->commit();
+        $inTransaction = false;
     } catch (\Throwable $e) {
-        $db->rollback();
+        if ($inTransaction) {
+            try {
+                $db->rollback();
+            } catch (\Throwable $rollbackError) {
+                error_log("Maintenance: Rollback failed for book $bookId: " . $rollbackError->getMessage());
+            }
+        }
         error_log("Maintenance: Error processing book $bookId: " . $e->getMessage());
-        echo "✗ Error processing book ID: $bookId\n";
+        echo "✗ Error processing book ID: $bookId - " . $e->getMessage() . "\n";
     }
 }
 

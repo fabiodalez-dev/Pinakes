@@ -144,20 +144,25 @@ class LoanRepository
 
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective
-            if ($bookId !== null) {
-                $integrity = new DataIntegrity($this->db);
-                $integrity->recalculateBookAvailability($bookId);
-                $integrity->validateAndUpdateLoan($id);
+            $integrity = new DataIntegrity($this->db);
+            $integrity->recalculateBookAvailability($bookId);
 
-                $reservationManager = new ReservationManager($this->db);
-                $reservationManager->processBookAvailability($bookId);
-            }
+            $reservationManager = new ReservationManager($this->db);
+            $reservationManager->processBookAvailability($bookId);
 
             $this->db->commit();
 
         } catch (\Throwable $e) {
             $this->db->rollback();
             throw $e;
+        }
+
+        // validateAndUpdateLoan has its own transaction, call it after main transaction completes
+        try {
+            $integrity = new DataIntegrity($this->db);
+            $integrity->validateAndUpdateLoan($id);
+        } catch (\Throwable $e) {
+            error_log('DataIntegrity warning (validateAndUpdateLoan): ' . $e->getMessage());
         }
 
         return true;
