@@ -145,10 +145,16 @@ class LoanRepository
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective
             $integrity = new DataIntegrity($this->db);
-            $integrity->recalculateBookAvailability($bookId);
+            if (!$integrity->recalculateBookAvailability($bookId)) {
+                throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro.'));
+            }
 
             $reservationManager = new ReservationManager($this->db);
-            $reservationManager->processBookAvailability($bookId);
+            // Note: processBookAvailability returning false typically indicates no pending
+            // reservation or a race condition - acceptable to continue, just log for observability
+            if (!$reservationManager->processBookAvailability($bookId)) {
+                error_log("LoanRepository::close - No reservation processed for book ID: {$bookId}");
+            }
 
             $this->db->commit();
 
