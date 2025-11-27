@@ -625,7 +625,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
                   // If copy is "prestato" but the loan is "prenotato" and hasn't started yet,
                   // show as "prenotato" (reserved for future) instead of "prestato"
-                  if ($rawCopiaStatus === 'prestato' && $loanStatus === 'prenotato' && $loanStartDate > $todayDate) {
+                  // Use substr to compare only date portion (YYYY-MM-DD) in case of datetime strings
+                  if ($rawCopiaStatus === 'prestato' && $loanStatus === 'prenotato' && substr((string)$loanStartDate, 0, 10) > $todayDate) {
                       $effectiveStatus = 'prenotato';
                       $effectiveLabel = __('Prenotato');
                       $effectiveClass = 'bg-purple-100 text-purple-800';
@@ -650,7 +651,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   }
                   ?>
                   <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $effectiveClass; ?>">
-                    <?php echo $effectiveLabel; ?>
+                    <?php echo App\Support\HtmlHelper::e($effectiveLabel); ?>
                   </span>
                   <?php if ($effectiveStatus === 'prenotato' && $loanStartDate): ?>
                   <div class="text-xs text-purple-600 mt-1">

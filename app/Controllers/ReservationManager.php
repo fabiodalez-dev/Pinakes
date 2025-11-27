@@ -35,8 +35,13 @@ class ReservationManager {
             $endDate = $nextReservation['data_fine_richiesta'];
 
             if ($this->isDateRangeAvailable($bookId, $startDate, $endDate)) {
-                // Create the loan
-                $this->createLoanFromReservation($nextReservation);
+                // Create the loan - check return value to handle race conditions
+                $loanCreated = $this->createLoanFromReservation($nextReservation);
+
+                if ($loanCreated === false) {
+                    // Race condition detected - loan creation failed
+                    return false;
+                }
 
                 // Mark reservation as completed
                 $stmt = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ?");
@@ -61,8 +66,11 @@ class ReservationManager {
             return false;
         }
 
-        // Multi-copy aware: count total copies
-        $totalStmt = $this->db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+        // Multi-copy aware: count only loanable copies (exclude lost/damaged/maintenance)
+        $totalStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+        ");
         $totalStmt->bind_param('i', $bookId);
         $totalStmt->execute();
         $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -201,6 +209,8 @@ class ReservationManager {
         // Update book availability
         $integrity = new \App\Support\DataIntegrity($this->db);
         $integrity->recalculateBookAvailability($bookId);
+
+        return true;
     }
 
     private function updateQueuePositions($bookId) {
