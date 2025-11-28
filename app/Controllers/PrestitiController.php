@@ -167,12 +167,12 @@ class PrestitiController
                 }
 
                 // Find a copy without overlapping loans for the requested period
-                // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
-                // Include 'pendente' to prevent double-booking with pending loan requests
+                // Include 'disponibile' and 'prenotato' copies - NOT EXISTS prevents date overlaps
+                // This allows scheduling non-overlapping loans on the same copy
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
-                    AND c.stato = 'disponibile'
+                    AND c.stato IN ('disponibile', 'prenotato')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
@@ -241,13 +241,12 @@ class PrestitiController
                 }
 
                 // Step 4: Find a specific copy without overlapping assigned loans
-                // A copy is available if it has no active loan that overlaps with our requested period
-                // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
-                // Include 'pendente' to prevent double-booking with pending loan requests
+                // Include 'disponibile' and 'prenotato' copies - NOT EXISTS prevents date overlaps
+                // This allows scheduling non-overlapping loans on the same copy
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
-                    AND c.stato = 'disponibile'
+                    AND c.stato IN ('disponibile', 'prenotato')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
