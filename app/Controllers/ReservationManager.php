@@ -96,15 +96,14 @@ class ReservationManager {
         $stmt->close();
 
         // Count overlapping active reservations
-        // Use COALESCE to handle NULL data_inizio_richiesta and data_fine_richiesta
-        // Fall back to data_scadenza_prenotazione if specific dates are not set
+        // Use COALESCE for safety, though data_inizio/fine_richiesta are always set
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as conflicts
             FROM prenotazioni
             WHERE libro_id = ?
             AND stato = 'attiva'
-            AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
-            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+            AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
+            AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
         ");
         $stmt->bind_param('iss', $bookId, $endDate, $startDate);
         $stmt->execute();
@@ -337,14 +336,13 @@ class ReservationManager {
         $stmt->close();
 
         // Count active reservations that overlap with today
-        // Use COALESCE to handle NULL data_inizio_richiesta and data_fine_richiesta
-        // Fall back to data_scadenza_prenotazione if specific dates are not set
+        // Use COALESCE for safety, though data_inizio/fine_richiesta are always set
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as active_reservations
             FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
-            AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
-            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+            AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
+            AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
         ");
         $stmt->bind_param('iss', $bookId, $today, $today);
         $stmt->execute();
