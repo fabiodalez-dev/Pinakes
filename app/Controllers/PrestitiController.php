@@ -87,7 +87,8 @@ class PrestitiController
             $data_prestito = gmdate('Y-m-d');
         }
         if (empty($data_scadenza)) {
-            $data_scadenza = gmdate('Y-m-d', strtotime('+1 month'));
+            // Default to 1 month after the loan start date (not from today)
+            $data_scadenza = gmdate('Y-m-d', strtotime($data_prestito . ' +1 month'));
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
@@ -116,8 +117,10 @@ class PrestitiController
             }
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan)
+            // Normalize to date-only to handle potential datetime inputs safely
             $today = gmdate('Y-m-d');
-            $isImmediateLoan = ($data_prestito <= $today);
+            $loanStartDate = date('Y-m-d', strtotime($data_prestito));
+            $isImmediateLoan = ($loanStartDate <= $today);
 
             // Select a copy for the loan
             // For IMMEDIATE loans: find a copy that is currently 'disponibile'

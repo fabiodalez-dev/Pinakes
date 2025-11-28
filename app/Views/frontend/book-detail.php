@@ -1482,7 +1482,7 @@ ob_start();
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
                               $e = $_GET['loan_error'];
-                              echo $e==='not_available' ? __('Libro non disponibile per il prestito.') : __('Errore nella richiesta di prestito.');
+                              echo $e==='not_available' ? __('Nessuna copia disponibile per il periodo richiesto.') : __('Errore nella richiesta di prestito.');
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
@@ -1497,7 +1497,7 @@ ob_start();
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
                               $e = $_GET['reserve_error'];
-                              echo $e==='duplicate' ? __('Hai già una prenotazione attiva per questo libro.') : ($e==='invalid_date' ? __('Data non valida.') : ($e==='past_date' ? __('La data non può essere nel passato.') : __('Errore nella prenotazione.')));
+                              echo $e==='duplicate' ? __('Hai già una prenotazione attiva per questo libro.') : ($e==='invalid_date' ? __('Data non valida.') : ($e==='past_date' ? __('La data non può essere nel passato.') : ($e==='not_available' ? __('Nessuna copia disponibile per il periodo richiesto.') : __('Errore nella prenotazione.'))));
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
@@ -2131,6 +2131,7 @@ document.addEventListener('DOMContentLoaded', function() {
               defaultDate: suggestedDate,
               locale: forceEn ? 'en' : (fpLocale || 'default'),
               disable: disabledDates,
+              showMonths: 2,
               onDayCreate: function(dObj, dStr, fp, dayElem) {
                 if (!dayElem || !dayElem.dateObj) return;
                 if (dayElem.classList.contains('prevMonthDay') || dayElem.classList.contains('nextMonthDay')) return;
