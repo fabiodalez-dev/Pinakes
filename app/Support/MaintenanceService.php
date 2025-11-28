@@ -151,17 +151,9 @@ class MaintenanceService
                 $copyStmt->execute();
                 $copyStmt->close();
 
-                // Recalculate book availability
-                $availStmt = $this->db->prepare("
-                    UPDATE libri l
-                    SET copie_disponibili = (
-                        SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile'
-                    )
-                    WHERE l.id = ?
-                ");
-                $availStmt->bind_param('i', $loan['libro_id']);
-                $availStmt->execute();
-                $availStmt->close();
+                // Recalculate book availability using DataIntegrity for consistency
+                $integrity = new DataIntegrity($this->db);
+                $integrity->recalculateBookAvailability((int)$loan['libro_id']);
 
                 $this->db->commit();
                 $activatedCount++;
@@ -201,13 +193,18 @@ class MaintenanceService
 
     /**
      * Static method to run maintenance on admin login via hook
+     * @param int $_userId User ID (unused, kept for hook signature compatibility)
+     * @param array $userData User data array containing tipo_utente
+     * @param mixed $_request Request object (unused, kept for hook signature compatibility)
      */
-    public static function onAdminLogin(int $userId, array $userData, $request): void
+    public static function onAdminLogin(int $_userId, array $userData, $_request): void
     {
         // Only run for admin/staff users
         if (!in_array($userData['tipo_utente'] ?? '', ['admin', 'staff'], true)) {
             return;
         }
+
+        $createdConnection = false;
 
         try {
             // Get database connection from global container or settings
@@ -223,6 +220,7 @@ class MaintenanceService
 
             if (!$db) {
                 // Fallback: create new connection from settings
+                $createdConnection = true;
                 $settings = require __DIR__ . '/../../config/settings.php';
                 $cfg = $settings['db'];
                 $db = new \mysqli(
@@ -245,6 +243,11 @@ class MaintenanceService
             $service = new self($db);
             $result = $service->runIfNeeded(60); // Run if not run in last 60 minutes
 
+            // Close connection if we created it
+            if ($createdConnection) {
+                $db->close();
+            }
+
             if (!($result['skipped'] ?? false)) {
                 error_log(sprintf(
                     'MaintenanceService: Activated %d scheduled loans, updated %d overdue loans (triggered by admin login)',
@@ -254,6 +257,10 @@ class MaintenanceService
             }
 
         } catch (\Throwable $e) {
+            // Close connection on error if we created it
+            if ($createdConnection && isset($db) && $db instanceof mysqli) {
+                $db->close();
+            }
             error_log('MaintenanceService: Error during admin login hook: ' . $e->getMessage());
         }
     }

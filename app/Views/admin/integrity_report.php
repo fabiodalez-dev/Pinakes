@@ -480,20 +480,20 @@ async function applyConfigFix(issueType, fixValue) {
 }
 
 async function createMissingIndexes() {
-    const processingTitle = '<?= addslashes(__("Creazione indici...")) ?>';
-    const doneTitle = '<?= addslashes(__("Operazione completata")) ?>';
-    const failTitle = '<?= addslashes(__("Operazione fallita")) ?>';
-    const commErr = '<?= addslashes(__("Errore di comunicazione con il server")) ?>';
+    const processingTitle = <?= json_encode(__("Creazione indici...")) ?>;
+    const doneTitle = <?= json_encode(__("Operazione completata")) ?>;
+    const failTitle = <?= json_encode(__("Operazione fallita")) ?>;
+    const commErr = <?= json_encode(__("Errore di comunicazione con il server")) ?>;
 
-    const confirmTitle = '<?= addslashes(__("Confermi?")) ?>';
-    const confirmText = '<?= addslashes(__("Vuoi creare gli indici mancanti? Questa operazione migliorerà le performance del database.")) ?>';
+    const confirmTitle = <?= json_encode(__("Confermi?")) ?>;
+    const confirmText = <?= json_encode(__("Vuoi creare gli indici mancanti? Questa operazione migliorerà le performance del database.")) ?>;
     const confirmResult = await Swal.fire({
         title: confirmTitle,
         text: confirmText,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: '<?= addslashes(__("Sì, crea indici")) ?>',
-        cancelButtonText: '<?= addslashes(__("Annulla")) ?>'
+        confirmButtonText: <?= json_encode(__("Sì, crea indici")) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla")) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -510,10 +510,10 @@ async function createMissingIndexes() {
 
         let message = result.message || '';
         if (result.success && result.created && result.created.length > 0) {
-            message += '\n\n<?= addslashes(__("Indici creati:")) ?> ' + result.created.length;
+            message += '\n\n' + <?= json_encode(__("Indici creati:")) ?> + ' ' + result.created.length;
         }
         if (result.errors && result.errors.length > 0) {
-            message += '\n\n<?= addslashes(__("Errori:")) ?> ' + result.errors.length;
+            message += '\n\n' + <?= json_encode(__("Errori:")) ?> + ' ' + result.errors.length;
         }
 
         Swal.fire({
