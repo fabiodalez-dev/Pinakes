@@ -446,6 +446,11 @@ class UserActionsController
 
             if ($stmt->execute()) {
                 $stmt->close();
+
+                // Recalculate book availability after reservation
+                $integrity = new \App\Support\DataIntegrity($db);
+                $integrity->recalculateBookAvailability($libroId);
+
                 $db->commit();
                 $params = ['reserve_success' => 1];
                 if ($desired !== '') {
