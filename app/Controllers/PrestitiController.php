@@ -127,8 +127,8 @@ class PrestitiController
 
             if ($isImmediateLoan) {
                 // For immediate loans, verify book-level availability (including prenotazioni)
-                // Step 1: Count total copies
-                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+                // Step 1: Count total lendable copies (exclude perso, danneggiato, manutenzione)
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
                 $totalCopiesStmt->bind_param('i', $libro_id);
                 $totalCopiesStmt->execute();
                 $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -146,13 +146,13 @@ class PrestitiController
                 $overlappingLoans = (int)($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
                 $loanCountStmt->close();
 
-                // Step 3: Count overlapping prenotazioni for the loan period (include open-ended)
+                // Step 3: Count overlapping prenotazioni for the loan period
+                // Use COALESCE to handle NULL dates - matches ReservationManager pattern
                 $resCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prenotazioni
                     WHERE libro_id = ? AND stato = 'attiva'
-                    AND data_inizio_richiesta IS NOT NULL
-                    AND data_inizio_richiesta <= ? 
-                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+                    AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
+                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
                 ");
                 $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $resCountStmt->execute();
@@ -200,8 +200,8 @@ class PrestitiController
                 // For FUTURE loans, find a copy that has no overlapping active loans
                 // Also verify book-level availability (considering prenotazioni and pendente loans)
 
-                // Step 1: Count total copies for this book
-                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+                // Step 1: Count total lendable copies (exclude perso, danneggiato, manutenzione)
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
                 $totalCopiesStmt->bind_param('i', $libro_id);
                 $totalCopiesStmt->execute();
                 $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -220,12 +220,12 @@ class PrestitiController
                 $loanCountStmt->close();
 
                 // Step 3: Count overlapping prenotazioni
+                // Use COALESCE to handle NULL dates - matches ReservationManager pattern
                 $resCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prenotazioni
                     WHERE libro_id = ? AND stato = 'attiva'
-                    AND data_inizio_richiesta IS NOT NULL
-                    AND data_inizio_richiesta <= ? 
-                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+                    AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
+                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
                 ");
                 $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $resCountStmt->execute();
