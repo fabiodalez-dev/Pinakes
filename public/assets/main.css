@@ -6594,8 +6594,13 @@ table.dataTable thead td {
 
 /* === DataTables Pagination Improvements === */
 
-/* Hide pagination when no data or disabled */
+/* Hide pagination when no data or all buttons disabled (dt-paging-button) */
 .dataTables_wrapper .dataTables_paginate:has(.dt-paging-button.first.disabled):has(.dt-paging-button.last.disabled):has(.dt-paging-button.previous.disabled):has(.dt-paging-button.next.disabled) {
+  display: none !important;
+}
+
+/* Hide pagination when no data or all buttons disabled (paginate_button) */
+.dataTables_wrapper .dataTables_paginate:has(.paginate_button.first.disabled):has(.paginate_button.last.disabled):has(.paginate_button.previous.disabled):has(.paginate_button.next.disabled) {
   display: none !important;
 }
 
@@ -6606,13 +6611,17 @@ nav[aria-label="pagination"]:has(> .dt-paging-button.disabled:first-child):has(>
 
 /* Hide disabled first/previous buttons (no previous pages) */
 .dt-paging-button.first.disabled,
-.dt-paging-button.previous.disabled {
+.dt-paging-button.previous.disabled,
+.paginate_button.first.disabled,
+.paginate_button.previous.disabled {
   display: none !important;
 }
 
 /* Hide disabled next/last buttons (no next pages) */
 .dt-paging-button.next.disabled,
-.dt-paging-button.last.disabled {
+.dt-paging-button.last.disabled,
+.paginate_button.next.disabled,
+.paginate_button.last.disabled {
   display: none !important;
 }
 
@@ -6626,7 +6635,8 @@ nav[aria-label="pagination"],
   padding: 1rem 0;
 }
 
-.dt-paging-button {
+.dt-paging-button,
+.paginate_button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6643,12 +6653,14 @@ nav[aria-label="pagination"],
   transition: all 0.15s ease;
 }
 
-.dt-paging-button:hover:not(.disabled):not(.current) {
+.dt-paging-button:hover:not(.disabled):not(.current),
+.paginate_button:hover:not(.disabled):not(.current) {
   background-color: #f3f4f6;
   border-color: #9ca3af;
 }
 
-.dt-paging-button.current {
+.dt-paging-button.current,
+.paginate_button.current {
   background-color: #1f2937;
   color: #fff;
   border-color: #1f2937;
