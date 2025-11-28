@@ -16,8 +16,10 @@ class UserActionsController
     public function reservationsPage(Request $request, Response $response, mysqli $db): Response
     {
         $user = $_SESSION['user'] ?? null;
-        if (!$user || empty($user['id'])) { return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302); }
-        $uid = (int)$user['id'];
+        if (!$user || empty($user['id'])) {
+            return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
+        }
+        $uid = (int) $user['id'];
 
         // Richieste di prestito in sospeso
         $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.stato, pr.created_at,
@@ -31,7 +33,9 @@ class UserActionsController
         $stmt->execute();
         $res = $stmt->get_result();
         $pendingRequests = [];
-        while ($r = $res->fetch_assoc()) { $pendingRequests[] = $r; }
+        while ($r = $res->fetch_assoc()) {
+            $pendingRequests[] = $r;
+        }
         $stmt->close();
 
         // Prestiti in corso
@@ -47,7 +51,9 @@ class UserActionsController
         $stmt->execute();
         $res = $stmt->get_result();
         $activePrestiti = [];
-        while ($r = $res->fetch_assoc()) { $activePrestiti[] = $r; }
+        while ($r = $res->fetch_assoc()) {
+            $activePrestiti[] = $r;
+        }
         $stmt->close();
 
         // Prenotazioni attive
@@ -60,7 +66,9 @@ class UserActionsController
         $stmt->execute();
         $res = $stmt->get_result();
         $items = [];
-        while ($r = $res->fetch_assoc()) { $items[] = $r; }
+        while ($r = $res->fetch_assoc()) {
+            $items[] = $r;
+        }
         $stmt->close();
 
         // Storico prestiti (ultimi 20) - solo prestiti conclusi
@@ -77,7 +85,9 @@ class UserActionsController
         $stmt->execute();
         $res = $stmt->get_result();
         $pastPrestiti = [];
-        while ($r = $res->fetch_assoc()) { $pastPrestiti[] = $r; }
+        while ($r = $res->fetch_assoc()) {
+            $pastPrestiti[] = $r;
+        }
         $stmt->close();
 
         // Le mie recensioni
@@ -91,7 +101,9 @@ class UserActionsController
         $stmt->execute();
         $res = $stmt->get_result();
         $myReviews = [];
-        while ($r = $res->fetch_assoc()) { $myReviews[] = $r; }
+        while ($r = $res->fetch_assoc()) {
+            $myReviews[] = $r;
+        }
         $stmt->close();
 
         $title = 'I miei prestiti - Biblioteca';
@@ -104,45 +116,64 @@ class UserActionsController
 
     public function cancelReservation(Request $request, Response $response, mysqli $db): Response
     {
-        $user = $_SESSION['user'] ?? null; if (!$user || empty($user['id'])) { return $response->withStatus(401); }
-        $data = (array)($request->getParsedBody() ?? []);
-        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) { return $response->withStatus(400); }
-        $rid = (int)($data['reservation_id'] ?? 0); if ($rid<=0) return $response->withStatus(422);
-        $uid = (int)$user['id'];
+        $user = $_SESSION['user'] ?? null;
+        if (!$user || empty($user['id'])) {
+            return $response->withStatus(401);
+        }
+        $data = (array) ($request->getParsedBody() ?? []);
+        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) {
+            return $response->withStatus(400);
+        }
+        $rid = (int) ($data['reservation_id'] ?? 0);
+        if ($rid <= 0)
+            return $response->withStatus(422);
+        $uid = (int) $user['id'];
         $stmt = $db->prepare("UPDATE prenotazioni SET stato='annullata' WHERE id=? AND utente_id=?");
-        $stmt->bind_param('ii', $rid, $uid); $stmt->execute(); $stmt->close();
-        return $response->withHeader('Location',RouteTranslator::route('reservations').'?canceled=1')->withStatus(302);
+        $stmt->bind_param('ii', $rid, $uid);
+        $stmt->execute();
+        $stmt->close();
+        return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
     }
 
     public function changeReservationDate(Request $request, Response $response, mysqli $db): Response
     {
-        $user = $_SESSION['user'] ?? null; if (!$user || empty($user['id'])) { return $response->withStatus(401); }
-        $data = (array)($request->getParsedBody() ?? []);
-        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) { return $response->withStatus(400); }
-        $rid = (int)($data['reservation_id'] ?? 0); $date = trim((string)($data['desired_date'] ?? ''));
-        if ($rid<=0 || $date==='' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return $response->withStatus(422);
-        if (strtotime($date) < strtotime(date('Y-m-d'))) return $response->withHeader('Location',RouteTranslator::route('reservations').'?error=past_date')->withStatus(302);
-        $uid = (int)$user['id'];
+        $user = $_SESSION['user'] ?? null;
+        if (!$user || empty($user['id'])) {
+            return $response->withStatus(401);
+        }
+        $data = (array) ($request->getParsedBody() ?? []);
+        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) {
+            return $response->withStatus(400);
+        }
+        $rid = (int) ($data['reservation_id'] ?? 0);
+        $date = trim((string) ($data['desired_date'] ?? ''));
+        if ($rid <= 0 || $date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date))
+            return $response->withStatus(422);
+        if (strtotime($date) < strtotime(date('Y-m-d')))
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=past_date')->withStatus(302);
+        $uid = (int) $user['id'];
         $startDt = $date . ' 00:00:00';
-        $endDt   = date('Y-m-d', strtotime($date . ' +1 month')) . ' 23:59:59';
+        $endDt = date('Y-m-d', strtotime($date . ' +1 month')) . ' 23:59:59';
         $stmt = $db->prepare("UPDATE prenotazioni SET data_prenotazione=?, data_scadenza_prenotazione=? WHERE id=? AND utente_id=? AND stato='attiva'");
-        $stmt->bind_param('ssii', $startDt, $endDt, $rid, $uid); $stmt->execute(); $stmt->close();
-        return $response->withHeader('Location',RouteTranslator::route('reservations').'?updated=1')->withStatus(302);
+        $stmt->bind_param('ssii', $startDt, $endDt, $rid, $uid);
+        $stmt->execute();
+        $stmt->close();
+        return $response->withHeader('Location', RouteTranslator::route('reservations') . '?updated=1')->withStatus(302);
     }
     public function reservationsCount(Request $request, Response $response, mysqli $db): Response
     {
         $user = $_SESSION['user'] ?? null;
         $count = 0;
         if ($user && !empty($user['id'])) {
-            $uid = (int)$user['id'];
+            $uid = (int) $user['id'];
             $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prenotazioni WHERE utente_id=? AND stato='attiva'");
             $stmt->bind_param('i', $uid);
             $stmt->execute();
-            $count = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+            $count = (int) ($stmt->get_result()->fetch_assoc()['c'] ?? 0);
             $stmt->close();
         }
-        $response->getBody()->write(json_encode(['count'=>$count]));
-        return $response->withHeader('Content-Type','application/json');
+        $response->getBody()->write(json_encode(['count' => $count]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
     public function loan(Request $request, Response $response, mysqli $db): Response
     {
@@ -150,11 +181,11 @@ class UserActionsController
         if (!$user || empty($user['id'])) {
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         }
-        $data = (array)($request->getParsedBody() ?? []);
+        $data = (array) ($request->getParsedBody() ?? []);
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
             return $this->back($response, ['loan_error' => 'csrf']);
         }
-        $libroId = (int)($data['libro_id'] ?? 0);
+        $libroId = (int) ($data['libro_id'] ?? 0);
         if ($libroId <= 0) {
             return $this->back($response, ['loan_error' => 'invalid']);
         }
@@ -163,14 +194,14 @@ class UserActionsController
         if (!$reservationManager->isBookAvailableForImmediateLoan($libroId)) {
             return $this->back($response, ['loan_error' => 'not_available']);
         }
-        $utenteId = (int)$user['id'];
+        $utenteId = (int) $user['id'];
         $data_prestito = gmdate('Y-m-d');
         $data_scadenza = gmdate('Y-m-d', strtotime('+14 days'));
         // Insert as 'pendente' - requires admin approval
         $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
         $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
         if ($stmt->execute()) {
-            $newLoanId = (int)$db->insert_id;
+            $newLoanId = (int) $db->insert_id;
             $stmt->close();
 
             // Notify admins about new loan request
@@ -193,48 +224,73 @@ class UserActionsController
         if (!$user || empty($user['id'])) {
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         }
-        $data = (array)($request->getParsedBody() ?? []);
+        $data = (array) ($request->getParsedBody() ?? []);
         if (!Csrf::validate($data['csrf_token'] ?? null)) {
             return $this->back($response, ['reserve_error' => 'csrf']);
         }
-        $libroId = (int)($data['libro_id'] ?? 0);
+        $libroId = (int) ($data['libro_id'] ?? 0);
         if ($libroId <= 0) {
             return $this->back($response, ['reserve_error' => 'invalid']);
         }
-        $desired = trim((string)($data['desired_date'] ?? ''));
+        $desired = trim((string) ($data['desired_date'] ?? ''));
         if ($desired !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desired)) {
             return $this->back($response, ['reserve_error' => 'invalid_date']);
         }
         if ($desired !== '' && strtotime($desired) < strtotime(date('Y-m-d'))) {
             return $this->back($response, ['reserve_error' => 'past_date']);
         }
-        $utenteId = (int)$user['id'];
+        $utenteId = (int) $user['id'];
         // Check if already has an active reservation for this book
         $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prenotazioni WHERE libro_id=? AND utente_id=? AND stato='attiva'");
-        $stmt->bind_param('ii', $libroId, $utenteId); $stmt->execute();
-        $exists = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0) > 0; $stmt->close();
+        $stmt->bind_param('ii', $libroId, $utenteId);
+        $stmt->execute();
+        $exists = (int) ($stmt->get_result()->fetch_assoc()['c'] ?? 0) > 0;
+        $stmt->close();
         if ($exists) {
             return $this->back($response, ['reserve_error' => 'duplicate']);
         }
-        // Calculate queue position
-        $stmt = $db->prepare("SELECT COALESCE(MAX(queue_position),0)+1 AS pos FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
-        $stmt->bind_param('i', $libroId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $pos = (int)($res->fetch_assoc()['pos'] ?? 1);
-        $start = ($desired !== '') ? $desired : date('Y-m-d');
-        $end   = date('Y-m-d', strtotime($start . ' +1 month'));
-        $startDt = $start . ' 00:00:00';
-        $endDt   = $end . ' 23:59:59';
-        $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione) VALUES (?, ?, ?, 'attiva', ?, ?)");
-        $stmt->bind_param('iiiss', $libroId, $utenteId, $pos, $startDt, $endDt);
-        if ($stmt->execute()) {
+        // Start transaction for concurrency control
+        $db->begin_transaction();
+
+        try {
+            // Lock the book row to serialize reservations for this book
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt->bind_param('i', $libroId);
+            $lockStmt->execute();
+            $lockStmt->close();
+
+            // Calculate queue position
+            $stmt = $db->prepare("SELECT COALESCE(MAX(queue_position),0)+1 AS pos FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
+            $stmt->bind_param('i', $libroId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $pos = (int) ($res->fetch_assoc()['pos'] ?? 1);
             $stmt->close();
-            $params = ['reserve_success' => 1];
-            if ($desired !== '') { $params['reserve_date'] = $desired; }
-            return $this->back($response, $params);
+
+            $start = ($desired !== '') ? $desired : date('Y-m-d');
+            $end = date('Y-m-d', strtotime($start . ' +1 month'));
+            $startDt = $start . ' 00:00:00';
+            $endDt = $end . ' 23:59:59';
+
+            $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione) VALUES (?, ?, ?, 'attiva', ?, ?)");
+            $stmt->bind_param('iiiss', $libroId, $utenteId, $pos, $startDt, $endDt);
+
+            if ($stmt->execute()) {
+                $stmt->close();
+                $db->commit();
+                $params = ['reserve_success' => 1];
+                if ($desired !== '') {
+                    $params['reserve_date'] = $desired;
+                }
+                return $this->back($response, $params);
+            }
+            $stmt->close();
+            $db->rollback();
+        } catch (\Exception $e) {
+            $db->rollback();
+            error_log("Reservation error: " . $e->getMessage());
         }
-        $stmt->close();
+
         return $this->back($response, ['reserve_error' => 'db']);
     }
 
