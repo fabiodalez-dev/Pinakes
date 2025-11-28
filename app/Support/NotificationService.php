@@ -634,10 +634,11 @@ class NotificationService {
     public function hasActualAvailableCopy(int $bookId): bool {
         $today = date('Y-m-d');
 
-        // Count total usable copies (not damaged, lost, or in maintenance)
+        // Count total loanable copies (exclude perso, danneggiato, manutenzione)
+        // This matches the logic in ReservationManager and other availability checks
         $totalStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato = 'disponibile'
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
         ");
         $totalStmt->bind_param('i', $bookId);
         $totalStmt->execute();
@@ -692,11 +693,12 @@ class NotificationService {
         }
 
         // Find the earliest end date among active loans
+        // Include 'pendente' to account for pending loan requests in availability calculation
         $loanStmt = $this->db->prepare("
             SELECT MIN(data_scadenza) as earliest_end
             FROM prestiti
             WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'prenotato')
+            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
             AND data_scadenza >= ?
         ");
         $loanStmt->bind_param('is', $bookId, $today);

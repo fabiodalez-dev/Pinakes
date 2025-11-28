@@ -168,6 +168,7 @@ class PrestitiController
 
                 // Find a copy without overlapping loans for the requested period
                 // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
+                // Include 'pendente' to prevent double-booking with pending loan requests
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
@@ -176,7 +177,7 @@ class PrestitiController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo')
+                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -242,6 +243,7 @@ class PrestitiController
                 // Step 4: Find a specific copy without overlapping assigned loans
                 // A copy is available if it has no active loan that overlaps with our requested period
                 // Only consider copies that are in 'disponibile' state (not damaged, lost, etc.)
+                // Include 'pendente' to prevent double-booking with pending loan requests
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
@@ -250,7 +252,7 @@ class PrestitiController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo')
+                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -278,10 +280,11 @@ class PrestitiController
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
+            // Include 'pendente' in race condition check to prevent double-booking
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','prenotato','in_ritardo')
+                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
             ");
