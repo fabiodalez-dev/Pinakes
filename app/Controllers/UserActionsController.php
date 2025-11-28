@@ -415,6 +415,10 @@ class UserActionsController
         if ($exists) {
             return $this->back($response, ['reserve_error' => 'duplicate']);
         }
+        // Calculate date range for availability check
+        $start = ($desired !== '') ? $desired : date('Y-m-d');
+        $end = date('Y-m-d', strtotime($start . ' +1 month'));
+
         // Start transaction for concurrency control
         $db->begin_transaction();
 
@@ -425,6 +429,30 @@ class UserActionsController
             $lockStmt->execute();
             $lockStmt->close();
 
+            // Check availability for the requested date range (excluding this user's existing reservations)
+            $reservationsController = new ReservationsController($db);
+            $availability = $reservationsController->getBookAvailabilityData($libroId, $start, 35, $utenteId);
+
+            // Check each day in the range for conflicts
+            $currentDate = new \DateTime($start);
+            $endDateTime = new \DateTime($end);
+            $hasConflict = false;
+
+            while ($currentDate <= $endDateTime) {
+                $dateStr = $currentDate->format('Y-m-d');
+                $dayData = $availability['by_date'][$dateStr] ?? null;
+                if ($dayData !== null && ($dayData['available'] ?? 0) <= 0) {
+                    $hasConflict = true;
+                    break;
+                }
+                $currentDate->add(new \DateInterval('P1D'));
+            }
+
+            if ($hasConflict) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'not_available']);
+            }
+
             // Calculate queue position
             $stmt = $db->prepare("SELECT COALESCE(MAX(queue_position),0)+1 AS pos FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
             $stmt->bind_param('i', $libroId);
@@ -433,8 +461,6 @@ class UserActionsController
             $pos = (int) ($res->fetch_assoc()['pos'] ?? 1);
             $stmt->close();
 
-            $start = ($desired !== '') ? $desired : date('Y-m-d');
-            $end = date('Y-m-d', strtotime($start . ' +1 month'));
             $startDt = $start . ' 00:00:00';
             $endDt = $end . ' 23:59:59';
 
