@@ -6585,11 +6585,12 @@ table.dataTable thead td {
 
 /*# sourceMappingURL=main.css.map*/
 
-/* Ensure dayContainer doesn't justify-content: space-around (avoid misalignment) */
-.dayContainer {
-  -webkit-justify-content: unset !important;
-  -ms-flex-pack: unset !important;
-  justify-content: unset !important;
+/* Fix availability calendar day alignment (scoped to avoid affecting other flatpickr instances) */
+#copy-availability-calendar .dayContainer {
+  -webkit-justify-content: flex-start;
+  -ms-flex-pack: start;
+  justify-content: flex-start;
+  gap: 0.25rem;
 }
 
 /* === DataTables Pagination Improvements === */
@@ -6664,6 +6665,13 @@ nav[aria-label="pagination"],
   background-color: #1f2937;
   color: #fff;
   border-color: #1f2937;
+}
+
+/* Keyboard accessibility - visible focus ring */
+.dt-paging-button:not(.disabled):not(.current):focus-visible,
+.paginate_button:not(.disabled):not(.current):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 /* DataTables info text */
