@@ -567,7 +567,11 @@ table#autori-table { border: 1px solid gainsboro; width: 100% !important; }
 
 .dataTables_wrapper .dataTables_length select { @apply py-1.5 px-2 text-sm border border-gray-300 rounded-lg bg-white; }
 .dataTables_wrapper .dataTables_info { @apply text-sm text-gray-600 py-3; }
+/* Pagination buttons - hide disabled navigation buttons */
 .dataTables_wrapper .dataTables_paginate .paginate_button { @apply px-3 py-1.5 text-sm border border-gray-300 bg-white hover:bg-gray-50 rounded mx-0.5; }
 .dataTables_wrapper .dataTables_paginate .paginate_button.current { @apply bg-gray-800 text-white border-gray-800; }
-.dataTables_wrapper .dataTables_paginate .paginate_button.disabled { @apply opacity-50 cursor-not-allowed; }
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.first,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.previous,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.next,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.last { display: none !important; }
 </style>
