@@ -151,29 +151,32 @@ class ReservationManager {
 
         $copyId = $copy ? (int)$copy['id'] : null;
 
-        if ($copyId) {
-            // Lock copy and re-check overlap to prevent race conditions
-            $lockCopyStmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
-            $lockCopyStmt->bind_param('i', $copyId);
-            $lockCopyStmt->execute();
-            $lockCopyStmt->close();
+        if (!$copyId) {
+            // No copy available for the requested range – treat as failed allocation
+            return false;
+        }
 
-            $overlapCopyStmt = $this->db->prepare("
-                SELECT 1 FROM prestiti
-                WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
-                AND data_prestito <= ? AND data_scadenza >= ?
-                LIMIT 1
-            ");
-            $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
-            $overlapCopyStmt->execute();
-            $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
-            $overlapCopyStmt->close();
+        // Lock copy and re-check overlap to prevent race conditions
+        $lockCopyStmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+        $lockCopyStmt->bind_param('i', $copyId);
+        $lockCopyStmt->execute();
+        $lockCopyStmt->close();
 
-            if ($overlapCopy) {
-                // Abort if race detected
-                return false;
-            }
+        $overlapCopyStmt = $this->db->prepare("
+            SELECT 1 FROM prestiti
+            WHERE copia_id = ? AND attivo = 1
+            AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
+            AND data_prestito <= ? AND data_scadenza >= ?
+            LIMIT 1
+        ");
+        $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
+        $overlapCopyStmt->execute();
+        $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
+        $overlapCopyStmt->close();
+
+        if ($overlapCopy) {
+            // Abort if race detected
+            return false;
         }
 
         // Create loan with copia_id
@@ -192,13 +195,10 @@ class ReservationManager {
         $stmt->execute();
         $stmt->close();
 
-        // Update copy status if assigned
-        // Future loans: 'prenotato', immediate loans: 'prestato'
-        if ($copyId) {
-            $copyRepo = new \App\Models\CopyRepository($this->db);
-            $copyStatus = $isFutureLoan ? 'prenotato' : 'prestato';
-            $copyRepo->updateStatus($copyId, $copyStatus);
-        }
+        // Update copy status: 'prenotato' for future loans, 'prestato' for immediate
+        $copyRepo = new \App\Models\CopyRepository($this->db);
+        $copyStatus = $isFutureLoan ? 'prenotato' : 'prestato';
+        $copyRepo->updateStatus($copyId, $copyStatus);
 
         // Update book availability
         $integrity = new \App\Support\DataIntegrity($this->db);
