@@ -10,9 +10,11 @@ use App\Support\DataIntegrity;
 use Exception;
 use function __;
 
-class LoanApprovalController {
+class LoanApprovalController
+{
 
-    public function pendingLoans(Request $request, Response $response, mysqli $db): Response {
+    public function pendingLoans(Request $request, Response $response, mysqli $db): Response
+    {
         // Get all pending loan requests
         $stmt = $db->prepare("
             SELECT p.*, l.titolo, l.copertina_url,
@@ -43,19 +45,20 @@ class LoanApprovalController {
         return $response;
     }
 
-    public function approveLoan(Request $request, Response $response, mysqli $db): Response {
+    public function approveLoan(Request $request, Response $response, mysqli $db): Response
+    {
         $data = $request->getParsedBody();
         if (!is_array($data) || empty($data)) {
             $contentType = $request->getHeaderLine('Content-Type');
             if (str_contains($contentType, 'application/json')) {
-                $raw = (string)$request->getBody();
+                $raw = (string) $request->getBody();
                 $decoded = json_decode($raw, true);
                 if (is_array($decoded)) {
                     $data = $decoded;
                 }
             }
         }
-        $loanId = (int)($data['loan_id'] ?? 0);
+        $loanId = (int) ($data['loan_id'] ?? 0);
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
@@ -83,7 +86,7 @@ class LoanApprovalController {
             $loan = $result->fetch_assoc();
             $stmt->close();
 
-            $libroId = (int)$loan['libro_id'];
+            $libroId = (int) $loan['libro_id'];
             $dataPrestito = $loan['data_prestito'];
             $dataScadenza = $loan['data_scadenza'];
             $today = date('Y-m-d');
@@ -96,7 +99,7 @@ class LoanApprovalController {
             $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
             $totalCopiesStmt->bind_param('i', $libroId);
             $totalCopiesStmt->execute();
-            $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+            $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
             $totalCopiesStmt->close();
 
             // Step 2: Count overlapping loans (excluding the current pending one)
@@ -108,7 +111,7 @@ class LoanApprovalController {
             ");
             $loanCountStmt->bind_param('iiss', $libroId, $loanId, $dataScadenza, $dataPrestito);
             $loanCountStmt->execute();
-            $overlappingLoans = (int)($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+            $overlappingLoans = (int) ($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
             $loanCountStmt->close();
 
             // Step 3: Count overlapping prenotazioni
@@ -119,10 +122,11 @@ class LoanApprovalController {
                 WHERE libro_id = ? AND stato = 'attiva'
                 AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
                 AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+                AND utente_id != ?
             ");
-            $resCountStmt->bind_param('iss', $libroId, $dataScadenza, $dataPrestito);
+            $resCountStmt->bind_param('issi', $libroId, $dataScadenza, $dataPrestito, $loan['utente_id']);
             $resCountStmt->execute();
-            $overlappingReservations = (int)($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+            $overlappingReservations = (int) ($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
             $resCountStmt->close();
 
             // Check if there's at least one slot available
@@ -254,19 +258,20 @@ class LoanApprovalController {
         }
     }
 
-    public function rejectLoan(Request $request, Response $response, mysqli $db): Response {
+    public function rejectLoan(Request $request, Response $response, mysqli $db): Response
+    {
         $data = $request->getParsedBody();
         if (!is_array($data) || empty($data)) {
             $contentType = $request->getHeaderLine('Content-Type');
             if (str_contains($contentType, 'application/json')) {
-                $raw = (string)$request->getBody();
+                $raw = (string) $request->getBody();
                 $decoded = json_decode($raw, true);
                 if (is_array($decoded)) {
                     $data = $decoded;
                 }
             }
         }
-        $loanId = (int)($data['loan_id'] ?? 0);
+        $loanId = (int) ($data['loan_id'] ?? 0);
         $reason = $data['reason'] ?? '';
 
         if ($loanId <= 0) {
