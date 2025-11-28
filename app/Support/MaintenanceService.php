@@ -46,6 +46,7 @@ class MaintenanceService
     {
         $results = [
             'scheduled_loans_activated' => 0,
+            'reservations_converted' => 0,
             'overdue_loans_updated' => 0,
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
@@ -58,6 +59,13 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'activateScheduledLoans: ' . $e->getMessage();
             error_log('MaintenanceService error (activateScheduledLoans): ' . $e->getMessage());
+        }
+
+        try {
+            $results['reservations_converted'] = $this->processScheduledReservations();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'processScheduledReservations: ' . $e->getMessage();
+            error_log('MaintenanceService error (processScheduledReservations): ' . $e->getMessage());
         }
 
         try {
@@ -165,6 +173,97 @@ class MaintenanceService
         }
 
         return $activatedCount;
+    }
+
+    /**
+     * Process scheduled reservations - convert reservations to loans when:
+     * 1. Their start date (data_inizio_richiesta) is today or in the past
+     * 2. A copy is actually available for that book
+     *
+     * This handles the case where a user creates a reservation for a future date
+     * and the book is already available - without this, the reservation would
+     * sit in queue forever waiting for a "book returned" event that never comes.
+     */
+    public function processScheduledReservations(): int
+    {
+        $today = date('Y-m-d');
+
+        // Find all active reservations where the requested start date has arrived
+        // Process them in queue order (queue_position ASC)
+        $stmt = $this->db->prepare("
+            SELECT p.id, p.libro_id, p.utente_id, p.data_inizio_richiesta, p.data_fine_richiesta,
+                   u.email, u.nome, u.cognome
+            FROM prenotazioni p
+            JOIN utenti u ON p.utente_id = u.id
+            WHERE p.stato = 'attiva'
+            AND p.data_inizio_richiesta <= ?
+            ORDER BY p.libro_id, p.queue_position ASC
+        ");
+
+        if (!$stmt) {
+            throw new \RuntimeException('Failed to prepare scheduled reservations query');
+        }
+
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+
+        $convertedCount = 0;
+        $processedBooks = []; // Track which books we've already processed a reservation for
+
+        foreach ($reservations as $reservation) {
+            $bookId = (int)$reservation['libro_id'];
+
+            // Only process one reservation per book per run (the first in queue)
+            // This prevents converting multiple reservations when only one copy is available
+            if (isset($processedBooks[$bookId])) {
+                continue;
+            }
+
+            $this->db->begin_transaction();
+
+            try {
+                // Lock the book row
+                $lockStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+                $lockStmt->bind_param('i', $bookId);
+                $lockStmt->execute();
+                $lockStmt->close();
+
+                // Use ReservationManager to check availability and create loan
+                $reservationManager = new \App\Controllers\ReservationManager($this->db);
+
+                // Check if dates are available (only counts loans, not other reservations)
+                $startDate = $reservation['data_inizio_richiesta'];
+                $endDate = $reservation['data_fine_richiesta'];
+
+                // If no end date, default to 1 month from start
+                if (!$endDate) {
+                    $endDate = date('Y-m-d', strtotime($startDate . ' +1 month'));
+                }
+
+                // Try to process this reservation (will create loan if copy available)
+                $success = $reservationManager->processBookAvailability($bookId);
+
+                if ($success) {
+                    $this->db->commit();
+                    $convertedCount++;
+                    $processedBooks[$bookId] = true;
+
+                    error_log("MaintenanceService: Converted reservation {$reservation['id']} to loan for book {$bookId}");
+                } else {
+                    // No copy available yet, rollback and continue
+                    $this->db->rollback();
+                }
+
+            } catch (\Throwable $e) {
+                $this->db->rollback();
+                error_log("MaintenanceService: Failed to process reservation {$reservation['id']}: " . $e->getMessage());
+            }
+        }
+
+        return $convertedCount;
     }
 
     /**

@@ -82,6 +82,10 @@ class ReservationManager {
 
         // Count overlapping loans (include pendente, prenotato, in_corso, in_ritardo)
         // Overlap check: existing_start <= our_end AND existing_end >= our_start
+        // Note: We only count LOANS here, not reservations, because:
+        // - This method is only used by processBookAvailability() to convert reservations to loans
+        // - Reservations are in a queue system - they wait their turn, they don't block each other
+        // - When converting reservation #1, other reservations shouldn't prevent the conversion
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as conflicts
             FROM prestiti
@@ -95,24 +99,8 @@ class ReservationManager {
         $loanConflicts = (int)($stmt->get_result()->fetch_assoc()['conflicts'] ?? 0);
         $stmt->close();
 
-        // Count overlapping active reservations
-        // Use COALESCE for safety, though data_inizio/fine_richiesta are always set
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as conflicts
-            FROM prenotazioni
-            WHERE libro_id = ?
-            AND stato = 'attiva'
-            AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
-            AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
-        ");
-        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
-        $stmt->execute();
-        $reservationConflicts = (int)($stmt->get_result()->fetch_assoc()['conflicts'] ?? 0);
-        $stmt->close();
-
-        // Multi-copy: available if total occupied < total copies
-        $totalOccupied = $loanConflicts + $reservationConflicts;
-        return $totalOccupied < $totalCopies;
+        // Multi-copy: available if there's at least one free slot
+        return $loanConflicts < $totalCopies;
     }
 
     private function createLoanFromReservation($reservation) {
