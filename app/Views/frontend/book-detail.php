@@ -515,7 +515,7 @@ $additional_css = "
     .meta-value {
         color: var(--text-light);
         font-size: 1.05rem;
-        font-weight: 500;
+        font-weight: 300;
     }
 
     .authors-list {
@@ -1472,7 +1472,7 @@ ob_start();
 
                 <!-- Alerts Section -->
                 <div id="book-alerts">
-                    <?php if (!empty($_GET['loan_success'])): ?>
+                    <?php if (!empty($_GET['loan_request_success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="fas fa-check-circle me-2"></i><?= __("Prestito richiesto con successo.") ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -1482,7 +1482,7 @@ ob_start();
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
                               $e = $_GET['loan_error'];
-                              echo $e==='not_available' ? __('Libro non disponibile per il prestito.') : __('Errore nella richiesta di prestito.');
+                              echo $e==='not_available' ? __('Nessuna copia disponibile per il periodo richiesto.') : __('Errore nella richiesta di prestito.');
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
@@ -1496,8 +1496,13 @@ ob_start();
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
-                              $e = $_GET['reserve_error'];
-                              echo $e==='duplicate' ? __('Hai già una prenotazione attiva per questo libro.') : ($e==='invalid_date' ? __('Data non valida.') : ($e==='past_date' ? __('La data non può essere nel passato.') : __('Errore nella prenotazione.')));
+                              $reserveErrorMessages = [
+                                  'duplicate' => __('Hai già una prenotazione attiva per questo libro.'),
+                                  'invalid_date' => __('Data non valida.'),
+                                  'past_date' => __('La data non può essere nel passato.'),
+                                  'not_available' => __('Nessuna copia disponibile per il periodo richiesto.')
+                              ];
+                              echo $reserveErrorMessages[$_GET['reserve_error']] ?? __('Errore nella prenotazione.');
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
@@ -1914,7 +1919,7 @@ $jsTranslationKeys = [
     'Quando vuoi iniziare il prestito?',
     'Fino a quando? (opzionale):',
     'Lascia vuoto per 1 mese',
-    'Le date rosse non sono disponibili. La richiesta verrà valutata da un amministratore.',
+    'Le date rosse o gialle non sono disponibili. La richiesta verrà valutata da un amministratore.',
     'Seleziona una data di inizio',
     'Richiesta Inviata!',
     'Invia Richiesta',
@@ -1923,7 +1928,10 @@ $jsTranslationKeys = [
     'Inserisci la data di inizio (YYYY-MM-DD)',
     'Prenotazione effettuata per ',
     'Errore: ',
-    'Errore nella prenotazione'
+    'Errore nella prenotazione',
+    'Tutte le copie in prestito',
+    'Tutte le copie prenotate',
+    'Copie disponibili'
 ];
 $jsTranslations = [];
 foreach ($jsTranslationKeys as $key) {
@@ -2048,6 +2056,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let earliestAvailable = new Date();
         let availabilityByDate = {};
 
+        let maxAvailableDate = null;
         try {
           const availRes = await fetch(`/api/libro/${libroId}/availability`);
           if (availRes.ok) {
@@ -2064,6 +2073,13 @@ document.addEventListener('DOMContentLoaded', function() {
                   }
                   return acc;
                 }, {});
+                // Get the last date in the availability data to set maxDate
+                if (availData.availability.days.length > 0) {
+                  const lastDay = availData.availability.days[availData.availability.days.length - 1];
+                  if (lastDay && lastDay.date) {
+                    maxAvailableDate = lastDay.date;
+                  }
+                }
               }
             }
           }
@@ -2125,9 +2141,11 @@ document.addEventListener('DOMContentLoaded', function() {
               altInput: true,
               altFormat: forceEn ? 'm-d-Y' : 'd-m-Y',
               minDate: 'today',
+              maxDate: maxAvailableDate || undefined,
               defaultDate: suggestedDate,
               locale: forceEn ? 'en' : (fpLocale || 'default'),
               disable: disabledDates,
+              showMonths: 2,
               onDayCreate: function(dObj, dStr, fp, dayElem) {
                 if (!dayElem || !dayElem.dateObj) return;
                 if (dayElem.classList.contains('prevMonthDay') || dayElem.classList.contains('nextMonthDay')) return;
@@ -2188,7 +2206,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
               endPicker = window.flatpickr(endEl, {
                 ...baseOpts,
-                minDate: earliestAvailable
+                minDate: earliestAvailable,
+                maxDate: undefined // End date can extend beyond availability range
               });
             }
           },
@@ -2216,7 +2235,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const res = await fetch(`/api/libro/${libroId}/reservation`, {
               method: 'POST',
-              credentials: 'same-origin',
               credentials: 'same-origin',
               headers: {
                 'Content-Type': 'application/json',

@@ -13,18 +13,23 @@ class ReservationManager {
 
     /**
      * Process reservations when a book becomes available
+     * Only considers reservations where the requested start date has arrived (date-eligible)
      */
     public function processBookAvailability($bookId) {
-        // Get the next reservation in queue
+        $today = date('Y-m-d');
+
+        // Get the next date-eligible reservation in queue
+        // Only process reservations where start date <= today (ready to convert to loan)
         $stmt = $this->db->prepare("
             SELECT r.*, u.email, u.nome, u.cognome
             FROM prenotazioni r
             JOIN utenti u ON r.utente_id = u.id
             WHERE r.libro_id = ? AND r.stato = 'attiva'
+            AND r.data_inizio_richiesta <= ?
             ORDER BY r.queue_position ASC
             LIMIT 1
         ");
-        $stmt->bind_param('i', $bookId);
+        $stmt->bind_param('is', $bookId, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $nextReservation = $result->fetch_assoc();
@@ -35,8 +40,13 @@ class ReservationManager {
             $endDate = $nextReservation['data_fine_richiesta'];
 
             if ($this->isDateRangeAvailable($bookId, $startDate, $endDate)) {
-                // Create the loan
-                $this->createLoanFromReservation($nextReservation);
+                // Create the loan - check return value to handle race conditions
+                $loanCreated = $this->createLoanFromReservation($nextReservation);
+
+                if ($loanCreated === false) {
+                    // Race condition detected - loan creation failed
+                    return false;
+                }
 
                 // Mark reservation as completed
                 $stmt = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ?");
@@ -61,57 +71,132 @@ class ReservationManager {
             return false;
         }
 
-        // Check for conflicting loans
+        // Multi-copy aware: count only loanable copies (exclude lost/damaged/maintenance)
+        $totalStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+        ");
+        $totalStmt->bind_param('i', $bookId);
+        $totalStmt->execute();
+        $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $totalStmt->close();
+
+        if ($totalCopies === 0) {
+            return false;
+        }
+
+        // Count overlapping loans (include pendente, prenotato, in_corso, in_ritardo)
+        // Overlap check: existing_start <= our_end AND existing_end >= our_start
+        // Note: We only count LOANS here, not reservations, because:
+        // - This method is only used by processBookAvailability() to convert reservations to loans
+        // - Reservations are in a queue system - they wait their turn, they don't block each other
+        // - When converting reservation #1, other reservations shouldn't prevent the conversion
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as conflicts
             FROM prestiti
             WHERE libro_id = ?
-            AND stato IN ('in_corso', 'in_ritardo')
-            AND (
-                (data_prestito <= ? AND data_scadenza >= ?) OR
-                (data_prestito <= ? AND data_scadenza >= ?) OR
-                (data_prestito >= ? AND data_prestito <= ?)
-            )
+            AND attivo = 1
+            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND data_prestito <= ? AND data_scadenza >= ?
         ");
-        $stmt->bind_param('issssss', $bookId, $startDate, $startDate, $endDate, $endDate, $startDate, $endDate);
+        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $conflicts = (int)$result->fetch_assoc()['conflicts'];
+        $loanConflicts = (int)($stmt->get_result()->fetch_assoc()['conflicts'] ?? 0);
+        $stmt->close();
 
-        // Check for conflicting active reservations with earlier queue positions
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as conflicts
-            FROM prenotazioni
-            WHERE libro_id = ?
-            AND stato = 'attiva'
-            AND data_inizio_richiesta IS NOT NULL
-            AND data_fine_richiesta IS NOT NULL
-            AND (
-                (data_inizio_richiesta <= ? AND data_fine_richiesta >= ?) OR
-                (data_inizio_richiesta <= ? AND data_fine_richiesta >= ?) OR
-                (data_inizio_richiesta >= ? AND data_inizio_richiesta <= ?)
-            )
-        ");
-        $stmt->bind_param('issssss', $bookId, $startDate, $startDate, $endDate, $endDate, $startDate, $endDate);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $reservationConflicts = (int)$result->fetch_assoc()['conflicts'];
-
-        return $conflicts === 0 && $reservationConflicts === 0;
+        // Multi-copy: available if there's at least one free slot
+        return $loanConflicts < $totalCopies;
     }
 
     private function createLoanFromReservation($reservation) {
-        $stmt = $this->db->prepare("
-            INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo)
-            VALUES (?, ?, ?, ?, 'in_corso', 1)
+        $bookId = (int)$reservation['libro_id'];
+        $startDate = $reservation['data_inizio_richiesta'];
+        $endDate = $reservation['data_fine_richiesta'];
+        $today = date('Y-m-d');
+
+        // Determine state: 'prenotato' if future loan, 'in_corso' if immediate
+        $isFutureLoan = ($startDate > $today);
+        $newState = $isFutureLoan ? 'prenotato' : 'in_corso';
+
+        // Find an available copy for this date range (no overlapping loans)
+        // Consider 'disponibile' and 'prenotato' copies (exclude perso/danneggiato/manutenzione)
+        // The NOT EXISTS clause ensures no overlapping loans for the requested dates
+        $copyStmt = $this->db->prepare("
+            SELECT c.id FROM copie c
+            WHERE c.libro_id = ?
+            AND c.stato IN ('disponibile', 'prenotato')
+            AND NOT EXISTS (
+                SELECT 1 FROM prestiti p
+                WHERE p.copia_id = c.id
+                AND p.attivo = 1
+                AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                AND p.data_prestito <= ?
+                AND p.data_scadenza >= ?
+            )
+            LIMIT 1
         ");
-        $stmt->bind_param('iiss',
+        $copyStmt->bind_param('iss', $bookId, $endDate, $startDate);
+        $copyStmt->execute();
+        $copyResult = $copyStmt->get_result();
+        $copy = $copyResult->fetch_assoc();
+        $copyStmt->close();
+
+        $copyId = $copy ? (int)$copy['id'] : null;
+
+        if (!$copyId) {
+            // No copy available for the requested range – treat as failed allocation
+            return false;
+        }
+
+        // Lock copy and re-check overlap to prevent race conditions
+        $lockCopyStmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+        $lockCopyStmt->bind_param('i', $copyId);
+        $lockCopyStmt->execute();
+        $lockCopyStmt->close();
+
+        $overlapCopyStmt = $this->db->prepare("
+            SELECT 1 FROM prestiti
+            WHERE copia_id = ? AND attivo = 1
+            AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
+            AND data_prestito <= ? AND data_scadenza >= ?
+            LIMIT 1
+        ");
+        $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
+        $overlapCopyStmt->execute();
+        $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
+        $overlapCopyStmt->close();
+
+        if ($overlapCopy) {
+            // Abort if race detected
+            return false;
+        }
+
+        // Create loan with copia_id
+        $stmt = $this->db->prepare("
+            INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, attivo)
+            VALUES (?, ?, ?, ?, ?, ?, 1)
+        ");
+        $stmt->bind_param('iiisss',
             $reservation['libro_id'],
             $reservation['utente_id'],
-            $reservation['data_inizio_richiesta'],
-            $reservation['data_fine_richiesta']
+            $copyId,
+            $startDate,
+            $endDate,
+            $newState
         );
         $stmt->execute();
+        $stmt->close();
+
+        // Update copy status: 'prenotato' for future loans, 'prestato' for immediate
+        $copyRepo = new \App\Models\CopyRepository($this->db);
+        $copyStatus = $isFutureLoan ? 'prenotato' : 'prestato';
+        $copyRepo->updateStatus($copyId, $copyStatus);
+
+        // Update book availability
+        $integrity = new \App\Support\DataIntegrity($this->db);
+        $integrity->recalculateBookAvailability($bookId);
+
+        return true;
     }
 
     private function updateQueuePositions($bookId) {
@@ -128,13 +213,13 @@ class ReservationManager {
         try {
             // Get book details
             $stmt = $this->db->prepare("
-                SELECT l.titolo, l.isbn,
+                SELECT l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
                        GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
                 FROM libri l
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.id = ?
-                GROUP BY l.id, l.titolo, l.isbn
+                GROUP BY l.id, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $reservation['libro_id']);
             $stmt->execute();
@@ -210,36 +295,56 @@ class ReservationManager {
     }
 
     /**
-     * Check if book is available for immediate loan (no active reservations)
+     * Check if book is available for immediate loan (multi-copy aware)
      */
     public function isBookAvailableForImmediateLoan($bookId) {
-        // Check for active loans
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as active_loans
-            FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo')
-        ");
-        $stmt->bind_param('i', $bookId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $activeLoans = (int)$result->fetch_assoc()['active_loans'];
+        $today = date('Y-m-d');
 
-        if ($activeLoans > 0) {
+        // Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
+        $totalStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+        ");
+        $totalStmt->bind_param('i', $bookId);
+        $totalStmt->execute();
+        $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $totalStmt->close();
+
+        if ($totalCopies === 0) {
             return false;
         }
 
-        // Check for active reservations
+        // Count active loans that overlap with today (include prenotato)
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) as active_loans
+            FROM prestiti
+            WHERE libro_id = ?
+            AND attivo = 1
+            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND data_prestito <= ? AND data_scadenza >= ?
+        ");
+        $stmt->bind_param('iss', $bookId, $today, $today);
+        $stmt->execute();
+        $activeLoans = (int)($stmt->get_result()->fetch_assoc()['active_loans'] ?? 0);
+        $stmt->close();
+
+        // Count active reservations that overlap with today
+        // Use COALESCE for safety, though data_inizio/fine_richiesta are always set
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as active_reservations
             FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
+            AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
+            AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
         ");
-        $stmt->bind_param('i', $bookId);
+        $stmt->bind_param('iss', $bookId, $today, $today);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $activeReservations = (int)$result->fetch_assoc()['active_reservations'];
+        $activeReservations = (int)($stmt->get_result()->fetch_assoc()['active_reservations'] ?? 0);
+        $stmt->close();
 
-        return $activeReservations === 0;
+        // Multi-copy: available if total occupied < total copies
+        $totalOccupied = $activeLoans + $activeReservations;
+        return $totalOccupied < $totalCopies;
     }
 
     /**

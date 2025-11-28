@@ -12,10 +12,11 @@ function getLoanStatusBadge($status) {
         case 'restituito':
             return "<span class='$baseClasses bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i>" . __("Restituito") . "</span>";
         case 'perso':
+            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Perso") . "</span>";
         case 'danneggiato':
-            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . ucfirst($status) . "</span>";
+            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Danneggiato") . "</span>";
         default:
-            return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . ucfirst($status) . "</span>";
+            return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . __("Sconosciuto") . "</span>";
     }
 }
 
@@ -37,16 +38,16 @@ $aggiornatoIl = $utente['updated_at'] ?? '';
 $note = $utente['note_utente'] ?? '';
 
 $statusLabels = [
-    'attivo' => 'Attivo',
-    'sospeso' => 'Sospeso',
-    'scaduto' => 'Scaduto'
+    'attivo' => __('Attivo'),
+    'sospeso' => __('Sospeso'),
+    'scaduto' => __('Scaduto')
 ];
 
 $roleLabels = [
-    'admin' => 'Amministratore',
-    'staff' => 'Staff',
-    'premium' => 'Premium',
-    'standard' => 'Standard'
+    'admin' => __('Amministratore'),
+    'staff' => __('Staff'),
+    'premium' => __('Premium'),
+    'standard' => __('Standard')
 ];
 
 $display = static function (?string $value, string $placeholder = '—'): string {

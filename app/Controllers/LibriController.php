@@ -160,6 +160,30 @@ class LibriController
         }
         $stmt->close();
 
+        // Active reservations for this book (admin/staff only - contains PII)
+        $activeReservations = [];
+        $currentUserRole = $_SESSION['user']['tipo_utente'] ?? '';
+        $isAdminOrStaff = \in_array($currentUserRole, ['admin', 'staff'], true);
+
+        if ($isAdminOrStaff) {
+            $resStmt = $db->prepare("
+                SELECT r.id, r.data_inizio_richiesta, r.data_fine_richiesta, r.data_scadenza_prenotazione,
+                       r.stato, r.queue_position,
+                       u.nome, u.cognome, u.email
+                FROM prenotazioni r
+                JOIN utenti u ON u.id = r.utente_id
+                WHERE r.libro_id = ? AND r.stato = 'attiva'
+                ORDER BY r.data_inizio_richiesta IS NULL, r.data_inizio_richiesta ASC, r.id ASC
+            ");
+            $resStmt->bind_param('i', $id);
+            $resStmt->execute();
+            $resResult = $resStmt->get_result();
+            while ($row = $resResult->fetch_assoc()) {
+                $activeReservations[] = $row;
+            }
+            $resStmt->close();
+        }
+
         ob_start();
         // extract([
         //     'libro' => $libro,
@@ -785,7 +809,12 @@ class LibriController
             if (!empty($codes)) {
                 $clauses = [];$types='';$params=[];
                 foreach ($codes as $k=>$v) { $clauses[] = "l.$k = ?"; $types .= 's'; $params[] = $v; }
-                $sql = 'SELECT id, titolo FROM libri l WHERE ('.implode(' OR ', $clauses).') AND id <> ? LIMIT 1';
+                $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione,
+                               s.codice AS scaffale_codice, m.numero_livello AS mensola_livello, l.posizione_progressiva
+                        FROM libri l
+                        LEFT JOIN scaffali s ON l.scaffale_id = s.id
+                        LEFT JOIN mensole m ON l.mensola_id = m.id
+                        WHERE ('.implode(' OR ', $clauses).') AND l.id <> ? LIMIT 1';
                 $types .= 'i'; $params[] = $id;
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
@@ -797,22 +826,28 @@ class LibriController
                         $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
                     }
 
-                    $editRepo = new \App\Models\PublisherRepository($db);
-                    $autRepo = new \App\Models\AuthorRepository($db);
-                    $editori = $editRepo->listBasic();
-                    $autori = $autRepo->listBasic(500);
-                    $colRepo = new \App\Models\CollocationRepository($db);
-                    $taxRepo = new \App\Models\TaxonomyRepository($db);
-                    $scaffali = $colRepo->getScaffali();
-                    $generi = $taxRepo->genres();
-                    $sottogeneri = $taxRepo->subgenres();
-                    $error_message = 'Esiste già un altro libro con lo stesso identificatore (ISBN/EAN). ID: #'
-                        . (int)$dup['id'] . ' — "' . (string)($dup['titolo'] ?? '') . '"';
-                    $libroView = array_merge($currentBook, $fields);
-                    ob_start(); require __DIR__ . '/../Views/libri/modifica_libro.php'; $content = ob_get_clean();
-                    ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-                    $response->getBody()->write($html);
-                    return $response->withStatus(409);
+                    // Build location string
+                    $location = '';
+                    if (!empty($dup['scaffale_codice']) && !empty($dup['mensola_livello']) && !empty($dup['posizione_progressiva'])) {
+                        $location = $dup['scaffale_codice'] . '.' . $dup['mensola_livello'] . '.' . $dup['posizione_progressiva'];
+                    } elseif (!empty($dup['collocazione'])) {
+                        $location = $dup['collocazione'];
+                    }
+
+                    // Return JSON with duplicate book info for frontend to handle
+                    $response->getBody()->write(json_encode([
+                        'error' => 'duplicate',
+                        'message' => __('Esiste già un altro libro con lo stesso identificatore (ISBN/EAN).'),
+                        'existing_book' => [
+                            'id' => (int)$dup['id'],
+                            'title' => (string)($dup['titolo'] ?? ''),
+                            'isbn10' => (string)($dup['isbn10'] ?? ''),
+                            'isbn13' => (string)($dup['isbn13'] ?? ''),
+                            'ean' => (string)($dup['ean'] ?? ''),
+                            'location' => $location
+                        ]
+                    ], JSON_UNESCAPED_UNICODE));
+                    return $response->withStatus(409)->withHeader('Content-Type', 'application/json');
                 }
             }
         $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
@@ -980,7 +1015,7 @@ class LibriController
 
             // Se non riusciamo a rimuovere abbastanza copie, avvisa l'utente
             if ($removed < $toRemove) {
-                $_SESSION['warning_message'] = "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.";
+                $_SESSION['warning_message'] = __("Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.");
             }
         }
 
@@ -1392,6 +1427,147 @@ class LibriController
         return null;
     }
 
+    /**
+     * Fetch cover for a book via scraping (if missing)
+     */
+    public function fetchCover(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        $repo = new \App\Models\BookRepository($db);
+        $libro = $repo->getById($id);
+
+        if (!$libro) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Libro non trovato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        // Check if already has cover
+        if (!empty($libro['copertina_url'])) {
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // Get ISBN for scraping
+        $isbn = $libro['isbn13'] ?? $libro['isbn10'] ?? $libro['ean'] ?? '';
+        if (empty($isbn)) {
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'no_isbn']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // Call scraping API to get book data including cover (use /api/scrape/isbn route)
+        $scrapeUrl = '/api/scrape/isbn?isbn=' . urlencode($isbn);
+
+        // Internal request to scraping endpoint
+        $ch = curl_init();
+        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $baseUrl . $scrapeUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false, // Internal request
+        ]);
+        $scrapeResult = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !$scrapeResult) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Scraping fallito')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+        }
+
+        $scrapeData = json_decode($scrapeResult, true);
+        if (!$scrapeData || empty($scrapeData['image'])) {
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'no_cover_found']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // Download and save the cover image
+        $imageUrl = $scrapeData['image'];
+
+        $uploadDir = $this->getCoversUploadPath() . '/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        // Download image
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $imageUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
+        ]);
+        $imageData = curl_exec($ch);
+        $imgHttpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($imgHttpCode !== 200 || !$imageData) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+        }
+
+        // Check size limit (5MB max)
+        $maxSize = 5 * 1024 * 1024;
+        if (\strlen($imageData) > $maxSize) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('File troppo grande. Dimensione massima 5MB.')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Validate image
+        $imageInfo = @getimagesizefromstring($imageData);
+        if ($imageInfo === false) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Immagine non valida')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $mimeType = $imageInfo['mime'] ?? '';
+        $extension = match ($mimeType) {
+            'image/jpeg', 'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            default => null,
+        };
+
+        if ($extension === null) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Formato immagine non supportato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Save image
+        $filename = 'copertina_' . $id . '_' . time() . '.' . $extension;
+        $filepath = $uploadDir . $filename;
+
+        $image = imagecreatefromstring($imageData);
+        if ($image === false) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore processamento immagine')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+
+        $saveResult = match ($extension) {
+            'png' => imagepng($image, $filepath, 9),
+            default => imagejpeg($image, $filepath, 85),
+        };
+        imagedestroy($image);
+
+        if (!$saveResult) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore salvataggio immagine')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+
+        chmod($filepath, 0644);
+
+        // Update book record with cover URL
+        $coverUrl = $this->getCoversUrlPath() . '/' . $filename;
+        $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
+        $stmt->bind_param('si', $coverUrl, $id);
+        $stmt->execute();
+        $stmt->close();
+
+        $response->getBody()->write(json_encode(['success' => true, 'fetched' => true, 'cover_url' => $coverUrl]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
     public function generateLabelPDF(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $repo = new \App\Models\BookRepository($db);
@@ -1503,6 +1679,7 @@ class LibriController
     /**
      * Render portrait (vertical) label layout
      * Optimized for narrow spine labels like 25x38mm, 25x40mm, 34x48mm
+     * Includes: App name, Title, Author, EAN barcode, EAN text, Dewey, Collocazione
      */
     private function renderPortraitLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
     {
@@ -1510,6 +1687,7 @@ class LibriController
         $fontSizeApp = max(4, min(7, $availableWidth * 0.25));
         $fontSizeTitle = max(4, min(6, $availableWidth * 0.22));
         $fontSizeAuthor = max(3, min(5, $availableWidth * 0.18));
+        $fontSizeSmall = max(3, min(4, $availableWidth * 0.15));
         $fontSizePosition = max(4, min(6, $availableWidth * 0.20));
 
         // Prepare text content
@@ -1520,6 +1698,12 @@ class LibriController
 
         $maxAuthorChars = (int)($availableWidth * 1.5);
         $autoreShort = !empty($autoriStr) ? mb_substr($autoriStr, 0, $maxAuthorChars) : '';
+
+        // EAN/ISBN text (for display under barcode)
+        $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
+
+        // Dewey classification
+        $dewey = $libro['classificazione_dowey'] ?? '';
 
         // Calculate total content height
         $totalHeight = 0;
@@ -1536,12 +1720,21 @@ class LibriController
             $totalHeight += 2.5;
         }
 
-        // Barcode
+        // Barcode + EAN text
         $includeBarcode = !empty($barcode['value']);
         $barcodeHeight = 0;
         if ($includeBarcode) {
-            $barcodeHeight = min(8, $availableHeight * 0.20);
-            $totalHeight += $barcodeHeight + 2;
+            $barcodeHeight = min(8, $availableHeight * 0.18);
+            $totalHeight += $barcodeHeight + 1;
+            if (!empty($eanText)) {
+                $totalHeight += 2; // EAN text under barcode
+            }
+        }
+
+        // Dewey
+        $includeDewey = !empty($dewey);
+        if ($includeDewey) {
+            $totalHeight += 2.5;
         }
 
         // Position/Collocazione
@@ -1581,9 +1774,26 @@ class LibriController
         if ($includeBarcode) {
             $barcodeWidth = $availableWidth * 0.85;
             $barcodeX = $margin + (($availableWidth - $barcodeWidth) / 2);
-            $currentY += 1;
+            $currentY += 0.5;
             $pdf->write1DBarcode($barcode['value'], $barcode['type'], $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.3, ['stretch' => true, 'fitwidth' => true]);
-            $currentY += $barcodeHeight + 1;
+            $currentY += $barcodeHeight;
+
+            // EAN text under barcode
+            if (!empty($eanText)) {
+                $pdf->SetFont('helvetica', '', $fontSizeSmall);
+                $pdf->SetXY($margin, $currentY);
+                $pdf->Cell($availableWidth, 2, $eanText, 0, 0, 'C');
+                $currentY += 2;
+            }
+        }
+
+        // Dewey classification
+        if ($includeDewey) {
+            $pdf->SetFont('helvetica', 'I', $fontSizeSmall);
+            $pdf->SetXY($margin, $currentY);
+            $deweyShort = mb_substr($dewey, 0, 15);
+            $pdf->Cell($availableWidth, 2, "Dewey: {$deweyShort}", 0, 0, 'C');
+            $currentY += 2.5;
         }
 
         // Position/Collocazione
@@ -1598,6 +1808,7 @@ class LibriController
     /**
      * Render landscape (horizontal) label layout
      * Optimized for larger labels like 70x36mm, 50x25mm, 52x30mm
+     * Includes: App name, Title, Author/Publisher, EAN barcode, EAN text, Dewey, Collocazione
      */
     private function renderLandscapeLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
     {
@@ -1605,6 +1816,7 @@ class LibriController
         $fontSizeApp = max(6, min(10, $availableHeight * 0.25));
         $fontSizeTitle = max(5, min(8, $availableHeight * 0.20));
         $fontSizeAuthor = max(4, min(6, $availableHeight * 0.15));
+        $fontSizeSmall = max(3, min(5, $availableHeight * 0.12));
         $fontSizePosition = max(5, min(8, $availableHeight * 0.22));
 
         // Prepare text content
@@ -1627,6 +1839,12 @@ class LibriController
             $infoText = mb_substr($infoText, 0, $maxInfoChars);
         }
 
+        // EAN/ISBN text (for display under barcode)
+        $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
+
+        // Dewey classification
+        $dewey = $libro['classificazione_dowey'] ?? '';
+
         // Calculate total content height
         $totalHeight = 0;
         $totalHeight += 4.5; // App name
@@ -1639,12 +1857,21 @@ class LibriController
             $totalHeight += 3;
         }
 
-        // Barcode
+        // Barcode + EAN text
         $includeBarcode = !empty($barcode['value']);
         $barcodeHeight = 0;
         if ($includeBarcode) {
-            $barcodeHeight = min(10, $availableHeight * 0.30);
-            $totalHeight += $barcodeHeight + 1;
+            $barcodeHeight = min(10, $availableHeight * 0.25);
+            $totalHeight += $barcodeHeight + 0.5;
+            if (!empty($eanText)) {
+                $totalHeight += 2.5; // EAN text under barcode
+            }
+        }
+
+        // Dewey
+        $includeDewey = !empty($dewey);
+        if ($includeDewey) {
+            $totalHeight += 2.5;
         }
 
         // Position text
@@ -1692,7 +1919,24 @@ class LibriController
             $barcodeX = $margin + (($availableWidth - $barcodeWidth) / 2);
             $currentY += 0.5;
             $pdf->write1DBarcode($barcode['value'], $barcode['type'], $barcodeX, $currentY, $barcodeWidth, $barcodeHeight, 0.4, ['stretch' => true]);
-            $currentY += $barcodeHeight + 0.5;
+            $currentY += $barcodeHeight;
+
+            // EAN text under barcode
+            if (!empty($eanText)) {
+                $pdf->SetFont('helvetica', '', $fontSizeSmall);
+                $pdf->SetXY($margin, $currentY);
+                $pdf->Cell($availableWidth, 2.5, $eanText, 0, 0, 'C');
+                $currentY += 2.5;
+            }
+        }
+
+        // Dewey classification
+        if ($includeDewey) {
+            $pdf->SetFont('helvetica', 'I', $fontSizeSmall);
+            $pdf->SetXY($margin, $currentY);
+            $deweyShort = mb_substr($dewey, 0, 20);
+            $pdf->Cell($availableWidth, 2.5, "Dewey: {$deweyShort}", 0, 0, 'C');
+            $currentY += 2.5;
         }
 
         // Position text
