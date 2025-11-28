@@ -4,6 +4,7 @@ import '../css/bootstrap-overrides.css'; // Override Bootstrap primary color to 
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import { Italian } from 'flatpickr/dist/l10n/it.js';
+import { english } from 'flatpickr/dist/l10n/default.js';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 // Uppy - file upload library (all self-hosted, no CDN)
@@ -64,8 +65,12 @@ window.Choices = Choices;
 window.Swal = Swal;
 window.Chart = Chart;
 
-// Flatpickr with Italian localization
+// Flatpickr with localization support
 window.flatpickr = flatpickr;
+window.flatpickrLocales = {
+  it: Italian,
+  en: english
+};
 flatpickr.localize(Italian); // Set Italian as default locale
 
 // DataTables global setup

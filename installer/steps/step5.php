@@ -40,9 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['error'] !== UPLOAD_ERR_NO_FILE) {
                 if ($validator->validateFileUpload($_FILES['logo_file'])) {
                     $logoPath = $installer->uploadLogo($_FILES['logo_file']);
-                    $installer->saveSetting('app', 'logo', $logoPath);
-                    // ALSO save to database so ConfigStore finds it
-                    $installer->saveSettingToDatabase('app', 'logo_path', $logoPath);
+                    // Save to database - ConfigStore reads 'logo_path' and maps to app.logo
+                    $installer->saveSetting('app', 'logo_path', $logoPath);
                 } else {
                     $error = $validator->getFirstError();
                 }

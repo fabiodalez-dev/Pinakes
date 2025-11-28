@@ -5,7 +5,7 @@
 $title = "Libri";
 $libri = $data['libri'];
 ?>
-<!-- Minimal White Books Management Interface -->
+<!-- Enhanced Books Management Interface -->
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-2">
     <!-- Breadcrumb -->
@@ -26,278 +26,452 @@ $libri = $data['libri'];
         </li>
       </ol>
     </nav>
-    <!-- Minimal Header -->
-    <div class="mb-6 fade-in">
+
+    <!-- Header with Actions -->
+    <div class="mb-5 fade-in">
       <div class="flex items-center justify-between mb-3">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-            <i class="fas fa-book text-gray-600 mr-3"></i>
-            <?= __("Gestione Libri") ?>
+          <h1 class="text-3xl font-bold text-gray-900 flex flex-wrap items-center">
+            <span class="flex items-center">
+              <i class="fas fa-book text-gray-600 mr-3"></i>
+              <?= __("Gestione Libri") ?>
+            </span>
+            <span id="total-count" class="ml-3 md:ml-3 mt-2 md:mt-0 w-full md:w-auto px-3 py-1 bg-gray-100 text-gray-600 text-sm font-normal rounded-full"></span>
           </h1>
           <p class="text-sm text-gray-600 mt-1"><?= __("Esplora e gestisci la collezione della biblioteca") ?></p>
         </div>
-        <div class="hidden md:flex items-center gap-3">
-          <div class="hidden md:block">
-            <input id="global_search" type="text" placeholder="<?= __('Cerca rapido...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-64" />
+        <div class="hidden md:flex items-center gap-2">
+          <!-- View Toggle -->
+          <div class="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
+            <button id="view-table" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-gray-900" title="<?= __('Vista tabella') ?>">
+              <i class="fas fa-list"></i>
+            </button>
+            <button id="view-grid" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700" title="<?= __('Vista griglia') ?>">
+              <i class="fas fa-th-large"></i>
+            </button>
           </div>
-          <a href="/admin/libri/export/csv" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300" title="<?= __("Esporta tutti i libri in CSV") ?>">
-            <i class="fas fa-file-download mr-2"></i>
-            <?= __("Export CSV") ?>
+          <a href="/admin/libri/export/csv" class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm" title="<?= __("Esporta CSV") ?>">
+            <i class="fas fa-download mr-2"></i><?= __("Export") ?>
           </a>
-          <a href="/admin/libri/import" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300" title="<?= __("Import massivo da CSV") ?>">
-            <i class="fas fa-file-csv mr-2"></i>
-            <?= __("Import CSV") ?>
+          <a href="/admin/libri/import" class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm" title="<?= __("Import CSV") ?>">
+            <i class="fas fa-upload mr-2"></i><?= __("Import") ?>
           </a>
-          <a href="/admin/libri/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
-            <i class="fas fa-plus mr-2"></i>
-            <?= __("Nuovo Libro") ?>
+          <a href="/admin/libri/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
+            <i class="fas fa-plus mr-2"></i><?= __("Nuovo Libro") ?>
           </a>
+          <!-- Keyboard Shortcuts Help -->
+          <button id="shortcuts-help" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="<?= __('Scorciatoie da tastiera') ?>">
+            <i class="fas fa-keyboard"></i>
+          </button>
         </div>
       </div>
+      <!-- Mobile Actions -->
       <div class="flex md:hidden gap-2 mb-3">
-        <a href="/admin/libri/export/csv" class="flex-1 px-3 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300 text-sm" title="<?= __("Esporta tutti i libri in CSV") ?>">
-          <i class="fas fa-file-download mr-1"></i>
-          <?= __("Export") ?>
-        </a>
-        <a href="/admin/libri/import" class="flex-1 px-3 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300 text-sm" title="<?= __("Import massivo da CSV") ?>">
-          <i class="fas fa-file-csv mr-1"></i>
-          <?= __("Import") ?>
+        <div class="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
+          <button id="view-table-mobile" class="px-2 py-1 rounded text-xs font-medium transition-all bg-white shadow-sm text-gray-900">
+            <i class="fas fa-list"></i>
+          </button>
+          <button id="view-grid-mobile" class="px-2 py-1 rounded text-xs font-medium transition-all text-gray-500">
+            <i class="fas fa-th-large"></i>
+          </button>
+        </div>
+        <a href="/admin/libri/export/csv" class="flex-1 px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300 text-sm">
+          <i class="fas fa-download mr-1"></i><?= __("Export") ?>
         </a>
         <a href="/admin/libri/crea" class="flex-1 px-3 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center text-sm">
-          <i class="fas fa-plus mr-1"></i>
-          <?= __("Nuovo") ?>
+          <i class="fas fa-plus mr-1"></i><?= __("Nuovo") ?>
         </a>
       </div>
     </div>
 
-    <!-- White Filters Card -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-5 slide-in-up">
-      <div class="p-6 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900 flex items-center">
-          <i class="fas fa-filter text-gray-600 mr-2"></i>
-          <?= __("Filtri di Ricerca") ?>
-        </h2>
-        <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">
-          <i class="fas fa-chevron-up"></i>
-          <span><?= __("Nascondi filtri") ?></span>
-        </button>
-      </div>
-      <div class="p-6" id="filters-container">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-search mr-1 text-gray-500"></i>
-              <?= __("Cerca testo") ?>
+    <!-- Main Card with Integrated Filters -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <!-- Primary Filters Bar - Always Visible -->
+      <div class="p-4 border-b border-gray-100">
+        <div class="flex flex-wrap items-end gap-3">
+          <!-- Search Text -->
+          <div class="w-full md:flex-1 md:min-w-[200px] md:w-auto">
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_text" placeholder="<?= __('Titolo, sottotitolo, descrizione...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="search_text" type="text" placeholder="<?= __('Titolo, sottotitolo, descrizione...') ?>"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent text-sm" />
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-barcode mr-1 text-gray-500"></i>
-              ISBN
+          <!-- ISBN/EAN -->
+          <div class="w-full md:w-44">
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-barcode mr-1"></i>ISBN/EAN
             </label>
-            <input id="search_isbn" placeholder="<?= __('ISBN10 o ISBN13') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="search_isbn" type="text" placeholder="<?= __('ISBN o EAN...') ?>"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-info-circle mr-1 text-gray-500"></i>
-              Stato
+          <!-- Author Autocomplete -->
+          <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-user-edit mr-1"></i><?= __("Autore") ?>
             </label>
-            <select id="stato_filter" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full">
-              <option value=""><?= __("Tutti gli stati") ?></option>
+            <input id="filter_autore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+            <ul id="filter_autore_suggest" class="autocomplete-suggestions"></ul>
+            <input type="hidden" id="autore_id" />
+          </div>
+
+          <!-- Publisher Autocomplete -->
+          <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-building mr-1"></i><?= __("Editore") ?>
+            </label>
+            <input id="filter_editore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+            <ul id="filter_editore_suggest" class="autocomplete-suggestions"></ul>
+            <input type="hidden" id="editore_filter" />
+          </div>
+
+          <!-- Genre Autocomplete -->
+          <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-tags mr-1"></i><?= __("Genere") ?>
+            </label>
+            <input id="filter_genere" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+            <ul id="filter_genere_suggest" class="autocomplete-suggestions"></ul>
+            <input type="hidden" id="genere_id" />
+          </div>
+
+          <!-- Status -->
+          <div class="w-[calc(50%-0.375rem)] md:w-36">
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-info-circle mr-1"></i><?= __("Stato") ?>
+            </label>
+            <select id="stato_filter" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
+              <option value=""><?= __("Tutti") ?></option>
               <option value="Disponibile"><?= __("Disponibile") ?></option>
               <option value="Prestato"><?= __("Prestato") ?></option>
               <option value="Riservato"><?= __("Riservato") ?></option>
               <option value="Danneggiato"><?= __("Danneggiato") ?></option>
               <option value="Perso"><?= __("Perso") ?></option>
-              <option value="In Riparazione"><?= __("In Riparazione") ?></option>
             </select>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              <?= __("Data acquisizione da") ?>
-            </label>
-            <input id="acq_from" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+          <!-- More Filters Toggle -->
+          <button id="toggle-advanced" class="px-3 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm flex items-center gap-1 border border-gray-200">
+            <i class="fas fa-sliders-h"></i>
+            <span class="hidden sm:inline"><?= __("Altri filtri") ?></span>
+            <i id="toggle-advanced-icon" class="fas fa-chevron-down text-xs ml-1 transition-transform"></i>
+          </button>
+
+          <!-- Clear All -->
+          <button id="clear-filters" class="px-3 py-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors text-sm" title="<?= __('Cancella tutti i filtri') ?>">
+            <i class="fas fa-times"></i>
+          </button>
+
+          <!-- Recent Searches -->
+          <div class="relative">
+            <button id="recent-searches-btn" class="px-3 py-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-200" type="button" title="<?= __('Ricerche recenti') ?>">
+              <i class="fas fa-history"></i>
+            </button>
+            <div id="recent-searches-dropdown" class="hidden absolute top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-64 overflow-y-auto">
+              <div class="p-2 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-xs font-medium text-gray-500"><?= __("Ricerche recenti") ?></span>
+                <button id="clear-recent-searches" class="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                  <i class="fas fa-trash-alt mr-1"></i><?= __("Cancella") ?>
+                </button>
+              </div>
+              <ul id="recent-searches-list" class="py-1"></ul>
+              <div id="no-recent-searches" class="hidden p-3 text-center text-sm text-gray-400">
+                <?= __("Nessuna ricerca recente") ?>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              <?= __("Data acquisizione a") ?>
-            </label>
-            <input id="acq_to" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
-          </div>
+        <!-- Active Filters Chips -->
+        <div id="active-filters" class="hidden mt-3 flex flex-wrap gap-2"></div>
+      </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>
-              <?= __("Data pubblicazione da") ?>
-            </label>
-            <input id="pub_from" type="date" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
-          </div>
-
+      <!-- Advanced Filters - Collapsible -->
+      <div id="advanced-filters" class="hidden border-b border-gray-100 bg-gray-50/50 p-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <!-- Position -->
           <div class="relative">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-user-edit mr-1 text-gray-500"></i>
-              <?= __("Autore") ?>
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-map-marker-alt mr-1"></i><?= __("Posizione") ?>
             </label>
-            <input id="filter_autore" placeholder="<?= __('Cerca autore...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
-            <ul id="filter_autore_suggest" class="autocomplete-suggestions"></ul>
-            <input type="hidden" id="autore_id" />
-          </div>
-
-          <div class="relative">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-building mr-1 text-gray-500"></i>
-              <?= __("Editore") ?>
-            </label>
-            <input id="filter_editore" placeholder="<?= __('Cerca editore...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
-            <ul id="filter_editore_suggest" class="autocomplete-suggestions"></ul>
-            <input type="hidden" id="editore_filter" />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-          <div class="relative">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-tags mr-1 text-gray-500"></i>
-              <?= __("Genere") ?>
-            </label>
-            <input id="filter_genere" placeholder="<?= __('Cerca genere...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
-            <ul id="filter_genere_suggest" class="autocomplete-suggestions"></ul>
-            <input type="hidden" id="genere_id" />
-          </div>
-
-          <div class="relative">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-map-marker-alt mr-1 text-gray-500"></i>
-              <?= __("Posizione") ?>
-            </label>
-            <input id="filter_posizione" placeholder="<?= __('Cerca posizione...') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" autocomplete="off" />
+            <input id="filter_posizione" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
             <ul id="filter_posizione_suggest" class="autocomplete-suggestions"></ul>
             <input type="hidden" id="posizione_id" />
           </div>
 
+          <!-- Year From -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              <?= __("Anno pubblicazione da") ?>
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-calendar mr-1"></i><?= __("Anno da") ?>
             </label>
-            <input id="anno_from" type="number" placeholder="<?= __('es. 2020') ?>" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="anno_from" type="number" placeholder="<?= __('es. 2020') ?>" min="1800" max="2030"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
           </div>
 
+          <!-- Year To -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-calendar mr-1 text-gray-500"></i>
-              <?= __("Anno pubblicazione a") ?>
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-calendar mr-1"></i><?= __("Anno a") ?>
             </label>
-            <input id="anno_to" type="number" placeholder="<?= __('es. 2024') ?>" min="1800" max="2030" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="anno_to" type="number" placeholder="<?= __('es. 2024') ?>" min="1800" max="2030"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
           </div>
-        </div>
 
-        <div class="flex justify-between items-center pt-4 border-t border-gray-200">
-          <div class="flex items-center text-sm text-gray-500">
-            <i class="fas fa-info-circle text-gray-400 mr-2"></i>
-            <span><?= __("I filtri vengono applicati automaticamente mentre digiti") ?></span>
+          <!-- Acquisition Date From -->
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-calendar-plus mr-1"></i><?= __("Acquisito da") ?>
+            </label>
+            <input id="acq_from" type="date"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
           </div>
-          <div class="flex items-center gap-2">
-            <button id="save-filters" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 text-sm" title="Salva filtri correnti">
-              <i class="fas fa-save mr-2"></i>
-              <?= __("Salva") ?>
-            </button>
-            <button id="clear-filters" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
-              <i class="fas fa-times mr-2"></i>
-              <?= __("Cancella filtri") ?>
-            </button>
+
+          <!-- Acquisition Date To -->
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-calendar-plus mr-1"></i><?= __("Acquisito a") ?>
+            </label>
+            <input id="acq_to" type="date"
+                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- White Data Table Card -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-      <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900 flex items-center">
-          <i class="fas fa-table text-gray-600 mr-2"></i>
-          <?= __("Elenco Libri") ?>
-          <span id="total-count" class="ml-2 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"></span>
-        </h2>
-        <div id="export-buttons" class="flex items-center space-x-2">
-          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Esporta CSV (formato compatibile per import)") ?>">
-            <i class="fas fa-file-csv mr-1"></i>
-            <?= __("CSV") ?>
-          </button>
-          <button id="sync-covers" class="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors duration-200 inline-flex items-center border border-blue-200" title="<?= __("Sincronizza copertine mancanti via scraping") ?>">
-            <i class="fas fa-sync-alt mr-1"></i>
-            <?= __("Sincronizza Copertine") ?>
-          </button>
-        </div>
-      </div>
-      <div class="p-6">
+      <!-- Hidden date fields for compatibility -->
+      <input type="hidden" id="pub_from" value="" />
+
+      <!-- Table View -->
+      <div id="table-view" class="p-4">
         <!-- Mobile scroll hint -->
-        <div class="md:hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+        <div class="md:hidden mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 flex items-center gap-2">
           <i class="fas fa-hand-point-right"></i>
           <span><?= __("Scorri a destra per vedere tutte le colonne") ?></span>
         </div>
 
         <div class="overflow-x-auto">
-              <table id="libri-table" class="display nowrap" style="width:100%">
-                <thead>
-                  <tr>
-                    <th style="width:40px"><?= __("Stato") ?></th>
-                    <th><?= __("Copertina") ?></th>
-                    <th><?= __("Informazioni") ?></th>
-                    <th><?= __("Genere") ?></th>
-                    <th><?= __("Posizione") ?></th>
-                    <th><?= __("Anno") ?></th>
-                    <th style="width:12%"><?= __("Azioni") ?></th>
-                  </tr>
-                </thead>
-              </table>
+          <table id="libri-table" class="display" style="width:100%">
+            <thead>
+              <tr>
+                <th class="text-center">
+                  <input type="checkbox" id="select-all" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
+                </th>
+                <th><?= __("Stato") ?></th>
+                <th><?= __("Cover") ?></th>
+                <th><?= __("Informazioni") ?></th>
+                <th><?= __("Genere") ?></th>
+                <th><?= __("Posizione") ?></th>
+                <th><?= __("Anno") ?></th>
+                <th><?= __("Azioni") ?></th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+      </div>
+
+      <!-- Grid View -->
+      <div id="grid-view" class="hidden p-4">
+        <div id="grid-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <!-- Grid items will be populated by JavaScript -->
+        </div>
+        <div id="grid-pagination" class="mt-6 flex justify-center items-center gap-2">
+          <!-- Pagination will be added by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Actions Bar (Fixed at bottom viewport, respects sidebar) -->
+    <div id="bulk-actions-bar" class="hidden fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40" style="left: 0;">
+      <div class="px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="text-sm font-medium text-gray-700">
+            <span id="selected-count">0</span> <?= __("selezionati") ?>
+          </span>
+          <button id="deselect-all" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            <?= __("Deseleziona tutti") ?>
+          </button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
+            <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
+          </button>
+          <button id="bulk-fetch-covers" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors text-sm">
+            <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
+          </button>
+          <button id="bulk-delete" class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors text-sm">
+            <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
+          </button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modern DataTables with Advanced Features -->
+<!-- Keyboard Shortcuts Modal -->
+<div id="shortcuts-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+      <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-keyboard text-gray-500"></i>
+        <?= __("Scorciatoie da tastiera") ?>
+      </h3>
+      <button id="close-shortcuts" class="text-gray-400 hover:text-gray-600 transition-colors">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="p-4 space-y-3">
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-600"><?= __("Nuova ricerca") ?></span>
+        <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">/</kbd>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-600"><?= __("Nuovo libro") ?></span>
+        <div class="flex gap-1">
+          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl</kbd>
+          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">N</kbd>
+        </div>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-600"><?= __("Cancella filtri") ?></span>
+        <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Esc</kbd>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-600"><?= __("Seleziona tutti") ?></span>
+        <div class="flex gap-1">
+          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl</kbd>
+          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">A</kbd>
+        </div>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-600"><?= __("Cambia vista") ?></span>
+        <div class="flex gap-1">
+          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl</kbd>
+          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+        </div>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-600"><?= __("Mostra questa guida") ?></span>
+        <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">?</kbd>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-// Set current locale for DataTables language selection
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);
   const initialGenere = parseInt(urlParams.get('genere') || urlParams.get('genere_filter') || '0', 10) || 0;
   const initialSottogenere = parseInt(urlParams.get('sottogenere') || urlParams.get('sottogenere_filter') || '0', 10) || 0;
-  
-  // Check if DataTables is available
+
   if (typeof DataTable === 'undefined') {
     console.error('DataTable is not loaded!');
     return;
   }
 
+  // State
+  let selectedBooks = new Set();
+  let currentView = 'table';
+  let gridData = [];
+  let gridPage = 1;
+  const gridPageSize = 24;
+
   // Debounce helper
   const debounce = (fn, ms=300) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),ms); }; };
 
-  // Initialize DataTable with enhanced features
+  // Recent searches management
+  const RECENT_SEARCHES_KEY = 'pinakes_recent_searches';
+  const MAX_RECENT_SEARCHES = 10;
+
+  function getRecentSearches() {
+    try {
+      return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]');
+    } catch { return []; }
+  }
+
+  function saveRecentSearch(query) {
+    if (!query || query.trim().length < 2) return;
+    let searches = getRecentSearches();
+    searches = searches.filter(s => s !== query);
+    searches.unshift(query);
+    searches = searches.slice(0, MAX_RECENT_SEARCHES);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(searches));
+  }
+
+  function renderRecentSearches() {
+    const list = document.getElementById('recent-searches-list');
+    const noResults = document.getElementById('no-recent-searches');
+    const searches = getRecentSearches();
+
+    list.innerHTML = '';
+    if (searches.length === 0) {
+      noResults.classList.remove('hidden');
+      return;
+    }
+    noResults.classList.add('hidden');
+
+    searches.forEach(search => {
+      const li = document.createElement('li');
+      li.className = 'px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex items-center gap-2 text-gray-700';
+      li.innerHTML = `<i class="fas fa-history text-gray-400 text-xs"></i><span>${search}</span>`;
+      li.addEventListener('click', () => {
+        document.getElementById('search_text').value = search;
+        document.getElementById('recent-searches-dropdown').classList.add('hidden');
+        table.ajax.reload();
+      });
+      list.appendChild(li);
+    });
+  }
+
+  // Recent searches toggle
+  document.getElementById('recent-searches-btn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    const dropdown = document.getElementById('recent-searches-dropdown');
+    dropdown.classList.toggle('hidden');
+    if (!dropdown.classList.contains('hidden')) {
+      renderRecentSearches();
+    }
+  });
+
+  document.getElementById('clear-recent-searches').addEventListener('click', function() {
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+    renderRecentSearches();
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('recent-searches-dropdown');
+    if (!dropdown.contains(e.target) && e.target.id !== 'recent-searches-btn') {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+  // Advanced filters toggle
+  document.getElementById('toggle-advanced').addEventListener('click', function() {
+    const panel = document.getElementById('advanced-filters');
+    const icon = document.getElementById('toggle-advanced-icon');
+    panel.classList.toggle('hidden');
+    icon.classList.toggle('rotate-180');
+  });
+
+  // Initialize DataTable
   const table = new DataTable('#libri-table', {
     processing: true,
     serverSide: true,
-    responsive: false, // Disabilitiamo responsive mode - usiamo solo scroll orizzontale
-    scrollX: true,
-    autoWidth: false,
-    searching: false, // Using custom search
+    responsive: false,
+    scrollX: false,
+    autoWidth: true,
+    searching: false,
     stateSave: true,
-    stateDuration: 60 * 60 * 24, // 24 hours
-    dom: '<"top"lf>rt<"bottom"ip><"clear">',
+    stateDuration: 60 * 60 * 24,
+    dom: '<"top"l>rt<"bottom"ip><"clear">',
     deferRender: true,
-    scrollCollapse: true,
     ajax: {
       url: '/api/libri',
       type: 'GET',
@@ -319,1191 +493,669 @@ document.addEventListener('DOMContentLoaded', function() {
           anno_to: document.getElementById('anno_to').value
         };
       },
-      error: function(xhr, status, err) {
-        console.error('Errore caricamento /api/libri:', { status, err, responseText: xhr && xhr.responseText });
-        if (window.Swal) {
-          Swal.fire({ icon: 'error', title: '<?= addslashes(__("Errore")) ?>', text: '<?= addslashes(__("Impossibile caricare i libri. Controlla la console per i dettagli.")) ?>' });
-        }
-      },
       dataSrc: function(json) {
-        // Update total count
-        const totalCount = json.recordsTotal || 0;
-        document.getElementById('total-count').textContent = totalCount.toLocaleString() + ' ' + window.__('libri');
+        document.getElementById('total-count').textContent = (json.recordsTotal || 0).toLocaleString() + ' ' + window.__('libri');
+        gridData = json.data;
+        if (currentView === 'grid') renderGrid();
         return json.data;
       }
     },
     columns: [
-      { // 0 - Status indicator
+      { // Checkbox
         data: null,
         orderable: false,
         searchable: false,
-        className: 'text-center align-middle all',
-        responsivePriority: 1,
-        render: function(_, __, row){
+        width: '40px',
+        className: 'text-center align-middle',
+        render: function(_, __, row) {
+          const checked = selectedBooks.has(row.id) ? 'checked' : '';
+          return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${row.id}" ${checked} />`;
+        }
+      },
+      { // Status with tooltip
+        data: null,
+        orderable: false,
+        searchable: false,
+        width: '50px',
+        className: 'text-center align-middle',
+        render: function(_, __, row) {
           const s = (row.stato || '').toString().trim().toLowerCase();
-          let cls = 'bg-orange-400';
+          let cls = 'bg-gray-400';
           let icon = 'fa-question-circle';
           if (s === 'disponibile') { cls = 'bg-green-500'; icon = 'fa-check-circle'; }
           else if (s === 'prestato' || s === 'non disponibile') { cls = 'bg-red-500'; icon = 'fa-times-circle'; }
           else if (s === 'riservato') { cls = 'bg-yellow-500'; icon = 'fa-clock'; }
-          return `<div class="flex justify-center items-center h-full min-h-16">
-            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full ${cls} text-white text-xs" title="${row.stato || ''}">
-              <i class="fas ${icon}"></i>
-            </span>
-          </div>`;
+          else if (s === 'danneggiato') { cls = 'bg-orange-500'; icon = 'fa-exclamation-circle'; }
+
+          let tooltip = row.stato || '<?= __("Sconosciuto") ?>';
+          if (row.prestito_info) {
+            tooltip += `\n<?= __("Utente") ?>: ${row.prestito_info.utente}\n<?= __("Scadenza") ?>: ${row.prestito_info.scadenza}`;
+            if (row.prestito_info.in_ritardo) {
+              tooltip += `\n<?= __("IN RITARDO") ?>`;
+            }
+          }
+
+          return `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full ${cls} text-white text-xs cursor-help" title="${tooltip.replace(/"/g, '&quot;')}">
+            <i class="fas ${icon} text-xs"></i>
+          </span>`;
         }
       },
-      { // 1 - Cover image (larger thumbnail)
+      { // Cover
         data: 'copertina_url',
         orderable: false,
         searchable: false,
-        className: 'text-center align-middle all',
-        responsivePriority: 1,
+        width: '60px',
+        className: 'text-center align-middle',
         render: function(data, type, row) {
           const imageUrl = data || '/uploads/copertine/placeholder.jpg';
-          return `<div class="flex justify-center">
-            <div class="relative group">
-              <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-all duration-300 pointer-events-none"></div>
-              <img src="${imageUrl}"
-                   alt="Copertina ${row.titolo}"
-                   class="w-16 h-20 object-cover rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group-hover:scale-105 relative z-10"
-                   onerror="this.src='/uploads/copertine/placeholder.jpg'"
-                   onclick='showImageModal(${JSON.stringify(row)})'>
-            </div>
+          return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity" onclick='showImageModal(${JSON.stringify(row)})'>
+            <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
           </div>`;
         }
       },
-      { // 2 - Main information with wrapping titles
+      { // Info
         data: null,
-        className: 'all align-top',
-        responsivePriority: 1,
+        width: '250px',
+        className: 'align-top',
         render: function(_, type, row) {
           const titolo = row.titolo || window.__('Senza titolo');
-          const sottotitolo = row.sottotitolo ? `<div class="text-xs text-gray-500 italic mt-1">${row.sottotitolo}</div>` : '';
+          const sottotitolo = row.sottotitolo ? `<div class="text-xs text-gray-500 italic mt-0.5 line-clamp-1">${row.sottotitolo}</div>` : '';
 
-          // Create linked authors
           let autoriHtml = '';
-          if (row.autori && row.autori_order_key) {
-            const autoriArray = row.autori.split(', ');
-            const idsArray = row.autori_order_key.split(',');
-            if (autoriArray.length === idsArray.length) {
-              const linkedAutori = autoriArray.map((nome, index) => {
-                const id = idsArray[index];
-                return `<a href="/admin/autori/${id}" class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 transition mr-1 mb-1">
-                  <i class="fas fa-user mr-1"></i>${nome}
-                </a>`;
-              });
-              autoriHtml = `<div class="text-sm mt-1">${linkedAutori.join('')}</div>`;
-            } else {
-              autoriHtml = `<div class="text-sm mt-1">
-                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700 mr-1 mb-1">
-                  <i class="fas fa-user mr-1"></i>${row.autori}
-                </span>
-              </div>`;
-            }
-          } else if (row.autori) {
-            autoriHtml = `<div class="text-sm mt-1">
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700 mr-1 mb-1">
-                <i class="fas fa-user mr-1"></i>${row.autori}
-              </span>
-            </div>`;
+          if (row.autori) {
+            const autoriArray = row.autori.split(', ').slice(0, 2);
+            const idsArray = row.autori_order_key ? row.autori_order_key.split(',') : [];
+            const linkedAutori = autoriArray.map((nome, i) => {
+              const id = idsArray[i];
+              if (id) return `<a href="/admin/autori/${id}" class="text-gray-600 hover:text-gray-900 hover:underline">${nome}</a>`;
+              return nome;
+            });
+            autoriHtml = `<div class="text-xs text-gray-600 mt-1"><i class="fas fa-user text-gray-400 mr-1"></i>${linkedAutori.join(', ')}${row.autori.split(', ').length > 2 ? ' ...' : ''}</div>`;
           }
 
-          // Create linked publisher
           let editoreHtml = '';
-          if (row.editore_nome && row.editore_id) {
-            editoreHtml = `<div class="text-sm text-gray-600 mt-1"><i class="fas fa-building text-gray-400 mr-1"></i><a href="/admin/editori/${row.editore_id}" class="text-gray-700 hover:text-gray-900 hover:underline transition-colors">${row.editore_nome}</a></div>`;
+          if (row.editore_nome) {
+            editoreHtml = `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-building text-gray-400 mr-1"></i>${row.editore_nome}</div>`;
           }
 
-          // Add ISBN info if available
           let isbnHtml = '';
           if (row.isbn13 || row.isbn10) {
-            const isbn = row.isbn13 || row.isbn10;
-            isbnHtml = `<div class="text-xs text-gray-500 mt-1"><i class="fas fa-barcode text-gray-400 mr-1"></i>${isbn}</div>`;
+            isbnHtml = `<div class="text-xs text-gray-400 mt-0.5 font-mono">${row.isbn13 || row.isbn10}</div>`;
           }
 
-          return `<div class="min-w-0 flex-1">
-            <div class="font-medium text-gray-900 leading-tight">
-              <a href="/admin/libri/${row.id}" class="text-gray-800 hover:text-gray-900 transition-colors hover:underline font-medium" title="Visualizza dettagli libro">
-                ${titolo}
-              </a>
-            </div>
-            ${sottotitolo}
-            ${autoriHtml}
-            ${editoreHtml}
-            ${isbnHtml}
+          return `<div class="min-w-0">
+            <a href="/admin/libri/${row.id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline line-clamp-2 leading-tight">${titolo}</a>
+            ${sottotitolo}${autoriHtml}${editoreHtml}${isbnHtml}
           </div>`;
         }
       },
-      { // 3 - Genre information
+      { // Genre
         data: 'genere_display',
+        width: '120px',
         className: 'text-sm align-middle',
-        responsivePriority: 3,
-        render: function(data, type, row) {
-          if (!data || data.trim() === '') {
-            return '<span class="text-gray-400 italic"><?= __("Non specificato") ?></span>';
-          }
+        render: function(data) {
+          if (!data || data.trim() === '') return '<span class="text-gray-400 text-xs">-</span>';
           const genres = data.split(' / ');
-          let html = '';
-          genres.forEach((genre, index) => {
-            const isMain = index === 0;
-            const badgeClass = isMain ? 'bg-gray-200 text-gray-900 border border-gray-300' : 'bg-gray-100 text-gray-700';
-            html += `<span class="inline-block px-2 py-1 rounded-full text-xs font-medium ${badgeClass} mb-1">${genre}</span>`;
-            if (index < genres.length - 1) html += '<br>';
-          });
-          return html;
+          return genres.map((g, i) =>
+            `<span class="inline-block px-2 py-0.5 rounded text-xs ${i === 0 ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600'} mb-0.5">${g}</span>`
+          ).join('<br>');
         }
       },
-      { // 4 - Position/Location
+      { // Position
         data: 'posizione_display',
+        width: '120px',
         className: 'text-xs align-middle',
-        responsivePriority: 4,
-        render: function(data, type, row) {
-          if (!data || data.trim() === '' || data === 'N/D') {
-            return '<span class="text-gray-400 italic text-xs"><?= __("Non assegnata") ?></span>';
-          }
-
-          // Parse the position string to separate components
-          // Expected format: "Scaffale A - Livello 1 - Fantasy - Prima Mensola"
-          const parts = data.split(' - ');
-          let html = '<div class="text-xs leading-tight">';
-
-          if (parts.length >= 1 && parts[0]) {
-            html += `<div class="font-medium text-gray-800">${parts[0]}</div>`;
-          }
-          if (parts.length >= 2 && parts[1]) {
-            html += `<div class="text-gray-600">${parts[1]}</div>`;
-          }
-          if (parts.length >= 3 && parts[2]) {
-            html += `<div class="text-gray-500">${parts[2]}</div>`;
-          }
-
-          html += '</div>';
-          return html;
+        render: function(data) {
+          if (!data || data === 'N/D') return '<span class="text-gray-400 text-xs">-</span>';
+          const parts = data.split(' - ').slice(0, 2);
+          return `<div class="text-xs leading-tight">${parts.map((p, i) => `<div class="${i === 0 ? 'font-medium text-gray-700' : 'text-gray-500'}">${p}</div>`).join('')}</div>`;
         }
       },
-      { // 5 - Publication year
+      { // Year
         data: 'anno_pubblicazione_formatted',
-        className: 'text-sm text-center align-middle',
-        responsivePriority: 5,
-        render: function(data, type, row) {
-          if (!data) {
-            return '<span class="text-gray-400">-</span>';
-          }
-          return `<span class="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">${data}</span>`;
+        width: '60px',
+        className: 'text-center align-middle',
+        render: function(data) {
+          if (!data) return '<span class="text-gray-400">-</span>';
+          return `<span class="text-xs font-mono text-gray-600">${data}</span>`;
         }
       },
-      { // 6 - Actions
+      { // Actions
         data: 'id',
         orderable: false,
         searchable: false,
+        width: '100px',
         className: 'text-center align-middle',
-        responsivePriority: 1,
         render: function(data, type, row) {
-          return `
-            <div class="flex items-center justify-center gap-1">
-              <a href="/admin/libri/${data}"
-                 class="inline-flex items-center justify-center w-8 h-8 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200"
-                 title="Visualizza dettagli">
-                <i class="fas fa-eye text-sm"></i>
-              </a>
-              <a href="/admin/libri/modifica/${data}"
-                 class="inline-flex items-center justify-center w-8 h-8 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-all duration-200"
-                 title="<?= __("Modifica") ?>">
-                <i class="fas fa-edit text-sm"></i>
-              </a>
-              <button onclick="deleteBook(${data})"
-                      class="inline-flex items-center justify-center w-8 h-8 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                      title="<?= __("Elimina") ?>">
-                <i class="fas fa-trash text-sm"></i>
-              </button>
-            </div>`;
+          return `<div class="flex items-center justify-center gap-0.5">
+            <a href="/admin/libri/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+              <i class="fas fa-eye text-xs"></i>
+            </a>
+            <a href="/admin/libri/modifica/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+              <i class="fas fa-edit text-xs"></i>
+            </a>
+            <button onclick="deleteBook(${data})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
+              <i class="fas fa-trash text-xs"></i>
+            </button>
+          </div>`;
         }
       }
     ],
-    order: [[2, 'asc']], // Order by main information column
+    order: [[3, 'asc']],
     pageLength: 25,
-    lengthMenu: [
-      [10, 25, 50, 100, 250],
-      [10, 25, 50, 100, 250]
-    ],
+    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
     language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
-    drawCallback: function(settings) {
-      // Hide pagination if there's only one page
-      const api = this.api();
-      const pagination = document.querySelector('.dataTables_paginate');
-      const info = document.querySelector('.dataTables_info');
-      
-      if (pagination) {
-        const recordsDisplay = api.page.info().recordsDisplay;
-        const pageLength = api.page.len();
-        
-        if (recordsDisplay <= pageLength) {
-          pagination.style.display = 'none';
-        } else {
-          pagination.style.display = 'block';
-        }
-      }
-      
-      // Add spacing around info display
-      if (info) {
-        info.style.marginTop = '1rem';
-        info.style.marginBottom = '1rem';
-        info.style.padding = '0.5rem 0';
-      }
-      
-      // Ensure proper spacing for the entire table wrapper
-      const wrapper = document.querySelector('.dataTables_wrapper');
-      if (wrapper) {
-        wrapper.style.marginTop = '1rem';
-        wrapper.style.marginBottom = '1rem';
-      }
-    },
-    initComplete: function() {
-      
-      // Initialize filter toggle
-      initializeFilterToggle();
-      
-      // Initialize clear filters
-      initializeClearFilters();
-      
-      // Initialize export buttons
-      initializeExportButtons();
-      
-      // If filtering by genere/sottogenere from URL, show a notice badge
-      const filterBar = document.createElement('div');
-      filterBar.className = 'mt-2 flex flex-wrap gap-2';
-      if (initialGenere) {
-        const b = document.createElement('span');
-        b.className = 'px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700';
-        b.textContent = '<?= __("Filtro genere attivo") ?>';
-        filterBar.appendChild(b);
-      }
-      if (initialSottogenere) {
-        const b2 = document.createElement('span');
-        b2.className = 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-700';
-        b2.textContent = '<?= __("Filtro sottogenere attivo") ?>';
-        filterBar.appendChild(b2);
-      }
-      if (filterBar.children.length) {
-        document.querySelector('.card-header').appendChild(filterBar);
-      }
+    drawCallback: function() {
+      // Reattach checkbox handlers
+      document.querySelectorAll('.row-select').forEach(cb => {
+        cb.addEventListener('change', handleRowSelect);
+      });
+      updateBulkActionsBar();
     }
   });
 
   // Filter event handlers
-  const reloadDebounced = debounce(()=> table.ajax.reload());
-  
-  // Add event listeners for filter inputs
-  const filterInputs = ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'pub_from', 'anno_from', 'anno_to'];
-  filterInputs.forEach(id => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.addEventListener('keyup', reloadDebounced);
-      element.addEventListener('change', reloadDebounced);
+  const reloadDebounced = debounce(() => {
+    const searchText = document.getElementById('search_text').value;
+    if (searchText && searchText.trim().length >= 2) {
+      saveRecentSearch(searchText.trim());
+    }
+    table.ajax.reload();
+    updateActiveFilters();
+  });
+
+  ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', reloadDebounced);
+      el.addEventListener('change', reloadDebounced);
     }
   });
-  
-  // Global search
-  const globalSearch = document.getElementById('global_search');
-  if (globalSearch) {
-    globalSearch.addEventListener('input', debounce(()=>{ 
-      document.getElementById('search_text').value = globalSearch.value; 
-      table.ajax.reload(); 
-    }, 300));
+
+  // Active filters display
+  function updateActiveFilters() {
+    const container = document.getElementById('active-filters');
+    container.innerHTML = '';
+    const filters = [];
+
+    const searchText = document.getElementById('search_text').value;
+    if (searchText) filters.push({ key: 'search_text', label: `"${searchText}"`, icon: 'fa-search' });
+
+    const isbn = document.getElementById('search_isbn').value;
+    if (isbn) filters.push({ key: 'search_isbn', label: `ISBN/EAN: ${isbn}`, icon: 'fa-barcode' });
+
+    const autore = document.getElementById('filter_autore').value;
+    if (autore && document.getElementById('autore_id').value) {
+      filters.push({ key: 'autore', label: `<?= __("Autore") ?>: ${autore}`, icon: 'fa-user' });
+    }
+
+    const editore = document.getElementById('filter_editore').value;
+    if (editore && document.getElementById('editore_filter').value) {
+      filters.push({ key: 'editore', label: `<?= __("Editore") ?>: ${editore}`, icon: 'fa-building' });
+    }
+
+    const stato = document.getElementById('stato_filter').value;
+    if (stato) filters.push({ key: 'stato_filter', label: `<?= __("Stato") ?>: ${stato}`, icon: 'fa-info-circle' });
+
+    const genere = document.getElementById('filter_genere').value;
+    if (genere && document.getElementById('genere_id').value) {
+      filters.push({ key: 'genere', label: `<?= __("Genere") ?>: ${genere}`, icon: 'fa-tags' });
+    }
+
+    if (filters.length === 0) {
+      container.classList.add('hidden');
+      return;
+    }
+
+    container.classList.remove('hidden');
+    filters.forEach(f => {
+      const chip = document.createElement('span');
+      chip.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs';
+      chip.innerHTML = `<i class="fas ${f.icon} text-gray-400"></i>${f.label}<button class="ml-1 text-gray-400 hover:text-red-500 transition-colors" data-clear="${f.key}"><i class="fas fa-times"></i></button>`;
+      chip.querySelector('button').addEventListener('click', () => clearFilter(f.key));
+      container.appendChild(chip);
+    });
   }
 
-  // Initialize autocomplete for authors and publishers
-  initializeAutocomplete();
+  function clearFilter(key) {
+    if (key === 'search_text') document.getElementById('search_text').value = '';
+    else if (key === 'search_isbn') document.getElementById('search_isbn').value = '';
+    else if (key === 'autore') { document.getElementById('filter_autore').value = ''; document.getElementById('autore_id').value = ''; }
+    else if (key === 'editore') { document.getElementById('filter_editore').value = ''; document.getElementById('editore_filter').value = ''; }
+    else if (key === 'stato_filter') document.getElementById('stato_filter').value = '';
+    else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; }
+    table.ajax.reload();
+    updateActiveFilters();
+  }
 
-  // Enhanced autocomplete function
+  // Clear all filters
+  document.getElementById('clear-filters').addEventListener('click', function() {
+    ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    ['autore_id', 'editore_filter', 'genere_id', 'posizione_id'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    selectedBooks.clear();
+    table.ajax.reload();
+    updateActiveFilters();
+    updateBulkActionsBar();
+  });
+
+  // Autocomplete
   async function fetchJSON(url) {
-    try {
-      const response = await fetch(url);
-      return await response.json();
-    } catch (error) {
-      console.error('Fetch error:', error);
-      return [];
-    }
+    try { return await (await fetch(url)).json(); } catch { return []; }
   }
 
-  function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect) {
+  function setupAutocomplete(inputId, suggestId, url, onSelect) {
     const input = document.getElementById(inputId);
-    const suggestions = document.getElementById(suggestId);
-    let timeout;
+    const suggest = document.getElementById(suggestId);
+    if (!input || !suggest) return;
 
-    if (!input || !suggestions) return;
+    input.addEventListener('input', debounce(async function() {
+      const q = this.value.trim();
+      if (!q) { suggest.classList.add('hidden'); return; }
 
-    input.addEventListener('input', async function() {
-      clearTimeout(timeout);
-      const query = this.value.trim();
+      const data = await fetchJSON(url + encodeURIComponent(q));
+      suggest.innerHTML = '';
 
-      if (!query) {
-        suggestions.classList.add('hidden');
-        return;
+      if (data.length === 0) {
+        suggest.innerHTML = '<li class="px-3 py-2 text-gray-400 text-sm"><?= __("Nessun risultato") ?></li>';
+      } else {
+        data.slice(0, 6).forEach(item => {
+          const li = document.createElement('li');
+          li.className = 'px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm';
+          li.textContent = item.label;
+          li.onclick = () => { onSelect(item); suggest.classList.add('hidden'); table.ajax.reload(); updateActiveFilters(); };
+          suggest.appendChild(li);
+        });
       }
+      suggest.classList.remove('hidden');
+    }, 250));
 
-      timeout = setTimeout(async () => {
-        try {
-          const data = await fetchJSON(fetchUrl + encodeURIComponent(query));
-          suggestions.innerHTML = '';
-
-          if (data.length === 0) {
-            suggestions.innerHTML = '<li class="px-3 py-2 text-gray-500 text-sm"><?= __("Nessun risultato trovato") ?></li>';
-          } else {
-            data.slice(0, 8).forEach(item => {
-              const li = document.createElement('li');
-              li.className = 'px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm border-b border-gray-100 last:border-b-0 flex items-center gap-2';
-              li.innerHTML = `
-                <i class="fas ${inputId.includes('autore') ? 'fa-user' : 'fa-building'} text-gray-400 text-xs"></i>
-                <span>${item.label}</span>
-              `;
-              li.onclick = () => {
-                onSelect(item);
-                suggestions.classList.add('hidden');
-                table.ajax.reload();
-              };
-              suggestions.appendChild(li);
-            });
-          }
-
-          suggestions.classList.remove('hidden');
-        } catch (error) {
-          console.error('Autocomplete error:', error);
-        }
-      }, 300);
-    });
-
-    // Hide on blur
-    input.addEventListener('blur', () => {
-      setTimeout(() => suggestions.classList.add('hidden'), 200);
-    });
+    input.addEventListener('blur', () => setTimeout(() => suggest.classList.add('hidden'), 200));
   }
 
-  function initializeAutocomplete() {
-    setupEnhancedAutocomplete('filter_autore', 'filter_autore_suggest', '/api/search/autori?q=',
-      item => {
-        document.getElementById('autore_id').value = item.id;
-        document.getElementById('filter_autore').value = item.label;
-      });
+  setupAutocomplete('filter_autore', 'filter_autore_suggest', '/api/search/autori?q=', item => {
+    document.getElementById('autore_id').value = item.id;
+    document.getElementById('filter_autore').value = item.label;
+  });
+  setupAutocomplete('filter_editore', 'filter_editore_suggest', '/api/search/editori?q=', item => {
+    document.getElementById('editore_filter').value = item.id;
+    document.getElementById('filter_editore').value = item.label;
+  });
+  setupAutocomplete('filter_genere', 'filter_genere_suggest', '/api/search/generi?q=', item => {
+    document.getElementById('genere_id').value = item.id;
+    document.getElementById('filter_genere').value = item.label;
+  });
+  setupAutocomplete('filter_posizione', 'filter_posizione_suggest', '/api/search/collocazione?q=', item => {
+    document.getElementById('posizione_id').value = item.id;
+    document.getElementById('filter_posizione').value = item.label;
+  });
 
-    setupEnhancedAutocomplete('filter_editore', 'filter_editore_suggest', '/api/search/editori?q=',
-      item => {
-        document.getElementById('editore_filter').value = item.id;
-        document.getElementById('filter_editore').value = item.label;
-      });
-
-    setupEnhancedAutocomplete('filter_genere', 'filter_genere_suggest', '/api/search/generi?q=',
-      item => {
-        document.getElementById('genere_id').value = item.id;
-        document.getElementById('filter_genere').value = item.label;
-      });
-
-    setupEnhancedAutocomplete('filter_posizione', 'filter_posizione_suggest', '/api/search/collocazione?q=',
-      item => {
-        document.getElementById('posizione_id').value = item.id;
-        document.getElementById('filter_posizione').value = item.label;
-      });
+  // Bulk selection
+  function handleRowSelect(e) {
+    const id = parseInt(e.target.dataset.id);
+    if (e.target.checked) selectedBooks.add(id);
+    else selectedBooks.delete(id);
+    updateBulkActionsBar();
+    document.getElementById('select-all').checked = selectedBooks.size > 0 && selectedBooks.size === document.querySelectorAll('.row-select').length;
   }
 
-  function initializeFilterToggle() {
-    const toggleBtn = document.getElementById('toggle-filters');
-    const filtersContainer = document.getElementById('filters-container');
-    let filtersVisible = true;
+  document.getElementById('select-all').addEventListener('change', function() {
+    document.querySelectorAll('.row-select').forEach(cb => {
+      cb.checked = this.checked;
+      const id = parseInt(cb.dataset.id);
+      if (this.checked) selectedBooks.add(id);
+      else selectedBooks.delete(id);
+    });
+    updateBulkActionsBar();
+  });
 
-    if (toggleBtn && filtersContainer) {
-      toggleBtn.addEventListener('click', function() {
-        filtersVisible = !filtersVisible;
-        filtersContainer.style.display = filtersVisible ? 'block' : 'none';
-        
-        const icon = this.querySelector('i');
-        const text = this.querySelector('span');
-        
-        if (filtersVisible) {
-          icon.className = 'fas fa-chevron-up';
-          text.textContent = '<?= __("Nascondi filtri") ?>';
-        } else {
-          icon.className = 'fas fa-chevron-down';
-          text.textContent = '<?= __("Mostra filtri") ?>';
-        }
-      });
+  function updateBulkActionsBar() {
+    const bar = document.getElementById('bulk-actions-bar');
+    const count = document.getElementById('selected-count');
+    count.textContent = selectedBooks.size;
+
+    if (selectedBooks.size > 0) {
+      bar.classList.remove('hidden');
+    } else {
+      bar.classList.add('hidden');
     }
   }
 
-  function initializeClearFilters() {
-    const clearBtn = document.getElementById('clear-filters');
-    const saveBtn = document.getElementById('save-filters');
+  document.getElementById('deselect-all').addEventListener('click', function() {
+    selectedBooks.clear();
+    document.querySelectorAll('.row-select').forEach(cb => cb.checked = false);
+    document.getElementById('select-all').checked = false;
+    updateBulkActionsBar();
+  });
 
-    if (clearBtn) {
-      clearBtn.addEventListener('click', function() {
-        // Clear all filter inputs
-        const filterIds = ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'pub_from', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione', 'anno_from', 'anno_to'];
-        filterIds.forEach(id => {
-          const element = document.getElementById(id);
-          if (element) element.value = '';
-        });
+  // Bulk fetch covers
+  document.getElementById('bulk-fetch-covers').addEventListener('click', async function() {
+    if (selectedBooks.size === 0) return;
 
-        // Clear hidden inputs
-        document.getElementById('autore_id').value = '';
-        document.getElementById('editore_filter').value = '';
-        document.getElementById('genere_id').value = '';
-        document.getElementById('posizione_id').value = '';
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const ids = Array.from(selectedBooks);
 
-        // Hide autocomplete suggestions
-        const suggestions = document.querySelectorAll('.autocomplete-suggestions');
-        suggestions.forEach(el => el.classList.add('hidden'));
-
-        // Clear URL parameters
-        const url = new URL(window.location);
-        url.search = '';
-        window.history.replaceState({}, '', url);
-
-        // Reload table
-        table.ajax.reload();
-
-        // Show success message
-        if (window.Swal) {
-          Swal.fire({
-            icon: 'success',
-            title: '<?= addslashes(__("Filtri cancellati")) ?>',
-            text: '<?= addslashes(__("Tutti i filtri sono stati rimossi")) ?>',
-            timer: 2000,
-            showConfirmButton: false
-          });
-        }
-      });
-    }
-
-    if (saveBtn) {
-      saveBtn.addEventListener('click', function() {
-        // Collect current filter values
-        const filters = {};
-        const filterIds = ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'pub_from', 'anno_from', 'anno_to'];
-
-        filterIds.forEach(id => {
-          const element = document.getElementById(id);
-          if (element && element.value.trim() !== '') {
-            filters[id] = element.value.trim();
-          }
-        });
-
-        // Add hidden filter values
-        const hiddenIds = ['autore_id', 'editore_filter', 'genere_id', 'posizione_id'];
-        hiddenIds.forEach(id => {
-          const element = document.getElementById(id);
-          if (element && element.value.trim() !== '') {
-            filters[id] = element.value.trim();
-          }
-        });
-
-        // Update URL with filters
-        const url = new URL(window.location);
-        Object.keys(filters).forEach(key => {
-          url.searchParams.set(key, filters[key]);
-        });
-        window.history.replaceState({}, '', url);
-
-        // Show success message
-        if (window.Swal) {
-          Swal.fire({
-            icon: 'success',
-            title: '<?= addslashes(__("Filtri salvati")) ?>',
-            text: '<?= addslashes(__("I filtri correnti sono stati salvati nell\'URL")) ?>',
-            timer: 2000,
-            showConfirmButton: false
-          });
-        }
-      });
-    }
-  }
-
-  function initializeExportButtons() {
-    // CSV export - export filtered data with import-compatible format
-    document.getElementById('export-excel').addEventListener('click', function() {
-      // Get current filters
-      const params = new URLSearchParams();
-
-      // Global search
-      const globalSearch = document.getElementById('global_search')?.value || '';
-      if (globalSearch) {
-        params.append('search', globalSearch);
-      }
-
-      // Status filter
-      const statoFilter = document.getElementById('stato_filter')?.value || '';
-      if (statoFilter) {
-        params.append('stato', statoFilter);
-      }
-
-      // Editore filter
-      const editoreFilter = document.getElementById('editore_filter')?.value || '';
-      if (editoreFilter) {
-        params.append('editore_id', editoreFilter);
-      }
-
-      // Genere filter
-      const genereFilter = document.getElementById('genere_id')?.value || '';
-      if (genereFilter) {
-        params.append('genere_id', genereFilter);
-      }
-
-      // Autore filter (if exists in hidden input)
-      const autoreFilter = document.getElementById('autore_filter')?.value || '';
-      if (autoreFilter) {
-        params.append('autore_id', autoreFilter);
-      }
-
-      // Check if any filters are applied
-      const hasFilters = params.toString().length > 0;
-      const filteredCount = table.rows({search: 'applied'}).count();
-      const totalCount = table.rows().count();
-
-      const message = hasFilters
-        ? __('Esportazione di %d libri filtrati su %d totali').replace('%d', filteredCount).replace('%d', totalCount)
-        : __('Esportazione di tutti i %d libri del catalogo').replace('%d', totalCount);
-
-      if (window.Swal) {
-        Swal.fire({
-          icon: 'info',
-          title: __('Generazione CSV in corso...'),
-          text: message,
-          showConfirmButton: false,
-          timer: 1500
-        });
-      }
-
-      // Redirect to server-side export endpoint with filters
-      const url = '/admin/libri/export/csv' + (params.toString() ? '?' + params.toString() : '');
-      window.location.href = url;
-    });
-
-    // Sync covers
-    document.getElementById('sync-covers').addEventListener('click', function() {
-      const btn = this;
-      const originalHTML = btn.innerHTML;
-
-      if (window.Swal) {
-        Swal.fire({
-          icon: 'question',
-          title: '<?= addslashes(__("Sincronizzare le copertine?")) ?>',
-          text: '<?= addslashes(__("Questa operazione scaricherà le copertine mancanti per tutti i libri con ISBN. Può richiedere diversi minuti.")) ?>',
-          showCancelButton: true,
-          confirmButtonText: '<?= addslashes(__("Sì, sincronizza")) ?>',
-          cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
-          confirmButtonColor: '#3b82f6'
-        }).then((result) => {
-          if (result.isConfirmed) {
-            // Disable button and show loading
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i><?= addslashes(__("Sincronizzazione...")) ?>';
-
-            // Call server endpoint
-            fetch('/admin/libri/sync-covers', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-              }
-            })
-            .then(response => response.json())
-            .then(data => {
-              btn.disabled = false;
-              btn.innerHTML = originalHTML;
-
-              if (data.success) {
-                Swal.fire({
-                  icon: 'success',
-                  title: '<?= addslashes(__("Sincronizzazione completata!")) ?>',
-                  html: `<?= addslashes(__("Copertine sincronizzate: %s")) ?>`.replace('%s', `<strong>${data.synced}</strong><br>`) +
-                        `<?= addslashes(__("Copertine già presenti: %s")) ?>`.replace('%s', `<strong>${data.skipped}</strong><br>`) +
-                        `<?= addslashes(__("Errori: %s")) ?>`.replace('%s', `<strong>${data.errors}</strong>`),
-                  confirmButtonColor: '#3b82f6'
-                }).then(() => {
-                  // Reload table to show new covers
-                  if (table) {
-                    table.ajax.reload();
-                  }
-                });
-              } else {
-                Swal.fire({
-                  icon: 'error',
-                  title: '<?= addslashes(__("Errore")) ?>',
-                  text: data.error || '<?= addslashes(__("Si è verificato un errore durante la sincronizzazione")) ?>',
-                  confirmButtonColor: '#3b82f6'
-                });
-              }
-            })
-            .catch(error => {
-              btn.disabled = false;
-              btn.innerHTML = originalHTML;
-
-              Swal.fire({
-                icon: 'error',
-                title: '<?= addslashes(__("Errore di connessione")) ?>',
-                text: '<?= addslashes(__("Impossibile contattare il server")) ?>',
-                confirmButtonColor: '#3b82f6'
-              });
-            });
-          }
-        });
-      }
-    });
-  }
-
-  // Delete book function (POST with CSRF)
-  window.deleteBook = function(bookId) {
-    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    const confirmAndSubmit = () => {
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = `/admin/libri/delete/${bookId}`;
-      const inp = document.createElement('input');
-      inp.type = 'hidden';
-      inp.name = 'csrf_token';
-      inp.value = csrf;
-      form.appendChild(inp);
-      document.body.appendChild(form);
-      form.submit();
-    };
+    // Show progress dialog
     if (window.Swal) {
       Swal.fire({
-        title: '<?= addslashes(__("Sei sicuro?")) ?>',
-        text: '<?= addslashes(__("Questa azione non può essere annullata!")) ?>',
+        title: '<?= __("Scaricamento copertine...") ?>',
+        html: `<div class="text-sm text-gray-600"><span id="cover-progress">0</span> / ${ids.length}</div>`,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => { Swal.showLoading(); }
+      });
+    }
+
+    let fetched = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const id of ids) {
+      try {
+        const response = await fetch(`/api/libri/${id}/fetch-cover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          if (data.fetched) fetched++;
+          else skipped++; // Already had cover or no ISBN
+        } else {
+          errors++;
+        }
+      } catch (err) {
+        errors++;
+      }
+
+      // Update progress
+      const progressEl = document.getElementById('cover-progress');
+      if (progressEl) {
+        progressEl.textContent = fetched + skipped + errors;
+      }
+    }
+
+    // Show result
+    if (window.Swal) {
+      let message = '';
+      if (fetched > 0) message += `<?= __("Copertine scaricate:") ?> ${fetched}\n`;
+      if (skipped > 0) message += `<?= __("Già presenti o senza ISBN:") ?> ${skipped}\n`;
+      if (errors > 0) message += `<?= __("Errori:") ?> ${errors}`;
+
+      Swal.fire({
+        icon: fetched > 0 ? 'success' : 'info',
+        title: '<?= __("Completato") ?>',
+        text: message.trim() || '<?= __("Nessuna copertina da scaricare") ?>',
+        timer: 3000,
+        showConfirmButton: false
+      });
+    }
+
+    selectedBooks.clear();
+    table.ajax.reload();
+    updateBulkActionsBar();
+  });
+
+  // Bulk delete
+  document.getElementById('bulk-delete').addEventListener('click', function() {
+    if (selectedBooks.size === 0) return;
+
+    if (window.Swal) {
+      Swal.fire({
+        title: '<?= __("Eliminare i libri selezionati?") ?>',
+        text: `<?= __("Stai per eliminare") ?> ${selectedBooks.size} <?= __("libri. Questa azione non può essere annullata.") ?>`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: '<?= addslashes(__("Sì, elimina!")) ?>',
-        cancelButtonText: '<?= addslashes(__("Annulla")) ?>'
-      }).then((result) => { if (result.isConfirmed) confirmAndSubmit(); });
-    } else {
-      if (confirm('<?= addslashes(__("Sei sicuro di voler eliminare questo libro?")) ?>')) confirmAndSubmit();
-    }
-  };
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: '<?= __("Sì, elimina") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>'
+      }).then(async (result) => {
+        if (result.isConfirmed) {
+          const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+          const ids = Array.from(selectedBooks);
 
-  // Image modal functionality with book details
-  window.showImageModal = function(bookData) {
-    const imageUrl = bookData.copertina_url || '/uploads/copertine/placeholder.jpg';
-    const title = bookData.titolo || window.__('Libro senza titolo');
+          try {
+            const response = await fetch('/api/libri/bulk-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ ids })
+            });
+            const data = await response.json();
 
-    if (window.Swal) {
-      // Build HTML content with book information
-      let htmlContent = `
-        <div class="text-left space-y-3">
-          <div class="flex justify-center mb-4">
-            <img src="${imageUrl}"
-                 alt="Copertina ${title}"
-                 class="max-w-full h-auto rounded-lg shadow-lg"
-                 style="max-height: 500px; object-fit: contain;"
-                 onerror="this.src='/uploads/copertine/placeholder.jpg'">
-          </div>
-          <div class="bg-gray-50 p-4 rounded-lg">
-            <h3 class="font-semibold text-lg text-gray-900 mb-3">${title}</h3>
-      `;
-
-      if (bookData.sottotitolo) {
-        htmlContent += `<p class="text-sm text-gray-600 italic mb-2">${bookData.sottotitolo}</p>`;
-      }
-
-      if (bookData.autori) {
-        htmlContent += `
-          <div class="flex items-start gap-2 mb-2">
-            <i class="fas fa-user text-gray-400 mt-1"></i>
-            <div>
-              <span class="text-xs text-gray-500">${window.__('Autore/i:')}</span>
-              <span class="text-sm text-gray-700 font-medium ml-2">${bookData.autori}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      if (bookData.editore_nome) {
-        htmlContent += `
-          <div class="flex items-start gap-2 mb-2">
-            <i class="fas fa-building text-gray-400 mt-1"></i>
-            <div>
-              <span class="text-xs text-gray-500">${window.__('Editore:')}</span>
-              <span class="text-sm text-gray-700 ml-2">${bookData.editore_nome}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      if (bookData.anno_pubblicazione_formatted) {
-        htmlContent += `
-          <div class="flex items-start gap-2 mb-2">
-            <i class="fas fa-calendar text-gray-400 mt-1"></i>
-            <div>
-              <span class="text-xs text-gray-500">${window.__('Anno:')}</span>
-              <span class="text-sm text-gray-700 ml-2">${bookData.anno_pubblicazione_formatted}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      if (bookData.isbn13 || bookData.isbn10) {
-        const isbn = bookData.isbn13 || bookData.isbn10;
-        htmlContent += `
-          <div class="flex items-start gap-2 mb-2">
-            <i class="fas fa-barcode text-gray-400 mt-1"></i>
-            <div>
-              <span class="text-xs text-gray-500">${window.__('ISBN:')}</span>
-              <span class="text-sm text-gray-700 font-mono ml-2">${isbn}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      if (bookData.genere_display) {
-        htmlContent += `
-          <div class="flex items-start gap-2 mb-2">
-            <i class="fas fa-tags text-gray-400 mt-1"></i>
-            <div>
-              <span class="text-xs text-gray-500">${window.__('Genere:')}</span>
-              <span class="text-sm text-gray-700 ml-2">${bookData.genere_display.replace(' / ', ' → ')}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      if (bookData.posizione_display && bookData.posizione_display !== 'N/D') {
-        htmlContent += `
-          <div class="flex items-start gap-2 mb-2">
-            <i class="fas fa-map-marker-alt text-gray-400 mt-1"></i>
-            <div>
-              <span class="text-xs text-gray-500">${window.__('Posizione:')}</span>
-              <span class="text-sm text-gray-700 ml-2">${bookData.posizione_display.replace(/ - /g, ' → ')}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      if (bookData.stato) {
-        const statoClass = bookData.stato.toLowerCase() === 'disponibile' ? 'text-green-600' :
-                          bookData.stato.toLowerCase() === 'prestato' ? 'text-red-600' :
-                          bookData.stato.toLowerCase() === 'riservato' ? 'text-yellow-600' : 'text-gray-600';
-        htmlContent += `
-          <div class="flex items-start gap-2 mb-2">
-            <i class="fas fa-info-circle text-gray-400 mt-1"></i>
-            <div>
-              <span class="text-xs text-gray-500">${window.__('Stato:')}</span>
-              <span class="text-sm font-semibold ${statoClass} ml-2">${bookData.stato}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      htmlContent += `
-          </div>
-          <div class="flex gap-2 mt-4">
-            <a href="/admin/libri/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors text-center text-sm">
-              <i class="fas fa-eye mr-2"></i>${window.__('Visualizza dettagli')}
-            </a>
-            <a href="/admin/libri/modifica/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors text-center text-sm">
-              <i class="fas fa-edit mr-2"></i>${window.__('Modifica')}
-            </a>
-          </div>
-        </div>
-      `;
-
-      Swal.fire({
-        html: htmlContent,
-        showCloseButton: true,
-        showConfirmButton: false,
-        width: '600px',
-        customClass: {
-          popup: 'rounded-xl',
-          htmlContainer: 'p-0'
+            if (data.success) {
+              Swal.fire({ icon: 'success', title: '<?= __("Eliminati") ?>', text: `${ids.length} <?= __("libri eliminati") ?>`, timer: 2000, showConfirmButton: false });
+              selectedBooks.clear();
+              table.ajax.reload();
+              updateBulkActionsBar();
+            }
+          } catch (err) {
+            console.error(err);
+          }
         }
       });
+    }
+  });
+
+  // Bulk export
+  document.getElementById('bulk-export').addEventListener('click', function() {
+    if (selectedBooks.size === 0) return;
+    const ids = Array.from(selectedBooks).join(',');
+    window.location.href = `/admin/libri/export/csv?ids=${ids}`;
+  });
+
+  // View toggle
+  function setView(view) {
+    currentView = view;
+    const tableView = document.getElementById('table-view');
+    const gridView = document.getElementById('grid-view');
+    const btnTable = document.getElementById('view-table');
+    const btnGrid = document.getElementById('view-grid');
+    const btnTableMobile = document.getElementById('view-table-mobile');
+    const btnGridMobile = document.getElementById('view-grid-mobile');
+
+    if (view === 'table') {
+      tableView.classList.remove('hidden');
+      gridView.classList.add('hidden');
+      btnTable.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+      btnTable.classList.remove('text-gray-500');
+      btnGrid.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+      btnGrid.classList.add('text-gray-500');
+      btnTableMobile?.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+      btnTableMobile?.classList.remove('text-gray-500');
+      btnGridMobile?.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+      btnGridMobile?.classList.add('text-gray-500');
     } else {
-      // Fallback: open in new window
-      window.open(imageUrl, '_blank');
+      tableView.classList.add('hidden');
+      gridView.classList.remove('hidden');
+      btnGrid.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+      btnGrid.classList.remove('text-gray-500');
+      btnTable.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+      btnTable.classList.add('text-gray-500');
+      btnGridMobile?.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+      btnGridMobile?.classList.remove('text-gray-500');
+      btnTableMobile?.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+      btnTableMobile?.classList.add('text-gray-500');
+      renderGrid();
+    }
+  }
+
+  document.getElementById('view-table').addEventListener('click', () => setView('table'));
+  document.getElementById('view-grid').addEventListener('click', () => setView('grid'));
+  document.getElementById('view-table-mobile')?.addEventListener('click', () => setView('table'));
+  document.getElementById('view-grid-mobile')?.addEventListener('click', () => setView('grid'));
+
+  function renderGrid() {
+    const container = document.getElementById('grid-container');
+    const start = (gridPage - 1) * gridPageSize;
+    const items = gridData.slice(start, start + gridPageSize);
+
+    container.innerHTML = items.map(book => {
+      const img = book.copertina_url || '/uploads/copertine/placeholder.jpg';
+      const statusClass = (book.stato || '').toLowerCase() === 'disponibile' ? 'bg-green-500' :
+                          (book.stato || '').toLowerCase() === 'prestato' ? 'bg-red-500' : 'bg-yellow-500';
+      return `
+        <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
+          <a href="/admin/libri/${book.id}" class="flex flex-col h-full">
+            <div class="aspect-[2/3] bg-gray-100 relative flex-shrink-0">
+              <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.src='/uploads/copertine/placeholder.jpg'">
+              <span class="absolute top-2 right-2 w-3 h-3 rounded-full ${statusClass} ring-2 ring-white"></span>
+            </div>
+            <div class="p-3 mt-auto">
+              <h3 class="font-medium text-sm text-gray-900 line-clamp-2 leading-tight">${book.titolo || '<?= __("Senza titolo") ?>'}</h3>
+              <p class="text-xs text-gray-500 mt-1 line-clamp-1">${book.autori || ''}</p>
+              ${book.anno_pubblicazione_formatted ? `<p class="text-xs text-gray-400 mt-0.5">${book.anno_pubblicazione_formatted}</p>` : ''}
+            </div>
+          </a>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    // Ignore if typing in input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+      if (e.key === 'Escape') {
+        e.target.blur();
+        document.getElementById('clear-filters').click();
+      }
+      return;
+    }
+
+    if (e.key === '/') {
+      e.preventDefault();
+      document.getElementById('search_text').focus();
+    } else if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      document.getElementById('shortcuts-modal').classList.remove('hidden');
+    } else if (e.key === 'Escape') {
+      document.getElementById('shortcuts-modal').classList.add('hidden');
+      document.getElementById('clear-filters').click();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      window.location.href = '/admin/libri/crea';
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      e.preventDefault();
+      document.getElementById('select-all').click();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+      e.preventDefault();
+      setView(currentView === 'table' ? 'grid' : 'table');
+    }
+  });
+
+  document.getElementById('shortcuts-help').addEventListener('click', () => {
+    document.getElementById('shortcuts-modal').classList.remove('hidden');
+  });
+  document.getElementById('close-shortcuts').addEventListener('click', () => {
+    document.getElementById('shortcuts-modal').classList.add('hidden');
+  });
+  document.getElementById('shortcuts-modal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+
+  // Delete book
+  window.deleteBook = function(bookId) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (window.Swal) {
+      Swal.fire({
+        title: '<?= __("Sei sicuro?") ?>',
+        text: '<?= __("Questa azione non può essere annullata!") ?>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: '<?= __("Sì, elimina") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/admin/libri/delete/${bookId}`;
+          form.innerHTML = `<input type="hidden" name="csrf_token" value="${csrf}">`;
+          document.body.appendChild(form);
+          form.submit();
+        }
+      });
     }
   };
 
-  // Load filters from URL on page load
-  function loadFiltersFromURL() {
-    const urlParams = new URLSearchParams(window.location.search);
-
-    const filterIds = ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'pub_from', 'anno_from', 'anno_to'];
-    filterIds.forEach(id => {
-      const value = urlParams.get(id);
-      if (value) {
-        const element = document.getElementById(id);
-        if (element) element.value = value;
-      }
-    });
-
-    const hiddenIds = ['autore_id', 'editore_filter', 'genere_id', 'posizione_id'];
-    hiddenIds.forEach(id => {
-      const value = urlParams.get(id);
-      if (value) {
-        const element = document.getElementById(id);
-        if (element) element.value = value;
-      }
-    });
-  }
-
-  // Load filters from URL
-  loadFiltersFromURL();
-
-});
-
-// Fix for select arrow overlap
-document.addEventListener('DOMContentLoaded', function() {
-  // Add custom CSS to fix select arrow overlap
-  const style = document.createElement('style');
-  style.textContent = `
-    select.dt-input {
-      padding-right: 2rem !important;
-      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-      background-position: right 0.5rem center;
-      background-size: 1rem;
-      background-repeat: no-repeat;
-      appearance: none;
+  // Image modal
+  window.showImageModal = function(bookData) {
+    const img = bookData.copertina_url || '/uploads/copertine/placeholder.jpg';
+    if (window.Swal) {
+      Swal.fire({
+        html: `
+          <div class="text-left">
+            <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" onerror="this.src='/uploads/copertine/placeholder.jpg'">
+            <h3 class="font-semibold text-lg">${bookData.titolo || ''}</h3>
+            ${bookData.autori ? `<p class="text-sm text-gray-600 mt-1">${bookData.autori}</p>` : ''}
+            ${bookData.editore_nome ? `<p class="text-sm text-gray-500">${bookData.editore_nome}</p>` : ''}
+            <div class="flex gap-2 mt-4">
+              <a href="/admin/libri/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700"><?= __("Dettagli") ?></a>
+              <a href="/admin/libri/modifica/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200"><?= __("Modifica") ?></a>
+            </div>
+          </div>
+        `,
+        showConfirmButton: false,
+        showCloseButton: true,
+        width: '400px'
+      });
     }
-    
-    /* Ensure all table rows have the same background */
-    #libri-table tbody tr {
-      background-color: white;
-    }
-    
-    /* Remove all zebra striping and borders between rows */
-    #libri-table tbody tr td {
-      background-color: transparent;
-      border: none;
-    }
-    
-    /* Force narrow status column */
-    #libri-table th:first-child, #libri-table td:first-child { width: 28px; }
-    
-    #libri-table tbody tr:hover {
-      @apply bg-gray-50;
-    }
-    
-    /* Responsive design for mobile */
-    @media (max-width: 768px) {
-      .card-header {
-        @apply flex-col items-start gap-3;
-      }
-      
-      .card-header .flex {
-        @apply w-full justify-center;
-      }
-      
-      /* Mobile responsive table */
-      .dtr-details {
-        width: 100%;
-      }
-      
-      .dtr-title {
-        font-weight: 600;
-        display: inline-block;
-        min-width: 100px;
-      }
-      
-      .dtr-data {
-        display: inline;
-      }
-      
-      /* Mobile card styling */
-      table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
-      table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before {
-        background-color: #3b82f6;
-        border: none;
-        box-shadow: none;
-        top: 50%;
-        transform: translateY(-50%);
-      }
-      
-      /* Adjust export buttons for mobile */
-      #export-buttons {
-        @apply flex-wrap gap-1;
-      }
-      
-      #export-buttons .btn-outline {
-        @apply px-2 py-1 text-xs;
-      }
-    }
-  `;
-  document.head.appendChild(style);
+  };
 });
 </script>
 
-<!-- Custom Styles for Enhanced UI -->
 <style>
 .autocomplete-suggestions {
-  @apply absolute z-20 bg-white border border-gray-200 rounded-lg mt-1 w-full hidden shadow-lg max-h-64 overflow-y-auto;
+  @apply absolute z-30 bg-white border border-gray-200 rounded-lg mt-1 w-full hidden shadow-lg max-h-48 overflow-y-auto;
 }
 
-.fade-in {
-  animation: fadeIn 0.5s ease-in-out;
+.line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.fade-in { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Bulk actions bar - rispetta la sidebar */
+@media (min-width: 1024px) {
+  #bulk-actions-bar { left: 16rem !important; } /* lg:left-64 = 256px = 16rem */
+}
+@media (min-width: 1280px) {
+  #bulk-actions-bar { left: 18rem !important; } /* xl:left-72 = 288px = 18rem */
 }
 
-.slide-in-up {
-  animation: slideInUp 0.6s ease-out;
-}
+/* DataTables styling */
+table#libri-table { border: 1px solid gainsboro; width: 100% !important; }
+#libri-table thead th { @apply bg-gray-50 font-medium text-gray-600 text-xs uppercase tracking-wide border-b border-gray-200 px-2 py-3; }
+#libri-table tbody td { @apply px-2 py-3 border-b border-gray-100 text-sm; }
+#libri-table tbody tr:hover { @apply bg-gray-50; }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+/* Info column text wrapping */
+#libri-table tbody td:nth-child(4) { white-space: normal !important; word-wrap: break-word; }
 
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+.dataTables_wrapper .dataTables_length select { @apply py-1.5 px-2 text-sm border border-gray-300 rounded-lg bg-white; }
+.dataTables_wrapper .dataTables_info { @apply text-sm text-gray-600 py-3; }
+/* Pagination buttons - hide disabled navigation buttons */
+.dataTables_wrapper .dataTables_paginate .paginate_button { @apply px-3 py-1.5 text-sm border border-gray-300 bg-white hover:bg-gray-50 rounded mx-0.5; }
+.dataTables_wrapper .dataTables_paginate .paginate_button.current { @apply bg-gray-800 text-white border-gray-800; }
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.first,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.previous,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.next,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.last { display: none !important; }
 
-/* Enhanced DataTables Styling */
-.dataTables_wrapper .dataTables_processing {
-  @apply bg-white/95 backdrop-blur-sm border border-gray-200 rounded-xl shadow-lg;
-  padding: 1rem 2rem;
-  font-weight: 500;
-}
-
-.dataTables_wrapper .dataTables_paginate .paginate_button {
-  @apply px-3 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 transition-all duration-200 rounded-lg margin-x-1;
-}
-
-.dataTables_wrapper .dataTables_paginate .paginate_button.current {
-  @apply bg-gray-900 text-white border-gray-900 hover:bg-gray-800 shadow-md;
-}
-
-.dataTables_wrapper .dataTables_paginate .paginate_button.disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-.dataTables_wrapper .dataTables_length select {
-  @apply py-2 px-3 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400 focus:border-transparent;
-}
-
-.dataTables_wrapper .dataTables_filter input {
-  @apply py-2 px-3 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400 focus:border-transparent;
-}
-
-.dataTables_wrapper .dataTables_info {
-  @apply text-sm text-gray-600 font-medium;
-}
-
-.dataTables_wrapper .dataTables_length,
-.dataTables_wrapper .dataTables_filter {
-  @apply mb-4;
-}
-
-/* Table Header Styling */
-#libri-table thead th {
-  @apply bg-gray-50 font-semibold text-gray-700 border-b-2 border-gray-200 px-4 py-4 text-left;
-  white-space: nowrap;
-}
-
-#libri-table thead th:first-child {
-  border-top-left-radius: 0.5rem;
-}
-
-#libri-table thead th:last-child {
-  border-top-right-radius: 0.5rem;
-}
-
-/* Table Body Styling */
-#libri-table tbody td {
-  @apply px-4 py-4 border-b border-gray-100 align-top;
-  vertical-align: top;
-}
-
-#libri-table tbody tr {
-  @apply bg-white transition-colors duration-200;
-}
-
-#libri-table tbody tr:hover {
-  @apply bg-gray-50;
-}
-
-/* Column width constraints */
-#libri-table th:nth-child(1), #libri-table td:nth-child(1) { width: 40px; min-width: 40px; }
-#libri-table th:nth-child(2), #libri-table td:nth-child(2) { width: 80px; min-width: 80px; }
-#libri-table th:nth-child(3), #libri-table td:nth-child(3) { min-width: 250px; }
-#libri-table th:nth-child(4), #libri-table td:nth-child(4) { width: 120px; min-width: 120px; }
-#libri-table th:nth-child(5), #libri-table td:nth-child(5) { width: 120px; min-width: 120px; }
-#libri-table th:nth-child(6), #libri-table td:nth-child(6) { width: 80px; min-width: 80px; }
-#libri-table th:nth-child(7), #libri-table td:nth-child(7) { width: 140px; min-width: 140px; }
-
-/* Title wrapping */
-#libri-table .min-w-0 {
-  word-wrap: break-word;
-  word-break: break-word;
-  hyphens: auto;
-}
-
-/* Action buttons styling */
-.action-button {
-  @apply inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200;
-}
-
-.action-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* Improved pagination */
-.dataTables_wrapper .dataTables_paginate {
-  @apply mt-4 flex justify-center;
-}
-
-.dataTables_wrapper .dataTables_paginate .paginate_button {
-  @apply mx-1;
-}
-
-/* Loading state improvements */
-.dataTables_wrapper .dataTables_processing {
-  @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(8px);
-}
-
-/* Table scroll improvements */
-.overflow-x-auto {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e0 #f7fafc;
-}
-
-.overflow-x-auto::-webkit-scrollbar {
-  height: 6px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-track {
-  background: #f7fafc;
-  border-radius: 3px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 3px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb:hover {
-  background: #a0aec0;
-}
-
-/* Add spacing around the table */
-#libri-table {
-  margin-top: 1.5rem !important;
-  margin-bottom: 1.5rem !important;
-}
-
-/* Force book titles to wrap properly */
-#libri-table tbody td:nth-child(3) {
-  max-width: 320px !important;
-  word-wrap: break-word !important;
-  white-space: normal !important;
-}
-
-#libri-table tbody td:nth-child(3) .font-medium {
-  word-break: break-word !important;
-  hyphens: auto !important;
-  line-height: 1.3 !important;
-}
-
-/* Ensure action column is always visible */
-#libri-table tbody td:nth-child(7) {
-  min-width: 140px !important;
-}
-
-/* Better vertical alignment for all cells */
-#libri-table tbody td {
-  vertical-align: middle !important;
-}
-
-/* Fix status indicator positioning */
-#libri-table tbody td:nth-child(1) {
-  padding: 8px !important;
-}
-
-/* Optimize position column spacing */
-#libri-table tbody td:nth-child(5) {
-  max-width: 120px !important;
-  padding: 6px 8px !important;
-  line-height: 1.2 !important;
-}
-
-#libri-table tbody td:nth-child(5) .leading-tight {
-  line-height: 1.1 !important;
-}
-
-#libri-table tbody td:nth-child(5) div {
-  margin-bottom: 1px !important;
-}
-
-/* Responsive design for mobile */
 @media (max-width: 768px) {
-  .card-header {
-    @apply flex-col items-start gap-3;
-  }
+  .dataTables_wrapper .dataTables_length,
+  .dataTables_wrapper .dataTables_info { @apply text-xs; }
 
-  .card-header .flex {
-    @apply w-full justify-center;
-  }
-
-  /* Adjust export buttons for mobile */
-  #export-buttons {
-    @apply flex-wrap gap-1;
-  }
-
-  #export-buttons .btn-outline {
-    @apply px-2 py-1 text-xs;
-  }
-
-  /* Mobile horizontal scroll: make Informazioni column wider */
-  #libri-table th:nth-child(3),
-  #libri-table td:nth-child(3) {
-    min-width: 280px !important;
-    width: 280px !important;
-  }
-
-  /* Custom scrollbar styling for mobile */
-  .overflow-x-auto {
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: #3b82f6 #e0e7ff;
-    position: relative;
-  }
-
-  .overflow-x-auto::-webkit-scrollbar {
-    height: 12px;
-  }
-
-  .overflow-x-auto::-webkit-scrollbar-track {
-    background: #e0e7ff;
-    border-radius: 6px;
-  }
-
-  .overflow-x-auto::-webkit-scrollbar-thumb {
-    background: #3b82f6;
-    border-radius: 6px;
-    border: 2px solid #e0e7ff;
-  }
-
-  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
-    background: #2563eb;
-  }
-
-  /* Add scroll indicator shadow */
-  .overflow-x-auto::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 30px;
-    background: linear-gradient(to left, rgba(0,0,0,0.08), transparent);
-    pointer-events: none;
-    z-index: 1;
-  }
+  /* Hide cover column on mobile */
+  #libri-table thead th:nth-child(3),
+  #libri-table tbody td:nth-child(3) { display: none; }
 }
 </style>

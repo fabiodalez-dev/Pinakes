@@ -1165,6 +1165,25 @@ class OpenLibraryPlugin
     }
 
     /**
+     * Fetch book data from Open Library API directly
+     *
+     * @param string $isbn ISBN to search
+     * @return array|null Book data or null if not found
+     */
+    public function fetchFromOpenLibraryApi(string $isbn): ?array
+    {
+        // Create a minimal sources array to enable Open Library
+        $sources = [
+            'openlibrary' => [
+                'name' => 'Open Library',
+                'enabled' => true,
+            ]
+        ];
+
+        return $this->fetchFromOpenLibrary(null, $sources, $isbn);
+    }
+
+    /**
      * Register API routes for the plugin
      * Called by app.routes.register hook
      *
@@ -1189,7 +1208,7 @@ class OpenLibraryPlugin
                     'plugin' => 'Open Library',
                     'isbn' => $cleanIsbn,
                     'data' => $result,
-                    'message' => 'Book data successfully retrieved from Open Library'
+                    'message' => __('Dati libro recuperati con successo da Open Library')
                 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {
@@ -1197,7 +1216,7 @@ class OpenLibraryPlugin
                     'success' => false,
                     'plugin' => 'Open Library',
                     'isbn' => $cleanIsbn,
-                    'message' => 'Book not found in Open Library database'
+                    'message' => __('Libro non trovato nel database Open Library')
                 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
             }

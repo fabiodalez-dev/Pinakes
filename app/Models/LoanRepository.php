@@ -128,9 +128,9 @@ class LoanRepository
             }
             $stmt->close();
 
-            // Determina se il libro ha altri prestiti attivi
+            // Determina se il libro ha altri prestiti attivi (include 'prenotato' for scheduled future loans)
             $activeCount = 0;
-            $countStmt = $this->db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE libro_id=? AND attivo=1 AND stato IN ('in_corso','in_ritardo')");
+            $countStmt = $this->db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE libro_id=? AND attivo=1 AND stato IN ('in_corso','in_ritardo','prenotato')");
             $countStmt->bind_param('i', $bookId);
             $countStmt->execute();
             $activeCount = (int)($countStmt->get_result()->fetch_assoc()['c'] ?? 0);
@@ -142,6 +142,20 @@ class LoanRepository
             $updateBookStmt->execute();
             $updateBookStmt->close();
 
+            // Recalculate availability and process reservations INSIDE the transaction
+            // This ensures FOR UPDATE locks in processBookAvailability are effective
+            $integrity = new DataIntegrity($this->db);
+            if (!$integrity->recalculateBookAvailability($bookId)) {
+                throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro.'));
+            }
+
+            $reservationManager = new ReservationManager($this->db);
+            // Note: processBookAvailability returning false typically indicates no pending
+            // reservation or a race condition - acceptable to continue, just log for observability
+            if (!$reservationManager->processBookAvailability($bookId)) {
+                error_log("LoanRepository::close - No reservation processed for book ID: {$bookId}");
+            }
+
             $this->db->commit();
 
         } catch (\Throwable $e) {
@@ -149,17 +163,12 @@ class LoanRepository
             throw $e;
         }
 
-        if ($bookId !== null) {
-            try {
-                $integrity = new DataIntegrity($this->db);
-                $integrity->recalculateBookAvailability($bookId);
-                $integrity->validateAndUpdateLoan($id);
-            } catch (\Throwable $e) {
-                error_log('DataIntegrity warning (close loan): ' . $e->getMessage());
-            }
-
-            $reservationManager = new ReservationManager($this->db);
-            $reservationManager->processBookAvailability($bookId);
+        // validateAndUpdateLoan has its own transaction, call it after main transaction completes
+        try {
+            $integrity = new DataIntegrity($this->db);
+            $integrity->validateAndUpdateLoan($id);
+        } catch (\Throwable $e) {
+            error_log('DataIntegrity warning (validateAndUpdateLoan): ' . $e->getMessage());
         }
 
         return true;

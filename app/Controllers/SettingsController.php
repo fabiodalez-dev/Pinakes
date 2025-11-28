@@ -110,12 +110,10 @@ class SettingsController
             ConfigStore::set('app.logo', $logoPath);
         }
 
-        // Save footer description
+        // Save footer description (allow empty to clear it)
         $footerDescription = trim((string)($data['footer_description'] ?? ''));
-        if ($footerDescription !== '') {
-            $repository->set('app', 'footer_description', $footerDescription);
-            ConfigStore::set('app.footer_description', $footerDescription);
-        }
+        $repository->set('app', 'footer_description', $footerDescription);
+        ConfigStore::set('app.footer_description', $footerDescription);
 
         // Save social media links
         $socialLinks = [
@@ -216,8 +214,11 @@ class SettingsController
 
     private function resolveAppSettings(SettingsRepository $repository): array
     {
-        $name = $repository->get('app', 'name', ConfigStore::get('app.name', __('Biblioteca')));
-        $logo = $repository->get('app', 'logo_path', ConfigStore::get('app.logo', ''));
+        // Use ConfigStore as primary source - it already merges database values with localized defaults
+        $config = ConfigStore::get('app', []);
+
+        $name = $repository->get('app', 'name', $config['name'] ?? 'Pinakes');
+        $logo = $repository->get('app', 'logo_path', $config['logo'] ?? '');
 
         if ($logo === null) {
             $logo = '';
@@ -226,12 +227,12 @@ class SettingsController
         return [
             'name' => $name,
             'logo' => $logo,
-            'footer_description' => $repository->get('app', 'footer_description', ConfigStore::get('app.footer_description', __('La tua biblioteca digitale per scoprire, esplorare e gestire la tua collezione di libri preferiti.'))),
-            'social_facebook' => $repository->get('app', 'social_facebook', ConfigStore::get('app.social_facebook', '')),
-            'social_twitter' => $repository->get('app', 'social_twitter', ConfigStore::get('app.social_twitter', '')),
-            'social_instagram' => $repository->get('app', 'social_instagram', ConfigStore::get('app.social_instagram', '')),
-            'social_linkedin' => $repository->get('app', 'social_linkedin', ConfigStore::get('app.social_linkedin', '')),
-            'social_bluesky' => $repository->get('app', 'social_bluesky', ConfigStore::get('app.social_bluesky', '')),
+            'footer_description' => $repository->get('app', 'footer_description', $config['footer_description'] ?? ''),
+            'social_facebook' => $repository->get('app', 'social_facebook', $config['social_facebook'] ?? ''),
+            'social_twitter' => $repository->get('app', 'social_twitter', $config['social_twitter'] ?? ''),
+            'social_instagram' => $repository->get('app', 'social_instagram', $config['social_instagram'] ?? ''),
+            'social_linkedin' => $repository->get('app', 'social_linkedin', $config['social_linkedin'] ?? ''),
+            'social_bluesky' => $repository->get('app', 'social_bluesky', $config['social_bluesky'] ?? ''),
         ];
     }
 

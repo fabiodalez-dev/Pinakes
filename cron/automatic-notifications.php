@@ -21,7 +21,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 $settings = require __DIR__ . '/../config/settings.php';
 
 use App\Support\NotificationService;
-use mysqli;
+use App\Support\DataIntegrity;
 
 // Funzione per logging
 function logMessage(string $message): void {
@@ -80,6 +80,47 @@ try {
     $hour = (int)date('H');
     if ($hour === 6) { // Run at 6 AM
         logMessage("Running daily maintenance tasks");
+
+        // Activate scheduled loans (prenotato -> in_corso) when their start date arrives
+        $stmt = $db->prepare("
+            SELECT id, copia_id, libro_id FROM prestiti
+            WHERE stato = 'prenotato'
+            AND data_prestito <= CURDATE()
+            AND attivo = 1
+        ");
+        $stmt->execute();
+        $scheduledLoans = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $activatedLoans = 0;
+        foreach ($scheduledLoans as $loan) {
+            $db->begin_transaction();
+            try {
+                // Update loan status to in_corso
+                $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ?");
+                $updateStmt->bind_param('i', $loan['id']);
+                $updateStmt->execute();
+                $updateStmt->close();
+
+                // Mark the copy as 'prestato'
+                $copyStmt = $db->prepare("UPDATE copie SET stato = 'prestato' WHERE id = ?");
+                $copyStmt->bind_param('i', $loan['copia_id']);
+                $copyStmt->execute();
+                $copyStmt->close();
+
+                // Recalculate book availability using DataIntegrity for consistency
+                $integrity = new DataIntegrity($db);
+                $integrity->recalculateBookAvailability((int)$loan['libro_id']);
+
+                $db->commit();
+                $activatedLoans++;
+            } catch (Throwable $e) {
+                $db->rollback();
+                logMessage("Failed to activate loan {$loan['id']}: " . $e->getMessage());
+            }
+        }
+
+        logMessage("Activated {$activatedLoans} scheduled loans (prenotato -> in_corso)");
 
         // Update overdue loans status
         $stmt = $db->prepare("

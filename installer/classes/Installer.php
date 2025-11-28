@@ -602,6 +602,67 @@ class Installer {
     }
 
     /**
+     * Import optimization indexes from indexes_optimization.sql
+     * These indexes improve query performance but are not critical for basic functionality
+     *
+     * @return bool
+     */
+    public function importOptimizationIndexes(): bool
+    {
+        $installerDir = dirname(__DIR__);
+        $indexesFile = $installerDir . '/database/indexes_optimization.sql';
+
+        if (!file_exists($indexesFile)) {
+            // File opzionale - non è un errore se manca
+            return true;
+        }
+
+        $sql = file_get_contents($indexesFile);
+        if (!is_string($sql) || trim($sql) === '') {
+            return true;
+        }
+
+        $pdo = $this->getDatabaseConnection();
+
+        // Rimuovi commenti e dividi in statement
+        $lines = explode("\n", $sql);
+        $statements = [];
+        $currentStatement = '';
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Salta commenti e linee vuote
+            if (empty($line) || strpos($line, '--') === 0 || strpos($line, '#') === 0) {
+                continue;
+            }
+            $currentStatement .= ' ' . $line;
+            if (substr($line, -1) === ';') {
+                $statements[] = trim($currentStatement);
+                $currentStatement = '';
+            }
+        }
+
+        foreach ($statements as $statement) {
+            if (empty($statement)) {
+                continue;
+            }
+            try {
+                $pdo->exec($statement);
+            } catch (\PDOException $e) {
+                // Ignora errori su indici duplicati (già esistenti)
+                // Error code 1061 = Duplicate key name
+                if (strpos($e->getMessage(), '1061') === false &&
+                    strpos($e->getMessage(), 'Duplicate') === false) {
+                    // Log altri errori ma continua
+                    error_log("Index optimization warning: " . $e->getMessage());
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Verify database installation
      */
     public function verifyInstallation() {
@@ -1226,6 +1287,163 @@ HTACCESS;
         ]);
 
         return $results;
+    }
+
+    /**
+     * Set secure file permissions after installation
+     * - Directories: 755 (rwxr-xr-x)
+     * - Files: 644 (rw-r--r--)
+     * - Writable directories (storage, logs): 775
+     * - Sensitive files (.env): 600
+     *
+     * @return array Results with counts of modified items
+     */
+    public function setSecurePermissions(): array
+    {
+        $results = [
+            'directories' => 0,
+            'files' => 0,
+            'writable_dirs' => 0,
+            'sensitive_files' => 0,
+            'errors' => []
+        ];
+
+        // Directories that need write permissions (775)
+        $writableDirs = [
+            'storage',
+            'storage/cache',
+            'storage/logs',
+            'storage/plugins',
+            'storage/uploads',
+            'storage/uploads/plugins',
+            'storage/backups',
+            'storage/tmp',
+            'storage/sessions',
+            'cache',
+            'tmp',
+            'public/assets',
+            'public/uploads',
+        ];
+
+        // Sensitive files that need restricted permissions (600)
+        $sensitiveFiles = [
+            '.env',
+            '.installed',
+        ];
+
+        // Directories to skip (vendor, node_modules, .git)
+        $skipDirs = ['vendor', 'node_modules', '.git', 'installer'];
+
+        // First, handle sensitive files
+        foreach ($sensitiveFiles as $file) {
+            $path = $this->baseDir . '/' . $file;
+            if (file_exists($path)) {
+                if (@chmod($path, 0600)) {
+                    $results['sensitive_files']++;
+                } else {
+                    $results['errors'][] = "Cannot set permissions on: $file";
+                }
+            }
+        }
+
+        // Handle writable directories first (create if missing)
+        foreach ($writableDirs as $dir) {
+            $path = $this->baseDir . '/' . $dir;
+            if (!is_dir($path)) {
+                @mkdir($path, 0775, true);
+            }
+            if (is_dir($path)) {
+                if (@chmod($path, 0775)) {
+                    $results['writable_dirs']++;
+                } else {
+                    $results['errors'][] = "Cannot set permissions on directory: $dir";
+                }
+            }
+        }
+
+        // Recursively set permissions on all other files and directories
+        $this->setPermissionsRecursive(
+            $this->baseDir,
+            $skipDirs,
+            $writableDirs,
+            $sensitiveFiles,
+            $results
+        );
+
+        return $results;
+    }
+
+    /**
+     * Recursively set permissions on files and directories
+     */
+    private function setPermissionsRecursive(
+        string $dir,
+        array $skipDirs,
+        array $writableDirs,
+        array $sensitiveFiles,
+        array &$results,
+        string $relativePath = ''
+    ): void {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = @scandir($dir);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $dir . '/' . $item;
+            $relPath = $relativePath ? $relativePath . '/' . $item : $item;
+
+            // Skip certain directories
+            if (is_dir($path) && in_array($item, $skipDirs)) {
+                continue;
+            }
+
+            // Skip files/dirs we already handled
+            if (in_array($relPath, $sensitiveFiles)) {
+                continue;
+            }
+
+            // Check if this is a writable directory (or inside one)
+            $isWritableDir = false;
+            foreach ($writableDirs as $wDir) {
+                if ($relPath === $wDir || strpos($relPath, $wDir . '/') === 0) {
+                    $isWritableDir = true;
+                    break;
+                }
+            }
+
+            if (is_dir($path)) {
+                // Set directory permissions
+                $targetPerm = $isWritableDir ? 0775 : 0755;
+                if (@chmod($path, $targetPerm)) {
+                    $results['directories']++;
+                }
+
+                // Recurse into subdirectory
+                $this->setPermissionsRecursive(
+                    $path,
+                    $skipDirs,
+                    $writableDirs,
+                    $sensitiveFiles,
+                    $results,
+                    $relPath
+                );
+            } else {
+                // Set file permissions (644 for normal, 664 for files in writable dirs)
+                $targetPerm = $isWritableDir ? 0664 : 0644;
+                if (@chmod($path, $targetPerm)) {
+                    $results['files']++;
+                }
+            }
+        }
     }
 
     /**

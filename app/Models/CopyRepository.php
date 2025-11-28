@@ -30,7 +30,7 @@ class CopyRepository
                    u.cognome as utente_cognome,
                    u.email as utente_email
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('pendente', 'in_corso', 'in_ritardo')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('pendente', 'prenotato', 'in_corso', 'in_ritardo')
             LEFT JOIN utenti u ON p.utente_id = u.id
             WHERE c.libro_id = ?
             ORDER BY c.numero_inventario ASC
@@ -113,14 +113,14 @@ class CopyRepository
     }
 
     /**
-     * Ottiene le copie disponibili di un libro
+     * Ottiene le copie disponibili di un libro (non assegnate a prestiti attivi o futuri)
      */
     public function getAvailableByBookId(int $bookId): array
     {
         $stmt = $this->db->prepare("
             SELECT c.*
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL
@@ -140,14 +140,52 @@ class CopyRepository
     }
 
     /**
-     * Conta il numero di copie disponibili per un libro
+     * Ottiene le copie disponibili per un libro in un periodo specifico
+     * Esclude copie con prestiti sovrapposti al periodo richiesto
+     * @param int $bookId ID del libro
+     * @param string $startDate Data inizio periodo (Y-m-d)
+     * @param string $endDate Data fine periodo (Y-m-d)
+     * @return array Array di copie disponibili per il periodo
+     */
+    public function getAvailableByBookIdForDateRange(int $bookId, string $startDate, string $endDate): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT c.*
+            FROM copie c
+            WHERE c.libro_id = ?
+            AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            AND NOT EXISTS (
+                SELECT 1 FROM prestiti p
+                WHERE p.copia_id = c.id
+                AND p.attivo = 1
+                AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                AND p.data_prestito <= ?
+                AND p.data_scadenza >= ?
+            )
+            ORDER BY c.numero_inventario ASC
+        ");
+        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $copie = [];
+        while ($row = $result->fetch_assoc()) {
+            $copie[] = $row;
+        }
+
+        $stmt->close();
+        return $copie;
+    }
+
+    /**
+     * Conta il numero di copie disponibili per un libro (non assegnate a prestiti attivi o futuri)
      */
     public function countAvailableByBookId(int $bookId): int
     {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL

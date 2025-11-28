@@ -41,7 +41,12 @@ if (true) {
         $_SESSION['data_imported'] = true;
         $debug[] = __("Dati iniziali importati OK");
 
-        // Import triggers
+        // Import optimization indexes (before triggers - more reliable)
+        $debug[] = __("Creazione indici di ottimizzazione...");
+        $installer->importOptimizationIndexes();
+        $debug[] = __("Indici di ottimizzazione creati OK");
+
+        // Import triggers (may fail due to permission issues)
         $debug[] = __("Import trigger...");
         $installer->importTriggers();
         $_SESSION['trigger_warnings'] = $installer->getTriggerWarnings();
