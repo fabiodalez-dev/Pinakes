@@ -10,9 +10,11 @@ use App\Support\DataIntegrity;
 use Exception;
 use function __;
 
-class LoanApprovalController {
+class LoanApprovalController
+{
 
-    public function pendingLoans(Request $request, Response $response, mysqli $db): Response {
+    public function pendingLoans(Request $request, Response $response, mysqli $db): Response
+    {
         // Get all pending loan requests
         $stmt = $db->prepare("
             SELECT p.*, l.titolo, l.copertina_url,
@@ -43,19 +45,20 @@ class LoanApprovalController {
         return $response;
     }
 
-    public function approveLoan(Request $request, Response $response, mysqli $db): Response {
+    public function approveLoan(Request $request, Response $response, mysqli $db): Response
+    {
         $data = $request->getParsedBody();
         if (!is_array($data) || empty($data)) {
             $contentType = $request->getHeaderLine('Content-Type');
             if (str_contains($contentType, 'application/json')) {
-                $raw = (string)$request->getBody();
+                $raw = (string) $request->getBody();
                 $decoded = json_decode($raw, true);
                 if (is_array($decoded)) {
                     $data = $decoded;
                 }
             }
         }
-        $loanId = (int)($data['loan_id'] ?? 0);
+        $loanId = (int) ($data['loan_id'] ?? 0);
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
@@ -65,8 +68,8 @@ class LoanApprovalController {
         try {
             $db->begin_transaction();
 
-            // Verifica che il prestito sia ancora pendente
-            $stmt = $db->prepare("SELECT libro_id, utente_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
+            // Verifica che il prestito sia ancora pendente e ottieni le date richieste
+            $stmt = $db->prepare("SELECT libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id = ? AND stato = 'pendente'");
             $stmt->bind_param('i', $loanId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -83,47 +86,147 @@ class LoanApprovalController {
             $loan = $result->fetch_assoc();
             $stmt->close();
 
-            // Seleziona una copia disponibile del libro
-            $copyRepo = new \App\Models\CopyRepository($db);
-            $availableCopies = $copyRepo->getAvailableByBookId($loan['libro_id']);
+            $libroId = (int) $loan['libro_id'];
+            $dataPrestito = $loan['data_prestito'];
+            $dataScadenza = $loan['data_scadenza'];
+            $today = date('Y-m-d');
 
-            if (empty($availableCopies)) {
-                // Ricalcola disponibilità per sicurezza
-                $integrity = new DataIntegrity($db);
-                $integrity->recalculateBookAvailability($loan['libro_id']);
+            // Determine state: 'prenotato' if future loan, 'in_corso' if immediate
+            $isFutureLoan = ($dataPrestito > $today);
+            $newState = $isFutureLoan ? 'prenotato' : 'in_corso';
 
-                // Riprova a trovare copie disponibili
-                $availableCopies = $copyRepo->getAvailableByBookId($loan['libro_id']);
+            // Step 1: Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
+            $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+            $totalCopiesStmt->bind_param('i', $libroId);
+            $totalCopiesStmt->execute();
+            $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+            $totalCopiesStmt->close();
+
+            // Step 2: Count overlapping loans (excluding the current pending one)
+            $loanCountStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM prestiti
+                WHERE libro_id = ? AND attivo = 1 AND id != ?
+                AND stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                AND data_prestito <= ? AND data_scadenza >= ?
+            ");
+            $loanCountStmt->bind_param('iiss', $libroId, $loanId, $dataScadenza, $dataPrestito);
+            $loanCountStmt->execute();
+            $overlappingLoans = (int) ($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+            $loanCountStmt->close();
+
+            // Step 3: Count overlapping prenotazioni
+            // Use COALESCE to handle NULL data_inizio_richiesta and data_fine_richiesta
+            // Fall back to data_scadenza_prenotazione if specific dates are not set
+            $resCountStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM prenotazioni
+                WHERE libro_id = ? AND stato = 'attiva'
+                AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
+                AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+                AND utente_id != ?
+            ");
+            $resCountStmt->bind_param('issi', $libroId, $dataScadenza, $dataPrestito, $loan['utente_id']);
+            $resCountStmt->execute();
+            $overlappingReservations = (int) ($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+            $resCountStmt->close();
+
+            // Check if there's at least one slot available
+            $totalOccupied = $overlappingLoans + $overlappingReservations;
+            if ($totalOccupied >= $totalCopies) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Step 4: Find a specific lendable copy without overlapping assigned loans for this period
+            // Include 'pendente' to match Step 2's counting logic
+            // Exclude non-lendable copies (perso, danneggiato, manutenzione)
+            $overlapStmt = $db->prepare("
+                SELECT c.id FROM copie c
+                WHERE c.libro_id = ?
+                AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                AND NOT EXISTS (
+                    SELECT 1 FROM prestiti p
+                    WHERE p.copia_id = c.id
+                    AND p.attivo = 1
+                    AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND p.data_prestito <= ?
+                    AND p.data_scadenza >= ?
+                )
+                LIMIT 1
+            ");
+            $overlapStmt->bind_param('iss', $libroId, $dataScadenza, $dataPrestito);
+            $overlapStmt->execute();
+            $overlapResult = $overlapStmt->get_result();
+            $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
+            $overlapStmt->close();
+
+            if (!$selectedCopy) {
+                // Fallback: try date-aware method to find available copy for the requested period
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $availableCopies = $copyRepo->getAvailableByBookIdForDateRange($libroId, $dataPrestito, $dataScadenza);
 
                 if (empty($availableCopies)) {
                     $db->rollback();
                     $response->getBody()->write(json_encode([
                         'success' => false,
-                        'message' => __('Nessuna copia disponibile per questo libro')
+                        'message' => __('Nessuna copia disponibile per il periodo richiesto')
                     ]));
                     return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                 }
+                $selectedCopy = $availableCopies[0];
             }
 
-            // Prendi la prima copia disponibile
-            $selectedCopy = $availableCopies[0];
+            // Lock selected copy and re-check overlap to prevent race
+            $lockCopyStmt = $db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+            $lockCopyStmt->bind_param('i', $selectedCopy['id']);
+            $lockCopyStmt->execute();
+            $lockCopyStmt->close();
 
-            // Assegna la copia al prestito e approva
+            $overlapCopyStmt = $db->prepare("
+                SELECT 1 FROM prestiti
+                WHERE copia_id = ? AND attivo = 1 AND id != ?
+                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
+                AND data_prestito <= ? AND data_scadenza >= ?
+                LIMIT 1
+            ");
+            $overlapCopyStmt->bind_param('iiss', $selectedCopy['id'], $loanId, $dataScadenza, $dataPrestito);
+            $overlapCopyStmt->execute();
+            $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
+            $overlapCopyStmt->close();
+
+            if ($overlapCopy) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Assegna la copia al prestito con lo stato corretto
             $stmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'in_corso', attivo = 1, copia_id = ?
+                SET stato = ?, attivo = 1, copia_id = ?
                 WHERE id = ? AND stato = 'pendente'
             ");
-            $stmt->bind_param('ii', $selectedCopy['id'], $loanId);
+            $stmt->bind_param('sii', $newState, $selectedCopy['id'], $loanId);
             $stmt->execute();
             $stmt->close();
 
-            // Aggiorna stato della copia a 'prestato'
-            $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
+            // Aggiorna stato della copia a 'prestato' SOLO se il prestito inizia oggi
+            // Per i prestiti futuri (prenotato), la copia rimane disponibile
+            // MaintenanceService::activateScheduledLoans() la segnerà come 'prestato' quando il prestito inizia
+            $copyRepo = new \App\Models\CopyRepository($db);
+            if (!$isFutureLoan) {
+                $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
+            }
 
             // Update book availability with integrity check
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($loan['libro_id']);
+            $integrity->recalculateBookAvailability($libroId);
 
             $db->commit();
 
@@ -138,7 +241,9 @@ class LoanApprovalController {
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => __('Prestito approvato con successo')
+                'message' => $isFutureLoan
+                    ? __('Prestito prenotato con successo')
+                    : __('Prestito approvato con successo')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
@@ -153,19 +258,20 @@ class LoanApprovalController {
         }
     }
 
-    public function rejectLoan(Request $request, Response $response, mysqli $db): Response {
+    public function rejectLoan(Request $request, Response $response, mysqli $db): Response
+    {
         $data = $request->getParsedBody();
         if (!is_array($data) || empty($data)) {
             $contentType = $request->getHeaderLine('Content-Type');
             if (str_contains($contentType, 'application/json')) {
-                $raw = (string)$request->getBody();
+                $raw = (string) $request->getBody();
                 $decoded = json_decode($raw, true);
                 if (is_array($decoded)) {
                     $data = $decoded;
                 }
             }
         }
-        $loanId = (int)($data['loan_id'] ?? 0);
+        $loanId = (int) ($data['loan_id'] ?? 0);
         $reason = $data['reason'] ?? '';
 
         if ($loanId <= 0) {
@@ -189,7 +295,16 @@ class LoanApprovalController {
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        $bookId = $loan['libro_id'];
+        $bookId = (int) $loan['libro_id'];
+
+        // Send rejection notification BEFORE deleting (need loan data)
+        try {
+            $notificationService = new \App\Support\NotificationService($db);
+            $notificationService->sendLoanRejectedNotification($loanId, $reason);
+        } catch (Exception $notifError) {
+            error_log("Error sending rejection notification for loan {$loanId}: " . $notifError->getMessage());
+            // Don't fail the rejection if notification fails
+        }
 
         // Reject the loan (delete it)
         $stmt = $db->prepare("DELETE FROM prestiti WHERE id = ? AND stato = 'pendente'");
@@ -214,25 +329,4 @@ class LoanApprovalController {
         }
     }
 
-    private function updateBookAvailability(mysqli $db, int $loanId): void {
-        // Get book ID from loan
-        $stmt = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
-        $stmt->bind_param('i', $loanId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $bookId = $result->fetch_assoc()['libro_id'] ?? null;
-
-        if ($bookId) {
-            // Update book availability
-            $stmt = $db->prepare("
-                UPDATE libri SET copie_disponibili = copie_totali - (
-                    SELECT COUNT(*) FROM prestiti
-                    WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo')
-                )
-                WHERE id = ?
-            ");
-            $stmt->bind_param('ii', $bookId, $bookId);
-            $stmt->execute();
-        }
-    }
 }

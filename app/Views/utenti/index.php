@@ -790,6 +790,7 @@ document.addEventListener('DOMContentLoaded', function() {
   @apply bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg;
 }
 
+/* Pagination buttons - hide disabled navigation buttons */
 .dataTables_wrapper .dataTables_paginate .paginate_button {
   @apply px-3 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 transition-colors duration-200;
 }
@@ -797,6 +798,11 @@ document.addEventListener('DOMContentLoaded', function() {
 .dataTables_wrapper .dataTables_paginate .paginate_button.current {
   @apply bg-gray-900 text-white border-blue-600 hover:bg-blue-700;
 }
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.first,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.previous,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.next,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled.last { display: none !important; }
 
 .dataTables_wrapper .dataTables_length select {
   @apply form-input py-1 text-sm;

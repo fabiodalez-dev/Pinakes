@@ -55,12 +55,12 @@ class UserDashboardController
             
             // Get recently added books (last 5)
             $stmt = $db->prepare("
-                SELECT l.id, l.titolo, 
-                       (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ') 
-                        FROM libri_autori la 
-                        JOIN autori a ON la.autore_id = a.id 
-                        WHERE la.libro_id = l.id 
-                        ORDER BY la.ruolo = 'principale' DESC, a.nome 
+                SELECT l.id, l.titolo, l.copertina_url,
+                       (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                        FROM libri_autori la
+                        JOIN autori a ON la.autore_id = a.id
+                        WHERE la.libro_id = l.id
+                        ORDER BY la.ruolo = 'principale' DESC, a.nome
                         LIMIT 3) AS autore,
                        l.copie_disponibili
                 FROM libri l
@@ -77,7 +77,7 @@ class UserDashboardController
             // Get user active loans with book titles
             $stmt = $db->prepare("
                 SELECT p.id, p.libro_id, p.data_scadenza,
-                       l.titolo AS titolo_libro
+                       l.titolo AS titolo_libro, l.copertina_url
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id
                 WHERE p.utente_id = ? AND p.attivo = 1

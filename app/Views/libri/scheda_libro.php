@@ -511,6 +511,64 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     </div>
   </div>
 
+  <?php if (!empty($activeReservations)): ?>
+  <div class="mt-6">
+    <div class="card">
+      <div class="card-header flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-calendar-check text-primary"></i>
+          <?= __("Prenotazioni attive (slot libro)") ?>
+        </h2>
+        <span class="text-sm text-gray-600"><?= count($activeReservations); ?> <?= __("prenotazioni") ?></span>
+      </div>
+      <div class="card-body p-0">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Utente") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Inizio") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Fine") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Scadenza prenotazione") ?></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Coda") ?></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php foreach ($activeReservations as $res): ?>
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                  <div class="text-gray-900 font-medium">
+                    <?php echo App\Support\HtmlHelper::e(trim(($res['nome'] ?? '').' '.($res['cognome'] ?? ''))); ?>
+                  </div>
+                  <?php if (!empty($res['email'])): ?>
+                    <div class="text-gray-500 text-xs"><?php echo App\Support\HtmlHelper::e($res['email']); ?></div>
+                  <?php endif; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php echo $res['data_inizio_richiesta'] ? date('d/m/Y', strtotime($res['data_inizio_richiesta'])) : '—'; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php
+                    $endDate = $res['data_fine_richiesta'] ?: ($res['data_scadenza_prenotazione'] ? substr($res['data_scadenza_prenotazione'], 0, 10) : null);
+                    echo $endDate ? date('d/m/Y', strtotime($endDate)) : '—';
+                  ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php echo !empty($res['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($res['data_scadenza_prenotazione'])) : '—'; ?>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <?php echo (int)($res['queue_position'] ?? 1); ?>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- Copies Section -->
   <?php if (!empty($copie) && count($copie) > 0): ?>
   <div class="mt-6">
@@ -559,19 +617,48 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <?php
-                  $copiaStatus = strtolower($copia['stato'] ?? '');
-                  $copiaStatusClasses = [
-                      'disponibile' => 'bg-green-100 text-green-800',
-                      'prestato'    => 'bg-red-100 text-red-800',
-                      'manutenzione' => 'bg-yellow-100 text-yellow-800',
-                      'perso'       => 'bg-gray-100 text-gray-800',
-                      'danneggiato' => 'bg-orange-100 text-orange-800',
-                  ];
-                  $copiaStatusClass = $copiaStatusClasses[$copiaStatus] ?? 'bg-gray-100 text-gray-800';
+                  // Determine effective status based on loan state and dates
+                  $rawCopiaStatus = strtolower($copia['stato'] ?? '');
+                  $loanStatus = $copia['prestito_stato'] ?? null;
+                  $loanStartDate = $copia['data_prestito'] ?? null;
+                  $todayDate = date('Y-m-d');
+
+                  // If copy is "prestato" but the loan is "prenotato" and hasn't started yet,
+                  // show as "prenotato" (reserved for future) instead of "prestato"
+                  // Use substr to compare only date portion (YYYY-MM-DD) in case of datetime strings
+                  if ($rawCopiaStatus === 'prestato' && $loanStatus === 'prenotato' && substr((string)$loanStartDate, 0, 10) > $todayDate) {
+                      $effectiveStatus = 'prenotato';
+                      $effectiveLabel = __('Prenotato');
+                      $effectiveClass = 'bg-purple-100 text-purple-800';
+                  } else {
+                      $effectiveStatus = $rawCopiaStatus;
+                      $copiaStatusLabels = [
+                          'disponibile' => __('Disponibile'),
+                          'prestato'    => __('Prestato'),
+                          'manutenzione' => __('In manutenzione'),
+                          'perso'       => __('Perso'),
+                          'danneggiato' => __('Danneggiato'),
+                      ];
+                      $copiaStatusClasses = [
+                          'disponibile' => 'bg-green-100 text-green-800',
+                          'prestato'    => 'bg-red-100 text-red-800',
+                          'manutenzione' => 'bg-yellow-100 text-yellow-800',
+                          'perso'       => 'bg-gray-100 text-gray-800',
+                          'danneggiato' => 'bg-orange-100 text-orange-800',
+                      ];
+                      $effectiveLabel = $copiaStatusLabels[$effectiveStatus] ?? ucfirst($effectiveStatus);
+                      $effectiveClass = $copiaStatusClasses[$effectiveStatus] ?? 'bg-gray-100 text-gray-800';
+                  }
                   ?>
-                  <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $copiaStatusClass; ?>">
-                    <?php echo App\Support\HtmlHelper::e(ucfirst($copia['stato'] ?? 'N/D')); ?>
+                  <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $effectiveClass; ?>">
+                    <?php echo App\Support\HtmlHelper::e($effectiveLabel); ?>
                   </span>
+                  <?php if ($effectiveStatus === 'prenotato' && $loanStartDate): ?>
+                  <div class="text-xs text-purple-600 mt-1">
+                    <i class="fas fa-calendar-alt mr-1"></i>
+                    <?= __('Dal') ?> <?php echo date('d/m/Y', strtotime($loanStartDate)); ?>
+                  </div>
+                  <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php if (!empty($copia['prestito_id'])): ?>
@@ -619,7 +706,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <div class="flex items-center justify-end gap-2">
                     <?php
                     $canEdit = empty($copia['prestito_id']);
-                    $canDelete = $canEdit && in_array($copiaStatus, ['perso', 'danneggiato', 'manutenzione']);
+                    $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione']);
                     ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
@@ -719,29 +806,48 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <?php
                     $statusClass = 'bg-gray-100 text-gray-800';
                     $statusIcon = 'fa-circle';
+                    $statusLabel = __('Sconosciuto');
                     switch ($loan['stato']) {
                       case 'restituito':
                         $statusClass = 'bg-green-100 text-green-800';
                         $statusIcon = 'fa-check-circle';
+                        $statusLabel = __('Restituito');
+                        break;
+                      case 'prenotato':
+                        $statusClass = 'bg-purple-100 text-purple-800';
+                        $statusIcon = 'fa-calendar-check';
+                        $statusLabel = __('Prenotato');
                         break;
                       case 'in_corso':
                         $statusClass = 'bg-blue-100 text-blue-800';
                         $statusIcon = 'fa-book-open';
+                        $statusLabel = __('In Corso');
                         break;
                       case 'in_ritardo':
                         $statusClass = 'bg-red-100 text-red-800';
                         $statusIcon = 'fa-exclamation-triangle';
+                        $statusLabel = __('In Ritardo');
                         break;
                       case 'perso':
+                        $statusClass = 'bg-yellow-100 text-yellow-800';
+                        $statusIcon = 'fa-exclamation-circle';
+                        $statusLabel = __('Perso');
+                        break;
                       case 'danneggiato':
                         $statusClass = 'bg-yellow-100 text-yellow-800';
                         $statusIcon = 'fa-exclamation-circle';
+                        $statusLabel = __('Danneggiato');
+                        break;
+                      case 'pendente':
+                        $statusClass = 'bg-orange-100 text-orange-800';
+                        $statusIcon = 'fa-clock';
+                        $statusLabel = __('In Attesa');
                         break;
                     }
                   ?>
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $statusClass; ?>">
                     <i class="fas <?php echo $statusIcon; ?> mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e(ucfirst(str_replace('_', ' ', $loan['stato']))); ?>
+                    <?php echo App\Support\HtmlHelper::e($statusLabel); ?>
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -780,6 +886,421 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       </div>
     </div>
   </div>
+  <?php endif; ?>
+
+  <!-- Copy Availability Calendar -->
+  <?php if (!empty($copie) && count($copie) > 0): ?>
+  <div class="mt-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-calendar-alt text-primary"></i>
+          <?= __("Calendario Disponibilità") ?>
+          <span class="ml-2 text-sm font-normal text-gray-500">
+            (<?= __("visualizzazione per copia") ?>)
+          </span>
+        </h2>
+      </div>
+      <div class="card-body">
+        <!-- Status Legend -->
+        <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 1rem; font-size: 0.875rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 16px; height: 16px; border-radius: 4px; background-color: #FFFFFF; border: 1px solid #D1D5DB;"></span>
+            <span style="color: #4B5563;"><?= __("Disponibile") ?></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 16px; height: 16px; border-radius: 4px; background-color: #E9D5FF; border: 1px solid #A855F7;"></span>
+            <span style="color: #4B5563;"><?= __("Prenotato") ?></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 16px; height: 16px; border-radius: 4px; background-color: #FECACA; border: 1px solid #EF4444;"></span>
+            <span style="color: #4B5563;"><?= __("In prestito") ?></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 16px; height: 16px; border-radius: 4px; background-color: #FEF08A; border: 1px solid #EAB308;"></span>
+            <span style="color: #4B5563;"><?= __("In ritardo") ?></span>
+          </div>
+        </div>
+
+        <!-- Copy Legend -->
+        <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; padding: 1rem; background-color: #F9FAFB; border-radius: 0.5rem;">
+          <?php foreach ($copie as $idx => $cal_copia): ?>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 12px; height: 12px; border-radius: 50%; background-color: <?php echo ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'][$idx % 8]; ?>;"></span>
+            <span style="font-size: 0.875rem; font-weight: 500; color: #374151;"><?php echo App\Support\HtmlHelper::e($cal_copia['numero_inventario']); ?></span>
+            <?php
+            $calCopiaStatus = $cal_copia['prestito_stato'] ?? null;
+            $calLoanStart = $cal_copia['data_prestito'] ?? null;
+            $calLoanEnd = $cal_copia['data_scadenza'] ?? null;
+            $calToday = date('Y-m-d');
+            if ($calCopiaStatus === 'prenotato' && $calLoanStart > $calToday):
+            ?>
+            <span style="font-size: 0.75rem; color: #7C3AED;">
+              (<?= __("Prenotato") ?> <?php echo date('d/m', strtotime($calLoanStart)); ?> - <?php echo date('d/m', strtotime($calLoanEnd)); ?>)
+            </span>
+            <?php elseif (in_array($calCopiaStatus, ['in_corso', 'in_ritardo'])): ?>
+            <span style="font-size: 0.75rem; color: #DC2626;">
+              (<?= __("In prestito fino al") ?> <?php echo date('d/m', strtotime($calLoanEnd)); ?>)
+            </span>
+            <?php else: ?>
+            <span style="font-size: 0.75rem; color: #16A34A;">(<?= __("Disponibile") ?>)</span>
+            <?php endif; ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+
+        <!-- Calendar Container -->
+        <div id="copy-availability-calendar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Prepare copy availability data for calendar
+      const copyData = <?php
+        $calendarData = [];
+        foreach ($copie as $idx => $cal_copia) {
+            $copyInfo = [
+                'id' => (int)$cal_copia['id'],
+                'inventario' => $cal_copia['numero_inventario'],
+                'color' => ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'][$idx % 8],
+                'loans' => []
+            ];
+
+            // If this copy has an active loan
+            if (!empty($cal_copia['prestito_stato'])) {
+                $copyInfo['loans'][] = [
+                    'stato' => $cal_copia['prestito_stato'],
+                    'from' => $cal_copia['data_prestito'],
+                    'to' => $cal_copia['data_scadenza']
+                ];
+            }
+
+            $calendarData[] = $copyInfo;
+        }
+        // Use JSON_HEX_* flags to prevent XSS when embedding in HTML/script contexts
+        echo json_encode($calendarData, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+      ?>;
+
+      // Initialize flatpickr calendar (read-only, with marked dates)
+      if (typeof flatpickr !== 'undefined') {
+        const today = new Date();
+        const threeMonthsLater = new Date(today);
+        threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+
+        // Helper to format date as YYYY-MM-DD without timezone issues
+        const formatLocalDate = (d) => {
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
+        // Helper to parse date string as local date (not UTC)
+        // Handles both YYYY-MM-DD and YYYY-MM-DD HH:MM:SS formats
+        const parseLocalDate = (dateStr) => {
+          // Extract YYYY-MM-DD portion, ignoring any time component
+          const datePart = String(dateStr).substring(0, 10);
+          const [year, month, day] = datePart.split('-').map(Number);
+          return new Date(year, month - 1, day);
+        };
+
+        // Collect all dates with their statuses
+        const dateStyles = {};
+
+        copyData.forEach((copy, idx) => {
+          copy.loans.forEach(loan => {
+            if (loan.from && loan.to) {
+              const startDate = parseLocalDate(loan.from);
+              const endDate = parseLocalDate(loan.to);
+
+              // Mark each day in the range
+              for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = formatLocalDate(d);
+                if (!dateStyles[dateStr]) {
+                  dateStyles[dateStr] = [];
+                }
+                dateStyles[dateStr].push({
+                  copyIdx: idx,
+                  color: copy.color,
+                  stato: loan.stato,
+                  inventario: copy.inventario
+                });
+              }
+            }
+          });
+        });
+
+        const calendarInstance = flatpickr('#copy-availability-calendar', {
+          inline: true,
+          mode: 'single',
+          dateFormat: 'Y-m-d',
+          minDate: 'today',
+          maxDate: threeMonthsLater,
+          showMonths: 3,
+          clickOpens: false,
+          allowInput: false,
+          locale: {
+            firstDayOfWeek: 1 // Monday
+          },
+          onDayCreate: function(dObj, dStr, fp, dayElem) {
+            // Skip if already processed (prevent re-processing on redraw)
+            if (dayElem.dataset.processed) return;
+            dayElem.dataset.processed = 'true';
+
+            const dateStr = formatLocalDate(dayElem.dateObj);
+            const dayData = dateStyles[dateStr];
+
+            if (dayData && dayData.length > 0) {
+              // Determine worst status for background color
+              // Priority: in_ritardo > in_corso > prenotato
+              let worstStatus = 'prenotato';
+              dayData.forEach(info => {
+                if (info.stato === 'in_ritardo') {
+                  worstStatus = 'in_ritardo';
+                } else if (info.stato === 'in_corso' && worstStatus !== 'in_ritardo') {
+                  worstStatus = 'in_corso';
+                }
+              });
+
+              // Apply background color based on status
+              const statusColors = {
+                'prenotato': '#E9D5FF',  // Purple
+                'in_corso': '#FECACA',   // Red
+                'in_ritardo': '#FEF08A'  // Yellow
+              };
+              dayElem.style.backgroundColor = statusColors[worstStatus] || '#FECACA';
+
+              // Create indicators container for copy dots
+              const indicatorContainer = document.createElement('div');
+              indicatorContainer.className = 'copy-indicators';
+              indicatorContainer.style.marginTop = '2px';
+
+              dayData.forEach(info => {
+                const dot = document.createElement('span');
+                dot.className = 'copy-dot';
+                dot.style.backgroundColor = info.color;
+                indicatorContainer.appendChild(dot);
+              });
+
+              // Append near the number (after text)
+              dayElem.appendChild(indicatorContainer);
+
+              // Add tooltip
+              const titles = dayData.map(d => d.inventario + ': ' + d.stato).join('\n');
+              dayElem.setAttribute('title', titles);
+            }
+          },
+          onChange: function(selectedDates, dateStr, instance) {
+            // Prevent selection - read only calendar (use setTimeout to avoid recursion)
+            if (selectedDates.length > 0) {
+              setTimeout(() => instance.clear(), 0);
+            }
+          }
+        });
+      }
+    });
+  </script>
+
+  <style>
+    /* Calendar container */
+    #copy-availability-calendar {
+      width: 100%;
+    }
+
+    /* Main calendar wrapper */
+    #copy-availability-calendar .flatpickr-calendar {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-shadow: none !important;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.75rem;
+      font-family: inherit;
+    }
+
+    /* Month navigation header */
+    #copy-availability-calendar .flatpickr-months {
+      display: flex !important;
+      padding: 0.75rem;
+      background: #f9fafb;
+      border-radius: 0.75rem 0.75rem 0 0;
+    }
+
+    #copy-availability-calendar .flatpickr-months .flatpickr-month {
+      flex: 1;
+      height: auto;
+    }
+
+    #copy-availability-calendar .flatpickr-current-month {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    /* Inner container - horizontal layout for multiple months */
+    #copy-availability-calendar .flatpickr-innerContainer {
+      display: flex !important;
+      flex-wrap: wrap;
+    }
+
+    #copy-availability-calendar .flatpickr-rContainer {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Days wrapper - holds multiple dayContainers */
+    #copy-availability-calendar .flatpickr-days {
+      display: flex !important;
+      flex-wrap: nowrap;
+      width: 100% !important;
+      row-gap: 6px !important; /* spazio verticale tra le righe */
+    }
+
+    /* Each month's day container - KILL ALL FLEX */
+    #copy-availability-calendar .flatpickr-days .dayContainer,
+    .flatpickr-calendar #copy-availability-calendar .dayContainer,
+    #copy-availability-calendar .dayContainer {
+      display: grid !important;
+      grid-template-columns: repeat(7, 1fr) !important;
+      /* Reset ALL flex/box properties */
+      -webkit-box-flex: unset !important;
+      -webkit-flex: unset !important;
+      -ms-flex: unset !important;
+      flex: unset !important;
+      flex-wrap: unset !important;
+      -webkit-flex-wrap: unset !important;
+      -ms-flex-wrap: unset !important;
+      flex-direction: unset !important;
+      justify-content: unset !important;
+      -webkit-justify-content: unset !important;
+      -ms-flex-pack: unset !important;
+      align-items: unset !important;
+      -webkit-box-pack: unset !important;
+      /* Sizing */
+      width: calc(33.333% - 4px) !important;
+      min-width: 180px !important;
+      max-width: calc(33.333% - 4px) !important;
+      padding: 4px !important;
+      gap: 2px !important;
+      box-sizing: border-box !important;
+      margin: 2px !important;
+    }
+
+    /* Weekday headers wrapper */
+    #copy-availability-calendar .flatpickr-weekdaycontainer,
+    .flatpickr-calendar #copy-availability-calendar .flatpickr-weekdaycontainer {
+      display: grid !important;
+      grid-template-columns: repeat(7, 1fr) !important;
+      -webkit-flex: unset !important;
+      flex: unset !important;
+      width: calc(33.333% - 4px) !important;
+      min-width: 180px !important;
+    }
+
+    #copy-availability-calendar .flatpickr-weekdays {
+      display: block !important;
+      width: 100% !important;
+      background: #f3f4f6;
+      padding: 0.5rem 0.25rem;
+    }
+
+    #copy-availability-calendar .flatpickr-weekday {
+      display: block !important;
+      float: none !important;
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    /* Individual days */
+    #copy-availability-calendar .flatpickr-day {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      width: 100% !important;
+      max-width: none !important;
+      height: 44px !important;
+      line-height: 1.2 !important;
+      padding: 4px 2px 12px 2px !important; /* padding-bottom per i puntini */
+      margin: 0 !important;
+      border-radius: 0.25rem;
+      font-size: 0.8rem;
+      position: relative;
+      border: none !important;
+      overflow: hidden !important; /* nascondi overflow */
+    }
+
+    #copy-availability-calendar .flatpickr-day:hover {
+      background: #f3f4f6;
+    }
+
+    #copy-availability-calendar .flatpickr-day.today {
+      border: 2px solid #3B82F6 !important;
+      background: #EFF6FF !important;
+    }
+
+    #copy-availability-calendar .flatpickr-day.selected {
+      background: transparent !important;
+      border-color: transparent !important;
+    }
+
+    #copy-availability-calendar .flatpickr-day.prevMonthDay,
+    #copy-availability-calendar .flatpickr-day.nextMonthDay {
+      color: #9CA3AF;
+      opacity: 0.5;
+    }
+
+    #copy-availability-calendar .flatpickr-day.flatpickr-disabled {
+      color: #d1d5db;
+    }
+
+    /* Hide hidden days that create layout issues */
+    #copy-availability-calendar .flatpickr-day.hidden {
+      visibility: hidden;
+    }
+
+    /* Copy indicators - posizionati in basso nella cella */
+    .copy-indicators {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1px;
+      justify-content: center;
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 90%;
+      pointer-events: none;
+    }
+
+    .copy-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Responsive: stack months on smaller screens */
+    @media (max-width: 900px) {
+      #copy-availability-calendar .flatpickr-days {
+        flex-wrap: wrap !important;
+      }
+      #copy-availability-calendar .flatpickr-days .dayContainer,
+      #copy-availability-calendar .dayContainer {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
+      }
+      #copy-availability-calendar .flatpickr-weekdaycontainer {
+        width: 100% !important;
+        min-width: 100% !important;
+      }
+    }
+  </style>
   <?php endif; ?>
 
   <script>
