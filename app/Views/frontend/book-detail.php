@@ -2201,7 +2201,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
               endPicker = window.flatpickr(endEl, {
                 ...baseOpts,
-                minDate: earliestAvailable
+                minDate: earliestAvailable,
+                maxDate: undefined // End date can extend beyond availability range
               });
             }
           },
