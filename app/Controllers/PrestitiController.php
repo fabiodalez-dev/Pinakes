@@ -148,11 +148,12 @@ class PrestitiController
 
                 // Step 3: Count overlapping prenotazioni for the loan period
                 // Use COALESCE to handle NULL dates - matches ReservationManager pattern
+                // Note: data_scadenza_prenotazione is datetime, preserving full value for comparison
                 $resCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prenotazioni
                     WHERE libro_id = ? AND stato = 'attiva'
-                    AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
-                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+                    AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
+                    AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
                 ");
                 $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $resCountStmt->execute();
@@ -188,14 +189,8 @@ class PrestitiController
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
                 $overlapStmt->close();
-
-                // Fallback: try getAvailableByBookId if no copy found
-                if (!$selectedCopy) {
-                    $availableCopies = $copyRepo->getAvailableByBookId($libro_id);
-                    if (!empty($availableCopies)) {
-                        $selectedCopy = $availableCopies[0];
-                    }
-                }
+                // Note: No fallback to getAvailableByBookId - if primary query finds no copy,
+                // all copies have overlapping loans for the requested period
             } else {
                 // For FUTURE loans, find a copy that has no overlapping active loans
                 // Also verify book-level availability (considering prenotazioni and pendente loans)
@@ -224,8 +219,8 @@ class PrestitiController
                 $resCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prenotazioni
                     WHERE libro_id = ? AND stato = 'attiva'
-                    AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
-                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+                    AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
+                    AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
                 ");
                 $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $resCountStmt->execute();
