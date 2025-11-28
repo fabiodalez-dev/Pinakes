@@ -21,6 +21,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 $settings = require __DIR__ . '/../config/settings.php';
 
 use App\Support\NotificationService;
+use App\Support\DataIntegrity;
 
 // Funzione per logging
 function logMessage(string $message): void {
@@ -107,17 +108,9 @@ try {
                 $copyStmt->execute();
                 $copyStmt->close();
 
-                // Recalculate book availability
-                $availStmt = $db->prepare("
-                    UPDATE libri l
-                    SET copie_disponibili = (
-                        SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile'
-                    )
-                    WHERE l.id = ?
-                ");
-                $availStmt->bind_param('i', $loan['libro_id']);
-                $availStmt->execute();
-                $availStmt->close();
+                // Recalculate book availability using DataIntegrity for consistency
+                $integrity = new DataIntegrity($db);
+                $integrity->recalculateBookAvailability((int)$loan['libro_id']);
 
                 $db->commit();
                 $activatedLoans++;
