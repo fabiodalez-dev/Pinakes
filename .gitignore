@@ -333,3 +333,6 @@ claude.md
 FEATURES_IT.md
 .gemini/settings.json
 UPDATER.md
+
+# Changelog files
+changelog-*.md
