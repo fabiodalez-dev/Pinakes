@@ -137,7 +137,7 @@ class ReservationManager {
                 SELECT 1 FROM prestiti p
                 WHERE p.copia_id = c.id
                 AND p.attivo = 1
-                AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo')
+                AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
                 AND p.data_prestito <= ?
                 AND p.data_scadenza >= ?
             )
@@ -161,7 +161,7 @@ class ReservationManager {
             $overlapCopyStmt = $this->db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','prenotato','in_ritardo')
+                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
             ");
