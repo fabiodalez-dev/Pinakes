@@ -2051,6 +2051,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let earliestAvailable = new Date();
         let availabilityByDate = {};
 
+        let maxAvailableDate = null;
         try {
           const availRes = await fetch(`/api/libro/${libroId}/availability`);
           if (availRes.ok) {
@@ -2067,6 +2068,13 @@ document.addEventListener('DOMContentLoaded', function() {
                   }
                   return acc;
                 }, {});
+                // Get the last date in the availability data to set maxDate
+                if (availData.availability.days.length > 0) {
+                  const lastDay = availData.availability.days[availData.availability.days.length - 1];
+                  if (lastDay && lastDay.date) {
+                    maxAvailableDate = lastDay.date;
+                  }
+                }
               }
             }
           }
@@ -2128,6 +2136,7 @@ document.addEventListener('DOMContentLoaded', function() {
               altInput: true,
               altFormat: forceEn ? 'm-d-Y' : 'd-m-Y',
               minDate: 'today',
+              maxDate: maxAvailableDate || undefined,
               defaultDate: suggestedDate,
               locale: forceEn ? 'en' : (fpLocale || 'default'),
               disable: disabledDates,
