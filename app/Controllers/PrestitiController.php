@@ -134,7 +134,7 @@ class PrestitiController
                 $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
                 $totalCopiesStmt->close();
 
-                // Step 2: Count overlapping loans for today
+                // Step 2: Count overlapping loans for the loan period
                 $loanCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prestiti
                     WHERE libro_id = ? AND attivo = 1
@@ -329,11 +329,10 @@ class PrestitiController
             $newLoanId = (int)$db->insert_id;
             $stmt->close();
 
-            // Only mark copy as 'prestato' for immediate loans
-            // For future loans (prenotato), copy status will be updated when the loan starts
-            if ($isImmediateLoan) {
-                $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
-            }
+            // Update copy status: 'prestato' for immediate loans, 'prenotato' for future loans
+            // This matches ReservationManager behavior for consistency
+            $copyStatus = $isImmediateLoan ? 'prestato' : 'prenotato';
+            $copyRepo->updateStatus($selectedCopy['id'], $copyStatus);
 
 
 
