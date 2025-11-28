@@ -406,15 +406,7 @@ class UserActionsController
             return $this->back($response, ['reserve_error' => 'past_date']);
         }
         $utenteId = (int) $user['id'];
-        // Check if already has an active reservation for this book
-        $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prenotazioni WHERE libro_id=? AND utente_id=? AND stato='attiva'");
-        $stmt->bind_param('ii', $libroId, $utenteId);
-        $stmt->execute();
-        $exists = (int) ($stmt->get_result()->fetch_assoc()['c'] ?? 0) > 0;
-        $stmt->close();
-        if ($exists) {
-            return $this->back($response, ['reserve_error' => 'duplicate']);
-        }
+
         // Calculate date range for availability check
         $start = ($desired !== '') ? $desired : date('Y-m-d');
         $end = date('Y-m-d', strtotime($start . ' +1 month'));
@@ -428,6 +420,18 @@ class UserActionsController
             $lockStmt->bind_param('i', $libroId);
             $lockStmt->execute();
             $lockStmt->close();
+
+            // Check if already has an active reservation for this book (inside transaction to prevent race condition)
+            $dupStmt = $db->prepare("SELECT id FROM prenotazioni WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva' LIMIT 1");
+            $dupStmt->bind_param('ii', $libroId, $utenteId);
+            $dupStmt->execute();
+            $dupResult = $dupStmt->get_result();
+            if ($dupResult->fetch_assoc()) {
+                $dupStmt->close();
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'duplicate']);
+            }
+            $dupStmt->close();
 
             // Check availability for the requested date range (excluding this user's existing reservations)
             $reservationsController = new ReservationsController($db);
