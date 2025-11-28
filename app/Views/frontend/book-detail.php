@@ -1496,8 +1496,13 @@ ob_start();
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
-                              $e = $_GET['reserve_error'];
-                              echo $e==='duplicate' ? __('Hai già una prenotazione attiva per questo libro.') : ($e==='invalid_date' ? __('Data non valida.') : ($e==='past_date' ? __('La data non può essere nel passato.') : ($e==='not_available' ? __('Nessuna copia disponibile per il periodo richiesto.') : __('Errore nella prenotazione.'))));
+                              $reserveErrorMessages = [
+                                  'duplicate' => __('Hai già una prenotazione attiva per questo libro.'),
+                                  'invalid_date' => __('Data non valida.'),
+                                  'past_date' => __('La data non può essere nel passato.'),
+                                  'not_available' => __('Nessuna copia disponibile per il periodo richiesto.')
+                              ];
+                              echo $reserveErrorMessages[$_GET['reserve_error']] ?? __('Errore nella prenotazione.');
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
