@@ -125,14 +125,68 @@ class UserActionsController
             return $response->withStatus(400);
         }
         $rid = (int) ($data['reservation_id'] ?? 0);
-        if ($rid <= 0)
+        if ($rid <= 0) {
             return $response->withStatus(422);
+        }
         $uid = (int) $user['id'];
-        $stmt = $db->prepare("UPDATE prenotazioni SET stato='annullata' WHERE id=? AND utente_id=?");
-        $stmt->bind_param('ii', $rid, $uid);
-        $stmt->execute();
-        $stmt->close();
-        return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
+
+        $db->begin_transaction();
+
+        try {
+            // Get libro_id before canceling (needed for queue reordering)
+            $getStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva' FOR UPDATE");
+            $getStmt->bind_param('ii', $rid, $uid);
+            $getStmt->execute();
+            $result = $getStmt->get_result();
+            $reservation = $result->fetch_assoc();
+            $getStmt->close();
+
+            if (!$reservation) {
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+            }
+
+            $libroId = (int) $reservation['libro_id'];
+
+            // Cancel the reservation
+            $stmt = $db->prepare("UPDATE prenotazioni SET stato='annullata' WHERE id=? AND utente_id=?");
+            $stmt->bind_param('ii', $rid, $uid);
+            $stmt->execute();
+            $stmt->close();
+
+            // Reorder queue positions for remaining active reservations
+            $reorderStmt = $db->prepare("
+                SELECT id FROM prenotazioni
+                WHERE libro_id = ? AND stato = 'attiva'
+                ORDER BY queue_position ASC
+            ");
+            $reorderStmt->bind_param('i', $libroId);
+            $reorderStmt->execute();
+            $reorderResult = $reorderStmt->get_result();
+
+            $position = 1;
+            while ($row = $reorderResult->fetch_assoc()) {
+                $updatePos = $db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
+                $updatePos->bind_param('ii', $position, $row['id']);
+                $updatePos->execute();
+                $updatePos->close();
+                $position++;
+            }
+            $reorderStmt->close();
+
+            // Recalculate book availability
+            $integrity = new \App\Support\DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+
+            $db->commit();
+
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
+
+        } catch (\Throwable $e) {
+            $db->rollback();
+            error_log("Cancel reservation error: " . $e->getMessage());
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=db')->withStatus(302);
+        }
     }
 
     public function changeReservationDate(Request $request, Response $response, mysqli $db): Response
@@ -147,18 +201,94 @@ class UserActionsController
         }
         $rid = (int) ($data['reservation_id'] ?? 0);
         $date = trim((string) ($data['desired_date'] ?? ''));
-        if ($rid <= 0 || $date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date))
+        if ($rid <= 0 || $date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             return $response->withStatus(422);
-        if (strtotime($date) < strtotime(date('Y-m-d')))
+        }
+        if (strtotime($date) < strtotime(date('Y-m-d'))) {
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=past_date')->withStatus(302);
+        }
+
         $uid = (int) $user['id'];
-        $startDt = $date . ' 00:00:00';
-        $endDt = date('Y-m-d', strtotime($date . ' +1 month')) . ' 23:59:59';
-        $stmt = $db->prepare("UPDATE prenotazioni SET data_prenotazione=?, data_scadenza_prenotazione=? WHERE id=? AND utente_id=? AND stato='attiva'");
-        $stmt->bind_param('ssii', $startDt, $endDt, $rid, $uid);
-        $stmt->execute();
-        $stmt->close();
-        return $response->withHeader('Location', RouteTranslator::route('reservations') . '?updated=1')->withStatus(302);
+        $startDate = $date;
+        $endDate = date('Y-m-d', strtotime($date . ' +1 month'));
+
+        $db->begin_transaction();
+
+        try {
+            // Get reservation details and lock
+            $getStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva' FOR UPDATE");
+            $getStmt->bind_param('ii', $rid, $uid);
+            $getStmt->execute();
+            $result = $getStmt->get_result();
+            $reservation = $result->fetch_assoc();
+            $getStmt->close();
+
+            if (!$reservation) {
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+            }
+
+            $libroId = (int) $reservation['libro_id'];
+
+            // Lock book row to prevent race conditions
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt->bind_param('i', $libroId);
+            $lockStmt->execute();
+            $lockStmt->close();
+
+            // Check availability for the new date range (excluding this user's reservation)
+            $reservationsController = new \App\Controllers\ReservationsController($db);
+            $availability = $reservationsController->getBookAvailabilityData($libroId, $startDate, 35, $uid);
+
+            // Check each day in the new range
+            $currentDate = new \DateTime($startDate);
+            $endDateTime = new \DateTime($endDate);
+            $hasConflict = false;
+
+            while ($currentDate <= $endDateTime) {
+                $dateStr = $currentDate->format('Y-m-d');
+                $dayData = $availability['by_date'][$dateStr] ?? null;
+                if ($dayData !== null && ($dayData['available'] ?? 0) <= 0) {
+                    $hasConflict = true;
+                    break;
+                }
+                $currentDate->add(new \DateInterval('P1D'));
+            }
+
+            if ($hasConflict) {
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_available')->withStatus(302);
+            }
+
+            // Update reservation with new dates
+            // Update both date pairs for consistency
+            $startDt = $startDate . ' 00:00:00';
+            $endDt = $endDate . ' 23:59:59';
+            $stmt = $db->prepare("
+                UPDATE prenotazioni
+                SET data_prenotazione = ?,
+                    data_scadenza_prenotazione = ?,
+                    data_inizio_richiesta = ?,
+                    data_fine_richiesta = ?
+                WHERE id = ? AND utente_id = ? AND stato = 'attiva'
+            ");
+            $stmt->bind_param('ssssii', $startDt, $endDt, $startDate, $endDate, $rid, $uid);
+            $stmt->execute();
+            $stmt->close();
+
+            // Recalculate book availability
+            $integrity = new \App\Support\DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+
+            $db->commit();
+
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?updated=1')->withStatus(302);
+
+        } catch (\Throwable $e) {
+            $db->rollback();
+            error_log("Change reservation date error: " . $e->getMessage());
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=db')->withStatus(302);
+        }
     }
     public function reservationsCount(Request $request, Response $response, mysqli $db): Response
     {
@@ -189,22 +319,55 @@ class UserActionsController
         if ($libroId <= 0) {
             return $this->back($response, ['loan_error' => 'invalid']);
         }
-        // Use ReservationManager to check availability
-        $reservationManager = new ReservationManager($db);
-        if (!$reservationManager->isBookAvailableForImmediateLoan($libroId)) {
-            return $this->back($response, ['loan_error' => 'not_available']);
-        }
+
         $utenteId = (int) $user['id'];
         $data_prestito = gmdate('Y-m-d');
         $data_scadenza = gmdate('Y-m-d', strtotime('+14 days'));
-        // Insert as 'pendente' - requires admin approval
-        $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
-        $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
-        if ($stmt->execute()) {
+
+        // Use transaction + lock to prevent race conditions
+        $db->begin_transaction();
+
+        try {
+            // Lock the book row to prevent concurrent loan requests
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt->bind_param('i', $libroId);
+            $lockStmt->execute();
+            $lockStmt->close();
+
+            // Re-check availability after acquiring lock
+            $reservationManager = new ReservationManager($db);
+            if (!$reservationManager->isBookAvailableForImmediateLoan($libroId)) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'not_available']);
+            }
+
+            // Check for existing pending loan request from this user for this book
+            $dupStmt = $db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND stato = 'pendente' LIMIT 1");
+            $dupStmt->bind_param('ii', $libroId, $utenteId);
+            $dupStmt->execute();
+            $dupResult = $dupStmt->get_result();
+            if ($dupResult->fetch_assoc()) {
+                $dupStmt->close();
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'duplicate']);
+            }
+            $dupStmt->close();
+
+            // Insert as 'pendente' - requires admin approval
+            $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
+            $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
+
+            if (!$stmt->execute()) {
+                $stmt->close();
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'db']);
+            }
+
             $newLoanId = (int) $db->insert_id;
             $stmt->close();
+            $db->commit();
 
-            // Notify admins about new loan request
+            // Notify admins about new loan request (outside transaction)
             try {
                 $notificationService = new \App\Support\NotificationService($db);
                 $notificationService->notifyLoanRequest($newLoanId);
@@ -213,9 +376,12 @@ class UserActionsController
             }
 
             return $this->back($response, ['loan_request_success' => 1]);
+
+        } catch (\Throwable $e) {
+            $db->rollback();
+            error_log("Loan request error: " . $e->getMessage());
+            return $this->back($response, ['loan_error' => 'db']);
         }
-        $stmt->close();
-        return $this->back($response, ['loan_error' => 'db']);
     }
 
     public function reserve(Request $request, Response $response, mysqli $db): Response
@@ -272,8 +438,11 @@ class UserActionsController
             $startDt = $start . ' 00:00:00';
             $endDt = $end . ' 23:59:59';
 
-            $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione) VALUES (?, ?, ?, 'attiva', ?, ?)");
-            $stmt->bind_param('iiiss', $libroId, $utenteId, $pos, $startDt, $endDt);
+            // Set both date pairs for consistency with availability checks:
+            // - data_prenotazione / data_scadenza_prenotazione (datetime, legacy)
+            // - data_inizio_richiesta / data_fine_richiesta (date, used by availability calculations)
+            $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta) VALUES (?, ?, ?, 'attiva', ?, ?, ?, ?)");
+            $stmt->bind_param('iiissss', $libroId, $utenteId, $pos, $startDt, $endDt, $start, $end);
 
             if ($stmt->execute()) {
                 $stmt->close();
