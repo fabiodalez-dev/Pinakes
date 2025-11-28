@@ -231,19 +231,10 @@ class MaintenanceService
                 $lockStmt->execute();
                 $lockStmt->close();
 
-                // Use ReservationManager to check availability and create loan
+                // Use ReservationManager to process the reservation
+                // processBookAvailability() will find the first date-eligible reservation in queue
+                // and convert it to a loan if a copy is available
                 $reservationManager = new \App\Controllers\ReservationManager($this->db);
-
-                // Check if dates are available (only counts loans, not other reservations)
-                $startDate = $reservation['data_inizio_richiesta'];
-                $endDate = $reservation['data_fine_richiesta'];
-
-                // If no end date, default to 1 month from start
-                if (!$endDate) {
-                    $endDate = date('Y-m-d', strtotime($startDate . ' +1 month'));
-                }
-
-                // Try to process this reservation (will create loan if copy available)
                 $success = $reservationManager->processBookAvailability($bookId);
 
                 if ($success) {

@@ -13,18 +13,23 @@ class ReservationManager {
 
     /**
      * Process reservations when a book becomes available
+     * Only considers reservations where the requested start date has arrived (date-eligible)
      */
     public function processBookAvailability($bookId) {
-        // Get the next reservation in queue
+        $today = date('Y-m-d');
+
+        // Get the next date-eligible reservation in queue
+        // Only process reservations where start date <= today (ready to convert to loan)
         $stmt = $this->db->prepare("
             SELECT r.*, u.email, u.nome, u.cognome
             FROM prenotazioni r
             JOIN utenti u ON r.utente_id = u.id
             WHERE r.libro_id = ? AND r.stato = 'attiva'
+            AND r.data_inizio_richiesta <= ?
             ORDER BY r.queue_position ASC
             LIMIT 1
         ");
-        $stmt->bind_param('i', $bookId);
+        $stmt->bind_param('is', $bookId, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $nextReservation = $result->fetch_assoc();
