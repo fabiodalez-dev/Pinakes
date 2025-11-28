@@ -22,6 +22,10 @@ if (!isset($_SESSION['installation_finalized'])) {
         // Create lock file to prevent re-installation
         $installer->createLockFile();
 
+        // Set secure file permissions (no more 777!)
+        $permissionsResult = $installer->setSecurePermissions();
+        $_SESSION['permissions_result'] = $permissionsResult;
+
         $_SESSION['installation_finalized'] = true;
 
     } catch (Exception $e) {
@@ -165,6 +169,18 @@ if (!empty($triggerWarnings)):
     <?php endif; ?>
     <li><i class="fas fa-check-circle"></i> <?= __("File .htaccess creato") ?></li>
     <li><i class="fas fa-check-circle"></i> <?= __("Lock file creato (installazione protetta)") ?></li>
+    <?php
+    $permissionsResult = $_SESSION['permissions_result'] ?? null;
+    if ($permissionsResult):
+    ?>
+        <li><i class="fas fa-check-circle"></i> <?= __("Permessi file impostati:") ?>
+            <strong><?= (int)$permissionsResult['directories'] ?></strong> <?= __("directory") ?>,
+            <strong><?= (int)$permissionsResult['files'] ?></strong> <?= __("file") ?>
+            <?php if (!empty($permissionsResult['sensitive_files'])): ?>
+                (<?= sprintf(__("%d file sensibili protetti"), (int)$permissionsResult['sensitive_files']) ?>)
+            <?php endif; ?>
+        </li>
+    <?php endif; ?>
 </ul>
 
 <?php if ($adminUser): ?>
@@ -202,7 +218,7 @@ if (!empty($triggerWarnings)):
             <i class="fas fa-trash"></i> <?= __("Elimina Installer (Richiede Composer)") ?>
         </button>
     <?php else: ?>
-        <form method="POST" action="?step=7&action=delete_installer&force"
+        <form method="POST" action="/installer/?step=7&action=delete_installer&force"
             onsubmit="return confirmDeleteInstaller();" style="margin-top: 10px;">
             <button type="submit" class="btn btn-secondary">
                 <i class="fas fa-trash"></i> <?= __("Elimina Installer") ?>

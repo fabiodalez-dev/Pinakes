@@ -75,7 +75,7 @@ HTML,
             ],
             'wishlist_book_available' => [
                 'label' => 'Wishlist disponibile',
-                'description' => "Inviata agli utenti quando un libro nella wishlist torna disponibile. Il libro viene automaticamente rimosso dalla wishlist dopo l'invio della notifica per evitare duplicati.",
+                'description' => "Inviata agli utenti quando un libro nella wishlist torna disponibile. Il libro rimane nella wishlist ma non riceverà altre notifiche per lo stesso libro.",
                 'subject' => '📖 Libro della tua wishlist ora disponibile!',
                 'placeholders' => ['utente_nome', 'libro_titolo', 'libro_autore', 'libro_isbn', 'data_disponibilita', 'book_url', 'wishlist_url'],
                 'body' => <<<'HTML'
@@ -96,7 +96,7 @@ HTML,
     <a href="{{book_url}}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📚 Prenota ora</a>
     <a href="{{wishlist_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">❤️ Gestisci wishlist</a>
 </p>
-<p><em>📝 Questo libro è stato automaticamente rimosso dalla tua wishlist per evitare notifiche duplicate.</em></p>
+<p><em>📝 Puoi rimuovere questo libro dalla tua wishlist quando vuoi.</em></p>
 HTML,
             ],
             'loan_expiring_warning' => [
@@ -180,6 +180,23 @@ HTML,
 </div>
 <p><strong>Importante:</strong> Ricorda di restituire il libro entro la data di scadenza. Riceverai un promemoria alcuni giorni prima della scadenza.</p>
 <p>Buona lettura!</p>
+HTML,
+            ],
+            'loan_rejected' => [
+                'label' => 'Prestito rifiutato',
+                'description' => "Inviata all'utente quando un amministratore rifiuta una richiesta di prestito.",
+                'subject' => '❌ La tua richiesta di prestito non è stata approvata',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'motivo_rifiuto'],
+                'body' => <<<'HTML'
+<h2>La tua richiesta di prestito non è stata approvata</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Ci dispiace informarti che la tua richiesta di prestito per il libro <strong>"{{libro_titolo}}"</strong> non è stata approvata.</p>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>Motivo:</strong></p>
+    <p>{{motivo_rifiuto}}</p>
+</div>
+<p>Se hai domande o desideri maggiori informazioni, non esitare a contattarci.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,
             ],
             'admin_new_review' => [

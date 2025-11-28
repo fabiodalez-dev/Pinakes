@@ -40,11 +40,15 @@ class PluginManager
 
     /**
      * Get all installed plugins
+     * Automatically cleans up orphan plugins (missing folders)
      *
      * @return array
      */
     public function getAllPlugins(): array
     {
+        // First, clean up any orphan plugins
+        $this->cleanupOrphanPlugins();
+
         $query = "SELECT * FROM plugins ORDER BY display_name ASC";
         $result = $this->db->query($query);
 
@@ -58,6 +62,64 @@ class PluginManager
         }
 
         return $plugins;
+    }
+
+    /**
+     * Clean up orphan plugins (plugins in database but missing folders)
+     * Automatically deactivates and removes them from database
+     *
+     * @return int Number of orphan plugins removed
+     */
+    public function cleanupOrphanPlugins(): int
+    {
+        $query = "SELECT id, name, path, is_active FROM plugins";
+        $result = $this->db->query($query);
+
+        if (!$result) {
+            return 0;
+        }
+
+        $orphanIds = [];
+        while ($row = $result->fetch_assoc()) {
+            $pluginPath = $this->pluginsDir . '/' . $row['path'];
+
+            // Check if plugin folder exists
+            if (!is_dir($pluginPath)) {
+                $orphanIds[] = (int)$row['id'];
+                error_log("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
+            }
+        }
+        $result->free();
+
+        if (empty($orphanIds)) {
+            return 0;
+        }
+
+        // Delete orphan plugins from database (cascade will delete hooks, settings, data, logs)
+        // Use a loop to avoid mysqli bind_param by-reference issues with spread operator
+        $stmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
+        if ($stmt === false) {
+            error_log('[PluginManager] Failed to prepare orphan plugin cleanup statement: ' . $this->db->error);
+            return 0;
+        }
+
+        $pluginId = 0;
+        $stmt->bind_param('i', $pluginId);
+        $deleted = 0;
+
+        foreach ($orphanIds as $pluginId) {
+            if ($stmt->execute()) {
+                $deleted += $stmt->affected_rows;
+            }
+        }
+
+        $stmt->close();
+
+        if ($deleted > 0) {
+            error_log("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
+        }
+
+        return $deleted;
     }
 
     /**
@@ -912,6 +974,9 @@ class PluginManager
      */
     public function loadActivePlugins(): void
     {
+        // Clean up orphan plugins first
+        $this->cleanupOrphanPlugins();
+
         // Get all active plugins
         $activePlugins = $this->getActivePlugins();
 

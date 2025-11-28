@@ -500,7 +500,7 @@ class NotificationService {
             $stmt = $this->db->prepare("
                 SELECT w.utente_id, w.id as wishlist_id,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
-                       l.titolo, l.isbn,
+                       l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
                        GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
                 FROM wishlist w
                 JOIN utenti u ON w.utente_id = u.id
@@ -510,7 +510,7 @@ class NotificationService {
                 WHERE w.libro_id = ?
                   AND u.stato = 'attivo'
                   AND w.notified = 0
-                GROUP BY w.id, w.utente_id, u.nome, u.cognome, u.email, l.titolo, l.isbn
+                GROUP BY w.id, w.utente_id, u.nome, u.cognome, u.email, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $bookId);
             $stmt->execute();
@@ -534,17 +534,11 @@ class NotificationService {
                 ];
 
                 if ($this->emailService->sendTemplate($wishlist['email'], 'wishlist_book_available', $variables)) {
-                    // Mark as notified and remove from wishlist
+                    // Mark as notified (keep in wishlist for user reference)
                     $updateStmt = $this->db->prepare("UPDATE wishlist SET notified = 1 WHERE id = ?");
                     $updateStmt->bind_param('i', $wishlist['wishlist_id']);
                     $updateStmt->execute();
                     $updateStmt->close();
-
-                    // Remove from wishlist after notification
-                    $deleteStmt = $this->db->prepare("DELETE FROM wishlist WHERE id = ?");
-                    $deleteStmt->bind_param('i', $wishlist['wishlist_id']);
-                    $deleteStmt->execute();
-                    $deleteStmt->close();
 
                     $sentCount++;
                 }
@@ -589,12 +583,13 @@ class NotificationService {
 
     /**
      * Controlla e notifica disponibilità libri in wishlist
+     * Uses comprehensive check for actual physical copy availability
      */
     private function checkAndNotifyWishlistAvailability(): int {
         $totalNotified = 0;
 
         try {
-            // Get books that are now available and have users in wishlist
+            // Get books that have users in wishlist waiting for notification
             $stmt = $this->db->prepare("
                 SELECT DISTINCT w.libro_id
                 FROM wishlist w
@@ -608,17 +603,133 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
+            $bookIds = [];
             while ($row = $result->fetch_assoc()) {
-                $notified = $this->notifyWishlistBookAvailability($row['libro_id']);
-                $totalNotified += $notified;
+                $bookIds[] = (int)$row['libro_id'];
             }
             $stmt->close();
+
+            // For each book, verify actual physical copy availability before notifying
+            foreach ($bookIds as $bookId) {
+                if ($this->hasActualAvailableCopy($bookId)) {
+                    $notified = $this->notifyWishlistBookAvailability($bookId);
+                    $totalNotified += $notified;
+                }
+            }
 
         } catch (Exception $e) {
             error_log("Failed to check wishlist availability: " . $e->getMessage());
         }
 
         return $totalNotified;
+    }
+
+    /**
+     * Checks if a book has at least one actual physical copy available TODAY
+     * Considers:
+     * - Physical copy state ('disponibile' in copie table)
+     * - Active loans overlapping with today
+     * - Active reservations overlapping with today
+     */
+    public function hasActualAvailableCopy(int $bookId): bool {
+        $today = date('Y-m-d');
+
+        // Count total loanable copies (exclude perso, danneggiato, manutenzione)
+        // This matches the logic in ReservationManager and other availability checks
+        $totalStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+        ");
+        $totalStmt->bind_param('i', $bookId);
+        $totalStmt->execute();
+        $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $totalStmt->close();
+
+        if ($totalCopies === 0) {
+            return false;
+        }
+
+        // Count active loans overlapping with today
+        $loanStmt = $this->db->prepare("
+            SELECT COUNT(*) as count FROM prestiti
+            WHERE libro_id = ? AND attivo = 1
+            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND data_prestito <= ? AND data_scadenza >= ?
+        ");
+        $loanStmt->bind_param('iss', $bookId, $today, $today);
+        $loanStmt->execute();
+        $activeLoans = (int)($loanStmt->get_result()->fetch_assoc()['count'] ?? 0);
+        $loanStmt->close();
+
+        // Count active reservations overlapping with today
+        $resStmt = $this->db->prepare("
+            SELECT COUNT(*) as count FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+            AND data_inizio_richiesta IS NOT NULL
+            AND data_inizio_richiesta <= ?
+            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+        ");
+        $resStmt->bind_param('iss', $bookId, $today, $today);
+        $resStmt->execute();
+        $activeReservations = (int)($resStmt->get_result()->fetch_assoc()['count'] ?? 0);
+        $resStmt->close();
+
+        // Available if total occupied < total copies
+        $totalOccupied = $activeLoans + $activeReservations;
+        return $totalOccupied < $totalCopies;
+    }
+
+    /**
+     * Calculate the next availability date for a book
+     * Returns the earliest date when a copy will become available
+     * @return string|null Date in Y-m-d format, or null if no loans/reservations
+     */
+    public function getNextAvailabilityDate(int $bookId): ?string {
+        $today = date('Y-m-d');
+
+        // First check if book is already available
+        if ($this->hasActualAvailableCopy($bookId)) {
+            return $today;
+        }
+
+        // Find the earliest end date among active loans
+        // Include 'pendente' to account for pending loan requests in availability calculation
+        $loanStmt = $this->db->prepare("
+            SELECT MIN(data_scadenza) as earliest_end
+            FROM prestiti
+            WHERE libro_id = ? AND attivo = 1
+            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND data_scadenza >= ?
+        ");
+        $loanStmt->bind_param('is', $bookId, $today);
+        $loanStmt->execute();
+        $loanResult = $loanStmt->get_result()->fetch_assoc();
+        $earliestLoanEnd = $loanResult['earliest_end'] ?? null;
+        $loanStmt->close();
+
+        // Find the earliest end date among active reservations
+        $resStmt = $this->db->prepare("
+            SELECT MIN(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) as earliest_end
+            FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+            AND data_inizio_richiesta IS NOT NULL
+            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
+        ");
+        $resStmt->bind_param('is', $bookId, $today);
+        $resStmt->execute();
+        $resResult = $resStmt->get_result()->fetch_assoc();
+        $earliestResEnd = $resResult['earliest_end'] ?? null;
+        $resStmt->close();
+
+        // Return the earliest of the two (the day after it ends, the book becomes available)
+        $dates = array_filter([$earliestLoanEnd, $earliestResEnd]);
+        if (empty($dates)) {
+            return null;
+        }
+
+        $earliestEnd = min($dates);
+        // Return the day after the earliest end date
+        return date('Y-m-d', strtotime($earliestEnd . ' +1 day'));
     }
 
     /**
@@ -728,6 +839,42 @@ class NotificationService {
 
         } catch (Exception $e) {
             error_log("Failed to send loan approved notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia email di rifiuto prestito all'utente
+     */
+    public function sendLoanRejectedNotification(int $loanId, string $reason = ''): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if (!$loan = $result->fetch_assoc()) {
+                return false;
+            }
+            $stmt->close();
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_rejected', $variables);
+
+        } catch (Exception $e) {
+            error_log("Failed to send loan rejected notification: " . $e->getMessage());
             return false;
         }
     }

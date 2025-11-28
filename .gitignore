@@ -127,6 +127,7 @@ temp/*
 # ========================================
 /server/
 /server/*
+/sito/
 
 # ========================================
 # Logs
@@ -174,6 +175,7 @@ desktop.ini
 docs/
 security.md
 fix.md
+PRESTITI.md
 
 # Internationalization planning (contains untranslated strings)
 traduzione_piano.md
@@ -329,3 +331,8 @@ claude.md
 
 # Internal documentation
 FEATURES_IT.md
+.gemini/settings.json
+UPDATER.md
+
+# Changelog files
+changelog-*.md

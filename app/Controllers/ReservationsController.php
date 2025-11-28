@@ -9,10 +9,12 @@ use DateTime;
 use DateInterval;
 use App\Support\NotificationService;
 
-class ReservationsController {
+class ReservationsController
+{
     private $db;
 
-    public function __construct(?mysqli $db = null) {
+    public function __construct(?mysqli $db = null)
+    {
         // Accept DB connection from dependency injection (preferred)
         if ($db !== null) {
             $this->db = $db;
@@ -38,15 +40,16 @@ class ReservationsController {
         $this->db->set_charset($cfg['charset']);
     }
 
-    public function getBookAvailability($request, $response, $args) {
-        $bookId = (int)$args['id'];
+    public function getBookAvailability($request, $response, $args)
+    {
+        $bookId = (int) $args['id'];
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending)
+        // Get current and future loans for this book (including pending and scheduled)
         $stmt = $this->db->prepare("
             SELECT data_prestito, data_scadenza, data_restituzione, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);
@@ -56,7 +59,7 @@ class ReservationsController {
 
         // Get existing reservations
         $stmt = $this->db->prepare("
-            SELECT data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position
+            SELECT data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position, utente_id
             FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
             ORDER BY queue_position ASC
@@ -67,6 +70,7 @@ class ReservationsController {
         $existingReservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
 
         // Calculate availability considering total copies
+        // Note: For public API, we don't exclude any user
         $availability = $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies);
 
         $response->getBody()->write(json_encode([
@@ -78,7 +82,8 @@ class ReservationsController {
         return $response->withHeader('Content-Type', 'application/json');
     }
 
-    private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730) {
+    private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
+    {
         $start = $startDate ? new DateTime($startDate) : new DateTime(); // today by default
         $start->setTime(0, 0, 0);
 
@@ -98,6 +103,11 @@ class ReservationsController {
 
         $reservationIntervals = [];
         foreach ($existingReservations as $reservation) {
+            // Skip reservation if it belongs to the excluded user (e.g. the user making the request)
+            if ($excludeUserId !== null && isset($reservation['utente_id']) && (int) $reservation['utente_id'] === $excludeUserId) {
+                continue;
+            }
+
             $resStart = $reservation['data_inizio_richiesta'] ?? null;
             if (!$resStart) {
                 continue;
@@ -172,20 +182,9 @@ class ReservationsController {
         ];
     }
 
-    private function getEarliestAvailableDate($unavailableDates, $today) {
-        $current = new DateTime($today);
-
-        while (true) {
-            $dateStr = $current->format('Y-m-d');
-            if (!in_array($dateStr, $unavailableDates)) {
-                return $dateStr;
-            }
-            $current->add(new DateInterval('P1D'));
-        }
-    }
-
-    public function createReservation($request, $response, $args) {
-        $bookId = (int)$args['id'];
+    public function createReservation($request, $response, $args)
+    {
+        $bookId = (int) $args['id'];
 
         // Try to get JSON data properly
         $contentType = $request->getHeaderLine('Content-Type');
@@ -212,7 +211,7 @@ class ReservationsController {
             return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
         }
 
-        $userId = (int)$sessionUserId;
+        $userId = (int) $sessionUserId;
         $startDate = $data['start_date'] ?? null;
         $endDate = $data['end_date'] ?? null;
 
@@ -231,7 +230,8 @@ class ReservationsController {
         // Check if dates are available
         $requestedDates = $this->getDateRange($startDate, $endDate);
         $rangeDays = max(count($requestedDates), 1);
-        $availability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30);
+        // Pass userId to exclude their own reservation from blocking them
+        $availability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);
         $availabilityByDate = $availability['by_date'] ?? [];
 
         $conflictDates = [];
@@ -272,7 +272,7 @@ class ReservationsController {
             $stmt->close();
 
             // Re-check availability after acquiring lock to avoid races
-            $postLockAvailability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30);
+            $postLockAvailability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);
             $postLockByDate = $postLockAvailability['by_date'] ?? [];
             $postLockConflicts = [];
             foreach ($requestedDates as $date) {
@@ -332,14 +332,15 @@ class ReservationsController {
         }
     }
 
-    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730) {
+    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
+    {
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending)
+        // Get current and future loans for this book (including pending and scheduled)
         $stmt = $this->db->prepare("
             SELECT data_prestito, data_scadenza, data_restituzione, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);
@@ -349,7 +350,7 @@ class ReservationsController {
 
         // Get existing reservations
         $stmt = $this->db->prepare("
-            SELECT data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position
+            SELECT data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position, utente_id
             FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
             ORDER BY queue_position ASC
@@ -359,10 +360,11 @@ class ReservationsController {
         $reservationsResult = $stmt->get_result();
         $existingReservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
 
-        return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days);
+        return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId);
     }
 
-    private function getDateRange($startDate, $endDate) {
+    private function getDateRange($startDate, $endDate)
+    {
         $dates = [];
         $current = new DateTime($startDate);
         $end = new DateTime($endDate);
@@ -377,13 +379,33 @@ class ReservationsController {
 
     private function getBookTotalCopies(int $bookId): int
     {
-        $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
+        // Count only loanable copies from copie table
+        // Exclude permanently unavailable copies: 'perso' (lost), 'danneggiato' (damaged), 'manutenzione' (maintenance)
+        // Include 'disponibile' and 'prestato' (currently on loan but will return)
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM copie
+            WHERE libro_id = ?
+            AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+        ");
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
 
-        return (int) ($row['copie_totali'] ?? 1);
+        $total = (int) ($row['total'] ?? 0);
+
+        // Fallback: if no copies exist in copie table, check libri.copie_totali as minimum
+        if ($total === 0) {
+            $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            $stmt->close();
+            $total = (int) ($row['copie_totali'] ?? 1);
+        }
+
+        return $total;
     }
 }
