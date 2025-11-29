@@ -51,6 +51,7 @@ class MaintenanceService
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
             'wishlist_notifications' => 0,
+            'ics_generated' => false,
             'errors' => []
         ];
 
@@ -86,7 +87,31 @@ class MaintenanceService
             error_log('MaintenanceService error (runNotifications): ' . $e->getMessage());
         }
 
+        // Generate ICS calendar file
+        try {
+            $results['ics_generated'] = $this->generateIcsCalendar();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'generateIcsCalendar: ' . $e->getMessage();
+            error_log('MaintenanceService error (generateIcsCalendar): ' . $e->getMessage());
+        }
+
         return $results;
+    }
+
+    /**
+     * Generate ICS calendar file for loans and reservations
+     */
+    public function generateIcsCalendar(): bool
+    {
+        $icsGenerator = new IcsGenerator($this->db);
+        $storagePath = __DIR__ . '/../../storage/calendar';
+
+        // Ensure storage directory exists
+        if (!is_dir($storagePath)) {
+            mkdir($storagePath, 0755, true);
+        }
+
+        return $icsGenerator->saveToFile($storagePath . '/library-calendar.ics');
     }
 
     /**

@@ -747,6 +747,145 @@ class PrestitiController
         return $normalized ?: null;
     }
 
+    /**
+     * Export loans to CSV
+     */
+    public function exportCsv(Request $request, Response $response, mysqli $db): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+
+        // Get status filter from query params
+        $queryParams = $request->getQueryParams();
+        $statiParam = $queryParams['stati'] ?? '';
+        $validStates = ['pendente', 'prenotato', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato'];
+
+        // Parse and validate requested states
+        $requestedStates = [];
+        if (!empty($statiParam)) {
+            $requestedStates = array_filter(
+                explode(',', $statiParam),
+                fn($s) => in_array(trim($s), $validStates, true)
+            );
+            $requestedStates = array_map('trim', $requestedStates);
+        }
+
+        // Build the WHERE clause for status filter
+        $whereClause = '';
+        $params = [];
+        if (!empty($requestedStates)) {
+            $placeholders = implode(',', array_fill(0, count($requestedStates), '?'));
+            $whereClause = "WHERE p.stato IN ($placeholders)";
+            $params = $requestedStates;
+        }
+
+        // Query loans with full details
+        $sql = "SELECT
+                    p.id,
+                    l.titolo AS libro_titolo,
+                    CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
+                    u.email AS utente_email,
+                    p.data_prestito,
+                    p.data_scadenza,
+                    p.data_restituzione,
+                    p.stato,
+                    p.renewals,
+                    p.note,
+                    c.numero_inventario AS copia_inventario,
+                    CONCAT(staff.nome, ' ', staff.cognome) AS processed_by_name
+                FROM prestiti p
+                LEFT JOIN libri l ON p.libro_id = l.id
+                LEFT JOIN utenti u ON p.utente_id = u.id
+                LEFT JOIN copie c ON p.copia_id = c.id
+                LEFT JOIN utenti staff ON p.processed_by = staff.id
+                $whereClause
+                ORDER BY p.id DESC";
+
+        // Execute query with prepared statement if we have filters
+        if (!empty($params)) {
+            $stmt = $db->prepare($sql);
+            $types = str_repeat('s', count($params));
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        } else {
+            $result = $db->query($sql);
+        }
+        $loans = [];
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $loans[] = $row;
+            }
+            $result->free();
+        }
+
+        // Generate CSV content
+        $output = fopen('php://temp', 'r+');
+
+        // CSV header with i18n
+        fputcsv($output, [
+            __('ID'),
+            __('Libro'),
+            __('Utente'),
+            __('Email'),
+            __('Data Prestito'),
+            __('Data Scadenza'),
+            __('Data Restituzione'),
+            __('Stato'),
+            __('Rinnovi'),
+            __('N. Inventario'),
+            __('Elaborato da'),
+            __('Note')
+        ], ',', '"', '\\');
+
+        // Status translations
+        $statusLabels = [
+            'pendente' => __('Pendente'),
+            'prenotato' => __('Prenotato'),
+            'in_corso' => __('In Corso'),
+            'in_ritardo' => __('In Ritardo'),
+            'restituito' => __('Restituito'),
+            'perso' => __('Perso'),
+            'danneggiato' => __('Danneggiato'),
+        ];
+
+        // CSV data rows
+        foreach ($loans as $loan) {
+            $stato = $statusLabels[$loan['stato']] ?? $loan['stato'];
+            fputcsv($output, [
+                $loan['id'],
+                $loan['libro_titolo'] ?? '',
+                $loan['utente_nome'] ?? '',
+                $loan['utente_email'] ?? '',
+                $loan['data_prestito'] ? date('d/m/Y', strtotime($loan['data_prestito'])) : '',
+                $loan['data_scadenza'] ? date('d/m/Y', strtotime($loan['data_scadenza'])) : '',
+                $loan['data_restituzione'] ? date('d/m/Y', strtotime($loan['data_restituzione'])) : '',
+                $stato,
+                $loan['renewals'] ?? 0,
+                $loan['copia_inventario'] ?? '',
+                $loan['processed_by_name'] ?? '',
+                $loan['note'] ?? ''
+            ], ',', '"', '\\');
+        }
+
+        // Get CSV content
+        rewind($output);
+        $csvContent = stream_get_contents($output);
+        fclose($output);
+
+        // Generate filename with date
+        $filename = 'prestiti_' . date('Y-m-d_His') . '.csv';
+
+        // Return CSV response
+        $response->getBody()->write($csvContent);
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Cache-Control', 'no-cache, must-revalidate')
+            ->withHeader('Pragma', 'no-cache');
+    }
+
     private function guardStaffAccess(Response $response): ?Response
     {
         $role = $_SESSION['user']['tipo_utente'] ?? '';

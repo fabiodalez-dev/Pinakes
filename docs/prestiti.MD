@@ -1,426 +1,367 @@
-# 📚 Guida Completa: Sistema Prestiti - Tutto Quello che Devi Sapere
+# Sistema Prestiti - Guida Completa
 
-## 📖 PARTE 1: GUIDA PER L'UTENTE FINALE
-
-### 🎯 Cosa sono i Prestiti?
-
-I prestiti sono **libri che le persone prendono in prestito** dalla tua biblioteca. Il sistema gestisce **tutte le fasi**:
-- Richiesta → Approvazione → Prestito → Restituzione → Fine
+Pinakes gestisce i prestiti bibliotecari con supporto **multi-copia**, **prenotazioni future** e **coda d'attesa** automatica.
 
 ---
 
-## 🚀 Come Funziona il Sistema (Semplice!)
+## Parte 1: Guida Utente
 
-### Flusso Completo in 5 Passaggi
+### Come Funziona il Sistema
 
-| **Fase** | **Cosa Succede** | **Chi fa cosa** | **Tempo** |
-|----------|------------------|-----------------|-----------|
-| **1. Richiesta** | Utente chiede un libro | Utente → Sistema | 30 secondi |
-| **2. Approvazione** | Admin approva | Admin → Email notifica | 1-2 giorni |
-| **3. Prestito** | Libro viene dato | Admin → Sistema aggiorna | Istantaneo |
-| **4. Utilizzo** | Utente legge il libro | Utente → Libro | 14-30 giorni |
-| **5. Restituzione** | Libro torna in biblioteca | Utente → Sistema aggiorna | 1 minuto |
+Il flusso completo di un prestito:
 
----
-
-## 📱 Come Usare il Sistema (Per Tutti)
-
-### 👤 Per gli Utenti (Chi Prende i Libri)
-
-#### **Richiedere un Prestito**
-1. **Trova** il libro nella lista libri
-2. **Clicca** sul libro
-3. **Clicca** **"Richiedi Prestito"**
-4. **Compila**:
-   - Nome e cognome
-   - Email
-   - Data di restituzione preferita
-5. **Invia** la richiesta
-
-#### **Ricevere Notifiche**
-- **Email**: "Richiesta ricevuta" ✅
-- **Email**: "Prestito approvato" ✅
-- **Email**: "Manca 3 giorni alla scadenza" ⚠️
-- **Email**: "Libro scaduto" 🚨
-
-#### **Restituire il Libro**
-1. **Porta** il libro in biblioteca
-2. **Dai** il libro all'amministratore
-3. **Conferma** la restituzione
-4. **Ricevi** email di ringraziamento
-
-### 👨‍💼 Per gli Amministratori (Chi Gestisce)
-
-#### **Vedere le Richieste**
-1. **Vai su**: Dashboard → **Prestiti**
-2. **Vedrai** una tabella con tutte le richieste
-3. **Colori** per capire subito:
-   - 🟢 **Nuove richieste** (da approvare)
-   - 🟡 **Prestiti in corso** (tutto ok)
-   - 🔴 **In ritardo** (da recuperare)
-
-#### **Approvare una Richiesta**
-1. **Trova** la richiesta nella lista
-2. **Clicca** su **"Approva"** ✅
-3. **Sistema**: Manda email automatica all'utente
-4. **Aggiorna**: Stato libro diventa "Prestato"
-
-#### **Gestire Restituzioni**
-1. **Ricevi** il libro dall'utente
-2. **Clicca** su **"Restituito"** nel sistema
-3. **Automatico**: Libro torna "Disponibile"
-4. **Email**: Ringraziamento all'utente
-
----
-
-## 📊 Leggere la Tabella Prestiti
-
-### Colonne della Tabella (Semplice!)
-
-| **Colonna** | **Cosa Mostra** | **Esempio** |
-|-------------|------------------|-------------|
-| 📖 **Libro** | Titolo + autore | "Il Nome della Rosa - Eco" |
-| 👤 **Utente** | Nome + email | "Mario Rossi - mario@email.it" |
-| 📅 **Date** | Prestito → Scadenza | "15/10 → 29/10" |
-| 🚦 **Stato** | Colore + testo | 🟢 "In Corso" |
-| ⚙️ **Azioni** | Cosa puoi fare | "Restituito" / "Dettagli" |
-
-### Colori degli Stati
-| **Colore** | **Stato** | **Cosa Significa** |
-|------------|-----------|-------------------|
-| 🟢 Verde | **In Corso** | Tutto ok, può tenere il libro |
-| 🟡 Giallo | **In Ritardo** | Scaduto, va recuperato |
-| 🔴 Rosso | **Scaduto** | Moltissimo ritardo |
-| ⚪ Grigio | **Restituito** | Completato ✅ |
-
----
-
-## 📧 Email Automatiche (Spiegate Semplice)
-
-### Email all'Utente
-1. **"Richiesta ricevuta"** → Abbiamo ricevuto la tua richiesta
-2. **"Prestito approvato"** → Puoi venire a prendere il libro
-3. **"Manca 3 giorni"** → Ricordati di restituire
-4. **"Scaduto"** → Restituisci subito
-5. **"Grazie"** → Grazie per la restituzione!
-
-### Email all'Amministratore
-1. **"Nuova richiesta"** → Qualcuno ha chiesto un libro
-2. **"Prestito scaduto"** → Ricordati di recuperare il libro
-
----
-
-## 📅 Scadenze e Tempi
-
-### Standard della Biblioteca
-| **Tipo Biblioteca** | **Durata Prestito** | **Rinnovi Possibili** |
-|---------------------|---------------------|----------------------|
-| **Scuola** | 14 giorni | 2 rinnovi |
-| **Comunale** | 30 giorni | 1 rinnovo |
-| **Privata** | 7 giorni | Nessun rinnovo |
-
-### Come Cambiare le Scadenze
-1. **Vai su**: Dashboard → **Impostazioni**
-2. **Clicca**: **"Prestiti"**
-3. **Modifica**: Giorni di prestito e numero rinnovi
-4. **Salva**: Le modifiche valgono per tutti i futuri prestiti
-
----
-
-## 🔄 Gestire i Prestiti Scaduti
-
-### Cosa Fare Quando è Scaduto
-
-#### **Per l'Amministratore**
-1. **Controlla**: Lista "In Ritardo"
-2. **Chiama** l'utente (se necessario)
-3. **Invia** email di sollecito
-4. **Segna** come recuperato quando arriva
-
-#### **Per l'Utente**
-1. **Ricevi** email di avviso
-2. **Porta** il libro in biblioteca
-3. **Conferma** la restituzione
-4. **Nessuna multa** se restituisci (configurabile)
-
----
-
-## 📈 Statistiche e Report
-
-### Cosa Puoi Vedere
-- **Libri più popolari**: Quali vengono presi di più
-- **Utenti più attivi**: Chi prende più libri
-- **Prestiti attivi**: Quanti libri sono fuori
-- **Ritardi**: Quanti libri sono scaduti
-
-### Come Vedere le Statistiche
-1. **Vai su**: Dashboard → **Statistiche**
-2. **Scegli**: Periodo di tempo
-3. **Vedrai**: Grafici e numeri semplici
-
----
-
-## 📋 Esempi Pratici di Utilizzo
-
-### Esempio 1: Utente Standard
-```
-Utente: Maria Rossi
-Libro: "Orgoglio e Pregiudizio"
-Processo:
-1. Maria chiede il libro online
-2. Admin approva in 1 giorno
-3. Maria prende il libro
-4. Legge per 14 giorni
-5. Restituisce il libro
-6. Riceve email di ringraziamento
-```
-
-### Esempio 2: Admin Gestisce
-```
-Admin: Paolo
-Giornata tipo:
-- 3 nuove richieste da approvare
-- 5 prestiti in corso da monitorare
-- 1 libro restituito da registrare
-- 0 libri in ritardo da recuperare
-```
-
----
-
-## 🎯 Consigli Pratici
+| Fase | Cosa Succede | Chi Agisce | Stato |
+|------|--------------|------------|-------|
+| **1. Richiesta** | Utente chiede un libro | Utente | `pendente` |
+| **2. Approvazione** | Admin approva e assegna copia | Admin | `prenotato` o `in_corso` |
+| **3. Ritiro** | Utente ritira fisicamente il libro | Admin conferma | `in_corso` |
+| **4. Utilizzo** | Utente legge il libro | - | `in_corso` |
+| **5. Scadenza** | Sistema invia promemoria | Automatico | `in_corso` → `in_ritardo` |
+| **6. Restituzione** | Libro torna in biblioteca | Admin | `restituito` |
 
 ### Per gli Utenti
-- **Leggi** le email di avviso
-- **Porta** il libro qualche giorno prima della scadenza
-- **Contatta** se hai problemi
-- **Rinnova** solo se veramente necessario
 
-### Per gli Admin
-- **Controlla** ogni mattina i prestiti scaduti
-- **Approva** le richieste entro 24 ore
-- **Archivia** i prestiti completati
-- **Comunica** chiaramente le regole
+#### Richiedere un Prestito
+1. Trova il libro nel catalogo
+2. Clicca **"Richiedi Prestito"**
+3. Seleziona le date (se disponibile il calendario)
+4. Conferma la richiesta
+5. Attendi l'approvazione dell'admin (riceverai email)
 
----
+#### Prenotare un Libro Occupato
+1. Se il libro non e disponibile, clicca **"Prenota"**
+2. Entrerai in coda d'attesa (vedrai la tua posizione: "#2 in coda")
+3. Quando il libro viene restituito, riceverai una notifica
+4. Avrai un tempo limite per ritirare (configurabile dall'admin)
 
-## ❓ Domande Frequenti
+#### Gestire i Tuoi Prestiti
+Da `/profile/prestiti` puoi:
+- Vedere i prestiti attivi con date e scadenze
+- Controllare lo storico completo
+- Richiedere un rinnovo (se abilitato)
 
-### "Quanto costa prendere un libro?"
-- **Standard**: Gratuito in biblioteche pubbliche
-- **Configurabile**: Può avere costi in biblioteche private
+### Per gli Amministratori
 
-### "Posso rinnovare il prestito?"
-- **Sì**: Se non ci sono altre richieste
-- **Come**: Contatta l'amministratore
-- **Quante volte**: Dipende dalle regole della biblioteca
+#### Approvare Richieste
+1. Vai a **Dashboard → Prestiti**
+2. Vedi le richieste con stato `pendente`
+3. Clicca **"Approva"** per confermare
+4. Il sistema assegna automaticamente una copia disponibile
+5. L'utente riceve email di conferma
 
-### "Cosa succede se non restituisco?"
-- **Email**: Riceverai solleciti automatici
-- **Telefono**: Possibile chiamata dell'amministratore
-- **Nessuna multa**: Nel sistema base (configurabile)
+#### Gestire Restituzioni
+1. L'utente porta il libro
+2. Trova il prestito nella lista (o cerca per utente/libro)
+3. Clicca **"Registra Restituzione"**
+4. Il libro torna disponibile automaticamente
 
-### "Posso vedere i miei prestiti?"
-- **Sì**: Login → Profilo → I miei prestiti
-- **Storico**: Tutti i prestiti passati
-- **Attivi**: Solo quelli correnti
-
----
-
-## 📞 Supporto e Aiuto
-
-### Se hai problemi
-1. **Controlla** le email di notifica
-2. **Leggi** questa guida alla sezione problemi
-3. **Contatta** l'amministratore della biblioteca
-4. **Verifica** la data di restituzione nel sistema
+#### Creare Prestiti Manuali
+Da `/admin/prestiti/crea`:
+1. Seleziona utente e libro
+2. Scegli le date di inizio e fine
+3. Il sistema verifica la disponibilita
+4. Se ok, crea il prestito direttamente in stato `in_corso` o `prenotato`
 
 ---
 
-## 🎯 Checklist per Iniziare
+## Parte 2: Stati del Prestito
 
-### Nuova Biblioteca
-- [ ] Impostato durata prestito (14/30 giorni)
-- [ ] Configurato email notifiche
-- [ ] Testato un prestito fittizio
-- [ ] Spiegato le regole agli utenti
+### Diagramma Stati
 
-### Utente Nuovo
-- [ ] Registrato nel sistema
-- [ ] Capito come richiedere libri
-- [ ] Salvato email biblioteca
-- [ ] Capito le regole di restituzione
+```
+                    ┌─────────────┐
+                    │   pendente  │ ← Richiesta utente
+                    └──────┬──────┘
+                           │ Admin approva
+              ┌────────────┴────────────┐
+              ▼                         ▼
+    ┌─────────────────┐      ┌─────────────────┐
+    │   prenotato     │      │    in_corso     │
+    │ (data futura)   │      │ (data = oggi)   │
+    └────────┬────────┘      └────────┬────────┘
+             │ Data arriva            │
+             └──────────┬─────────────┘
+                        │
+                        ▼
+              ┌─────────────────┐
+              │    in_corso     │
+              └────────┬────────┘
+                       │ Scadenza passata
+                       ▼
+              ┌─────────────────┐
+              │   in_ritardo    │
+              └────────┬────────┘
+                       │ Restituzione
+        ┌──────────────┼──────────────┐
+        ▼              ▼              ▼
+┌───────────┐  ┌───────────┐  ┌───────────┐
+│restituito │  │   perso   │  │danneggiato│
+└───────────┘  └───────────┘  └───────────┘
+```
+
+### Dettaglio Stati
+
+| Stato | Descrizione | Flag `attivo` | Ha `copia_id`? |
+|-------|-------------|---------------|----------------|
+| `pendente` | Richiesta in attesa approvazione | 0 | No |
+| `prenotato` | Approvato per data futura | 1 | Si |
+| `in_corso` | Libro in mano all'utente | 1 | Si |
+| `in_ritardo` | Scaduto, non restituito | 1 | Si |
+| `restituito` | Completato con successo | 0 | Si (storico) |
+| `perso` | Libro dichiarato perso | 0 | Si (storico) |
+| `danneggiato` | Restituito danneggiato | 0 | Si (storico) |
+
+### Badge Colori (UI)
+
+| Colore | Stato | Significato |
+|--------|-------|-------------|
+| Arancione | `pendente` | In attesa approvazione |
+| Viola | `prenotato` | Approvato, data futura |
+| Blu | `in_corso` | Attivo, tutto ok |
+| Giallo/Rosso | `in_ritardo` | Scaduto! |
+| Verde | `restituito` | Completato |
+| Rosso scuro | `perso`/`danneggiato` | Problema |
 
 ---
 
-## 🎓 Glossario Semplice
+## Parte 3: Sistema Notifiche Email
 
-| **Termine** | **Significa** | **Esempio** |
-|-------------|---------------|-------------|
-| **Prestito** | Dare un libro in uso | "Il libro è in prestito a Mario" |
-| **Scadenza** | Data di restituzione | "Restituzione entro 30/10" |
-| **Rinnovo** | Estendere il prestito | "Posso tenerlo altri 7 giorni?" |
-| **Ritardo** | Oltre la data di scadenza | "Il libro è in ritardo di 3 giorni" |
+### Template Disponibili
+
+| Template | Destinatario | Quando |
+|----------|--------------|--------|
+| `loan_request_notification` | Admin | Nuova richiesta prestito |
+| `loan_approved` | Utente | Prestito approvato |
+| `loan_rejected` | Utente | Prestito rifiutato |
+| `loan_expiring_warning` | Utente | X giorni prima scadenza |
+| `loan_overdue_notification` | Utente | Prestito scaduto |
+| `loan_overdue_admin` | Admin | Alert prestito in ritardo |
+| `reservation_book_available` | Utente | Libro prenotato disponibile |
+| `wishlist_book_available` | Utente | Libro wishlist disponibile |
+
+### Logica Invio
+
+**Promemoria scadenza** (`loan_expiring_warning`):
+- Inviato X giorni prima della scadenza (configurabile, default: 3)
+- Solo per prestiti `in_corso` (libro effettivamente ritirato)
+- NON inviato per `pendente` o `prenotato`
+
+**Notifica ritardo** (`loan_overdue_notification`):
+- Inviato quando `data_scadenza < oggi`
+- Solo per prestiti `in_corso` o `in_ritardo`
+- Flag `overdue_notification_sent` previene duplicati
+
+**Disponibilita libro** (`reservation_book_available`):
+- Inviato quando l'utente e primo in coda e il libro torna disponibile
+- Flag `notifica_inviata` impostato solo se email inviata con successo (permette retry)
+
+### Configurazione
+
+Da **Impostazioni → Avanzate**:
+- `days_before_expiry_warning`: giorni prima della scadenza per il promemoria
+- Template email personalizzabili da **Impostazioni → Email Templates**
 
 ---
 
-## 📊 Monitoraggio Semplice
+## Parte 4: Coda d'Attesa (Prenotazioni)
 
-### Indicatori Chiave
-- **🟢 Tutto ok**: 0 libri in ritardo
-- 🟡 **Attenzione**: 1-3 libri scaduti
-- 🔴 **Azione**: Più di 3 libri scaduti
+### Come Funziona
 
-### Come Controllare
-1. **Guarda** la tabella "Prestiti"
-2. **Controlla** i colori degli stati
-3. **Leggi** le email di notifica
-4. **Agisci** se necessario
+1. Utente prenota un libro non disponibile
+2. Entra nella tabella `prenotazioni` con `queue_position`
+3. Quando il libro viene restituito:
+   - `ReservationManager::processBookAvailability()` trova il primo in coda
+   - Crea un prestito `pendente` con `origine = 'prenotazione'`
+   - Invia email `reservation_book_available`
+4. Admin approva → prestito diventa `in_corso`
+
+### Priorita
+
+La coda e FIFO (First In, First Out):
+- `queue_position = 1` e il primo a ricevere il libro
+- Quando una prenotazione viene completata, le posizioni si aggiornano
+
+### Scadenza Prenotazioni
+
+- Campo `data_scadenza_prenotazione` definisce per quanto la prenotazione e valida
+- Prenotazioni scadute vengono automaticamente annullate
+- L'utente deve riprenotare se la sua scadenza passa
 
 ---
 
-*Ultimo aggiornamento: 19 Ottobre 2025*  
-*Versione guida: 3.0.0 - Semplificata per utenti finali*
+## Parte 5: Multi-Copia
+
+### Logica Disponibilita
+
+Il sistema supporta piu copie fisiche per ogni libro:
+
+```
+Libro: "Il Nome della Rosa"
+├── Copia #1 (disponibile)
+├── Copia #2 (prestata fino al 15/12)
+└── Copia #3 (in manutenzione)
+
+Copie utilizzabili: 2 (esclusa #3)
+Copie occupate oggi: 1 (#2)
+Slot disponibili: 1
+```
+
+### Verifica Disponibilita
+
+`ReservationManager::isBookAvailableForImmediateLoan($bookId, $startDate, $endDate)`:
+
+1. Conta copie con stato NOT IN (`perso`, `danneggiato`, `manutenzione`)
+2. Conta prestiti attivi che si sovrappongono al periodo richiesto
+3. Conta prenotazioni attive che si sovrappongono
+4. Disponibile se: `(prestiti + prenotazioni) < copie_utilizzabili`
+
+### Assegnazione Copia
+
+All'approvazione, il sistema:
+1. Cerca una copia senza prestiti sovrapposti
+2. Blocca la copia con `SELECT ... FOR UPDATE`
+3. Ricontrolla l'overlap (prevenzione race condition)
+4. Assegna la `copia_id` al prestito
 
 ---
 
-## 🔧 PARTE 2: DOCUMENTAZIONE TECNICA PER SVILUPPATORI
+## Parte 6: Documentazione Tecnica
 
-### Architettura del Sistema Prestiti
-
-#### Database Schema
+### Schema Database
 
 ```sql
+-- Tabella prestiti
 CREATE TABLE prestiti (
     id INT AUTO_INCREMENT PRIMARY KEY,
     libro_id INT NOT NULL,
     utente_id INT NOT NULL,
+    copia_id INT NULL,  -- Assegnata all'approvazione
     data_prestito DATE NOT NULL,
     data_scadenza DATE NOT NULL,
     data_restituzione DATE NULL,
-    stato ENUM('richiesto','approvato','in_corso','in_ritardo','restituito','annullato') DEFAULT 'richiesto',
-    sanzione DECIMAL(10,2) DEFAULT 0.00,
+    stato ENUM('pendente','prenotato','in_corso','in_ritardo','restituito','perso','danneggiato'),
+    origine ENUM('manuale','richiesta','prenotazione') DEFAULT 'richiesta',
+    attivo TINYINT(1) DEFAULT 0,
     renewals INT DEFAULT 0,
     processed_by INT NULL,
+    warning_sent TINYINT(1) DEFAULT 0,
+    overdue_notification_sent TINYINT(1) DEFAULT 0,
     note TEXT,
-    attivo TINYINT(1) DEFAULT 1,
-    active_libro_id INT GENERATED ALWAYS AS (CASE WHEN attivo = 1 THEN libro_id ELSE NULL END) STORED,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (libro_id) REFERENCES libri(id) ON DELETE CASCADE,
-    FOREIGN KEY (utente_id) REFERENCES utenti(id) ON DELETE CASCADE,
-    FOREIGN KEY (processed_by) REFERENCES utenti(id) ON DELETE SET NULL,
-    UNIQUE KEY uniq_prestiti_active_libro (active_libro_id),
-    INDEX idx_prestiti_libro_stato (libro_id, stato),
-    INDEX idx_prestiti_utente_data (utente_id, data_prestito),
-    INDEX idx_prestiti_attivo_stato (attivo, stato)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+    FOREIGN KEY (libro_id) REFERENCES libri(id),
+    FOREIGN KEY (utente_id) REFERENCES utenti(id),
+    FOREIGN KEY (copia_id) REFERENCES copie(id),
+    FOREIGN KEY (processed_by) REFERENCES utenti(id),
+
+    INDEX idx_stato_attivo (stato, attivo),
+    INDEX idx_libro_stato (libro_id, stato),
+    INDEX idx_scadenza (data_scadenza)
+);
+
+-- Tabella prenotazioni (coda d'attesa)
+CREATE TABLE prenotazioni (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    libro_id INT NOT NULL,
+    utente_id INT NOT NULL,
+    data_inizio_richiesta DATE,
+    data_fine_richiesta DATE,
+    data_scadenza_prenotazione DATETIME,
+    queue_position INT DEFAULT 1,
+    stato ENUM('attiva','completata','annullata') DEFAULT 'attiva',
+    notifica_inviata TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (libro_id) REFERENCES libri(id),
+    FOREIGN KEY (utente_id) REFERENCES utenti(id),
+
+    INDEX idx_libro_stato (libro_id, stato),
+    INDEX idx_queue (libro_id, stato, queue_position)
+);
 ```
 
-#### Business Logic
+### Controller Principali
 
 ```php
-// PrestitiController.php - Metodi Principali
-class PrestitiController
-{
-    public function index(Request $request, Response $response, mysqli $db): Response
-    public function createPrestito(Request $request, Response $response, mysqli $db): Response
-    public function approvePrestito(Request $request, Response $response, mysqli $db, int $id): Response
-    public function returnPrestito(Request $request, Response $response, mysqli $db, int $id): Response
-    public function renewPrestito(Request $request, Response $response, mysqli $db, int $id): Response
+// PrestitiController - Gestione admin
+class PrestitiController {
+    public function index()      // Lista prestiti
+    public function create()     // Form nuovo prestito
+    public function store()      // Salva nuovo prestito
+    public function show($id)    // Dettagli prestito
+    public function close($id)   // Registra restituzione
+    public function exportCsv()  // Export CSV
+}
+
+// LoanApprovalController - Approvazioni
+class LoanApprovalController {
+    public function pending()      // Lista richieste pendenti
+    public function approveLoan()  // Approva richiesta
+    public function rejectLoan()   // Rifiuta richiesta
+}
+
+// ReservationManager - Logica prenotazioni
+class ReservationManager {
+    public function processBookAvailability($bookId)
+    public function isBookAvailableForImmediateLoan($bookId, $startDate, $endDate)
+    public function cancelExpiredReservations()
 }
 ```
 
-#### API Endpoints
+### API Endpoints
 
-**GET /api/prestiti**
-```javascript
-// Response format
-{
-  "draw": 1,
-  "recordsTotal": 100,
-  "recordsFiltered": 25,
-  "data": [
-    {
-      "id": 123,
-      "libro_titolo": "Il Nome della Rosa",
-      "utente_nome": "Mario Rossi",
-      "utente_email": "mario@example.com",
-      "data_prestito": "2024-10-15",
-      "data_scadenza": "2024-10-29",
-      "stato": "in_corso",
-      "giorni_rimanenti": 5,
-      "attivo": 1
-    }
-  ]
-}
+```
+GET  /api/prestiti              → Lista prestiti (DataTables)
+GET  /api/libro/{id}/availability → Disponibilita per calendario
+POST /api/prestiti/{id}/close   → Chiudi prestito
+POST /api/prestiti/{id}/renew   → Rinnova prestito
 ```
 
-#### Cron Jobs per Automazione
+### Cron Job
 
 ```bash
-# /etc/cron.d/biblioteca
-# Controllo scadenze ogni giorno alle 8:00
-0 8 * * * php /var/www/html/biblioteca/scripts/maintenance.php
+# Esegui notifiche automatiche ogni ora
+0 * * * * php /path/to/cron/automatic-notifications.php
 
-# Email notifiche ogni giorno alle 9:00
-0 9 * * * php /var/www/html/biblioteca/scripts/email-notifications.php
-
-# Backup settimanale
-0 2 * * 0 php /var/www/html/biblioteca/scripts/backup.php
+# Oppure aggiungi a crontab per esecuzione alle 8-20
+0 8-20 * * * php /path/to/cron/automatic-notifications.php
 ```
 
-#### Query Ottimizzate
+Il cron esegue:
+- Avvisi scadenza prestiti
+- Notifiche prestiti in ritardo
+- Notifiche wishlist disponibili
+- (alle 6:00) Attivazione prestiti schedulati e aggiornamento stati
 
-```sql
--- Prestiti attivi per utente
-SELECT p.*, l.titolo, u.nome 
-FROM prestiti p 
-JOIN libri l ON p.libro_id = l.id 
-JOIN utenti u ON p.utente_id = u.id 
-WHERE p.stato IN ('in_corso', 'in_ritardo') 
-AND p.attivo = 1;
+### Manutenzione su Admin Login
 
--- Prestiti in ritardo con dettagli
-SELECT p.*, l.titolo, u.nome, u.email,
-       DATEDIFF(CURDATE(), p.data_scadenza) as giorni_ritardo
-FROM prestiti p
-JOIN libri l ON p.libro_id = l.id
-JOIN utenti u ON p.utente_id = u.id
-WHERE p.stato = 'in_ritardo'
-AND p.attivo = 1;
-```
-
-#### Sicurezza e Validazione
-
-```php
-// Validazione date prestito
-$loanDays = (int)$settings->get('library', 'loan_days', 14);
-$maxRenewals = (int)$settings->get('library', 'max_renewals', 2);
-
-// Controllo disponibilità libro
-if (!$bookRepo->isAvailableForLoan($bookId)) {
-    throw new Exception('Libro non disponibile per prestito');
-}
-
-// Prevenzione prestiti multipli
-if ($loanRepo->hasActiveLoan($userId, $bookId)) {
-    throw new Exception('Hai già un prestito attivo per questo libro');
-}
-```
-
-#### Monitoring e Alert
-
-```php
-// Dashboard stats
-$stats = [
-    'prestiti_attivi' => $loanRepo->countActiveLoans(),
-    'prestiti_scaduti' => $loanRepo->countOverdueLoans(),
-    'prestiti_oggi' => $loanRepo->countLoansDueToday(),
-    'tasso_restituzione' => $loanRepo->getReturnRate()
-];
-```
+Se il cron non e configurato, `MaintenanceService` esegue le stesse operazioni quando un admin fa login, con cooldown di 60 minuti per evitare duplicati.
 
 ---
 
-*Ultimo aggiornamento: 19 Ottobre 2025*  
-*Versione documentazione: 3.0.0*
+## Parte 7: Configurazione
+
+### Impostazioni Disponibili
+
+Da **Impostazioni → Biblioteca**:
+- Durata prestito di default (giorni)
+- Numero massimo rinnovi
+- Giorni prima avviso scadenza
+
+Da **Impostazioni → Email**:
+- Template email personalizzabili
+- Variabili disponibili per ogni template
+
+### Trigger Database
+
+I trigger in `triggers.sql` proteggono l'integrita:
+
+1. **Prima dell'INSERT**: verifica che la copia non sia persa/danneggiata/manutenzione
+2. **Prima dell'INSERT**: verifica che non ci siano overlap di date sulla stessa copia
+3. **Prima dell'UPDATE**: stesse verifiche per modifiche
+
+---
+
+*Ultimo aggiornamento: 29 Novembre 2025*
+*Versione: 2.0.0*

@@ -15,12 +15,13 @@ class LoanApprovalController
 
     public function pendingLoans(Request $request, Response $response, mysqli $db): Response
     {
-        // Get all pending loan requests
+        // Get all pending loan requests with origin info
         $stmt = $db->prepare("
             SELECT p.*, l.titolo, l.copertina_url,
                    CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
                    p.data_prestito as data_richiesta_inizio,
-                   p.data_scadenza as data_richiesta_fine
+                   p.data_scadenza as data_richiesta_fine,
+                   COALESCE(p.origine, 'richiesta') as origine
             FROM prestiti p
             JOIN libri l ON p.libro_id = l.id
             JOIN utenti u ON p.utente_id = u.id
