@@ -17,6 +17,9 @@ use mysqli;
  */
 class MaintenanceService
 {
+    /** @var string Path to ICS calendar file */
+    private const ICS_PATH = __DIR__ . '/../../storage/calendar/library-calendar.ics';
+
     /** @var mysqli Database connection */
     private mysqli $db;
 
@@ -112,6 +115,10 @@ class MaintenanceService
         // Generate ICS calendar file
         try {
             $results['ics_generated'] = $this->generateIcsCalendar();
+            if ($results['ics_generated'] === false) {
+                $results['errors'][] = 'generateIcsCalendar: ICS file not generated';
+                error_log('MaintenanceService warning (generateIcsCalendar): ICS file could not be written');
+            }
         } catch (\Throwable $e) {
             $results['errors'][] = 'generateIcsCalendar: ' . $e->getMessage();
             error_log('MaintenanceService error (generateIcsCalendar): ' . $e->getMessage());
@@ -133,7 +140,7 @@ class MaintenanceService
     {
         $icsGenerator = new IcsGenerator($this->db);
         // IcsGenerator::saveToFile() creates the directory if needed
-        return $icsGenerator->saveToFile(__DIR__ . '/../../storage/calendar/library-calendar.ics');
+        return $icsGenerator->saveToFile(self::ICS_PATH);
     }
 
     /**
@@ -413,9 +420,11 @@ class MaintenanceService
 
             if (!($result['skipped'] ?? false)) {
                 error_log(sprintf(
-                    'MaintenanceService: Activated %d scheduled loans, updated %d overdue loans (triggered by admin login)',
+                    'MaintenanceService (admin login): loans=%d, overdue=%d, reservations=%d, ics=%s',
                     $result['scheduled_loans_activated'],
-                    $result['overdue_loans_updated']
+                    $result['overdue_loans_updated'],
+                    $result['reservations_converted'] ?? 0,
+                    $result['ics_generated'] ? 'ok' : 'failed'
                 ));
             }
 
