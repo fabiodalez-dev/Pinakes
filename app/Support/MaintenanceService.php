@@ -6,14 +6,25 @@ namespace App\Support;
 use mysqli;
 
 /**
- * MaintenanceService
- * Handles background maintenance tasks like activating scheduled loans
+ * Service for running background maintenance tasks
+ *
+ * Handles scheduled loan activation, overdue status updates,
+ * automatic notifications, and ICS calendar generation.
  * Can be triggered by cron job or automatically on admin login
+ * with a configurable cooldown period.
+ *
+ * @package App\Support
  */
 class MaintenanceService
 {
+    /** @var mysqli Database connection */
     private mysqli $db;
 
+    /**
+     * Create a new MaintenanceService instance
+     *
+     * @param mysqli $db Database connection
+     */
     public function __construct(mysqli $db)
     {
         $this->db = $db;
@@ -21,7 +32,12 @@ class MaintenanceService
 
     /**
      * Run all maintenance tasks (if not run recently)
-     * Returns early if already run within the cooldown period
+     *
+     * Returns early if already run within the cooldown period.
+     * Uses session-based caching to prevent duplicate runs.
+     *
+     * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, reservations_converted?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, ics_generated?: bool, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
@@ -41,6 +57,12 @@ class MaintenanceService
 
     /**
      * Run all maintenance tasks immediately
+     *
+     * Executes scheduled loan activation, reservation processing,
+     * overdue loan updates, notifications, and ICS calendar generation.
+     * Each task is wrapped in try-catch to prevent failures from blocking others.
+     *
+     * @return array{scheduled_loans_activated: int, reservations_converted: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, ics_generated: bool, errors: array} Results for each maintenance task
      */
     public function runAll(): array
     {
@@ -100,6 +122,12 @@ class MaintenanceService
 
     /**
      * Generate ICS calendar file for loans and reservations
+     *
+     * Creates an iCalendar (.ics) file in storage/calendar/ containing
+     * all active loans, scheduled loans, and pending reservations.
+     * Ensures the storage directory exists before writing.
+     *
+     * @return bool True if file was generated successfully, false otherwise
      */
     public function generateIcsCalendar(): bool
     {
@@ -116,6 +144,11 @@ class MaintenanceService
 
     /**
      * Run automatic notifications (expiration warnings, overdue, wishlist)
+     *
+     * Delegates to NotificationService to send loan expiration warnings,
+     * overdue loan notifications, and wishlist availability alerts.
+     *
+     * @return array{expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, errors: array} Notification counts and any errors
      */
     public function runNotifications(): array
     {
@@ -146,6 +179,13 @@ class MaintenanceService
 
     /**
      * Activate scheduled loans (prenotato -> in_corso) when their start date arrives
+     *
+     * Finds all active loans with status 'prenotato' where data_prestito <= today,
+     * updates their status to 'in_corso', marks the copy as 'prestato',
+     * and recalculates book availability. Uses transactions for data integrity.
+     *
+     * @return int Number of loans activated
+     * @throws \RuntimeException If query preparation fails
      */
     public function activateScheduledLoans(): int
     {
@@ -208,6 +248,9 @@ class MaintenanceService
      * This handles the case where a user creates a reservation for a future date
      * and the book is already available - without this, the reservation would
      * sit in queue forever waiting for a "book returned" event that never comes.
+     *
+     * @return int Number of reservations converted to loans
+     * @throws \RuntimeException If query preparation fails
      */
     public function processScheduledReservations(): int
     {
@@ -284,6 +327,12 @@ class MaintenanceService
 
     /**
      * Update overdue loans status (in_corso -> in_ritardo)
+     *
+     * Bulk updates all active loans that have passed their due date,
+     * changing status from 'in_corso' to 'in_ritardo'.
+     *
+     * @return int Number of loans marked as overdue
+     * @throws \RuntimeException If query preparation fails
      */
     public function updateOverdueLoans(): int
     {
@@ -308,9 +357,14 @@ class MaintenanceService
 
     /**
      * Static method to run maintenance on admin login via hook
+     *
+     * Executes maintenance tasks with a 60-minute cooldown when an admin
+     * or staff user logs in. Creates its own database connection if needed.
+     *
      * @param int $_userId User ID (unused, kept for hook signature compatibility)
      * @param array $userData User data array containing tipo_utente
      * @param mixed $_request Request object (unused, kept for hook signature compatibility)
+     * @return void
      */
     public static function onAdminLogin(int $_userId, array $userData, $_request): void
     {
