@@ -224,6 +224,19 @@ final class ConfigStore
         self::$dbSettingsCache = null;
     }
 
+    /**
+     * Check if catalogue-only mode is enabled
+     *
+     * When enabled, loans, reservations and wishlist features are disabled
+     * throughout the application.
+     *
+     * @return bool True if catalogue mode is active
+     */
+    public static function isCatalogueMode(): bool
+    {
+        return (bool) self::get('system.catalogue_mode', false);
+    }
+
     private static function mergeRecursiveDistinct(array $base, array $replacements): array
     {
         foreach ($replacements as $key => $value) {
@@ -535,6 +548,22 @@ final class ConfigStore
                 foreach ($raw['cms'] as $key => $value) {
                     // Keep as string '1' or '0' to match controller/view usage
                     self::$dbSettingsCache['cms'][$key] = (string) $value;
+                }
+            }
+
+            if (!empty($raw['system'])) {
+                self::$dbSettingsCache['system'] = [];
+                foreach ($raw['system'] as $key => $value) {
+                    // Handle boolean flags
+                    if ($key === 'catalogue_mode') {
+                        $boolValue = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                        if ($boolValue === null) {
+                            $boolValue = in_array((string) $value, ['1', 'true', 'yes'], true);
+                        }
+                        self::$dbSettingsCache['system'][$key] = $boolValue;
+                    } else {
+                        self::$dbSettingsCache['system'][$key] = (string) $value;
+                    }
                 }
             }
 
