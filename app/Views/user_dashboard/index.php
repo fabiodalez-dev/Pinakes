@@ -1,6 +1,8 @@
 <?php
 use App\Support\HtmlHelper;
+use App\Support\ConfigStore;
 
+$isCatalogueMode = ConfigStore::isCatalogueMode();
 $stats = $stats ?? ['libri' => 0, 'prestiti_in_corso' => 0, 'preferiti' => 0, 'storico_prestiti' => 0];
 $ultimiArrivi = $ultimiArrivi ?? [];
 $prestitiAttivi = $prestitiAttivi ?? [];
@@ -326,6 +328,7 @@ $profileRoute = route_path('profile');
       <div class="stat-label"><?= __("Libri Totali") ?></div>
     </div>
 
+    <?php if (!$isCatalogueMode): ?>
     <div class="stat-card">
       <div class="stat-icon">
         <i class="fas fa-bookmark"></i>
@@ -349,6 +352,7 @@ $profileRoute = route_path('profile');
       <div class="stat-number"><?= $stats['storico_prestiti'] ?></div>
       <div class="stat-label"><?= __("Storico Prestiti") ?></div>
     </div>
+    <?php endif; ?>
   </div>
 </section>
 
@@ -408,7 +412,8 @@ $profileRoute = route_path('profile');
       </div>
     </div>
 
-    <!-- Prestiti Attivi -->
+    <!-- Prestiti Attivi (hidden in catalogue mode) -->
+    <?php if (!$isCatalogueMode): ?>
     <div class="col-lg-6">
       <div class="section-card">
         <div class="section-header">
@@ -478,6 +483,7 @@ $profileRoute = route_path('profile');
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
   </div>
 </section>
 
@@ -492,6 +498,7 @@ $profileRoute = route_path('profile');
         <i class="fas fa-search"></i>
         <?= __("Cerca Libri") ?>
       </a>
+      <?php if (!$isCatalogueMode): ?>
       <a href="<?= $wishlistRoute ?>" class="btn-outline">
         <i class="fas fa-heart"></i>
         <?= __("I Miei Preferiti") ?>
@@ -500,6 +507,7 @@ $profileRoute = route_path('profile');
         <i class="fas fa-bookmark"></i>
         <?= __("Le Mie Prenotazioni") ?>
       </a>
+      <?php endif; ?>
       <a href="<?= $profileRoute ?>" class="btn-outline">
         <i class="fas fa-user"></i>
         <?= __("Il Mio Profilo") ?>
