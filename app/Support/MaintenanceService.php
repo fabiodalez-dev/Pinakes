@@ -132,14 +132,8 @@ class MaintenanceService
     public function generateIcsCalendar(): bool
     {
         $icsGenerator = new IcsGenerator($this->db);
-        $storagePath = __DIR__ . '/../../storage/calendar';
-
-        // Ensure storage directory exists
-        if (!is_dir($storagePath)) {
-            mkdir($storagePath, 0755, true);
-        }
-
-        return $icsGenerator->saveToFile($storagePath . '/library-calendar.ics');
+        // IcsGenerator::saveToFile() creates the directory if needed
+        return $icsGenerator->saveToFile(__DIR__ . '/../../storage/calendar/library-calendar.ics');
     }
 
     /**
