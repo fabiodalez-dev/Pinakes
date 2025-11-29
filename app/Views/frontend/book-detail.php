@@ -1,5 +1,9 @@
 <?php
 use App\Support\HtmlHelper;
+use App\Support\ConfigStore;
+
+// Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
+$isCatalogueMode = ConfigStore::isCatalogueMode();
 
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
@@ -1442,6 +1446,7 @@ ob_start();
             <!-- Main Content -->
             <div class="col-lg-8">
                 <!-- Action Buttons -->
+                <?php if (!$isCatalogueMode): ?>
                 <div class="action-buttons text-center mb-4" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
                     <button id="btn-request-loan" type="button" class="btn <?= ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> btn-lg" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
@@ -1464,6 +1469,7 @@ ob_start();
                     do_action('book.detail.digital_buttons', $book);
                     ?>
                 </div>
+                <?php endif; ?>
 
                 <?php
                 // Hook: Allow plugins to add digital content player (e.g., Green Audio Player)
@@ -2145,7 +2151,7 @@ document.addEventListener('DOMContentLoaded', function() {
               defaultDate: suggestedDate,
               locale: forceEn ? 'en' : (fpLocale || 'default'),
               disable: disabledDates,
-              showMonths: 2,
+              showMonths: 1,
               onDayCreate: function(dObj, dStr, fp, dayElem) {
                 if (!dayElem || !dayElem.dateObj) return;
                 if (dayElem.classList.contains('prevMonthDay') || dayElem.classList.contains('nextMonthDay')) return;

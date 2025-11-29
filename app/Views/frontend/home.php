@@ -101,6 +101,11 @@ $additional_css = "
         padding: 6rem 0;
     }
 
+    /* Remove bottom padding from last section (genre carousels) to avoid gap before footer */
+    section#genre-carousels {
+        padding-bottom: 0;
+    }
+
     .section-alt {
         background: var(--light-bg);
     }
@@ -285,6 +290,17 @@ form.hero-search-form {
     .hero-search-input::placeholder {
         color: rgba(44, 62, 80, 0.6);
         font-weight: 400;
+    }
+
+    /* Override browser autofill background */
+    .hero-search-input:-webkit-autofill,
+    .hero-search-input:-webkit-autofill:hover,
+    .hero-search-input:-webkit-autofill:focus,
+    .hero-search-input:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 30px white inset !important;
+        -webkit-text-fill-color: var(--primary-color) !important;
+        background-color: transparent !important;
+        transition: background-color 5000s ease-in-out 0s;
     }
 
     .hero-search-button {

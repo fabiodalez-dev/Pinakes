@@ -313,6 +313,73 @@ use App\Support\HtmlHelper;
       </div>
     </div>
 
+    <!-- Catalogue Mode Setting -->
+    <?php $catalogueMode = \App\Support\ConfigStore::isCatalogueMode(); ?>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-book-reader text-gray-500"></i>
+          <?= __("Modalità Catalogo") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Trasforma Pinakes in un catalogo di sola consultazione") ?></p>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+            <div class="text-xs text-amber-800">
+              <strong><?= __("Attenzione:") ?></strong> <?= __("Attivando questa modalità verranno disabilitati completamente i prestiti, le prenotazioni e la wishlist. Gli utenti potranno solo consultare il catalogo.") ?>
+            </div>
+          </div>
+        </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
+            <div class="text-xs text-blue-800">
+              <strong><?= __("Cosa viene nascosto:") ?></strong>
+              <ul class="list-disc pl-5 mt-1 space-y-1">
+                <li><?= __("Pulsanti \"Richiedi Prestito\" e \"Prenota\" nel catalogo") ?></li>
+                <li><?= __("Sezione wishlist nel profilo utente") ?></li>
+                <li><?= __("Sezione prestiti nel profilo utente") ?></li>
+                <li><?= __("Menu \"Prestiti\" nell'admin sidebar") ?></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm font-semibold text-gray-900"><?= __("Abilita Modalità Catalogo") ?></span>
+            <p class="text-xs text-gray-600"><?= __("Disabilita tutte le funzionalità di prestito e prenotazione") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox"
+                   id="catalogue_mode"
+                   name="catalogue_mode"
+                   value="1"
+                   <?php echo $catalogueMode ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div class="text-xs text-gray-700 space-y-1">
+            <p><strong><?= __("Stato attuale:") ?></strong>
+              <?php if ($catalogueMode): ?>
+                <span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-800">
+                  <i class="fas fa-book mr-1"></i> <?= __("Solo Catalogo") ?>
+                </span>
+              <?php else: ?>
+                <span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-800">
+                  <i class="fas fa-exchange-alt mr-1"></i> <?= __("Prestiti Attivi") ?>
+                </span>
+              <?php endif; ?>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="flex justify-end">
       <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
         <i class="fas fa-save"></i>

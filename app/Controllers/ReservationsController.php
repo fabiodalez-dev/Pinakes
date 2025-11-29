@@ -254,12 +254,14 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Get next queue position
-        $stmt = $this->db->prepare("SELECT COALESCE(MAX(queue_position), 0) + 1 as next_position FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
-        $stmt->bind_param('i', $bookId);
+        // Check for existing pending loan request from this user for this book
+        $stmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND stato = 'pendente' LIMIT 1");
+        $stmt->bind_param('ii', $bookId, $userId);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $nextPosition = $result->fetch_assoc()['next_position'];
+        if ($stmt->get_result()->fetch_assoc()) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già una richiesta di prestito in attesa per questo libro')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
 
         // Start transaction for concurrency control
         $this->db->begin_transaction();
@@ -291,11 +293,11 @@ class ReservationsController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Create pending loan request
+            // Create pending loan request with origine='richiesta' (manual request from user)
             $stmt = $this->db->prepare("
                 INSERT INTO prestiti
-                (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo)
-                VALUES (?, ?, ?, ?, 'pendente', 0)
+                (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+                VALUES (?, ?, ?, ?, 'pendente', 'richiesta', 0)
             ");
             $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
 

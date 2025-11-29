@@ -12,12 +12,15 @@ class DashboardStats
     public function counts(): array
     {
         // Singola query invece di 5 query separate
+        // Include count for pickup confirmations (origine='prenotazione') and manual requests separately
         $sql = "SELECT
                     (SELECT COUNT(*) FROM libri) AS libri,
                     (SELECT COUNT(*) FROM utenti) AS utenti,
                     (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso','in_ritardo') AND attivo = 1) AS prestiti_in_corso,
                     (SELECT COUNT(*) FROM autori) AS autori,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti";
+                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti,
+                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND origine = 'prenotazione') AS ritiri_da_confermare,
+                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali";
 
         $result = $this->db->query($sql);
         if ($result && $row = $result->fetch_assoc()) {
@@ -26,11 +29,13 @@ class DashboardStats
                 'utenti' => (int)($row['utenti'] ?? 0),
                 'prestiti_in_corso' => (int)($row['prestiti_in_corso'] ?? 0),
                 'autori' => (int)($row['autori'] ?? 0),
-                'prestiti_pendenti' => (int)($row['prestiti_pendenti'] ?? 0)
+                'prestiti_pendenti' => (int)($row['prestiti_pendenti'] ?? 0),
+                'ritiri_da_confermare' => (int)($row['ritiri_da_confermare'] ?? 0),
+                'richieste_manuali' => (int)($row['richieste_manuali'] ?? 0)
             ];
         }
 
-        return ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0];
+        return ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0, 'ritiri_da_confermare' => 0, 'richieste_manuali' => 0];
     }
 
     public function lastBooks(int $limit = 4): array
@@ -92,7 +97,8 @@ class DashboardStats
         $rows = [];
         $sql = "SELECT p.id, p.data_prestito AS data_richiesta_inizio, p.data_scadenza AS data_richiesta_fine,
                        p.created_at, l.titolo, l.copertina_url,
-                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email
+                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email,
+                       COALESCE(p.origine, 'richiesta') AS origine
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
@@ -107,5 +113,99 @@ class DashboardStats
             $rows[] = $row;
         }
         return $rows;
+    }
+
+    /**
+     * Get active reservations for dashboard display
+     */
+    public function activeReservations(int $limit = 6): array
+    {
+        $rows = [];
+        $sql = "SELECT r.id, r.libro_id, r.utente_id, r.stato, r.created_at,
+                       r.data_scadenza_prenotazione, r.data_inizio_richiesta, r.data_fine_richiesta,
+                       l.titolo, l.copertina_url,
+                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email
+                FROM prenotazioni r
+                JOIN libri l ON r.libro_id = l.id
+                JOIN utenti u ON r.utente_id = u.id
+                WHERE r.stato = 'attiva'
+                ORDER BY COALESCE(r.data_inizio_richiesta, r.data_scadenza_prenotazione) ASC
+                LIMIT ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param('i', $limit);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
+     * Get all calendar events (loans and reservations) for the next 6 months
+     */
+    public function calendarEvents(): array
+    {
+        $events = [];
+        $today = date('Y-m-d');
+        $sixMonthsLater = date('Y-m-d', strtotime('+6 months'));
+
+        // Fetch active/scheduled loans (in_corso, prenotato, in_ritardo, pendente)
+        // Include pendente loans with attivo=0 (waiting for admin approval)
+        $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza,
+                           l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
+                           'prestito' AS tipo
+                    FROM prestiti p
+                    JOIN libri l ON p.libro_id = l.id
+                    JOIN utenti u ON p.utente_id = u.id
+                    WHERE (p.attivo = 1 OR p.stato = 'pendente')
+                      AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                      AND p.data_scadenza >= ?
+                      AND p.data_prestito <= ?
+                    ORDER BY p.data_prestito ASC";
+        $stmt = $this->db->prepare($loanSql);
+        $stmt->bind_param('ss', $today, $sixMonthsLater);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $events[] = [
+                'id' => 'loan_' . $row['id'],
+                'title' => $row['titolo'],
+                'user' => $row['utente_nome'],
+                'start' => $row['data_prestito'],
+                'end' => $row['data_scadenza'],
+                'type' => 'prestito',
+                'status' => $row['stato']
+            ];
+        }
+        $stmt->close();
+
+        // Fetch active reservations (include all active, using today as fallback for NULL dates)
+        $resSql = "SELECT r.id, r.stato, r.data_scadenza_prenotazione,
+                          r.data_inizio_richiesta, r.data_fine_richiesta, r.created_at,
+                          l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
+                          'prenotazione' AS tipo
+                   FROM prenotazioni r
+                   JOIN libri l ON r.libro_id = l.id
+                   JOIN utenti u ON r.utente_id = u.id
+                   WHERE r.stato = 'attiva'
+                   ORDER BY COALESCE(r.data_inizio_richiesta, r.data_scadenza_prenotazione, r.created_at) ASC";
+        $res = $this->db->query($resSql);
+        while ($row = $res->fetch_assoc()) {
+            // Use fallback dates: data_inizio_richiesta -> data_scadenza_prenotazione -> today
+            $startDate = $row['data_inizio_richiesta'] ?? $row['data_scadenza_prenotazione'] ?? $today;
+            $endDate = $row['data_fine_richiesta'] ?? $row['data_scadenza_prenotazione'] ?? $today;
+            $events[] = [
+                'id' => 'res_' . $row['id'],
+                'title' => $row['titolo'],
+                'user' => $row['utente_nome'],
+                'start' => $startDate,
+                'end' => $endDate,
+                'type' => 'prenotazione',
+                'status' => $row['stato']
+            ];
+        }
+
+        return $events;
     }
 }

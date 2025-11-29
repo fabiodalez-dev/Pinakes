@@ -176,6 +176,8 @@ docs/
 security.md
 fix.md
 PRESTITI.md
+PRESTITI_CODEX.md
+changelog-*.md
 
 # Internationalization planning (contains untranslated strings)
 traduzione_piano.md
@@ -336,3 +338,4 @@ UPDATER.md
 
 # Changelog files
 changelog-*.md
+PLAN-catalogue-mode.md
