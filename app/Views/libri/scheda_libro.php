@@ -1,4 +1,7 @@
 <?php
+use App\Support\ConfigStore;
+$isCatalogueMode = ConfigStore::isCatalogueMode();
+
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
     'disponibile' => 'inline-flex items-center gap-2 rounded-full border border-green-400/40 bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-200',
@@ -86,7 +89,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <i class="fas fa-edit"></i>
             <?= __("Modifica") ?>
           </a>
-          <?php if (!empty($activeLoan) && (int)($activeLoan['attivo'] ?? 0) === 1): ?>
+          <?php if (!empty($activeLoan) && (int)($activeLoan['attivo'] ?? 0) === 1 && !$isCatalogueMode): ?>
           <button type="button" id="open-return-modal" class="<?php echo $btnPrimary; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-undo"></i>
             <?= __("Restituzione") ?>
@@ -183,7 +186,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </div>
       </div>
     </div>
-      <?php if (!empty($activeLoan) && (int)$activeLoan['attivo'] === 1): ?>
+      <?php if (!empty($activeLoan) && (int)$activeLoan['attivo'] === 1 && !$isCatalogueMode): ?>
       <div class="card mt-4">
         <div class="card-header">
           <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
@@ -511,7 +514,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     </div>
   </div>
 
-  <?php if (!empty($activeReservations)): ?>
+  <?php if (!empty($activeReservations) && !$isCatalogueMode): ?>
   <div class="mt-6">
     <div class="card">
       <div class="card-header flex items-center justify-between">
@@ -740,7 +743,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   <?php endif; ?>
 
   <!-- Loan History Section -->
-  <?php if (!empty($loanHistory) && count($loanHistory) > 0): ?>
+  <?php if (!empty($loanHistory) && count($loanHistory) > 0 && !$isCatalogueMode): ?>
   <div class="mt-6">
     <div class="card">
       <div class="card-header">
@@ -888,8 +891,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   </div>
   <?php endif; ?>
 
-  <!-- Copy Availability Calendar -->
-  <?php if (!empty($copie) && count($copie) > 0): ?>
+  <!-- Copy Availability Calendar (hidden in catalogue mode - no loans) -->
+  <?php if (!empty($copie) && count($copie) > 0 && !$isCatalogueMode): ?>
   <div class="mt-6">
     <div class="card">
       <div class="card-header">
@@ -949,355 +952,201 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <?php endforeach; ?>
         </div>
 
-        <!-- Calendar Container -->
-        <div id="copy-availability-calendar"></div>
+        <!-- Calendar Container (FullCalendar like dashboard) -->
+        <div id="copy-availability-calendar" class="min-h-[400px]"></div>
       </div>
     </div>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Prepare copy availability data for calendar
-      const copyData = <?php
-        $calendarData = [];
-        foreach ($copie as $idx => $cal_copia) {
-            $copyInfo = [
-                'id' => (int)$cal_copia['id'],
-                'inventario' => $cal_copia['numero_inventario'],
-                'color' => ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'][$idx % 8],
-                'loans' => []
-            ];
+  <!-- FullCalendar (same as dashboard) -->
+  <script src="/assets/fullcalendar.min.js"></script>
+  <?php
+  // Prepare calendar events for each copy's loan
+  $copyColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+  $calendarEventsJson = [];
 
-            // If this copy has an active loan
-            if (!empty($cal_copia['prestito_stato'])) {
-                $copyInfo['loans'][] = [
-                    'stato' => $cal_copia['prestito_stato'],
-                    'from' => $cal_copia['data_prestito'],
-                    'to' => $cal_copia['data_scadenza']
-                ];
-            }
+  foreach ($copie as $idx => $cal_copia) {
+      $copyColor = $copyColors[$idx % 8];
+      $inventario = $cal_copia['numero_inventario'] ?? '';
 
-            $calendarData[] = $copyInfo;
-        }
-        // Use JSON_HEX_* flags to prevent XSS when embedding in HTML/script contexts
-        echo json_encode($calendarData, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-      ?>;
+      // If this copy has an active loan, create an event
+      if (!empty($cal_copia['prestito_stato']) && !empty($cal_copia['data_prestito'])) {
+          $stato = $cal_copia['prestito_stato'];
+          $startDate = substr((string)$cal_copia['data_prestito'], 0, 10);
+          $endDate = !empty($cal_copia['data_scadenza'])
+              ? substr((string)$cal_copia['data_scadenza'], 0, 10)
+              : $startDate;
 
-      // Initialize flatpickr calendar (read-only, with marked dates)
-      if (typeof flatpickr !== 'undefined') {
-        const today = new Date();
-        const threeMonthsLater = new Date(today);
-        threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+          // Determine event color based on status
+          $eventColor = match($stato) {
+              'in_corso' => '#EF4444',       // Red - on loan
+              'prenotato' => '#8B5CF6',      // Purple - reserved
+              'in_ritardo' => '#F59E0B',     // Amber - overdue
+              'pendente' => '#3B82F6',       // Blue - pending
+              default => $copyColor
+          };
 
-        // Helper to format date as YYYY-MM-DD without timezone issues
-        const formatLocalDate = (d) => {
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        };
+          // Status label
+          $statusLabel = match($stato) {
+              'in_corso' => __('In prestito'),
+              'prenotato' => __('Prenotato'),
+              'in_ritardo' => __('In ritardo'),
+              'pendente' => __('In attesa'),
+              default => ucfirst($stato)
+          };
 
-        // Helper to parse date string as local date (not UTC)
-        // Handles both YYYY-MM-DD and YYYY-MM-DD HH:MM:SS formats
-        const parseLocalDate = (dateStr) => {
-          // Extract YYYY-MM-DD portion, ignoring any time component
-          const datePart = String(dateStr).substring(0, 10);
-          const [year, month, day] = datePart.split('-').map(Number);
-          return new Date(year, month - 1, day);
-        };
+          // FullCalendar expects end date to be exclusive, so add 1 day
+          $endDateObj = new DateTime($endDate);
+          $endDateObj->modify('+1 day');
+          $endDateExclusive = $endDateObj->format('Y-m-d');
 
-        // Collect all dates with their statuses
-        const dateStyles = {};
-
-        copyData.forEach((copy, idx) => {
-          copy.loans.forEach(loan => {
-            if (loan.from && loan.to) {
-              const startDate = parseLocalDate(loan.from);
-              const endDate = parseLocalDate(loan.to);
-
-              // Mark each day in the range
-              for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-                const dateStr = formatLocalDate(d);
-                if (!dateStyles[dateStr]) {
-                  dateStyles[dateStr] = [];
-                }
-                dateStyles[dateStr].push({
-                  copyIdx: idx,
-                  color: copy.color,
-                  stato: loan.stato,
-                  inventario: copy.inventario
-                });
-              }
-            }
-          });
-        });
-
-        const calendarInstance = flatpickr('#copy-availability-calendar', {
-          inline: true,
-          mode: 'single',
-          dateFormat: 'Y-m-d',
-          minDate: 'today',
-          maxDate: threeMonthsLater,
-          showMonths: 3,
-          clickOpens: false,
-          allowInput: false,
-          locale: {
-            firstDayOfWeek: 1 // Monday
-          },
-          onDayCreate: function(dObj, dStr, fp, dayElem) {
-            // Skip if already processed (prevent re-processing on redraw)
-            if (dayElem.dataset.processed) return;
-            dayElem.dataset.processed = 'true';
-
-            const dateStr = formatLocalDate(dayElem.dateObj);
-            const dayData = dateStyles[dateStr];
-
-            if (dayData && dayData.length > 0) {
-              // Determine worst status for background color
-              // Priority: in_ritardo > in_corso > prenotato
-              let worstStatus = 'prenotato';
-              dayData.forEach(info => {
-                if (info.stato === 'in_ritardo') {
-                  worstStatus = 'in_ritardo';
-                } else if (info.stato === 'in_corso' && worstStatus !== 'in_ritardo') {
-                  worstStatus = 'in_corso';
-                }
-              });
-
-              // Apply background color based on status
-              const statusColors = {
-                'prenotato': '#E9D5FF',  // Purple
-                'in_corso': '#FECACA',   // Red
-                'in_ritardo': '#FEF08A'  // Yellow
-              };
-              dayElem.style.backgroundColor = statusColors[worstStatus] || '#FECACA';
-
-              // Create indicators container for copy dots
-              const indicatorContainer = document.createElement('div');
-              indicatorContainer.className = 'copy-indicators';
-              indicatorContainer.style.marginTop = '2px';
-
-              dayData.forEach(info => {
-                const dot = document.createElement('span');
-                dot.className = 'copy-dot';
-                dot.style.backgroundColor = info.color;
-                indicatorContainer.appendChild(dot);
-              });
-
-              // Append near the number (after text)
-              dayElem.appendChild(indicatorContainer);
-
-              // Add tooltip
-              const titles = dayData.map(d => d.inventario + ': ' + d.stato).join('\n');
-              dayElem.setAttribute('title', titles);
-            }
-          },
-          onChange: function(selectedDates, dateStr, instance) {
-            // Prevent selection - read only calendar (use setTimeout to avoid recursion)
-            if (selectedDates.length > 0) {
-              setTimeout(() => instance.clear(), 0);
-            }
-          }
-        });
+          $calendarEventsJson[] = [
+              'id' => 'copy_' . $cal_copia['id'],
+              'title' => $inventario . ' - ' . $statusLabel,
+              'start' => $startDate,
+              'end' => $endDateExclusive,
+              'color' => $eventColor,
+              'extendedProps' => [
+                  'inventario' => $inventario,
+                  'stato' => $stato,
+                  'statusLabel' => $statusLabel,
+                  'copyColor' => $copyColor
+              ]
+          ];
       }
-    });
+  }
+  ?>
+  <script>
+  // XSS protection helper
+  function escapeHtml(str) {
+      return String(str ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+      const calendarEl = document.getElementById('copy-availability-calendar');
+      if (calendarEl && typeof FullCalendar !== 'undefined') {
+          // Detect mobile for responsive toolbar
+          const isMobile = window.innerWidth < 768;
+
+          const calendar = new FullCalendar.Calendar(calendarEl, {
+              initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+              locale: '<?= strtolower(substr(\App\Support\I18n::getLocale(), 0, 2)) ?>',
+              // Responsive toolbar: simpler on mobile
+              headerToolbar: isMobile ? {
+                  left: 'prev,next',
+                  center: 'title',
+                  right: 'listWeek,dayGridMonth'
+              } : {
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: 'dayGridMonth,dayGridWeek,listWeek'
+              },
+              buttonText: {
+                  today: '<?= __("Oggi") ?>',
+                  month: '<?= __("Mese") ?>',
+                  week: '<?= __("Settimana") ?>',
+                  list: '<?= __("Lista") ?>'
+              },
+              // Responsive settings
+              handleWindowResize: true,
+              contentHeight: 'auto',
+              expandRows: true,
+              // Better mobile experience
+              dayMaxEvents: isMobile ? 2 : true, // Limit events per day on mobile
+              moreLinkClick: 'popover', // Show popover instead of navigating
+              events: <?= json_encode(
+                  $calendarEventsJson,
+                  JSON_UNESCAPED_UNICODE
+                  | JSON_HEX_TAG
+                  | JSON_HEX_AMP
+                  | JSON_HEX_APOS
+                  | JSON_HEX_QUOT
+              ) ?>,
+              eventClick: function(info) {
+                  const props = info.event.extendedProps;
+                  const start = info.event.start;
+                  const end = info.event.end ? new Date(info.event.end.getTime() - 86400000) : start; // Subtract 1 day (exclusive end)
+
+                  if (window.Swal) {
+                      Swal.fire({
+                          title: escapeHtml(info.event.title),
+                          html: `
+                              <div class="text-left">
+                                  <p><strong><?= __("Copia") ?>:</strong> ${escapeHtml(props.inventario)}</p>
+                                  <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(props.statusLabel)}</p>
+                                  <p><strong><?= __("Dal") ?>:</strong> ${start.toLocaleDateString()}</p>
+                                  <p><strong><?= __("Al") ?>:</strong> ${end.toLocaleDateString()}</p>
+                              </div>
+                          `,
+                          icon: 'info',
+                          confirmButtonText: '<?= __("Chiudi") ?>'
+                      });
+                  } else {
+                      alert(`${escapeHtml(info.event.title)}\n${escapeHtml(props.statusLabel)}`);
+                  }
+              },
+              eventDidMount: function(info) {
+                  // Add tooltip with XSS protection
+                  info.el.title = escapeHtml(info.event.title);
+              }
+          });
+          calendar.render();
+      }
+  });
   </script>
 
   <style>
-    /* Calendar container */
-    #copy-availability-calendar {
-      width: 100%;
+    /* FullCalendar custom styles for copy availability */
+    #copy-availability-calendar .fc-event {
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+    #copy-availability-calendar .fc-event-title {
+      font-weight: 500;
+    }
+    #copy-availability-calendar .fc-daygrid-event {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    /* Main calendar wrapper */
-    #copy-availability-calendar .flatpickr-calendar {
-      width: 100% !important;
-      max-width: 100% !important;
-      box-shadow: none !important;
-      border: 1px solid #e5e7eb;
-      border-radius: 0.75rem;
-      font-family: inherit;
-    }
-
-    /* Month navigation header */
-    #copy-availability-calendar .flatpickr-months {
-      display: flex !important;
-      padding: 0.75rem;
-      background: #f9fafb;
-      border-radius: 0.75rem 0.75rem 0 0;
-    }
-
-    #copy-availability-calendar .flatpickr-months .flatpickr-month {
-      flex: 1;
-      height: auto;
-    }
-
-    #copy-availability-calendar .flatpickr-current-month {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #1f2937;
-    }
-
-    /* Inner container - horizontal layout for multiple months */
-    #copy-availability-calendar .flatpickr-innerContainer {
-      display: flex !important;
-      flex-wrap: wrap;
-    }
-
-    #copy-availability-calendar .flatpickr-rContainer {
-      flex: 1;
-      min-width: 0;
-    }
-
-    /* Days wrapper - holds multiple dayContainers */
-    #copy-availability-calendar .flatpickr-days {
-      display: flex !important;
-      flex-wrap: nowrap;
-      width: 100% !important;
-      row-gap: 6px !important; /* spazio verticale tra le righe */
-    }
-
-    /* Each month's day container - KILL ALL FLEX */
-    #copy-availability-calendar .flatpickr-days .dayContainer,
-    .flatpickr-calendar #copy-availability-calendar .dayContainer,
-    #copy-availability-calendar .dayContainer {
-      display: grid !important;
-      grid-template-columns: repeat(7, 1fr) !important;
-      /* Reset ALL flex/box properties */
-      -webkit-box-flex: unset !important;
-      -webkit-flex: unset !important;
-      -ms-flex: unset !important;
-      flex: unset !important;
-      flex-wrap: unset !important;
-      -webkit-flex-wrap: unset !important;
-      -ms-flex-wrap: unset !important;
-      flex-direction: unset !important;
-      justify-content: unset !important;
-      -webkit-justify-content: unset !important;
-      -ms-flex-pack: unset !important;
-      align-items: unset !important;
-      -webkit-box-pack: unset !important;
-      /* Sizing */
-      width: calc(33.333% - 4px) !important;
-      min-width: 180px !important;
-      max-width: calc(33.333% - 4px) !important;
-      padding: 4px !important;
-      gap: 2px !important;
-      box-sizing: border-box !important;
-      margin: 2px !important;
-    }
-
-    /* Weekday headers wrapper */
-    #copy-availability-calendar .flatpickr-weekdaycontainer,
-    .flatpickr-calendar #copy-availability-calendar .flatpickr-weekdaycontainer {
-      display: grid !important;
-      grid-template-columns: repeat(7, 1fr) !important;
-      -webkit-flex: unset !important;
-      flex: unset !important;
-      width: calc(33.333% - 4px) !important;
-      min-width: 180px !important;
-    }
-
-    #copy-availability-calendar .flatpickr-weekdays {
-      display: block !important;
-      width: 100% !important;
-      background: #f3f4f6;
-      padding: 0.5rem 0.25rem;
-    }
-
-    #copy-availability-calendar .flatpickr-weekday {
-      display: block !important;
-      float: none !important;
-      font-weight: 600;
-      color: #374151;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      text-align: center;
-    }
-
-    /* Individual days */
-    #copy-availability-calendar .flatpickr-day {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      width: 100% !important;
-      max-width: none !important;
-      height: 44px !important;
-      line-height: 1.2 !important;
-      padding: 4px 2px 12px 2px !important; /* padding-bottom per i puntini */
-      margin: 0 !important;
-      border-radius: 0.25rem;
-      font-size: 0.8rem;
-      position: relative;
-      border: none !important;
-      overflow: hidden !important; /* nascondi overflow */
-    }
-
-    #copy-availability-calendar .flatpickr-day:hover {
-      background: #f3f4f6;
-    }
-
-    #copy-availability-calendar .flatpickr-day.today {
-      border: 2px solid #3B82F6 !important;
-      background: #EFF6FF !important;
-    }
-
-    #copy-availability-calendar .flatpickr-day.selected {
-      background: transparent !important;
-      border-color: transparent !important;
-    }
-
-    #copy-availability-calendar .flatpickr-day.prevMonthDay,
-    #copy-availability-calendar .flatpickr-day.nextMonthDay {
-      color: #9CA3AF;
-      opacity: 0.5;
-    }
-
-    #copy-availability-calendar .flatpickr-day.flatpickr-disabled {
-      color: #d1d5db;
-    }
-
-    /* Hide hidden days that create layout issues */
-    #copy-availability-calendar .flatpickr-day.hidden {
-      visibility: hidden;
-    }
-
-    /* Copy indicators - posizionati in basso nella cella */
-    .copy-indicators {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1px;
-      justify-content: center;
-      position: absolute;
-      bottom: 2px;
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 90%;
-      pointer-events: none;
-    }
-
-    .copy-dot {
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    /* Responsive: stack months on smaller screens */
-    @media (max-width: 900px) {
-      #copy-availability-calendar .flatpickr-days {
-        flex-wrap: wrap !important;
+    /* Responsive styles for mobile */
+    @media (max-width: 767px) {
+      #copy-availability-calendar {
+        min-height: 300px;
       }
-      #copy-availability-calendar .flatpickr-days .dayContainer,
-      #copy-availability-calendar .dayContainer {
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 100% !important;
+      #copy-availability-calendar .fc-toolbar {
+        flex-direction: column;
+        gap: 0.5rem;
       }
-      #copy-availability-calendar .flatpickr-weekdaycontainer {
-        width: 100% !important;
-        min-width: 100% !important;
+      #copy-availability-calendar .fc-toolbar-chunk {
+        display: flex;
+        justify-content: center;
+      }
+      #copy-availability-calendar .fc-toolbar-title {
+        font-size: 1rem;
+      }
+      #copy-availability-calendar .fc-button {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+      }
+      #copy-availability-calendar .fc-daygrid-day-number {
+        font-size: 0.75rem;
+        padding: 2px 4px;
+      }
+      #copy-availability-calendar .fc-event {
+        font-size: 0.65rem;
+        padding: 1px 2px;
+      }
+      #copy-availability-calendar .fc-list-event-title {
+        font-size: 0.8rem;
       }
     }
   </style>
