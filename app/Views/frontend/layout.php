@@ -23,6 +23,9 @@ $profileRoute = route_path('profile');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 
+// Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
+$isCatalogueMode = ConfigStore::isCatalogueMode();
+
 // Load theme colors
 if (isset($container)) {
     $themeManager = $container->get('themeManager');
@@ -1332,6 +1335,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                         <?php if ($isLogged): ?>
                             <div class="d-flex align-items-center gap-2">
+                                <?php if (!$isCatalogueMode): ?>
                                 <a class="btn btn-outline-header" href="<?= absoluteUrl($reservationsRoute) ?>">
                                     <i class="fas fa-bookmark"></i>
                                     <span class="d-none d-sm-inline"><?= __('Prenotazioni') ?></span>
@@ -1341,6 +1345,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                     <i class="fas fa-heart"></i>
                                     <span class="d-none d-sm-inline"><?= __('Preferiti') ?></span>
                                 </a>
+                                <?php endif; ?>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                                     <a class="btn btn-primary-header" href="<?= absoluteUrl('/admin/dashboard') ?>">
                                         <i class="fas fa-user-shield"></i>
@@ -1424,12 +1429,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <a href="<?= absoluteUrl('/user/dashboard') ?>" class="mobile-nav-link">
                             <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                         </a>
+                        <?php if (!$isCatalogueMode): ?>
                         <a href="<?= absoluteUrl($reservationsRoute) ?>" class="mobile-nav-link">
                             <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                         </a>
                         <a href="<?= absoluteUrl($wishlistRoute) ?>" class="mobile-nav-link">
                             <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                         </a>
+                        <?php endif; ?>
                         <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                             <a href="<?= absoluteUrl('/admin/dashboard') ?>" class="mobile-nav-link">
                                 <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
@@ -1502,12 +1509,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <li><a
                                 href="<?= absoluteUrl(\App\Support\RouteTranslator::route('profile')) ?>"><?= __("Profilo") ?></a>
                         </li>
+                        <?php if (!$isCatalogueMode): ?>
                         <li><a
                                 href="<?= absoluteUrl(\App\Support\RouteTranslator::route('wishlist')) ?>"><?= __("Wishlist") ?></a>
                         </li>
                         <li><a
                                 href="<?= absoluteUrl(\App\Support\RouteTranslator::route('reservations')) ?>"><?= __("Prenotazioni") ?></a>
                         </li>
+                        <?php endif; ?>
                     </ul>
                 </div>
                 <div class="col-lg-3">
@@ -1907,10 +1916,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                         window.Swal.close();
                     }
 
-                    // Close mobile search bar
-                    const mobileSearchContainer = document.getElementById('mobile-search-container');
-                    if (mobileSearchContainer && mobileSearchContainer.classList.contains('active')) {
-                        mobileSearchContainer.classList.remove('active');
+                    // Close mobile search bar (ID is mobileSearchContainer)
+                    const mobileSearchEl = document.getElementById('mobileSearchContainer');
+                    if (mobileSearchEl && mobileSearchEl.classList.contains('active')) {
+                        mobileSearchEl.classList.remove('active');
                     }
 
                     // Blur focused input/button

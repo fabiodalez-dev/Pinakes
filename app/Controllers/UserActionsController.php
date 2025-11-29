@@ -38,14 +38,14 @@ class UserActionsController
         }
         $stmt->close();
 
-        // Prestiti in corso
+        // Prestiti in corso (include prenotato=scheduled, in_corso=active, in_ritardo=overdue)
         $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.stato,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prestato', 'in_corso')
-                ORDER BY pr.data_scadenza ASC";
+                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prenotato', 'in_corso', 'in_ritardo')
+                ORDER BY pr.data_prestito ASC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ii', $uid, $uid);
         $stmt->execute();
@@ -334,9 +334,9 @@ class UserActionsController
             $lockStmt->execute();
             $lockStmt->close();
 
-            // Re-check availability after acquiring lock
+            // Re-check availability after acquiring lock - check full loan period
             $reservationManager = new ReservationManager($db);
-            if (!$reservationManager->isBookAvailableForImmediateLoan($libroId)) {
+            if (!$reservationManager->isBookAvailableForImmediateLoan($libroId, $data_prestito, $data_scadenza)) {
                 $db->rollback();
                 return $this->back($response, ['loan_error' => 'not_available']);
             }

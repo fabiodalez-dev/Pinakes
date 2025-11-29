@@ -4,13 +4,13 @@
     RewriteEngine On
     RewriteBase /installer/
 
-    # Block access if .installed file exists (allow ?force parameter)
+    # Block access if .installed file exists (allow ?force parameter for reinstall)
     RewriteCond %{DOCUMENT_ROOT}/.installed -f
     RewriteCond %{REQUEST_URI} !force [NC]
     RewriteCond %{QUERY_STRING} !force [NC]
-    RewriteRule ^(.*)$ /../index.php [L,R=301]
+    RewriteRule ^(.*)$ / [L,R=302]
 
-    # Allow access to assets
+    # Allow access to assets (CSS, JS, images)
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php [QSA,L]
