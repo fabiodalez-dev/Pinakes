@@ -4,16 +4,37 @@ namespace App\Controllers;
 
 use mysqli;
 
+/**
+ * Manages book reservations and their conversion to loans
+ *
+ * Handles the reservation queue system, availability checking,
+ * and automatic conversion of reservations to loans when books
+ * become available and the requested date arrives.
+ *
+ * @package App\Controllers
+ */
 class ReservationManager {
+    /** @var mysqli Database connection */
     private $db;
 
+    /**
+     * Create a new ReservationManager instance
+     *
+     * @param mysqli $db Database connection
+     */
     public function __construct(mysqli $db) {
         $this->db = $db;
     }
 
     /**
      * Process reservations when a book becomes available
-     * Only considers reservations where the requested start date has arrived (date-eligible)
+     *
+     * Finds the next date-eligible reservation (where start date <= today)
+     * and attempts to convert it to a pending loan. Only processes one
+     * reservation at a time to maintain queue order.
+     *
+     * @param int $bookId The book ID to process reservations for
+     * @return bool True if a reservation was successfully converted to a loan
      */
     public function processBookAvailability($bookId) {
         $today = date('Y-m-d');
@@ -66,6 +87,18 @@ class ReservationManager {
         return false;
     }
 
+    /**
+     * Check if a date range has available copies (multi-copy aware)
+     *
+     * Counts loanable copies and overlapping loans to determine
+     * if at least one copy is available for the requested period.
+     * Note: Does not count reservations, as they use a queue system.
+     *
+     * @param int $bookId The book ID
+     * @param string|null $startDate Start date (Y-m-d format)
+     * @param string|null $endDate End date (Y-m-d format)
+     * @return bool True if at least one copy is available
+     */
     private function isDateRangeAvailable($bookId, $startDate, $endDate) {
         if (!$startDate || !$endDate) {
             return false;
@@ -108,6 +141,16 @@ class ReservationManager {
         return $loanConflicts < $totalCopies;
     }
 
+    /**
+     * Create a pending loan from an approved reservation
+     *
+     * Finds an available copy, locks it to prevent race conditions,
+     * and creates a loan with state 'pendente' and origin 'prenotazione'.
+     * The loan requires admin confirmation of physical book pickup.
+     *
+     * @param array{libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string} $reservation Reservation data
+     * @return int|false Loan ID on success, false on failure (no copies available or race condition)
+     */
     private function createLoanFromReservation($reservation) {
         $bookId = (int)$reservation['libro_id'];
         $startDate = $reservation['data_inizio_richiesta'];
@@ -206,6 +249,12 @@ class ReservationManager {
         return $loanId;
     }
 
+    /**
+     * Decrement queue positions after a reservation is completed
+     *
+     * @param int $bookId The book ID
+     * @return void
+     */
     private function updateQueuePositions($bookId) {
         $stmt = $this->db->prepare("
             UPDATE prenotazioni
@@ -216,6 +265,15 @@ class ReservationManager {
         $stmt->execute();
     }
 
+    /**
+     * Send notification email when reservation book becomes available
+     *
+     * Sends the 'reservation_book_available' email template to the user.
+     * Updates the notifica_inviata flag only on successful send.
+     *
+     * @param array{id: int, libro_id: int, email: string, nome: string, cognome: string} $reservation Reservation data with user info
+     * @return bool True if email was sent successfully
+     */
     private function sendReservationNotification($reservation) {
         try {
             // Get book details
@@ -387,7 +445,12 @@ class ReservationManager {
     }
 
     /**
-     * Cancel expired reservations
+     * Cancel reservations that have passed their expiration date
+     *
+     * Marks reservations as 'annullata' when data_scadenza_prenotazione
+     * is in the past, and reorders queue positions for affected books.
+     *
+     * @return void
      */
     public function cancelExpiredReservations() {
         $stmt = $this->db->prepare("
@@ -414,6 +477,14 @@ class ReservationManager {
         }
     }
 
+    /**
+     * Reorder queue positions to be sequential starting from 1
+     *
+     * Called after cancellations to ensure no gaps in queue positions.
+     *
+     * @param int $bookId The book ID
+     * @return void
+     */
     private function reorderQueuePositions($bookId) {
         // Get all active reservations ordered by original queue position
         $stmt = $this->db->prepare("

@@ -10,8 +10,24 @@ use App\Support\DataIntegrity;
 use App\Support\NotificationService;
 use Exception;
 
+/**
+ * Controller for managing loans (prestiti) in the admin panel
+ *
+ * Handles loan listing, creation, approval, return, renewal,
+ * and CSV export functionality. Requires staff or admin access.
+ *
+ * @package App\Controllers
+ */
 class PrestitiController
 {
+    /**
+     * Display the loans list page with filtering and pending loans widget
+     *
+     * @param Request $request PSR-7 request
+     * @param Response $response PSR-7 response
+     * @param mysqli $db Database connection
+     * @return Response Rendered view
+     */
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
@@ -748,7 +764,15 @@ class PrestitiController
     }
 
     /**
-     * Export loans to CSV
+     * Export loans to CSV file download
+     *
+     * Generates a UTF-8 CSV file with loan data, optionally filtered
+     * by status. Supports multiple states via comma-separated query param.
+     *
+     * @param Request $request PSR-7 request with optional ?stati=in_corso,restituito
+     * @param Response $response PSR-7 response
+     * @param mysqli $db Database connection
+     * @return Response CSV file download with Content-Disposition header
      */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
