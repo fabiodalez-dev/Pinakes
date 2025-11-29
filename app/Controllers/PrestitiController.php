@@ -833,6 +833,7 @@ class PrestitiController
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $result = $stmt->get_result();
+            $stmt->close();
         } else {
             $result = $db->query($sql);
         }

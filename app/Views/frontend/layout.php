@@ -1916,10 +1916,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                         window.Swal.close();
                     }
 
-                    // Close mobile search bar
-                    const mobileSearchContainer = document.getElementById('mobile-search-container');
-                    if (mobileSearchContainer && mobileSearchContainer.classList.contains('active')) {
-                        mobileSearchContainer.classList.remove('active');
+                    // Close mobile search bar (ID is mobileSearchContainer)
+                    const mobileSearchEl = document.getElementById('mobileSearchContainer');
+                    if (mobileSearchEl && mobileSearchEl.classList.contains('active')) {
+                        mobileSearchEl.classList.remove('active');
                     }
 
                     // Blur focused input/button

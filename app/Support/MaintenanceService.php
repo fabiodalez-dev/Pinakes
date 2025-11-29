@@ -208,6 +208,8 @@ class MaintenanceService
         $stmt->close();
 
         $activatedCount = 0;
+        // Instantiate DataIntegrity once outside the loop to reduce overhead
+        $integrity = new DataIntegrity($this->db);
 
         foreach ($scheduledLoans as $loan) {
             $this->db->begin_transaction();
@@ -226,7 +228,6 @@ class MaintenanceService
                 $copyStmt->close();
 
                 // Recalculate book availability using DataIntegrity for consistency
-                $integrity = new DataIntegrity($this->db);
                 $integrity->recalculateBookAvailability((int)$loan['libro_id']);
 
                 $this->db->commit();
