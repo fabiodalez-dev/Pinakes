@@ -495,22 +495,17 @@ class ReservationManager {
      * @return void
      */
     private function reorderQueuePositions($bookId) {
-        // Get all active reservations ordered by original queue position
+        // Use MySQL user variables to update all positions in a single query
+        // This avoids N+1 queries when there are many active reservations
+        $this->db->query("SET @pos := 0");
         $stmt = $this->db->prepare("
-            SELECT id FROM prenotazioni
+            UPDATE prenotazioni
+            SET queue_position = (@pos := @pos + 1)
             WHERE libro_id = ? AND stato = 'attiva'
             ORDER BY queue_position ASC
         ");
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
-        $result = $stmt->get_result();
-
-        $position = 1;
-        while ($row = $result->fetch_assoc()) {
-            $updateStmt = $this->db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
-            $updateStmt->bind_param('ii', $position, $row['id']);
-            $updateStmt->execute();
-            $position++;
-        }
+        $stmt->close();
     }
 }
