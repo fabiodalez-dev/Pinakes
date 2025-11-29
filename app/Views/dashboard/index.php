@@ -669,8 +669,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <p><strong><?= __("Tipo") ?>:</strong> ${escapeHtml(typeLabel)}</p>
                                 <p><strong><?= __("Utente") ?>:</strong> ${escapeHtml(props.user)}</p>
                                 <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(statusLabel)}</p>
-                                <p><strong><?= __("Dal") ?>:</strong> ${info.event.start.toLocaleDateString()}</p>
-                                <p><strong><?= __("Al") ?>:</strong> ${info.event.end ? new Date(info.event.end.getTime() - 86400000).toLocaleDateString() : info.event.start.toLocaleDateString()}</p>
+                                <p><strong><?= __("Dal") ?>:</strong> ${new Date(props.originalStart).toLocaleDateString()}</p>
+                                <p><strong><?= __("Al") ?>:</strong> ${new Date(props.originalEnd).toLocaleDateString()}</p>
                             </div>
                         `,
                         icon: 'info',

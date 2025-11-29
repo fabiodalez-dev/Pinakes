@@ -75,7 +75,7 @@ class IcsGenerator
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.attivo = 1
                       AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
-                      AND p.data_scadenza >= ?
+                      AND (p.data_scadenza >= ? OR p.stato = 'in_ritardo')
                     ORDER BY p.data_prestito ASC";
         $stmt = $this->db->prepare($loanSql);
         if ($stmt === false) {
