@@ -190,6 +190,11 @@ class ReservationManager {
         $loanId = $this->db->insert_id;
         $stmt->close();
 
+        // Verify INSERT succeeded (insert_id = 0 means failure)
+        if ($loanId <= 0) {
+            return false;
+        }
+
         // Note: Copy status is NOT updated here - it remains 'disponibile'
         // The copy will be marked as 'prestato' when admin approves the pickup
         // via LoanApprovalController::approveLoan()

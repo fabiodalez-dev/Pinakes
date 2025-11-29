@@ -692,7 +692,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const copyBtn = document.getElementById('copy-ics-url');
     if (copyBtn) {
         copyBtn.addEventListener('click', function() {
-            const icsUrl = window.location.origin + '<?= htmlspecialchars($icsUrl ?? '/storage/calendar/library-calendar.ics') ?>';
+            const icsUrl = window.location.origin + <?= json_encode($icsUrl ?? '/storage/calendar/library-calendar.ics') ?>;
             navigator.clipboard.writeText(icsUrl).then(() => {
                 if (window.Swal) {
                     Swal.fire({
