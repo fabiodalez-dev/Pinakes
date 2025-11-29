@@ -78,8 +78,13 @@ class IcsGenerator
                       AND p.data_scadenza >= ?
                     ORDER BY p.data_prestito ASC";
         $stmt = $this->db->prepare($loanSql);
-        $stmt->bind_param('s', $today);
-        $stmt->execute();
+        if ($stmt === false) {
+            return $events; // Return empty array on prepare failure
+        }
+        if (!$stmt->bind_param('s', $today) || !$stmt->execute()) {
+            $stmt->close();
+            return $events;
+        }
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
             $events[] = [
@@ -107,8 +112,13 @@ class IcsGenerator
                      AND COALESCE(r.data_fine_richiesta, r.data_scadenza_prenotazione) >= ?
                    ORDER BY COALESCE(r.data_inizio_richiesta, r.data_scadenza_prenotazione) ASC";
         $stmt = $this->db->prepare($resSql);
-        $stmt->bind_param('s', $today);
-        $stmt->execute();
+        if ($stmt === false) {
+            return $events;
+        }
+        if (!$stmt->bind_param('s', $today) || !$stmt->execute()) {
+            $stmt->close();
+            return $events;
+        }
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
             $startDate = $row['data_inizio_richiesta'] ?? $row['data_scadenza_prenotazione'];
@@ -149,10 +159,10 @@ class IcsGenerator
      */
     private function getLoanDescription(array $row): string
     {
-        $desc = __('Libro') . ': ' . $row['titolo'] . '\n';
-        $desc .= __('Utente') . ': ' . $row['utente_nome'] . '\n';
+        $desc = __('Libro') . ': ' . $row['titolo'] . "\n";
+        $desc .= __('Utente') . ': ' . $row['utente_nome'] . "\n";
         if (!empty($row['email'])) {
-            $desc .= __('Email') . ': ' . $row['email'] . '\n';
+            $desc .= __('Email') . ': ' . $row['email'] . "\n";
         }
         $desc .= __('Stato') . ': ' . $this->translateStatus($row['stato']);
         return $desc;
@@ -163,10 +173,10 @@ class IcsGenerator
      */
     private function getReservationDescription(array $row): string
     {
-        $desc = __('Libro') . ': ' . $row['titolo'] . '\n';
-        $desc .= __('Utente') . ': ' . $row['utente_nome'] . '\n';
+        $desc = __('Libro') . ': ' . $row['titolo'] . "\n";
+        $desc .= __('Utente') . ': ' . $row['utente_nome'] . "\n";
         if (!empty($row['email'])) {
-            $desc .= __('Email') . ': ' . $row['email'] . '\n';
+            $desc .= __('Email') . ': ' . $row['email'] . "\n";
         }
         $desc .= __('Tipo') . ': ' . __('Prenotazione');
         return $desc;
@@ -196,15 +206,16 @@ class IcsGenerator
         $summary = $this->escapeIcs($event['title']);
         $description = $this->escapeIcs($event['description']);
 
-        // All-day events
-        $dtstart = 'DTSTART;VALUE=DATE:' . str_replace('-', '', $event['start']);
+        // All-day events - use strtotime for robust date parsing
+        $dtstart = 'DTSTART;VALUE=DATE:' . date('Ymd', strtotime($event['start']));
         // ICS end date is exclusive, so add 1 day for all-day events
         $endDate = date('Ymd', strtotime($event['end'] . ' +1 day'));
         $dtend = 'DTEND;VALUE=DATE:' . $endDate;
 
-        $dtstamp = date('Ymd\THis\Z');
+        // Use gmdate for UTC timestamps (Z suffix means UTC)
+        $dtstamp = gmdate('Ymd\THis\Z');
         $lastmod = isset($event['updated'])
-            ? date('Ymd\THis\Z', strtotime($event['updated']))
+            ? gmdate('Ymd\THis\Z', strtotime($event['updated']))
             : $dtstamp;
 
         // Color based on type/status
@@ -250,10 +261,10 @@ class IcsGenerator
      */
     private function escapeIcs(string $text): string
     {
-        // Replace newlines with literal \n
-        $text = str_replace(["\r\n", "\r", "\n"], '\\n', $text);
-        // Escape special characters
+        // Escape special characters FIRST (before converting newlines)
         $text = str_replace(['\\', ';', ','], ['\\\\', '\\;', '\\,'], $text);
+        // Then replace real newlines with literal \n for ICS format
+        $text = str_replace(["\r\n", "\r", "\n"], '\\n', $text);
         return $text;
     }
 }
