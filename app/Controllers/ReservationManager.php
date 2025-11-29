@@ -161,92 +161,106 @@ class ReservationManager {
         $newState = 'pendente';
         $origine = 'prenotazione';
 
-        // Find an available copy for this date range (no overlapping loans)
-        // Consider 'disponibile' and 'prenotato' copies (exclude perso/danneggiato/manutenzione)
-        // The NOT EXISTS clause ensures no overlapping loans for the requested dates
-        $copyStmt = $this->db->prepare("
-            SELECT c.id FROM copie c
-            WHERE c.libro_id = ?
-            AND c.stato IN ('disponibile', 'prenotato')
-            AND NOT EXISTS (
-                SELECT 1 FROM prestiti p
-                WHERE p.copia_id = c.id
-                AND p.attivo = 1
-                AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
-                AND p.data_prestito <= ?
-                AND p.data_scadenza >= ?
-            )
-            LIMIT 1
-        ");
-        $copyStmt->bind_param('iss', $bookId, $endDate, $startDate);
-        $copyStmt->execute();
-        $copyResult = $copyStmt->get_result();
-        $copy = $copyResult->fetch_assoc();
-        $copyStmt->close();
+        // Start transaction - required for SELECT...FOR UPDATE to hold locks
+        $this->db->begin_transaction();
 
-        $copyId = $copy ? (int)$copy['id'] : null;
+        try {
+            // Find an available copy for this date range (no overlapping loans)
+            // Consider 'disponibile' and 'prenotato' copies (exclude perso/danneggiato/manutenzione)
+            // The NOT EXISTS clause ensures no overlapping loans for the requested dates
+            $copyStmt = $this->db->prepare("
+                SELECT c.id FROM copie c
+                WHERE c.libro_id = ?
+                AND c.stato IN ('disponibile', 'prenotato')
+                AND NOT EXISTS (
+                    SELECT 1 FROM prestiti p
+                    WHERE p.copia_id = c.id
+                    AND p.attivo = 1
+                    AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND p.data_prestito <= ?
+                    AND p.data_scadenza >= ?
+                )
+                LIMIT 1
+            ");
+            $copyStmt->bind_param('iss', $bookId, $endDate, $startDate);
+            $copyStmt->execute();
+            $copyResult = $copyStmt->get_result();
+            $copy = $copyResult->fetch_assoc();
+            $copyStmt->close();
 
-        if (!$copyId) {
-            // No copy available for the requested range – treat as failed allocation
+            $copyId = $copy ? (int)$copy['id'] : null;
+
+            if (!$copyId) {
+                // No copy available for the requested range – treat as failed allocation
+                $this->db->rollback();
+                return false;
+            }
+
+            // Lock copy and re-check overlap to prevent race conditions
+            $lockCopyStmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+            $lockCopyStmt->bind_param('i', $copyId);
+            $lockCopyStmt->execute();
+            $lockCopyStmt->close();
+
+            $overlapCopyStmt = $this->db->prepare("
+                SELECT 1 FROM prestiti
+                WHERE copia_id = ? AND attivo = 1
+                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
+                AND data_prestito <= ? AND data_scadenza >= ?
+                LIMIT 1
+            ");
+            $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
+            $overlapCopyStmt->execute();
+            $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
+            $overlapCopyStmt->close();
+
+            if ($overlapCopy) {
+                // Abort if race detected
+                $this->db->rollback();
+                return false;
+            }
+
+            // Create loan with copia_id and origine='prenotazione'
+            // Copy stays available until admin confirms physical pickup
+            $stmt = $this->db->prepare("
+                INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, origine, attivo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            ");
+            $stmt->bind_param('iiissss',
+                $reservation['libro_id'],
+                $reservation['utente_id'],
+                $copyId,
+                $startDate,
+                $endDate,
+                $newState,
+                $origine
+            );
+            $stmt->execute();
+            $loanId = $this->db->insert_id;
+            $stmt->close();
+
+            // Verify INSERT succeeded (insert_id = 0 means failure)
+            if ($loanId <= 0) {
+                $this->db->rollback();
+                return false;
+            }
+
+            // Note: Copy status is NOT updated here - it remains 'disponibile'
+            // The copy will be marked as 'prestato' when admin approves the pickup
+            // via LoanApprovalController::approveLoan()
+
+            // Update book availability
+            $integrity = new \App\Support\DataIntegrity($this->db);
+            $integrity->recalculateBookAvailability($bookId);
+
+            $this->db->commit();
+            return $loanId;
+
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            error_log("Failed to create loan from reservation: " . $e->getMessage());
             return false;
         }
-
-        // Lock copy and re-check overlap to prevent race conditions
-        $lockCopyStmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
-        $lockCopyStmt->bind_param('i', $copyId);
-        $lockCopyStmt->execute();
-        $lockCopyStmt->close();
-
-        $overlapCopyStmt = $this->db->prepare("
-            SELECT 1 FROM prestiti
-            WHERE copia_id = ? AND attivo = 1
-            AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
-            AND data_prestito <= ? AND data_scadenza >= ?
-            LIMIT 1
-        ");
-        $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
-        $overlapCopyStmt->execute();
-        $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
-        $overlapCopyStmt->close();
-
-        if ($overlapCopy) {
-            // Abort if race detected
-            return false;
-        }
-
-        // Create loan with copia_id and origine='prenotazione'
-        // Copy stays available until admin confirms physical pickup
-        $stmt = $this->db->prepare("
-            INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, origine, attivo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-        ");
-        $stmt->bind_param('iiissss',
-            $reservation['libro_id'],
-            $reservation['utente_id'],
-            $copyId,
-            $startDate,
-            $endDate,
-            $newState,
-            $origine
-        );
-        $stmt->execute();
-        $loanId = $this->db->insert_id;
-        $stmt->close();
-
-        // Verify INSERT succeeded (insert_id = 0 means failure)
-        if ($loanId <= 0) {
-            return false;
-        }
-
-        // Note: Copy status is NOT updated here - it remains 'disponibile'
-        // The copy will be marked as 'prestato' when admin approves the pickup
-        // via LoanApprovalController::approveLoan()
-
-        // Update book availability
-        $integrity = new \App\Support\DataIntegrity($this->db);
-        $integrity->recalculateBookAvailability($bookId);
-
-        return $loanId;
     }
 
     /**
