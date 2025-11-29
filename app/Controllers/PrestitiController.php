@@ -836,6 +836,9 @@ class PrestitiController
             $stmt->close();
         } else {
             $result = $db->query($sql);
+            if ($result === false) {
+                error_log('exportCsv query error: ' . $db->error);
+            }
         }
         $loans = [];
         if ($result) {
