@@ -711,7 +711,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const icsUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
                 ? rawUrl
                 : window.location.origin + rawUrl;
-            navigator.clipboard.writeText(icsUrl).then(() => {
+
+            const showSuccess = function() {
                 if (window.Swal) {
                     Swal.fire({
                         icon: 'success',
@@ -723,16 +724,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     alert(<?= json_encode(__("Link copiato!")) ?>);
                 }
-            }).catch(() => {
-                // Fallback for older browsers
+            };
+
+            const fallbackCopy = function() {
                 const textarea = document.createElement('textarea');
                 textarea.value = icsUrl;
                 document.body.appendChild(textarea);
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                alert(<?= json_encode(__("Link copiato!")) ?>);
-            });
+                showSuccess();
+            };
+
+            // Feature detection: check if Clipboard API is available
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                navigator.clipboard.writeText(icsUrl).then(showSuccess).catch(fallbackCopy);
+            } else {
+                fallbackCopy();
+            }
         });
     }
 });

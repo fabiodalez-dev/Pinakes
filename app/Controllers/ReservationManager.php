@@ -453,6 +453,23 @@ class ReservationManager {
      * @return void
      */
     public function cancelExpiredReservations() {
+        // First, get affected book IDs BEFORE updating to avoid race condition
+        $selectStmt = $this->db->prepare("
+            SELECT DISTINCT libro_id
+            FROM prenotazioni
+            WHERE stato = 'attiva'
+            AND data_scadenza_prenotazione IS NOT NULL
+            AND data_scadenza_prenotazione < NOW()
+        ");
+        $selectStmt->execute();
+        $result = $selectStmt->get_result();
+        $affectedBooks = [];
+        while ($row = $result->fetch_assoc()) {
+            $affectedBooks[] = $row['libro_id'];
+        }
+        $selectStmt->close();
+
+        // Now update the reservations
         $stmt = $this->db->prepare("
             UPDATE prenotazioni
             SET stato = 'annullata'
@@ -461,19 +478,11 @@ class ReservationManager {
             AND data_scadenza_prenotazione < NOW()
         ");
         $stmt->execute();
+        $stmt->close();
 
-        // Update queue positions for affected books
-        $stmt = $this->db->prepare("
-            SELECT DISTINCT libro_id
-            FROM prenotazioni
-            WHERE stato = 'annullata'
-            AND data_scadenza_prenotazione < NOW()
-        ");
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        while ($row = $result->fetch_assoc()) {
-            $this->reorderQueuePositions($row['libro_id']);
+        // Reorder queue positions for affected books
+        foreach ($affectedBooks as $bookId) {
+            $this->reorderQueuePositions($bookId);
         }
     }
 
