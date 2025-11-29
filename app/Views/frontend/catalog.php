@@ -1050,8 +1050,17 @@ $additional_css = "
 
     .pagination .page-item.active .page-link {
         color: #ffffff;
-        background-color: #111827;
-        border-color: #111827;
+        background-color: #000000;
+        border-color: #000000;
+    }
+
+    ul.pagination.justify-content-center {
+        gap: 20px;
+    }
+
+    .page-item:first-child .page-link {
+        border-top-left-radius: var(--radius-md);
+        border-bottom-left-radius: var(--radius-md);
     }
 
     .pagination .page-item.disabled .page-link {
