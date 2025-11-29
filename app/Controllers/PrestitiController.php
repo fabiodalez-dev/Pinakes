@@ -878,22 +878,35 @@ class PrestitiController
             'danneggiato' => __('Danneggiato'),
         ];
 
+        // Sanitize CSV values to prevent formula injection (CSV injection)
+        // Characters =, +, -, @, tab, carriage return can trigger formula execution in Excel/LibreOffice
+        $sanitizeCsv = function ($value): string {
+            if ($value === null || $value === '') {
+                return '';
+            }
+            $value = (string)$value;
+            if (preg_match('/^[=+\-@\t\r]/', $value)) {
+                return "'" . $value;
+            }
+            return $value;
+        };
+
         // CSV data rows
         foreach ($loans as $loan) {
             $stato = $statusLabels[$loan['stato']] ?? $loan['stato'];
             fputcsv($output, [
                 $loan['id'],
-                $loan['libro_titolo'] ?? '',
-                $loan['utente_nome'] ?? '',
-                $loan['utente_email'] ?? '',
+                $sanitizeCsv($loan['libro_titolo'] ?? ''),
+                $sanitizeCsv($loan['utente_nome'] ?? ''),
+                $sanitizeCsv($loan['utente_email'] ?? ''),
                 $loan['data_prestito'] ? date('d/m/Y', strtotime($loan['data_prestito'])) : '',
                 $loan['data_scadenza'] ? date('d/m/Y', strtotime($loan['data_scadenza'])) : '',
                 $loan['data_restituzione'] ? date('d/m/Y', strtotime($loan['data_restituzione'])) : '',
                 $stato,
                 $loan['renewals'] ?? 0,
-                $loan['copia_inventario'] ?? '',
-                $loan['processed_by_name'] ?? '',
-                $loan['note'] ?? ''
+                $sanitizeCsv($loan['copia_inventario'] ?? ''),
+                $sanitizeCsv($loan['processed_by_name'] ?? ''),
+                $sanitizeCsv($loan['note'] ?? '')
             ], ',', '"', '');
         }
 
@@ -901,6 +914,9 @@ class PrestitiController
         rewind($output);
         $csvContent = stream_get_contents($output);
         fclose($output);
+
+        // Prepend UTF-8 BOM for Excel compatibility with accented characters
+        $csvContent = "\xEF\xBB\xBF" . $csvContent;
 
         // Generate filename with date
         $filename = 'prestiti_' . date('Y-m-d_His') . '.csv';
