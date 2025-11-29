@@ -10,8 +10,24 @@ use App\Support\DataIntegrity;
 use App\Support\NotificationService;
 use Exception;
 
+/**
+ * Controller for managing loans (prestiti) in the admin panel
+ *
+ * Handles loan listing, creation, approval, return, renewal,
+ * and CSV export functionality. Requires staff or admin access.
+ *
+ * @package App\Controllers
+ */
 class PrestitiController
 {
+    /**
+     * Display the loans list page with filtering and pending loans widget
+     *
+     * @param Request $request PSR-7 request
+     * @param Response $response PSR-7 response
+     * @param mysqli $db Database connection
+     * @return Response Rendered view
+     */
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
@@ -745,6 +761,173 @@ class PrestitiController
         // Collapse multiple slashes to avoid traversal quirks
         $normalized = preg_replace('#/+#', '/', $trimmed);
         return $normalized ?: null;
+    }
+
+    /**
+     * Export loans to CSV file download
+     *
+     * Generates a UTF-8 CSV file with loan data, optionally filtered
+     * by status. Supports multiple states via comma-separated query param.
+     *
+     * @param Request $request PSR-7 request with optional ?stati=in_corso,restituito
+     * @param Response $response PSR-7 response
+     * @param mysqli $db Database connection
+     * @return Response CSV file download with Content-Disposition header
+     */
+    public function exportCsv(Request $request, Response $response, mysqli $db): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+
+        // Get status filter from query params
+        $queryParams = $request->getQueryParams();
+        $statiParam = $queryParams['stati'] ?? '';
+        $validStates = ['pendente', 'prenotato', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato'];
+
+        // Parse and validate requested states
+        $requestedStates = [];
+        if (!empty($statiParam)) {
+            $requestedStates = array_filter(
+                explode(',', $statiParam),
+                fn($s) => in_array(trim($s), $validStates, true)
+            );
+            $requestedStates = array_map('trim', $requestedStates);
+        }
+
+        // Build the WHERE clause for status filter
+        $whereClause = '';
+        $params = [];
+        if (!empty($requestedStates)) {
+            $placeholders = implode(',', array_fill(0, count($requestedStates), '?'));
+            $whereClause = "WHERE p.stato IN ($placeholders)";
+            $params = $requestedStates;
+        }
+
+        // Query loans with full details
+        $sql = "SELECT
+                    p.id,
+                    l.titolo AS libro_titolo,
+                    CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
+                    u.email AS utente_email,
+                    p.data_prestito,
+                    p.data_scadenza,
+                    p.data_restituzione,
+                    p.stato,
+                    p.renewals,
+                    p.note,
+                    c.numero_inventario AS copia_inventario,
+                    CONCAT(staff.nome, ' ', staff.cognome) AS processed_by_name
+                FROM prestiti p
+                LEFT JOIN libri l ON p.libro_id = l.id
+                LEFT JOIN utenti u ON p.utente_id = u.id
+                LEFT JOIN copie c ON p.copia_id = c.id
+                LEFT JOIN utenti staff ON p.processed_by = staff.id
+                $whereClause
+                ORDER BY p.id DESC";
+
+        // Execute query with prepared statement if we have filters
+        if (!empty($params)) {
+            $stmt = $db->prepare($sql);
+            $types = str_repeat('s', count($params));
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $stmt->close();
+        } else {
+            $result = $db->query($sql);
+            if ($result === false) {
+                error_log('exportCsv query error: ' . $db->error);
+            }
+        }
+        $loans = [];
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $loans[] = $row;
+            }
+            $result->free();
+        }
+
+        // Generate CSV content
+        $output = fopen('php://temp', 'r+');
+
+        // CSV header with i18n
+        fputcsv($output, [
+            __('ID'),
+            __('Libro'),
+            __('Utente'),
+            __('Email'),
+            __('Data Prestito'),
+            __('Data Scadenza'),
+            __('Data Restituzione'),
+            __('Stato'),
+            __('Rinnovi'),
+            __('N. Inventario'),
+            __('Elaborato da'),
+            __('Note')
+        ], ',', '"', '');
+
+        // Status translations
+        $statusLabels = [
+            'pendente' => __('Pendente'),
+            'prenotato' => __('Prenotato'),
+            'in_corso' => __('In Corso'),
+            'in_ritardo' => __('In Ritardo'),
+            'restituito' => __('Restituito'),
+            'perso' => __('Perso'),
+            'danneggiato' => __('Danneggiato'),
+        ];
+
+        // Sanitize CSV values to prevent formula injection (CSV injection)
+        // Characters =, +, -, @, tab, carriage return can trigger formula execution in Excel/LibreOffice
+        $sanitizeCsv = function ($value): string {
+            if ($value === null || $value === '') {
+                return '';
+            }
+            $value = (string)$value;
+            if (preg_match('/^[=+\-@\t\r]/', $value)) {
+                return "'" . $value;
+            }
+            return $value;
+        };
+
+        // CSV data rows
+        foreach ($loans as $loan) {
+            $stato = $statusLabels[$loan['stato']] ?? $loan['stato'];
+            fputcsv($output, [
+                $loan['id'],
+                $sanitizeCsv($loan['libro_titolo'] ?? ''),
+                $sanitizeCsv($loan['utente_nome'] ?? ''),
+                $sanitizeCsv($loan['utente_email'] ?? ''),
+                $loan['data_prestito'] ? date('d/m/Y', strtotime($loan['data_prestito'])) : '',
+                $loan['data_scadenza'] ? date('d/m/Y', strtotime($loan['data_scadenza'])) : '',
+                $loan['data_restituzione'] ? date('d/m/Y', strtotime($loan['data_restituzione'])) : '',
+                $stato,
+                $loan['renewals'] ?? 0,
+                $sanitizeCsv($loan['copia_inventario'] ?? ''),
+                $sanitizeCsv($loan['processed_by_name'] ?? ''),
+                $sanitizeCsv($loan['note'] ?? '')
+            ], ',', '"', '');
+        }
+
+        // Get CSV content
+        rewind($output);
+        $csvContent = stream_get_contents($output);
+        fclose($output);
+
+        // Prepend UTF-8 BOM for Excel compatibility with accented characters
+        $csvContent = "\xEF\xBB\xBF" . $csvContent;
+
+        // Generate filename with date
+        $filename = 'prestiti_' . date('Y-m-d_His') . '.csv';
+
+        // Return CSV response
+        $response->getBody()->write($csvContent);
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Cache-Control', 'no-cache, must-revalidate')
+            ->withHeader('Pragma', 'no-cache');
     }
 
     private function guardStaffAccess(Response $response): ?Response

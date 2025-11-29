@@ -363,7 +363,81 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // 8. Verifica configurazione APP_CANONICAL_URL nel .env
+        // 8. Verifica prenotazioni scadute ancora attive
+        $stmt = $this->db->prepare("
+            SELECT id, libro_id, utente_id, data_scadenza_prenotazione
+            FROM prenotazioni
+            WHERE stato = 'attiva'
+            AND data_scadenza_prenotazione IS NOT NULL
+            AND data_scadenza_prenotazione < NOW()
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $issues[] = [
+                    'type' => 'expired_reservation',
+                    'message' => \sprintf(__("Prenotazione ID %d scaduta il %s ma ancora attiva"), $row['id'], $row['data_scadenza_prenotazione'])
+                ];
+            }
+        }
+        $stmt->close();
+
+        // 9. Verifica queue_position non sequenziali per prenotazioni attive
+        $stmt = $this->db->prepare("
+            SELECT libro_id, GROUP_CONCAT(queue_position ORDER BY queue_position SEPARATOR ',') as positions
+            FROM prenotazioni
+            WHERE stato = 'attiva'
+            GROUP BY libro_id
+            HAVING COUNT(*) > 1
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $positions = explode(',', $row['positions']);
+                $expected = 1;
+                $hasGap = false;
+                foreach ($positions as $pos) {
+                    if ((int)$pos !== $expected) {
+                        $hasGap = true;
+                        break;
+                    }
+                    $expected++;
+                }
+                if ($hasGap) {
+                    $issues[] = [
+                        'type' => 'queue_position_gap',
+                        'message' => \sprintf(__("Libro ID %d ha posizioni coda non sequenziali: %s"), $row['libro_id'], $row['positions'])
+                    ];
+                }
+            }
+        }
+        $stmt->close();
+
+        // 10. Verifica prestiti pendenti da prenotazione vecchi di più di 7 giorni
+        $stmt = $this->db->prepare("
+            SELECT id, libro_id, utente_id, data_prestito, DATEDIFF(CURDATE(), data_prestito) as days_pending
+            FROM prestiti
+            WHERE stato = 'pendente'
+            AND origine = 'prenotazione'
+            AND attivo = 1
+            AND data_prestito < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $issues[] = [
+                    'type' => 'stale_pending_loan',
+                    'message' => \sprintf(__("Prestito ID %d da prenotazione in attesa da %d giorni (libro %d)"), $row['id'], $row['days_pending'], $row['libro_id']),
+                    'severity' => 'warning'
+                ];
+            }
+        }
+        $stmt->close();
+
+        // 11. Verifica configurazione APP_CANONICAL_URL nel .env
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         $currentUrl = $this->detectCurrentCanonicalUrl();
 
@@ -516,11 +590,61 @@ class DataIntegrity {
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();
 
+            // 6. Annulla prenotazioni scadute (data_scadenza_prenotazione < NOW())
+            $stmt = $this->db->prepare("
+                UPDATE prenotazioni
+                SET stato = 'annullata'
+                WHERE stato = 'attiva'
+                AND data_scadenza_prenotazione IS NOT NULL
+                AND data_scadenza_prenotazione < NOW()
+            ");
+            $stmt->execute();
+            $results['fixed'] += $this->db->affected_rows;
+            $stmt->close();
+
+            // 7. Riordina queue_position per prenotazioni attive (elimina gaps)
+            $bookIds = [];
+            $booksResult = $this->db->query("
+                SELECT DISTINCT libro_id FROM prenotazioni WHERE stato = 'attiva'
+            ");
+            if ($booksResult) {
+                while ($row = $booksResult->fetch_assoc()) {
+                    $bookIds[] = (int)$row['libro_id'];
+                }
+                $booksResult->free();
+            }
+
+            foreach ($bookIds as $bookId) {
+                $this->db->query("SET @pos := 0");
+                $stmt = $this->db->prepare("
+                    UPDATE prenotazioni
+                    SET queue_position = (@pos := @pos + 1)
+                    WHERE libro_id = ? AND stato = 'attiva'
+                    ORDER BY queue_position ASC
+                ");
+                $stmt->bind_param('i', $bookId);
+                $stmt->execute();
+                $results['fixed'] += $this->db->affected_rows;
+                $stmt->close();
+            }
+
             $this->db->commit();
 
         } catch (Exception $e) {
             $this->db->rollback();
             $results['errors'][] = "Errore correzione dati: " . $e->getMessage();
+        }
+
+        // 8. Crea indici mancanti (fuori dalla transazione principale)
+        try {
+            $indexResult = $this->createMissingIndexes();
+            $results['fixed'] += $indexResult['created'];
+            $results['indexes_created'] = $indexResult['created'];
+            if (!empty($indexResult['errors'])) {
+                $results['errors'] = array_merge($results['errors'], $indexResult['errors']);
+            }
+        } catch (Exception $e) {
+            $results['errors'][] = "Errore creazione indici: " . $e->getMessage();
         }
 
         return $results;
@@ -672,6 +796,9 @@ class DataIntegrity {
             'prestiti' => [
                 'idx_stato_attivo' => ['columns' => ['stato', 'attivo']],
                 'idx_data_prestito' => ['columns' => ['data_prestito']],
+                'idx_copia_id' => ['columns' => ['copia_id']],
+                'idx_origine' => ['columns' => ['origine']],
+                'idx_libro_utente' => ['columns' => ['libro_id', 'utente_id']],
             ],
             // TABELLA: utenti
             'utenti' => [
@@ -697,6 +824,9 @@ class DataIntegrity {
                 'idx_libro_id' => ['columns' => ['libro_id']],
                 'idx_utente_id' => ['columns' => ['utente_id']],
                 'idx_stato' => ['columns' => ['stato']],
+                'idx_stato_libro' => ['columns' => ['stato', 'libro_id']],
+                'idx_queue_position' => ['columns' => ['queue_position']],
+                'idx_data_scadenza' => ['columns' => ['data_scadenza_prenotazione']],
             ],
         ];
     }

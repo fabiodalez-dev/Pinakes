@@ -5,6 +5,27 @@ use App\Support\Csrf;
 $isEdit = isset($event) && $event;
 $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
 ?>
+<style>
+/* Fix Flatpickr input heights for events form */
+#event_date + input.form-control,
+#event_time + input.form-control,
+.flatpickr-date + input,
+.flatpickr-time + input {
+  height: 46px !important;
+  border-radius: 0.75rem !important;
+  border: 1px solid #d1d5db !important;
+  padding: 0.75rem 1rem !important;
+  font-size: 0.875rem !important;
+  width: 100% !important;
+  background-color: white !important;
+}
+.flatpickr-date + input:focus,
+.flatpickr-time + input:focus {
+  border-color: #a855f7 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1) !important;
+}
+</style>
 
 <div class="max-w-5xl mx-auto py-6 px-4">
   <div class="mb-6">
@@ -101,8 +122,8 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
         </div>
 
         <!-- Date and Time -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start md:items-stretch">
-          <div class="flex flex-col h-full">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
             <label for="event_date" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __("Data Evento") ?> <span class="text-red-500">*</span>
             </label>
@@ -111,12 +132,12 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               id="event_date"
               name="event_date"
               value="<?= HtmlHelper::e($event['event_date'] ?? '') ?>"
-              class="flatpickr-date block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4"
+              class="flatpickr-date block w-full rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4 h-[46px]"
               placeholder="<?= __('Seleziona data') ?>"
               required
             >
           </div>
-          <div class="flex flex-col h-full">
+          <div>
             <label for="event_time" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __("Ora Evento") ?>
             </label>
@@ -125,7 +146,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               id="event_time"
               name="event_time"
               value="<?= HtmlHelper::e($event['event_time'] ?? '') ?>"
-              class="flatpickr-time block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4"
+              class="flatpickr-time block w-full rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4 h-[46px]"
               placeholder="<?= __('Seleziona ora') ?>"
             >
           </div>
@@ -357,7 +378,8 @@ document.addEventListener('DOMContentLoaded', function() {
       dateFormat: 'Y-m-d',
       locale: '<?= \App\Support\I18n::getLocale() === 'it_IT' ? 'it' : 'default' ?>',
       altInput: true,
-      altFormat: 'd/m/Y'
+      altFormat: 'd/m/Y',
+      altInputClass: 'block w-full rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4 h-[46px] bg-white'
     });
 
     // Initialize Flatpickr for time

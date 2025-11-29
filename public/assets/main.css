@@ -6750,3 +6750,55 @@ nav[aria-label="pagination"],
     justify-content: center;
   }
 }
+
+/* === Flatpickr SweetAlert2 Calendar Fix === */
+/* Fix: Align last row days to the left instead of spreading them */
+
+/* Flatpickr days wrapper - ensure proper container */
+.flatpickr-calendar .flatpickr-days,
+.swal2-popup .flatpickr-days {
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Day container - use flex-start alignment (global fix) */
+.flatpickr-calendar .dayContainer,
+.swal2-popup .dayContainer,
+.swal2-popup .flatpickr-days .dayContainer {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-content: flex-start !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* Day cells - fixed width for 7-column grid alignment */
+.flatpickr-calendar .flatpickr-day,
+.swal2-popup .flatpickr-day {
+  flex: 0 0 14.2857% !important;
+  max-width: 14.2857% !important;
+  width: 14.2857% !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+}
+
+/* Weekday headers */
+.swal2-popup .flatpickr-weekdaycontainer {
+  display: flex !important;
+  width: 100% !important;
+}
+
+.swal2-popup .flatpickr-weekday {
+  flex: 1 !important;
+  text-align: center !important;
+  font-weight: 600 !important;
+  color: #374151 !important;
+  font-size: 0.75rem !important;
+}

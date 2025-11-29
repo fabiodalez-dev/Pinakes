@@ -291,11 +291,11 @@ class ReservationsController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Create pending loan request
+            // Create pending loan request with origine='richiesta' (manual request from user)
             $stmt = $this->db->prepare("
                 INSERT INTO prestiti
-                (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo)
-                VALUES (?, ?, ?, ?, 'pendente', 0)
+                (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+                VALUES (?, ?, ?, ?, 'pendente', 'richiesta', 0)
             ");
             $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
 

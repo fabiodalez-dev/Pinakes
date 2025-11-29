@@ -183,6 +183,11 @@ function profileReservationBookUrl(array $item): string {
     color: #4b5563;
   }
 
+  .badge-scheduled {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
   .empty-state {
     background: white;
     border-radius: 16px;
@@ -402,7 +407,10 @@ function profileReservationBookUrl(array $item): string {
         if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
 
         $scadenza = $p['data_scadenza'] ?? '';
-        $isOverdue = $scadenza && strtotime($scadenza) < time();
+        $dataPrestito = $p['data_prestito'] ?? '';
+        $stato = $p['stato'] ?? 'in_corso';
+        $isScheduled = ($stato === 'prenotato');
+        $isOverdue = !$isScheduled && $scadenza && strtotime($scadenza) < time();
         $hasReview = !empty($p['has_review']);
       ?>
         <div class="item-card">
@@ -415,21 +423,32 @@ function profileReservationBookUrl(array $item): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
+                <?php if ($isScheduled): ?>
+                <div class="badge badge-scheduled">
+                  <i class="fas fa-calendar-check"></i>
+                  <span><?= __('Programmato') ?></span>
+                </div>
+                <div class="badge badge-date">
+                  <i class="fas fa-clock"></i>
+                  <span><?= sprintf('%s %s %s %s', __('Dal'), date('d/m/Y', strtotime($dataPrestito)), __('al'), date('d/m/Y', strtotime($scadenza))) ?></span>
+                </div>
+                <?php else: ?>
                 <div class="badge <?php echo $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar"></i>
                   <span><?= sprintf('%s: %s', $isOverdue ? __('In ritardo') : __('Scadenza'), date('d/m/Y', strtotime($scadenza))) ?></span>
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-clock"></i>
-                  <span><?= sprintf('%s %s', __('Dal'), date('d/m/Y', strtotime($p['data_prestito']))) ?></span>
+                  <span><?= sprintf('%s %s', __('Dal'), date('d/m/Y', strtotime($dataPrestito))) ?></span>
                 </div>
+                <?php endif; ?>
               </div>
               <?php if ($hasReview): ?>
               <button class="btn-review" disabled>
                 <i class="fas fa-star"></i>
                 <span><?= __('Già recensito') ?></span>
               </button>
-              <?php else: ?>
+              <?php elseif (!$isScheduled): ?>
               <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, '<?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?>')">
                 <i class="fas fa-star"></i>
                 <span><?= __('Lascia una recensione') ?></span>

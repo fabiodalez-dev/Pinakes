@@ -14,8 +14,8 @@ final class SettingsMailTemplates
     {
         return [
             'user_registration_pending' => [
-                'label' => 'Registrazione ricevuta',
-                'description' => "Inviata all'utente al termine della registrazione per confermare la ricezione e l'attesa di approvazione.",
+                'label' => __('Registrazione ricevuta'),
+                'description' => __("Inviata all'utente al termine della registrazione per confermare la ricezione e l'attesa di approvazione."),
                 'subject' => 'Registrazione ricevuta - In attesa di approvazione',
                 'placeholders' => ['nome', 'cognome', 'email', 'codice_tessera', 'data_registrazione'],
                 'body' => <<<'HTML'
@@ -36,8 +36,8 @@ final class SettingsMailTemplates
 HTML,
             ],
             'user_account_approved' => [
-                'label' => 'Account attivato',
-                'description' => "Inviata all'utente quando un amministratore approva l'account.",
+                'label' => __('Account attivato'),
+                'description' => __("Inviata all'utente quando un amministratore approva l'account."),
                 'subject' => 'Account approvato - Benvenuto in biblioteca!',
                 'placeholders' => ['nome', 'cognome', 'email', 'codice_tessera', 'login_url'],
                 'body' => <<<'HTML'
@@ -55,8 +55,8 @@ HTML,
 HTML,
             ],
             'loan_request_notification' => [
-                'label' => 'Richiesta prestito',
-                'description' => "Notifica agli amministratori quando viene inoltrata una nuova richiesta di prestito.",
+                'label' => __('Richiesta prestito'),
+                'description' => __("Notifica agli amministratori quando viene inoltrata una nuova richiesta di prestito."),
                 'subject' => '📚 Nuova richiesta di prestito',
                 'placeholders' => ['libro_titolo', 'utente_nome', 'utente_email', 'data_inizio', 'data_fine', 'data_richiesta', 'approve_url'],
                 'body' => <<<'HTML'
@@ -74,8 +74,8 @@ HTML,
 HTML,
             ],
             'wishlist_book_available' => [
-                'label' => 'Wishlist disponibile',
-                'description' => "Inviata agli utenti quando un libro nella wishlist torna disponibile. Il libro rimane nella wishlist ma non riceverà altre notifiche per lo stesso libro.",
+                'label' => __('Wishlist disponibile'),
+                'description' => __("Inviata agli utenti quando un libro nella wishlist torna disponibile. Il libro rimane nella wishlist ma non riceverà altre notifiche per lo stesso libro."),
                 'subject' => '📖 Libro della tua wishlist ora disponibile!',
                 'placeholders' => ['utente_nome', 'libro_titolo', 'libro_autore', 'libro_isbn', 'data_disponibilita', 'book_url', 'wishlist_url'],
                 'body' => <<<'HTML'
@@ -100,8 +100,8 @@ HTML,
 HTML,
             ],
             'loan_expiring_warning' => [
-                'label' => 'Promemoria scadenza',
-                'description' => "Promemoria agli utenti tre giorni prima della scadenza del prestito.",
+                'label' => __('Promemoria scadenza'),
+                'description' => __("Promemoria agli utenti tre giorni prima della scadenza del prestito."),
                 'subject' => '⚠️ Il tuo prestito sta per scadere',
                 'placeholders' => ['utente_nome', 'libro_titolo', 'data_scadenza', 'giorni_rimasti'],
                 'body' => <<<'HTML'
@@ -121,8 +121,8 @@ HTML,
 HTML,
             ],
             'loan_overdue_notification' => [
-                'label' => 'Prestito scaduto',
-                'description' => "Notifica agli utenti quando il prestito è scaduto e deve essere restituito.",
+                'label' => __('Prestito scaduto'),
+                'description' => __("Notifica agli utenti quando il prestito è scaduto e deve essere restituito."),
                 'subject' => '🚨 Prestito scaduto - Azione richiesta',
                 'placeholders' => ['utente_nome', 'libro_titolo', 'data_scadenza', 'giorni_ritardo'],
                 'body' => <<<'HTML'
@@ -142,8 +142,8 @@ HTML,
 HTML,
             ],
             'loan_overdue_admin' => [
-                'label' => 'Alert prestito in ritardo (Admin)',
-                'description' => "Avvisa gli amministratori quando un prestito entra in ritardo.",
+                'label' => __('Alert prestito in ritardo (Admin)'),
+                'description' => __("Avvisa gli amministratori quando un prestito entra in ritardo."),
                 'subject' => 'Prestito #{prestito_id} in ritardo',
                 'placeholders' => ['prestito_id','libro_titolo','utente_nome','utente_email','data_prestito','data_scadenza'],
                 'body' => <<<'HTML'
@@ -159,8 +159,8 @@ HTML,
 HTML,
             ],
             'loan_approved' => [
-                'label' => 'Prestito approvato',
-                'description' => "Inviata all'utente quando un amministratore approva una richiesta di prestito.",
+                'label' => __('Prestito approvato'),
+                'description' => __("Inviata all'utente quando un amministratore approva una richiesta di prestito."),
                 'subject' => '✅ La tua richiesta di prestito è stata approvata!',
                 'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'pickup_instructions'],
                 'body' => <<<'HTML'
@@ -183,8 +183,8 @@ HTML,
 HTML,
             ],
             'loan_rejected' => [
-                'label' => 'Prestito rifiutato',
-                'description' => "Inviata all'utente quando un amministratore rifiuta una richiesta di prestito.",
+                'label' => __('Prestito rifiutato'),
+                'description' => __("Inviata all'utente quando un amministratore rifiuta una richiesta di prestito."),
                 'subject' => '❌ La tua richiesta di prestito non è stata approvata',
                 'placeholders' => ['utente_nome', 'libro_titolo', 'motivo_rifiuto'],
                 'body' => <<<'HTML'
@@ -200,8 +200,8 @@ HTML,
 HTML,
             ],
             'admin_new_review' => [
-                'label' => 'Nuova recensione (Admin)',
-                'description' => "Inviata agli amministratori quando viene ricevuta una nuova recensione da approvare.",
+                'label' => __('Nuova recensione (Admin)'),
+                'description' => __("Inviata agli amministratori quando viene ricevuta una nuova recensione da approvare."),
                 'subject' => '⭐ Nuova recensione da approvare',
                 'placeholders' => ['libro_titolo', 'utente_nome', 'utente_email', 'stelle', 'titolo_recensione', 'descrizione_recensione', 'data_recensione', 'link_approvazione'],
                 'body' => <<<'HTML'
@@ -220,6 +220,90 @@ HTML,
     <a href="{{link_approvazione}}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">Gestisci Recensione</a>
 </p>
 <p><em>Per approvare o rifiutare questa recensione, accedi al pannello admin.</em></p>
+HTML,
+            ],
+            'reservation_book_available' => [
+                'label' => __('Libro prenotato disponibile'),
+                'description' => __("Inviata quando un libro prenotato diventa disponibile e viene convertito in prestito pendente."),
+                'subject' => '📚 Libro prenotato pronto per il ritiro!',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'libro_autore', 'libro_isbn', 'data_inizio', 'data_fine', 'book_url', 'profile_url'],
+                'body' => <<<'HTML'
+<h2>Il tuo libro è pronto per il ritiro!</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Siamo lieti di informarti che il libro che avevi prenotato è ora disponibile e pronto per il ritiro:</p>
+<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
+    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
+    <p style="margin: 5px 0;"><strong>Autore:</strong> {{libro_autore}}</p>
+    <p style="margin: 5px 0;"><strong>ISBN:</strong> {{libro_isbn}}</p>
+    <p style="margin: 5px 0;"><strong>Periodo prestito:</strong> {{data_inizio}} - {{data_fine}}</p>
+</div>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>📦 Prossimi passi</strong></p>
+    <p>Recati in biblioteca per ritirare il libro. Porta con te un documento di identità.</p>
+</div>
+<p style="text-align: center;">
+    <a href="{{book_url}}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📖 Vedi Libro</a>
+    <a href="{{profile_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">👤 I miei Prestiti</a>
+</p>
+<p><em>La prenotazione è stata convertita in un prestito in attesa di conferma del ritiro.</em></p>
+HTML,
+            ],
+            'user_password_setup' => [
+                'label' => __('Imposta password'),
+                'description' => __("Inviata ai nuovi utenti per impostare la password del loro account."),
+                'subject' => '🔐 Imposta la tua password',
+                'placeholders' => ['nome', 'cognome', 'app_name', 'reset_url'],
+                'body' => <<<'HTML'
+<h2>Imposta la tua password</h2>
+<p>Ciao {{nome}} {{cognome}},</p>
+<p>Il tuo account su <strong>{{app_name}}</strong> è stato creato. Per iniziare ad utilizzare il sistema, devi impostare la tua password.</p>
+<div style="background-color: #f0f9ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+    <p><strong>🔑 Configura il tuo account</strong></p>
+    <p>Clicca sul pulsante qui sotto per impostare la tua password:</p>
+</div>
+<p style="text-align: center; margin: 30px 0;">
+    <a href="{{reset_url}}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;">🔐 Imposta Password</a>
+</p>
+<div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <p><strong>⏰ Importante</strong></p>
+    <p>Il link è valido per 24 ore. Se scade, contatta un amministratore per riceverne uno nuovo.</p>
+</div>
+<p>Se non hai richiesto questa email, puoi ignorarla.</p>
+HTML,
+            ],
+            'admin_invitation' => [
+                'label' => __('Invito amministratore'),
+                'description' => __("Inviata quando un utente viene invitato come amministratore."),
+                'subject' => '🎉 Invito come Amministratore',
+                'placeholders' => ['nome', 'cognome', 'app_name', 'reset_url', 'dashboard_url'],
+                'body' => <<<'HTML'
+<h2>Benvenuto nel team!</h2>
+<p>Ciao {{nome}} {{cognome}},</p>
+<p>Sei stato invitato come amministratore su <strong>{{app_name}}</strong>.</p>
+<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
+    <h3 style="color: #1e40af; margin: 0 0 10px 0;">Le tue credenziali</h3>
+    <p>Come amministratore, avrai accesso a:</p>
+    <ul>
+        <li>Gestione catalogo libri</li>
+        <li>Gestione utenti e prestiti</li>
+        <li>Impostazioni del sistema</li>
+        <li>Report e statistiche</li>
+    </ul>
+</div>
+<p><strong>Per iniziare:</strong></p>
+<ol>
+    <li>Imposta la tua password cliccando il pulsante qui sotto</li>
+    <li>Accedi al pannello di amministrazione</li>
+</ol>
+<p style="text-align: center; margin: 30px 0;">
+    <a href="{{reset_url}}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block; margin: 10px;">🔐 Imposta Password</a>
+    <a href="{{dashboard_url}}" style="background-color: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block; margin: 10px;">📊 Dashboard Admin</a>
+</p>
+<div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <p><strong>⏰ Importante</strong></p>
+    <p>Il link per impostare la password è valido per 24 ore.</p>
+</div>
+<p>Benvenuto nel team!</p>
 HTML,
             ],
         ];
