@@ -11,15 +11,16 @@ BEFORE INSERT ON `prestiti`
 FOR EACH ROW
 BEGIN
     IF (NEW.attivo = 1 AND NEW.copia_id IS NOT NULL) THEN
-        -- 1) La copia deve essere utilizzabile
+        -- 1) La copia deve essere utilizzabile (non persa, danneggiata o in manutenzione)
+        -- Consente: disponibile (nuovi prestiti), prenotato (prestiti futuri non sovrapposti), prestato (prestiti futuri)
         IF NOT EXISTS (
             SELECT 1
             FROM copie c
             WHERE c.id = NEW.copia_id
-              AND c.stato = 'disponibile'
+              AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
         ) THEN
             SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito.';
+                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito (persa, danneggiata o in manutenzione).';
         END IF;
 
         -- 2) Nessuna sovrapposizione di date con prestiti attivi della stessa copia
@@ -47,19 +48,22 @@ CREATE TRIGGER `trg_check_active_prestito_before_update`
 BEFORE UPDATE ON `prestiti`
 FOR EACH ROW
 BEGIN
+    -- Solo se si sta assegnando/cambiando una copia a un prestito attivo
     IF (NEW.attivo = 1 AND NEW.copia_id IS NOT NULL) THEN
-        -- 1) La copia deve essere utilizzabile
+        -- 1) La copia deve essere utilizzabile (non persa, danneggiata o in manutenzione)
+        -- Nota: durante un update la copia può essere già in stato prestato/prenotato per QUESTO prestito
         IF NOT EXISTS (
             SELECT 1
             FROM copie c
             WHERE c.id = NEW.copia_id
-              AND c.stato = 'disponibile'
+              AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
         ) THEN
             SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito.';
+                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito (persa, danneggiata o in manutenzione).';
         END IF;
 
-        -- 2) Nessuna sovrapposizione di date con altri prestiti attivi della stessa copia
+        -- 2) Nessuna sovrapposizione di date con ALTRI prestiti attivi della stessa copia
+        -- Esclude il prestito corrente (p.id <> NEW.id) per consentire gli update
         IF EXISTS (
             SELECT 1
             FROM prestiti p
@@ -100,4 +104,6 @@ END$$
 DELIMITER ;
 
 SET foreign_key_checks = 1;
--- Triggers export updated: 2025-10-09
+-- Triggers updated: 2025-11-29
+-- Fixed: stato check changed from 'disponibile' to NOT IN ('perso','danneggiato','manutenzione')
+-- This allows creating loans for copies that are 'prenotato' (for non-overlapping future dates)

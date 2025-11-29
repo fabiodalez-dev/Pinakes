@@ -158,6 +158,7 @@ desktop.ini
 .idea/
 *.sublime-*
 *.swp
+PRESTITI_CODEX.md
 *.swo
 *~
 .project

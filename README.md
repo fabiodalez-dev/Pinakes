@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.1.7-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.1.8-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -76,6 +76,15 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 - **Configurable renewal rules** (manual or automatic approval)
 - **FIFO reservation queues** with availability alerts when items become free
 - **Detailed per-user and per-item history** for audit trails
+
+### Calendar & ICS Integration
+- **Interactive dashboard calendar** (FullCalendar) showing all loans and reservations
+- **Color-coded events**: active loans (green), scheduled (blue), overdue (red), pending requests (amber), reservations (purple)
+- **Start/end markers** for easy visualization of loan periods
+- **Click to view details**: user, book title, dates, and status in modal popup
+- **ICS calendar export** for syncing with external calendar apps (Google Calendar, Apple Calendar, Outlook)
+- **Automatic ICS generation** via maintenance service or cron job
+- **Subscribable calendar URL** that stays updated with latest loans and reservations
 
 ### Email Notifications
 Automatic emails for:
