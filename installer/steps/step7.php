@@ -202,59 +202,13 @@ if (!empty($triggerWarnings)):
     <li style="margin-bottom: 10px;"><?= __("Invita gli utenti a registrarsi") ?></li>
 </ol>
 
-<div style="margin-top: 40px; padding: 20px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #16a34a;">
-    <h4 style="margin-bottom: 10px; color: #2d3748;"><?= __("🔒 Sicurezza Importante") ?></h4>
-    <p style="color: #4a5568; margin-bottom: 15px;">
-        <?= __("Per motivi di sicurezza, è") ?> <strong><?= __("altamente consigliato") ?></strong> eliminare la
-        cartella <code>installer/</code> <?= __("dopo aver completato l'installazione.") ?>
+<div style="margin-top: 40px; padding: 20px; background: #ecfdf5; border-radius: 8px; border-left: 4px solid #10b981;">
+    <h4 style="margin-bottom: 10px; color: #065f46;"><i class="fas fa-shield-alt"></i> <?= __("Sicurezza Automatica") ?></h4>
+    <p style="color: #047857; margin-bottom: 0;">
+        <?= __("L'accesso alla cartella installer è automaticamente bloccato dopo l'installazione.") ?>
+        <?= __("Il file") ?> <code>.installed</code> <?= __("nella root del progetto impedisce qualsiasi accesso non autorizzato.") ?>
     </p>
-    <?php if (!$vendorExists): ?>
-        <div class="alert alert-warning" style="margin-bottom: 15px;">
-            <i class="fas fa-exclamation-triangle"></i>
-            <strong><?= __("Non puoi eliminare l'installer finché non completi l'installazione delle dipendenze PHP.") ?></strong><br>
-            <small><?= __("Esegui") ?> <code>composer install</code> <?= __("prima di procedere.") ?></small>
-        </div>
-        <button type="button" class="btn btn-secondary" disabled style="opacity: 0.5; cursor: not-allowed;">
-            <i class="fas fa-trash"></i> <?= __("Elimina Installer (Richiede Composer)") ?>
-        </button>
-    <?php else: ?>
-        <form method="POST" action="/installer/?step=7&action=delete_installer&force"
-            onsubmit="return confirmDeleteInstaller();" style="margin-top: 10px;">
-            <button type="submit" class="btn btn-secondary">
-                <i class="fas fa-trash"></i> <?= __("Elimina Installer") ?>
-            </button>
-            <small style="display: block; margin-top: 8px; color: #718096;">
-                <?= __("Questa azione rimuoverà completamente la cartella installer per sicurezza.") ?>
-            </small>
-        </form>
-    <?php endif; ?>
 </div>
-
-<?php
-// Handle installer deletion
-if (isset($_GET['action']) && $_GET['action'] === 'delete_installer' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Check if vendor/ exists before attempting deletion
-    if (!$vendorExists) {
-        echo '<div class="alert alert-error" style="margin-top: 20px;">
-            <i class="fas fa-exclamation-triangle"></i>
-            ' . __("Impossibile eliminare l'installer: devi prima installare le dipendenze PHP con") . ' <code>composer install</code>.
-        </div>';
-    } else {
-        try {
-            if ($installer->deleteInstaller()) {
-                echo '<div class="alert alert-success" style="margin-top: 20px;">
-                    <i class="fas fa-check-circle"></i> ' . __("Installer eliminato con successo!") . '
-                </div>';
-                echo '<script>setTimeout(() => { window.location.href = "/"; }, 2000);</script>';
-            }
-        } catch (Exception $e) {
-            echo '<div class="alert alert-error" style="margin-top: 20px;">
-                ' . __("Impossibile eliminare l'installer:") . ' ' . htmlspecialchars($e->getMessage()) . '
-            </div>';
-        }
-    }
-}
-?>
 
 <div style="margin-top: 40px; text-align: center;">
     <a href="/" class="btn btn-primary" style="min-width: 250px; font-size: 16px;">
@@ -273,8 +227,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_installer' && $_SERVER
 
 <script>
 window.installerTranslations = {
-    confirmDelete: <?= json_encode(__('Sei sicuro di voler eliminare la cartella installer? Questa azione non può essere annullata.')) ?>,
-    passwordMismatch: <?= json_encode(__('Le password non corrispondono')) ?>,
+    passwordMismatch: <?= json_encode(__('Le password non corrispondono')) ?>
 };
 </script>
 
