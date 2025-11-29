@@ -57,13 +57,21 @@ function getStatusBadge($status) {
           </h1>
           <p class="text-sm text-gray-600 mt-1"><?= __("Visualizza e gestisci tutti i prestiti della biblioteca") ?></p>
         </div>
-        <a href="/admin/prestiti/crea" class="hidden md:inline-flex btn-primary items-center">
+        <div class="flex items-center gap-3">
+          <button type="button" onclick="showExportDialog()" class="hidden md:inline-flex btn-secondary items-center">
+            <i class="fas fa-file-csv mr-2"></i>
+            <?= __("Esporta CSV") ?>
+          </button>
+          <a href="/admin/prestiti/crea" class="hidden md:inline-flex btn-primary items-center">
             <i class="fas fa-plus mr-2"></i>
             <?= __("Nuovo Prestito") ?>
-        </a>
+          </a>
+        </div>
       </div>
-      <div class="flex md:hidden mb-3">
-        <a href="/admin/prestiti/crea" class="w-full btn-primary inline-flex items-center justify-center">
+      <div class="flex md:hidden mb-3 gap-2">
+        <button type="button" onclick="showExportDialog()" class="flex-1 btn-secondary inline-flex items-center justify-center">
+          <i class="fas fa-file-csv mr-2"></i><?= __("CSV") ?></button>
+        <a href="/admin/prestiti/crea" class="flex-1 btn-primary inline-flex items-center justify-center">
           <i class="fas fa-plus mr-2"></i><?= __("Nuovo Prestito") ?></a>
       </div>
     </div>
@@ -468,5 +476,88 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+
+    // Export dialog with status filter
+    window.showExportDialog = function() {
+        Swal.fire({
+            title: __('Esporta Prestiti'),
+            html: `
+                <p class="text-sm text-gray-600 mb-4">${__('Seleziona gli stati dei prestiti da esportare:')}</p>
+                <div class="text-left space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" id="export-all" class="w-4 h-4 text-blue-600 rounded" checked>
+                        <span class="font-medium">${__('Tutti gli stati')}</span>
+                    </label>
+                    <hr class="my-2">
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="pendente" class="export-status-cb w-4 h-4 text-orange-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800"><i class="fas fa-hourglass-half mr-1"></i>${__('Pendente')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="prenotato" class="export-status-cb w-4 h-4 text-purple-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-calendar-check mr-1"></i>${__('Prenotato')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="in_corso" class="export-status-cb w-4 h-4 text-blue-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-clock mr-1"></i>${__('In Corso')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="in_ritardo" class="export-status-cb w-4 h-4 text-yellow-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><i class="fas fa-exclamation-triangle mr-1"></i>${__('In Ritardo')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="restituito" class="export-status-cb w-4 h-4 text-green-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><i class="fas fa-check-circle mr-1"></i>${__('Restituito')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="perso" class="export-status-cb w-4 h-4 text-red-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>${__('Perso')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="danneggiato" class="export-status-cb w-4 h-4 text-red-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>${__('Danneggiato')}</span>
+                    </label>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: `<i class="fas fa-download mr-2"></i>${__('Esporta')}`,
+            cancelButtonText: __('Annulla'),
+            confirmButtonColor: '#111827',
+            didOpen: () => {
+                const allCheckbox = document.getElementById('export-all');
+                const statusCheckboxes = document.querySelectorAll('.export-status-cb');
+
+                allCheckbox.addEventListener('change', function() {
+                    statusCheckboxes.forEach(cb => cb.checked = this.checked);
+                });
+
+                statusCheckboxes.forEach(cb => {
+                    cb.addEventListener('change', function() {
+                        const allChecked = Array.from(statusCheckboxes).every(c => c.checked);
+                        const noneChecked = Array.from(statusCheckboxes).every(c => !c.checked);
+                        allCheckbox.checked = allChecked;
+                        allCheckbox.indeterminate = !allChecked && !noneChecked;
+                    });
+                });
+            },
+            preConfirm: () => {
+                const statusCheckboxes = document.querySelectorAll('.export-status-cb:checked');
+                const selectedStatuses = Array.from(statusCheckboxes).map(cb => cb.value);
+
+                if (selectedStatuses.length === 0) {
+                    Swal.showValidationMessage(__('Seleziona almeno uno stato'));
+                    return false;
+                }
+
+                return selectedStatuses;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const statuses = result.value;
+                const url = '/admin/prestiti/export-csv?stati=' + encodeURIComponent(statuses.join(','));
+                window.location.href = url;
+            }
+        });
+    };
 });
 </script>

@@ -603,6 +603,12 @@ class SettingsController
             ConfigStore::set('cookie_banner.show_marketing', true);
         }
 
+        // Handle catalogue mode setting (stored in 'system' category)
+        $catalogueMode = isset($data['catalogue_mode']) && $data['catalogue_mode'] === '1' ? '1' : '0';
+        $repository->set('system', 'catalogue_mode', $catalogueMode);
+        ConfigStore::set('system.catalogue_mode', $catalogueMode === '1');
+        ConfigStore::clearCache();
+
         $_SESSION['success_message'] = __('Impostazioni avanzate aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=advanced');
     }

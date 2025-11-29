@@ -47,6 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            // Handle catalogue mode option
+            $catalogueMode = isset($_POST['catalogue_mode']) && $_POST['catalogue_mode'] === '1' ? '1' : '0';
+            $installer->saveSetting('system', 'catalogue_mode', $catalogueMode);
+
             if (!$error) {
                 $_SESSION['app_settings'] = ['name' => $appName];
                 completeStep(5);
@@ -111,6 +115,24 @@ renderHeader(5, __('Impostazioni Applicazione'));
             </label>
         </div>
         <div id="logo-preview" style="margin-top: 15px; text-align: center;"></div>
+    </div>
+
+    <div class="form-group" style="margin-top: 30px;">
+        <label class="form-label"><?= __("Modalità Catalogo") ?></label>
+        <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 12px; padding: 20px;">
+            <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+                <input type="checkbox" name="catalogue_mode" value="1" style="width: 20px; height: 20px; margin-top: 2px; accent-color: #92400e;">
+                <div>
+                    <span style="font-weight: 600; color: #92400e; display: block;"><?= __("Abilita Modalità Solo Catalogo") ?></span>
+                    <small style="color: #78350f; display: block; margin-top: 4px;">
+                        <?= __("Disabilita prestiti, prenotazioni e wishlist. Gli utenti potranno solo consultare il catalogo.") ?>
+                    </small>
+                </div>
+            </label>
+        </div>
+        <small style="color: #718096; margin-top: 8px; display: block;">
+            <i class="fas fa-info-circle"></i> <?= __("Puoi cambiare questa impostazione in qualsiasi momento da Impostazioni → Avanzate") ?>
+        </small>
     </div>
 
     <div class="alert alert-info" style="margin-top: 30px;">

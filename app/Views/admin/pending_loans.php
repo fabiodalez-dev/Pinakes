@@ -40,7 +40,19 @@
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <h3 class="font-semibold text-gray-900 dark:text-white mb-3 line-clamp-2"><?= htmlspecialchars($loan['titolo']) ?></h3>
+                                    <h3 class="font-semibold text-gray-900 dark:text-white mb-2 line-clamp-2"><?= htmlspecialchars($loan['titolo']) ?></h3>
+                                    <?php
+                                    $origine = $loan['origine'] ?? 'richiesta';
+                                    $origineBadge = match($origine) {
+                                        'prenotazione' => ['bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', 'fa-calendar-check', __('Da prenotazione')],
+                                        'diretto' => ['bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', 'fa-hand-holding', __('Prestito diretto')],
+                                        default => ['bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', 'fa-paper-plane', __('Richiesta manuale')],
+                                    };
+                                    ?>
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mb-2 <?= $origineBadge[0] ?>">
+                                        <i class="fas <?= $origineBadge[1] ?> text-[10px]"></i>
+                                        <?= $origineBadge[2] ?>
+                                    </span>
                                     <div class="space-y-1 text-sm">
                                         <p class="text-gray-600 dark:text-gray-400 flex items-center">
                                             <i class="fas fa-user w-4 text-center mr-2 text-blue-500"></i>
