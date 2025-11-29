@@ -1009,8 +1009,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <ul class="list-unstyled">
                         <li><a href="/user/dashboard"><?= __("Dashboard") ?></a></li>
                         <li><a href="<?= $profileRoute ?>"><?= __("Profilo") ?></a></li>
+                        <?php if (!$isCatalogueMode): ?>
                         <li><a href="<?= $wishlistRoute ?>"><?= __("Preferiti") ?></a></li>
                         <li><a href="<?= $reservationsRoute ?>"><?= __("Prenotazioni") ?></a></li>
+                        <?php endif; ?>
                     </ul>
                 </div>
                 <div class="col-lg-3">
