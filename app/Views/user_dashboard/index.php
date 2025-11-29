@@ -314,7 +314,7 @@ $profileRoute = route_path('profile');
 <section class="dashboard-hero">
   <div class="container text-center">
     <h1 class="hero-title"><?= sprintf(__("Benvenuto, %s!"), $userName) ?></h1>
-    <p class="hero-subtitle"><?= __("Gestisci i tuoi prestiti, esplora il catalogo e scopri nuovi titoli.") ?></p>
+    <p class="hero-subtitle"><?= $isCatalogueMode ? __("Esplora il catalogo e scopri nuovi titoli.") : __("Gestisci i tuoi prestiti, esplora il catalogo e scopri nuovi titoli.") ?></p>
   </div>
 </section>
 
