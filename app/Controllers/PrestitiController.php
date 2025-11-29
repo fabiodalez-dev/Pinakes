@@ -837,7 +837,7 @@ class PrestitiController
             __('N. Inventario'),
             __('Elaborato da'),
             __('Note')
-        ], ',', '"', '\\');
+        ], ',', '"', '');
 
         // Status translations
         $statusLabels = [
@@ -866,7 +866,7 @@ class PrestitiController
                 $loan['copia_inventario'] ?? '',
                 $loan['processed_by_name'] ?? '',
                 $loan['note'] ?? ''
-            ], ',', '"', '\\');
+            ], ',', '"', '');
         }
 
         // Get CSV content
