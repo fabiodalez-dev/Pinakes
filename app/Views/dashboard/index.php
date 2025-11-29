@@ -272,7 +272,7 @@
           <i class="fas fa-calendar-check text-purple-600 mr-2"></i>
           <?= __("Prenotazioni Attive") ?>
         </h2>
-        <a href="/admin/reservations" class="px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-500 rounded-lg transition-colors duration-200 whitespace-nowrap">
+        <a href="/admin/prenotazioni" class="px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-500 rounded-lg transition-colors duration-200 whitespace-nowrap">
           <i class="fas fa-external-link-alt mr-1"></i>
           <?= __("Gestisci tutte") ?>
         </a>
