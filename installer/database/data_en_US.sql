@@ -31,6 +31,8 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('privacy', 'cookie_policy_content', '<p>This page explains how we use cookies on our website.</p>', 'Content displayed on /cookies');
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('cms', 'events_page_enabled', '1', 'Enable or disable the events page on the frontend');
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('system', 'catalogue_mode', '0', 'Catalogue-only mode - disables loans, reservations and wishlist');
 
 
 -- Dewey Decimal Classification - English translations

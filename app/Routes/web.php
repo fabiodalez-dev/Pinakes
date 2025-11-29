@@ -242,6 +242,10 @@ return function (App $app): void {
         $wishlistRoute = RouteTranslator::getRouteForLocale('wishlist', $locale);
 
         $registerRouteIfUnique('GET', $wishlistRoute, function ($request, $response) use ($app) {
+            // Redirect to user dashboard if catalogue mode is enabled
+            if (\App\Support\ConfigStore::isCatalogueMode()) {
+                return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
+            }
             $container = $app->getContainer();
             $db = $container->get('db');
             $controller = new UserWishlistController();
@@ -254,6 +258,10 @@ return function (App $app): void {
         $reservationsRoute = RouteTranslator::getRouteForLocale('reservations', $locale);
 
         $registerRouteIfUnique('GET', $reservationsRoute, function ($request, $response) use ($app) {
+            // Redirect to user dashboard if catalogue mode is enabled
+            if (\App\Support\ConfigStore::isCatalogueMode()) {
+                return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
+            }
             $container = $app->getContainer();
             $db = $container->get('db');
             $controller = new UserDashboardController();
@@ -918,37 +926,55 @@ return function (App $app): void {
         return $controller->delete($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
-    // Prestiti (protected admin)
+    // Prestiti (protected admin) - Disabled in catalogue mode
     $app->get('/admin/prestiti', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
     $app->get('/admin/prestiti/export-csv', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCsv($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new AdminAuthMiddleware()); // 5 exports per minute
 
     $app->get('/admin/prestiti/crea', function ($request, $response) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/prestiti/crea', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/prestiti/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/prestiti/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
@@ -1141,17 +1167,26 @@ return function (App $app): void {
         return $controller->exportCSV($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
-    // Prestiti (protected)
+    // Prestiti (protected) - Disabled in catalogue mode
     $app->get('/prestiti', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
     $app->get('/prestiti/crea', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
     $app->post('/prestiti/crea', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
@@ -1187,20 +1222,29 @@ return function (App $app): void {
         return $controller->details($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
-    // Loan approval routes
+    // Loan approval routes - Disabled in catalogue mode
     $app->get('/admin/loans/pending', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new LoanApprovalController();
         $db = $app->getContainer()->get('db');
         return $controller->pendingLoans($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
     $app->post('/admin/loans/approve', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new LoanApprovalController();
         $db = $app->getContainer()->get('db');
         return $controller->approveLoan($request, $response, $db);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/loans/reject', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
         $controller = new LoanApprovalController();
         $db = $app->getContainer()->get('db');
         return $controller->rejectLoan($request, $response, $db);

@@ -1,3 +1,7 @@
+<?php
+use App\Support\ConfigStore;
+$isCatalogueMode = ConfigStore::isCatalogueMode();
+?>
 <!-- Minimal White Dashboard Interface -->
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -40,6 +44,7 @@
         </div>
       </div>
 
+      <?php if (!$isCatalogueMode): ?>
       <div class="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
         <div class="flex items-center justify-between">
           <div>
@@ -110,6 +115,7 @@
           </div>
         </div>
       <?php endif; ?>
+      <?php endif; ?>
 
       <div class="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
         <div class="flex items-center justify-between">
@@ -125,6 +131,7 @@
       </div>
     </div>
 
+    <?php if (!$isCatalogueMode): ?>
     <!-- Calendar Section with ICS Link -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
       <div class="p-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -345,6 +352,7 @@
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Recent Books Section -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
@@ -395,6 +403,7 @@
       </div>
     </div>
 
+    <?php if (!$isCatalogueMode): ?>
     <!-- Active Loans Section -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">
@@ -514,6 +523,7 @@
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 </div>
 </div>
 

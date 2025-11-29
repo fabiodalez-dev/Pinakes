@@ -9,6 +9,7 @@ use App\Support\I18n;
 $appName = (string) ConfigStore::get('app.name', 'Pinakes');
 $appLogo = Branding::logo();
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
+$isCatalogueMode = ConfigStore::isCatalogueMode();
 $versionFile = __DIR__ . '/../../version.json';
 $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
 $appVersion = $versionData['version'] ?? '0.1.0';
@@ -170,6 +171,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
           </a>
 
+          <?php if (!$isCatalogueMode): ?>
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             href="/admin/prestiti">
             <div
@@ -181,6 +183,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               <div class="text-xs text-gray-500"><?= __("Gestione prestiti") ?></div>
             </div>
           </a>
+          <?php endif; ?>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             href="/admin/collocazione">
@@ -306,6 +309,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
             </a>
 
+            <?php if (!$isCatalogueMode): ?>
             <a href="/prestiti/crea"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
@@ -327,6 +331,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
               </div>
             </a>
+            <?php endif; ?>
 
             <a href="/admin/maintenance/integrity-report"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
@@ -345,15 +350,17 @@ $htmlLang = substr($currentLocale, 0, 2);
         <div class="pt-6 mt-6 border-t border-gray-200">
           <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             <?= __("Statistiche Rapide") ?></div>
-          <div class="grid grid-cols-2 gap-3 mt-3">
+          <div class="grid grid-cols-<?= $isCatalogueMode ? '1' : '2' ?> gap-3 mt-3">
             <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
               <div class="text-2xl font-bold text-gray-900" id="stats-books">-</div>
               <div class="text-xs text-gray-600 font-medium"><?= __("Libri") ?></div>
             </div>
+            <?php if (!$isCatalogueMode): ?>
             <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
               <div class="text-2xl font-bold text-gray-900" id="stats-loans">-</div>
               <div class="text-xs text-gray-600 font-medium"><?= __("Prestiti") ?></div>
             </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -457,10 +464,12 @@ $htmlLang = substr($currentLocale, 0, 2);
                   <div class="text-sm font-bold text-gray-900" id="header-books-count">-</div>
                   <div class="text-xs text-gray-600"><?= __("Libri") ?></div>
                 </div>
+                <?php if (!$isCatalogueMode): ?>
                 <div class="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200">
                   <div class="text-sm font-bold text-gray-900" id="header-loans-count">-</div>
                   <div class="text-xs text-gray-600"><?= __("Prestiti") ?></div>
                 </div>
+                <?php endif; ?>
               </div>
 
               <!-- Notifications with Enhanced Badge -->

@@ -77,6 +77,13 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 - **FIFO reservation queues** with availability alerts when items become free
 - **Detailed per-user and per-item history** for audit trails
 
+### Catalogue Mode
+- **Browse-only option** for libraries that don't need circulation features
+- **Configurable during installation** or via Admin → Settings → Advanced
+- **Hides all loan-related UI**: request buttons, reservation forms, wishlist
+- **Admin sidebar simplified** without loan management menus
+- **Perfect for**: digital archives, reference-only collections, museum libraries
+
 ### Calendar & ICS Integration
 - **Interactive dashboard calendar** (FullCalendar) showing all loans and reservations
 - **Color-coded events**: active loans (green), scheduled (blue), overdue (red), pending requests (amber), reservations (purple)
