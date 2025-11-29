@@ -3251,5 +3251,9 @@
   "Errore lettura calendario": "Calendar read error",
   "Inizio": "Start",
   "Oggi": "Today",
-  "Prestiti in corso": "Active Loans"
+  "Prestiti in corso": "Active Loans",
+  "Sicurezza Automatica": "Automatic Security",
+  "L'accesso alla cartella installer è automaticamente bloccato dopo l'installazione.": "Access to the installer folder is automatically blocked after installation.",
+  "Il file": "The file",
+  "nella root del progetto impedisce qualsiasi accesso non autorizzato.": "in the project root prevents any unauthorized access."
 }
