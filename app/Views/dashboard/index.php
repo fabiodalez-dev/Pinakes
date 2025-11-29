@@ -533,13 +533,6 @@ unset($loanActionTranslations);
   to { opacity: 1; }
 }
 
-/* Responsive design for mobile */
-@media (max-width: 768px) {
-  .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-4 {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* FullCalendar custom styles */
 #dashboard-calendar .fc-event {
   cursor: pointer;
