@@ -620,6 +620,16 @@ foreach ($calendarEvents as $event) {
 }
 ?>
 <script>
+// XSS protection helper
+function escapeHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize FullCalendar
     const calendarEl = document.getElementById('dashboard-calendar');
@@ -653,12 +663,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (window.Swal) {
                     Swal.fire({
-                        title: info.event.title,
+                        title: escapeHtml(info.event.title),
                         html: `
                             <div class="text-left">
-                                <p><strong><?= __("Tipo") ?>:</strong> ${typeLabel}</p>
-                                <p><strong><?= __("Utente") ?>:</strong> ${props.user}</p>
-                                <p><strong><?= __("Stato") ?>:</strong> ${statusLabel}</p>
+                                <p><strong><?= __("Tipo") ?>:</strong> ${escapeHtml(typeLabel)}</p>
+                                <p><strong><?= __("Utente") ?>:</strong> ${escapeHtml(props.user)}</p>
+                                <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(statusLabel)}</p>
                                 <p><strong><?= __("Dal") ?>:</strong> ${info.event.start.toLocaleDateString()}</p>
                                 <p><strong><?= __("Al") ?>:</strong> ${info.event.end ? new Date(info.event.end.getTime() - 86400000).toLocaleDateString() : info.event.start.toLocaleDateString()}</p>
                             </div>
@@ -667,7 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         confirmButtonText: '<?= __("Chiudi") ?>'
                     });
                 } else {
-                    alert(`${info.event.title}\n${typeLabel} - ${statusLabel}\n${props.user}`);
+                    alert(`${escapeHtml(info.event.title)}\n${escapeHtml(typeLabel)} - ${escapeHtml(statusLabel)}\n${escapeHtml(props.user)}`);
                 }
             },
             eventDidMount: function(info) {
