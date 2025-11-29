@@ -1294,12 +1294,16 @@ $htmlLang = substr($currentLocale, 0, 2);
             });
         }
 
+        const isCatalogueMode = <?= json_encode($isCatalogueMode) ?>;
+
         document.addEventListener('DOMContentLoaded', function () {
             // Initialize keyboard shortcuts
             initializeKeyboardShortcuts();
 
-            // Update reservations badge
-            updateReservationsBadge();
+            // Update reservations badge (skip in catalogue mode - no badges exist)
+            if (!isCatalogueMode) {
+                updateReservationsBadge();
+            }
 
             // Initialize tooltips and other Bootstrap components
             const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
