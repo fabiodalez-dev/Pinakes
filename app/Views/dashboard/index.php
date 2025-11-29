@@ -558,6 +558,39 @@ unset($loanActionTranslations);
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Responsive styles for mobile */
+@media (max-width: 767px) {
+  #dashboard-calendar {
+    min-height: 300px;
+  }
+  #dashboard-calendar .fc-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  #dashboard-calendar .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+  }
+  #dashboard-calendar .fc-toolbar-title {
+    font-size: 1rem;
+  }
+  #dashboard-calendar .fc-button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  #dashboard-calendar .fc-daygrid-day-number {
+    font-size: 0.75rem;
+    padding: 2px 4px;
+  }
+  #dashboard-calendar .fc-event {
+    font-size: 0.65rem;
+    padding: 1px 2px;
+  }
+  #dashboard-calendar .fc-list-event-title {
+    font-size: 0.8rem;
+  }
+}
 </style>
 
 <!-- FullCalendar (local) -->
@@ -637,10 +670,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize FullCalendar
     const calendarEl = document.getElementById('dashboard-calendar');
     if (calendarEl) {
+        // Detect mobile for responsive toolbar
+        const isMobile = window.innerWidth < 768;
+
         const calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
+            initialView: isMobile ? 'listWeek' : 'dayGridMonth',
             locale: '<?= strtolower(substr(\App\Support\I18n::getLocale(), 0, 2)) ?>',
-            headerToolbar: {
+            // Responsive toolbar: simpler on mobile
+            headerToolbar: isMobile ? {
+                left: 'prev,next',
+                center: 'title',
+                right: 'listWeek,dayGridMonth'
+            } : {
                 left: 'prev,next today',
                 center: 'title',
                 right: 'dayGridMonth,dayGridWeek,listWeek'
@@ -651,6 +692,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 week: '<?= __("Settimana") ?>',
                 list: '<?= __("Lista") ?>'
             },
+            // Responsive settings
+            handleWindowResize: true,
+            contentHeight: 'auto',
+            expandRows: true,
+            dayMaxEvents: isMobile ? 2 : true,
+            moreLinkClick: 'popover',
             events: <?= json_encode(
                 $calendarEventsJson,
                 JSON_UNESCAPED_UNICODE
