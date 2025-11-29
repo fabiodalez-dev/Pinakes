@@ -2145,7 +2145,7 @@ document.addEventListener('DOMContentLoaded', function() {
               defaultDate: suggestedDate,
               locale: forceEn ? 'en' : (fpLocale || 'default'),
               disable: disabledDates,
-              showMonths: 2,
+              showMonths: 1,
               onDayCreate: function(dObj, dStr, fp, dayElem) {
                 if (!dayElem || !dayElem.dateObj) return;
                 if (dayElem.classList.contains('prevMonthDay') || dayElem.classList.contains('nextMonthDay')) return;

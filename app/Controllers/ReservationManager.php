@@ -112,11 +112,11 @@ class ReservationManager {
         $bookId = (int)$reservation['libro_id'];
         $startDate = $reservation['data_inizio_richiesta'];
         $endDate = $reservation['data_fine_richiesta'];
-        $today = date('Y-m-d');
 
-        // Determine state: 'prenotato' if future loan, 'in_corso' if immediate
-        $isFutureLoan = ($startDate > $today);
-        $newState = $isFutureLoan ? 'prenotato' : 'in_corso';
+        // Always create as 'pendente' - requires admin confirmation of physical pickup
+        // Origin is 'prenotazione' to distinguish from manual requests
+        $newState = 'pendente';
+        $origine = 'prenotazione';
 
         // Find an available copy for this date range (no overlapping loans)
         // Consider 'disponibile' and 'prenotato' copies (exclude perso/danneggiato/manutenzione)
@@ -171,32 +171,34 @@ class ReservationManager {
             return false;
         }
 
-        // Create loan with copia_id
+        // Create loan with copia_id and origine='prenotazione'
+        // Copy stays available until admin confirms physical pickup
         $stmt = $this->db->prepare("
-            INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, attivo)
-            VALUES (?, ?, ?, ?, ?, ?, 1)
+            INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, origine, attivo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
         ");
-        $stmt->bind_param('iiisss',
+        $stmt->bind_param('iiissss',
             $reservation['libro_id'],
             $reservation['utente_id'],
             $copyId,
             $startDate,
             $endDate,
-            $newState
+            $newState,
+            $origine
         );
         $stmt->execute();
+        $loanId = $this->db->insert_id;
         $stmt->close();
 
-        // Update copy status: 'prenotato' for future loans, 'prestato' for immediate
-        $copyRepo = new \App\Models\CopyRepository($this->db);
-        $copyStatus = $isFutureLoan ? 'prenotato' : 'prestato';
-        $copyRepo->updateStatus($copyId, $copyStatus);
+        // Note: Copy status is NOT updated here - it remains 'disponibile'
+        // The copy will be marked as 'prestato' when admin approves the pickup
+        // via LoanApprovalController::approveLoan()
 
         // Update book availability
         $integrity = new \App\Support\DataIntegrity($this->db);
         $integrity->recalculateBookAvailability($bookId);
 
-        return true;
+        return $loanId;
     }
 
     private function updateQueuePositions($bookId) {
@@ -255,11 +257,16 @@ class ReservationManager {
                 $variables
             );
 
-            // Mark as notified
-            $stmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ?");
-            $stmt->bind_param('i', $reservation['id']);
-            $stmt->execute();
-            $stmt->close();
+            // Only mark as notified if email was actually sent successfully
+            // This allows retry on next cron/maintenance run if email fails
+            if ($success) {
+                $stmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ?");
+                $stmt->bind_param('i', $reservation['id']);
+                $stmt->execute();
+                $stmt->close();
+            } else {
+                error_log("ReservationManager: Email send failed for reservation ID {$reservation['id']}, will retry on next run");
+            }
 
             return $success;
 
@@ -295,10 +302,25 @@ class ReservationManager {
     }
 
     /**
-     * Check if book is available for immediate loan (multi-copy aware)
+     * Check if book is available for loan (multi-copy aware)
+     *
+     * @param int $bookId The book ID
+     * @param string|null $startDate Start date of the requested period (Y-m-d format). Defaults to today.
+     * @param string|null $endDate End date of the requested period (Y-m-d format). Defaults to startDate.
+     * @return bool True if at least one copy is available for the entire requested period
      */
-    public function isBookAvailableForImmediateLoan($bookId) {
-        $today = date('Y-m-d');
+    public function isBookAvailableForImmediateLoan($bookId, ?string $startDate = null, ?string $endDate = null): bool {
+        // Default to today if no dates provided
+        $startDate = $startDate ?: date('Y-m-d');
+        $endDate = $endDate ?: $startDate;
+
+        // Validate date format and ensure start <= end
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+            return false;
+        }
+        if ($startDate > $endDate) {
+            return false;
+        }
 
         // Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
         $totalStmt = $this->db->prepare("
@@ -310,11 +332,23 @@ class ReservationManager {
         $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
         $totalStmt->close();
 
+        // Fallback: if no copies exist in copie table, check libri.copie_totali
+        // This ensures consistency with ReservationsController::getBookTotalCopies()
+        if ($totalCopies === 0) {
+            $fallbackStmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
+            $fallbackStmt->bind_param('i', $bookId);
+            $fallbackStmt->execute();
+            $fallbackRow = $fallbackStmt->get_result()?->fetch_assoc();
+            $fallbackStmt->close();
+            $totalCopies = (int)($fallbackRow['copie_totali'] ?? 1);
+        }
+
         if ($totalCopies === 0) {
             return false;
         }
 
-        // Count active loans that overlap with today (include prenotato)
+        // Count active loans that overlap with the requested period (include prenotato, pendente)
+        // Overlap condition: existing_start <= our_end AND existing_end >= our_start
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as active_loans
             FROM prestiti
@@ -323,12 +357,12 @@ class ReservationManager {
             AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
             AND data_prestito <= ? AND data_scadenza >= ?
         ");
-        $stmt->bind_param('iss', $bookId, $today, $today);
+        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
         $stmt->execute();
         $activeLoans = (int)($stmt->get_result()->fetch_assoc()['active_loans'] ?? 0);
         $stmt->close();
 
-        // Count active reservations that overlap with today
+        // Count active reservations that overlap with the requested period
         // Use COALESCE for safety, though data_inizio/fine_richiesta are always set
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as active_reservations
@@ -337,7 +371,7 @@ class ReservationManager {
             AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
             AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
         ");
-        $stmt->bind_param('iss', $bookId, $today, $today);
+        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
         $stmt->execute();
         $activeReservations = (int)($stmt->get_result()->fetch_assoc()['active_reservations'] ?? 0);
         $stmt->close();

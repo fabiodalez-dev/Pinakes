@@ -607,6 +607,7 @@ CREATE TABLE `prestiti` (
   `data_scadenza` date NOT NULL,
   `data_restituzione` date DEFAULT NULL,
   `stato` enum('pendente','prenotato','in_corso','restituito','in_ritardo','perso','danneggiato') COLLATE utf8mb4_unicode_ci DEFAULT 'pendente',
+  `origine` enum('richiesta','prenotazione','diretto') COLLATE utf8mb4_unicode_ci DEFAULT 'richiesta',
   `sanzione` decimal(10,2) DEFAULT '0.00',
   `renewals` int DEFAULT '0',
   `processed_by` int DEFAULT NULL,

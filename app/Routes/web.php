@@ -925,6 +925,12 @@ return function (App $app): void {
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
+    $app->get('/admin/prestiti/export-csv', function ($request, $response) use ($app) {
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->exportCsv($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
     $app->get('/admin/prestiti/crea', function ($request, $response) {
         $controller = new PrestitiController();
         return $controller->createForm($request, $response);
@@ -2344,6 +2350,40 @@ return function (App $app): void {
         $response->getBody()->write($fileContent);
         return $response->withHeader('Content-Type', $mimeType)
             ->withHeader('Cache-Control', 'public, max-age=3600');
+    });
+
+    // Serve ICS calendar file for external calendar sync
+    $app->get('/storage/calendar/library-calendar.ics', function ($request, $response) use ($app) {
+        $icsPath = __DIR__ . '/../../storage/calendar/library-calendar.ics';
+
+        // Generate ICS if it doesn't exist
+        if (!file_exists($icsPath)) {
+            try {
+                $db = $app->getContainer()->get('db');
+                $maintenanceService = new \App\Support\MaintenanceService($db);
+                $maintenanceService->generateIcsCalendar();
+            } catch (\Throwable $e) {
+                error_log('ICS generation error: ' . $e->getMessage());
+            }
+        }
+
+        // Check if file exists now
+        if (!file_exists($icsPath) || !is_file($icsPath)) {
+            $response->getBody()->write(__('Calendario non disponibile'));
+            return $response->withStatus(404);
+        }
+
+        $content = file_get_contents($icsPath);
+        if ($content === false) {
+            $response->getBody()->write(__('Errore lettura calendario'));
+            return $response->withStatus(500);
+        }
+
+        $response->getBody()->write($content);
+        return $response
+            ->withHeader('Content-Type', 'text/calendar; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="library-calendar.ics"')
+            ->withHeader('Cache-Control', 'no-cache, must-revalidate');
     });
 
     // Public API endpoint for book search (protected by API key)
