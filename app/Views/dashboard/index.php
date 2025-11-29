@@ -648,7 +648,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 week: '<?= __("Settimana") ?>',
                 list: '<?= __("Lista") ?>'
             },
-            events: <?= json_encode($calendarEventsJson, JSON_UNESCAPED_UNICODE) ?>,
+            events: <?= json_encode(
+                $calendarEventsJson,
+                JSON_UNESCAPED_UNICODE
+                | JSON_HEX_TAG
+                | JSON_HEX_AMP
+                | JSON_HEX_APOS
+                | JSON_HEX_QUOT
+            ) ?>,
             eventClick: function(info) {
                 const props = info.event.extendedProps;
                 const typeLabel = props.type === 'prenotazione' ? '<?= __("Prenotazione") ?>' : '<?= __("Prestito") ?>';
@@ -661,6 +668,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
                 const statusLabel = statusLabels[props.status] || props.status;
 
+                // Use originalStart/originalEnd with fallback to event dates
+                const start = props.originalStart ? new Date(props.originalStart) : info.event.start;
+                const endRaw = props.originalEnd || props.originalStart || info.event.start;
+                const end = new Date(endRaw);
+
                 if (window.Swal) {
                     Swal.fire({
                         title: escapeHtml(info.event.title),
@@ -669,8 +681,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <p><strong><?= __("Tipo") ?>:</strong> ${escapeHtml(typeLabel)}</p>
                                 <p><strong><?= __("Utente") ?>:</strong> ${escapeHtml(props.user)}</p>
                                 <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(statusLabel)}</p>
-                                <p><strong><?= __("Dal") ?>:</strong> ${new Date(props.originalStart).toLocaleDateString()}</p>
-                                <p><strong><?= __("Al") ?>:</strong> ${new Date(props.originalEnd).toLocaleDateString()}</p>
+                                <p><strong><?= __("Dal") ?>:</strong> ${start.toLocaleDateString()}</p>
+                                <p><strong><?= __("Al") ?>:</strong> ${end.toLocaleDateString()}</p>
                             </div>
                         `,
                         icon: 'info',
