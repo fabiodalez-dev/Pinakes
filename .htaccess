@@ -1,5 +1,19 @@
 RewriteEngine On
 
+# Block access to sensitive files at root level
+<FilesMatch "^(\.env|\.env\..+|\.git.*|\.installed|composer\.(json|lock)|package(-lock)?\.json|CLAUDE\.md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Prevent directory browsing
+Options -Indexes
+
 # Exclude installer from rewrite (allow direct access)
 RewriteCond %{REQUEST_URI} ^/installer/ [NC]
 RewriteRule ^ - [L]
