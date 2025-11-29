@@ -292,6 +292,17 @@ form.hero-search-form {
         font-weight: 400;
     }
 
+    /* Override browser autofill background */
+    .hero-search-input:-webkit-autofill,
+    .hero-search-input:-webkit-autofill:hover,
+    .hero-search-input:-webkit-autofill:focus,
+    .hero-search-input:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 30px white inset !important;
+        -webkit-text-fill-color: var(--primary-color) !important;
+        background-color: transparent !important;
+        transition: background-color 5000s ease-in-out 0s;
+    }
+
     .hero-search-button {
         background: var(--primary-color);
         color: white;
