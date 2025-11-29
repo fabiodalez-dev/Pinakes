@@ -6,6 +6,9 @@ SET FOREIGN_KEY_CHECKS=0;
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('cms', 'events_page_enabled', '1', 'Abilita o disabilita la pagina degli eventi nel frontend');
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('system', 'catalogue_mode', '0', 'Modalità solo catalogo - disabilita prestiti, prenotazioni e wishlist');
+
 INSERT INTO `classificazione` VALUES (369,NULL,'000','000 - Informatica, informazione e opere generali',1);
 INSERT INTO `classificazione` VALUES (370,NULL,'100','100 - Filosofia e psicologia',1);
 INSERT INTO `classificazione` VALUES (371,NULL,'200','200 - Religione',1);
