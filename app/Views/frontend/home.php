@@ -101,6 +101,11 @@ $additional_css = "
         padding: 6rem 0;
     }
 
+    /* Remove bottom padding from last section (genre carousels) to avoid gap before footer */
+    section#genre-carousels {
+        padding-bottom: 0;
+    }
+
     .section-alt {
         background: var(--light-bg);
     }
