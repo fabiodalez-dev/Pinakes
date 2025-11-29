@@ -5,12 +5,28 @@ namespace App\Support;
 
 use mysqli;
 
+/**
+ * ICS Calendar Generator for library loans and reservations
+ *
+ * Generates iCalendar (.ics) files compatible with Google Calendar,
+ * Apple Calendar, Outlook and other calendar applications.
+ * Includes active loans, scheduled loans, and pending reservations.
+ *
+ * @package App\Support
+ */
 class IcsGenerator
 {
     private mysqli $db;
     private string $calendarName;
     private string $timezone;
 
+    /**
+     * Create a new ICS generator instance
+     *
+     * @param mysqli $db Database connection
+     * @param string $calendarName Display name for the calendar
+     * @param string $timezone IANA timezone identifier (e.g., 'Europe/Rome')
+     */
     public function __construct(mysqli $db, string $calendarName = 'Biblioteca - Prestiti e Prenotazioni', string $timezone = 'Europe/Rome')
     {
         $this->db = $db;
@@ -19,7 +35,12 @@ class IcsGenerator
     }
 
     /**
-     * Generate ICS file content
+     * Generate ICS file content as a string
+     *
+     * Fetches all active loans and reservations from the database
+     * and formats them as iCalendar events with proper escaping.
+     *
+     * @return string Complete ICS file content with VCALENDAR wrapper
      */
     public function generate(): string
     {
@@ -44,6 +65,12 @@ class IcsGenerator
 
     /**
      * Generate and save ICS file to storage
+     *
+     * Creates the directory structure if it doesn't exist,
+     * then writes the generated ICS content to the specified path.
+     *
+     * @param string $path Absolute path where the .ics file will be saved
+     * @return bool True if file was written successfully, false otherwise
      */
     public function saveToFile(string $path): bool
     {
@@ -59,7 +86,12 @@ class IcsGenerator
     }
 
     /**
-     * Fetch all events (loans and reservations)
+     * Fetch all events (loans and reservations) from database
+     *
+     * Retrieves active loans (in_corso, prenotato, in_ritardo, pendente)
+     * and active reservations, filtering out past events except overdue loans.
+     *
+     * @return array<int, array{uid: string, title: string, description: string, start: string, end: string, type: string, status: string, updated: string}> Array of event data
      */
     private function fetchEvents(): array
     {
@@ -140,7 +172,11 @@ class IcsGenerator
     }
 
     /**
-     * Get loan title based on status
+     * Get loan title with emoji prefix based on status
+     *
+     * @param string $status Loan status (in_corso, prenotato, in_ritardo, pendente)
+     * @param string $bookTitle Book title to include
+     * @return string Formatted title with emoji and localized prefix
      */
     private function getLoanTitle(string $status, string $bookTitle): string
     {
@@ -155,7 +191,10 @@ class IcsGenerator
     }
 
     /**
-     * Get loan description
+     * Build loan description with book, user and status info
+     *
+     * @param array{titolo: string, utente_nome: string, email?: string, stato: string} $row Loan data from database
+     * @return string Multi-line description for ICS event
      */
     private function getLoanDescription(array $row): string
     {
@@ -169,7 +208,10 @@ class IcsGenerator
     }
 
     /**
-     * Get reservation description
+     * Build reservation description with book and user info
+     *
+     * @param array{titolo: string, utente_nome: string, email?: string} $row Reservation data from database
+     * @return string Multi-line description for ICS event
      */
     private function getReservationDescription(array $row): string
     {
@@ -183,7 +225,10 @@ class IcsGenerator
     }
 
     /**
-     * Translate status
+     * Translate loan/reservation status to localized string
+     *
+     * @param string $status Status code from database
+     * @return string Localized status label
      */
     private function translateStatus(string $status): string
     {
@@ -198,7 +243,13 @@ class IcsGenerator
     }
 
     /**
-     * Format a single event as ICS
+     * Format a single event as ICS VEVENT component
+     *
+     * Generates RFC 5545 compliant VEVENT with all-day dates,
+     * proper escaping, and calendar color hints.
+     *
+     * @param array{uid: string, title: string, description: string, start: string, end: string, type: string, status: string, updated?: string} $event Event data
+     * @return string ICS VEVENT block with CRLF line endings
      */
     private function formatEvent(array $event): string
     {
@@ -239,7 +290,14 @@ class IcsGenerator
     }
 
     /**
-     * Get event color based on type and status
+     * Get event color hex code based on type and status
+     *
+     * Returns Apple Calendar compatible color hints.
+     * Purple for reservations, status-based colors for loans.
+     *
+     * @param string $type Event type ('prestito' or 'prenotazione')
+     * @param string $status Loan/reservation status
+     * @return string Hex color code (e.g., '#10B981')
      */
     private function getEventColor(string $type, string $status): string
     {
@@ -257,7 +315,13 @@ class IcsGenerator
     }
 
     /**
-     * Escape text for ICS format
+     * Escape text for ICS format per RFC 5545
+     *
+     * Escapes backslash, semicolon, comma and converts newlines
+     * to literal \n sequences as required by the iCalendar spec.
+     *
+     * @param string $text Raw text to escape
+     * @return string Escaped text safe for ICS properties
      */
     private function escapeIcs(string $text): string
     {
