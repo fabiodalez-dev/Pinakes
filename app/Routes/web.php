@@ -929,7 +929,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCsv($request, $response, $db);
-    })->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new AdminAuthMiddleware()); // 5 exports per minute
 
     $app->get('/admin/prestiti/crea', function ($request, $response) {
         $controller = new PrestitiController();
