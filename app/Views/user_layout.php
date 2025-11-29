@@ -42,6 +42,7 @@ $catalogRoute = route_path('catalog');
 $reservationsRoute = route_path('reservations');
 $wishlistRoute = route_path('wishlist');
 $profileRoute = route_path('profile');
+$isCatalogueMode = ConfigStore::isCatalogueMode();
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 $dashboardRoute = route_path('user_dashboard');
@@ -831,6 +832,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                         <?php if ($isLogged): ?>
                             <div class="d-flex align-items-center gap-2">
+                                <?php if (!$isCatalogueMode): ?>
                                 <a class="btn btn-outline-header" href="<?= $reservationsRoute ?>">
                                     <i class="fas fa-bookmark"></i>
                                     <span class="d-none d-sm-inline"><?= __("Prenotazioni") ?></span>
@@ -840,6 +842,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                     <i class="fas fa-heart"></i>
                                     <span class="d-none d-sm-inline"><?= __("Preferiti") ?></span>
                                 </a>
+                                <?php endif; ?>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                                     <a class="btn btn-primary-header" href="/admin/dashboard">
                                         <i class="fas fa-user-shield"></i>
@@ -916,12 +919,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <a href="/user/dashboard" class="mobile-nav-link">
                             <i class="fas fa-tachometer-alt me-2"></i><?= __("Dashboard") ?>
                         </a>
+                        <?php if (!$isCatalogueMode): ?>
                         <a href="<?= $reservationsRoute ?>" class="mobile-nav-link">
                             <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                         </a>
                         <a href="<?= $wishlistRoute ?>" class="mobile-nav-link">
                             <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                         </a>
+                        <?php endif; ?>
                         <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                             <a href="/admin/dashboard" class="mobile-nav-link">
                                 <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
