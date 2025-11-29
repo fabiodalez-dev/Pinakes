@@ -158,7 +158,6 @@ desktop.ini
 .idea/
 *.sublime-*
 *.swp
-PRESTITI_CODEX.md
 *.swo
 *~
 .project
@@ -177,6 +176,7 @@ docs/
 security.md
 fix.md
 PRESTITI.md
+PRESTITI_CODEX.md
 
 # Internationalization planning (contains untranslated strings)
 traduzione_piano.md
