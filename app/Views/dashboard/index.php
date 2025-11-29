@@ -693,8 +693,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             eventDidMount: function(info) {
-                // Add tooltip
-                info.el.title = `${info.event.title}\n${info.event.extendedProps.user}`;
+                // Add tooltip with XSS protection
+                info.el.title = escapeHtml(info.event.title) + '\n' + escapeHtml(info.event.extendedProps.user);
             }
         });
         calendar.render();
