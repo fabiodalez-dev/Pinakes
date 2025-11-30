@@ -172,7 +172,8 @@ desktop.ini
 # ========================================
 # Development Documentation (not for distribution)
 # ========================================
-docs/
+docs/*
+!docs/*.png
 security.md
 fix.md
 PRESTITI.md
