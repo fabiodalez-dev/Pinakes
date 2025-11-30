@@ -753,6 +753,11 @@ class FrontendController
                 foreach ($words as $word) {
                     // Strip trailing * for length check but preserve for wildcard search
                     $wordBase = rtrim($word, '*');
+                    // Skip words that become empty after sanitization (e.g., "+++")
+                    $sanitizedBase = $this->escapeFulltextWord($wordBase, false);
+                    if ($sanitizedBase === '') {
+                        continue;
+                    }
                     $likeWord = '%' . $wordBase . '%';
                     $likeWordEntities = '%' . str_replace("'", "&#039;", $wordBase) . '%';
 
@@ -788,7 +793,10 @@ class FrontendController
                     }
                 }
                 // Join with AND - all words must match somewhere
-                $conditions[] = '(' . implode(' AND ', $wordConditions) . ')';
+                // Only add if we have valid words (handles case where all words were special chars)
+                if (!empty($wordConditions)) {
+                    $conditions[] = '(' . implode(' AND ', $wordConditions) . ')';
+                }
             }
         }
 
