@@ -236,7 +236,6 @@ $pluginSettings = $pluginSettings ?? [];
                                         <i class="fas <?= $hasApiConfig ? 'fa-cog' : 'fa-exclamation-triangle' ?> mr-1"></i>
                                         <?= __("Configura API") ?>
                                     </button>
-                                    </button>
                                 <?php endif; ?>
                                 <?php if ($plugin['name'] === 'z39-server'): ?>
                                     <?php
@@ -647,6 +646,15 @@ $pluginSettings = $pluginSettings ?? [];
 
 <script>
     const csrfToken = '<?= \App\Support\Csrf::ensureToken() ?>';
+
+    // XSS protection helper
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
     // Z39.50 Logic
     const z39ServerModal = document.getElementById('z39ServerModal');
     const z39ServersList = document.getElementById('z39ServersList');
@@ -826,33 +834,40 @@ $pluginSettings = $pluginSettings ?? [];
         server = server || { name: '', url: '', db: '', syntax: 'marcxml', enabled: true };
         const idx = index !== null ? index : document.querySelectorAll('.z39-server-row').length;
 
+        // Escape values to prevent XSS
+        const safeName = escapeHtml(server.name);
+        const safeUrl = escapeHtml(server.url);
+        const safeDb = escapeHtml(server.db);
+        const safeIsbnIndex = escapeHtml(server.indexes?.isbn || 'isbn');
+        const safeSyntax = escapeHtml(server.syntax || 'marcxml');
+
         const row = document.createElement('div');
         row.className = 'z39-server-row bg-gray-50 rounded-xl p-4 border border-gray-200 relative group';
         row.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Nome Server") ?></label>
-                <input type="text" name="server_name[]" value="${server.name}" placeholder="es. SBN Nazionale" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <input type="text" name="server_name[]" value="${safeName}" placeholder="es. SBN Nazionale" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("URL Endpoint SRU") ?></label>
-                <input type="text" name="server_url[]" value="${server.url}" placeholder="http://opac.sbn.it/sru" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
+                <input type="text" name="server_url[]" value="${safeUrl}" placeholder="http://opac.sbn.it/sru" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Database") ?></label>
-                <input type="text" name="server_db[]" value="${server.db}" placeholder="nopac" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <input type="text" name="server_db[]" value="${safeDb}" placeholder="nopac" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Indice ISBN") ?></label>
-                <input type="text" name="server_isbn_index[]" value="${server.indexes?.isbn || 'isbn'}" placeholder="es. bath.isbn" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
+                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="es. bath.isbn" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Sintassi") ?></label>
                 <select name="server_syntax[]" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                    <option value="marcxml" ${server.syntax === 'marcxml' ? 'selected' : ''}>MARCXML</option>
-                    <option value="unimarc" ${server.syntax === 'unimarc' ? 'selected' : ''}>UNIMARC</option>
-                    <option value="mods" ${server.syntax === 'mods' ? 'selected' : ''}>MODS</option>
-                    <option value="dc" ${server.syntax === 'dc' ? 'selected' : ''}>Dublin Core</option>
+                    <option value="marcxml" ${safeSyntax === 'marcxml' ? 'selected' : ''}>MARCXML</option>
+                    <option value="unimarc" ${safeSyntax === 'unimarc' ? 'selected' : ''}>UNIMARC</option>
+                    <option value="mods" ${safeSyntax === 'mods' ? 'selected' : ''}>MODS</option>
+                    <option value="dc" ${safeSyntax === 'dc' ? 'selected' : ''}>Dublin Core</option>
                 </select>
             </div>
         </div>
@@ -1157,9 +1172,10 @@ $pluginSettings = $pluginSettings ?? [];
     }
 
     async function uninstallPlugin(pluginId, pluginName) {
+        const escapedName = escapeHtml(pluginName);
         const result = await Swal.fire({
             title: '<?= addslashes(__("Conferma Disinstallazione")) ?>',
-            html: `<?= addslashes(__("Sei sicuro di voler disinstallare")) ?> <strong>${pluginName}</strong>?<br><br>
+            html: `<?= addslashes(__("Sei sicuro di voler disinstallare")) ?> <strong>${escapedName}</strong>?<br><br>
                <span class="text-sm text-red-600"><?= addslashes(__("Questa azione eliminerà tutti i dati del plugin e non può essere annullata.")) ?></span>`,
             icon: 'error',
             showCancelButton: true,
