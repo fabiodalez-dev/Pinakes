@@ -627,9 +627,16 @@ class Z39ServerPlugin
         }
 
         $stmt->bind_param('i', $this->pluginId);
-        $stmt->execute();
+
+        // Add error handling for execute() - may fail on connection issues
+        if (!$stmt->execute()) {
+            error_log('[Z39 Server Plugin] Failed to check plugin status: ' . $stmt->error);
+            $stmt->close();
+            return false;
+        }
+
         $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
+        $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
 
         return $row && (int)$row['is_active'] === 1;

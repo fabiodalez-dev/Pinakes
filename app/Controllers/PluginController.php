@@ -364,7 +364,10 @@ class PluginController
             ]));
         } elseif ($plugin['name'] === 'z39-server') {
             // Z39.50/SRU Integration settings
-            $enableServer = isset($settings['enable_server']) && $settings['enable_server'] === '1';
+            // Note: Use 'server_enabled' key to match DEFAULT_SETTINGS in Z39ServerPlugin
+            // Form may send 'enable_server' for backwards compatibility - accept both
+            $enableServer = (isset($settings['server_enabled']) && $settings['server_enabled'] === '1')
+                         || (isset($settings['enable_server']) && $settings['enable_server'] === '1');
             $enableClient = isset($settings['enable_client']) && $settings['enable_client'] === '1';
             $servers = $settings['servers'] ?? '[]';
 
@@ -384,7 +387,8 @@ class PluginController
                 $servers = '[]';
             }
 
-            $this->pluginManager->setSetting($pluginId, 'enable_server', $enableServer ? '1' : '0', true);
+            // Save with correct key name matching Z39ServerPlugin::DEFAULT_SETTINGS
+            $this->pluginManager->setSetting($pluginId, 'server_enabled', $enableServer ? '1' : '0', true);
             $this->pluginManager->setSetting($pluginId, 'enable_client', $enableClient ? '1' : '0', true);
             $this->pluginManager->setSetting($pluginId, 'servers', $servers, true);
 
@@ -392,7 +396,7 @@ class PluginController
                 'success' => true,
                 'message' => __('Impostazioni Z39.50 salvate correttamente.'),
                 'data' => [
-                    'enable_server' => $enableServer,
+                    'server_enabled' => $enableServer,
                     'enable_client' => $enableClient,
                     'servers_count' => count($decoded)
                 ]
