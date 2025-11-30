@@ -35,13 +35,41 @@ class RateLimiter
      */
     public function checkLimit(string $clientIp): bool
     {
-        // Clean up old entries (older than window)
+        // SECURITY FIX: Use prepared statement for cleanup
         $cutoff = date('Y-m-d H:i:s', time() - $this->windowSeconds);
-        $this->db->query("DELETE FROM z39_rate_limits WHERE window_start < '{$cutoff}'");
+        $cleanupStmt = $this->db->prepare("DELETE FROM z39_rate_limits WHERE window_start < ?");
+        if ($cleanupStmt) {
+            $cleanupStmt->bind_param('s', $cutoff);
+            $cleanupStmt->execute();
+            $cleanupStmt->close();
+        }
 
-        // Get current count for this IP
+        $now = date('Y-m-d H:i:s');
+
+        // SECURITY FIX: Use atomic INSERT...ON DUPLICATE KEY UPDATE to prevent race condition
+        // This ensures thread-safe rate limiting without SELECT-then-UPDATE vulnerability
         $stmt = $this->db->prepare("
-            SELECT request_count, window_start
+            INSERT INTO z39_rate_limits (ip_address, request_count, window_start, last_request)
+            VALUES (?, 1, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+                request_count = IF(window_start >= ?, request_count + 1, 1),
+                window_start = IF(window_start >= ?, window_start, VALUES(window_start)),
+                last_request = NOW()
+        ");
+
+        if (!$stmt) {
+            // If prepare fails, allow request but log error
+            error_log("[RateLimiter] Failed to prepare statement: " . $this->db->error);
+            return true;
+        }
+
+        $stmt->bind_param('ssss', $clientIp, $now, $cutoff, $cutoff);
+        $stmt->execute();
+        $stmt->close();
+
+        // Now check if limit exceeded
+        $checkStmt = $this->db->prepare("
+            SELECT request_count
             FROM z39_rate_limits
             WHERE ip_address = ?
             AND window_start >= ?
@@ -49,42 +77,18 @@ class RateLimiter
             LIMIT 1
         ");
 
-        $stmt->bind_param('ss', $clientIp, $cutoff);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        if (!$checkStmt) {
+            return true;
+        }
+
+        $checkStmt->bind_param('ss', $clientIp, $cutoff);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result();
         $row = $result->fetch_assoc();
-        $stmt->close();
+        $checkStmt->close();
 
-        $now = date('Y-m-d H:i:s');
-
-        if ($row) {
-            // Check if exceeded
-            if ($row['request_count'] >= $this->maxRequests) {
-                return false;
-            }
-
-            // Increment count
-            $stmt = $this->db->prepare("
-                UPDATE z39_rate_limits
-                SET request_count = request_count + 1,
-                    last_request = NOW()
-                WHERE ip_address = ?
-                AND window_start = ?
-            ");
-
-            $stmt->bind_param('ss', $clientIp, $row['window_start']);
-            $stmt->execute();
-            $stmt->close();
-        } else {
-            // Create new entry
-            $stmt = $this->db->prepare("
-                INSERT INTO z39_rate_limits (ip_address, request_count, window_start, last_request)
-                VALUES (?, 1, ?, NOW())
-            ");
-
-            $stmt->bind_param('ss', $clientIp, $now);
-            $stmt->execute();
-            $stmt->close();
+        if ($row && $row['request_count'] > $this->maxRequests) {
+            return false;
         }
 
         return true;

@@ -16,6 +16,14 @@ declare(strict_types=1);
 // This file is loaded by the router, so the autoloader is already available
 // and the database connection is provided via dependency injection
 
+// Load exception classes first (required by CQLParser and SRUServer)
+require_once __DIR__ . '/classes/Exceptions/CQLException.php';
+require_once __DIR__ . '/classes/Exceptions/InvalidCQLSyntaxException.php';
+require_once __DIR__ . '/classes/Exceptions/UnsupportedRelationException.php';
+require_once __DIR__ . '/classes/Exceptions/UnsupportedIndexException.php';
+require_once __DIR__ . '/classes/Exceptions/DatabaseException.php';
+require_once __DIR__ . '/classes/Exceptions/SRUQueryException.php';
+
 require_once __DIR__ . '/classes/SRUServer.php';
 require_once __DIR__ . '/classes/CQLParser.php';
 require_once __DIR__ . '/classes/RecordFormatter.php';
@@ -101,11 +109,18 @@ function handleSRURequest(
     // Write response
     $response->getBody()->write($xmlResponse);
 
+    // SECURITY FIX: Add comprehensive security headers
     return $response
         ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
-        ->withHeader('Access-Control-Allow-Origin', '*') // Allow CORS for library systems
-        ->withHeader('Access-Control-Allow-Methods', 'GET')
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type');
+        ->withHeader('Access-Control-Allow-Origin', '*') // Allow CORS for library systems (SRU standard)
+        ->withHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key')
+        ->withHeader('Access-Control-Max-Age', '86400') // Cache preflight for 24h
+        ->withHeader('X-Content-Type-Options', 'nosniff') // Prevent MIME sniffing
+        ->withHeader('X-Frame-Options', 'DENY') // Prevent clickjacking
+        ->withHeader('X-XSS-Protection', '1; mode=block') // Enable XSS filter
+        ->withHeader('Referrer-Policy', 'no-referrer') // Don't leak referrer
+        ->withHeader('Content-Security-Policy', "default-src 'none'"); // CSP for XML responses
 }
 
 /**
