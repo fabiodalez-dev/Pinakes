@@ -19,6 +19,7 @@ class SRUServer
     private mysqli $db;
     private array $settings;
     private ?int $pluginId;
+    private ?int $lastLogId = null;
     /** @var array<string,array<string,mixed>> */
     private array $indexDefinitions = [
         'dc.title' => [
@@ -1051,6 +1052,10 @@ class SRUServer
 
         $stmt->bind_param('sssss', $ipAddress, $userAgent, $operation, $query, $format);
         $stmt->execute();
+
+        // Store insert_id to avoid race condition in updateAccessLog
+        $this->lastLogId = $stmt->insert_id ?: null;
+
         $stmt->close();
     }
 
@@ -1063,21 +1068,21 @@ class SRUServer
      */
     private function updateAccessLog(int $responseTime, int $httpStatus, ?string $errorMessage = null): void
     {
-        if ($this->settings['enable_logging'] !== 'true') {
+        if ($this->settings['enable_logging'] !== 'true' || $this->lastLogId === null) {
             return;
         }
 
-        // Update the most recent log entry using prepared statement
+        // Update the specific log entry by ID (avoids race condition)
         $stmt = $this->db->prepare("
             UPDATE z39_access_logs
             SET response_time_ms = ?,
                 http_status = ?,
                 error_message = ?
-            WHERE id = (SELECT max_id FROM (SELECT MAX(id) as max_id FROM z39_access_logs) as t)
+            WHERE id = ?
         ");
 
         if ($stmt) {
-            $stmt->bind_param('iis', $responseTime, $httpStatus, $errorMessage);
+            $stmt->bind_param('iisi', $responseTime, $httpStatus, $errorMessage, $this->lastLogId);
             $stmt->execute();
             $stmt->close();
         }
