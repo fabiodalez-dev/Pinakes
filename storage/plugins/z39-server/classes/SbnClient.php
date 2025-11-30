@@ -153,6 +153,172 @@ class SbnClient
     }
 
     /**
+     * Get multiple full records in parallel using curl_multi
+     *
+     * This eliminates the N+1 query problem by fetching all full records
+     * concurrently instead of sequentially.
+     *
+     * Performance: With 20 records and 1s latency each:
+     * - Sequential: ~20s total
+     * - Parallel: ~2-3s total (limited by slowest response)
+     *
+     * @param array $bids Array of SBN Bibliographic IDs
+     * @return array Associative array [bid => fullRecord|null]
+     */
+    public function getFullRecordsParallel(array $bids): array
+    {
+        if (empty($bids)) {
+            return [];
+        }
+
+        // Remove duplicates and empty values
+        $bids = array_filter(array_unique($bids));
+
+        if (empty($bids)) {
+            return [];
+        }
+
+        $multiHandle = curl_multi_init();
+        $handles = [];
+        $results = [];
+
+        // Initialize all curl handles
+        foreach ($bids as $bid) {
+            $url = self::BASE_URL . self::FULL_ENDPOINT . '?bid=' . urlencode($bid);
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => $this->timeout,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_USERAGENT => 'Pinakes Library System/1.0 (+https://github.com/biblioteche)',
+                CURLOPT_HTTPHEADER => [
+                    'Accept: application/json',
+                    'Accept-Language: it-IT,it;q=0.9'
+                ]
+            ]);
+
+            curl_multi_add_handle($multiHandle, $ch);
+            $handles[$bid] = $ch;
+        }
+
+        // Execute all requests in parallel
+        $running = null;
+        do {
+            $status = curl_multi_exec($multiHandle, $running);
+            if ($status > CURLM_OK) {
+                error_log("[SBN Client] curl_multi_exec error: " . curl_multi_strerror($status));
+                break;
+            }
+            // Wait for activity (avoids busy-waiting)
+            if ($running > 0) {
+                curl_multi_select($multiHandle, 0.1);
+            }
+        } while ($running > 0);
+
+        // Collect results
+        foreach ($handles as $bid => $ch) {
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            $response = curl_multi_getcontent($ch);
+
+            if ($error || $httpCode !== 200 || empty($response)) {
+                error_log("[SBN Client] Parallel request failed for BID=$bid: HTTP=$httpCode, Error=$error");
+                $results[$bid] = null;
+            } else {
+                $data = json_decode($response, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $results[$bid] = $data;
+                } else {
+                    error_log("[SBN Client] JSON parse error for BID=$bid: " . json_last_error_msg());
+                    $results[$bid] = null;
+                }
+            }
+
+            curl_multi_remove_handle($multiHandle, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($multiHandle);
+
+        return $results;
+    }
+
+    /**
+     * Enrich books with full record data using parallel fetching
+     *
+     * @param array $books Array of parsed book records with _sbn_bid
+     * @param bool $includeLocations Whether to include location data
+     * @return array Enriched books array
+     */
+    public function enrichBooksParallel(array $books, bool $includeLocations = true): array
+    {
+        if (empty($books)) {
+            return [];
+        }
+
+        // Extract BIDs from books
+        $bids = [];
+        $bidToIndex = [];
+        foreach ($books as $index => $book) {
+            $bid = $book['_sbn_bid'] ?? null;
+            if ($bid) {
+                $bids[] = $bid;
+                $bidToIndex[$bid] = $index;
+            }
+        }
+
+        if (empty($bids)) {
+            return $books;
+        }
+
+        // Fetch all full records in parallel
+        $fullRecords = $this->getFullRecordsParallel($bids);
+
+        // Merge full record data into books
+        foreach ($fullRecords as $bid => $fullRecord) {
+            if ($fullRecord === null) {
+                continue;
+            }
+
+            $index = $bidToIndex[$bid] ?? null;
+            if ($index === null) {
+                continue;
+            }
+
+            // Add locations if requested and available
+            if ($includeLocations && isset($fullRecord['localizzazioni'])) {
+                $books[$index]['locations'] = $fullRecord['localizzazioni'];
+            }
+
+            // Enrich with additional full record data not in brief record
+            if (empty($books[$index]['pages']) && !empty($fullRecord['descrizioneFisica'])) {
+                $pages = $this->extractPages($fullRecord['descrizioneFisica']);
+                if ($pages > 0) {
+                    $books[$index]['pages'] = $pages;
+                    $books[$index]['numero_pagine'] = $pages;
+                }
+            }
+
+            if (empty($books[$index]['series']) && !empty($fullRecord['collezione'])) {
+                $books[$index]['series'] = $fullRecord['collezione'];
+                $books[$index]['collana'] = $fullRecord['collezione'];
+            }
+
+            if (empty($books[$index]['language']) && !empty($fullRecord['linguaPubblicazione'])) {
+                $lang = strtolower($fullRecord['linguaPubblicazione']);
+                $books[$index]['language'] = $lang;
+                $books[$index]['lingua'] = $this->mapLanguageToCode($lang);
+            }
+        }
+
+        return $books;
+    }
+
+    /**
      * Parse a full record into standardized book format
      *
      * @param array $record Full record from SBN API
