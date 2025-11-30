@@ -14,7 +14,7 @@ namespace Plugins\Z39Server\Classes;
  */
 class SbnClient
 {
-    private const BASE_URL = 'http://opac.sbn.it/opacmobilegw';
+    private const BASE_URL = 'https://opac.sbn.it/opacmobilegw';
     private const SEARCH_ENDPOINT = '/search.json';
     private const FULL_ENDPOINT = '/full.json';
 

@@ -367,13 +367,16 @@ class PluginController
             $enableClient = isset($settings['enable_client']) && $settings['enable_client'] === '1';
             $servers = $settings['servers'] ?? '[]';
 
-            // Validate JSON
+            // Validate JSON and decode once for reuse
+            $decoded = [];
             if (is_string($servers)) {
                 $decoded = json_decode($servers, true);
                 if (json_last_error() !== JSON_ERROR_NONE) {
                     $servers = '[]';
+                    $decoded = [];
                 }
             } elseif (is_array($servers)) {
+                $decoded = $servers;
                 $servers = json_encode($servers);
             } else {
                 $servers = '[]';
@@ -389,7 +392,7 @@ class PluginController
                 'data' => [
                     'enable_server' => $enableServer,
                     'enable_client' => $enableClient,
-                    'servers_count' => count(json_decode($servers, true))
+                    'servers_count' => count($decoded)
                 ]
             ]));
         } else {

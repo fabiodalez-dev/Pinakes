@@ -326,7 +326,25 @@ class Z39ServerPlugin
 
         // Register SBN search endpoint for catalog integration
         // Note: This endpoint does not support pagination - SBN API returns first page only
+        // Rate limited to prevent abuse of external SBN API
         $app->get('/api/sbn/search', function ($request, $response) use ($app) {
+            // Rate limiting - 60 requests per hour per IP
+            $db = $app->getContainer()->get('db');
+            require_once __DIR__ . '/classes/RateLimiter.php';
+            $rateLimiter = new \Z39Server\RateLimiter($db, 60, 3600);
+            $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+            $clientIp = explode(',', $clientIp)[0]; // Handle proxied requests
+
+            if (!$rateLimiter->checkLimit($clientIp)) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'Rate limit exceeded. Please try again later.'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')
+                    ->withHeader('Retry-After', '3600')
+                    ->withStatus(429);
+            }
+
             $params = $request->getQueryParams();
             $query = trim($params['q'] ?? '');
             $type = $params['type'] ?? 'any'; // isbn, title, author, any
