@@ -532,7 +532,7 @@ class Z39ServerPlugin
         require_once $clientFile;
 
         try {
-            $client = new \Plugins\Z39Server\Classes\SruClient($this->db, $servers);
+            $client = new \Plugins\Z39Server\Classes\SruClient($servers);
             return $client->searchByIsbn($isbn);
         } catch (\Throwable $e) {
             $this->log('error', 'Error in SRU client', ['error' => $e->getMessage()]);

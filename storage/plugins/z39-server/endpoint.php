@@ -60,7 +60,8 @@ function handleSRURequest(
         $providedKey = $request->getHeaderLine('X-API-Key')
             ?: ($request->getQueryParams()['api_key'] ?? '');
 
-        if ($apiKey !== '' && !hash_equals($apiKey, $providedKey)) {
+        // Deny access if API key is required but not configured, or if provided key doesn't match
+        if ($apiKey === '' || !hash_equals($apiKey, $providedKey)) {
             $response->getBody()->write(createErrorXML('Invalid or missing API key'));
             return $response
                 ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
@@ -216,7 +217,7 @@ function isTrustedProxy(string $ip, array $trustedProxies): bool
 }
 
 /**
- * Check if IP is within CIDR range
+ * Check if IP is within CIDR range (IPv4 only)
  *
  * @param string $ip IP address
  * @param string $cidr CIDR notation (e.g., 192.168.1.0/24)
@@ -224,11 +225,33 @@ function isTrustedProxy(string $ip, array $trustedProxies): bool
  */
 function ipInCidr(string $ip, string $cidr): bool
 {
+    // Only supports IPv4
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+
+    // Validate CIDR format
+    if (strpos($cidr, '/') === false) {
+        return false;
+    }
+
     [$subnet, $bits] = explode('/', $cidr);
-    $ip = ip2long($ip);
-    $subnet = ip2long($subnet);
-    $mask = -1 << (32 - (int)$bits);
-    return ($ip & $mask) === ($subnet & $mask);
+
+    $ipLong = ip2long($ip);
+    $subnetLong = ip2long($subnet);
+
+    // Check if ip2long succeeded
+    if ($ipLong === false || $subnetLong === false) {
+        return false;
+    }
+
+    $bits = (int) $bits;
+    if ($bits < 0 || $bits > 32) {
+        return false;
+    }
+
+    $mask = -1 << (32 - $bits);
+    return ($ipLong & $mask) === ($subnetLong & $mask);
 }
 
 /**
