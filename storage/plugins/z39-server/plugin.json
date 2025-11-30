@@ -1,32 +1,41 @@
 {
   "name": "z39-server",
-  "display_name": "Z39.50/SRU Server",
-  "description": "Server SRU (Search/Retrieve via URL) per esporre il catalogo bibliografico tramite protocollo standard Z39.50/SRU. Supporta formati MARC21, MARCXML, Dublin Core e MODS per l'integrazione con reti bibliotecarie.",
-  "version": "1.0.0",
+  "display_name": "Z39.50/SRU Integration (Server & Client)",
+  "description": "Soluzione completa per l'interoperabilità bibliotecaria. Server SRU per esporre il catalogo e Client Z39.50/SRU per importazione (Copy Cataloging) e ricerca federata. Supporta MARC21, MARCXML, Dublin Core e MODS.",
+  "version": "1.1.0",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.loc.gov/standards/sru/",
   "main_file": "Z39ServerPlugin.php",
   "requires_php": "7.4",
   "requires_app": "1.0.0",
+  "settings": true,
   "metadata": {
     "category": "protocol",
-    "tags": ["z39.50", "sru", "marc", "marcxml", "dublin-core", "protocol", "interoperability"],
+    "tags": [
+      "z39.50",
+      "sru",
+      "marc",
+      "marcxml",
+      "dublin-core",
+      "protocol",
+      "interoperability",
+      "client",
+      "federated-search"
+    ],
     "priority": 10,
     "features": [
       "Server SRU completo (Search/Retrieve via URL)",
+      "Client SRU per importazione (Copy Cataloging)",
+      "Ricerca Federata su cataloghi esterni",
       "Supporto formati: MARC21, MARCXML, Dublin Core, MODS",
       "Operazioni: explain, searchRetrieve, scan",
       "Ricerca avanzata CQL (Contextual Query Language)",
-      "Paginazione risultati",
-      "Configurazione flessibile",
-      "Sicurezza OWASP integrata",
-      "Rate limiting per protezione",
-      "Logging completo",
-      "Compatibilità con client Z39.50/SRU standard"
+      "Gestione server esterni configurabile"
     ],
     "endpoints": [
-      "/api/sru - Endpoint principale SRU"
+      "/api/sru - Endpoint principale SRU Server",
+      "/admin/z3950/search - Ricerca Federata"
     ],
     "supported_operations": [
       "explain - Informazioni sul server",

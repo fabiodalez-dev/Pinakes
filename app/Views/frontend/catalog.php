@@ -615,6 +615,7 @@ $additional_css = "
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 1rem;
+        margin-bottom: 1.5rem;
     }
 
     .results-info {
@@ -1646,7 +1647,9 @@ function loadBooks() {
         .then((data) => {
             loading.style.display = 'none';
 
-            if (!data.html || data.html.trim() === '') {
+            const hasNoResults = !data.html || data.html.trim() === '';
+
+            if (hasNoResults) {
                 empty.style.display = 'block';
                 container.style.display = 'none';
             } else {

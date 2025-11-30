@@ -696,13 +696,108 @@ class FrontendController
         $params = [];
         $types = '';
 
-        if (!empty($filters['search'])) {
-            $search_term = '%' . $filters['search'] . '%';
-            // Crea anche una versione con entità HTML per apostrofi
-            $search_term_entities = '%' . str_replace("'", "&#039;", $filters['search']) . '%';
-            $conditions[] = "(l.titolo LIKE ? OR l.titolo LIKE ? OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?)) OR e.nome LIKE ? OR e.nome LIKE ?)";
-            $params = array_merge($params, [$search_term, $search_term_entities, $search_term, $search_term_entities, $search_term, $search_term_entities]);
-            $types .= 'ssssss';
+        // Use defensive isset() and trim() for robustness against future changes
+        // Strict comparison instead of empty() - empty("0") returns true which breaks searches for "0"
+        $searchQuery = isset($filters['search']) ? trim((string)$filters['search']) : '';
+
+        if ($searchQuery !== '') {
+            // Advanced multi-word search: each word must match somewhere (title, subtitle, author, publisher, ISBN)
+
+            // Split into words (handle multiple spaces)
+            $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY);
+
+            if (count($words) === 1) {
+                // Single word: use FULLTEXT if word is long enough, otherwise LIKE
+                $word = $words[0];
+                // Strip trailing * for length check but preserve for wildcard search
+                $wordBase = rtrim($word, '*');
+                if (strlen($wordBase) >= 3) {
+                    // Use FULLTEXT for better relevance (with BOOLEAN mode for partial matching)
+                    // Use proper FULLTEXT escaping instead of real_escape_string (prepared statements handle SQL injection)
+                    $ftWord = '+' . $this->escapeFulltextWord($word) . (str_ends_with($word, '*') ? '' : '*');
+                    $likeWord = '%' . $wordBase . '%';
+                    $likeWordEntities = '%' . str_replace("'", "&#039;", $wordBase) . '%';
+
+                    $conditions[] = "(
+                        MATCH(l.titolo, l.sottotitolo, l.descrizione, l.parole_chiave) AGAINST (? IN BOOLEAN MODE)
+                        OR l.titolo LIKE ?
+                        OR l.sottotitolo LIKE ?
+                        OR l.isbn10 LIKE ?
+                        OR l.isbn13 LIKE ?
+                        OR l.ean LIKE ?
+                        OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ? OR MATCH(a.nome) AGAINST (? IN BOOLEAN MODE)))
+                        OR e.nome LIKE ?
+                    )";
+                    $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
+                    $types .= 'ssssssssss';
+                } else {
+                    // Short word: use LIKE only
+                    $likeWord = '%' . $wordBase . '%';
+                    $likeWordEntities = '%' . str_replace("'", "&#039;", $wordBase) . '%';
+                    $conditions[] = "(
+                        l.titolo LIKE ? OR l.titolo LIKE ?
+                        OR l.sottotitolo LIKE ?
+                        OR l.isbn10 LIKE ?
+                        OR l.isbn13 LIKE ?
+                        OR l.ean LIKE ?
+                        OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?))
+                        OR e.nome LIKE ?
+                    )";
+                    $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
+                    $types .= 'sssssssss';
+                }
+            } else {
+                // Multi-word search: ALL words must match (but can be in different fields)
+                // e.g., "manifesto marx" finds books where "manifesto" is in title AND "marx" is in author
+                $wordConditions = [];
+                foreach ($words as $word) {
+                    // Strip trailing * for length check but preserve for wildcard search
+                    $wordBase = rtrim($word, '*');
+                    // Skip words that become empty after sanitization (e.g., "+++")
+                    $sanitizedBase = $this->escapeFulltextWord($wordBase, false);
+                    if ($sanitizedBase === '') {
+                        continue;
+                    }
+                    $likeWord = '%' . $wordBase . '%';
+                    $likeWordEntities = '%' . str_replace("'", "&#039;", $wordBase) . '%';
+
+                    if (strlen($wordBase) >= 3) {
+                        // Use proper FULLTEXT escaping instead of real_escape_string
+                        $ftWord = '+' . $this->escapeFulltextWord($word) . (str_ends_with($word, '*') ? '' : '*');
+                        // Include ISBN/EAN in multi-word search for consistency with single-word search
+                        $wordConditions[] = "(
+                            MATCH(l.titolo, l.sottotitolo, l.descrizione, l.parole_chiave) AGAINST (? IN BOOLEAN MODE)
+                            OR l.titolo LIKE ?
+                            OR l.sottotitolo LIKE ?
+                            OR l.isbn10 LIKE ?
+                            OR l.isbn13 LIKE ?
+                            OR l.ean LIKE ?
+                            OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ? OR MATCH(a.nome) AGAINST (? IN BOOLEAN MODE)))
+                            OR e.nome LIKE ?
+                        )";
+                        $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
+                        $types .= 'ssssssssss';
+                    } else {
+                        // Include ISBN/EAN in multi-word search for consistency
+                        $wordConditions[] = "(
+                            l.titolo LIKE ? OR l.titolo LIKE ?
+                            OR l.sottotitolo LIKE ?
+                            OR l.isbn10 LIKE ?
+                            OR l.isbn13 LIKE ?
+                            OR l.ean LIKE ?
+                            OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?))
+                            OR e.nome LIKE ?
+                        )";
+                        $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
+                        $types .= 'sssssssss';
+                    }
+                }
+                // Join with AND - all words must match somewhere
+                // Only add if we have valid words (handles case where all words were special chars)
+                if (!empty($wordConditions)) {
+                    $conditions[] = '(' . implode(' AND ', $wordConditions) . ')';
+                }
+            }
         }
 
         if (!empty($filters['genere'])) {
@@ -1522,7 +1617,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     private function render(Response $response, string $template, array $data = []): Response
     {
         ob_start();
-        
+
         $templatePath = __DIR__ . '/../Views/' . $template;
         if (file_exists($templatePath)) {
             include $templatePath;
@@ -1530,10 +1625,46 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $response->getBody()->write('Template not found: ' . $template);
             return $response->withStatus(500);
         }
-        
+
         $content = ob_get_clean();
         $response->getBody()->write($content);
         return $response->withHeader('Content-Type', 'text/html');
+    }
+
+    /**
+     * Sanitize a word for FULLTEXT BOOLEAN MODE search
+     *
+     * MySQL FULLTEXT BOOLEAN MODE does NOT support backslash escaping for operators.
+     * The only safe approach is to strip the special characters entirely.
+     * Users can use trailing * for wildcard searches (e.g., "libr*" matches "libro", "libreria")
+     *
+     * @param string $word The search word to sanitize
+     * @param bool $allowTrailingWildcard Whether to preserve trailing * for wildcard search
+     * @return string Sanitized word safe for FULLTEXT BOOLEAN MODE
+     */
+    private function escapeFulltextWord(string $word, bool $allowTrailingWildcard = true): string
+    {
+        // Check for trailing wildcard before stripping
+        $hasTrailingWildcard = $allowTrailingWildcard && str_ends_with($word, '*');
+        if ($hasTrailingWildcard) {
+            $word = substr($word, 0, -1);
+        }
+
+        // Strip FULLTEXT BOOLEAN MODE special characters
+        // MySQL FULLTEXT does NOT support backslash escaping - must remove operators
+        // Characters: + - > < ( ) ~ * " @
+        $word = str_replace(
+            ['+', '-', '>', '<', '(', ')', '~', '*', '"', '@'],
+            '',
+            $word
+        );
+
+        // Re-add trailing wildcard if it was present (for partial word matching)
+        if ($hasTrailingWildcard && $word !== '') {
+            $word .= '*';
+        }
+
+        return $word;
     }
 
     private function getRelatedBooks(mysqli $db, int $book_id, array $book, array $authors): array

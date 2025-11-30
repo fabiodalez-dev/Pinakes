@@ -43,11 +43,11 @@ La pagina è divisa in **3 sezioni**:
 **Posizione**: Nel campo "Ricerca" del pannello filtri a sinistra.
 
 **Cosa cerca**:
-- 📖 Titolo del libro
-- ✍️ Nome dell'autore
+- 📖 Titolo del libro (ricerca intelligente multi-parola)
+- ✍️ Nome dell'autore (include autori con apostrofi come "D'Alessandro")
 - 🏢 Nome dell'editore
-- 📛 ISBN / EAN (se conosci il codice)
-- 📝 Qualunque parola nel titolo
+- 📛 ISBN-10, ISBN-13, EAN (ricerca esatta per codice)
+- 📝 Qualunque parola nella descrizione e parole chiave
 
 **Come funziona**:
 ```
@@ -64,9 +64,11 @@ Mostra:
 | Digita | Risultati |
 |--------|-----------|
 | "harry potter" | Tutti i libri della serie Harry Potter |
+| "manifesto marx" | Libri con entrambe le parole (ricerca multi-parola AND) |
+| "giuseppe d'alessandro" | Autori con apostrofi nel nome |
 | "Rowling" | Tutti i libri di J.K. Rowling |
-| "Mondadori" | Tutti i libri pubblicati da Mondadori |
-| "978-88" | Libri con ISBN che inizia con 978-88 |
+| "978-88-04" | Ricerca per ISBN-13 parziale |
+| "9788804735816" | Ricerca per ISBN-13 esatto |
 
 ---
 
