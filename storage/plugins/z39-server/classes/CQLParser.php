@@ -96,10 +96,12 @@ class CQLParser
                 $quote = $char;
                 $i++;
                 $value = '';
+                $closed = false;
                 while ($i < $length) {
                     $current = $query[$i];
                     if ($current === $quote) {
                         $i++;
+                        $closed = true;
                         break;
                     }
                     if ($current === '\\' && $i + 1 < $length) {
@@ -110,7 +112,7 @@ class CQLParser
                     $value .= $current;
                     $i++;
                 }
-                if ($i > $length + 1) {
+                if (!$closed) {
                     throw new InvalidCQLSyntaxException('Unterminated string literal');
                 }
                 $tokens[] = ['type' => 'STRING', 'value' => $value];

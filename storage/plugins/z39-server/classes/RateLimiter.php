@@ -42,6 +42,8 @@ class RateLimiter
             $cleanupStmt->bind_param('s', $cutoff);
             $cleanupStmt->execute();
             $cleanupStmt->close();
+        } else {
+            error_log("[RateLimiter] Failed to prepare cleanup statement: " . $this->db->error);
         }
 
         $now = date('Y-m-d H:i:s');
@@ -78,6 +80,7 @@ class RateLimiter
         ");
 
         if (!$checkStmt) {
+            error_log("[RateLimiter] Failed to prepare check statement: " . $this->db->error);
             return true;
         }
 

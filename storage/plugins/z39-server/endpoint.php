@@ -133,12 +133,19 @@ function handleSRURequest(
 function getPluginSettings(mysqli $db, ?int $pluginId): array
 {
     if ($pluginId === null) {
-        // Try to get plugin ID from database
-        $result = $db->query("SELECT id FROM plugins WHERE name = 'z39-server' LIMIT 1");
-        if ($result && $row = $result->fetch_assoc()) {
-            $pluginId = (int)$row['id'];
-            $result->free();
-        } else {
+        // Try to get plugin ID from database (use prepared statement for consistency)
+        $pluginName = 'z39-server';
+        $stmt = $db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $pluginName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result && $row = $result->fetch_assoc()) {
+                $pluginId = (int)$row['id'];
+            }
+            $stmt->close();
+        }
+        if ($pluginId === null) {
             return [];
         }
     }
