@@ -855,7 +855,10 @@ class SRUServer
         $index = strtolower($index);
         $prefix = trim($prefix);
         $limit = (int) $limit;
-        $pattern = $prefix . '%';
+
+        // Escape LIKE wildcards in prefix to prevent unintended pattern matching
+        $escapedPrefix = str_replace(['%', '_', '\\'], ['\\%', '\\_', '\\\\'], $prefix);
+        $pattern = $escapedPrefix . '%';
 
         // SECURITY FIX: Use prepared statements instead of string interpolation
         $terms = [];
