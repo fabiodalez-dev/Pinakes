@@ -14,6 +14,9 @@ class CQLParser
 {
     private array $tokens = [];
     private int $position = 0;
+    private int $depth = 0; // DOS PROTECTION: Track nesting depth
+    private const MAX_DEPTH = 20; // DOS PROTECTION: Maximum nesting depth
+    private const MAX_TOKENS = 500; // DOS PROTECTION: Maximum number of tokens
 
     /**
      * Parse a CQL query string into an AST representation.
@@ -29,6 +32,12 @@ class CQLParser
 
         $this->tokens = $this->tokenize($query);
         $this->position = 0;
+        $this->depth = 0; // Reset depth
+
+        // DOS PROTECTION: Limit number of tokens
+        if (count($this->tokens) > self::MAX_TOKENS) {
+            throw new InvalidCQLSyntaxException('Query too complex (too many terms)');
+        }
 
         $ast = $this->parseOrExpression();
 
@@ -193,12 +202,19 @@ class CQLParser
         }
 
         if ($token['type'] === '(') {
+            // DOS PROTECTION: Check nesting depth
+            $this->depth++;
+            if ($this->depth > self::MAX_DEPTH) {
+                throw new InvalidCQLSyntaxException('Query too complex (too many nested parentheses)');
+            }
+
             $this->consume();
             $node = $this->parseOrExpression();
             if (($next = $this->peek()) === null || $next['type'] !== ')') {
-                throw new \Exception('Missing closing parenthesis');
+                throw new InvalidCQLSyntaxException('Missing closing parenthesis');
             }
             $this->consume();
+            $this->depth--;
             return $node;
         }
 

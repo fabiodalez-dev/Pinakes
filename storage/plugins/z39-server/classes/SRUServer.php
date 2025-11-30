@@ -145,9 +145,12 @@ class SRUServer
             return $response;
         } catch (\Exception $e) {
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
-            $this->updateAccessLog($responseTime, 500, $e->getMessage());
+            // SECURITY FIX: Log detailed error internally, but don't expose to client
+            error_log("SRU Server Error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+            $this->updateAccessLog($responseTime, 500, 'Internal error');
 
-            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
+            // Generic error message to prevent information disclosure
+            return $this->errorResponse(1, 'An internal error occurred. Please contact the administrator.', $version);
         }
     }
 
@@ -309,9 +312,18 @@ class SRUServer
         );
         $recordSchema = $this->sanitizeString($params['recordSchema'] ?? $this->settings['default_format'] ?? 'marcxml');
 
-        // Validate query parameter
+        // DOS PROTECTION: Validate query length
         if (empty($query)) {
             return $this->errorResponse(7, 'Mandatory parameter not supplied: query', $version);
+        }
+
+        if (strlen($query) > 2000) {
+            return $this->errorResponse(10, 'Query too long (max 2000 characters)', $version);
+        }
+
+        // DOS PROTECTION: Limit pagination offset to prevent resource exhaustion
+        if ($startRecord > 10000) {
+            return $this->errorResponse(6, 'Start record too high (max 10000)', $version);
         }
 
         try {
@@ -330,9 +342,13 @@ class SRUServer
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
             return $this->errorResponse(10, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
-            return $this->errorResponse(1, 'Database error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose database details
+            error_log("SRU Database Error: " . $e->getMessage());
+            return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version);
         } catch (\Exception $e) {
-            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose system details
+            error_log("SRU Search Error: " . $e->getMessage());
+            return $this->errorResponse(1, 'An error occurred while processing your request.', $version);
         }
     }
 
@@ -367,9 +383,13 @@ class SRUServer
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
             return $this->errorResponse(10, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
-            return $this->errorResponse(1, 'Database error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose database details
+            error_log("SRU Scan Database Error: " . $e->getMessage());
+            return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version);
         } catch (\Exception $e) {
-            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose system details
+            error_log("SRU Scan Error: " . $e->getMessage());
+            return $this->errorResponse(1, 'An error occurred while scanning the index.', $version);
         }
     }
 
@@ -469,11 +489,26 @@ class SRUServer
         }
 
         $bookIds = array_column($records, 'id');
-        $idsStr = implode(',', array_map('intval', $bookIds));
+        if (empty($bookIds)) {
+            return;
+        }
 
-        $sql = "SELECT * FROM copie WHERE libro_id IN ($idsStr) ORDER BY libro_id, numero_inventario";
+        // FIX: Use prepared statement with proper placeholders
+        $placeholders = implode(',', array_fill(0, count($bookIds), '?'));
+        $sql = "SELECT * FROM copie WHERE libro_id IN ($placeholders) ORDER BY libro_id, numero_inventario";
+
         try {
-            $result = $this->db->query($sql);
+            $stmt = $this->db->prepare($sql);
+            if (!$stmt) {
+                error_log("SRU Server: Failed to prepare statement for fetching copies");
+                return;
+            }
+
+            // Bind all book IDs as integers
+            $types = str_repeat('i', count($bookIds));
+            $stmt->bind_param($types, ...$bookIds);
+            $stmt->execute();
+            $result = $stmt->get_result();
 
             $copiesByBook = [];
             if ($result) {
@@ -482,6 +517,7 @@ class SRUServer
                 }
                 $result->free();
             }
+            $stmt->close();
 
             foreach ($records as &$record) {
                 $record['copies'] = $copiesByBook[$record['id']] ?? [];
@@ -498,13 +534,27 @@ class SRUServer
             return 'ORDER BY l.id';
         }
 
-        // Simple sort key parsing (e.g. "dc.title,,1" or just "dc.title")
+        // SECURITY: Validate sortKeys against whitelist
         // SRU 1.2 sortKeys format: path [schema], [ascending/descending], [caseSensitive], [missingValue]
-        // We'll implement a simplified version
 
         $parts = explode(',', $sortKeys);
         $path = trim($parts[0]);
-        $ascending = isset($parts[1]) ? (trim($parts[1]) !== '0') : true; // 1=asc, 0=desc
+        $ascending = isset($parts[2]) ? (trim($parts[2]) !== '0') : true; // Position 2 for direction
+
+        // Whitelist of allowed sort fields (DOS PROTECTION)
+        $allowedFields = [
+            'dc.title',
+            'dc.creator',
+            'author',
+            'dc.date',
+            'bath.isbn',
+            'dc.publisher'
+        ];
+
+        if (!in_array($path, $allowedFields, true)) {
+            // Invalid sort field, use default
+            return 'ORDER BY l.id';
+        }
 
         $direction = $ascending ? 'ASC' : 'DESC';
 
@@ -513,19 +563,13 @@ class SRUServer
                 return "ORDER BY l.titolo $direction";
             case 'dc.creator':
             case 'author':
-                // Note: Sorting by GROUP_CONCAT column might be slow or behave unexpectedly in some SQL modes,
-                // but usually works for basic sorting.
-                // However, we can't easily sort by the aggregated column in the WHERE clause context without a subquery or using the alias in HAVING/ORDER BY.
-                // Since we are using GROUP BY, we can order by the aggregate.
-                // But 'a.nome' is not aggregated in the ORDER BY clause unless we use the alias or an aggregate function.
-                // We'll use the alias 'autori' which is defined in the SELECT list.
-                // BUT: buildSearchQuery puts this clause at the end.
-                // MySQL allows ORDER BY alias.
                 return "ORDER BY autori $direction";
             case 'dc.date':
                 return "ORDER BY l.anno_pubblicazione $direction";
             case 'bath.isbn':
                 return "ORDER BY l.isbn13 $direction";
+            case 'dc.publisher':
+                return "ORDER BY e.nome $direction";
             default:
                 return 'ORDER BY l.id';
         }
@@ -841,57 +885,69 @@ class SRUServer
         $likePrefix = $this->escapeForLike($prefix);
         $pattern = $likePrefix . '%';
 
+        // FIX: Use prepared statements for all queries
+        $stmt = null;
         switch ($index) {
             case 'dc.creator':
-                $sql = "
+                $stmt = $this->db->prepare("
                     SELECT nome AS term, COUNT(*) AS frequency
                     FROM autori
-                    WHERE nome <> '' AND nome LIKE '{$pattern}' ESCAPE '\\\\'
+                    WHERE nome <> '' AND nome LIKE ? ESCAPE '\\\\'
                     GROUP BY nome
                     ORDER BY nome
-                    LIMIT " . (int) $limit;
+                    LIMIT ?
+                ");
                 break;
 
             case 'dc.subject':
-                $sql = "
+                $stmt = $this->db->prepare("
                     SELECT nome AS term, COUNT(*) AS frequency
                     FROM generi
-                    WHERE nome <> '' AND nome LIKE '{$pattern}' ESCAPE '\\\\'
+                    WHERE nome <> '' AND nome LIKE ? ESCAPE '\\\\'
                     GROUP BY nome
                     ORDER BY nome
-                    LIMIT " . (int) $limit;
+                    LIMIT ?
+                ");
                 break;
 
             case 'bath.isbn':
-                $sql = "
+                $stmt = $this->db->prepare("
                     SELECT value AS term, COUNT(*) AS frequency FROM (
                         SELECT l.isbn10 AS value FROM libri l WHERE l.isbn10 <> ''
                         UNION ALL
                         SELECT l.isbn13 AS value FROM libri l WHERE l.isbn13 <> ''
                     ) AS isbns
-                    WHERE value LIKE '{$pattern}' ESCAPE '\\\\'
+                    WHERE value LIKE ? ESCAPE '\\\\'
                     GROUP BY value
                     ORDER BY value
-                    LIMIT " . (int) $limit;
+                    LIMIT ?
+                ");
                 break;
 
             case 'dc.title':
             case 'cql.anywhere':
             default:
-                $sql = "
+                $stmt = $this->db->prepare("
                     SELECT l.titolo AS term, COUNT(*) AS frequency
                     FROM libri l
-                    WHERE l.titolo <> '' AND l.titolo LIKE '{$pattern}' ESCAPE '\\\\'
+                    WHERE l.titolo <> '' AND l.titolo LIKE ? ESCAPE '\\\\'
                     GROUP BY l.titolo
                     ORDER BY l.titolo
-                    LIMIT " . (int) $limit;
+                    LIMIT ?
+                ");
                 break;
         }
 
-        $terms = [];
-        $terms = [];
+        $terms = []; // FIX: Remove duplicate initialization
+        if (!$stmt) {
+            throw new \Z39Server\Exceptions\DatabaseException('Failed to prepare scan query');
+        }
+
         try {
-            $result = $this->db->query($sql);
+            $stmt->bind_param('si', $pattern, $limit);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
             if ($result) {
                 while ($row = $result->fetch_assoc()) {
                     if (!empty($row['term'])) {
@@ -903,7 +959,11 @@ class SRUServer
                 }
                 $result->free();
             }
+            $stmt->close();
         } catch (\mysqli_sql_exception $e) {
+            if (isset($stmt)) {
+                $stmt->close();
+            }
             throw new \Z39Server\Exceptions\DatabaseException($e->getMessage(), (int) $e->getCode(), $e);
         }
 
@@ -1067,13 +1127,34 @@ class SRUServer
             return;
         }
 
-        // Update the most recent log entry
-        $this->db->query("
+        // FIX: Use prepared statement instead of string concatenation
+        // Get the most recent log entry ID first
+        $result = $this->db->query("SELECT MAX(id) as max_id FROM z39_access_logs");
+        if (!$result) {
+            return;
+        }
+
+        $row = $result->fetch_assoc();
+        $logId = $row['max_id'] ?? null;
+        $result->free();
+
+        if ($logId === null) {
+            return;
+        }
+
+        // Update with prepared statement
+        $stmt = $this->db->prepare("
             UPDATE z39_access_logs
-            SET response_time_ms = {$responseTime},
-                http_status = {$httpStatus},
-                error_message = " . ($errorMessage ? "'" . $this->db->real_escape_string($errorMessage) . "'" : "NULL") . "
-            WHERE id = (SELECT MAX(id) FROM (SELECT id FROM z39_access_logs) as t)
+            SET response_time_ms = ?,
+                http_status = ?,
+                error_message = ?
+            WHERE id = ?
         ");
+
+        if ($stmt) {
+            $stmt->bind_param('iisi', $responseTime, $httpStatus, $errorMessage, $logId);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
 }

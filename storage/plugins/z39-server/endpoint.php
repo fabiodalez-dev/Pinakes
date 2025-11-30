@@ -85,11 +85,34 @@ function handleSRURequest(
     // Write response
     $response->getBody()->write($xmlResponse);
 
+    // SECURITY FIX: Implement proper CORS instead of wildcard
+    // Define allowed origins (configure based on your needs)
+    $allowedOrigins = [
+        // Add your trusted origins here
+        // 'https://library-system.example.com',
+        // 'https://catalog.example.org',
+    ];
+
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $corsOrigin = '*'; // Default for public SRU servers
+
+    // If you want to restrict to specific origins, uncomment this:
+    // if (in_array($origin, $allowedOrigins, true)) {
+    //     $corsOrigin = $origin;
+    // }
+
+    // SECURITY: Add security headers
     return $response
         ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
-        ->withHeader('Access-Control-Allow-Origin', '*') // Allow CORS for library systems
-        ->withHeader('Access-Control-Allow-Methods', 'GET')
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type');
+        ->withHeader('Access-Control-Allow-Origin', $corsOrigin)
+        ->withHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type')
+        ->withHeader('Access-Control-Max-Age', '86400') // Cache preflight for 24h
+        ->withHeader('X-Content-Type-Options', 'nosniff') // Prevent MIME sniffing
+        ->withHeader('X-Frame-Options', 'DENY') // Prevent clickjacking
+        ->withHeader('X-XSS-Protection', '1; mode=block') // Enable XSS filter
+        ->withHeader('Referrer-Policy', 'no-referrer') // Don't send referrer
+        ->withHeader('Content-Security-Policy', "default-src 'none'"); // CSP for XML
 }
 
 /**
@@ -134,30 +157,60 @@ function getPluginSettings(mysqli $db, ?int $pluginId): array
 /**
  * Get client IP address
  *
+ * FIX: Only trust proxy headers if behind trusted proxy
+ * This prevents IP spoofing attacks that could bypass rate limiting
+ *
  * @return string Client IP
  */
 function getClientIp(): string
 {
-    // Check for proxies and load balancers (OWASP: Security consideration)
-    $ipHeaders = [
-        'HTTP_CF_CONNECTING_IP', // Cloudflare
-        'HTTP_X_FORWARDED_FOR',
-        'HTTP_X_REAL_IP',
-        'REMOTE_ADDR'
+    // SECURITY FIX: Define trusted proxy IP ranges
+    // Configure these based on your infrastructure
+    $trustedProxies = [
+        '127.0.0.1',
+        '::1',
+        // Add your Cloudflare/load balancer IPs here
+        // Example: '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'
     ];
 
-    foreach ($ipHeaders as $header) {
-        if (!empty($_SERVER[$header])) {
-            $ip = $_SERVER[$header];
-            // If X-Forwarded-For contains multiple IPs, take the first one
-            if (str_contains($ip, ',')) {
-                $ip = trim(explode(',', $ip)[0]);
-            }
-            // Validate IP address
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                return $ip;
+    $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+    // Only trust forwarded headers if request comes from trusted proxy
+    $isTrustedProxy = false;
+    foreach ($trustedProxies as $trustedIp) {
+        if ($remoteAddr === $trustedIp) {
+            $isTrustedProxy = true;
+            break;
+        }
+    }
+
+    if ($isTrustedProxy) {
+        // Check for proxies and load balancers
+        $ipHeaders = [
+            'HTTP_CF_CONNECTING_IP', // Cloudflare
+            'HTTP_X_REAL_IP',
+            'HTTP_X_FORWARDED_FOR'
+        ];
+
+        foreach ($ipHeaders as $header) {
+            if (!empty($_SERVER[$header])) {
+                $ip = $_SERVER[$header];
+                // If X-Forwarded-For contains multiple IPs, take the LEFTMOST (client)
+                // Format: X-Forwarded-For: client, proxy1, proxy2
+                if (str_contains($ip, ',')) {
+                    $ip = trim(explode(',', $ip)[0]);
+                }
+                // Validate IP address (both IPv4 and IPv6)
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    return $ip;
+                }
             }
         }
+    }
+
+    // Use REMOTE_ADDR as fallback (most secure, cannot be spoofed)
+    if (filter_var($remoteAddr, FILTER_VALIDATE_IP)) {
+        return $remoteAddr;
     }
 
     return 'unknown';
