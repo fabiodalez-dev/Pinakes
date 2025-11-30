@@ -250,38 +250,6 @@ class PluginController
     }
 
     /**
-     * Get plugin details
-     */
-    public function details(Request $request, Response $response, array $args): Response
-    {
-        // Check authorization
-        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Non autorizzato.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        $pluginId = (int) $args['id'];
-        $plugin = $this->pluginManager->getPlugin($pluginId);
-
-        if (!$plugin) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Plugin non trovato.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
-        }
-
-        $response->getBody()->write(json_encode([
-            'success' => true,
-            'plugin' => $plugin
-        ]));
-        return $response->withHeader('Content-Type', 'application/json');
-    }
-
-    /**
      * Update plugin settings (limited to supported plugins)
      */
     public function updateSettings(Request $request, Response $response, array $args): Response
