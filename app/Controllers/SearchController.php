@@ -328,7 +328,7 @@ class SearchController
         $s = '%'.$query.'%';
 
         // Search books with author and cover details for preview
-        // Include books where the title, subtitle, ISBN, OR author name matches
+        // Include books where the title, subtitle, ISBN, EAN, OR author name matches
         $stmt = $db->prepare("
             SELECT DISTINCT l.id, l.titolo, l.copertina_url, l.anno_pubblicazione,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
@@ -336,10 +336,10 @@ class SearchController
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR a.nome LIKE ?
+            WHERE l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?
             ORDER BY l.titolo LIMIT 8
         ");
-        $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+        $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
         $stmt->execute();
         $res = $stmt->get_result();
 

@@ -718,11 +718,12 @@ class FrontendController
                         OR l.sottotitolo LIKE ?
                         OR l.isbn10 LIKE ?
                         OR l.isbn13 LIKE ?
+                        OR l.ean LIKE ?
                         OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ? OR MATCH(a.nome) AGAINST (? IN BOOLEAN MODE)))
                         OR e.nome LIKE ?
                     )";
-                    $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
-                    $types .= 'sssssssss';
+                    $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
+                    $types .= 'ssssssssss';
                 } else {
                     // Short word: use LIKE only
                     $likeWord = '%' . $word . '%';
@@ -732,11 +733,12 @@ class FrontendController
                         OR l.sottotitolo LIKE ?
                         OR l.isbn10 LIKE ?
                         OR l.isbn13 LIKE ?
+                        OR l.ean LIKE ?
                         OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?))
                         OR e.nome LIKE ?
                     )";
-                    $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
-                    $types .= 'ssssssss';
+                    $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
+                    $types .= 'sssssssss';
                 }
             } else {
                 // Multi-word search: ALL words must match (but can be in different fields)
