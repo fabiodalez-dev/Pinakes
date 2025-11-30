@@ -50,7 +50,8 @@ class Z39ServerPlugin
         // Client settings (for scraping)
         'enable_client' => '1',
         'enable_sbn' => '1',
-        'sbn_timeout' => '15'
+        'sbn_timeout' => '15',
+        'sru_timeout' => '15'
     ];
 
     /**
@@ -569,6 +570,9 @@ class Z39ServerPlugin
 
         try {
             $client = new \Plugins\Z39Server\Classes\SruClient($servers);
+            // Configure timeout to match SBN client behavior (CodeRabbit review)
+            $timeout = (int)$this->getSetting('sru_timeout', '15');
+            $client->setOptions(['timeout' => $timeout]);
             return $client->searchByIsbn($isbn);
         } catch (\Throwable $e) {
             $this->log('error', 'Error in SRU client', ['error' => $e->getMessage()]);
