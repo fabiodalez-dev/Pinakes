@@ -1067,13 +1067,19 @@ class SRUServer
             return;
         }
 
-        // Update the most recent log entry
-        $this->db->query("
+        // Update the most recent log entry using prepared statement
+        $stmt = $this->db->prepare("
             UPDATE z39_access_logs
-            SET response_time_ms = {$responseTime},
-                http_status = {$httpStatus},
-                error_message = " . ($errorMessage ? "'" . $this->db->real_escape_string($errorMessage) . "'" : "NULL") . "
-            WHERE id = (SELECT MAX(id) FROM (SELECT id FROM z39_access_logs) as t)
+            SET response_time_ms = ?,
+                http_status = ?,
+                error_message = ?
+            WHERE id = (SELECT max_id FROM (SELECT MAX(id) as max_id FROM z39_access_logs) as t)
         ");
+
+        if ($stmt) {
+            $stmt->bind_param('iis', $responseTime, $httpStatus, $errorMessage);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
 }

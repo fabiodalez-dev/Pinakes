@@ -36,7 +36,7 @@ class PluginController
         $plugins = $this->pluginManager->getAllPlugins();
         $pluginSettings = [];
         foreach ($plugins as $plugin) {
-            $settings = $this->pluginManager->getSettings((int)$plugin['id']);
+            $settings = $this->pluginManager->getSettings((int) $plugin['id']);
 
             // Handle Google Books API key
             if (array_key_exists('google_books_api_key', $settings)) {
@@ -180,7 +180,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        $pluginId = (int)$args['id'];
+        $pluginId = (int) $args['id'];
         $result = $this->pluginManager->activatePlugin($pluginId);
 
         $response->getBody()->write(json_encode($result));
@@ -211,7 +211,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        $pluginId = (int)$args['id'];
+        $pluginId = (int) $args['id'];
         $result = $this->pluginManager->deactivatePlugin($pluginId);
 
         $response->getBody()->write(json_encode($result));
@@ -242,7 +242,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        $pluginId = (int)$args['id'];
+        $pluginId = (int) $args['id'];
         $result = $this->pluginManager->uninstallPlugin($pluginId);
 
         $response->getBody()->write(json_encode($result));
@@ -263,7 +263,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        $pluginId = (int)$args['id'];
+        $pluginId = (int) $args['id'];
         $plugin = $this->pluginManager->getPlugin($pluginId);
 
         if (!$plugin) {
@@ -309,7 +309,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        $pluginId = (int)$args['id'];
+        $pluginId = (int) $args['id'];
         error_log('[PluginController] Plugin ID: ' . $pluginId);
 
         $plugin = $this->pluginManager->getPlugin($pluginId);
@@ -338,7 +338,7 @@ class PluginController
         // Handle settings based on plugin type
         if ($plugin['name'] === 'open-library') {
             // Open Library: Google Books API key
-            $apiKey = trim((string)($settings['google_books_api_key'] ?? ''));
+            $apiKey = trim((string) ($settings['google_books_api_key'] ?? ''));
             $apiKeyLength = strlen($apiKey);
             error_log('[PluginController] Google Books API key length: ' . $apiKeyLength);
 
@@ -357,9 +357,9 @@ class PluginController
             ]));
         } elseif ($plugin['name'] === 'api-book-scraper') {
             // API Book Scraper: endpoint, api_key, timeout, enabled
-            $apiEndpoint = trim((string)($settings['api_endpoint'] ?? ''));
-            $apiKey = trim((string)($settings['api_key'] ?? ''));
-            $timeout = max(5, min(60, (int)($settings['timeout'] ?? 10)));
+            $apiEndpoint = trim((string) ($settings['api_endpoint'] ?? ''));
+            $apiKey = trim((string) ($settings['api_key'] ?? ''));
+            $timeout = max(5, min(60, (int) ($settings['timeout'] ?? 10)));
             $enabled = isset($settings['enabled']) && $settings['enabled'] === '1';
 
             error_log('[PluginController] API Book Scraper settings - endpoint: ' . $apiEndpoint . ', timeout: ' . $timeout . ', enabled: ' . ($enabled ? 'yes' : 'no'));
@@ -367,7 +367,7 @@ class PluginController
             // Save all settings
             $this->pluginManager->setSetting($pluginId, 'api_endpoint', $apiEndpoint, true);
             $this->pluginManager->setSetting($pluginId, 'api_key', $apiKey, true);
-            $this->pluginManager->setSetting($pluginId, 'timeout', (string)$timeout, true);
+            $this->pluginManager->setSetting($pluginId, 'timeout', (string) $timeout, true);
             $this->pluginManager->setSetting($pluginId, 'enabled', $enabled ? '1' : '0', true);
 
             // Load the plugin instance to re-register hooks
@@ -391,6 +391,37 @@ class PluginController
                     'api_key' => $apiKey !== '' ? 'saved' : 'empty',
                     'timeout' => $timeout,
                     'enabled' => $enabled
+                ]
+            ]));
+        } elseif ($plugin['name'] === 'z39-server') {
+            // Z39.50/SRU Integration settings
+            $enableServer = isset($settings['enable_server']) && $settings['enable_server'] === '1';
+            $enableClient = isset($settings['enable_client']) && $settings['enable_client'] === '1';
+            $servers = $settings['servers'] ?? '[]';
+
+            // Validate JSON
+            if (is_string($servers)) {
+                $decoded = json_decode($servers, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $servers = '[]';
+                }
+            } elseif (is_array($servers)) {
+                $servers = json_encode($servers);
+            } else {
+                $servers = '[]';
+            }
+
+            $this->pluginManager->setSetting($pluginId, 'enable_server', $enableServer ? '1' : '0', true);
+            $this->pluginManager->setSetting($pluginId, 'enable_client', $enableClient ? '1' : '0', true);
+            $this->pluginManager->setSetting($pluginId, 'servers', $servers, true);
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Impostazioni Z39.50 salvate correttamente.'),
+                'data' => [
+                    'enable_server' => $enableServer,
+                    'enable_client' => $enableClient,
+                    'servers_count' => count(json_decode($servers, true))
                 ]
             ]));
         } else {

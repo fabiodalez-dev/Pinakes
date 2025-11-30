@@ -697,12 +697,80 @@ class FrontendController
         $types = '';
 
         if (!empty($filters['search'])) {
-            $search_term = '%' . $filters['search'] . '%';
-            // Crea anche una versione con entità HTML per apostrofi
-            $search_term_entities = '%' . str_replace("'", "&#039;", $filters['search']) . '%';
-            $conditions[] = "(l.titolo LIKE ? OR l.titolo LIKE ? OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?)) OR e.nome LIKE ? OR e.nome LIKE ?)";
-            $params = array_merge($params, [$search_term, $search_term_entities, $search_term, $search_term_entities, $search_term, $search_term_entities]);
-            $types .= 'ssssss';
+            // Advanced multi-word search: each word must match somewhere (title, subtitle, author, publisher, ISBN)
+            $searchQuery = trim($filters['search']);
+
+            // Split into words (handle multiple spaces)
+            $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY);
+
+            if (count($words) === 1) {
+                // Single word: use FULLTEXT if word is long enough, otherwise LIKE
+                $word = $words[0];
+                if (strlen($word) >= 3) {
+                    // Use FULLTEXT for better relevance (with BOOLEAN mode for partial matching)
+                    $ftWord = '+' . $db->real_escape_string($word) . '*';
+                    $likeWord = '%' . $word . '%';
+                    $likeWordEntities = '%' . str_replace("'", "&#039;", $word) . '%';
+
+                    $conditions[] = "(
+                        MATCH(l.titolo, l.sottotitolo, l.descrizione, l.parole_chiave) AGAINST (? IN BOOLEAN MODE)
+                        OR l.titolo LIKE ?
+                        OR l.sottotitolo LIKE ?
+                        OR l.isbn10 LIKE ?
+                        OR l.isbn13 LIKE ?
+                        OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ? OR MATCH(a.nome) AGAINST (? IN BOOLEAN MODE)))
+                        OR e.nome LIKE ?
+                    )";
+                    $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
+                    $types .= 'sssssssss';
+                } else {
+                    // Short word: use LIKE only
+                    $likeWord = '%' . $word . '%';
+                    $likeWordEntities = '%' . str_replace("'", "&#039;", $word) . '%';
+                    $conditions[] = "(
+                        l.titolo LIKE ? OR l.titolo LIKE ?
+                        OR l.sottotitolo LIKE ?
+                        OR l.isbn10 LIKE ?
+                        OR l.isbn13 LIKE ?
+                        OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?))
+                        OR e.nome LIKE ?
+                    )";
+                    $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
+                    $types .= 'ssssssss';
+                }
+            } else {
+                // Multi-word search: ALL words must match (but can be in different fields)
+                // e.g., "manifesto marx" finds books where "manifesto" is in title AND "marx" is in author
+                $wordConditions = [];
+                foreach ($words as $word) {
+                    $likeWord = '%' . $word . '%';
+                    $likeWordEntities = '%' . str_replace("'", "&#039;", $word) . '%';
+
+                    if (strlen($word) >= 3) {
+                        $ftWord = '+' . $db->real_escape_string($word) . '*';
+                        $wordConditions[] = "(
+                            MATCH(l.titolo, l.sottotitolo, l.descrizione, l.parole_chiave) AGAINST (? IN BOOLEAN MODE)
+                            OR l.titolo LIKE ?
+                            OR l.sottotitolo LIKE ?
+                            OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ? OR MATCH(a.nome) AGAINST (? IN BOOLEAN MODE)))
+                            OR e.nome LIKE ?
+                        )";
+                        $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
+                        $types .= 'sssssss';
+                    } else {
+                        $wordConditions[] = "(
+                            l.titolo LIKE ? OR l.titolo LIKE ?
+                            OR l.sottotitolo LIKE ?
+                            OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?))
+                            OR e.nome LIKE ?
+                        )";
+                        $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
+                        $types .= 'ssssss';
+                    }
+                }
+                // Join with AND - all words must match somewhere
+                $conditions[] = '(' . implode(' AND ', $wordConditions) . ')';
+            }
         }
 
         if (!empty($filters['genere'])) {
