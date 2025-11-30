@@ -86,11 +86,12 @@ class RateLimiter
 
         $checkStmt->bind_param('ss', $clientIp, $cutoff);
         $checkStmt->execute();
-        $result = $checkStmt->get_result();
-        $row = $result->fetch_assoc();
+        // Use bind_result/fetch for compatibility without mysqlnd extension
+        $checkStmt->bind_result($requestCount);
+        $found = $checkStmt->fetch();
         $checkStmt->close();
 
-        if ($row && $row['request_count'] > $this->maxRequests) {
+        if ($found && (int)$requestCount > $this->maxRequests) {
             return false;
         }
 
