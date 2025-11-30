@@ -14,6 +14,12 @@ class CQLParser
 {
     private array $tokens = [];
     private int $position = 0;
+    private int $depth = 0;
+
+    // DOS PROTECTION: Configurable limits
+    private const MAX_QUERY_LENGTH = 2000;
+    private const MAX_TOKENS = 500;
+    private const MAX_NESTING_DEPTH = 20;
 
     /**
      * Parse a CQL query string into an AST representation.
@@ -27,8 +33,19 @@ class CQLParser
             throw new InvalidCQLSyntaxException('Empty query');
         }
 
+        // DOS PROTECTION: Limit query length
+        if (strlen($query) > self::MAX_QUERY_LENGTH) {
+            throw new InvalidCQLSyntaxException('Query too long (max ' . self::MAX_QUERY_LENGTH . ' characters)');
+        }
+
         $this->tokens = $this->tokenize($query);
         $this->position = 0;
+        $this->depth = 0;
+
+        // DOS PROTECTION: Limit number of tokens
+        if (count($this->tokens) > self::MAX_TOKENS) {
+            throw new InvalidCQLSyntaxException('Query too complex (max ' . self::MAX_TOKENS . ' tokens)');
+        }
 
         $ast = $this->parseOrExpression();
 
@@ -193,12 +210,19 @@ class CQLParser
         }
 
         if ($token['type'] === '(') {
+            // DOS PROTECTION: Track and limit nesting depth
+            $this->depth++;
+            if ($this->depth > self::MAX_NESTING_DEPTH) {
+                throw new InvalidCQLSyntaxException('Query too complex (too many nested parentheses)');
+            }
+
             $this->consume();
             $node = $this->parseOrExpression();
             if (($next = $this->peek()) === null || $next['type'] !== ')') {
-                throw new \Exception('Missing closing parenthesis');
+                throw new InvalidCQLSyntaxException('Missing closing parenthesis');
             }
             $this->consume();
+            $this->depth--;
             return $node;
         }
 

@@ -146,9 +146,11 @@ class SRUServer
             return $response;
         } catch (\Exception $e) {
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
-            $this->updateAccessLog($responseTime, 500, $e->getMessage());
+            // SECURITY FIX: Log detailed error internally, don't expose to client
+            error_log("[SRU Server] Error in handleRequest: " . $e->getMessage());
+            $this->updateAccessLog($responseTime, 500, 'Internal error');
 
-            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
+            return $this->errorResponse(1, 'An internal error occurred. Please contact the administrator.', $version);
         }
     }
 
@@ -315,6 +317,11 @@ class SRUServer
             return $this->errorResponse(7, 'Mandatory parameter not supplied: query', $version);
         }
 
+        // DOS PROTECTION: Limit pagination offset to prevent resource exhaustion
+        if ($startRecord > 10000) {
+            return $this->errorResponse(6, 'Start record too high (max 10000)', $version);
+        }
+
         try {
             $cqlParser = new CQLParser();
             $ast = $cqlParser->parse($query);
@@ -331,9 +338,13 @@ class SRUServer
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
             return $this->errorResponse(10, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
-            return $this->errorResponse(1, 'Database error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose database error details
+            error_log("[SRU Server] Database error in searchRetrieve: " . $e->getMessage());
+            return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version);
         } catch (\Exception $e) {
-            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose system error details
+            error_log("[SRU Server] Error in searchRetrieve: " . $e->getMessage());
+            return $this->errorResponse(1, 'An error occurred while processing your request.', $version);
         }
     }
 
@@ -368,9 +379,13 @@ class SRUServer
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
             return $this->errorResponse(10, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
-            return $this->errorResponse(1, 'Database error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose database error details
+            error_log("[SRU Server] Database error in scan: " . $e->getMessage());
+            return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version);
         } catch (\Exception $e) {
-            return $this->errorResponse(1, 'General system error: ' . $e->getMessage(), $version);
+            // SECURITY FIX: Don't expose system error details
+            error_log("[SRU Server] Error in scan: " . $e->getMessage());
+            return $this->errorResponse(1, 'An error occurred while scanning the index.', $version);
         }
     }
 
@@ -839,60 +854,85 @@ class SRUServer
     {
         $index = strtolower($index);
         $prefix = trim($prefix);
-        $likePrefix = $this->escapeForLike($prefix);
-        $pattern = $likePrefix . '%';
+        $limit = (int) $limit;
+        $pattern = $prefix . '%';
 
-        switch ($index) {
-            case 'dc.creator':
-                $sql = "
-                    SELECT nome AS term, COUNT(*) AS frequency
-                    FROM autori
-                    WHERE nome <> '' AND nome LIKE '{$pattern}' ESCAPE '\\\\'
-                    GROUP BY nome
-                    ORDER BY nome
-                    LIMIT " . (int) $limit;
-                break;
-
-            case 'dc.subject':
-                $sql = "
-                    SELECT nome AS term, COUNT(*) AS frequency
-                    FROM generi
-                    WHERE nome <> '' AND nome LIKE '{$pattern}' ESCAPE '\\\\'
-                    GROUP BY nome
-                    ORDER BY nome
-                    LIMIT " . (int) $limit;
-                break;
-
-            case 'bath.isbn':
-                $sql = "
-                    SELECT value AS term, COUNT(*) AS frequency FROM (
-                        SELECT l.isbn10 AS value FROM libri l WHERE l.isbn10 <> ''
-                        UNION ALL
-                        SELECT l.isbn13 AS value FROM libri l WHERE l.isbn13 <> ''
-                    ) AS isbns
-                    WHERE value LIKE '{$pattern}' ESCAPE '\\\\'
-                    GROUP BY value
-                    ORDER BY value
-                    LIMIT " . (int) $limit;
-                break;
-
-            case 'dc.title':
-            case 'cql.anywhere':
-            default:
-                $sql = "
-                    SELECT l.titolo AS term, COUNT(*) AS frequency
-                    FROM libri l
-                    WHERE l.titolo <> '' AND l.titolo LIKE '{$pattern}' ESCAPE '\\\\'
-                    GROUP BY l.titolo
-                    ORDER BY l.titolo
-                    LIMIT " . (int) $limit;
-                break;
-        }
-
+        // SECURITY FIX: Use prepared statements instead of string interpolation
         $terms = [];
-        $terms = [];
+        $stmt = null;
+        $result = null;
+
         try {
-            $result = $this->db->query($sql);
+            switch ($index) {
+                case 'dc.creator':
+                    $stmt = $this->db->prepare("
+                        SELECT nome AS term, COUNT(*) AS frequency
+                        FROM autori
+                        WHERE nome <> '' AND nome LIKE ?
+                        GROUP BY nome
+                        ORDER BY nome
+                        LIMIT ?
+                    ");
+                    if ($stmt) {
+                        $stmt->bind_param('si', $pattern, $limit);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                    }
+                    break;
+
+                case 'dc.subject':
+                    $stmt = $this->db->prepare("
+                        SELECT nome AS term, COUNT(*) AS frequency
+                        FROM generi
+                        WHERE nome <> '' AND nome LIKE ?
+                        GROUP BY nome
+                        ORDER BY nome
+                        LIMIT ?
+                    ");
+                    if ($stmt) {
+                        $stmt->bind_param('si', $pattern, $limit);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                    }
+                    break;
+
+                case 'bath.isbn':
+                    $stmt = $this->db->prepare("
+                        SELECT value AS term, COUNT(*) AS frequency FROM (
+                            SELECT isbn10 AS value FROM libri WHERE isbn10 <> '' AND isbn10 LIKE ?
+                            UNION ALL
+                            SELECT isbn13 AS value FROM libri WHERE isbn13 <> '' AND isbn13 LIKE ?
+                        ) AS isbns
+                        GROUP BY value
+                        ORDER BY value
+                        LIMIT ?
+                    ");
+                    if ($stmt) {
+                        $stmt->bind_param('ssi', $pattern, $pattern, $limit);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                    }
+                    break;
+
+                case 'dc.title':
+                case 'cql.anywhere':
+                default:
+                    $stmt = $this->db->prepare("
+                        SELECT titolo AS term, COUNT(*) AS frequency
+                        FROM libri
+                        WHERE titolo <> '' AND titolo LIKE ?
+                        GROUP BY titolo
+                        ORDER BY titolo
+                        LIMIT ?
+                    ");
+                    if ($stmt) {
+                        $stmt->bind_param('si', $pattern, $limit);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                    }
+                    break;
+            }
+
             if ($result) {
                 while ($row = $result->fetch_assoc()) {
                     if (!empty($row['term'])) {
@@ -903,6 +943,10 @@ class SRUServer
                     }
                 }
                 $result->free();
+            }
+
+            if ($stmt) {
+                $stmt->close();
             }
         } catch (\mysqli_sql_exception $e) {
             throw new \Z39Server\Exceptions\DatabaseException($e->getMessage(), (int) $e->getCode(), $e);
