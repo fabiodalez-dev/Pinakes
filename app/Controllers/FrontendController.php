@@ -1624,33 +1624,35 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     }
 
     /**
-     * Escape a word for FULLTEXT BOOLEAN MODE search
+     * Sanitize a word for FULLTEXT BOOLEAN MODE search
      *
-     * FULLTEXT BOOLEAN MODE operators that need escaping: + - > < ( ) ~ * " @
+     * MySQL FULLTEXT BOOLEAN MODE does NOT support backslash escaping for operators.
+     * The only safe approach is to strip the special characters entirely.
      * Users can use trailing * for wildcard searches (e.g., "libr*" matches "libro", "libreria")
      *
-     * @param string $word The search word to escape
+     * @param string $word The search word to sanitize
      * @param bool $allowTrailingWildcard Whether to preserve trailing * for wildcard search
-     * @return string Escaped word safe for FULLTEXT BOOLEAN MODE
+     * @return string Sanitized word safe for FULLTEXT BOOLEAN MODE
      */
     private function escapeFulltextWord(string $word, bool $allowTrailingWildcard = true): string
     {
-        // Check for trailing wildcard before escaping
+        // Check for trailing wildcard before stripping
         $hasTrailingWildcard = $allowTrailingWildcard && str_ends_with($word, '*');
         if ($hasTrailingWildcard) {
             $word = substr($word, 0, -1);
         }
 
-        // Escape FULLTEXT BOOLEAN MODE special characters
-        // These characters have special meaning in BOOLEAN MODE and must be escaped
+        // Strip FULLTEXT BOOLEAN MODE special characters
+        // MySQL FULLTEXT does NOT support backslash escaping - must remove operators
+        // Characters: + - > < ( ) ~ * " @
         $word = str_replace(
             ['+', '-', '>', '<', '(', ')', '~', '*', '"', '@'],
-            ['\\+', '\\-', '\\>', '\\<', '\\(', '\\)', '\\~', '\\*', '\\"', '\\@'],
+            '',
             $word
         );
 
         // Re-add trailing wildcard if it was present (for partial word matching)
-        if ($hasTrailingWildcard) {
+        if ($hasTrailingWildcard && $word !== '') {
             $word .= '*';
         }
 
