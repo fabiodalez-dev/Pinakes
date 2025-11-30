@@ -339,18 +339,8 @@ class PluginController
             $this->pluginManager->setSetting($pluginId, 'timeout', (string) $timeout, true);
             $this->pluginManager->setSetting($pluginId, 'enabled', $enabled ? '1' : '0', true);
 
-            // Load the plugin instance to re-register hooks
-            $pluginPath = $this->pluginManager->getPluginPath($plugin['name']);
-            $wrapperFile = $pluginPath . '/wrapper.php';
-
-            if (file_exists($wrapperFile)) {
-                $db = $this->db;
-                $pluginInstance = require $wrapperFile;
-
-                if ($pluginInstance && method_exists($pluginInstance, 'setPluginId')) {
-                    $pluginInstance->setPluginId($pluginId);
-                }
-            }
+            // Note: Plugin re-registration removed - PluginController doesn't have $db property
+            // The plugin will reload its settings on next request via PluginManager
 
             $response->getBody()->write(json_encode([
                 'success' => true,
@@ -387,8 +377,9 @@ class PluginController
                 $servers = '[]';
             }
 
-            // Save with correct key name matching Z39ServerPlugin::DEFAULT_SETTINGS
-            $this->pluginManager->setSetting($pluginId, 'server_enabled', $enableServer ? '1' : '0', true);
+            // Save with correct key name and value format matching Z39ServerPlugin::DEFAULT_SETTINGS
+            // IMPORTANT: endpoint.php checks for 'true'/'false' strings, not '1'/'0'
+            $this->pluginManager->setSetting($pluginId, 'server_enabled', $enableServer ? 'true' : 'false', true);
             $this->pluginManager->setSetting($pluginId, 'enable_client', $enableClient ? '1' : '0', true);
             $this->pluginManager->setSetting($pluginId, 'servers', $servers, true);
 
@@ -396,7 +387,7 @@ class PluginController
                 'success' => true,
                 'message' => __('Impostazioni Z39.50 salvate correttamente.'),
                 'data' => [
-                    'server_enabled' => $enableServer,
+                    'server_enabled' => $enableServer ? 'true' : 'false',
                     'enable_client' => $enableClient,
                     'servers_count' => count($decoded)
                 ]

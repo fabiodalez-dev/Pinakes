@@ -696,10 +696,12 @@ class FrontendController
         $params = [];
         $types = '';
 
-        // Use strict comparison instead of empty() - empty("0") returns true which breaks searches for "0"
-        if ($filters['search'] !== '') {
+        // Use defensive isset() and trim() for robustness against future changes
+        // Strict comparison instead of empty() - empty("0") returns true which breaks searches for "0"
+        $searchQuery = isset($filters['search']) ? trim((string)$filters['search']) : '';
+
+        if ($searchQuery !== '') {
             // Advanced multi-word search: each word must match somewhere (title, subtitle, author, publisher, ISBN)
-            $searchQuery = trim($filters['search']);
 
             // Split into words (handle multiple spaces)
             $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY);
