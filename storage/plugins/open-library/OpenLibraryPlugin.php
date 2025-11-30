@@ -202,28 +202,27 @@ class OpenLibraryPlugin
     /**
      * Fetch book data from Open Library APIs
      *
-     * @param mixed $current Current result (null if no plugin handled it yet)
+     * Uses intelligent merging to combine data from Open Library with existing data
+     * from other sources, filling empty fields without overwriting existing data.
+     *
+     * @param mixed $existing Previous accumulated result from other plugins
      * @param array $sources Available sources
      * @param string $isbn ISBN to search
-     * @return array|null Book data or null to let other plugins handle
+     * @return array|null Merged book data or previous result if no new data
      */
-    public function fetchFromOpenLibrary($current, array $sources, string $isbn): ?array
+    public function fetchFromOpenLibrary($existing, array $sources, string $isbn): ?array
     {
-        // Let other plugins handle if they already did
-        if ($current !== null) {
-            return $current;
-        }
-
         // Only handle if Open Library source is enabled
         if (!isset($sources['openlibrary']) || !$sources['openlibrary']['enabled']) {
-            return null;
+            return $existing; // Pass through existing data unchanged
         }
 
         try {
             // Try Google Books FIRST if API key is available (most complete data source)
             $googleBooksData = $this->tryGoogleBooks($isbn);
             if ($googleBooksData !== null) {
-                return $googleBooksData;
+                // Merge Google Books data with existing
+                return $this->mergeBookData($existing, $googleBooksData, 'google-books');
             }
 
             // If Google Books fails, try Open Library API
@@ -234,31 +233,18 @@ class OpenLibraryPlugin
                 $goodreadsCover = $this->getGoodreadsCover($isbn, '', '');
 
                 if ($goodreadsCover) {
-                    // Return minimal data with just the cover
-                    return [
-                        'title' => '',
-                        'subtitle' => '',
-                        'author' => '',
-                        'authors' => [],
-                        'publisher' => '',
-                        'isbn' => $isbn,
-                        'ean' => '',
-                        'year' => null,
-                        'pages' => null,
-                        'weight' => null,
-                        'format' => '',
-                        'description' => '',
+                    // Minimal data with just the cover - merge with existing
+                    $coverData = [
                         'image' => $goodreadsCover,
-                        'series' => '',
-                        'notes' => '',
-                        'tipologia' => '',
+                        'isbn' => $isbn,
                         'source' => self::GOODREADS_COVERS_BASE . '/' . $isbn,
                         '_cover_only' => true,
                     ];
+                    return $this->mergeBookData($existing, $coverData, 'goodreads');
                 }
 
-                // Nothing found anywhere
-                return null;
+                // Nothing found - return existing data unchanged
+                return $existing;
             }
 
             // Fetch work data if available
@@ -288,7 +274,7 @@ class OpenLibraryPlugin
             $coverUrl = $this->getCoverUrl($isbn, $editionData, $firstAuthor);
 
             // Build response in the format expected by the application
-            $result = [
+            $openLibraryData = [
                 'title' => $editionData['title'] ?? '',
                 'subtitle' => $editionData['subtitle'] ?? '',
                 'author' => implode(', ', $authorNames),
@@ -310,13 +296,52 @@ class OpenLibraryPlugin
                 '_openlibrary_work_key' => $workData['key'] ?? null,
             ];
 
-            return $result;
+            // Merge with existing data
+            return $this->mergeBookData($existing, $openLibraryData, 'open-library');
 
         } catch (\Exception $e) {
-            // Log error but don't fail - let default scraper handle it
+            // Log error but don't fail - pass through existing data
             error_log('OpenLibrary Plugin Error: ' . $e->getMessage());
-            return null;
+            return $existing;
         }
+    }
+
+    /**
+     * Merge book data from a new source into existing data
+     *
+     * @param array|null $existing Existing accumulated data
+     * @param array|null $new New data from current source
+     * @param string $source Source identifier for quality scoring
+     * @return array|null Merged data
+     */
+    private function mergeBookData(?array $existing, ?array $new, string $source = 'default'): ?array
+    {
+        // Use BookDataMerger if available
+        if (class_exists('\\App\\Support\\BookDataMerger')) {
+            return \App\Support\BookDataMerger::merge($existing, $new, $source);
+        }
+
+        // Fallback: simple merge
+        if ($new === null || empty($new)) {
+            return $existing;
+        }
+
+        if ($existing === null || empty($existing)) {
+            return $new;
+        }
+
+        // Fill empty fields in existing data with new data
+        foreach ($new as $key => $value) {
+            if (str_starts_with($key, '_')) {
+                continue; // Skip internal fields
+            }
+            if (!isset($existing[$key]) || $existing[$key] === '' || $existing[$key] === null ||
+                (is_array($existing[$key]) && empty($existing[$key]))) {
+                $existing[$key] = $value;
+            }
+        }
+
+        return $existing;
     }
 
     /**
