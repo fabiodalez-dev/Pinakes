@@ -97,10 +97,12 @@ class ApiBookScraperPlugin
             return;
         }
 
+        // Priority 2 = second highest (after Scraping Pro)
+        // API Book Scraper often has high-res covers from retail sources
         $hooks = [
-            ['scrape.sources', 'addApiSource', 3],
-            ['scrape.fetch.custom', 'fetchFromApi', 3],
-            ['scrape.isbn.validate', 'validateIsbn', 3],
+            ['scrape.sources', 'addApiSource', 2],
+            ['scrape.fetch.custom', 'fetchFromApi', 2],
+            ['scrape.isbn.validate', 'validateIsbn', 2],
         ];
 
         // Delete existing hooks for this plugin
@@ -258,11 +260,19 @@ class ApiBookScraperPlugin
 
     /**
      * Fetch dati libro da API personalizzata
+     *
+     * Uses intelligent merging to combine data from custom API with existing data
+     * from other sources, filling empty fields without overwriting existing data.
+     *
+     * @param mixed $existing Previous accumulated result from other plugins
+     * @param array $sources List of available sources
+     * @param string $isbn ISBN to search for
+     * @return array|null Merged book data or previous result if no new data
      */
-    public function fetchFromApi($data, array $sources, string $isbn): ?array
+    public function fetchFromApi($existing, array $sources, string $isbn): ?array
     {
         if (!$this->enabled || empty($this->apiEndpoint) || empty($this->apiKey)) {
-            return $data;
+            return $existing; // Pass through existing data unchanged
         }
 
         try {
@@ -270,10 +280,27 @@ class ApiBookScraperPlugin
 
             if ($bookData) {
                 $this->log('info', "Dati recuperati per ISBN: $isbn", ['isbn' => $isbn]);
-                return $bookData;
+
+                // Use BookDataMerger if available, otherwise simple merge
+                if (class_exists('\\App\\Support\\BookDataMerger')) {
+                    return \App\Support\BookDataMerger::merge($existing, $bookData, 'api-book-scraper');
+                }
+
+                // Fallback: simple merge for empty fields only
+                if ($existing === null) {
+                    return $bookData;
+                }
+
+                // Fill empty fields in existing data with API data
+                foreach ($bookData as $key => $value) {
+                    if (!isset($existing[$key]) || $existing[$key] === '' || $existing[$key] === null) {
+                        $existing[$key] = $value;
+                    }
+                }
+                return $existing;
             }
 
-            return $data;
+            return $existing; // Pass through existing data unchanged
 
         } catch (\Exception $e) {
             $this->log('error', "Errore scraping ISBN $isbn: " . $e->getMessage(), [
@@ -282,7 +309,7 @@ class ApiBookScraperPlugin
             ]);
 
             Hooks::do('scrape.error', [$e, $isbn, 'custom-api']);
-            return $data;
+            return $existing; // Pass through existing data unchanged
         }
     }
 

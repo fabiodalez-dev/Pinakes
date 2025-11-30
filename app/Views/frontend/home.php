@@ -21,7 +21,6 @@ $additional_css = "
         color: #ffffff;
         padding: 8rem 0 6rem;
         position: relative;
-        overflow: hidden;
         min-height: 100vh;
         display: flex;
         align-items: center;

@@ -46,7 +46,11 @@ class Z39ServerPlugin
         'rate_limit_window' => '3600',
         'enable_logging' => 'true',
         'cql_version' => '1.2',
-        'sru_version' => '1.2'
+        'sru_version' => '1.2',
+        // Client settings (for scraping)
+        'enable_client' => '1',
+        'enable_sbn' => '1',
+        'sbn_timeout' => '15'
     ];
 
     /**
@@ -63,7 +67,7 @@ class Z39ServerPlugin
         // Get plugin ID from database
         $result = $db->query("SELECT id FROM plugins WHERE name = 'z39-server' LIMIT 1");
         if ($result && $row = $result->fetch_assoc()) {
-            $this->pluginId = (int)$row['id'];
+            $this->pluginId = (int) $row['id'];
         }
     }
 
@@ -191,6 +195,13 @@ class Z39ServerPlugin
                 'hook_name' => 'admin.menu.items',
                 'callback_method' => 'addAdminMenuItem',
                 'priority' => 10
+            ],
+            // Register SRU Client for scraping (priority 3 = after Scraping Pro and API Book Scraper)
+            // Z39.50/SRU provides excellent metadata but NO covers
+            [
+                'hook_name' => 'scrape.fetch.custom',
+                'callback_method' => 'fetchBookMetadata',
+                'priority' => 3
             ]
         ];
 
@@ -286,6 +297,12 @@ class Z39ServerPlugin
         if (self::$routesRegistered) {
             return;
         }
+
+        // Check if plugin is active before registering routes
+        if (!$this->isPluginActive()) {
+            return;
+        }
+
         self::$routesRegistered = true;
 
         // Register SRU endpoint
@@ -293,7 +310,7 @@ class Z39ServerPlugin
             $db = $app->getContainer()->get('db');
             $pluginManager = $app->getContainer()->get('pluginManager');
             $plugin = $pluginManager->getPluginByName('z39-server');
-            $pluginId = $plugin ? (int)$plugin['id'] : null;
+            $pluginId = $plugin ? (int) $plugin['id'] : null;
 
             // Load endpoint handler
             $endpointFile = __DIR__ . '/endpoint.php';
@@ -307,7 +324,105 @@ class Z39ServerPlugin
             }
         });
 
+        // Register SBN search endpoint for catalog integration
+        $app->get('/api/sbn/search', function ($request, $response) use ($app) {
+            $params = $request->getQueryParams();
+            $query = trim($params['q'] ?? '');
+            $type = $params['type'] ?? 'any'; // isbn, title, author, any
+            $page = max(1, (int)($params['page'] ?? 1));
+            $limit = min(20, max(1, (int)($params['limit'] ?? 10)));
+
+            if (empty($query)) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'Query parameter "q" is required'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Load SBN Client
+            $clientFile = __DIR__ . '/classes/SbnClient.php';
+            if (!file_exists($clientFile)) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'SBN client not available'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+
+            require_once $clientFile;
+
+            try {
+                $client = new \Plugins\Z39Server\Classes\SbnClient(15, true);
+                $results = [];
+
+                // Search based on type
+                if ($type === 'isbn' || ($type === 'any' && preg_match('/^[0-9X-]{10,17}$/i', $query))) {
+                    // ISBN search
+                    $book = $client->searchByIsbn(preg_replace('/[^0-9X]/i', '', $query));
+                    if ($book) {
+                        // Get full record with locations
+                        $bid = $book['_sbn_bid'] ?? null;
+                        if ($bid) {
+                            $fullRecord = $client->getFullRecord($bid);
+                            if ($fullRecord && isset($fullRecord['localizzazioni'])) {
+                                $book['locations'] = $fullRecord['localizzazioni'];
+                            }
+                        }
+                        $results[] = $book;
+                    }
+                } elseif ($type === 'title' || $type === 'any') {
+                    // Title search
+                    $books = $client->searchByTitle($query, $limit);
+                    foreach ($books as $book) {
+                        $bid = $book['_sbn_bid'] ?? null;
+                        if ($bid) {
+                            $fullRecord = $client->getFullRecord($bid);
+                            if ($fullRecord && isset($fullRecord['localizzazioni'])) {
+                                $book['locations'] = $fullRecord['localizzazioni'];
+                            }
+                        }
+                        $results[] = $book;
+                    }
+                } elseif ($type === 'author') {
+                    // Author search
+                    $books = $client->searchByAuthor($query, $limit);
+                    foreach ($books as $book) {
+                        $bid = $book['_sbn_bid'] ?? null;
+                        if ($bid) {
+                            $fullRecord = $client->getFullRecord($bid);
+                            if ($fullRecord && isset($fullRecord['localizzazioni'])) {
+                                $book['locations'] = $fullRecord['localizzazioni'];
+                            }
+                        }
+                        $results[] = $book;
+                    }
+                }
+
+                $response->getBody()->write(json_encode([
+                    'success' => true,
+                    'query' => $query,
+                    'type' => $type,
+                    'results' => $results,
+                    'count' => count($results),
+                    'page' => $page,
+                    'limit' => $limit
+                ], JSON_UNESCAPED_UNICODE));
+
+                return $response->withHeader('Content-Type', 'application/json');
+
+            } catch (\Throwable $e) {
+                error_log('[SBN Search API] Error: ' . $e->getMessage());
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'Search failed: ' . $e->getMessage()
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+        });
+
         error_log('[Z39 Server Plugin] SRU route registered at /api/sru');
+        error_log('[Z39 Server Plugin] SBN search route registered at /api/sbn/search');
     }
 
     /**
@@ -323,6 +438,165 @@ class Z39ServerPlugin
         ];
 
         return $menuItems;
+    }
+
+    /**
+     * Hook: Fetch book metadata from Z39.50/SRU servers and SBN (Italian catalog)
+     *
+     * Uses intelligent merging to combine data from Z39.50/SBN with existing data
+     * from other sources, filling empty fields without overwriting existing data.
+     *
+     * Priority order:
+     * 1. SBN (Italian National Library) - if enabled
+     * 2. Configured SRU servers (K10plus, SUDOC, etc.)
+     *
+     * @param mixed $existing Previous accumulated result from other plugins
+     * @param array $sources List of available sources
+     * @param string $isbn ISBN to search for
+     * @return array|null Merged book data or previous result if no new data
+     */
+    public function fetchBookMetadata($existing, $sources, $isbn): ?array
+    {
+        // Check if client is enabled
+        $enabled = $this->getSetting('enable_client', '0') === '1';
+        if (!$enabled) {
+            return $existing; // Pass through existing data unchanged
+        }
+
+        $result = $existing;
+
+        // Try SBN first (Italian National Library)
+        $sbnEnabled = $this->getSetting('enable_sbn', '1') === '1';
+        if ($sbnEnabled) {
+            $sbnData = $this->fetchFromSbn($isbn);
+            if ($sbnData) {
+                $this->log('info', 'Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '']);
+                $result = $this->mergeBookData($result, $sbnData, 'sbn');
+            }
+        }
+
+        // Then try configured SRU servers
+        $serversJson = $this->getSetting('servers', '[]');
+        $servers = json_decode($serversJson, true);
+
+        if (!empty($servers) && is_array($servers)) {
+            $z39Data = $this->fetchFromSru($isbn, $servers);
+            if ($z39Data) {
+                $this->log('info', 'Book found via SRU', ['isbn' => $isbn, 'title' => $z39Data['title'] ?? '']);
+                $result = $this->mergeBookData($result, $z39Data, 'z39');
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fetch book data from SBN (Italian National Library)
+     *
+     * @param string $isbn ISBN to search
+     * @return array|null Book data or null
+     */
+    private function fetchFromSbn(string $isbn): ?array
+    {
+        $clientFile = __DIR__ . '/classes/SbnClient.php';
+        if (!file_exists($clientFile)) {
+            return null;
+        }
+
+        require_once $clientFile;
+
+        try {
+            $timeout = (int)$this->getSetting('sbn_timeout', '15');
+            $client = new \Plugins\Z39Server\Classes\SbnClient($timeout, true);
+            return $client->searchByIsbn($isbn);
+        } catch (\Throwable $e) {
+            $this->log('error', 'Error in SBN client', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch book data from SRU servers
+     *
+     * @param string $isbn ISBN to search
+     * @param array $servers Server configuration
+     * @return array|null Book data or null
+     */
+    private function fetchFromSru(string $isbn, array $servers): ?array
+    {
+        $clientFile = __DIR__ . '/classes/SruClient.php';
+        if (!file_exists($clientFile)) {
+            return null;
+        }
+
+        require_once $clientFile;
+
+        try {
+            $client = new \Plugins\Z39Server\Classes\SruClient($this->db, $servers);
+            return $client->searchByIsbn($isbn);
+        } catch (\Throwable $e) {
+            $this->log('error', 'Error in SRU client', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Merge book data using BookDataMerger or simple merge
+     *
+     * @param array|null $existing Existing book data
+     * @param array $new New book data
+     * @param string $source Source identifier
+     * @return array|null Merged data
+     */
+    private function mergeBookData(?array $existing, array $new, string $source): ?array
+    {
+        // Use BookDataMerger if available
+        if (class_exists('\\App\\Support\\BookDataMerger')) {
+            return \App\Support\BookDataMerger::merge($existing, $new, $source);
+        }
+
+        // Fallback: simple merge for empty fields only
+        if ($existing === null) {
+            return $new;
+        }
+
+        foreach ($new as $key => $value) {
+            if (!isset($existing[$key]) || $existing[$key] === '' || $existing[$key] === null) {
+                $existing[$key] = $value;
+            }
+        }
+
+        return $existing;
+    }
+
+    /**
+     * Check if this plugin is currently active
+     *
+     * @return bool
+     */
+    private function isPluginActive(): bool
+    {
+        if ($this->pluginId === null) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT is_active
+            FROM plugins
+            WHERE id = ?
+        ");
+
+        if ($stmt === false) {
+            return false;
+        }
+
+        $stmt->bind_param('i', $this->pluginId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+
+        return $row && (int)$row['is_active'] === 1;
     }
 
     /**

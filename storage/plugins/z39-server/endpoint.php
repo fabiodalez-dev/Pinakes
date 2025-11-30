@@ -54,6 +54,21 @@ function handleSRURequest(
             ->withStatus(503);
     }
 
+    // Optional API key authentication
+    if (($settings['require_api_key'] ?? 'false') === 'true') {
+        $apiKey = $settings['api_key'] ?? '';
+        $providedKey = $request->getHeaderLine('X-API-Key')
+            ?: ($request->getQueryParams()['api_key'] ?? '');
+
+        if ($apiKey !== '' && !hash_equals($apiKey, $providedKey)) {
+            $response->getBody()->write(createErrorXML('Invalid or missing API key'));
+            return $response
+                ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
+                ->withHeader('WWW-Authenticate', 'API-Key')
+                ->withStatus(401);
+        }
+    }
+
     // Rate limiting (OWASP: Protection against DoS)
     if (($settings['rate_limit_enabled'] ?? 'false') === 'true') {
         $rateLimiter = new RateLimiter(
@@ -132,24 +147,37 @@ function getPluginSettings(mysqli $db, ?int $pluginId): array
 }
 
 /**
- * Get client IP address
+ * Get client IP address with trusted proxy validation
  *
  * @return string Client IP
  */
 function getClientIp(): string
 {
-    // Check for proxies and load balancers (OWASP: Security consideration)
-    $ipHeaders = [
+    $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+    // Get trusted proxies from environment (comma-separated)
+    // Default: trust localhost and common private ranges when behind proxy
+    $trustedProxies = array_filter(array_map(
+        'trim',
+        explode(',', $_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES') ?: '')
+    ));
+
+    // If no trusted proxies configured or request not from trusted proxy, use REMOTE_ADDR
+    if (empty($trustedProxies) || !isTrustedProxy($remoteAddr, $trustedProxies)) {
+        return filter_var($remoteAddr, FILTER_VALIDATE_IP) ? $remoteAddr : 'unknown';
+    }
+
+    // Only trust forwarded headers if request is from a trusted proxy
+    $forwardedHeaders = [
         'HTTP_CF_CONNECTING_IP', // Cloudflare
         'HTTP_X_FORWARDED_FOR',
         'HTTP_X_REAL_IP',
-        'REMOTE_ADDR'
     ];
 
-    foreach ($ipHeaders as $header) {
+    foreach ($forwardedHeaders as $header) {
         if (!empty($_SERVER[$header])) {
             $ip = $_SERVER[$header];
-            // If X-Forwarded-For contains multiple IPs, take the first one
+            // If X-Forwarded-For contains multiple IPs, take the first (original client)
             if (str_contains($ip, ',')) {
                 $ip = trim(explode(',', $ip)[0]);
             }
@@ -160,7 +188,47 @@ function getClientIp(): string
         }
     }
 
-    return 'unknown';
+    return filter_var($remoteAddr, FILTER_VALIDATE_IP) ? $remoteAddr : 'unknown';
+}
+
+/**
+ * Check if IP is in trusted proxy list
+ *
+ * @param string $ip IP to check
+ * @param array $trustedProxies List of trusted proxy IPs/CIDRs
+ * @return bool
+ */
+function isTrustedProxy(string $ip, array $trustedProxies): bool
+{
+    foreach ($trustedProxies as $trusted) {
+        // Exact match
+        if ($ip === $trusted) {
+            return true;
+        }
+        // CIDR notation support (e.g., 10.0.0.0/8)
+        if (str_contains($trusted, '/')) {
+            if (ipInCidr($ip, $trusted)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Check if IP is within CIDR range
+ *
+ * @param string $ip IP address
+ * @param string $cidr CIDR notation (e.g., 192.168.1.0/24)
+ * @return bool
+ */
+function ipInCidr(string $ip, string $cidr): bool
+{
+    [$subnet, $bits] = explode('/', $cidr);
+    $ip = ip2long($ip);
+    $subnet = ip2long($subnet);
+    $mask = -1 << (32 - (int)$bits);
+    return ($ip & $mask) === ($subnet & $mask);
 }
 
 /**

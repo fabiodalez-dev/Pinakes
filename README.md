@@ -157,7 +157,8 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 
 ### APIs
 - **REST API** for search, availability, cataloging, and statistics
-- **SRU implementation** for Z39.50-style interoperability (union catalogs, interlibrary loan)
+- **SRU 1.2 protocol** at `/api/sru` â€” standard library interoperability (MARCXML, Dublin Core, MODS export)
+- **Z39.50 client** for copy cataloging from external catalogs (Library of Congress, OCLC, national libraries)
 - **CSV and Excel export** for reports and backups
 - **PDF generation** for labels, receipts, and reports
 
@@ -232,11 +233,37 @@ All plugins are located in `storage/plugins/` and can be managed from **Admin â†
 - **Configurable priority** and caching options
 
 ### 2. Z39 Server (`z39-server-v1.0.0.zip`)
-- **SRU 1.2 API** for catalog interoperability
+
+Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based successor to Z39.50, enabling catalog interoperability with library systems worldwide.
+
+**Server Mode** (expose your catalog):
+- **SRU 1.2 API** at `/api/sru` with explain, searchRetrieve, scan operations
 - **Export formats**: MARCXML, Dublin Core, MODS, OAI_DC
-- **CQL query parser** for advanced searches
-- **Rate limiting** and access logging
-- **Union catalog integration** for interlibrary loan systems
+- **CQL query parser** supporting indexes: `dc.title`, `dc.creator`, `dc.subject`, `bath.isbn`, `dc.publisher`, `dc.date`
+- **Rate limiting** (100 req/hour per IP) and comprehensive access logging
+- **Optional API key authentication** via `X-API-Key` header
+- **Trusted proxy support** for deployments behind load balancers (CIDR notation)
+
+**Client Mode** (import from external catalogs):
+- **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, national libraries)
+- **Federated search** across multiple configured servers
+- **Automatic retry** with exponential backoff (100ms, 200ms, 400ms)
+- **TLS certificate validation** for secure connections
+- **MARCXML and Dublin Core parsing** with author extraction (MARC 100/700 fields)
+
+**Example queries**:
+```bash
+# Server info
+curl "http://yoursite.com/api/sru?operation=explain"
+
+# Search by author
+curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=dc.creator=marx&maximumRecords=10"
+
+# Search by ISBN (Dublin Core format)
+curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=9788842058946&recordSchema=dc"
+```
+
+**Use cases**: Union catalogs, interlibrary loan systems, OPAC federation, copy cataloging workflows.
 
 ### 3. API Book Scraper (`api-book-scraper-v1.0.0.zip`)
 - **External API integration** for ISBN enrichment
