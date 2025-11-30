@@ -824,7 +824,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                     <form class="search-form d-none d-md-block" action="<?= $catalogRoute ?>" method="get">
                         <input class="search-input" type="search" name="q"
-                            placeholder="<?= __('Cerca libri, autori...') ?>" aria-label="Search">
+                            placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="Search">
                     </form>
 
                     <div class="user-menu d-none d-md-flex">

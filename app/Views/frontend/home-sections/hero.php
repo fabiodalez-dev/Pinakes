@@ -24,7 +24,7 @@ $catalogRoute = $catalogRoute ?? route_path('catalog');
                         <input type="search"
                                name="q"
                                class="hero-search-input search-input"
-                               placeholder="<?= __("Cerca libri, autori, editori...") ?>"
+                               placeholder="<?= __("Cerca libri, autori, ISBN...") ?>"
                                aria-label="<?= __("Cerca nella biblioteca") ?>">
                         <button type="submit" class="hero-search-button">
                             <?= __("Cerca") ?>

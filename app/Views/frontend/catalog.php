@@ -615,6 +615,7 @@ $additional_css = "
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 1rem;
+        margin-bottom: 1.5rem;
     }
 
     .results-info {
