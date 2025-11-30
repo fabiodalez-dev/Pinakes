@@ -651,8 +651,14 @@ class PluginManager
             return null;
         }
 
+        // SECURITY FIX: Prevent null byte injection
+        if (strpos($relativePath, "\0") !== false) {
+            return null;
+        }
+
         $relativePath = str_replace('\\', '/', $relativePath);
 
+        // SECURITY: Reject absolute paths
         if ($relativePath === '' || preg_match('#^(?:[A-Za-z]:)?/#', $relativePath)) {
             return null;
         }
@@ -665,6 +671,7 @@ class PluginManager
                 continue;
             }
             if ($segment === '..') {
+                // Remove ".." to prevent directory traversal
                 array_pop($safeSegments);
                 continue;
             }
@@ -680,8 +687,18 @@ class PluginManager
         $fullPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $fullPath);
         $normalizedBaseWithSep = $normalizedBase . DIRECTORY_SEPARATOR;
 
+        // SECURITY FIX: Verify path is within base directory
         if ($fullPath !== $normalizedBase && strpos($fullPath, $normalizedBaseWithSep) !== 0) {
             return null;
+        }
+
+        // SECURITY FIX: Double-check with realpath after directory creation
+        // This prevents symlink attacks and ensures path is truly within base
+        if (is_dir(dirname($fullPath))) {
+            $realFullPath = realpath(dirname($fullPath));
+            if ($realFullPath === false || strpos($realFullPath, $normalizedBase) !== 0) {
+                return null;
+            }
         }
 
         return $fullPath;

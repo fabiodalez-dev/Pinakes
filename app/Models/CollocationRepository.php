@@ -326,15 +326,25 @@ class CollocationRepository
 
     public function updateOrder(string $table, array $ids): void
     {
-        $allowed = ['scaffali','mensole','posizioni'];
-        if (!in_array($table, $allowed, true)) return;
+        // SECURITY FIX: Use static mapping instead of string interpolation
+        $validQueries = [
+            'scaffali' => 'UPDATE scaffali SET ordine=? WHERE id=?',
+            'mensole' => 'UPDATE mensole SET ordine=? WHERE id=?',
+            'posizioni' => 'UPDATE posizioni SET ordine=? WHERE id=?'
+        ];
+
+        if (!isset($validQueries[$table])) {
+            return; // Invalid table name
+        }
+
         $order = 0;
-        $stmt = $this->db->prepare("UPDATE `$table` SET ordine=? WHERE id=?");
+        $stmt = $this->db->prepare($validQueries[$table]);
         foreach ($ids as $id) {
             $order++;
             $iid = (int)$id;
             $stmt->bind_param('ii', $order, $iid);
             $stmt->execute();
         }
+        $stmt->close();
     }
 }

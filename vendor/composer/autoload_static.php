@@ -12,6 +12,7 @@ class ComposerStaticInite58358eec498b7b6927cfe671382554c
         '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
         '320cde22f66dd4f5d3fd621d3e88b98f' => __DIR__ . '/..' . '/symfony/polyfill-ctype/bootstrap.php',
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
+        '2cffec82183ee1cea088009cef9a6fc3' => __DIR__ . '/..' . '/ezyang/htmlpurifier/library/HTMLPurifier.composer.php',
         'b33e3d135e5d9e47d845c576147bda89' => __DIR__ . '/..' . '/php-di/php-di/src/functions.php',
         '55f1e7e4bee8dd3f025ddf4ad785ced9' => __DIR__ . '/../..' . '/app/helpers.php',
     );
@@ -180,6 +181,16 @@ class ComposerStaticInite58358eec498b7b6927cfe671382554c
         ),
     );
 
+    public static $prefixesPsr0 = array (
+        'H' => 
+        array (
+            'HTMLPurifier' => 
+            array (
+                0 => __DIR__ . '/..' . '/ezyang/htmlpurifier/library',
+            ),
+        ),
+    );
+
     public static $classMap = array (
         'Attribute' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
@@ -206,6 +217,7 @@ class ComposerStaticInite58358eec498b7b6927cfe671382554c
         return \Closure::bind(function () use ($loader) {
             $loader->prefixLengthsPsr4 = ComposerStaticInite58358eec498b7b6927cfe671382554c::$prefixLengthsPsr4;
             $loader->prefixDirsPsr4 = ComposerStaticInite58358eec498b7b6927cfe671382554c::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInite58358eec498b7b6927cfe671382554c::$prefixesPsr0;
             $loader->classMap = ComposerStaticInite58358eec498b7b6927cfe671382554c::$classMap;
 
         }, null, ClassLoader::class);

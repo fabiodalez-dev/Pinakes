@@ -151,10 +151,21 @@ class LibriApiController
         $filtered = (int)($filRes->fetch_assoc()['c'] ?? 0);
         $count_stmt->close();
 
-        $orderAuthors = $this->hasTableColumn($db, 'libri_autori', 'ordine_credito') ? 'la.ordine_credito, a.nome' : 'a.nome';
-        $authorLabelExpr = $this->hasTableColumn($db, 'autori', 'cognome')
-            ? "CONCAT(a.nome, ' ', a.cognome)"
-            : 'a.nome';
+        // SECURITY FIX: Use static expressions instead of dynamic interpolation
+        $hasOrdineCreditoCol = $this->hasTableColumn($db, 'libri_autori', 'ordine_credito');
+        $hasCognomeCol = $this->hasTableColumn($db, 'autori', 'cognome');
+
+        // Predefined ORDER BY clauses
+        $orderAuthors = $hasOrdineCreditoCol ? 'la.ordine_credito, a.nome' : 'a.nome';
+
+        // Build query with static alternatives
+        if ($hasCognomeCol) {
+            $authorLabelExpr = "CONCAT(a.nome, ' ', a.cognome)";
+        } else {
+            $authorLabelExpr = "a.nome";
+        }
+
+        // Use the static expressions directly in query
         $sql = "SELECT l.*, e.nome AS editore_nome,
                 g.nome AS genere_nome,
                 COALESCE(s.nome, 'N/D') AS collocazione_nome,
@@ -172,14 +183,14 @@ class LibriApiController
                 m.id AS mensola_id_ref,
                 m.numero_livello AS mensola_livello,
                 (
-                  SELECT GROUP_CONCAT($authorLabelExpr SEPARATOR ', ')
+                  SELECT GROUP_CONCAT(" . $authorLabelExpr . " SEPARATOR ', ')
                   FROM libri_autori la
                   JOIN autori a ON la.autore_id = a.id
                   WHERE la.libro_id = l.id
-                  ORDER BY $orderAuthors
+                  ORDER BY " . ($hasOrdineCreditoCol ? 'la.ordine_credito, a.nome' : 'a.nome') . "
                 ) AS autori,
                 (
-                  SELECT GROUP_CONCAT(la.autore_id ORDER BY $orderAuthors SEPARATOR ',')
+                  SELECT GROUP_CONCAT(la.autore_id ORDER BY " . ($hasOrdineCreditoCol ? 'la.ordine_credito, a.nome' : 'a.nome') . " SEPARATOR ',')
                   FROM libri_autori la
                   JOIN autori a ON la.autore_id = a.id
                   WHERE la.libro_id = l.id

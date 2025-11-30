@@ -435,7 +435,15 @@ class CmsController
             $textContent = $data['text_content'];
             // SECURITY: Sanitize inputs
             $title = $sanitizeText($textContent['title'] ?? '');
-            $content = $textContent['content'] ?? ''; // TinyMCE content - sanitized by TinyMCE
+
+            // SECURITY FIX: Server-side HTML sanitization with HTMLPurifier
+            // TinyMCE sanitization is client-side only and can be bypassed
+            $purifierConfig = \HTMLPurifier_Config::createDefault();
+            $purifierConfig->set('HTML.Allowed', 'p,br,strong,b,em,i,u,h1,h2,h3,h4,h5,h6,ul,ol,li,blockquote,a[href],img[src|alt|width|height]');
+            $purifierConfig->set('AutoFormat.RemoveEmpty', true);
+            $purifier = new \HTMLPurifier($purifierConfig);
+            $content = $purifier->purify($textContent['content'] ?? '');
+
             $isActive = isset($textContent['is_active']) ? 1 : 0;
 
             // UPSERT: Insert if not exists, update if exists

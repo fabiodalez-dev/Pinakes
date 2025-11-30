@@ -750,11 +750,12 @@ return function (App $app): void {
         return $controller->update($request, $response, $db, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/cms/events/delete/{id}', function ($request, $response, $args) use ($app) {
+    // SECURITY FIX: Changed from GET to POST to prevent CSRF attacks
+    $app->post('/admin/cms/events/delete/{id}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
         return $controller->delete($request, $response, $db, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Admin CMS routes - Other pages (catch-all, MUST be after specific routes)
     $app->get('/admin/cms/{slug}', function ($request, $response, $args) use ($app) {

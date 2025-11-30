@@ -412,12 +412,8 @@ class EventsController
 
         $id = (int)($args['id'] ?? 0);
 
-        // Get CSRF token from query params (for GET requests)
-        $queryParams = $request->getQueryParams();
-        if (!isset($queryParams['csrf_token']) || !\App\Support\Csrf::validate($queryParams['csrf_token'])) {
-            $_SESSION['error_message'] = __('Token CSRF non valido.');
-            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
-        }
+        // SECURITY FIX: CSRF validation now handled by CsrfMiddleware
+        // Token comes from request body (POST) instead of query params (GET)
 
         // Delete event
         $stmt = $db->prepare("DELETE FROM events WHERE id = ?");

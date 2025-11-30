@@ -327,8 +327,20 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 <script>
   function confirmDelete(eventId, eventTitle) {
     if (confirm('<?= addslashes(__("Sei sicuro di voler eliminare l'evento")) ?> "' + eventTitle + '"?\n\n<?= addslashes(__("Questa azione non può essere annullata.")) ?>')) {
+      // SECURITY FIX: Use POST form instead of GET link
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/admin/cms/events/delete/' + eventId;
+
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      window.location.href = '/admin/cms/events/delete/' + eventId + '?csrf_token=' + encodeURIComponent(csrfToken);
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrf_token';
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+
+      document.body.appendChild(form);
+      form.submit();
     }
   }
 </script>

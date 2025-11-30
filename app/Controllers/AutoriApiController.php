@@ -77,10 +77,15 @@ class AutoriApiController
             $params_for_where[] = "%$search_sito%";
             $param_types_for_where .= 's';
         }
+        // SECURITY FIX: Use static whitelist for column names
         if ($search_naz !== '' && $colNaz !== null) {
-            $where_prepared .= " AND a.`$colNaz` LIKE ? ";
-            $params_for_where[] = "%$search_naz%";
-            $param_types_for_where .= 's';
+            $validColumns = ['nazionalita', 'nazionalità'];
+            if (in_array($colNaz, $validColumns, true)) {
+                // Use first valid column (nazionalita) to avoid SQL injection
+                $where_prepared .= " AND a.nazionalita LIKE ? ";
+                $params_for_where[] = "%$search_naz%";
+                $param_types_for_where .= 's';
+            }
         }
         if ($nascita_from !== '') {
             $where_prepared .= " AND a.data_nascita >= ? ";
@@ -333,9 +338,9 @@ class AutoriApiController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        // Resolve nazionalita column
+        // SECURITY FIX: Use static column name instead of dynamic interpolation
         $colNaz = $this->resolveColumn($db, 'autori', ['nazionalita', 'nazionalità']);
-        $selectNaz = $colNaz !== null ? "a.`$colNaz` AS nazionalita" : "'' AS nazionalita";
+        $selectNaz = $colNaz !== null ? "a.nazionalita AS nazionalita" : "'' AS nazionalita";
 
         // Build placeholders for IN clause
         $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
