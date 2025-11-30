@@ -358,10 +358,10 @@ class Z39ServerPlugin
 
                 // Search based on type
                 if ($type === 'isbn' || ($type === 'any' && preg_match('/^[0-9X-]{10,17}$/i', $query))) {
-                    // ISBN search
+                    // ISBN search - single result, no N+1 issue
                     $book = $client->searchByIsbn(preg_replace('/[^0-9X]/i', '', $query));
                     if ($book) {
-                        // Get full record with locations
+                        // Get full record with locations (single request)
                         $bid = $book['_sbn_bid'] ?? null;
                         if ($bid) {
                             $fullRecord = $client->getFullRecord($bid);
@@ -372,31 +372,15 @@ class Z39ServerPlugin
                         $results[] = $book;
                     }
                 } elseif ($type === 'title' || $type === 'any') {
-                    // Title search
+                    // Title search - use parallel fetching to eliminate N+1
                     $books = $client->searchByTitle($query, $limit);
-                    foreach ($books as $book) {
-                        $bid = $book['_sbn_bid'] ?? null;
-                        if ($bid) {
-                            $fullRecord = $client->getFullRecord($bid);
-                            if ($fullRecord && isset($fullRecord['localizzazioni'])) {
-                                $book['locations'] = $fullRecord['localizzazioni'];
-                            }
-                        }
-                        $results[] = $book;
-                    }
+                    // Enrich all books with full record data in parallel
+                    $results = $client->enrichBooksParallel($books, true);
                 } elseif ($type === 'author') {
-                    // Author search
+                    // Author search - use parallel fetching to eliminate N+1
                     $books = $client->searchByAuthor($query, $limit);
-                    foreach ($books as $book) {
-                        $bid = $book['_sbn_bid'] ?? null;
-                        if ($bid) {
-                            $fullRecord = $client->getFullRecord($bid);
-                            if ($fullRecord && isset($fullRecord['localizzazioni'])) {
-                                $book['locations'] = $fullRecord['localizzazioni'];
-                            }
-                        }
-                        $results[] = $book;
-                    }
+                    // Enrich all books with full record data in parallel
+                    $results = $client->enrichBooksParallel($books, true);
                 }
 
                 $response->getBody()->write(json_encode([
