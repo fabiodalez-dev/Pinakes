@@ -256,8 +256,8 @@ class SbnClient
      */
     public function enrichBooksParallel(array $books, bool $includeLocations = true): array
     {
-        if (empty($books)) {
-            return [];
+        if (!$this->enabled || empty($books)) {
+            return $books;
         }
 
         // Extract BIDs from books
@@ -481,9 +481,11 @@ class SbnClient
     private function extractIsbn(array $numeri): ?string
     {
         foreach ($numeri as $num) {
-            if (str_contains(strtoupper($num), '[ISBN]')) {
+            // Defensive cast to string for non-string values from API
+            $numStr = (string)$num;
+            if (str_contains(strtoupper($numStr), '[ISBN]')) {
                 // Extract ISBN from format like "[ISBN]  978-88-420-5894-6"
-                $isbn = preg_replace('/[^0-9X]/i', '', $num);
+                $isbn = preg_replace('/[^0-9X]/i', '', $numStr);
                 if (!empty($isbn)) {
                     return $isbn;
                 }
@@ -510,9 +512,11 @@ class SbnClient
         // Additional names
         if (!empty($record['nomi']) && is_array($record['nomi'])) {
             foreach ($record['nomi'] as $nome) {
+                // Defensive cast to string for non-string values from API
+                $nomeStr = (string)$nome;
                 // Skip entries like "[Autore]  Marx, Karl" if already have main author
-                if (str_contains($nome, '[Autore]')) {
-                    $cleanName = trim(preg_replace('/^\[Autore\]\s*/', '', $nome));
+                if (str_contains($nomeStr, '[Autore]')) {
+                    $cleanName = trim(preg_replace('/^\[Autore\]\s*/', '', $nomeStr));
                     $cleanName = $this->cleanAuthorName($cleanName);
                     if (!in_array($cleanName, $authors, true) && !empty($cleanName)) {
                         $authors[] = $cleanName;
@@ -551,8 +555,8 @@ class SbnClient
 
         $result = [];
 
-        // Extract year (4 digits, typically at the end)
-        if (preg_match('/\b(1[0-9]{3}|20[0-2][0-9])\b/', $pubInfo, $yearMatch)) {
+        // Extract year (4 digits, typically at the end) - supports 1000-2099
+        if (preg_match('/\b(1[0-9]{3}|20[0-9]{2})\b/', $pubInfo, $yearMatch)) {
             $result['year'] = (int)$yearMatch[1];
         }
 

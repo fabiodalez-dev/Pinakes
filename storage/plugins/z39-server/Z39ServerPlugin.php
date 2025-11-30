@@ -325,11 +325,11 @@ class Z39ServerPlugin
         });
 
         // Register SBN search endpoint for catalog integration
+        // Note: This endpoint does not support pagination - SBN API returns first page only
         $app->get('/api/sbn/search', function ($request, $response) use ($app) {
             $params = $request->getQueryParams();
             $query = trim($params['q'] ?? '');
             $type = $params['type'] ?? 'any'; // isbn, title, author, any
-            $page = max(1, (int)($params['page'] ?? 1));
             $limit = min(20, max(1, (int)($params['limit'] ?? 10)));
 
             if (empty($query)) {
@@ -343,6 +343,7 @@ class Z39ServerPlugin
             // Load SBN Client
             $clientFile = __DIR__ . '/classes/SbnClient.php';
             if (!file_exists($clientFile)) {
+                error_log('[SBN Search API] Client file not found: ' . $clientFile);
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'error' => 'SBN client not available'
@@ -389,7 +390,6 @@ class Z39ServerPlugin
                     'type' => $type,
                     'results' => $results,
                     'count' => count($results),
-                    'page' => $page,
                     'limit' => $limit
                 ], JSON_UNESCAPED_UNICODE));
 
@@ -441,6 +441,9 @@ class Z39ServerPlugin
      */
     public function fetchBookMetadata($existing, $sources, $isbn): ?array
     {
+        // $sources is required by hook signature but not used here
+        unset($sources);
+
         // Check if client is enabled
         $enabled = $this->getSetting('enable_client', '0') === '1';
         if (!$enabled) {
@@ -484,6 +487,7 @@ class Z39ServerPlugin
     {
         $clientFile = __DIR__ . '/classes/SbnClient.php';
         if (!file_exists($clientFile)) {
+            $this->log('error', 'SBN client file not found', ['path' => $clientFile]);
             return null;
         }
 
@@ -510,6 +514,7 @@ class Z39ServerPlugin
     {
         $clientFile = __DIR__ . '/classes/SruClient.php';
         if (!file_exists($clientFile)) {
+            $this->log('error', 'SRU client file not found', ['path' => $clientFile]);
             return null;
         }
 
