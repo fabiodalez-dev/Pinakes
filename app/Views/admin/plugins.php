@@ -273,11 +273,6 @@ $pluginSettings = $pluginSettings ?? [];
                                     </button>
                                 <?php endif; ?>
 
-                                <button onclick="showPluginDetails(<?= $plugin['id'] ?>)"
-                                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-
                                 <button
                                     onclick="uninstallPlugin(<?= $plugin['id'] ?>, '<?= HtmlHelper::e($plugin['display_name']) ?>')"
                                     class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all duration-200 text-sm font-medium">
@@ -1218,48 +1213,6 @@ $pluginSettings = $pluginSettings ?? [];
                 icon: 'error',
                 title: '<?= addslashes(__("Errore")) ?>',
                 text: '<?= addslashes(__("Errore durante la disinstallazione del plugin.")) ?>'
-            });
-        }
-    }
-
-    async function showPluginDetails(pluginId) {
-        try {
-            const response = await fetch(`/admin/plugins/${pluginId}/details`);
-            const data = await response.json();
-
-            if (data.success) {
-                const plugin = data.plugin;
-                let metadata = '';
-
-                if (plugin.metadata && Object.keys(plugin.metadata).length > 0) {
-                    metadata = '<div class="mt-4 text-sm"><strong><?= addslashes(__("Metadati:")) ?></strong><pre class="bg-gray-100 p-2 rounded mt-2 text-xs overflow-auto">' +
-                        JSON.stringify(plugin.metadata, null, 2) + '</pre></div>';
-                }
-
-                await Swal.fire({
-                    title: plugin.display_name,
-                    html: `
-                    <div class="text-left text-sm space-y-2">
-                        <p><strong><?= addslashes(__("Nome:")) ?></strong> ${plugin.name}</p>
-                        <p><strong><?= addslashes(__("Versione:")) ?></strong> ${plugin.version}</p>
-                        ${plugin.author ? `<p><strong><?= addslashes(__("Autore:")) ?></strong> ${plugin.author}</p>` : ''}
-                        ${plugin.description ? `<p><strong><?= addslashes(__("Descrizione:")) ?></strong> ${plugin.description}</p>` : ''}
-                        ${plugin.requires_php ? `<p><strong><?= addslashes(__("Richiede PHP:")) ?></strong> ${plugin.requires_php}+</p>` : ''}
-                        ${plugin.requires_app ? `<p><strong><?= addslashes(__("Richiede App:")) ?></strong> ${plugin.requires_app}+</p>` : ''}
-                        <p><strong><?= addslashes(__("File Principale:")) ?></strong> ${plugin.main_file}</p>
-                        <p><strong><?= addslashes(__("Percorso:")) ?></strong> ${plugin.path}</p>
-                        ${metadata}
-                    </div>
-                `,
-                    width: 600,
-                    confirmButtonColor: '#000000'
-                });
-            }
-        } catch (error) {
-            await Swal.fire({
-                icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Errore durante il caricamento dei dettagli del plugin.")) ?>'
             });
         }
     }
