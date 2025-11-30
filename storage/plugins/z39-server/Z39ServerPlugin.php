@@ -310,7 +310,7 @@ class Z39ServerPlugin
             $db = $app->getContainer()->get('db');
             $pluginManager = $app->getContainer()->get('pluginManager');
             $plugin = $pluginManager->getPluginByName('z39-server');
-            $pluginId = $plugin ? (int) $plugin['id'] : null;
+            $pluginId = ($plugin && isset($plugin['id'])) ? (int) $plugin['id'] : null;
 
             // Load endpoint handler
             $endpointFile = __DIR__ . '/endpoint.php';
@@ -332,8 +332,19 @@ class Z39ServerPlugin
             $db = $app->getContainer()->get('db');
             require_once __DIR__ . '/classes/RateLimiter.php';
             $rateLimiter = new \Z39Server\RateLimiter($db, 60, 3600);
-            $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-            $clientIp = explode(',', $clientIp)[0]; // Handle proxied requests
+
+            // Secure IP extraction - trust X-Forwarded-For only from known proxies
+            // Adjust $trustedProxies based on your infrastructure (load balancer IPs)
+            $trustedProxies = ['127.0.0.1', '::1'];
+            $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+
+            if (in_array($remoteAddr, $trustedProxies, true) && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+                // When behind trusted proxy, use last IP in chain (real client)
+                $forwardedIps = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+                $clientIp = end($forwardedIps);
+            } else {
+                $clientIp = $remoteAddr;
+            }
 
             if (!$rateLimiter->checkLimit($clientIp)) {
                 $response->getBody()->write(json_encode([
@@ -354,6 +365,16 @@ class Z39ServerPlugin
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'error' => 'Query parameter "q" is required'
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Validate search type
+            $validTypes = ['isbn', 'title', 'author', 'any'];
+            if (!in_array($type, $validTypes, true)) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'Invalid type parameter. Must be one of: ' . implode(', ', $validTypes)
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
@@ -483,6 +504,14 @@ class Z39ServerPlugin
         // Then try configured SRU servers
         $serversJson = $this->getSetting('servers', '[]');
         $servers = json_decode($serversJson, true);
+
+        // Validate JSON decode result
+        if ($servers === null && $serversJson !== 'null' && $serversJson !== '[]') {
+            $this->log('error', 'Invalid servers JSON configuration', [
+                'json_error' => json_last_error_msg()
+            ]);
+            return $result;
+        }
 
         if (!empty($servers) && is_array($servers)) {
             $z39Data = $this->fetchFromSru($isbn, $servers);

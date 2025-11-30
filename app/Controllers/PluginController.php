@@ -266,7 +266,8 @@ class PluginController
         }
 
         $body = $request->getParsedBody();
-        error_log('[PluginController] Request body: ' . json_encode($body));
+        // Log only plugin ID, not full body (may contain API keys)
+        error_log('[PluginController] Request received for plugin settings update');
 
         if (!Csrf::validate($body['csrf_token'] ?? '')) {
             error_log('[PluginController] Invalid CSRF token');
@@ -371,7 +372,8 @@ class PluginController
             $decoded = [];
             if (is_string($servers)) {
                 $decoded = json_decode($servers, true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
+                // Validate: must be array and no JSON errors
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
                     $servers = '[]';
                     $decoded = [];
                 }

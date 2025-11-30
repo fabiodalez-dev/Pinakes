@@ -194,7 +194,7 @@ class SbnClient
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS => 3,
-                CURLOPT_USERAGENT => 'Pinakes Library System/1.0 (+https://github.com/biblioteche)',
+                CURLOPT_USERAGENT => 'Pinakes Library System/1.0',
                 CURLOPT_HTTPHEADER => [
                     'Accept: application/json',
                     'Accept-Language: it-IT,it;q=0.9'
