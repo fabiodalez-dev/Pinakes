@@ -184,9 +184,25 @@ class BookDataMerger
             $newArray = array_map('trim', explode(',', $new));
         }
 
-        // Merge and deduplicate
+        // Merge arrays
         $merged = array_merge($existingArray, $newArray);
-        $merged = array_unique($merged);
+
+        // Handle deduplication for arrays of associative arrays (e.g., authors with 'name' key)
+        if (!empty($merged) && is_array($merged[0] ?? null)) {
+            $seen = [];
+            $merged = array_filter($merged, function ($item) use (&$seen) {
+                $key = is_array($item) ? json_encode($item) : (string) $item;
+                if (isset($seen[$key])) {
+                    return false;
+                }
+                $seen[$key] = true;
+                return true;
+            });
+        } else {
+            // Simple scalar array - use array_unique
+            $merged = array_unique($merged);
+        }
+
         $merged = array_filter($merged, fn($v) => !self::isEmpty($v));
 
         return array_values($merged);

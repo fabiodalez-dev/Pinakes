@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Plugins\Z39Server\Classes;
 
-use mysqli;
 use DOMDocument;
 use DOMXPath;
 
@@ -16,15 +15,13 @@ use DOMXPath;
  */
 class SruClient
 {
-    private mysqli $db;
     private array $servers = [];
     private int $timeout = 10;
     private int $maxRetries = 2;
     private bool $verifySsl = true;
 
-    public function __construct(mysqli $db, array $servers = [])
+    public function __construct(array $servers = [])
     {
-        $this->db = $db;
         $this->servers = $servers;
     }
 
