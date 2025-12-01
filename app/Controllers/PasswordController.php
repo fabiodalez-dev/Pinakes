@@ -26,15 +26,9 @@ class PasswordController
 
     public function forgot(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)($request->getParsedBody() ?? []);
-        // Validate CSRF using helper
-
-        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('forgot_password') . '?error=csrf')) {
-
-            return $error;
-
-        }
-        $email = trim((string)($data['email'] ?? ''));
+        $data = (array) ($request->getParsedBody() ?? []);
+        // CSRF validated by CsrfMiddleware
+        $email = trim((string) ($data['email'] ?? ''));
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=invalid')->withStatus(302);
         }
@@ -66,17 +60,17 @@ class PasswordController
             // Use validated base URL to prevent Host Header Injection
             $baseUrl = $this->getValidatedBaseUrl();
             $resetUrl = $baseUrl . RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
-            $name = trim((string)($row['nome'] ?? '') . ' ' . (string)($row['cognome'] ?? ''));
+            $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
             $subject = 'Recupera la tua password';
             $html = '<h2>Recupera la tua password</h2>' .
-                    '<p>Ciao ' . htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8') . ',</p>' .
-                    '<p>Abbiamo ricevuto una richiesta di reset della password per il tuo account.</p>' .
-                    '<p>Clicca sul pulsante qui sotto per resettare la tua password:</p>' .
-                    '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #111827; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">Resetta Password</a></p>' .
-                    '<p>Oppure copia e incolla questo link nel tuo browser:</p>' .
-                    '<p><code style="background-color: #f3f4f6; padding: 10px; display: block; word-break: break-all;">' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '</code></p>' .
-                    '<p><strong>Nota:</strong> Questo link scadrà tra 2 ore.</p>' .
-                    '<p>Se non hai richiesto il reset della password, puoi ignorare questa email. Il tuo account rimane sicuro.</p>';
+                '<p>Ciao ' . htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8') . ',</p>' .
+                '<p>Abbiamo ricevuto una richiesta di reset della password per il tuo account.</p>' .
+                '<p>Clicca sul pulsante qui sotto per resettare la tua password:</p>' .
+                '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #111827; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">Resetta Password</a></p>' .
+                '<p>Oppure copia e incolla questo link nel tuo browser:</p>' .
+                '<p><code style="background-color: #f3f4f6; padding: 10px; display: block; word-break: break-all;">' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '</code></p>' .
+                '<p><strong>Nota:</strong> Questo link scadrà tra 2 ore.</p>' .
+                '<p>Se non hai richiesto il reset della password, puoi ignorare questa email. Il tuo account rimane sicuro.</p>';
 
             // Use EmailService if available, fall back to Mailer
             try {
@@ -95,7 +89,7 @@ class PasswordController
     public function resetForm(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();
-        $token = (string)($params['token'] ?? '');
+        $token = (string) ($params['token'] ?? '');
 
         if (empty($token)) {
             return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=invalid_token')->withStatus(302);
@@ -127,30 +121,24 @@ class PasswordController
 
     public function reset(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)($request->getParsedBody() ?? []);
-        // Validate CSRF using helper
-
-        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('reset_password') . '?error=csrf')) {
-
-            return $error;
-
-        }
-        $token = (string)($data['token'] ?? '');
+        $data = (array) ($request->getParsedBody() ?? []);
+        // CSRF validated by CsrfMiddleware
+        $token = (string) ($data['token'] ?? '');
         // Sanitize token to prevent HTTP response splitting
         $token = str_replace(["\r", "\n"], '', $token);
-        $pwd1 = (string)($data['password'] ?? '');
-        $pwd2 = (string)($data['password_confirm'] ?? '');
+        $pwd1 = (string) ($data['password'] ?? '');
+        $pwd2 = (string) ($data['password_confirm'] ?? '');
         if ($token === '' || $pwd1 === '' || $pwd1 !== $pwd2) {
-            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token='.urlencode($token).'&error=invalid')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token=' . urlencode($token) . '&error=invalid')->withStatus(302);
         }
 
         // Validate password complexity before checking token
         if (strlen($pwd1) < 8) {
-            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token='.urlencode($token).'&error=password_too_short')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token=' . urlencode($token) . '&error=password_too_short')->withStatus(302);
         }
 
         if (!preg_match('/[A-Z]/', $pwd1) || !preg_match('/[a-z]/', $pwd1) || !preg_match('/[0-9]/', $pwd1)) {
-            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token='.urlencode($token).'&error=password_needs_upper_lower_number')->withStatus(302);
+            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token=' . urlencode($token) . '&error=password_needs_upper_lower_number')->withStatus(302);
         }
 
         // Ensure MySQL and PHP use the same timezone (UTC)
@@ -165,7 +153,7 @@ class PasswordController
         $stmt->execute();
         $res = $stmt->get_result();
         if ($row = $res->fetch_assoc()) {
-            $uid = (int)$row['id'];
+            $uid = (int) $row['id'];
             $stmt->close();
 
             // Hash password with bcrypt cost 12
@@ -189,7 +177,7 @@ class PasswordController
         // This ensures emails always use the production URL even when sent from CLI/localhost
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         if ($canonicalUrl !== false) {
-            $canonicalUrl = trim((string)$canonicalUrl);
+            $canonicalUrl = trim((string) $canonicalUrl);
             if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
                 return rtrim($canonicalUrl, '/');
             }
@@ -238,7 +226,7 @@ class PasswordController
         $row = $result->fetch_assoc();
         $stmt->close();
 
-        $recentAttempts = (int)($row['count'] ?? 0);
+        $recentAttempts = (int) ($row['count'] ?? 0);
 
         if ($recentAttempts >= $maxAttempts) {
             return false;

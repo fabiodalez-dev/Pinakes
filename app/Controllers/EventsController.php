@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Support\ContentSanitizer;
+use App\Support\HtmlHelper;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -68,15 +69,10 @@ class EventsController
      */
     public function toggleVisibility(Request $request, Response $response, \mysqli $db): Response
     {
+        // CSRF validated by CsrfMiddleware
         $data = $request->getParsedBody();
 
         $db->set_charset('utf8mb4');
-
-        // SECURITY: Validate CSRF
-        if (!is_array($data) || !isset($data['csrf_token']) || !\App\Support\Csrf::validate($data['csrf_token'])) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
-        }
 
         $enabled = isset($data['events_enabled']) ? '1' : '0';
 
@@ -168,25 +164,17 @@ class EventsController
      */
     public function store(Request $request, Response $response, \mysqli $db): Response
     {
+        // CSRF validated by CsrfMiddleware
         $data = $request->getParsedBody();
         $files = $request->getUploadedFiles();
 
         $db->set_charset('utf8mb4');
 
-        // SECURITY FIX: Validate CSRF first
-        if (!is_array($data) || !isset($data['csrf_token']) || !\App\Support\Csrf::validate($data['csrf_token'])) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
-        }
-
         $errors = [];
 
-        // SECURITY: Sanitization function
-        $sanitizeText = function($text) {
-            $text = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $text);
-            $text = preg_replace('/\s*on\w+\s*=\s*["\'][^"\']*["\']/i', '', $text);
-            $text = preg_replace('/javascript:/i', '', $text);
-            return trim($text);
+        // SECURITY: Sanitize plain text fields (strip all HTML tags)
+        $sanitizeText = function ($text): string {
+            return trim(strip_tags($text ?? ''));
         };
 
         // Validate required fields
@@ -208,7 +196,8 @@ class EventsController
         // Generate slug from title
         $slug = $this->generateSlug($title, $db);
 
-        $content = $data['content'] ?? ''; // TinyMCE content
+        // SECURITY: Sanitize rich HTML content (TinyMCE) with whitelist
+        $content = HtmlHelper::sanitizeHtml($data['content'] ?? '');
         $isActive = isset($data['is_active']) ? 1 : 0;
 
         // SEO fields
@@ -275,6 +264,7 @@ class EventsController
      */
     public function update(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        // CSRF validated by CsrfMiddleware
         $data = $request->getParsedBody();
         $files = $request->getUploadedFiles();
 
@@ -282,20 +272,11 @@ class EventsController
 
         $id = (int)($args['id'] ?? 0);
 
-        // SECURITY: Validate CSRF
-        if (!is_array($data) || !isset($data['csrf_token']) || !\App\Support\Csrf::validate($data['csrf_token'])) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
-        }
-
         $errors = [];
 
-        // SECURITY: Sanitization function
-        $sanitizeText = function($text) {
-            $text = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $text);
-            $text = preg_replace('/\s*on\w+\s*=\s*["\'][^"\']*["\']/i', '', $text);
-            $text = preg_replace('/javascript:/i', '', $text);
-            return trim($text);
+        // SECURITY: Sanitize plain text fields (strip all HTML tags)
+        $sanitizeText = function ($text): string {
+            return trim(strip_tags($text ?? ''));
         };
 
         // Validate required fields
@@ -317,7 +298,8 @@ class EventsController
         // Update slug if title changed
         $slug = $this->generateSlug($title, $db, $id);
 
-        $content = $data['content'] ?? '';
+        // SECURITY: Sanitize rich HTML content (TinyMCE) with whitelist
+        $content = HtmlHelper::sanitizeHtml($data['content'] ?? '');
         $isActive = isset($data['is_active']) ? 1 : 0;
 
         // SEO fields
@@ -404,20 +386,14 @@ class EventsController
     }
 
     /**
-     * Delete an event
+     * Delete an event (POST only, CSRF validated by middleware)
      */
     public function delete(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        // CSRF validated by CsrfMiddleware (POST request)
         $db->set_charset('utf8mb4');
 
         $id = (int)($args['id'] ?? 0);
-
-        // Get CSRF token from query params (for GET requests)
-        $queryParams = $request->getQueryParams();
-        if (!isset($queryParams['csrf_token']) || !\App\Support\Csrf::validate($queryParams['csrf_token'])) {
-            $_SESSION['error_message'] = __('Token CSRF non valido.');
-            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
-        }
 
         // Delete event
         $stmt = $db->prepare("DELETE FROM events WHERE id = ?");

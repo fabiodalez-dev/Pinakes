@@ -33,12 +33,12 @@ class AutoriController
     {
         $authorRepo = new \App\Models\AuthorRepository($db);
         $bookRepo = new \App\Models\BookRepository($db);
-        
+
         $autore = $authorRepo->getById($id);
         if (!$autore) {
             return $response->withStatus(404);
         }
-        
+
         $libri = $authorRepo->getBooksByAuthorId($id);
 
         ob_start();
@@ -57,14 +57,20 @@ class AutoriController
 
     public function createForm(Request $request, Response $response): Response
     {
-        ob_start(); require __DIR__ . '/../Views/autori/crea_autore.php'; $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/autori/crea_autore.php';
+        $content = ob_get_clean();
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function store(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\AuthorRepository($db);
         $repo->create([
             'nome' => trim($data['nome'] ?? ''),
@@ -82,19 +88,25 @@ class AutoriController
     {
         $repo = new \App\Models\AuthorRepository($db);
         $autore = $repo->getById($id);
-        if (!$autore) { return $response->withStatus(404); }
-        ob_start(); 
-        $data = ['autore'=>$autore];
+        if (!$autore) {
+            return $response->withStatus(404);
+        }
+        ob_start();
+        $data = ['autore' => $autore];
         // extract(['autore'=>$autore]); 
-        require __DIR__ . '/../Views/autori/modifica_autore.php'; 
+        require __DIR__ . '/../Views/autori/modifica_autore.php';
         $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $data = (array)$request->getParsedBody();
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\AuthorRepository($db);
         $repo->update($id, [
             'nome' => trim($data['nome'] ?? ''),
@@ -109,13 +121,12 @@ class AutoriController
     }
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $token = ($request->getParsedBody()['csrf_token'] ?? '') ?: '';
-        if (!\App\Support\Csrf::validate($token)) {
-            return $response->withStatus(400);
-        }
+        // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\AuthorRepository($db);
         if ($repo->countBooks($id) > 0) {
-            if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+                session_start();
+            }
             $_SESSION['error_message'] = __('Impossibile eliminare l\'autore: sono presenti libri associati.');
             $referer = $request->getHeaderLine('Referer');
             $target = (is_string($referer) && str_contains($referer, '/admin/autori')) ? $referer : '/admin/autori';
@@ -123,7 +134,9 @@ class AutoriController
         }
 
         $repo->delete($id);
-        if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
         $_SESSION['success_message'] = __('Autore eliminato con successo.');
         return $response->withHeader('Location', '/admin/autori')->withStatus(302);
     }

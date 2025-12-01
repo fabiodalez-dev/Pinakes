@@ -724,7 +724,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
         return $controller->toggleVisibility($request, $response, $db);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/cms/events/create', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -750,11 +750,11 @@ return function (App $app): void {
         return $controller->update($request, $response, $db, $args);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/cms/events/delete/{id}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/cms/events/delete/{id}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
         return $controller->delete($request, $response, $db, $args);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
     // Admin CMS routes - Other pages (catch-all, MUST be after specific routes)
     $app->get('/admin/cms/{slug}', function ($request, $response, $args) use ($app) {
@@ -1448,7 +1448,7 @@ return function (App $app): void {
     $app->get('/api/dewey/divisions', [DeweyApiController::class, 'getDivisions'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/specifics', [DeweyApiController::class, 'getSpecifics'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
-    $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new AuthMiddleware(['admin']));
+    $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
     $app->get('/api/dewey/counts', function ($request, $response) use ($app) {
         $controller = new DeweyController();
         $db = $app->getContainer()->get('db');

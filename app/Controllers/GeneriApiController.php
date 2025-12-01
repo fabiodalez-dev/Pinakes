@@ -10,8 +10,8 @@ class GeneriApiController
 {
     public function search(Request $request, Response $response, \mysqli $db): Response
     {
-        $query = trim((string)($request->getQueryParams()['q'] ?? ''));
-        $limit = min(50, (int)($request->getQueryParams()['limit'] ?? 20));
+        $query = trim((string) ($request->getQueryParams()['q'] ?? ''));
+        $limit = min(50, (int) ($request->getQueryParams()['limit'] ?? 20));
 
         $results = [];
         if (strlen($query) >= 1) {
@@ -41,10 +41,10 @@ class GeneriApiController
                 }
 
                 $results[] = [
-                    'id' => (int)$row['id'],
+                    'id' => (int) $row['id'],
                     'label' => $label,
                     'nome' => $row['nome'],
-                    'parent_id' => $row['parent_id'] ? (int)$row['parent_id'] : null,
+                    'parent_id' => $row['parent_id'] ? (int) $row['parent_id'] : null,
                     'parent_nome' => $row['parent_nome'],
                     'tipo' => $row['tipo']
                 ];
@@ -57,15 +57,11 @@ class GeneriApiController
 
     public function create(Request $request, Response $response, \mysqli $db): Response
     {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+        // CSRF validated by CsrfMiddleware
 
         $data = $request->getParsedBody();
-        $nome = trim((string)($data['nome'] ?? ''));
-        $parent_id = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
+        $nome = trim((string) ($data['nome'] ?? ''));
+        $parent_id = !empty($data['parent_id']) ? (int) $data['parent_id'] : null;
 
         if (empty($nome)) {
             $response->getBody()->write(json_encode(['error' => __('Il nome del genere è obbligatorio.')]));
@@ -80,7 +76,7 @@ class GeneriApiController
 
         if ($existing) {
             $response->getBody()->write(json_encode([
-                'id' => (int)$existing['id'],
+                'id' => (int) $existing['id'],
                 'nome' => $nome,
                 'exists' => true
             ]));
@@ -95,7 +91,7 @@ class GeneriApiController
         if ($stmt->execute()) {
             $id = $db->insert_id;
             $response->getBody()->write(json_encode([
-                'id' => (int)$id,
+                'id' => (int) $id,
                 'nome' => $nome,
                 'parent_id' => $parent_id,
                 'created' => true
@@ -109,8 +105,8 @@ class GeneriApiController
 
     public function listGeneri(Request $request, Response $response, \mysqli $db): Response
     {
-        $limit = min(100, (int)($request->getQueryParams()['limit'] ?? 50));
-        $onlyParents = (bool)($request->getQueryParams()['only_parents'] ?? false);
+        $limit = min(100, (int) ($request->getQueryParams()['limit'] ?? 50));
+        $onlyParents = (bool) ($request->getQueryParams()['only_parents'] ?? false);
 
         $sql = "
             SELECT g.id, g.nome, g.parent_id,
@@ -135,12 +131,12 @@ class GeneriApiController
         $results = [];
         while ($row = $result->fetch_assoc()) {
             $results[] = [
-                'id' => (int)$row['id'],
+                'id' => (int) $row['id'],
                 'nome' => $row['nome'],
-                'parent_id' => $row['parent_id'] ? (int)$row['parent_id'] : null,
+                'parent_id' => $row['parent_id'] ? (int) $row['parent_id'] : null,
                 'parent_nome' => $row['parent_nome'],
                 'tipo' => $row['tipo'],
-                'children_count' => (int)$row['children_count'],
+                'children_count' => (int) $row['children_count'],
                 'label' => $row['nome'] . ($row['parent_nome'] ? " ({$row['parent_nome']})" : '')
             ];
         }
@@ -151,7 +147,7 @@ class GeneriApiController
 
     public function getSottogeneri(Request $request, Response $response, \mysqli $db): Response
     {
-        $parent_id = (int)($request->getQueryParams()['parent_id'] ?? 0);
+        $parent_id = (int) ($request->getQueryParams()['parent_id'] ?? 0);
 
         if ($parent_id <= 0) {
             $response->getBody()->write(json_encode([]));
@@ -171,7 +167,7 @@ class GeneriApiController
         $results = [];
         while ($row = $result->fetch_assoc()) {
             $results[] = [
-                'id' => (int)$row['id'],
+                'id' => (int) $row['id'],
                 'nome' => $row['nome'],
                 'label' => $row['nome']
             ];

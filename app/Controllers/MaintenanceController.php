@@ -8,9 +8,11 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DataIntegrity;
 
-class MaintenanceController {
+class MaintenanceController
+{
 
-    public function integrityReport(Request $request, Response $response, mysqli $db): Response {
+    public function integrityReport(Request $request, Response $response, mysqli $db): Response
+    {
         $integrity = new DataIntegrity($db);
         $report = $integrity->generateIntegrityReport();
 
@@ -27,12 +29,9 @@ class MaintenanceController {
         return $response;
     }
 
-    public function fixIntegrityIssues(Request $request, Response $response, mysqli $db): Response {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+    public function fixIntegrityIssues(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
 
         $integrity = new DataIntegrity($db);
 
@@ -62,12 +61,9 @@ class MaintenanceController {
         return $response->withHeader('Content-Type', 'application/json');
     }
 
-    public function recalculateAvailability(Request $request, Response $response, mysqli $db): Response {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+    public function recalculateAvailability(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
 
         $integrity = new DataIntegrity($db);
 
@@ -90,12 +86,9 @@ class MaintenanceController {
         return $response->withHeader('Content-Type', 'application/json');
     }
 
-    public function performMaintenance(Request $request, Response $response, mysqli $db): Response {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+    public function performMaintenance(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
 
         $integrity = new DataIntegrity($db);
         $results = [];
@@ -141,12 +134,9 @@ class MaintenanceController {
     /**
      * Crea gli indici di ottimizzazione mancanti
      */
-    public function createMissingIndexes(Request $request, Response $response, mysqli $db): Response {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+    public function createMissingIndexes(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
 
         $integrity = new DataIntegrity($db);
 
@@ -172,7 +162,8 @@ class MaintenanceController {
     /**
      * Genera lo script SQL per gli indici mancanti
      */
-    public function generateIndexesSQL(Request $request, Response $response, mysqli $db): Response {
+    public function generateIndexesSQL(Request $request, Response $response, mysqli $db): Response
+    {
         $integrity = new DataIntegrity($db);
         $sql = $integrity->generateMissingIndexesSQL();
 
@@ -185,12 +176,9 @@ class MaintenanceController {
     /**
      * Applica un fix specifico alla configurazione .env
      */
-    public function applyConfigFix(Request $request, Response $response): Response {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+    public function applyConfigFix(Request $request, Response $response): Response
+    {
+        // CSRF validated by CsrfMiddleware
 
         // Parse JSON body
         $rawBody = (string) $request->getBody();

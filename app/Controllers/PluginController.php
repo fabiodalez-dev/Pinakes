@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Support\Csrf;
 use App\Support\PluginManager;
 use App\Support\HtmlHelper;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -81,18 +80,7 @@ class PluginController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
 
-            // Verify CSRF token (handle multipart/form-data)
-            $body = $request->getParsedBody();
-            $csrfToken = $body['csrf_token'] ?? $_POST['csrf_token'] ?? '';
-
-            if (!Csrf::validate($csrfToken)) {
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'message' => __('Token CSRF non valido.')
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-            }
-
+            // CSRF validated by CsrfMiddleware
             $uploadedFiles = $request->getUploadedFiles();
 
             if (!isset($uploadedFiles['plugin_file'])) {
@@ -170,16 +158,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Verify CSRF token
-        $body = $request->getParsedBody();
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
+        // CSRF validated by CsrfMiddleware
         $pluginId = (int) $args['id'];
         $result = $this->pluginManager->activatePlugin($pluginId);
 
@@ -201,16 +180,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Verify CSRF token
-        $body = $request->getParsedBody();
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
+        // CSRF validated by CsrfMiddleware
         $pluginId = (int) $args['id'];
         $result = $this->pluginManager->deactivatePlugin($pluginId);
 
@@ -232,16 +202,7 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Verify CSRF token
-        $body = $request->getParsedBody();
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
+        // CSRF validated by CsrfMiddleware
         $pluginId = (int) $args['id'];
         $result = $this->pluginManager->uninstallPlugin($pluginId);
 
@@ -265,18 +226,10 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
+        // CSRF validated by CsrfMiddleware
         $body = $request->getParsedBody();
         // Log only plugin ID, not full body (may contain API keys)
         error_log('[PluginController] Request received for plugin settings update');
-
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            error_log('[PluginController] Invalid CSRF token');
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
 
         $pluginId = (int) $args['id'];
         error_log('[PluginController] Plugin ID: ' . $pluginId);

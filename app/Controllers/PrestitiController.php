@@ -74,8 +74,11 @@ class PrestitiController
         ob_start();
         require __DIR__ . '/../Views/prestiti/crea_prestito.php';
         $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function store(Request $request, Response $response, mysqli $db): Response
@@ -83,20 +86,16 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-        $data = (array)$request->getParsedBody();
+        $data = (array) $request->getParsedBody();
 
-        // Verifica CSRF token
-        $token = $data['csrf_token'] ?? '';
-        if (!\App\Support\Csrf::validate($token)) {
-            return $response->withHeader('Location', '/admin/prestiti/crea?error=csrf')->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
 
         // Verifica dati obbligatori
-        $utente_id = (int)($data['utente_id'] ?? 0);
-        $libro_id = (int)($data['libro_id'] ?? 0);
+        $utente_id = (int) ($data['utente_id'] ?? 0);
+        $libro_id = (int) ($data['libro_id'] ?? 0);
         $data_prestito = $data['data_prestito'] ?? '';
         $data_scadenza = $data['data_scadenza'] ?? '';
-        $note = trim((string)($data['note'] ?? '')) ?: null;
+        $note = trim((string) ($data['note'] ?? '')) ?: null;
 
         // Se le date sono vuote, usa i valori di default
         if (empty($data_prestito)) {
@@ -150,7 +149,7 @@ class PrestitiController
                 $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
                 $totalCopiesStmt->bind_param('i', $libro_id);
                 $totalCopiesStmt->execute();
-                $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+                $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
                 $totalCopiesStmt->close();
 
                 // Step 2: Count overlapping loans for the loan period
@@ -162,7 +161,7 @@ class PrestitiController
                 ");
                 $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $loanCountStmt->execute();
-                $overlappingLoans = (int)($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $overlappingLoans = (int) ($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
                 $loanCountStmt->close();
 
                 // Step 3: Count overlapping prenotazioni for the loan period
@@ -176,7 +175,7 @@ class PrestitiController
                 ");
                 $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $resCountStmt->execute();
-                $overlappingReservations = (int)($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $overlappingReservations = (int) ($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
                 $resCountStmt->close();
 
                 // Check if there's at least one slot available
@@ -218,7 +217,7 @@ class PrestitiController
                 $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
                 $totalCopiesStmt->bind_param('i', $libro_id);
                 $totalCopiesStmt->execute();
-                $totalCopies = (int)($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+                $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
                 $totalCopiesStmt->close();
 
                 // Step 2: Count overlapping loans (all types, including pendente without copia_id)
@@ -230,7 +229,7 @@ class PrestitiController
                 ");
                 $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $loanCountStmt->execute();
-                $overlappingLoans = (int)($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $overlappingLoans = (int) ($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
                 $loanCountStmt->close();
 
                 // Step 3: Count overlapping prenotazioni
@@ -243,7 +242,7 @@ class PrestitiController
                 ");
                 $resCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
                 $resCountStmt->execute();
-                $overlappingReservations = (int)($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $overlappingReservations = (int) ($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
                 $resCountStmt->close();
 
                 // Check if there's at least one slot available
@@ -313,7 +312,7 @@ class PrestitiController
 
             $processedBy = null;
             if (isset($_SESSION['user']['id'])) {
-                $candidateId = (int)$_SESSION['user']['id'];
+                $candidateId = (int) $_SESSION['user']['id'];
                 if ($candidateId > 0) {
                     $staffCheck = $db->prepare('SELECT id FROM staff WHERE id = ? LIMIT 1');
                     if ($staffCheck) {
@@ -341,11 +340,23 @@ class PrestitiController
             $renewals = 0;
             $attivo = 1;
 
-            $stmt->bind_param("iiissssdiisi",
-                $libro_id, $selectedCopy['id'], $utente_id, $data_prestito, $data_scadenza, $data_restituzione,
-                $stato_prestito, $sanzione, $renewals, $processedBy, $note, $attivo);
+            $stmt->bind_param(
+                "iiissssdiisi",
+                $libro_id,
+                $selectedCopy['id'],
+                $utente_id,
+                $data_prestito,
+                $data_scadenza,
+                $data_restituzione,
+                $stato_prestito,
+                $sanzione,
+                $renewals,
+                $processedBy,
+                $note,
+                $attivo
+            );
             $stmt->execute();
-            $newLoanId = (int)$db->insert_id;
+            $newLoanId = (int) $db->insert_id;
             $stmt->close();
 
             // Update copy status: 'prestato' for immediate loans, 'prenotato' for future loans
@@ -402,7 +413,7 @@ class PrestitiController
             }
 
             return $response->withHeader('Location', '/admin/prestiti?created=1')->withStatus(302);
-            
+
         } catch (Exception $e) {
             $db->rollback();
             // Se il messaggio di errore contiene un riferimento a un prestito già attivo
@@ -422,10 +433,17 @@ class PrestitiController
         }
         $repo = new \App\Models\LoanRepository($db);
         $prestito = $repo->getById($id);
-        if (!$prestito) { return $response->withStatus(404); }
-        ob_start(); require __DIR__ . '/../Views/prestiti/modifica_prestito.php'; $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        if (!$prestito) {
+            return $response->withStatus(404);
+        }
+        ob_start();
+        require __DIR__ . '/../Views/prestiti/modifica_prestito.php';
+        $content = ob_get_clean();
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
@@ -433,10 +451,8 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-        $data = (array)$request->getParsedBody();
-        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) {
-            return $response->withStatus(400);
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
         $processedBy = $_SESSION['user']['id'] ?? null;
         // Whitelist esplicita dei campi modificabili per prevenire mass assignment
@@ -448,7 +464,7 @@ class PrestitiController
                 switch ($field) {
                     case 'libro_id':
                     case 'utente_id':
-                        $updateData[$field] = (int)$data[$field];
+                        $updateData[$field] = (int) $data[$field];
                         break;
                     case 'data_prestito':
                     case 'data_scadenza':
@@ -467,8 +483,7 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-        $token = ($request->getParsedBody()['csrf_token'] ?? '') ?: '';
-        if (!\App\Support\Csrf::validate($token)) { return $response->withStatus(400); }
+        // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
         $repo->close($id);
         return $response->withHeader('Location', '/admin/prestiti')->withStatus(302);
@@ -503,8 +518,11 @@ class PrestitiController
         ob_start();
         require __DIR__ . '/../Views/prestiti/restituito_prestito.php';
         $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function processReturn(Request $request, Response $response, mysqli $db, int $id): Response
@@ -512,17 +530,16 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-        $data = (array)$request->getParsedBody();
-        $token = $data['csrf_token'] ?? '';
-        if (!\App\Support\Csrf::validate($token)) { return $response->withStatus(400); }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $nuovo_stato = $data['stato'] ?? '';
-        $note = trim((string)($data['note'] ?? '')) ?: null;
+        $note = trim((string) ($data['note'] ?? '')) ?: null;
         $redirectTo = $this->sanitizeRedirect($data['redirect_to'] ?? null);
 
         $allowed_status = ['restituito', 'in_ritardo', 'perso', 'danneggiato'];
         if (!in_array($nuovo_stato, $allowed_status)) {
-            return $response->withHeader('Location', '/admin/prestiti/restituito/'.$id.'?error=invalid_status')->withStatus(302);
+            return $response->withHeader('Location', '/admin/prestiti/restituito/' . $id . '?error=invalid_status')->withStatus(302);
         }
 
         $data_restituzione = gmdate('Y-m-d');
@@ -555,7 +572,7 @@ class PrestitiController
             // Mappa stato prestito → stato copia
             // Nota: questo è il form di RESTITUZIONE, quindi il libro torna sempre
             // 'in_ritardo' qui significa "restituito in ritardo", non "ancora in prestito"
-            $copia_stato = match($nuovo_stato) {
+            $copia_stato = match ($nuovo_stato) {
                 'restituito' => 'disponibile',
                 'in_ritardo' => 'disponibile',  // Restituito in ritardo = disponibile
                 'perso' => 'perso',
@@ -601,7 +618,7 @@ class PrestitiController
                 $separator = strpos($redirectTo, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', $redirectTo . $separator . 'error=update_failed')->withStatus(302);
             }
-            return $response->withHeader('Location', '/admin/prestiti/restituito/'.$id.'?error=update_failed')->withStatus(302);
+            return $response->withHeader('Location', '/admin/prestiti/restituito/' . $id . '?error=update_failed')->withStatus(302);
         }
     }
 
@@ -633,8 +650,11 @@ class PrestitiController
         ob_start();
         require __DIR__ . '/../Views/prestiti/dettagli_prestito.php';
         $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response
@@ -642,13 +662,8 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-        $data = (array)$request->getParsedBody();
-        $token = $data['csrf_token'] ?? '';
-
-        // Validate CSRF token
-        if (!\App\Support\Csrf::validate($token)) {
-            return $response->withStatus(400);
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $redirectTo = $this->sanitizeRedirect($data['redirect_to'] ?? null);
 
@@ -673,7 +688,7 @@ class PrestitiController
         $stmt->close();
 
         // Check if loan is active
-        if ((int)$loan['attivo'] !== 1) {
+        if ((int) $loan['attivo'] !== 1) {
             $errorUrl = $redirectTo ?? '/admin/prestiti';
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_not_active')->withStatus(302);
@@ -689,7 +704,7 @@ class PrestitiController
 
         // Check renewal limit
         $maxRenewals = 3;
-        $currentRenewals = (int)$loan['renewals'];
+        $currentRenewals = (int) $loan['renewals'];
         if ($currentRenewals >= $maxRenewals) {
             $errorUrl = $redirectTo ?? '/admin/prestiti';
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -884,7 +899,7 @@ class PrestitiController
             if ($value === null || $value === '') {
                 return '';
             }
-            $value = (string)$value;
+            $value = (string) $value;
             if (preg_match('/^[=+\-@\t\r]/', $value)) {
                 return "'" . $value;
             }

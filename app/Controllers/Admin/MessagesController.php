@@ -46,7 +46,7 @@ class MessagesController
      */
     public function getOne(Request $request, Response $response, array $args): Response
     {
-        $id = (int)($args['id'] ?? 0);
+        $id = (int) ($args['id'] ?? 0);
 
         $stmt = $this->db->prepare("
             SELECT id, nome, cognome, email, telefono, indirizzo, messaggio,
@@ -82,13 +82,9 @@ class MessagesController
      */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+        // CSRF validated by CsrfMiddleware
 
-        $id = (int)($args['id'] ?? 0);
+        $id = (int) ($args['id'] ?? 0);
 
         $stmt = $this->db->prepare("DELETE FROM contact_messages WHERE id = ?");
         $stmt->bind_param('i', $id);
@@ -109,13 +105,9 @@ class MessagesController
      */
     public function archive(Request $request, Response $response, array $args): Response
     {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+        // CSRF validated by CsrfMiddleware
 
-        $id = (int)($args['id'] ?? 0);
+        $id = (int) ($args['id'] ?? 0);
 
         $stmt = $this->db->prepare("UPDATE contact_messages SET is_archived = 1 WHERE id = ?");
         $stmt->bind_param('i', $id);
@@ -136,11 +128,7 @@ class MessagesController
      */
     public function markAllRead(Request $request, Response $response): Response
     {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+        // CSRF validated by CsrfMiddleware
 
         $success = $this->db->query("UPDATE contact_messages SET is_read = 1, read_at = NOW() WHERE is_read = 0");
 
