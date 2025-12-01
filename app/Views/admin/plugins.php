@@ -242,7 +242,7 @@ $pluginSettings = $pluginSettings ?? [];
                                 <?php if ($plugin['name'] === 'z39-server'): ?>
                                     <?php
                                     $z39Settings = $pluginSettings[$plugin['id']] ?? [];
-                                    $z39Servers = json_decode($z39Settings['servers'] ?? '[]', true);
+                                    $z39Servers = json_decode($z39Settings['servers'] ?? '[]', true) ?: [];
                                     $z39ServerCount = count($z39Servers);
                                     ?>
                                     <button type="button"
@@ -922,14 +922,29 @@ $pluginSettings = $pluginSettings ?? [];
         const form = event.target;
         const pluginId = document.getElementById('z39PluginId').value;
 
-        // Collect servers
+        // Collect servers with validation
         const servers = [];
         const rows = document.querySelectorAll('.z39-server-row');
+        let hasValidationError = false;
+
         rows.forEach(row => {
+            const name = row.querySelector('[name="server_name[]"]').value.trim();
+            const url = row.querySelector('[name="server_url[]"]').value.trim();
+
+            // Skip empty rows but validate partially filled ones
+            if (!name && !url) {
+                return;
+            }
+
+            if (!name || !url) {
+                hasValidationError = true;
+                return;
+            }
+
             servers.push({
-                name: row.querySelector('[name="server_name[]"]').value,
-                url: row.querySelector('[name="server_url[]"]').value,
-                db: row.querySelector('[name="server_db[]"]').value,
+                name: name,
+                url: url,
+                db: row.querySelector('[name="server_db[]"]').value.trim(),
                 syntax: row.querySelector('[name="server_syntax[]"]').value,
                 indexes: {
                     isbn: row.querySelector('[name="server_isbn_index[]"]').value || 'isbn'
@@ -937,6 +952,15 @@ $pluginSettings = $pluginSettings ?? [];
                 enabled: true
             });
         });
+
+        if (hasValidationError) {
+            Swal.fire({
+                icon: 'warning',
+                title: '<?= addslashes(__("Attenzione")) ?>',
+                text: '<?= addslashes(__("Compila nome e URL per tutti i server.")) ?>'
+            });
+            return;
+        }
 
         const formData = new FormData();
         formData.append('csrf_token', csrfToken);
@@ -949,6 +973,11 @@ $pluginSettings = $pluginSettings ?? [];
                 method: 'POST',
                 body: formData
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
             const result = await response.json();
 
             if (result.success) {
@@ -1068,6 +1097,10 @@ $pluginSettings = $pluginSettings ?? [];
                 body: formData
             });
 
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
             const result = await response.json();
 
             if (result.success) {
@@ -1120,6 +1153,10 @@ $pluginSettings = $pluginSettings ?? [];
                 body: formData
             });
 
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
             const data = await response.json();
 
             if (data.success) {
@@ -1168,6 +1205,10 @@ $pluginSettings = $pluginSettings ?? [];
                 method: 'POST',
                 body: formData
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
 
             const data = await response.json();
 
@@ -1219,6 +1260,10 @@ $pluginSettings = $pluginSettings ?? [];
                 method: 'POST',
                 body: formData
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
 
             const data = await response.json();
 
@@ -1301,6 +1346,10 @@ $pluginSettings = $pluginSettings ?? [];
                 method: 'POST',
                 body: formData
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
 
             const data = await response.json();
 
@@ -1417,6 +1466,10 @@ $pluginSettings = $pluginSettings ?? [];
                 method: 'POST',
                 body: formData
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
 
             const data = await response.json();
 
