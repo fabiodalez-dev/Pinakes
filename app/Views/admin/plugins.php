@@ -276,7 +276,9 @@ $pluginSettings = $pluginSettings ?? [];
                                 <?php endif; ?>
 
                                 <button
-                                    onclick="uninstallPlugin(<?= $plugin['id'] ?>, '<?= HtmlHelper::e($plugin['display_name']) ?>')"
+                                    data-plugin-id="<?= $plugin['id'] ?>"
+                                    data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
+                                    onclick="uninstallPlugin(this.dataset.pluginId, this.dataset.pluginName)"
                                     class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all duration-200 text-sm font-medium">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -821,7 +823,14 @@ $pluginSettings = $pluginSettings ?? [];
         const pluginId = btn.dataset.pluginId;
         const enableServer = btn.dataset.enableServer === '1';
         const enableClient = btn.dataset.enableClient === '1';
-        const servers = JSON.parse(btn.dataset.servers || '[]');
+
+        // Hardening: handle corrupted JSON gracefully
+        let servers = [];
+        try {
+            servers = JSON.parse(btn.dataset.servers || '[]');
+        } catch (e) {
+            servers = [];
+        }
 
         document.getElementById('z39PluginId').value = pluginId;
         document.getElementById('z39EnableServer').checked = enableServer;
