@@ -573,31 +573,34 @@ $pluginSettings = $pluginSettings ?? [];
                         <select id="z39PresetServers" onchange="addPresetServer(this.value); this.value='';"
                             class="text-sm rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto sm:flex-1 max-w-full">
                             <option value=""><?= __("+ Aggiungi da preset...") ?></option>
-                            <optgroup label="🇩🇪 Deutschland (Consigliati)">
-                                <option value="k10plus">⭐ K10plus (GBV Germany) - RACCOMANDATO</option>
-                                <option value="dnb">⭐ DNB - Deutsche Nationalbibliothek</option>
+                            <optgroup label="[IT] Italia">
+                                <option value="sbn">* SBN - OPAC Nazionale (RACCOMANDATO)</option>
+                            </optgroup>
+                            <optgroup label="[DE] Deutschland">
+                                <option value="k10plus">* K10plus (GBV Germany)</option>
+                                <option value="dnb">* DNB - Deutsche Nationalbibliothek</option>
                                 <option value="gbv">GBV - Gemeinsamer Bibliotheksverbund</option>
                             </optgroup>
-                            <optgroup label="🇫🇷 France">
-                                <option value="sudoc">⭐ SUDOC - Système Universitaire</option>
+                            <optgroup label="[FR] France">
+                                <option value="sudoc">* SUDOC - Système Universitaire</option>
                                 <option value="bnf">BnF - Bibliothèque nationale de France</option>
                             </optgroup>
-                            <optgroup label="🇺🇸 USA">
+                            <optgroup label="[US] USA">
                                 <option value="loc">Library of Congress</option>
                             </optgroup>
-                            <optgroup label="🇬🇧 UK">
+                            <optgroup label="[GB] UK">
                                 <option value="bl">British Library</option>
                                 <option value="copac">COPAC (UK Libraries)</option>
                             </optgroup>
-                            <optgroup label="🇪🇸 España">
+                            <optgroup label="[ES] España">
                                 <option value="bne">BNE - Biblioteca Nacional de España</option>
                                 <option value="rebiun">REBIUN - Red de Bibliotecas Universitarias</option>
                             </optgroup>
-                            <optgroup label="🌍 Altri Paesi">
+                            <optgroup label="[...] Altri Paesi">
                                 <option value="kb">KB - Koninklijke Bibliotheek (NL)</option>
-                                <option value="ndl">NDL - National Diet Library (Japan)</option>
-                                <option value="nb">NB - Nasjonalbiblioteket (Norway)</option>
-                                <option value="nlp">NLP - National Library of Poland</option>
+                                <option value="ndl">NDL - National Diet Library (JP)</option>
+                                <option value="nb">NB - Nasjonalbiblioteket (NO)</option>
+                                <option value="nlp">NLP - National Library of Poland (PL)</option>
                             </optgroup>
                         </select>
                         <button type="button" onclick="addZ39ServerRow()"
@@ -656,116 +659,124 @@ $pluginSettings = $pluginSettings ?? [];
     const z39ExternalServersSection = document.getElementById('z39ExternalServersSection');
     const z39EnableClientCheckbox = document.getElementById('z39EnableClient');
 
-    // Preset SRU servers configuration
-    // ⭐ = Tested and working (Nov 2024)
+    // Preset SRU/Z39.50 servers configuration
+    // * = Tested and recommended
     const z39PresetServers = {
-        // ⭐ 🇩🇪 Deutschland (Most reliable - RECOMMENDED)
+        // [IT] Italia - SBN OPAC Nazionale
+        // Porta 3950 o 2100, database: nopac, formato: UNIMARC
+        sbn: {
+            name: '[IT] SBN - OPAC Nazionale',
+            url: 'opac.sbn.it',
+            port: '3950',
+            db: 'nopac',
+            syntax: 'unimarc',
+            protocol: 'z3950',
+            indexes: { isbn: 'isbn' }
+        },
+        // [DE] Deutschland (Most reliable)
         k10plus: {
-            name: '⭐ K10plus (GBV Germany) - RECOMMENDED',
+            name: '[DE] K10plus (GBV Germany)',
             url: 'http://sru.k10plus.de/opac-de-627',
             db: 'opac-de-627',
             syntax: 'marcxml',
             indexes: { isbn: 'pica.isb' }
         },
         dnb: {
-            name: '⭐ DNB - Deutsche Nationalbibliothek',
+            name: '[DE] DNB - Deutsche Nationalbibliothek',
             url: 'https://services.dnb.de/sru/dnb',
             db: 'dnb',
             syntax: 'marcxml',
             indexes: { isbn: 'num' }
         },
         gbv: {
-            name: 'GBV - Gemeinsamer Bibliotheksverbund',
+            name: '[DE] GBV - Gemeinsamer Bibliotheksverbund',
             url: 'http://sru.gbv.de/gvk',
             db: 'gvk',
             syntax: 'marcxml',
             indexes: { isbn: 'pica.isb' }
         },
-        // 🇫🇷 France
+        // [FR] France
         bnf: {
-            name: 'BnF - Bibliothèque nationale de France',
+            name: '[FR] BnF - Bibliotheque nationale de France',
             url: 'http://catalogue.bnf.fr/api/SRU',
             db: '',
             syntax: 'marcxml',
             indexes: { isbn: 'bib.isbn' }
         },
         sudoc: {
-            name: '⭐ SUDOC - Système Universitaire (France)',
+            name: '[FR] SUDOC - Systeme Universitaire',
             url: 'https://www.sudoc.abes.fr/cbs/sru/',
             db: '',
             syntax: 'unimarc',
             indexes: { isbn: 'isb' }
         },
-        // 🇺🇸 USA
+        // [US] USA
         loc: {
-            name: 'Library of Congress',
+            name: '[US] Library of Congress',
             url: 'https://lx2.loc.gov:210/lcdb',
             db: 'lcdb',
             syntax: 'marcxml',
             indexes: { isbn: 'bath.isbn' }
         },
-        // 🇬🇧 UK
+        // [GB] UK
         bl: {
-            name: 'British Library',
+            name: '[GB] British Library',
             url: 'http://z3950cat.bl.uk:9909/BNB03U',
             db: 'BNB03U',
             syntax: 'marcxml',
             indexes: { isbn: 'bath.isbn' }
         },
         copac: {
-            name: 'COPAC - UK Libraries',
+            name: '[GB] COPAC - UK Libraries',
             url: 'http://copac.jisc.ac.uk/sru',
             db: 'copac',
             syntax: 'marcxml',
             indexes: { isbn: 'bath.isbn' }
         },
-        // 🇪🇸 España
+        // [ES] Espana
         bne: {
-            name: 'BNE - Biblioteca Nacional de España',
+            name: '[ES] BNE - Biblioteca Nacional de Espana',
             url: 'http://sru.bne.es/bne/SRU',
             db: '',
             syntax: 'marcxml',
             indexes: { isbn: 'dc.identifier' }
         },
         rebiun: {
-            name: 'REBIUN - Red de Bibliotecas Universitarias',
+            name: '[ES] REBIUN - Red de Bibliotecas Universitarias',
             url: 'http://rebiun.absysnet.com/cgi-bin/rebiun/O7001/ID',
             db: 'rebiun',
             syntax: 'marcxml',
             indexes: { isbn: 'isbn' }
         },
-        // 🌍 Altri Paesi
+        // Altri Paesi
         kb: {
-            name: 'KB - Koninklijke Bibliotheek (NL)',
+            name: '[NL] KB - Koninklijke Bibliotheek',
             url: 'http://jsru.kb.nl/sru/sru',
             db: 'GGC',
             syntax: 'marcxml',
             indexes: { isbn: 'bath.isbn' }
         },
         ndl: {
-            name: 'NDL - National Diet Library (Japan)',
+            name: '[JP] NDL - National Diet Library',
             url: 'https://iss.ndl.go.jp/api/sru',
             db: '',
             syntax: 'dc',
             indexes: { isbn: 'isbn' }
         },
         nb: {
-            name: 'NB - Nasjonalbiblioteket (Norway)',
+            name: '[NO] NB - Nasjonalbiblioteket',
             url: 'https://bibsys-k.alma.exlibrisgroup.com/view/sru/47BIBSYS_NETWORK',
             db: '',
             syntax: 'marcxml',
             indexes: { isbn: 'alma.isbn' }
         },
         nlp: {
-            name: 'NLP - National Library of Poland',
+            name: '[PL] NLP - National Library of Poland',
             url: 'http://data.bn.org.pl/api/bibs.marcxml',
             db: '',
             syntax: 'marcxml',
             indexes: { isbn: 'isbn' }
         }
-        // Note: Italian SBN, BNCF, BNCR, Casalini do not support standard SRU as of 2024
-        // Note: OCLC WorldCat requires API key
-        // Note: Library and Archives Canada, NLA Australia may have connectivity issues
     };
 
     function addPresetServer(presetKey) {
