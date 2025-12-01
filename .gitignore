@@ -11,6 +11,7 @@
 .installed
 config.local.php
 config.local.sample.php
+CLAUDE.md
 
 # ========================================
 # CRITICAL: Database Backups & Archives
@@ -331,6 +332,7 @@ vendor/slim/csrf/CHANGELOG.md
 vendor/slim/slim/CHANGELOG.md
 vendor/thepixeldeveloper/sitemap/CHANGELOG.md
 claude.md
+
 
 # Internal documentation
 FEATURES_IT.md

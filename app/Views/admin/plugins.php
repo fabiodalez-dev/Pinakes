@@ -470,7 +470,7 @@ $pluginSettings = $pluginSettings ?? [];
                     <?= __("API Key") ?> *
                 </label>
                 <div class="relative">
-                    <input type="password" id="apiKeyInput" required autocomplete="off"
+                    <input type="password" id="apiKeyInput" autocomplete="off"
                         class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 pr-10 font-mono"
                         placeholder="your-api-key-here">
                     <button type="button" onclick="toggleApiKeyVisibility()"
@@ -478,7 +478,7 @@ $pluginSettings = $pluginSettings ?? [];
                         <i id="apiKeyIcon" class="fas fa-eye"></i>
                     </button>
                 </div>
-                <p class="mt-2 text-xs text-gray-600">
+                <p id="apiKeyHelper" class="mt-2 text-xs text-gray-600">
                     <i class="fas fa-shield-alt mr-1"></i>
                     <?= __("L'API key viene criptata con AES-256-GCM prima di essere salvata.") ?>
                 </p>
@@ -811,16 +811,18 @@ $pluginSettings = $pluginSettings ?? [];
         });
     }
 
-    // Toggle visibility based on checkbox
-    z39EnableClientCheckbox.addEventListener('change', function () {
-        if (this.checked) {
-            z39SbnNotice.classList.remove('hidden');
-            z39ExternalServersSection.classList.remove('hidden');
-        } else {
-            z39SbnNotice.classList.add('hidden');
-            z39ExternalServersSection.classList.add('hidden');
-        }
-    });
+    // Toggle visibility based on checkbox - with defensive null check
+    if (z39EnableClientCheckbox) {
+        z39EnableClientCheckbox.addEventListener('change', function () {
+            if (this.checked) {
+                z39SbnNotice.classList.remove('hidden');
+                z39ExternalServersSection.classList.remove('hidden');
+            } else {
+                z39SbnNotice.classList.add('hidden');
+                z39ExternalServersSection.classList.add('hidden');
+            }
+        });
+    }
 
     function openZ39ServerModal(btn) {
         const pluginId = btn.dataset.pluginId;
@@ -856,17 +858,15 @@ $pluginSettings = $pluginSettings ?? [];
             document.getElementById('z39NoServers').classList.remove('hidden');
         } else {
             document.getElementById('z39NoServers').classList.add('hidden');
-            servers.forEach((server, index) => {
-                addZ39ServerRow(server, index);
+            servers.forEach((server) => {
+                addZ39ServerRow(server);
             });
         }
     }
 
-    function addZ39ServerRow(server = null, index = null) {
+    function addZ39ServerRow(server = null) {
         document.getElementById('z39NoServers').classList.add('hidden');
-        const isNew = server === null;
         server = server || { name: '', url: '', db: '', syntax: 'marcxml', enabled: true };
-        const idx = index !== null ? index : document.querySelectorAll('.z39-server-row').length;
 
         // Escape values to prevent XSS
         const safeName = escapeHtml(server.name);
@@ -930,9 +930,19 @@ $pluginSettings = $pluginSettings ?? [];
         const rows = document.querySelectorAll('.z39-server-row');
         let hasValidationError = false;
 
+        // Clear previous error highlights
         rows.forEach(row => {
-            const name = row.querySelector('[name="server_name[]"]').value.trim();
-            const url = row.querySelector('[name="server_url[]"]').value.trim();
+            row.classList.remove('border-red-400', 'bg-red-50');
+            row.querySelectorAll('input').forEach(input => {
+                input.classList.remove('border-red-400', 'ring-red-200');
+            });
+        });
+
+        rows.forEach(row => {
+            const nameInput = row.querySelector('[name="server_name[]"]');
+            const urlInput = row.querySelector('[name="server_url[]"]');
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
 
             // Skip empty rows but validate partially filled ones
             if (!name && !url) {
@@ -941,6 +951,10 @@ $pluginSettings = $pluginSettings ?? [];
 
             if (!name || !url) {
                 hasValidationError = true;
+                // Highlight the row and incomplete fields
+                row.classList.add('border-red-400', 'bg-red-50');
+                if (!name) nameInput.classList.add('border-red-400', 'ring-red-200');
+                if (!url) urlInput.classList.add('border-red-400', 'ring-red-200');
                 return;
             }
 
@@ -1022,7 +1036,16 @@ $pluginSettings = $pluginSettings ?? [];
             return;
         }
 
-        // Use self-hosted Uppy from window globals
+        // Use self-hosted Uppy from window globals - defensive check
+        if (typeof window.Uppy === 'undefined' || typeof window.UppyDashboard === 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: '<?= addslashes(__("Errore")) ?>',
+                text: '<?= addslashes(__("Librerie di upload non caricate. Ricarica la pagina.")) ?>'
+            });
+            return;
+        }
+
         const { Uppy } = window;
 
         uppyInstance = new Uppy({
@@ -1066,15 +1089,22 @@ $pluginSettings = $pluginSettings ?? [];
     function openUploadModal() {
         document.getElementById('uploadModal').classList.remove('hidden');
         initUppy();
+        // Initialize button state
+        const uploadBtn = document.getElementById('uploadButton');
+        if (uploadBtn) uploadBtn.disabled = !selectedFile;
     }
 
     function closeUploadModal() {
         document.getElementById('uploadModal').classList.add('hidden');
         if (uppyInstance) {
             uppyInstance.cancelAll(); // Remove all files
+            uppyInstance.close();     // Clean up DOM and listeners
             uppyInstance = null;
         }
         selectedFile = null;
+        // Reset button state
+        const uploadBtn = document.getElementById('uploadButton');
+        if (uploadBtn) uploadBtn.disabled = true;
     }
 
     document.getElementById('uploadButton')?.addEventListener('click', async function () {
@@ -1396,6 +1426,7 @@ $pluginSettings = $pluginSettings ?? [];
         const apiEndpoint = button.dataset.apiEndpoint || '';
         const timeout = button.dataset.timeout || '10';
         const enabled = button.dataset.enabled === '1';
+        const hasConfig = button.dataset.hasConfig === '1';
 
         // Populate form fields
         document.getElementById('apiScraperPluginId').value = pluginId;
@@ -1403,6 +1434,16 @@ $pluginSettings = $pluginSettings ?? [];
         document.getElementById('apiKeyInput').value = ''; // Always empty for security
         document.getElementById('apiTimeoutInput').value = timeout;
         document.getElementById('apiEnabledInput').checked = enabled;
+
+        // Update API key helper based on existing config
+        const apiKeyHelper = document.getElementById('apiKeyHelper');
+        if (apiKeyHelper) {
+            if (hasConfig) {
+                apiKeyHelper.innerHTML = '<i class="fas fa-info-circle mr-1"></i><?= addslashes(__("Lascia vuoto per mantenere la chiave esistente. Inserisci un nuovo valore per aggiornarla.")) ?>';
+            } else {
+                apiKeyHelper.innerHTML = '<i class="fas fa-shield-alt mr-1"></i><?= addslashes(__("L\'API key viene criptata con AES-256-GCM prima di essere salvata.")) ?>';
+            }
+        }
 
         // Show modal
         document.getElementById('apiBookScraperModal').classList.remove('hidden');
