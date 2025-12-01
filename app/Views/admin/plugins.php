@@ -885,7 +885,7 @@ $pluginSettings = $pluginSettings ?? [];
             </div>
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("URL Endpoint SRU") ?></label>
-                <input type="text" name="server_url[]" value="${safeUrl}" placeholder="http://opac.sbn.it/sru" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
+                <input type="url" name="server_url[]" value="${safeUrl}" placeholder="http://opac.sbn.it/sru" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Database") ?></label>
