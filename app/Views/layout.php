@@ -58,6 +58,15 @@ $htmlLang = substr($currentLocale, 0, 2);
   // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
   do_action('assets.head');
   ?>
+
+  <style>
+    /* Mobile fixes */
+    @media (max-width: 1024px) {
+      #notifications-badge {
+        margin-top: 8px;
+      }
+    }
+  </style>
 </head>
 
 <body class="bg-gray-50 text-gray-900 antialiased">
