@@ -5,7 +5,6 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\Csrf;
-use App\Support\CsrfHelper;
 use App\Support\Mailer;
 use App\Support\EmailService;
 use App\Support\RouteTranslator;

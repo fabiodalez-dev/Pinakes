@@ -88,23 +88,25 @@ final class UserWishlistController
             return $response->withStatus(422);
         }
         $uid = (int) $user['id'];
-        // Check current
-        $stmt = $db->prepare('SELECT 1 FROM wishlist WHERE utente_id=? AND libro_id=? LIMIT 1');
+
+        // SECURITY: Fix race condition using atomic DELETE + affected_rows check
+        // First attempt to delete - if affected_rows > 0, item existed and was removed
+        $stmt = $db->prepare('DELETE FROM wishlist WHERE utente_id=? AND libro_id=?');
         $stmt->bind_param('ii', $uid, $libroId);
         $stmt->execute();
-        $exists = (bool) $stmt->get_result()->num_rows;
+        $deleted = $stmt->affected_rows > 0;
         $stmt->close();
-        if ($exists) {
-            $stmt = $db->prepare('DELETE FROM wishlist WHERE utente_id=? AND libro_id=?');
-            $stmt->bind_param('ii', $uid, $libroId);
-            $stmt->execute();
-            $stmt->close();
+
+        if ($deleted) {
+            // Item was removed
             $payload = ['favorite' => false];
         } else {
-            $stmt = $db->prepare('INSERT INTO wishlist (utente_id, libro_id) VALUES (?, ?)');
+            // Item didn't exist, insert it (use IGNORE to handle concurrent inserts)
+            $stmt = $db->prepare('INSERT IGNORE INTO wishlist (utente_id, libro_id) VALUES (?, ?)');
             $stmt->bind_param('ii', $uid, $libroId);
             $stmt->execute();
             $stmt->close();
+            // Whether inserted or already existed (concurrent insert), it's now a favorite
             $payload = ['favorite' => true];
         }
         $response->getBody()->write(json_encode($payload));
