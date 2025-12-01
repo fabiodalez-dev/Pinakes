@@ -134,7 +134,8 @@ $pluginSettings = $pluginSettings ?? [];
                                                     <code
                                                         class="text-xs bg-white px-2 py-1 rounded border border-gray-200 select-all"><?= $baseUrl . '/api/sru' ?></code>
                                                     <a href="<?= $baseUrl . '/api/sru?operation=explain&version=1.1' ?>"
-                                                        target="_blank" class="text-indigo-600 hover:text-indigo-800 text-xs"
+                                                        target="_blank" rel="noopener noreferrer"
+                                                        class="text-indigo-600 hover:text-indigo-800 text-xs"
                                                         title="<?= __("Test Endpoint") ?>">
                                                         <i class="fas fa-external-link-alt"></i>
                                                     </a>
@@ -194,7 +195,7 @@ $pluginSettings = $pluginSettings ?? [];
                                             <?php if ($plugin['activated_at']): ?>
                                                 <span>
                                                     <i class="fas fa-bolt mr-1"></i>
-                                                    <?= __("Attivato:") ?>             <?= date('d/m/Y', strtotime($plugin['activated_at'])) ?>
+                                                    <?= __("Attivato:") ?> <?= date('d/m/Y', strtotime($plugin['activated_at'])) ?>
                                                 </span>
                                             <?php endif; ?>
                                         </div>
@@ -726,8 +727,8 @@ $pluginSettings = $pluginSettings ?? [];
         // [US] USA
         loc: {
             name: '[US] Library of Congress',
-            url: 'https://lx2.loc.gov:210/lcdb',
-            db: 'lcdb',
+            url: 'http://lx2.loc.gov:210/LCDB',
+            db: 'LCDB',
             syntax: 'marcxml',
             indexes: { isbn: 'bath.isbn' }
         },
@@ -1052,21 +1053,13 @@ $pluginSettings = $pluginSettings ?? [];
         this.disabled = true;
         this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= addslashes(__("Installazione in corso...")) ?>';
 
-        console.log('📤 Sending plugin upload request...', {
-            file: selectedFile.name,
-            size: selectedFile.data.size
-        });
-
         try {
             const response = await fetch('/admin/plugins/upload', {
                 method: 'POST',
                 body: formData
             });
 
-            console.log('📥 Response status:', response.status);
-
             const result = await response.json();
-            console.log('📦 Response data:', result);
 
             if (result.success) {
                 await Swal.fire({
