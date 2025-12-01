@@ -139,7 +139,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                                name="api_key"
                                value="<?php echo htmlspecialchars($currentSettings['api_key']); ?>"
                                class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 font-mono pr-24"
-                               placeholder="sk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
+                               placeholder="your-api-key-here"
                                required>
                         <button type="button"
                                 onclick="togglePasswordVisibility('api_key')"

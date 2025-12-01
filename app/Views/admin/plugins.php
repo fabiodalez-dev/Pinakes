@@ -466,7 +466,7 @@ $pluginSettings = $pluginSettings ?? [];
                 <div class="relative">
                     <input type="password" id="apiKeyInput" required autocomplete="off"
                         class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 pr-10 font-mono"
-                        placeholder="sk_live_xxxxxxxxxx">
+                        placeholder="your-api-key-here">
                     <button type="button" onclick="toggleApiKeyVisibility()"
                         class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                         <i id="apiKeyIcon" class="fas fa-eye"></i>
