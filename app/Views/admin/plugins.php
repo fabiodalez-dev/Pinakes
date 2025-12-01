@@ -1267,18 +1267,13 @@ $pluginSettings = $pluginSettings ?? [];
 
     async function saveGoogleBooksKey(event) {
         event.preventDefault();
-        console.log('🔑 saveGoogleBooksKey() called');
 
         const pluginId = pluginSettingsPluginIdInput.value;
-        console.log('📋 Plugin ID:', pluginId);
-
         if (!pluginId) {
-            console.error('❌ No plugin ID found');
             return;
         }
 
         const apiKey = googleBooksKeyInput.value.trim();
-        console.log('🔐 API Key length:', apiKey.length);
 
         const submitButton = event.target.querySelector('[data-role="save-key"]');
         const formData = new FormData();
@@ -1293,17 +1288,12 @@ $pluginSettings = $pluginSettings ?? [];
         }
 
         try {
-            console.log('📤 Sending request to:', `/admin/plugins/${pluginId}/settings`);
-
             const response = await fetch(`/admin/plugins/${pluginId}/settings`, {
                 method: 'POST',
                 body: formData
             });
 
-            console.log('📥 Response status:', response.status);
-
             const data = await response.json();
-            console.log('📦 Response data:', data);
 
             if (data.success) {
                 await Swal.fire({
@@ -1387,13 +1377,9 @@ $pluginSettings = $pluginSettings ?? [];
 
     async function saveApiBookScraperSettings(event) {
         event.preventDefault();
-        console.log('🔧 saveApiBookScraperSettings() called');
 
         const pluginId = document.getElementById('apiScraperPluginId').value;
-        console.log('📋 Plugin ID:', pluginId);
-
         if (!pluginId) {
-            console.error('❌ No plugin ID found');
             return;
         }
 
@@ -1401,8 +1387,6 @@ $pluginSettings = $pluginSettings ?? [];
         const apiKey = document.getElementById('apiKeyInput').value.trim();
         const timeout = document.getElementById('apiTimeoutInput').value;
         const enabled = document.getElementById('apiEnabledInput').checked ? '1' : '0';
-
-        console.log('🔐 Settings:', { apiEndpoint, timeout, enabled, hasApiKey: apiKey.length > 0 });
 
         const submitButton = event.target.querySelector('button[type="submit"]');
         const formData = new FormData();
@@ -1420,17 +1404,12 @@ $pluginSettings = $pluginSettings ?? [];
         }
 
         try {
-            console.log('📤 Sending request to:', `/admin/plugins/${pluginId}/settings`);
-
             const response = await fetch(`/admin/plugins/${pluginId}/settings`, {
                 method: 'POST',
                 body: formData
             });
 
-            console.log('📥 Response status:', response.status);
-
             const data = await response.json();
-            console.log('📦 Response data:', data);
 
             if (data.success) {
                 await Swal.fire({
