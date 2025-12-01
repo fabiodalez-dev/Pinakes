@@ -5,7 +5,6 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\Csrf;
-use App\Support\CsrfHelper;
 use App\Support\NotificationService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;

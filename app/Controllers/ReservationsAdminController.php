@@ -4,8 +4,6 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use mysqli;
-use App\Support\Csrf;
-use App\Support\CsrfHelper;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 

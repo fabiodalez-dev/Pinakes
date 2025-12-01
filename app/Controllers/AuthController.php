@@ -5,7 +5,6 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\Csrf;
-use App\Support\CsrfHelper;
 use App\Support\Log;
 use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;

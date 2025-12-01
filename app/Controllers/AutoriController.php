@@ -72,14 +72,28 @@ class AutoriController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\AuthorRepository($db);
+
+        // SECURITY: Sanitize biografia (strip HTML to prevent XSS)
+        $biografia = trim(strip_tags($data['biografia'] ?? ''));
+
+        // SECURITY: Validate and sanitize sito_web as URL
+        $sitoWeb = trim($data['sito_web'] ?? '');
+        if ($sitoWeb !== '' && !filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+            // If not a valid URL, prepend https:// and revalidate
+            $sitoWeb = 'https://' . ltrim($sitoWeb, '/');
+            if (!filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+                $sitoWeb = ''; // Invalid URL, clear it
+            }
+        }
+
         $repo->create([
             'nome' => trim($data['nome'] ?? ''),
             'pseudonimo' => trim($data['pseudonimo'] ?? ''),
             'data_nascita' => $data['data_nascita'] ?? null,
             'data_morte' => $data['data_morte'] ?? null,
             'nazionalita' => trim($data['nazionalita'] ?? ''),
-            'biografia' => trim($data['biografia'] ?? ''),
-            'sito_web' => trim($data['sito_web'] ?? ''),
+            'biografia' => $biografia,
+            'sito_web' => $sitoWeb,
         ]);
         return $response->withHeader('Location', '/admin/autori')->withStatus(302);
     }
@@ -108,14 +122,28 @@ class AutoriController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\AuthorRepository($db);
+
+        // SECURITY: Sanitize biografia (strip HTML to prevent XSS)
+        $biografia = trim(strip_tags($data['biografia'] ?? ''));
+
+        // SECURITY: Validate and sanitize sito_web as URL
+        $sitoWeb = trim($data['sito_web'] ?? '');
+        if ($sitoWeb !== '' && !filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+            // If not a valid URL, prepend https:// and revalidate
+            $sitoWeb = 'https://' . ltrim($sitoWeb, '/');
+            if (!filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+                $sitoWeb = ''; // Invalid URL, clear it
+            }
+        }
+
         $repo->update($id, [
             'nome' => trim($data['nome'] ?? ''),
             'pseudonimo' => trim($data['pseudonimo'] ?? ''),
             'data_nascita' => $data['data_nascita'] ?? null,
             'data_morte' => $data['data_morte'] ?? null,
             'nazionalita' => trim($data['nazionalita'] ?? ''),
-            'biografia' => trim($data['biografia'] ?? ''),
-            'sito_web' => trim($data['sito_web'] ?? ''),
+            'biografia' => $biografia,
+            'sito_web' => $sitoWeb,
         ]);
         return $response->withHeader('Location', '/admin/autori')->withStatus(302);
     }

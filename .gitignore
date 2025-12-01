@@ -275,12 +275,7 @@ releases/*.md
 # - installer/database/*.sql (installer data)
 # - cron/automatic-notifications.php (cron job)
 # - uploads/copertine/placeholder.jpg (default cover)
-docs/demini.md
-docs/email.MD
-docs/gpt.md
-docs/impostazioni_dettagliate.md
-docs/kimi.md
-docs/qwen.md
+# Note: docs/*.md files are already ignored by 'docs/*' pattern above
 models/config.json
 models/model.onnx
 models/special_tokens_map.json
