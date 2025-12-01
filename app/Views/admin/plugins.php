@@ -177,9 +177,12 @@ $pluginSettings = $pluginSettings ?? [];
                                             <?php if ($plugin['author']): ?>
                                                 <span>
                                                     <i class="fas fa-user mr-1"></i>
-                                                    <?php if ($plugin['author_url']): ?>
-                                                        <a href="<?= HtmlHelper::e($plugin['author_url']) ?>" target="_blank"
-                                                            class="hover:text-gray-700 underline">
+                                                    <?php
+                                                    $authorUrl = $plugin['author_url'];
+                                                    $isSafeUrl = $authorUrl && preg_match('~^https?://~i', $authorUrl);
+                                                    if ($isSafeUrl): ?>
+                                                        <a href="<?= HtmlHelper::e($authorUrl) ?>" target="_blank"
+                                                            rel="noopener noreferrer" class="hover:text-gray-700 underline">
                                                             <?= HtmlHelper::e($plugin['author']) ?>
                                                         </a>
                                                     <?php else: ?>
