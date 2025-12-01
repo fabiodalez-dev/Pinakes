@@ -565,16 +565,36 @@ $pluginSettings = $pluginSettings ?? [];
                 </div>
             </div>
 
+            <!-- SBN Built-in Notice -->
+            <div id="z39SbnNotice" class="hidden">
+                <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-check-circle text-green-600 text-lg"></i>
+                        </div>
+                        <div>
+                            <h5 class="text-sm font-semibold text-green-800"><?= __("SBN Italia - Integrato") ?></h5>
+                            <p class="text-xs text-green-700 mt-1">
+                                <?= __("Il catalogo SBN (OPAC Nazionale Italiano) è già integrato e viene interrogato automaticamente durante l'importazione ISBN. Non è necessario aggiungerlo come server esterno.") ?>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- External Servers List -->
             <div id="z39ExternalServersSection" class="hidden">
                 <div class="flex flex-col gap-3 mb-4">
-                    <h4 class="text-md font-semibold text-gray-900"><?= __("Server Esterni (Z39.50/SRU)") ?></h4>
+                    <h4 class="text-md font-semibold text-gray-900"><?= __("Server Esterni SRU") ?></h4>
+                    <p class="text-xs text-gray-500 -mt-2">
+                        <?= __("Server SRU aggiuntivi per Copy Cataloging. SBN Italia è già integrato (vedi sopra).") ?>
+                    </p>
                     <div class="flex flex-col sm:flex-row gap-2 w-full">
                         <select id="z39PresetServers" onchange="addPresetServer(this.value); this.value='';"
                             class="text-sm rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto sm:flex-1 max-w-full">
                             <option value=""><?= __("+ Aggiungi da preset...") ?></option>
                             <optgroup label="[IT] Italia">
-                                <option value="sbn">* SBN - OPAC Nazionale (RACCOMANDATO)</option>
+                                <option value="sbn_info" disabled>-- SBN: già integrato (vedi sopra) --</option>
                             </optgroup>
                             <optgroup label="[DE] Deutschland">
                                 <option value="k10plus">* K10plus (GBV Germany)</option>
@@ -657,22 +677,14 @@ $pluginSettings = $pluginSettings ?? [];
     const z39ServerModal = document.getElementById('z39ServerModal');
     const z39ServersList = document.getElementById('z39ServersList');
     const z39ExternalServersSection = document.getElementById('z39ExternalServersSection');
+    const z39SbnNotice = document.getElementById('z39SbnNotice');
     const z39EnableClientCheckbox = document.getElementById('z39EnableClient');
 
-    // Preset SRU/Z39.50 servers configuration
+    // Preset SRU servers configuration
     // * = Tested and recommended
+    // NOTE: SBN Italia uses a dedicated JSON API client (SbnClient.php), not SRU.
+    //       It's automatically queried when Client is enabled - no need to add as external server.
     const z39PresetServers = {
-        // [IT] Italia - SBN OPAC Nazionale
-        // Porta 3950 o 2100, database: nopac, formato: UNIMARC
-        sbn: {
-            name: '[IT] SBN - OPAC Nazionale',
-            url: 'opac.sbn.it',
-            port: '3950',
-            db: 'nopac',
-            syntax: 'unimarc',
-            protocol: 'z3950',
-            indexes: { isbn: 'isbn' }
-        },
         // [DE] Deutschland (Most reliable)
         k10plus: {
             name: '[DE] K10plus (GBV Germany)',
@@ -795,8 +807,10 @@ $pluginSettings = $pluginSettings ?? [];
     // Toggle visibility based on checkbox
     z39EnableClientCheckbox.addEventListener('change', function () {
         if (this.checked) {
+            z39SbnNotice.classList.remove('hidden');
             z39ExternalServersSection.classList.remove('hidden');
         } else {
+            z39SbnNotice.classList.add('hidden');
             z39ExternalServersSection.classList.add('hidden');
         }
     });
