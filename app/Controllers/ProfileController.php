@@ -14,8 +14,9 @@ class ProfileController
 {
     public function show(Request $request, Response $response, mysqli $db, mixed $container = null): Response
     {
-        $uid = (int)($_SESSION['user']['id'] ?? 0);
-        if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($uid <= 0)
+            return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale, data_scadenza_tessera FROM utenti WHERE id = ? LIMIT 1");
         $stmt->bind_param('i', $uid);
         $stmt->execute();
@@ -27,7 +28,7 @@ class ProfileController
 
         // Use frontend layout for normal users, admin layout for admin/staff
         $isAdminOrStaff = isset($_SESSION['user']['tipo_utente']) &&
-                         ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff');
+            ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff');
 
         ob_start();
         $title = __('Profilo') . ' - ' . __('Biblioteca');
@@ -37,21 +38,20 @@ class ProfileController
             require __DIR__ . '/../Views/frontend/layout.php';
         }
         $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function changePassword(Request $request, Response $response, mysqli $db): Response
     {
-        $uid = (int)($_SESSION['user']['id'] ?? 0);
-        if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
-        $data = (array)($request->getParsedBody() ?? []);
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($uid <= 0)
+            return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
+        $data = (array) ($request->getParsedBody() ?? []);
 
-        // Validate CSRF using helper
-        if ($error = CsrfHelper::validateRequest($request, $response, '/profile')) {
-            return $error;
-        }
-        $p1 = (string)($data['password'] ?? '');
-        $p2 = (string)($data['password_confirm'] ?? '');
+        // CSRF validated by CsrfMiddleware
+        $p1 = (string) ($data['password'] ?? '');
+        $p2 = (string) ($data['password_confirm'] ?? '');
         if ($p1 === '' || $p1 !== $p2) {
             $profileUrl = RouteTranslator::route('profile');
             return $response->withHeader('Location', $profileUrl . '?error=invalid')->withStatus(302);
@@ -79,24 +79,22 @@ class ProfileController
 
     public function update(Request $request, Response $response, mysqli $db): Response
     {
-        $uid = (int)($_SESSION['user']['id'] ?? 0);
-        if ($uid <= 0) return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($uid <= 0)
+            return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
 
-        $data = (array)($request->getParsedBody() ?? []);
+        $data = (array) ($request->getParsedBody() ?? []);
 
-        // Validate CSRF using helper
-        if ($error = CsrfHelper::validateRequest($request, $response, '/profilo')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         // Extract and sanitize input
-        $nome = trim((string)($data['nome'] ?? ''));
-        $cognome = trim((string)($data['cognome'] ?? ''));
-        $telefono = trim((string)($data['telefono'] ?? ''));
-        $data_nascita = trim((string)($data['data_nascita'] ?? ''));
-        $cod_fiscale = trim((string)($data['cod_fiscale'] ?? ''));
-        $sesso = trim((string)($data['sesso'] ?? ''));
-        $indirizzo = trim((string)($data['indirizzo'] ?? ''));
+        $nome = trim(strip_tags((string) ($data['nome'] ?? '')));
+        $cognome = trim(strip_tags((string) ($data['cognome'] ?? '')));
+        $telefono = trim(strip_tags((string) ($data['telefono'] ?? '')));
+        $data_nascita = trim(strip_tags((string) ($data['data_nascita'] ?? '')));
+        $cod_fiscale = trim(strip_tags((string) ($data['cod_fiscale'] ?? '')));
+        $sesso = trim(strip_tags((string) ($data['sesso'] ?? '')));
+        $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
 
         // Convert empty strings to null for optional fields
         $telefono = empty($telefono) ? null : $telefono;

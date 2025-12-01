@@ -121,9 +121,7 @@ class UserActionsController
             return $response->withStatus(401);
         }
         $data = (array) ($request->getParsedBody() ?? []);
-        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) {
-            return $response->withStatus(400);
-        }
+        // CSRF validated by CsrfMiddleware
         $rid = (int) ($data['reservation_id'] ?? 0);
         if ($rid <= 0) {
             return $response->withStatus(422);
@@ -196,9 +194,7 @@ class UserActionsController
             return $response->withStatus(401);
         }
         $data = (array) ($request->getParsedBody() ?? []);
-        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) {
-            return $response->withStatus(400);
-        }
+        // CSRF validated by CsrfMiddleware
         $rid = (int) ($data['reservation_id'] ?? 0);
         $date = trim((string) ($data['desired_date'] ?? ''));
         if ($rid <= 0 || $date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
@@ -312,9 +308,7 @@ class UserActionsController
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         }
         $data = (array) ($request->getParsedBody() ?? []);
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            return $this->back($response, ['loan_error' => 'csrf']);
-        }
+        // CSRF validated by CsrfMiddleware
         $libroId = (int) ($data['libro_id'] ?? 0);
         if ($libroId <= 0) {
             return $this->back($response, ['loan_error' => 'invalid']);
@@ -392,9 +386,7 @@ class UserActionsController
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         }
         $data = (array) ($request->getParsedBody() ?? []);
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            return $this->back($response, ['reserve_error' => 'csrf']);
-        }
+        // CSRF validated by CsrfMiddleware
         $libroId = (int) ($data['libro_id'] ?? 0);
         if ($libroId <= 0) {
             return $this->back($response, ['reserve_error' => 'invalid']);

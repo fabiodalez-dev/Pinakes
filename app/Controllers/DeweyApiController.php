@@ -182,6 +182,7 @@ class DeweyApiController
 
     public function reseed(Request $request, Response $response): Response
     {
+        // CSRF validated by CsrfMiddleware
         // Per compatibilità con il codice esistente, ma ora non fa nulla
         // perché i dati vengono dal JSON
         $response->getBody()->write(json_encode(['success' => true, 'message' => __('I dati provengono dal file JSON, nessun seeding necessario.')], JSON_UNESCAPED_UNICODE));
@@ -195,7 +196,7 @@ class DeweyApiController
     {
         // Session override (es. utente che cambia lingua dal frontend)
         if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['locale'])) {
-            $sessionLocale = I18n::normalizeLocaleCode((string)$_SESSION['locale']);
+            $sessionLocale = I18n::normalizeLocaleCode((string) $_SESSION['locale']);
             if (I18n::isValidLocaleCode($sessionLocale)) {
                 return $sessionLocale;
             }

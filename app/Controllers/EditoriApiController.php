@@ -13,17 +13,17 @@ class EditoriApiController
     public function list(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $draw = (int)($q['draw'] ?? 0);
-        $start = (int)($q['start'] ?? 0);
-        $length = (int)($q['length'] ?? 10);
+        $draw = (int) ($q['draw'] ?? 0);
+        $start = (int) ($q['start'] ?? 0);
+        $length = (int) ($q['length'] ?? 10);
 
-        $search_text = trim((string)($q['search_text'] ?? ''));
-        $search_sito = trim((string)($q['search_sito'] ?? ''));
-        $search_citta = trim((string)($q['search_citta'] ?? ''));
-        $search_via = trim((string)($q['search_via'] ?? ''));
-        $search_cap = trim((string)($q['search_cap'] ?? ''));
-        $filter_libri_count = trim((string)($q['filter_libri_count'] ?? ''));
-        $created_from = trim((string)($q['created_from'] ?? ''));
+        $search_text = trim((string) ($q['search_text'] ?? ''));
+        $search_sito = trim((string) ($q['search_sito'] ?? ''));
+        $search_citta = trim((string) ($q['search_citta'] ?? ''));
+        $search_via = trim((string) ($q['search_via'] ?? ''));
+        $search_cap = trim((string) ($q['search_cap'] ?? ''));
+        $filter_libri_count = trim((string) ($q['filter_libri_count'] ?? ''));
+        $created_from = trim((string) ($q['created_from'] ?? ''));
 
         // Prepare WHERE clause and parameters for prepared statements
         $where_prepared = 'WHERE 1=1 ';
@@ -109,10 +109,10 @@ class EditoriApiController
             $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-        
+
         $total_stmt->execute();
         $total_res = $total_stmt->get_result();
-        $total = (int)($total_res->fetch_assoc()['c'] ?? 0);
+        $total = (int) ($total_res->fetch_assoc()['c'] ?? 0);
         $total_stmt->close();
 
         // Use prepared statement for filtered count to prevent SQL injection
@@ -140,7 +140,7 @@ class EditoriApiController
         }
         $count_stmt->execute();
         $filRes = $count_stmt->get_result();
-        $filtered = (int)($filRes->fetch_assoc()['c'] ?? 0);
+        $filtered = (int) ($filRes->fetch_assoc()['c'] ?? 0);
         $count_stmt->close();
 
         // Main query - if HAVING is needed, wrap in subquery
@@ -163,7 +163,7 @@ class EditoriApiController
                     LIMIT ?, ?";
         }
 
-        AppLog::debug('editori.list.query', ['params'=>array_intersect_key($q, ['draw'=>1,'start'=>1,'length'=>1,'search_text'=>1,'search_sito'=>1,'search_citta'=>1,'filter_libri_count'=>1,'created_from'=>1])]);
+        AppLog::debug('editori.list.query', ['params' => array_intersect_key($q, ['draw' => 1, 'start' => 1, 'length' => 1, 'search_text' => 1, 'search_sito' => 1, 'search_citta' => 1, 'filter_libri_count' => 1, 'created_from' => 1])]);
 
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {
@@ -181,7 +181,9 @@ class EditoriApiController
 
         $data = [];
         if ($res) {
-            while ($row = $res->fetch_assoc()) { $data[] = $row; }
+            while ($row = $res->fetch_assoc()) {
+                $data[] = $row;
+            }
         }
 
         $payload = [
@@ -190,7 +192,7 @@ class EditoriApiController
             'recordsFiltered' => $filtered,
             'data' => $data
         ];
-        AppLog::debug('editori.list.result', ['total'=>$total, 'filtered'=>$filtered, 'rows'=>count($data)]);
+        AppLog::debug('editori.list.result', ['total' => $total, 'filtered' => $filtered, 'rows' => count($data)]);
         $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json');
     }
@@ -204,6 +206,8 @@ class EditoriApiController
         if (!$body) {
             $body = json_decode((string) $request->getBody(), true);
         }
+
+        // CSRF validated by CsrfMiddleware
 
         $ids = $body['ids'] ?? [];
 
@@ -308,6 +312,8 @@ class EditoriApiController
         if (!$body) {
             $body = json_decode((string) $request->getBody(), true);
         }
+
+        // CSRF validated by CsrfMiddleware
 
         $ids = $body['ids'] ?? [];
 

@@ -8,6 +8,7 @@ use App\Support\ConfigStore;
 use App\Support\ContentSanitizer;
 use App\Support\Csrf;
 use App\Support\CsrfHelper;
+use App\Support\HtmlHelper;
 use App\Support\SettingsMailTemplates;
 use App\Support\SitemapGenerator;
 use mysqli;
@@ -62,16 +63,13 @@ class SettingsController
 
     public function updateGeneral(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $this->redirect($response, '/admin/settings?tab=general');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        $appName = trim((string)($data['app_name'] ?? ''));
+        $appName = trim(strip_tags((string) ($data['app_name'] ?? '')));
         if ($appName === '') {
             $appName = __('Biblioteca');
         }
@@ -79,7 +77,7 @@ class SettingsController
         ConfigStore::set('app.name', $appName);
 
         $logoPath = $repository->get('app', 'logo_path', ConfigStore::get('app.logo', ''));
-        $removeLogo = (string)($data['remove_logo'] ?? '') === '1';
+        $removeLogo = (string) ($data['remove_logo'] ?? '') === '1';
         if ($removeLogo) {
             if ($logoPath !== '') {
                 $absoluteLogoPath = dirname(__DIR__, 2) . '/public' . $logoPath;
@@ -111,17 +109,17 @@ class SettingsController
         }
 
         // Save footer description (allow empty to clear it)
-        $footerDescription = trim((string)($data['footer_description'] ?? ''));
+        $footerDescription = trim(strip_tags((string) ($data['footer_description'] ?? '')));
         $repository->set('app', 'footer_description', $footerDescription);
         ConfigStore::set('app.footer_description', $footerDescription);
 
         // Save social media links
         $socialLinks = [
-            'social_facebook' => trim((string)($data['social_facebook'] ?? '')),
-            'social_twitter' => trim((string)($data['social_twitter'] ?? '')),
-            'social_instagram' => trim((string)($data['social_instagram'] ?? '')),
-            'social_linkedin' => trim((string)($data['social_linkedin'] ?? '')),
-            'social_bluesky' => trim((string)($data['social_bluesky'] ?? '')),
+            'social_facebook' => trim((string) ($data['social_facebook'] ?? '')),
+            'social_twitter' => trim((string) ($data['social_twitter'] ?? '')),
+            'social_instagram' => trim((string) ($data['social_instagram'] ?? '')),
+            'social_linkedin' => trim((string) ($data['social_linkedin'] ?? '')),
+            'social_bluesky' => trim((string) ($data['social_bluesky'] ?? '')),
         ];
 
         foreach ($socialLinks as $key => $value) {
@@ -135,28 +133,25 @@ class SettingsController
 
     public function updateEmailSettings(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $this->redirect($response, '/admin/settings?tab=email');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        $driver = (string)($data['mail_driver'] ?? 'mail');
+        $driver = (string) ($data['mail_driver'] ?? 'mail');
         $allowedDrivers = ['mail', 'smtp', 'phpmailer'];
         if (!in_array($driver, $allowedDrivers, true)) {
             $driver = 'mail';
         }
 
-        $fromEmail = trim((string)($data['from_email'] ?? ''));
-        $fromName = trim((string)($data['from_name'] ?? ''));
-        $smtpHost = trim((string)($data['smtp_host'] ?? ''));
-        $smtpPort = (string)max(1, (int)($data['smtp_port'] ?? 587));
-        $smtpUser = trim((string)($data['smtp_username'] ?? ''));
-        $smtpPass = (string)($data['smtp_password'] ?? '');
-        $encryption = (string)($data['smtp_encryption'] ?? 'tls');
+        $fromEmail = trim((string) ($data['from_email'] ?? ''));
+        $fromName = trim((string) ($data['from_name'] ?? ''));
+        $smtpHost = trim((string) ($data['smtp_host'] ?? ''));
+        $smtpPort = (string) max(1, (int) ($data['smtp_port'] ?? 587));
+        $smtpUser = trim((string) ($data['smtp_username'] ?? ''));
+        $smtpPass = (string) ($data['smtp_password'] ?? '');
+        $encryption = (string) ($data['smtp_encryption'] ?? 'tls');
         $allowedEncryption = ['tls', 'ssl', 'none'];
         if (!in_array($encryption, $allowedEncryption, true)) {
             $encryption = 'tls';
@@ -176,7 +171,7 @@ class SettingsController
         ConfigStore::set('mail.from_email', $fromEmail);
         ConfigStore::set('mail.from_name', $fromName);
         ConfigStore::set('mail.smtp.host', $smtpHost);
-        ConfigStore::set('mail.smtp.port', (int)$smtpPort);
+        ConfigStore::set('mail.smtp.port', (int) $smtpPort);
         ConfigStore::set('mail.smtp.username', $smtpUser);
         ConfigStore::set('mail.smtp.password', $smtpPass);
         ConfigStore::set('mail.smtp.encryption', $encryption);
@@ -192,17 +187,14 @@ class SettingsController
             return $response->withStatus(404);
         }
 
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $this->redirect($response, '/admin/settings?tab=templates');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
-        $subject = trim((string)($data['subject'] ?? $definition['subject']));
+        $subject = trim((string) ($data['subject'] ?? $definition['subject']));
         if ($subject === '') {
             $subject = $definition['subject'];
         }
-        $body = (string)($data['body'] ?? $definition['body']);
+        $body = (string) ($data['body'] ?? $definition['body']);
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
@@ -244,7 +236,7 @@ class SettingsController
             'from_email' => ConfigStore::get('mail.from_email', ''),
             'from_name' => ConfigStore::get('mail.from_name', __('Biblioteca')),
             'smtp_host' => ConfigStore::get('mail.smtp.host', ''),
-            'smtp_port' => (string)ConfigStore::get('mail.smtp.port', 587),
+            'smtp_port' => (string) ConfigStore::get('mail.smtp.port', 587),
             'smtp_username' => ConfigStore::get('mail.smtp.username', ''),
             'smtp_password' => ConfigStore::get('mail.smtp.password', ''),
             'smtp_security' => ConfigStore::get('mail.smtp.encryption', 'tls'),
@@ -304,7 +296,7 @@ class SettingsController
             return ['success' => false, 'message' => 'Upload logo non valido.'];
         }
 
-        $size = (int)($file['size'] ?? 0);
+        $size = (int) ($file['size'] ?? 0);
         if ($size > 2 * 1024 * 1024) {
             return ['success' => false, 'message' => 'Il logo supera il limite massimo di 2MB.'];
         }
@@ -326,7 +318,7 @@ class SettingsController
         try {
             $randomSuffix = bin2hex(random_bytes(3));
         } catch (\Throwable $e) {
-            $randomSuffix = substr(hash('sha1', (string)mt_rand()), 0, 6);
+            $randomSuffix = substr(hash('sha1', (string) mt_rand()), 0, 6);
         }
         $filename = 'logo_' . date('Ymd_His') . '_' . $randomSuffix . '.' . $extension;
         $targetDir = dirname(__DIR__, 2) . '/public/uploads/settings';
@@ -363,26 +355,23 @@ class SettingsController
 
     public function updateContactSettings(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $this->redirect($response, '/admin/settings?tab=contacts');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
         // Salva impostazioni contatti
         $settings = [
-            'page_title' => trim((string)($data['page_title'] ?? 'Contattaci')),
-            'page_content' => trim((string)($data['page_content'] ?? '')),
-            'contact_email' => trim((string)($data['contact_email'] ?? '')),
-            'contact_phone' => trim((string)($data['contact_phone'] ?? '')),
-            'google_maps_embed' => trim((string)($data['google_maps_embed'] ?? '')),
-            'privacy_text' => trim((string)($data['privacy_text'] ?? '')),
-            'recaptcha_site_key' => trim((string)($data['recaptcha_site_key'] ?? '')),
-            'recaptcha_secret_key' => trim((string)($data['recaptcha_secret_key'] ?? '')),
-            'notification_email' => trim((string)($data['notification_email'] ?? '')),
+            'page_title' => trim(strip_tags((string) ($data['page_title'] ?? 'Contattaci'))),
+            'page_content' => HtmlHelper::sanitizeHtml((string) ($data['page_content'] ?? '')),
+            'contact_email' => trim(strip_tags((string) ($data['contact_email'] ?? ''))),
+            'contact_phone' => trim(strip_tags((string) ($data['contact_phone'] ?? ''))),
+            'google_maps_embed' => trim((string) ($data['google_maps_embed'] ?? '')),
+            'privacy_text' => trim(strip_tags((string) ($data['privacy_text'] ?? ''))),
+            'recaptcha_site_key' => trim(strip_tags((string) ($data['recaptcha_site_key'] ?? ''))),
+            'recaptcha_secret_key' => trim(strip_tags((string) ($data['recaptcha_secret_key'] ?? ''))),
+            'notification_email' => trim(strip_tags((string) ($data['notification_email'] ?? ''))),
         ];
 
         // Validate and sanitize Maps embed code (Google Maps or OpenStreetMap)
@@ -408,17 +397,21 @@ class SettingsController
             $mapProvider = '';
 
             // Validate Google Maps
-            if ($parsedUrl['host'] === 'www.google.com' &&
+            if (
+                $parsedUrl['host'] === 'www.google.com' &&
                 isset($parsedUrl['path']) &&
-                strpos($parsedUrl['path'], '/maps/embed') === 0) {
+                strpos($parsedUrl['path'], '/maps/embed') === 0
+            ) {
                 $isValidMap = true;
                 $mapProvider = 'google';
             }
 
             // Validate OpenStreetMap
-            if ($parsedUrl['host'] === 'www.openstreetmap.org' &&
+            if (
+                $parsedUrl['host'] === 'www.openstreetmap.org' &&
                 isset($parsedUrl['path']) &&
-                strpos($parsedUrl['path'], '/export/embed.html') === 0) {
+                strpos($parsedUrl['path'], '/export/embed.html') === 0
+            ) {
                 $isValidMap = true;
                 $mapProvider = 'openstreetmap';
             }
@@ -462,14 +455,14 @@ class SettingsController
         // Get cookie banner category visibility flags
         $showAnalyticsValue = $repository->get('cookie_banner', 'show_analytics', null);
         if ($showAnalyticsValue === null) {
-            $showAnalytics = (bool)ConfigStore::get('cookie_banner.show_analytics', true);
+            $showAnalytics = (bool) ConfigStore::get('cookie_banner.show_analytics', true);
         } else {
             $showAnalytics = filter_var($showAnalyticsValue, FILTER_VALIDATE_BOOLEAN);
         }
 
         $showMarketingValue = $repository->get('cookie_banner', 'show_marketing', null);
         if ($showMarketingValue === null) {
-            $showMarketing = (bool)ConfigStore::get('cookie_banner.show_marketing', true);
+            $showMarketing = (bool) ConfigStore::get('cookie_banner.show_marketing', true);
         } else {
             $showMarketing = filter_var($showMarketingValue, FILTER_VALIDATE_BOOLEAN);
         }
@@ -490,29 +483,26 @@ class SettingsController
 
     public function updatePrivacySettings(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
-            return $this->redirect($response, '/admin/settings?tab=privacy');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
         $settings = [
-            'page_title' => trim((string)($data['page_title'] ?? 'Privacy Policy')),
-            'page_content' => trim((string)($data['page_content'] ?? '')),
-            'cookie_policy_content' => trim((string)($data['cookie_policy_content'] ?? '')),
+            'page_title' => trim(strip_tags((string) ($data['page_title'] ?? 'Privacy Policy'))),
+            'page_content' => HtmlHelper::sanitizeHtml((string) ($data['page_content'] ?? '')),
+            'cookie_policy_content' => HtmlHelper::sanitizeHtml((string) ($data['cookie_policy_content'] ?? '')),
             'cookie_banner_enabled' => isset($data['cookie_banner_enabled']) && $data['cookie_banner_enabled'] === '1',
-            'cookie_banner_language' => strtolower(trim((string)($data['cookie_banner_language'] ?? 'it'))),
-            'cookie_banner_country' => strtoupper(trim((string)($data['cookie_banner_country'] ?? 'IT'))),
-            'cookie_statement_link' => trim((string)($data['cookie_statement_link'] ?? '')),
-            'cookie_technologies_link' => trim((string)($data['cookie_technologies_link'] ?? '')),
+            'cookie_banner_language' => strtolower(trim((string) ($data['cookie_banner_language'] ?? 'it'))),
+            'cookie_banner_country' => strtoupper(trim((string) ($data['cookie_banner_country'] ?? 'IT'))),
+            'cookie_statement_link' => trim((string) ($data['cookie_statement_link'] ?? '')),
+            'cookie_technologies_link' => trim((string) ($data['cookie_technologies_link'] ?? '')),
         ];
 
         foreach ($settings as $key => $value) {
             // Convert boolean to string for repository
-            $dbValue = is_bool($value) ? ($value ? '1' : '0') : (string)$value;
+            $dbValue = is_bool($value) ? ($value ? '1' : '0') : (string) $value;
             $repository->set('privacy', $key, $dbValue);
             ConfigStore::set("privacy.$key", $value);
         }
@@ -546,34 +536,31 @@ class SettingsController
             'custom_header_css' => ContentSanitizer::normalizeExternalAssets(
                 $repository->get('advanced', 'custom_header_css', $config['custom_header_css'] ?? '')
             ),
-            'days_before_expiry_warning' => (int)$repository->get('advanced', 'days_before_expiry_warning', (string)($config['days_before_expiry_warning'] ?? 3)),
+            'days_before_expiry_warning' => (int) $repository->get('advanced', 'days_before_expiry_warning', (string) ($config['days_before_expiry_warning'] ?? 3)),
             'force_https' => $repository->get('advanced', 'force_https', $config['force_https'] ?? '0'),
             'enable_hsts' => $repository->get('advanced', 'enable_hsts', $config['enable_hsts'] ?? '0'),
             'sitemap_last_generated_at' => $repository->get('advanced', 'sitemap_last_generated_at', $config['sitemap_last_generated_at'] ?? ''),
-            'sitemap_last_generated_total' => (int)$repository->get('advanced', 'sitemap_last_generated_total', (string)($config['sitemap_last_generated_total'] ?? 0)),
+            'sitemap_last_generated_total' => (int) $repository->get('advanced', 'sitemap_last_generated_total', (string) ($config['sitemap_last_generated_total'] ?? 0)),
             'api_enabled' => $repository->get('api', 'enabled', '0'),
         ];
     }
 
     public function updateAdvancedSettings(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
-            return $this->redirect($response, '/admin/settings?tab=advanced');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        $daysBeforeWarning = max(1, min(30, (int)($data['days_before_expiry_warning'] ?? 3)));
+        $daysBeforeWarning = max(1, min(30, (int) ($data['days_before_expiry_warning'] ?? 3)));
 
         $settings = [
-            'custom_js_essential' => ContentSanitizer::normalizeExternalAssets(trim((string)($data['custom_js_essential'] ?? ''))),
-            'custom_js_analytics' => ContentSanitizer::normalizeExternalAssets(trim((string)($data['custom_js_analytics'] ?? ''))),
-            'custom_js_marketing' => ContentSanitizer::normalizeExternalAssets(trim((string)($data['custom_js_marketing'] ?? ''))),
-            'custom_header_css' => ContentSanitizer::normalizeExternalAssets(trim((string)($data['custom_header_css'] ?? ''))),
-            'days_before_expiry_warning' => (string)$daysBeforeWarning,
+            'custom_js_essential' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_js_essential'] ?? ''))),
+            'custom_js_analytics' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_js_analytics'] ?? ''))),
+            'custom_js_marketing' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_js_marketing'] ?? ''))),
+            'custom_header_css' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_header_css'] ?? ''))),
+            'days_before_expiry_warning' => (string) $daysBeforeWarning,
             'force_https' => isset($data['force_https']) && $data['force_https'] === '1' ? '1' : '0',
             'enable_hsts' => isset($data['enable_hsts']) && $data['enable_hsts'] === '1' ? '1' : '0',
         ];
@@ -581,7 +568,7 @@ class SettingsController
         foreach ($settings as $key => $value) {
             $repository->set('advanced', $key, $value);
             if ($key === 'days_before_expiry_warning') {
-                ConfigStore::set("advanced.$key", (int)$value);
+                ConfigStore::set("advanced.$key", (int) $value);
             } elseif ($key === 'force_https' || $key === 'enable_hsts') {
                 ConfigStore::set("advanced.$key", $value === '1');
             } else {
@@ -615,11 +602,8 @@ class SettingsController
 
     public function regenerateSitemap(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
-            return $this->redirect($response, '/admin/settings?tab=advanced');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
@@ -632,10 +616,10 @@ class SettingsController
             $stats = $generator->getStats();
 
             $generatedAt = gmdate('c');
-            $total = (int)($stats['total'] ?? 0);
+            $total = (int) ($stats['total'] ?? 0);
 
             $repository->set('advanced', 'sitemap_last_generated_at', $generatedAt);
-            $repository->set('advanced', 'sitemap_last_generated_total', (string)$total);
+            $repository->set('advanced', 'sitemap_last_generated_total', (string) $total);
             ConfigStore::set('advanced.sitemap_last_generated_at', $generatedAt);
             ConfigStore::set('advanced.sitemap_last_generated_total', $total);
 
@@ -671,36 +655,33 @@ class SettingsController
     {
         $config = ConfigStore::get('label', []);
         return [
-            'width' => (int)($repository->get('label', 'width', (string)($config['width'] ?? 25))),
-            'height' => (int)($repository->get('label', 'height', (string)($config['height'] ?? 38))),
-            'format_name' => (string)($repository->get('label', 'format_name', $config['format_name'] ?? '25x38mm (Standard)')),
+            'width' => (int) ($repository->get('label', 'width', (string) ($config['width'] ?? 25))),
+            'height' => (int) ($repository->get('label', 'height', (string) ($config['height'] ?? 38))),
+            'format_name' => (string) ($repository->get('label', 'format_name', $config['format_name'] ?? '25x38mm (Standard)')),
         ];
     }
 
     public function updateLabels(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
-            return $this->redirect($response, '/admin/settings?tab=labels');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        $labelFormat = trim((string)($data['label_format'] ?? '25x38'));
+        $labelFormat = trim((string) ($data['label_format'] ?? '25x38'));
 
         // Parse the format (e.g., "25x38" or "50x25")
         if (preg_match('/^(\d+)x(\d+)$/', $labelFormat, $matches)) {
-            $width = (int)$matches[1];
-            $height = (int)$matches[2];
+            $width = (int) $matches[1];
+            $height = (int) $matches[2];
 
             // Validate reasonable dimensions (between 10mm and 100mm)
             if ($width >= 10 && $width <= 100 && $height >= 10 && $height <= 100) {
                 $formatName = "{$width}×{$height}mm";
 
-                $repository->set('label', 'width', (string)$width);
-                $repository->set('label', 'height', (string)$height);
+                $repository->set('label', 'width', (string) $width);
+                $repository->set('label', 'height', (string) $height);
                 $repository->set('label', 'format_name', $formatName);
 
                 ConfigStore::set('label.width', $width);
@@ -720,11 +701,8 @@ class SettingsController
 
     public function toggleApi(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
-            return $this->redirect($response, '/admin/settings?tab=advanced');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
@@ -741,14 +719,11 @@ class SettingsController
 
     public function createApiKey(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $this->redirect($response, '/admin/settings?tab=advanced');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
-        $name = trim((string)($data['name'] ?? ''));
-        $description = trim((string)($data['description'] ?? ''));
+        $name = trim((string) ($data['name'] ?? ''));
+        $description = trim((string) ($data['description'] ?? ''));
 
         if ($name === '') {
             $_SESSION['error_message'] = __('Il nome dell\'API key è obbligatorio.');
@@ -771,11 +746,8 @@ class SettingsController
 
     public function toggleApiKey(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $this->redirect($response, '/admin/settings?tab=advanced');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         try {
             $apiKeyRepo = new \App\Models\ApiKeyRepository($db);
@@ -792,11 +764,8 @@ class SettingsController
 
     public function deleteApiKey(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $this->redirect($response, '/admin/settings?tab=advanced');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         try {
             $apiKeyRepo = new \App\Models\ApiKeyRepository($db);
@@ -813,11 +782,8 @@ class SettingsController
 
     public function updateCookieBannerTexts(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = 'Token CSRF non valido. Riprova.';
-            return $this->redirect($response, '/admin/settings');
-        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
@@ -826,7 +792,7 @@ class SettingsController
         $cookieBannerTexts = [];
 
         foreach ($fieldMap as $key => $inputName) {
-            $cookieBannerTexts[$key] = trim((string)($data[$inputName] ?? ''));
+            $cookieBannerTexts[$key] = trim((string) ($data[$inputName] ?? ''));
         }
 
         foreach ($cookieBannerTexts as $key => $value) {

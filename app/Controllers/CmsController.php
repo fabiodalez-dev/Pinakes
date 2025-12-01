@@ -128,23 +128,13 @@ class CmsController
         // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
         $db->set_charset('utf8mb4');
 
-        // SECURITY FIX: Validate CSRF first, before processing data
-        if (!is_array($data) || !isset($data['csrf_token']) || !\App\Support\Csrf::validate($data['csrf_token'])) {
-            $_SESSION['error_message'] = __('Token CSRF non valido. Riprova.');
-            return $response->withHeader('Location', '/admin/cms/home')->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
 
         $errors = [];
 
-        // SECURITY: Define sanitization function to prevent XSS
-        $sanitizeText = function ($text) {
-            // Strip any script tags
-            $text = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $text);
-            // Strip event handlers (onclick, onerror, etc.)
-            $text = preg_replace('/\s*on\w+\s*=\s*["\'][^"\']*["\']/i', '', $text);
-            // Strip javascript: protocol
-            $text = preg_replace('/javascript:/i', '', $text);
-            return trim($text);
+        // SECURITY: Sanitize plain text fields (strip all HTML tags)
+        $sanitizeText = function ($text): string {
+            return trim(strip_tags($text ?? ''));
         };
 
         // SECURITY: Validate URL function
@@ -435,7 +425,8 @@ class CmsController
             $textContent = $data['text_content'];
             // SECURITY: Sanitize inputs
             $title = $sanitizeText($textContent['title'] ?? '');
-            $content = $textContent['content'] ?? ''; // TinyMCE content - sanitized by TinyMCE
+            // SECURITY: Sanitize rich HTML content (TinyMCE) with whitelist
+            $content = \App\Support\HtmlHelper::sanitizeHtml($textContent['content'] ?? '');
             $isActive = isset($textContent['is_active']) ? 1 : 0;
 
             // UPSERT: Insert if not exists, update if exists

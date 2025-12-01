@@ -35,15 +35,15 @@ class CollocazioneController
 
     public function createScaffale(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+        $codice = strtoupper(trim((string) ($data['codice'] ?? '')));
+        $nome = trim((string) ($data['nome'] ?? ''));
+        $ordine = (int) ($data['ordine'] ?? 0);
+        if ($codice === '') {
+            $_SESSION['error_message'] = __('Codice scaffale obbligatorio');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
-        $codice = strtoupper(trim((string)($data['codice'] ?? '')));
-        $nome = trim((string)($data['nome'] ?? ''));
-        $ordine = (int)($data['ordine'] ?? 0);
-        if ($codice === '') { $_SESSION['error_message'] = __('Codice scaffale obbligatorio'); return $response->withHeader('Location', '/admin/collocazione')->withStatus(302); }
         try {
             (new \App\Models\CollocationRepository($db))->createScaffale(['codice' => $codice, 'nome' => $nome, 'ordine' => $ordine]);
             $_SESSION['success_message'] = __('Scaffale creato');
@@ -64,16 +64,16 @@ class CollocazioneController
 
     public function createMensola(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+        $scaffale_id = (int) ($data['scaffale_id'] ?? 0);
+        $numero_livello = (int) ($data['numero_livello'] ?? 1);
+        $ordine = (int) ($data['ordine'] ?? 0);
+        $genera_n = max(0, (int) ($data['genera_posizioni'] ?? 0));
+        if ($scaffale_id <= 0) {
+            $_SESSION['error_message'] = __('Scaffale obbligatorio');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
-        $scaffale_id = (int)($data['scaffale_id'] ?? 0);
-        $numero_livello = (int)($data['numero_livello'] ?? 1);
-        $ordine = (int)($data['ordine'] ?? 0);
-        $genera_n = max(0, (int)($data['genera_posizioni'] ?? 0));
-        if ($scaffale_id <= 0) { $_SESSION['error_message'] = __('Scaffale obbligatorio'); return $response->withHeader('Location', '/admin/collocazione')->withStatus(302); }
         try {
             $repo = new \App\Models\CollocationRepository($db);
             $mensola_id = $repo->createMensola(['scaffale_id' => $scaffale_id, 'numero_livello' => $numero_livello, 'ordine' => $ordine]);
@@ -100,11 +100,7 @@ class CollocazioneController
 
     public function deleteScaffale(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $token = (string)($request->getParsedBody()['csrf_token'] ?? '');
-        if (!Csrf::validate($token)) {
-            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
-            return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
         // Check if scaffale has mensole
         $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM mensole WHERE scaffale_id = ?");
         $stmt->bind_param('i', $id);
@@ -112,7 +108,7 @@ class CollocazioneController
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
 
-        if ((int)$row['cnt'] > 0) {
+        if ((int) $row['cnt'] > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare: lo scaffale contiene mensole');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
@@ -124,7 +120,7 @@ class CollocazioneController
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
 
-        if ((int)$row['cnt'] > 0) {
+        if ((int) $row['cnt'] > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare: lo scaffale contiene libri');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
@@ -140,11 +136,7 @@ class CollocazioneController
 
     public function deleteMensola(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $token = (string)($request->getParsedBody()['csrf_token'] ?? '');
-        if (!Csrf::validate($token)) {
-            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
-            return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
         // Check if mensola has books
         $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE mensola_id = ?");
         $stmt->bind_param('i', $id);
@@ -152,7 +144,7 @@ class CollocazioneController
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
 
-        if ((int)$row['cnt'] > 0) {
+        if ((int) $row['cnt'] > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare: la mensola contiene libri');
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
@@ -168,14 +160,10 @@ class CollocazioneController
 
     public function sort(Request $request, Response $response, mysqli $db): Response
     {
-        $data = json_decode((string)$request->getBody(), true) ?: [];
-        $csrfToken = $data['csrf_token'] ?? $request->getHeaderLine('X-CSRF-Token');
-        if (!Csrf::validate($csrfToken ?: null)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
-        $type = (string)($data['type'] ?? '');
-        $ids = (array)($data['ids'] ?? []);
+        $data = json_decode((string) $request->getBody(), true) ?: [];
+        // CSRF validated by CsrfMiddleware
+        $type = (string) ($data['type'] ?? '');
+        $ids = (array) ($data['ids'] ?? []);
         $repo = new \App\Models\CollocationRepository($db);
         switch ($type) {
             case 'scaffali':
@@ -197,8 +185,8 @@ class CollocazioneController
     public function suggest(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $genere_id = (int)($q['genere_id'] ?? 0);
-        $sottogenere_id = (int)($q['sottogenere_id'] ?? 0);
+        $genere_id = (int) ($q['genere_id'] ?? 0);
+        $sottogenere_id = (int) ($q['sottogenere_id'] ?? 0);
         $repo = new \App\Models\CollocationRepository($db);
         $sug = $repo->suggestByGenre($genere_id, $sottogenere_id);
         $response->getBody()->write(json_encode($sug, JSON_UNESCAPED_UNICODE));
@@ -208,15 +196,15 @@ class CollocazioneController
     public function nextPosition(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $scaffaleId = (int)($q['scaffale_id'] ?? 0);
-        $mensolaId = (int)($q['mensola_id'] ?? 0);
-        $bookId = isset($q['book_id']) ? (int)$q['book_id'] : null;
+        $scaffaleId = (int) ($q['scaffale_id'] ?? 0);
+        $mensolaId = (int) ($q['mensola_id'] ?? 0);
+        $bookId = isset($q['book_id']) ? (int) $q['book_id'] : null;
 
         if ($scaffaleId <= 0 || $mensolaId <= 0) {
             $response->getBody()->write(json_encode([
-            'error' => __('Parametri non validi')
-        ], JSON_UNESCAPED_UNICODE));
-        return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
+                'error' => __('Parametri non validi')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
         }
 
         $repo = new \App\Models\CollocationRepository($db);
@@ -233,8 +221,8 @@ class CollocazioneController
         }
 
         $position = null;
-        if ($existingPosition && (int)($existingPosition['scaffale_id'] ?? 0) === $scaffaleId && (int)($existingPosition['mensola_id'] ?? 0) === $mensolaId) {
-            $position = (int)($existingPosition['posizione_progressiva'] ?? 0);
+        if ($existingPosition && (int) ($existingPosition['scaffale_id'] ?? 0) === $scaffaleId && (int) ($existingPosition['mensola_id'] ?? 0) === $mensolaId) {
+            $position = (int) ($existingPosition['posizione_progressiva'] ?? 0);
         }
 
         if (!$position || $position <= 0) {
@@ -262,8 +250,8 @@ class CollocazioneController
     public function getLibri(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $scaffaleId = isset($q['scaffale_id']) ? (int)$q['scaffale_id'] : 0;
-        $mensolaId = isset($q['mensola_id']) ? (int)$q['mensola_id'] : 0;
+        $scaffaleId = isset($q['scaffale_id']) ? (int) $q['scaffale_id'] : 0;
+        $mensolaId = isset($q['mensola_id']) ? (int) $q['mensola_id'] : 0;
 
         $sql = "SELECT l.id, l.titolo, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
                        s.codice as scaffale_codice, m.numero_livello,
@@ -315,13 +303,13 @@ class CollocazioneController
             }
 
             $libri[] = [
-                'id' => (int)$row['id'],
+                'id' => (int) $row['id'],
                 'titolo' => $row['titolo'] ?? '',
                 'autori' => $row['autori'] ?? '',
                 'editore' => $row['editore'] ?? '',
                 'collocazione' => $collocazione,
-                'scaffale_id' => (int)($row['scaffale_id'] ?? 0),
-                'mensola_id' => (int)($row['mensola_id'] ?? 0)
+                'scaffale_id' => (int) ($row['scaffale_id'] ?? 0),
+                'mensola_id' => (int) ($row['mensola_id'] ?? 0)
             ];
         }
 
@@ -332,8 +320,8 @@ class CollocazioneController
     public function exportCSV(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $scaffaleId = isset($q['scaffale_id']) ? (int)$q['scaffale_id'] : 0;
-        $mensolaId = isset($q['mensola_id']) ? (int)$q['mensola_id'] : 0;
+        $scaffaleId = isset($q['scaffale_id']) ? (int) $q['scaffale_id'] : 0;
+        $mensolaId = isset($q['mensola_id']) ? (int) $q['mensola_id'] : 0;
 
         $sql = "SELECT l.id, l.titolo, COALESCE(l.isbn13, l.isbn10) as isbn, l.anno_pubblicazione,
                        s.codice as scaffale_codice, m.numero_livello, l.posizione_progressiva,

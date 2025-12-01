@@ -54,8 +54,11 @@ class UsersController
         ob_start();
         require __DIR__ . '/../Views/utenti/crea_utente.php';
         $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function store(Request $request, Response $response, mysqli $db): Response
@@ -63,25 +66,16 @@ class UsersController
         if ($guard = $this->guardAdminStaff($response)) {
             return $guard;
         }
-        $data = (array)$request->getParsedBody();
-        $currentUserRole = (string)($_SESSION['user']['tipo_utente'] ?? '');
+        $data = (array) $request->getParsedBody();
+        $currentUserRole = (string) ($_SESSION['user']['tipo_utente'] ?? '');
 
-        // Validate CSRF using helper
+        // CSRF validated by CsrfMiddleware
 
-
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/utenti/crea?error=csrf')) {
-
-
-            return $error;
-
-
-        }
-
-        $nome = \App\Support\HtmlHelper::decode(trim((string)($data['nome'] ?? '')));
-        $cognome = \App\Support\HtmlHelper::decode(trim((string)($data['cognome'] ?? '')));
-        $email = trim((string)($data['email'] ?? ''));
-        $telefono = trim((string)($data['telefono'] ?? ''));
-        $requestedRole = (string)($data['tipo_utente'] ?? $data['ruolo'] ?? 'standard');
+        $nome = trim(strip_tags((string) ($data['nome'] ?? '')));
+        $cognome = trim(strip_tags((string) ($data['cognome'] ?? '')));
+        $email = trim(strip_tags((string) ($data['email'] ?? '')));
+        $telefono = trim(strip_tags((string) ($data['telefono'] ?? '')));
+        $requestedRole = (string) ($data['tipo_utente'] ?? $data['ruolo'] ?? 'standard');
         $allowedRoles = ['standard', 'premium'];
         if ($currentUserRole === 'admin') {
             $allowedRoles = ['standard', 'premium', 'staff', 'admin'];
@@ -97,16 +91,16 @@ class UsersController
         if ($nome === '' || $cognome === '' || $email === '') {
             return $response->withHeader('Location', '/admin/utenti/crea?error=missing_fields')->withStatus(302);
         }
-        
+
         // Validate input lengths
         if (strlen($nome) > 100 || strlen($cognome) > 100) {
             return $response->withHeader('Location', '/admin/utenti/crea?error=name_too_long')->withStatus(302);
         }
-        
+
         if (strlen($email) > 255) {
             return $response->withHeader('Location', '/admin/utenti/crea?error=email_too_long')->withStatus(302);
         }
-        
+
         if (strlen($telefono) > 20) {
             return $response->withHeader('Location', '/admin/utenti/crea?error=phone_too_long')->withStatus(302);
         }
@@ -115,23 +109,23 @@ class UsersController
             return $response->withHeader('Location', '/admin/utenti/crea?error=missing_fields')->withStatus(302);
         }
 
-        $indirizzo = trim((string)($data['indirizzo'] ?? ''));
+        $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
         $indirizzo = $indirizzo !== '' ? $indirizzo : null;
 
-        $cod_fiscale = strtoupper(trim((string)($data['cod_fiscale'] ?? '')));
+        $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;
 
-        $dataNascita = trim((string)($data['data_nascita'] ?? ''));
+        $dataNascita = trim((string) ($data['data_nascita'] ?? ''));
         $dataNascita = $dataNascita !== '' ? $dataNascita : null;
 
-        $sesso = trim((string)($data['sesso'] ?? ''));
+        $sesso = trim((string) ($data['sesso'] ?? ''));
         $sesso = $sesso !== '' ? $sesso : null;
 
-        $note = trim((string)($data['note_utente'] ?? ''));
+        $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
 
-        $codiceTesseraInput = trim((string)($data['codice_tessera'] ?? ''));
-        $dataScadenzaInput = trim((string)($data['data_scadenza_tessera'] ?? ''));
+        $codiceTesseraInput = trim((string) ($data['codice_tessera'] ?? ''));
+        $dataScadenzaInput = trim((string) ($data['data_scadenza_tessera'] ?? ''));
 
         if ($isAdmin) {
             $codiceTessera = $this->generateAdminCode($db);
@@ -141,12 +135,12 @@ class UsersController
             $dataScadenzaTessera = $dataScadenzaInput !== '' ? $dataScadenzaInput : null;
         }
 
-        $stato = (string)($data['stato'] ?? ($isAdmin ? 'attivo' : 'attivo'));
+        $stato = (string) ($data['stato'] ?? ($isAdmin ? 'attivo' : 'attivo'));
         if (!in_array($stato, ['attivo', 'sospeso', 'scaduto'], true)) {
             $stato = 'attivo';
         }
 
-        $rawPassword = (string)($data['password'] ?? '');
+        $rawPassword = (string) ($data['password'] ?? '');
         $passwordHash = $rawPassword !== '' ? password_hash($rawPassword, PASSWORD_DEFAULT) : null;
 
         $sendSetupEmail = false;
@@ -198,7 +192,7 @@ class UsersController
             return $response->withHeader('Location', '/admin/utenti/crea?error=db_error')->withStatus(302);
         }
 
-        $userId = (int)$stmt->insert_id;
+        $userId = (int) $stmt->insert_id;
         $stmt->close();
 
         $notifier = new NotificationService($db);
@@ -217,7 +211,7 @@ class UsersController
                 'created_by' => $_SESSION['user']['id'] ?? 'unknown',
                 'created_by_role' => $_SESSION['user']['tipo_utente'] ?? 'unknown'
             ]);
-            
+
             if ($sendSetupEmail) {
                 $notifier->sendUserPasswordSetup($userId);
             }
@@ -247,8 +241,11 @@ class UsersController
         ob_start();
         require __DIR__ . '/../Views/utenti/modifica_utente.php';
         $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
@@ -256,13 +253,11 @@ class UsersController
         if ($guard = $this->guardAdminStaff($response)) {
             return $guard;
         }
-        $data = (array)$request->getParsedBody();
-        $currentUserRole = (string)($_SESSION['user']['tipo_utente'] ?? '');
-        $currentUserId = (int)($_SESSION['user']['id'] ?? 0);
+        $data = (array) $request->getParsedBody();
+        $currentUserRole = (string) ($_SESSION['user']['tipo_utente'] ?? '');
+        $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
 
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=csrf')->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
 
         // IDOR Protection: Staff can only edit themselves, admins can edit anyone
         if ($currentUserRole === 'staff' && $currentUserId !== $id) {
@@ -279,11 +274,11 @@ class UsersController
             return $response->withStatus(404);
         }
 
-        $nome = \App\Support\HtmlHelper::decode(trim((string)($data['nome'] ?? '')));
-        $cognome = \App\Support\HtmlHelper::decode(trim((string)($data['cognome'] ?? '')));
-        $email = trim((string)($data['email'] ?? ''));
-        $telefono = trim((string)($data['telefono'] ?? ''));
-        $requestedRole = (string)($data['tipo_utente'] ?? $data['ruolo'] ?? ($original['tipo_utente'] ?? 'standard'));
+        $nome = trim(strip_tags((string) ($data['nome'] ?? '')));
+        $cognome = trim(strip_tags((string) ($data['cognome'] ?? '')));
+        $email = trim(strip_tags((string) ($data['email'] ?? '')));
+        $telefono = trim(strip_tags((string) ($data['telefono'] ?? '')));
+        $requestedRole = (string) ($data['tipo_utente'] ?? $data['ruolo'] ?? ($original['tipo_utente'] ?? 'standard'));
         $allowedRoles = ['standard', 'premium'];
         if ($currentUserRole === 'admin') {
             $allowedRoles = ['standard', 'premium', 'staff', 'admin'];
@@ -291,33 +286,33 @@ class UsersController
             $allowedRoles = ['standard', 'premium', 'staff'];
         }
         if (!in_array($requestedRole, $allowedRoles, true)) {
-            $requestedRole = (string)($original['tipo_utente'] ?? 'standard');
+            $requestedRole = (string) ($original['tipo_utente'] ?? 'standard');
         }
         $role = $requestedRole;
         $isAdmin = $role === 'admin';
 
         if ($nome === '' || $cognome === '' || $email === '') {
-            return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=missing_fields')->withStatus(302);
         }
 
         if (!$isAdmin && $telefono === '') {
-            return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=missing_fields')->withStatus(302);
         }
 
-        $indirizzo = trim((string)($data['indirizzo'] ?? ''));
+        $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
         $indirizzo = $indirizzo !== '' ? $indirizzo : null;
 
-        $cod_fiscale = strtoupper(trim((string)($data['cod_fiscale'] ?? '')));
+        $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;
 
-        $dataNascita = trim((string)($data['data_nascita'] ?? ''));
+        $dataNascita = trim((string) ($data['data_nascita'] ?? ''));
         $dataNascita = $dataNascita !== '' ? $dataNascita : null;
 
-        $sesso = trim((string)($data['sesso'] ?? ''));
+        $sesso = trim((string) ($data['sesso'] ?? ''));
         $sesso = $sesso !== '' ? $sesso : null;
 
-        $codiceTesseraInput = trim((string)($data['codice_tessera'] ?? ''));
-        $dataScadenzaInput = trim((string)($data['data_scadenza_tessera'] ?? ''));
+        $codiceTesseraInput = trim((string) ($data['codice_tessera'] ?? ''));
+        $dataScadenzaInput = trim((string) ($data['data_scadenza_tessera'] ?? ''));
 
         if ($isAdmin) {
             if (($original['tipo_utente'] ?? '') === 'admin' && !empty($original['codice_tessera'])) {
@@ -345,40 +340,40 @@ class UsersController
             }
         }
 
-        $stato = (string)($data['stato'] ?? ($original['stato'] ?? 'attivo'));
+        $stato = (string) ($data['stato'] ?? ($original['stato'] ?? 'attivo'));
         if (!in_array($stato, ['attivo', 'sospeso', 'scaduto'], true)) {
             $stato = $original['stato'] ?? 'attivo';
         }
 
-        $note = trim((string)($data['note_utente'] ?? ''));
+        $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
 
         $telefono = $telefono !== '' ? $telefono : null;
 
-        $emailVerificata = (int)($original['email_verificata'] ?? 0);
+        $emailVerificata = (int) ($original['email_verificata'] ?? 0);
         if ($stato === 'attivo') {
             $emailVerificata = 1;
         }
 
-        $passwordHash = (string)($original['password'] ?? '');
+        $passwordHash = (string) ($original['password'] ?? '');
         $tokenReset = $original['token_reset_password'] ?? null;
         $dataTokenReset = $original['data_token_reset'] ?? null;
 
         $sendSetupEmail = false;
         if (!empty($data['password'])) {
-            $newPassword = (string)$data['password'];
-            
+            $newPassword = (string) $data['password'];
+
             // Validate password complexity
             if (strlen($newPassword) < 8) {
                 $_SESSION['error_message'] = __('La password deve essere lunga almeno 8 caratteri.');
-                return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=password_too_short')->withStatus(302);
+                return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=password_too_short')->withStatus(302);
             }
-            
+
             if (!preg_match('/[A-Z]/', $newPassword) || !preg_match('/[a-z]/', $newPassword) || !preg_match('/[0-9]/', $newPassword)) {
                 $_SESSION['error_message'] = __('La password deve contenere almeno una lettera maiuscola, una minuscola e un numero.');
-                return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=password_needs_upper_lower_number')->withStatus(302);
+                return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=password_needs_upper_lower_number')->withStatus(302);
             }
-            
+
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
             $tokenReset = null;
             $dataTokenReset = null;
@@ -418,7 +413,7 @@ class UsersController
         $stmt->close();
 
         if (!$success) {
-            return $response->withHeader('Location', '/admin/utenti/modifica/'.$id.'?error=db_error')->withStatus(302);
+            return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=db_error')->withStatus(302);
         }
 
         // Audit logging for critical actions
@@ -433,7 +428,7 @@ class UsersController
         }
 
         // Check if the current user's role is being changed - if so, regenerate session to prevent session fixation
-        $currentUserId = (int)($_SESSION['user']['id'] ?? 0);
+        $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
         if ($currentUserId === $id && ($original['tipo_utente'] ?? '') !== $role) {
             // Regenerate session ID and update session data
             session_regenerate_id(true);
@@ -465,11 +460,10 @@ class UsersController
         if ($guard = $this->guardAdminStaff($response)) {
             return $guard;
         }
-        $currentUserRole = (string)($_SESSION['user']['tipo_utente'] ?? '');
-        $currentUserId = (int)($_SESSION['user']['id'] ?? 0);
+        $currentUserRole = (string) ($_SESSION['user']['tipo_utente'] ?? '');
+        $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
 
-        $token = ($request->getParsedBody()['csrf_token'] ?? '') ?: '';
-        if (!\App\Support\Csrf::validate($token)) { return $response->withStatus(400); }
+        // CSRF validated by CsrfMiddleware
 
         // IDOR Protection: Staff cannot delete any user, only admins can delete
         // (Staff shouldn't even delete themselves to preserve audit trail)
@@ -484,7 +478,7 @@ class UsersController
         $result = $stmt->get_result();
         $userToDelete = $result->fetch_assoc();
         $stmt->close();
-        
+
         // Check for any loans (active or not) to preserve history
         $loanCheck = $db->prepare("SELECT COUNT(*) as count FROM prestiti WHERE utente_id = ?");
         $loanCheck->bind_param("i", $id);
@@ -577,8 +571,11 @@ class UsersController
         ob_start();
         require __DIR__ . '/../Views/utenti/dettagli_utente.php';
         $content = ob_get_clean();
-        ob_start(); require __DIR__ . '/../Views/layout.php'; $html = ob_get_clean();
-        $response->getBody()->write($html); return $response;
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
     }
 
     private function generateAdminCode(mysqli $db): string
@@ -606,7 +603,7 @@ class UsersController
             $exists = $stmt->get_result()->num_rows > 0;
             $stmt->close();
         } while ($exists);
-        
+
         return $tessera;
     }
 
@@ -617,11 +614,9 @@ class UsersController
     public function approveAndSendActivation(Request $request, Response $response, mysqli $db, array $args): Response
     {
         // Validate CSRF
-        if ($error = CsrfHelper::validateRequest($request, $response, "/admin/utenti")) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
-        $userId = (int)$args['id'];
+        $userId = (int) $args['id'];
 
         // Verifica che l'utente esista e sia in stato sospeso
         $stmt = $db->prepare("SELECT id, stato, nome, cognome FROM utenti WHERE id = ? LIMIT 1");
@@ -679,11 +674,9 @@ class UsersController
     public function activateDirectly(Request $request, Response $response, mysqli $db, array $args): Response
     {
         // Validate CSRF
-        if ($error = CsrfHelper::validateRequest($request, $response, "/admin/utenti")) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
-        $userId = (int)$args['id'];
+        $userId = (int) $args['id'];
 
         // Verifica che l'utente esista e sia in stato sospeso
         $stmt = $db->prepare("SELECT id, stato, nome, cognome FROM utenti WHERE id = ? LIMIT 1");
@@ -870,8 +863,8 @@ class UsersController
             ];
 
             // Escape fields for CSV
-            $escapedRow = array_map(function($field) {
-                $field = str_replace('"', '""', (string)$field);
+            $escapedRow = array_map(function ($field) {
+                $field = str_replace('"', '""', (string) $field);
                 // Only quote if contains semicolon, newline, or quotes
                 if (strpos($field, ';') !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
                     return '"' . $field . '"';
