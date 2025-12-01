@@ -92,7 +92,7 @@ class CQLParser
                 continue;
             }
 
-            if ($char === '\"' || $char === "\'") {
+            if ($char === '"' || $char === "'") {
                 $quote = $char;
                 $i++;
                 $value = '';
@@ -122,7 +122,7 @@ class CQLParser
             $start = $i;
             while ($i < $length) {
                 $current = $query[$i];
-                if (ctype_space($current) || $current === '(' || $current === ')' || $current === '\"' || $current === "'" || $current === '=' || $current === '<' || $current === '>') {
+                if (ctype_space($current) || $current === '(' || $current === ')' || $current === '"' || $current === "'" || $current === '=' || $current === '<' || $current === '>') {
                     break;
                 }
                 $i++;
