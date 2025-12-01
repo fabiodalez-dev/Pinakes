@@ -3256,5 +3256,9 @@
   "Sicurezza Automatica": "Automatic Security",
   "L'accesso alla cartella installer è automaticamente bloccato dopo l'installazione.": "Access to the installer folder is automatically blocked after installation.",
   "Il file": "The file",
-  "nella root del progetto impedisce qualsiasi accesso non autorizzato.": "in the project root prevents any unauthorized access."
+  "nella root del progetto impedisce qualsiasi accesso non autorizzato.": "in the project root prevents any unauthorized access.",
+  "SBN Italia - Integrato": "SBN Italy - Integrated",
+  "Il catalogo SBN (OPAC Nazionale Italiano) è già integrato e viene interrogato automaticamente durante l'importazione ISBN. Non è necessario aggiungerlo come server esterno.": "The SBN catalog (Italian National OPAC) is already integrated and automatically queried during ISBN import. No need to add it as an external server.",
+  "Server Esterni SRU": "External SRU Servers",
+  "Server SRU aggiuntivi per Copy Cataloging. SBN Italia è già integrato (vedi sopra).": "Additional SRU servers for Copy Cataloging. SBN Italy is already integrated (see above)."
 }
