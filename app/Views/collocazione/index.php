@@ -216,7 +216,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><?= __("Ordine:") ?> <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
-                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(__('<?= __("Eliminare questo scaffale? (Solo se vuoto)") ?>'));">
+                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm('<?= __("Eliminare questo scaffale? (Solo se vuoto)") ?>');">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                             <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
@@ -316,7 +316,7 @@
                       </div>
                       <div class="flex items-center gap-2">
                         <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mensola-order-label"><?= __("Ordine:") ?> <span class="order-value"><?php echo (int)($m['ordine'] ?? 0); ?></span></span>
-                        <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(__('<?= __("Eliminare questa mensola? (Solo se vuota)") ?>'));">
+                        <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm('<?= __("Eliminare questa mensola? (Solo se vuota)") ?>');">
                           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                           <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                         </form>
@@ -445,13 +445,17 @@ document.addEventListener('DOMContentLoaded', function() {
       if (scaffaleId) {
         payload.scaffale_id = scaffaleId;
       }
-      await fetch('/api/collocazione/sort', {
+      const response = await fetch('/api/collocazione/sort', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      if (!response.ok) {
+        throw new Error('Server returned ' + response.status);
+      }
     } catch (error) {
       console.error('Error updating order:', error);
+      alert('<?= __("Errore nel salvataggio dell'ordine. Ricarica la pagina e riprova.") ?>');
     }
   }
 
@@ -589,6 +593,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // SECURITY: Escape HTML to prevent XSS
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
   function renderBooks(books) {
     const tbody = document.getElementById('collocation-tbody');
 
@@ -600,13 +612,13 @@ document.addEventListener('DOMContentLoaded', function() {
     tbody.innerHTML = books.map(book => `
       <tr class="hover:bg-gray-50">
         <td class="px-4 py-3">
-          <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">${book.collocazione || '-'}</code>
+          <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">${escapeHtml(book.collocazione) || '-'}</code>
         </td>
-        <td class="px-4 py-3 text-gray-900 font-medium">${book.titolo}</td>
-        <td class="px-4 py-3 text-gray-700 text-xs">${book.autori || '-'}</td>
-        <td class="px-4 py-3 text-gray-600 text-xs">${book.editore || '-'}</td>
+        <td class="px-4 py-3 text-gray-900 font-medium">${escapeHtml(book.titolo)}</td>
+        <td class="px-4 py-3 text-gray-700 text-xs">${escapeHtml(book.autori) || '-'}</td>
+        <td class="px-4 py-3 text-gray-600 text-xs">${escapeHtml(book.editore) || '-'}</td>
         <td class="px-4 py-3 text-center">
-          <a href="/admin/libri/modifica/${book.id}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>">
+          <a href="/admin/libri/modifica/${parseInt(book.id, 10)}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>">
             <i class="fas fa-edit"></i>
           </a>
         </td>
