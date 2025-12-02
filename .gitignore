@@ -277,7 +277,7 @@ releases/*.md
 # - installer/database/*.sql (installer data)
 # - cron/automatic-notifications.php (cron job)
 # - uploads/copertine/placeholder.jpg (default cover)
-# Note: docs/*.md files are already ignored by 'docs/*' pattern above
+# Note: docs/*.md, docs/*.txt, docs/*.html are explicitly ignored above; PNG images remain tracked
 models/config.json
 models/model.onnx
 models/special_tokens_map.json
