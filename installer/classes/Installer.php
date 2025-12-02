@@ -1116,7 +1116,7 @@ HTACCESS;
                     'Open Library Scraper',
                     'Integrates Open Library and Google Books APIs for comprehensive book metadata scraping. Supports ISBN lookup with multi-source fallback and encrypted API key storage.',
                     '1.0.0',
-                    'Fabio Dal Maso',
+                    'Fabiodalez',
                     '',
                     '',
                     1,
@@ -1279,14 +1279,111 @@ HTACCESS;
         // Install all default plugins (excluding scraping-pro)
         $installPlugin('open-library');
         $installPlugin('z39-server', [
-            ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
+            ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10],
+            ['name' => 'scrape.fetch.custom', 'callback_method' => 'fetchBookMetadata', 'priority' => 3]
         ]);
         $installPlugin('api-book-scraper');
         $installPlugin('digital-library', [
             ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
         ]);
 
+        // Configure Z39 Server with SBN (Servizio Bibliotecario Nazionale) as default
+        $this->configureZ39DefaultSettings($pdo);
+
         return $results;
+    }
+
+    /**
+     * Configure Z39 Server plugin with Italian SBN as default server
+     * SBN (Servizio Bibliotecario Nazionale) is the Italian national library network
+     *
+     * @param PDO $pdo Database connection
+     */
+    private function configureZ39DefaultSettings(PDO $pdo): void
+    {
+        try {
+            // Get Z39 Server plugin ID
+            $stmt = $pdo->prepare("SELECT id FROM plugins WHERE name = 'z39-server' LIMIT 1");
+            $stmt->execute();
+            $pluginId = (int)$stmt->fetchColumn();
+
+            if (!$pluginId) {
+                return; // Plugin not installed
+            }
+
+            // Default Z39.50/SRU servers configuration
+            // K10plus (Germany) is the most reliable European SRU server
+            // SUDOC (France) is good for European books
+            // Italian SBN is accessed via JSON API (enable_sbn setting) - no YAZ required
+            $defaultServers = json_encode([
+                [
+                    'name' => 'K10plus (GBV Germany)',
+                    'url' => 'https://sru.k10plus.de/opac-de-627',
+                    'database' => 'opac-de-627',
+                    'syntax' => 'marcxml',
+                    'enabled' => true,
+                    'timeout' => 15,
+                    'indexes' => ['isbn' => 'pica.isb']
+                ],
+                [
+                    'name' => 'SUDOC (France)',
+                    'url' => 'https://www.sudoc.abes.fr/cbs/sru/',
+                    'database' => '',
+                    'syntax' => 'unimarc',
+                    'enabled' => true,
+                    'timeout' => 15,
+                    'indexes' => ['isbn' => 'isb']
+                ],
+                [
+                    'name' => 'DNB - Deutsche Nationalbibliothek',
+                    'url' => 'https://services.dnb.de/sru/dnb',
+                    'database' => 'dnb',
+                    'syntax' => 'marcxml',
+                    'enabled' => true,
+                    'timeout' => 15,
+                    'indexes' => ['isbn' => 'num']
+                ]
+            ]);
+
+            // Default settings for Z39 Server
+            $defaultSettings = [
+                'enable_client' => '1',           // Enable Z39.50 client for scraping
+                'servers' => $defaultServers,     // K10plus + DNB (reliable European servers)
+                'server_enabled' => '1',          // Enable SRU server mode
+                'enable_server' => '1',
+                'max_records' => '100',
+                'default_records' => '10',
+                'supported_formats' => 'marcxml,dc,mods,oai_dc',
+                'default_format' => 'marcxml',
+                'rate_limit_enabled' => '1',
+                'rate_limit_requests' => '100',
+                'rate_limit_window' => '3600',
+                'enable_logging' => '1',
+                'cql_version' => '1.2',
+                'sru_version' => '1.2',
+                // SBN (Italian National Library) - enabled by default
+                'enable_sbn' => '1',              // Enable SBN JSON API client
+                'sbn_timeout' => '15'             // SBN request timeout in seconds
+            ];
+
+            // Insert settings (skip if already exist)
+            $insertStmt = $pdo->prepare("
+                INSERT IGNORE INTO plugin_settings (plugin_id, setting_key, setting_value, autoload, created_at)
+                VALUES (:plugin_id, :key, :value, 1, NOW())
+            ");
+
+            foreach ($defaultSettings as $key => $value) {
+                $insertStmt->execute([
+                    'plugin_id' => $pluginId,
+                    'key' => $key,
+                    'value' => $value
+                ]);
+            }
+
+        } catch (Exception $e) {
+            // Log but don't fail installation
+            error_log('[Installer] Failed to configure Z39 defaults: ' . $e->getMessage());
+        }
     }
 
     /**

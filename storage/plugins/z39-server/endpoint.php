@@ -16,6 +16,14 @@ declare(strict_types=1);
 // This file is loaded by the router, so the autoloader is already available
 // and the database connection is provided via dependency injection
 
+// Load exception classes first (required by CQLParser and SRUServer)
+require_once __DIR__ . '/classes/Exceptions/CQLException.php';
+require_once __DIR__ . '/classes/Exceptions/InvalidCQLSyntaxException.php';
+require_once __DIR__ . '/classes/Exceptions/UnsupportedRelationException.php';
+require_once __DIR__ . '/classes/Exceptions/UnsupportedIndexException.php';
+require_once __DIR__ . '/classes/Exceptions/DatabaseException.php';
+require_once __DIR__ . '/classes/Exceptions/SRUQueryException.php';
+
 require_once __DIR__ . '/classes/SRUServer.php';
 require_once __DIR__ . '/classes/CQLParser.php';
 require_once __DIR__ . '/classes/RecordFormatter.php';
@@ -54,6 +62,22 @@ function handleSRURequest(
             ->withStatus(503);
     }
 
+    // Optional API key authentication
+    if (($settings['require_api_key'] ?? 'false') === 'true') {
+        $apiKey = $settings['api_key'] ?? '';
+        $providedKey = $request->getHeaderLine('X-API-Key')
+            ?: ($request->getQueryParams()['api_key'] ?? '');
+
+        // Deny access if API key is required but not configured, or if provided key doesn't match
+        if ($apiKey === '' || !hash_equals($apiKey, $providedKey)) {
+            $response->getBody()->write(createErrorXML('Invalid or missing API key'));
+            return $response
+                ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
+                ->withHeader('WWW-Authenticate', 'API-Key')
+                ->withStatus(401);
+        }
+    }
+
     // Rate limiting (OWASP: Protection against DoS)
     if (($settings['rate_limit_enabled'] ?? 'false') === 'true') {
         $rateLimiter = new RateLimiter(
@@ -85,11 +109,18 @@ function handleSRURequest(
     // Write response
     $response->getBody()->write($xmlResponse);
 
+    // SECURITY FIX: Add comprehensive security headers
     return $response
         ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
-        ->withHeader('Access-Control-Allow-Origin', '*') // Allow CORS for library systems
-        ->withHeader('Access-Control-Allow-Methods', 'GET')
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type');
+        ->withHeader('Access-Control-Allow-Origin', '*') // Allow CORS for library systems (SRU standard)
+        ->withHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key')
+        ->withHeader('Access-Control-Max-Age', '86400') // Cache preflight for 24h
+        ->withHeader('X-Content-Type-Options', 'nosniff') // Prevent MIME sniffing
+        ->withHeader('X-Frame-Options', 'DENY') // Prevent clickjacking
+        ->withHeader('X-XSS-Protection', '1; mode=block') // Enable XSS filter
+        ->withHeader('Referrer-Policy', 'no-referrer') // Don't leak referrer
+        ->withHeader('Content-Security-Policy', "default-src 'none'"); // CSP for XML responses
 }
 
 /**
@@ -102,12 +133,19 @@ function handleSRURequest(
 function getPluginSettings(mysqli $db, ?int $pluginId): array
 {
     if ($pluginId === null) {
-        // Try to get plugin ID from database
-        $result = $db->query("SELECT id FROM plugins WHERE name = 'z39-server' LIMIT 1");
-        if ($result && $row = $result->fetch_assoc()) {
-            $pluginId = (int)$row['id'];
-            $result->free();
-        } else {
+        // Try to get plugin ID from database (use prepared statement for consistency)
+        $pluginName = 'z39-server';
+        $stmt = $db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $pluginName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result && $row = $result->fetch_assoc()) {
+                $pluginId = (int)$row['id'];
+            }
+            $stmt->close();
+        }
+        if ($pluginId === null) {
             return [];
         }
     }
@@ -132,24 +170,37 @@ function getPluginSettings(mysqli $db, ?int $pluginId): array
 }
 
 /**
- * Get client IP address
+ * Get client IP address with trusted proxy validation
  *
  * @return string Client IP
  */
 function getClientIp(): string
 {
-    // Check for proxies and load balancers (OWASP: Security consideration)
-    $ipHeaders = [
+    $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+    // Get trusted proxies from environment (comma-separated)
+    // Default: trust localhost and common private ranges when behind proxy
+    $trustedProxies = array_filter(array_map(
+        'trim',
+        explode(',', $_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES') ?: '')
+    ));
+
+    // If no trusted proxies configured or request not from trusted proxy, use REMOTE_ADDR
+    if (empty($trustedProxies) || !isTrustedProxy($remoteAddr, $trustedProxies)) {
+        return filter_var($remoteAddr, FILTER_VALIDATE_IP) ? $remoteAddr : 'unknown';
+    }
+
+    // Only trust forwarded headers if request is from a trusted proxy
+    $forwardedHeaders = [
         'HTTP_CF_CONNECTING_IP', // Cloudflare
         'HTTP_X_FORWARDED_FOR',
         'HTTP_X_REAL_IP',
-        'REMOTE_ADDR'
     ];
 
-    foreach ($ipHeaders as $header) {
+    foreach ($forwardedHeaders as $header) {
         if (!empty($_SERVER[$header])) {
             $ip = $_SERVER[$header];
-            // If X-Forwarded-For contains multiple IPs, take the first one
+            // If X-Forwarded-For contains multiple IPs, take the first (original client)
             if (str_contains($ip, ',')) {
                 $ip = trim(explode(',', $ip)[0]);
             }
@@ -160,7 +211,69 @@ function getClientIp(): string
         }
     }
 
-    return 'unknown';
+    return filter_var($remoteAddr, FILTER_VALIDATE_IP) ? $remoteAddr : 'unknown';
+}
+
+/**
+ * Check if IP is in trusted proxy list
+ *
+ * @param string $ip IP to check
+ * @param array $trustedProxies List of trusted proxy IPs/CIDRs
+ * @return bool
+ */
+function isTrustedProxy(string $ip, array $trustedProxies): bool
+{
+    foreach ($trustedProxies as $trusted) {
+        // Exact match
+        if ($ip === $trusted) {
+            return true;
+        }
+        // CIDR notation support (e.g., 10.0.0.0/8)
+        if (str_contains($trusted, '/')) {
+            if (ipInCidr($ip, $trusted)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Check if IP is within CIDR range (IPv4 only)
+ *
+ * @param string $ip IP address
+ * @param string $cidr CIDR notation (e.g., 192.168.1.0/24)
+ * @return bool
+ */
+function ipInCidr(string $ip, string $cidr): bool
+{
+    // Only supports IPv4
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+
+    // Validate CIDR format
+    if (strpos($cidr, '/') === false) {
+        return false;
+    }
+
+    [$subnet, $bits] = explode('/', $cidr);
+
+    $ipLong = ip2long($ip);
+    $subnetLong = ip2long($subnet);
+
+    // Check if ip2long succeeded
+    if ($ipLong === false || $subnetLong === false) {
+        return false;
+    }
+
+    $bits = (int) $bits;
+    if ($bits < 0 || $bits > 32) {
+        return false;
+    }
+
+    $mask = -1 << (32 - $bits);
+    return ($ipLong & $mask) === ($subnetLong & $mask);
 }
 
 /**

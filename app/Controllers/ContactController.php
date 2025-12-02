@@ -5,8 +5,6 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\ConfigStore;
-use App\Support\Csrf;
-use App\Support\CsrfHelper;
 use App\Support\RouteTranslator;
 use ReCaptcha\ReCaptcha;
 
@@ -37,11 +35,7 @@ class ContactController
         $data = $request->getParsedBody();
 
         // Validazione CSRF
-        if (!Csrf::validate($data['csrf_token'] ?? '')) {
-            return $response
-                ->withHeader('Location', RouteTranslator::route('contact') . '?error=csrf')
-                ->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
 
         // Validazione ReCAPTCHA v3
         $config = ConfigStore::get('contacts', []);
@@ -58,8 +52,8 @@ class ContactController
 
             $recaptcha = new ReCaptcha($recaptchaSecret);
             $resp = $recaptcha->setExpectedAction('contact_form')
-                             ->setScoreThreshold(0.5)
-                             ->verify($recaptchaToken, $_SERVER['REMOTE_ADDR'] ?? '');
+                ->setScoreThreshold(0.5)
+                ->verify($recaptchaToken, $_SERVER['REMOTE_ADDR'] ?? '');
 
             if (!$resp->isSuccess()) {
                 return $response
@@ -175,7 +169,7 @@ class ContactController
                 <p><strong>Messaggio:</strong></p>
                 <p>" . nl2br(htmlspecialchars($messaggio, ENT_QUOTES, 'UTF-8')) . "</p>
                 <hr>
-                <p><small>Messaggio ID: #" . htmlspecialchars((string)$messageId, ENT_QUOTES, 'UTF-8') . "</small></p>
+                <p><small>Messaggio ID: #" . htmlspecialchars((string) $messageId, ENT_QUOTES, 'UTF-8') . "</small></p>
             ";
 
             $mailer = new \App\Support\Mailer();

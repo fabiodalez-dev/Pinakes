@@ -5,7 +5,6 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\Csrf;
-use App\Support\CsrfHelper;
 use App\Support\Mailer;
 use App\Support\ConfigStore;
 use App\Support\NotificationService;
@@ -35,10 +34,7 @@ class RegistrationController
 
         $data = (array) ($request->getParsedBody() ?? []);
 
-        // Validate CSRF using helper - handles session expiry automatically
-        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('register'))) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
         $nome = \App\Support\HtmlHelper::decode(trim((string) ($data['nome'] ?? '')));
         $cognome = \App\Support\HtmlHelper::decode(trim((string) ($data['cognome'] ?? '')));
         $email = trim((string) ($data['email'] ?? ''));

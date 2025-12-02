@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Support\Csrf;
 use App\Support\PluginManager;
 use App\Support\HtmlHelper;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -36,7 +35,7 @@ class PluginController
         $plugins = $this->pluginManager->getAllPlugins();
         $pluginSettings = [];
         foreach ($plugins as $plugin) {
-            $settings = $this->pluginManager->getSettings((int)$plugin['id']);
+            $settings = $this->pluginManager->getSettings((int) $plugin['id']);
 
             // Handle Google Books API key
             if (array_key_exists('google_books_api_key', $settings)) {
@@ -81,18 +80,7 @@ class PluginController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
 
-            // Verify CSRF token (handle multipart/form-data)
-            $body = $request->getParsedBody();
-            $csrfToken = $body['csrf_token'] ?? $_POST['csrf_token'] ?? '';
-
-            if (!Csrf::validate($csrfToken)) {
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'message' => __('Token CSRF non valido.')
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-            }
-
+            // CSRF validated by CsrfMiddleware
             $uploadedFiles = $request->getUploadedFiles();
 
             if (!isset($uploadedFiles['plugin_file'])) {
@@ -170,17 +158,8 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Verify CSRF token
-        $body = $request->getParsedBody();
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        $pluginId = (int)$args['id'];
+        // CSRF validated by CsrfMiddleware
+        $pluginId = (int) $args['id'];
         $result = $this->pluginManager->activatePlugin($pluginId);
 
         $response->getBody()->write(json_encode($result));
@@ -201,17 +180,8 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Verify CSRF token
-        $body = $request->getParsedBody();
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        $pluginId = (int)$args['id'];
+        // CSRF validated by CsrfMiddleware
+        $pluginId = (int) $args['id'];
         $result = $this->pluginManager->deactivatePlugin($pluginId);
 
         $response->getBody()->write(json_encode($result));
@@ -232,52 +202,11 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
-        // Verify CSRF token
-        $body = $request->getParsedBody();
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        $pluginId = (int)$args['id'];
+        // CSRF validated by CsrfMiddleware
+        $pluginId = (int) $args['id'];
         $result = $this->pluginManager->uninstallPlugin($pluginId);
 
         $response->getBody()->write(json_encode($result));
-        return $response->withHeader('Content-Type', 'application/json');
-    }
-
-    /**
-     * Get plugin details
-     */
-    public function details(Request $request, Response $response, array $args): Response
-    {
-        // Check authorization
-        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Non autorizzato.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        $pluginId = (int)$args['id'];
-        $plugin = $this->pluginManager->getPlugin($pluginId);
-
-        if (!$plugin) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Plugin non trovato.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
-        }
-
-        $response->getBody()->write(json_encode([
-            'success' => true,
-            'plugin' => $plugin
-        ]));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -297,19 +226,12 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
         }
 
+        // CSRF validated by CsrfMiddleware
         $body = $request->getParsedBody();
-        error_log('[PluginController] Request body: ' . json_encode($body));
+        // Log only plugin ID, not full body (may contain API keys)
+        error_log('[PluginController] Request received for plugin settings update');
 
-        if (!Csrf::validate($body['csrf_token'] ?? '')) {
-            error_log('[PluginController] Invalid CSRF token');
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Token CSRF non valido.')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
-        }
-
-        $pluginId = (int)$args['id'];
+        $pluginId = (int) $args['id'];
         error_log('[PluginController] Plugin ID: ' . $pluginId);
 
         $plugin = $this->pluginManager->getPlugin($pluginId);
@@ -338,7 +260,7 @@ class PluginController
         // Handle settings based on plugin type
         if ($plugin['name'] === 'open-library') {
             // Open Library: Google Books API key
-            $apiKey = trim((string)($settings['google_books_api_key'] ?? ''));
+            $apiKey = trim((string) ($settings['google_books_api_key'] ?? ''));
             $apiKeyLength = strlen($apiKey);
             error_log('[PluginController] Google Books API key length: ' . $apiKeyLength);
 
@@ -357,9 +279,9 @@ class PluginController
             ]));
         } elseif ($plugin['name'] === 'api-book-scraper') {
             // API Book Scraper: endpoint, api_key, timeout, enabled
-            $apiEndpoint = trim((string)($settings['api_endpoint'] ?? ''));
-            $apiKey = trim((string)($settings['api_key'] ?? ''));
-            $timeout = max(5, min(60, (int)($settings['timeout'] ?? 10)));
+            $apiEndpoint = trim((string) ($settings['api_endpoint'] ?? ''));
+            $apiKey = trim((string) ($settings['api_key'] ?? ''));
+            $timeout = max(5, min(60, (int) ($settings['timeout'] ?? 10)));
             $enabled = isset($settings['enabled']) && $settings['enabled'] === '1';
 
             error_log('[PluginController] API Book Scraper settings - endpoint: ' . $apiEndpoint . ', timeout: ' . $timeout . ', enabled: ' . ($enabled ? 'yes' : 'no'));
@@ -367,21 +289,11 @@ class PluginController
             // Save all settings
             $this->pluginManager->setSetting($pluginId, 'api_endpoint', $apiEndpoint, true);
             $this->pluginManager->setSetting($pluginId, 'api_key', $apiKey, true);
-            $this->pluginManager->setSetting($pluginId, 'timeout', (string)$timeout, true);
+            $this->pluginManager->setSetting($pluginId, 'timeout', (string) $timeout, true);
             $this->pluginManager->setSetting($pluginId, 'enabled', $enabled ? '1' : '0', true);
 
-            // Load the plugin instance to re-register hooks
-            $pluginPath = $this->pluginManager->getPluginPath($plugin['name']);
-            $wrapperFile = $pluginPath . '/wrapper.php';
-
-            if (file_exists($wrapperFile)) {
-                $db = $this->db;
-                $pluginInstance = require $wrapperFile;
-
-                if ($pluginInstance && method_exists($pluginInstance, 'setPluginId')) {
-                    $pluginInstance->setPluginId($pluginId);
-                }
-            }
+            // Note: Plugin re-registration removed - PluginController doesn't have $db property
+            // The plugin will reload its settings on next request via PluginManager
 
             $response->getBody()->write(json_encode([
                 'success' => true,
@@ -391,6 +303,46 @@ class PluginController
                     'api_key' => $apiKey !== '' ? 'saved' : 'empty',
                     'timeout' => $timeout,
                     'enabled' => $enabled
+                ]
+            ]));
+        } elseif ($plugin['name'] === 'z39-server') {
+            // Z39.50/SRU Integration settings
+            // Note: Use 'server_enabled' key to match DEFAULT_SETTINGS in Z39ServerPlugin
+            // Form may send 'enable_server' for backwards compatibility - accept both
+            $enableServer = (isset($settings['server_enabled']) && $settings['server_enabled'] === '1')
+                         || (isset($settings['enable_server']) && $settings['enable_server'] === '1');
+            $enableClient = isset($settings['enable_client']) && $settings['enable_client'] === '1';
+            $servers = $settings['servers'] ?? '[]';
+
+            // Validate JSON and decode once for reuse
+            $decoded = [];
+            if (is_string($servers)) {
+                $decoded = json_decode($servers, true);
+                // Validate: must be array and no JSON errors
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                    $servers = '[]';
+                    $decoded = [];
+                }
+            } elseif (is_array($servers)) {
+                $decoded = $servers;
+                $servers = json_encode($servers);
+            } else {
+                $servers = '[]';
+            }
+
+            // Save with correct key name and value format matching Z39ServerPlugin::DEFAULT_SETTINGS
+            // IMPORTANT: endpoint.php checks for 'true'/'false' strings, not '1'/'0'
+            $this->pluginManager->setSetting($pluginId, 'server_enabled', $enableServer ? 'true' : 'false', true);
+            $this->pluginManager->setSetting($pluginId, 'enable_client', $enableClient ? '1' : '0', true);
+            $this->pluginManager->setSetting($pluginId, 'servers', $servers, true);
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Impostazioni Z39.50 salvate correttamente.'),
+                'data' => [
+                    'server_enabled' => $enableServer ? 'true' : 'false',
+                    'enable_client' => $enableClient,
+                    'servers_count' => count($decoded)
                 ]
             ]));
         } else {

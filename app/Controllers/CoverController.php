@@ -5,8 +5,6 @@ namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use App\Support\Csrf;
-use App\Support\CsrfHelper;
 
 class CoverController
 {
@@ -33,24 +31,15 @@ class CoverController
         // Get raw input data
         $input = $request->getBody()->getContents();
         $data = json_decode($input, true);
-        
+
         // If JSON decode failed, try to get parsed body
         if ($data === null) {
-            $data = (array)$request->getParsedBody();
+            $data = (array) $request->getParsedBody();
         }
-        
+
         $coverUrl = trim($data['cover_url'] ?? '');
-        $token = $data['csrf_token'] ?? null;
+        // CSRF validated by CsrfMiddleware
 
-        // Validate CSRF token
-        // Validate CSRF using helper
-
-        if ($error = CsrfHelper::validateJsonRequest($request, $response)) {
-
-            return $error;
-
-        }
-        
         // Validate input
         if (empty($coverUrl)) {
             $response->getBody()->write(json_encode(['error' => __('Parametro cover_url mancante.')]));
@@ -126,13 +115,13 @@ class CoverController
 
         $maxWidth = 2000;
         $maxHeight = 2000;
-        $width = (int)$imageInfo[0];
-        $height = (int)$imageInfo[1];
+        $width = (int) $imageInfo[0];
+        $height = (int) $imageInfo[1];
         $targetResource = $image;
         if ($width > $maxWidth || $height > $maxHeight) {
             $ratio = min($maxWidth / $width, $maxHeight / $height);
-            $newWidth = max(1, (int)round($width * $ratio));
-            $newHeight = max(1, (int)round($height * $ratio));
+            $newWidth = max(1, (int) round($width * $ratio));
+            $newHeight = max(1, (int) round($height * $ratio));
             $resized = imagecreatetruecolor($newWidth, $newHeight);
             imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
             imagedestroy($image);
@@ -161,7 +150,7 @@ class CoverController
 
         // Build relative URL of the saved file (consistent with LibriController)
         $fileUrl = $this->getCoversUrlPath() . '/' . $filename;
-        
+
         $response->getBody()->write(json_encode(['file_url' => $fileUrl]));
         return $response->withHeader('Content-Type', 'application/json');
     }
@@ -220,8 +209,8 @@ class CoverController
                 throw new \RuntimeException('Errore download immagine: ' . $err);
             }
 
-            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $headerSize = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
             $headers = substr($rawResponse, 0, $headerSize);
             $body = substr($rawResponse, $headerSize);
             curl_close($ch);

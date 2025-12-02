@@ -24,8 +24,8 @@ class RecensioniController
                 ->withStatus(401);
         }
 
-        $userId = (int)$_SESSION['user']['id'];
-        $libroId = (int)($args['libro_id'] ?? 0);
+        $userId = (int) $_SESSION['user']['id'];
+        $libroId = (int) ($args['libro_id'] ?? 0);
 
         if ($libroId <= 0) {
             $response->getBody()->write(json_encode(['can_review' => false, 'reason' => 'invalid_book_id']));
@@ -58,31 +58,23 @@ class RecensioniController
                 ->withStatus(401);
         }
 
-        $userId = (int)$_SESSION['user']['id'];
+        $userId = (int) $_SESSION['user']['id'];
 
         // Parse JSON body
         $contentType = $request->getHeaderLine('Content-Type');
 
         if (strpos($contentType, 'application/json') !== false) {
-            $bodyRaw = (string)$request->getBody();
+            $bodyRaw = (string) $request->getBody();
             $body = json_decode($bodyRaw, true) ?? [];
         } else {
             $body = $request->getParsedBody() ?? [];
         }
 
-        // Verifica CSRF token
-        $csrfToken = $body['csrf_token'] ?? '';
-
-        if (empty($csrfToken) || !hash_equals($_SESSION['csrf_token'] ?? '', $csrfToken)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
-            return $response
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(403);
-        }
+        // CSRF validated by CsrfMiddleware
 
         // Validazione input
-        $libroId = (int)($body['libro_id'] ?? 0);
-        $stelle = (int)($body['stelle'] ?? 0);
+        $libroId = (int) ($body['libro_id'] ?? 0);
+        $stelle = (int) ($body['stelle'] ?? 0);
         $titolo = trim($body['titolo'] ?? '');
         $descrizione = trim($body['descrizione'] ?? '');
 
