@@ -227,37 +227,3 @@
   }
 }
 
-/* Dark mode support (optional) */
-@media (prefers-color-scheme: dark) {
-  .swal-app-popup {
-    background-color: #1f2937 !important;
-    border-color: #374151 !important;
-  }
-
-  .swal-app-title {
-    color: #f9fafb !important;
-  }
-
-  .swal-app-text {
-    color: #e5e7eb !important;
-  }
-
-  .swal-app-confirm-button {
-    background-color: #f9fafb !important;
-    color: #111827 !important;
-  }
-
-  .swal-app-confirm-button:hover {
-    background-color: #e5e7eb !important;
-  }
-
-  .swal-app-cancel-button {
-    background-color: #374151 !important;
-    color: #e5e7eb !important;
-    border-color: #4b5563 !important;
-  }
-
-  .swal-app-cancel-button:hover {
-    background-color: #4b5563 !important;
-  }
-}
