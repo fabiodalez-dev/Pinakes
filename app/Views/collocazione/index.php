@@ -216,7 +216,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><?= __("Ordine:") ?> <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
-                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm('<?= __("Eliminare questo scaffale? (Solo se vuoto)") ?>');">
+                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questo scaffale? (Solo se vuoto)")) ?>);">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                             <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
@@ -316,7 +316,7 @@
                       </div>
                       <div class="flex items-center gap-2">
                         <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mensola-order-label"><?= __("Ordine:") ?> <span class="order-value"><?php echo (int)($m['ordine'] ?? 0); ?></span></span>
-                        <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm('<?= __("Eliminare questa mensola? (Solo se vuota)") ?>');">
+                        <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questa mensola? (Solo se vuota)")) ?>);">
                           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                           <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                         </form>
@@ -418,6 +418,10 @@ if (typeof window.__ === 'undefined') {
     return key; // Return key as-is if translation not available
   };
 }
+
+// Pre-translated strings for JavaScript (avoids __() fallback issues)
+const noMensoleMessage = <?= json_encode(__('Nessuna mensola per questo scaffale. Creane una!')) ?>;
+const noBooksMessage = <?= json_encode(__('Nessun libro con collocazione trovato')) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -551,7 +555,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // If no mensole for this scaffale, show a message
     if (!hasVisible) {
       if (placeholder) {
-        placeholder.innerHTML = '<i class="fas fa-inbox mb-2 text-2xl"></i><p>' + __('Nessuna mensola per questo scaffale. Creane una!') + '</p>';
+        placeholder.innerHTML = '<i class="fas fa-inbox mb-2 text-2xl"></i><p>' + noMensoleMessage + '</p>';
         placeholder.classList.remove('hidden');
       }
     }
@@ -612,7 +616,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('collocation-tbody');
 
     if (books.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-inbox mr-2"></i>' + __('Nessun libro con collocazione trovato') + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-inbox mr-2"></i>' + noBooksMessage + '</td></tr>';
       return;
     }
 
