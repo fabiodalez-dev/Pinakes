@@ -1318,7 +1318,7 @@ HTACCESS;
             $defaultServers = json_encode([
                 [
                     'name' => 'K10plus (GBV Germany)',
-                    'url' => 'http://sru.k10plus.de/opac-de-627',
+                    'url' => 'https://sru.k10plus.de/opac-de-627',
                     'database' => 'opac-de-627',
                     'syntax' => 'marcxml',
                     'enabled' => true,
@@ -1349,16 +1349,16 @@ HTACCESS;
             $defaultSettings = [
                 'enable_client' => '1',           // Enable Z39.50 client for scraping
                 'servers' => $defaultServers,     // K10plus + DNB (reliable European servers)
-                'server_enabled' => 'true',       // Enable SRU server mode
+                'server_enabled' => '1',          // Enable SRU server mode
                 'enable_server' => '1',
                 'max_records' => '100',
                 'default_records' => '10',
                 'supported_formats' => 'marcxml,dc,mods,oai_dc',
                 'default_format' => 'marcxml',
-                'rate_limit_enabled' => 'true',
+                'rate_limit_enabled' => '1',
                 'rate_limit_requests' => '100',
                 'rate_limit_window' => '3600',
-                'enable_logging' => 'true',
+                'enable_logging' => '1',
                 'cql_version' => '1.2',
                 'sru_version' => '1.2',
                 // SBN (Italian National Library) - enabled by default
