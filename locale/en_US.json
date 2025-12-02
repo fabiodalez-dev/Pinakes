@@ -857,6 +857,7 @@
   "Errore nel rifiuto": "Error in rejection",
   "Errore nel rifiuto della richiesta": "Error while rejecting the request",
   "Errore nel salvataggio dell'immagine.": "Error saving the image.",
+  "Errore nel salvataggio dell'ordine. Ricarica la pagina e riprova.": "Error saving order. Please reload the page and try again.",
   "Errore nell'aggiornamento del template": "Error updating template",
   "Errore nell'aggiornamento dello stato dell'API key: %s": "Error updating API key status: %s",
   "Errore nell'aggiornamento:": "Error updating:",
