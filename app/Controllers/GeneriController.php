@@ -110,4 +110,3 @@ class GeneriController
         return $response;
     }
 }
-?>

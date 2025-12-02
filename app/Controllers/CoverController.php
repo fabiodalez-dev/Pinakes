@@ -38,9 +38,6 @@ class CoverController
         }
 
         $coverUrl = trim($data['cover_url'] ?? '');
-        $token = $data['csrf_token'] ?? null;
-
-        // Validate CSRF token
         // CSRF validated by CsrfMiddleware
 
         // Validate input

@@ -173,8 +173,10 @@ desktop.ini
 # ========================================
 # Development Documentation (not for distribution)
 # ========================================
-docs/*
-!docs/*.png
+# Exclude specific doc file types, but keep images (PNG)
+docs/*.md
+docs/*.txt
+docs/*.html
 security.md
 fix.md
 PRESTITI.md
