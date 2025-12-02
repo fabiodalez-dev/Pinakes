@@ -1116,7 +1116,7 @@ HTACCESS;
                     'Open Library Scraper',
                     'Integrates Open Library and Google Books APIs for comprehensive book metadata scraping. Supports ISBN lookup with multi-source fallback and encrypted API key storage.',
                     '1.0.0',
-                    'Fabio Dal Maso',
+                    'Fabiodalez',
                     '',
                     '',
                     1,

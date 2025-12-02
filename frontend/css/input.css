@@ -276,40 +276,7 @@ table {
   .form-input:hover {
     border-color: var(--color-gray-400);
   }
-  
-  /* Dark mode support for form inputs */
-  @media (prefers-color-scheme: dark) {
-    .form-input {
-      background-color: var(--color-gray-800);
-      border-color: var(--color-gray-600);
-      color: var(--color-gray-100);
-    }
-    
-    .form-input:focus {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 3px rgb(37 99 235 / 0.2);
-    }
-    
-    .form-input:hover {
-      border-color: var(--color-gray-500);
-    }
-  }
-  
-  [data-theme="dark"] .form-input {
-    background-color: var(--color-gray-800);
-    border-color: var(--color-gray-600);
-    color: var(--color-gray-100);
-  }
-  
-  [data-theme="dark"] .form-input:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.2);
-  }
-  
-  [data-theme="dark"] .form-input:hover {
-    border-color: var(--color-gray-500);
-  }
-  
+
   /* Form Label */
   .form-label {
     @apply block text-sm font-medium mb-2;
@@ -591,92 +558,6 @@ table {
     width: 100%;
     justify-content: center;
   }
-}
-
-/* === COMPREHENSIVE DARK MODE SUPPORT === */
-/* Dark mode for all button types */
-@media (prefers-color-scheme: dark) {
-  /* Primary button dark mode */
-  .btn-primary {
-    background: linear-gradient(135deg, #3b82f6 0%, var(--color-primary-light) 100%);
-  }
-  
-  .btn-primary:hover {
-    background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
-  }
-  
-  /* Secondary button dark mode */
-  .btn-secondary {
-    background-color: var(--color-gray-800);
-    border-color: var(--color-gray-600);
-    color: var(--color-gray-100);
-  }
-  
-  .btn-secondary:hover {
-    background-color: var(--color-gray-700);
-    border-color: var(--color-primary);
-    color: var(--color-gray-100);
-  }
-  
-  /* Danger button dark mode */
-  .btn-danger {
-    background: linear-gradient(135deg, #f87171 0%, var(--color-danger-dark) 100%);
-  }
-  
-  .btn-danger:hover {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  }
-  
-  /* Outline button dark mode */
-  .btn-outline {
-    background-color: transparent;
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
-  
-  .btn-outline:hover {
-    background-color: var(--color-primary);
-    color: white;
-  }
-}
-
-[data-theme="dark"] .btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, var(--color-primary-light) 100%);
-}
-
-[data-theme="dark"] .btn-primary:hover {
-  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
-}
-
-[data-theme="dark"] .btn-secondary {
-  background-color: var(--color-gray-800);
-  border-color: var(--color-gray-600);
-  color: var(--color-gray-100);
-}
-
-[data-theme="dark"] .btn-secondary:hover {
-  background-color: var(--color-gray-700);
-  border-color: var(--color-primary);
-  color: var(--color-gray-100);
-}
-
-[data-theme="dark"] .btn-danger {
-  background: linear-gradient(135deg, #f87171 0%, var(--color-danger-dark) 100%);
-}
-
-[data-theme="dark"] .btn-danger:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-}
-
-[data-theme="dark"] .btn-outline {
-  background-color: transparent;
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-[data-theme="dark"] .btn-outline:hover {
-  background-color: var(--color-primary);
-  color: white;
 }
 
 /* === CSS IMPORT ORDER VERIFICATION === */
