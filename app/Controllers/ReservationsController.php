@@ -195,12 +195,7 @@ class ReservationsController
             $data = $request->getParsedBody() ?: [];
         }
 
-        // Validate CSRF token
-        $token = $data['csrf_token'] ?? '';
-        if (!\App\Support\Csrf::validate($token)) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Token CSRF non valido')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
+        // CSRF validated by CsrfMiddleware
 
         // Validate user session
         $sessionUser = $_SESSION['user'] ?? null;

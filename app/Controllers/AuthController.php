@@ -5,7 +5,6 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\Csrf;
-use App\Support\CsrfHelper;
 use App\Support\Log;
 use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -39,28 +38,13 @@ class AuthController
 
     public function login(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array)($request->getParsedBody() ?? []);
+        $data = (array) ($request->getParsedBody() ?? []);
         $email = trim($data['email'] ?? '');
         $password = $data['password'] ?? '';
         $remember = !empty($data['remember']);
         $returnUrl = $this->sanitizeReturnUrl($data['return_url'] ?? null);
 
-        // Validate CSRF using helper - handles session expiry automatically
-        if ($error = CsrfHelper::validateRequest($request, $response, RouteTranslator::route('login'))) {
-            // Log CSRF failure for debugging (especially useful for mobile issues)
-            $token = CsrfHelper::extractToken($request);
-            $csrfValidation = Csrf::validateWithReason($token);
-            Log::security('login.csrf_failed', [
-                'email' => $email,
-                'reason' => $csrfValidation['reason'],
-                'token_received' => $token ? substr($token, 0, 10) . '...' : null,
-                'token_in_session' => isset($_SESSION['csrf_token']) ? substr($_SESSION['csrf_token'], 0, 10) . '...' : null,
-                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-                'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                'referer' => $_SERVER['HTTP_REFERER'] ?? 'unknown'
-            ]);
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         if ($email !== '' && $password !== '') {
             $stmt = $db->prepare("SELECT id, email, password, tipo_utente, email_verificata, stato, nome, cognome FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
@@ -72,14 +56,14 @@ class AuthController
 
             // Constant-time password verification to avoid leaking valid emails
             $dummyHash = '$2y$12$PXZb520pM93TmNGnoJy2TuhssLxu4XversvqtKZ4B7xrm0sAldZE6';
-            $hashToCheck = (string)($row['password'] ?? $dummyHash);
+            $hashToCheck = (string) ($row['password'] ?? $dummyHash);
 
             // Plugin hook: Custom login validation (e.g., reCAPTCHA, 2FA)
             $customValidation = \App\Support\Hooks::apply('login.validate', true, [$email, $request]);
 
             if (password_verify($password, $hashToCheck) && $row && $customValidation) {
                 // Allow login only if email verified and stato attivo
-                if (((int)($row['email_verificata'] ?? 0)) !== 1) {
+                if (((int) ($row['email_verificata'] ?? 0)) !== 1) {
                     Log::security('login.email_not_verified', [
                         'email' => $email,
                         'user_id' => $row['id'] ?? null,
@@ -114,7 +98,7 @@ class AuthController
                     'id' => $row['id'],
                     'email' => $row['email'],
                     'tipo_utente' => $row['tipo_utente'],
-                    'name' => trim(\App\Support\HtmlHelper::decode((string)($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string)($row['cognome'] ?? ''))),
+                    'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
                 ];
 
                 // Handle "Remember Me" functionality
@@ -187,7 +171,7 @@ class AuthController
         }
         session_destroy();
         return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
-}
+    }
 
     private function sanitizeReturnUrl(?string $url): ?string
     {

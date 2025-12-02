@@ -14,23 +14,23 @@ class LibriApiController
     public function list(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $draw = (int)($q['draw'] ?? 0);
-        $start = (int)($q['start'] ?? 0);
-        $length = (int)($q['length'] ?? 10);
-        $search_text = trim((string)($q['search_text'] ?? ''));
-        $search_isbn = trim((string)($q['search_isbn'] ?? ''));
-        $genere_id = (int)($q['genere_filter'] ?? 0);
-        $sottogenere_id = (int)($q['sottogenere_filter'] ?? 0);
-        $editore_id = (int)($q['editore_filter'] ?? 0);
-        $stato = trim((string)($q['stato_filter'] ?? ''));
-        $autore_id = (int)($q['autore_id'] ?? 0);
-        $acq_from = trim((string)($q['acq_from'] ?? ''));
-        $acq_to   = trim((string)($q['acq_to'] ?? ''));
-        $pub_from = trim((string)($q['pub_from'] ?? ''));
-        $pub_to   = trim((string)($q['pub_to'] ?? ''));
-        $posizione_id = (int)($q['posizione_id'] ?? 0);
-        $anno_from = trim((string)($q['anno_from'] ?? ''));
-        $anno_to = trim((string)($q['anno_to'] ?? ''));
+        $draw = (int) ($q['draw'] ?? 0);
+        $start = (int) ($q['start'] ?? 0);
+        $length = (int) ($q['length'] ?? 10);
+        $search_text = trim((string) ($q['search_text'] ?? ''));
+        $search_isbn = trim((string) ($q['search_isbn'] ?? ''));
+        $genere_id = (int) ($q['genere_filter'] ?? 0);
+        $sottogenere_id = (int) ($q['sottogenere_filter'] ?? 0);
+        $editore_id = (int) ($q['editore_filter'] ?? 0);
+        $stato = trim((string) ($q['stato_filter'] ?? ''));
+        $autore_id = (int) ($q['autore_id'] ?? 0);
+        $acq_from = trim((string) ($q['acq_from'] ?? ''));
+        $acq_to = trim((string) ($q['acq_to'] ?? ''));
+        $pub_from = trim((string) ($q['pub_from'] ?? ''));
+        $pub_to = trim((string) ($q['pub_to'] ?? ''));
+        $posizione_id = (int) ($q['posizione_id'] ?? 0);
+        $anno_from = trim((string) ($q['anno_from'] ?? ''));
+        $anno_to = trim((string) ($q['anno_to'] ?? ''));
 
         // Build WHERE clause with prepared statement parameters
         $where = 'WHERE 1=1 ';
@@ -112,12 +112,12 @@ class LibriApiController
         // Year range filters for anno_pubblicazione
         if ($anno_from !== '') {
             $where .= " AND l.anno_pubblicazione >= ?";
-            $params[] = (int)$anno_from;
+            $params[] = (int) $anno_from;
             $types .= 'i';
         }
         if ($anno_to !== '') {
             $where .= " AND l.anno_pubblicazione <= ?";
-            $params[] = (int)$anno_to;
+            $params[] = (int) $anno_to;
             $types .= 'i';
         }
 
@@ -129,10 +129,10 @@ class LibriApiController
             $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-        
+
         $total_stmt->execute();
         $total_res = $total_stmt->get_result();
-        $total = (int)($total_res->fetch_assoc()['c'] ?? 0);
+        $total = (int) ($total_res->fetch_assoc()['c'] ?? 0);
 
         // Use prepared statement for filtered count
         $count_sql = 'SELECT COUNT(*) AS c FROM libri l ' . $where;
@@ -142,13 +142,13 @@ class LibriApiController
             $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-        
+
         if (!empty($params)) {
             $count_stmt->bind_param($types, ...$params);
         }
         $count_stmt->execute();
         $filRes = $count_stmt->get_result();
-        $filtered = (int)($filRes->fetch_assoc()['c'] ?? 0);
+        $filtered = (int) ($filRes->fetch_assoc()['c'] ?? 0);
         $count_stmt->close();
 
         $orderAuthors = $this->hasTableColumn($db, 'libri_autori', 'ordine_credito') ? 'la.ordine_credito, a.nome' : 'a.nome';
@@ -203,7 +203,7 @@ class LibriApiController
             $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-        
+
         if (!empty($params)) {
             $stmt->bind_param($types, ...$params);
         }
@@ -223,11 +223,13 @@ class LibriApiController
                 $row['collocazione_nome'] = HtmlHelper::decode($row['collocazione_nome'] ?? 'N/D');
                 $row['posizione_scaffale'] = HtmlHelper::decode($row['posizione_scaffale'] ?? 'N/D');
                 $row['collocazione'] = HtmlHelper::decode($row['collocazione'] ?? '');
-                $row['posizione_progressiva_val'] = (int)($row['posizione_progressiva_val'] ?? 0);
+                $row['posizione_progressiva_val'] = (int) ($row['posizione_progressiva_val'] ?? 0);
 
                 // Ensure a valid cover URL is present (fallback to legacy 'copertina')
-                $cover = (string)($row['copertina_url'] ?? '');
-                if ($cover === '' && !empty($row['copertina'])) { $cover = (string)$row['copertina']; }
+                $cover = (string) ($row['copertina_url'] ?? '');
+                if ($cover === '' && !empty($row['copertina'])) {
+                    $cover = (string) $row['copertina'];
+                }
                 if ($cover !== '' && strpos($cover, '/') !== 0 && strpos($cover, 'uploads/') === 0) {
                     $cover = '/' . $cover; // normalize missing leading slash
                 }
@@ -241,7 +243,7 @@ class LibriApiController
 
                 // Format publication year if available
                 if (!empty($row['anno_pubblicazione'])) {
-                    $row['anno_pubblicazione_formatted'] = (string)$row['anno_pubblicazione'];
+                    $row['anno_pubblicazione_formatted'] = (string) $row['anno_pubblicazione'];
                 } else if (!empty($row['data_pubblicazione'])) {
                     $timestamp = strtotime($row['data_pubblicazione']);
                     if ($timestamp !== false) {
@@ -275,8 +277,8 @@ class LibriApiController
             'recordsFiltered' => $filtered,
             'data' => $data
         ];
-        AppLog::debug('libri.list.result', ['total'=>$total, 'filtered'=>$filtered, 'rows'=>count($data)]);
-        $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        AppLog::debug('libri.list.result', ['total' => $total, 'filtered' => $filtered, 'rows' => count($data)]);
+        $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -308,7 +310,7 @@ class LibriApiController
             $data[] = $row;
         }
 
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -339,7 +341,7 @@ class LibriApiController
             $data[] = $row;
         }
 
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -352,7 +354,9 @@ class LibriApiController
             if ($stmt) {
                 $stmt->execute();
                 $res = $stmt->get_result();
-                while ($r = $res->fetch_assoc()) { $this->colCache[$r['Field']] = true; }
+                while ($r = $res->fetch_assoc()) {
+                    $this->colCache[$r['Field']] = true;
+                }
                 $stmt->close();
             }
         }
@@ -364,8 +368,8 @@ class LibriApiController
      */
     public function byGenre(Request $request, Response $response, mysqli $db): Response
     {
-        $genreId = (int)($request->getQueryParams()['genre_id'] ?? 0);
-        $limit = min(20, (int)($request->getQueryParams()['limit'] ?? 15));
+        $genreId = (int) ($request->getQueryParams()['genre_id'] ?? 0);
+        $limit = min(20, (int) ($request->getQueryParams()['limit'] ?? 15));
 
         if ($genreId <= 0) {
             $response->getBody()->write(json_encode([
@@ -402,7 +406,7 @@ class LibriApiController
         $books = [];
         while ($row = $result->fetch_assoc()) {
             $books[] = [
-                'id' => (int)$row['id'],
+                'id' => (int) $row['id'],
                 'titolo' => $row['titolo'],
                 'sottotitolo' => $row['sottotitolo'],
                 'immagine_copertina' => $row['immagine_copertina'],
@@ -430,8 +434,10 @@ class LibriApiController
             $body = json_decode((string) $request->getBody(), true);
         }
 
+        // CSRF validated by CsrfMiddleware
+
         $ids = $body['ids'] ?? [];
-        $stato = trim((string)($body['stato'] ?? ''));
+        $stato = trim((string) ($body['stato'] ?? ''));
 
         // Validate input
         if (empty($ids) || !is_array($ids)) {
@@ -525,6 +531,8 @@ class LibriApiController
         if (!$body) {
             $body = json_decode((string) $request->getBody(), true);
         }
+
+        // CSRF validated by CsrfMiddleware
 
         $ids = $body['ids'] ?? [];
 
@@ -665,8 +673,19 @@ class LibriApiController
     private function hasTableColumn(mysqli $db, string $table, string $name): bool
     {
         // Whitelist di tabelle valide per prevenire SQL injection
-        $validTables = ['libri', 'autori', 'libri_autori', 'editori', 'generi',
-                        'utenti', 'prestiti', 'prenotazioni', 'posizioni', 'scaffali', 'mensole'];
+        $validTables = [
+            'libri',
+            'autori',
+            'libri_autori',
+            'editori',
+            'generi',
+            'utenti',
+            'prestiti',
+            'prenotazioni',
+            'posizioni',
+            'scaffali',
+            'mensole'
+        ];
 
         if (!in_array($table, $validTables, true)) {
             AppLog::warning('hasTableColumn.invalid_table', ['table' => $table]);

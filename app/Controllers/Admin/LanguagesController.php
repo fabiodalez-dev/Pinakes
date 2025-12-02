@@ -6,7 +6,6 @@ namespace App\Controllers\Admin;
 
 use App\Models\Language;
 use App\Models\SettingsRepository;
-use App\Support\CsrfHelper;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\I18n;
@@ -77,13 +76,10 @@ class LanguagesController
      */
     public function store(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        // CSRF validation
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages/create')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         $data = $request->getParsedBody() ?? [];
-        $data['code'] = I18n::normalizeLocaleCode((string)($data['code'] ?? ''));
+        $data['code'] = I18n::normalizeLocaleCode((string) ($data['code'] ?? ''));
         unset($data['translation_file']);
         $languageModel = new Language($db);
 
@@ -187,10 +183,7 @@ class LanguagesController
      */
     public function update(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        // CSRF validation
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
         if ($code === null) {
@@ -269,10 +262,7 @@ class LanguagesController
      */
     public function delete(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        // CSRF validation
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
         if ($code === null) {
@@ -311,10 +301,7 @@ class LanguagesController
      */
     public function toggleActive(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        // CSRF validation
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
         if ($code === null) {
@@ -346,10 +333,7 @@ class LanguagesController
      */
     public function setDefault(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        // CSRF validation
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
         if ($code === null) {
@@ -380,10 +364,7 @@ class LanguagesController
      */
     public function refreshStats(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        // CSRF validation
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         $languageModel = new Language($db);
         $languages = $languageModel->getAll();
@@ -392,7 +373,7 @@ class LanguagesController
         $errors = [];
 
         foreach ($languages as $lang) {
-            $code = I18n::normalizeLocaleCode((string)$lang['code']);
+            $code = I18n::normalizeLocaleCode((string) $lang['code']);
             if (!I18n::isValidLocaleCode($code)) {
                 continue;
             }
@@ -483,7 +464,7 @@ class LanguagesController
         $response = $response
             ->withHeader('Content-Type', 'application/json; charset=utf-8')
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
-            ->withHeader('Content-Length', (string)strlen($prettyJson))
+            ->withHeader('Content-Length', (string) strlen($prettyJson))
             ->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
             ->withHeader('Pragma', 'no-cache')
             ->withHeader('Expires', '0');
@@ -525,7 +506,7 @@ class LanguagesController
                 continue;
             }
 
-            $scalarValue = is_scalar($value) ? (string)$value : '';
+            $scalarValue = is_scalar($value) ? (string) $value : '';
             $scalarValue = trim($scalarValue);
             $scalarValue = strip_tags($scalarValue);
             $sanitized[$key] = $scalarValue;
@@ -700,10 +681,7 @@ class LanguagesController
      */
     public function updateRoutes(Request $request, Response $response, \mysqli $db, array $args): Response
     {
-        // CSRF validation
-        if ($error = CsrfHelper::validateRequest($request, $response, '/admin/languages')) {
-            return $error;
-        }
+        // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
         if ($code === null) {

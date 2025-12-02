@@ -6,8 +6,6 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Models\GenereRepository;
-use App\Support\Csrf;
-use App\Support\CsrfHelper;
 
 class GeneriController
 {
@@ -68,16 +66,13 @@ class GeneriController
     public function store(Request $request, Response $response, \mysqli $db): Response
     {
         $data = $request->getParsedBody();
-        if (!Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error_message'] = __('Sessione scaduta. Riprova.');
-            return $response->withHeader('Location', '/admin/generi/crea')->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
         $repo = new GenereRepository($db);
 
         try {
             $id = $repo->create([
-                'nome' => trim((string)($data['nome'] ?? '')),
-                'parent_id' => !empty($data['parent_id']) ? (int)$data['parent_id'] : null
+                'nome' => trim((string) ($data['nome'] ?? '')),
+                'parent_id' => !empty($data['parent_id']) ? (int) $data['parent_id'] : null
             ]);
 
             $_SESSION['success_message'] = __('Genere creato con successo!');
@@ -115,4 +110,3 @@ class GeneriController
         return $response;
     }
 }
-?>

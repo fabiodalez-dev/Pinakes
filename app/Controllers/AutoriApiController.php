@@ -13,19 +13,19 @@ class AutoriApiController
     public function list(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $draw = (int)($q['draw'] ?? 0);
-        $start = (int)($q['start'] ?? 0);
-        $length = (int)($q['length'] ?? 10);
+        $draw = (int) ($q['draw'] ?? 0);
+        $start = (int) ($q['start'] ?? 0);
+        $length = (int) ($q['length'] ?? 10);
 
-        $search_text = trim((string)($q['search_text'] ?? ''));
-        $search_nome = trim((string)($q['search_nome'] ?? ''));
-        $search_pseudonimo = trim((string)($q['search_pseudonimo'] ?? ''));
-        $search_sito = trim((string)($q['search_sito'] ?? ''));
-        $search_naz = trim((string)($q['search_nazionalita'] ?? ''));
-        $nascita_from = trim((string)($q['nascita_from'] ?? ''));
-        $nascita_to   = trim((string)($q['nascita_to'] ?? ''));
-        $morte_from = trim((string)($q['morte_from'] ?? ''));
-        $morte_to   = trim((string)($q['morte_to'] ?? ''));
+        $search_text = trim((string) ($q['search_text'] ?? ''));
+        $search_nome = trim((string) ($q['search_nome'] ?? ''));
+        $search_pseudonimo = trim((string) ($q['search_pseudonimo'] ?? ''));
+        $search_sito = trim((string) ($q['search_sito'] ?? ''));
+        $search_naz = trim((string) ($q['search_nazionalita'] ?? ''));
+        $nascita_from = trim((string) ($q['nascita_from'] ?? ''));
+        $nascita_to = trim((string) ($q['nascita_to'] ?? ''));
+        $morte_from = trim((string) ($q['morte_from'] ?? ''));
+        $morte_to = trim((string) ($q['morte_to'] ?? ''));
 
         // Se la tabella non esiste (database appena creato/backup parziale) restituiamo payload vuoto
         $tableCheck = $db->query("SHOW TABLES LIKE 'autori'");
@@ -114,7 +114,7 @@ class AutoriApiController
         $total_stmt->execute();
         $total_result = $total_stmt->get_result();
         $totalRow = $total_result->fetch_assoc();
-        $total = (int)($totalRow['c'] ?? 0);
+        $total = (int) ($totalRow['c'] ?? 0);
         $total_stmt->close();
 
         // Use prepared statement for filtered count to prevent SQL injection
@@ -125,13 +125,13 @@ class AutoriApiController
             $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-        
+
         if (!empty($params_for_where)) {
             $count_stmt->bind_param($param_types_for_where, ...$params_for_where);
         }
         $count_stmt->execute();
         $filRes = $count_stmt->get_result();
-        $filtered = (int)($filRes->fetch_assoc()['c'] ?? 0);
+        $filtered = (int) ($filRes->fetch_assoc()['c'] ?? 0);
 
         // Add WHERE clause parameters for main query
         $params = $params_for_where;
@@ -163,7 +163,9 @@ class AutoriApiController
         $res = $stmt->get_result();
         $data = [];
         if ($res) {
-            while ($row = $res->fetch_assoc()) { $data[] = $row; }
+            while ($row = $res->fetch_assoc()) {
+                $data[] = $row;
+            }
         }
         $payload = [
             'draw' => $draw,
@@ -171,7 +173,7 @@ class AutoriApiController
             'recordsFiltered' => $filtered,
             'data' => $data
         ];
-        AppLog::debug('autori.list.result', ['total'=>$total, 'filtered'=>$filtered, 'rows'=>count($data)]);
+        AppLog::debug('autori.list.result', ['total' => $total, 'filtered' => $filtered, 'rows' => count($data)]);
         $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json');
     }
@@ -224,6 +226,8 @@ class AutoriApiController
         if (!$body) {
             $body = json_decode((string) $request->getBody(), true);
         }
+
+        // CSRF validated by CsrfMiddleware
 
         $ids = $body['ids'] ?? [];
 
@@ -311,6 +315,8 @@ class AutoriApiController
         if (!$body) {
             $body = json_decode((string) $request->getBody(), true);
         }
+
+        // CSRF validated by CsrfMiddleware
 
         $ids = $body['ids'] ?? [];
 

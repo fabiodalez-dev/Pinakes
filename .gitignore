@@ -11,6 +11,7 @@
 .installed
 config.local.php
 config.local.sample.php
+CLAUDE.md
 
 # ========================================
 # CRITICAL: Database Backups & Archives
@@ -172,8 +173,10 @@ desktop.ini
 # ========================================
 # Development Documentation (not for distribution)
 # ========================================
-docs/*
-!docs/*.png
+# Exclude specific doc file types, but keep images (PNG)
+docs/*.md
+docs/*.txt
+docs/*.html
 security.md
 fix.md
 PRESTITI.md
@@ -274,12 +277,7 @@ releases/*.md
 # - installer/database/*.sql (installer data)
 # - cron/automatic-notifications.php (cron job)
 # - uploads/copertine/placeholder.jpg (default cover)
-docs/demini.md
-docs/email.MD
-docs/gpt.md
-docs/impostazioni_dettagliate.md
-docs/kimi.md
-docs/qwen.md
+# Note: docs/*.md, docs/*.txt, docs/*.html are explicitly ignored above; PNG images remain tracked
 models/config.json
 models/model.onnx
 models/special_tokens_map.json
@@ -332,6 +330,7 @@ vendor/slim/slim/CHANGELOG.md
 vendor/thepixeldeveloper/sitemap/CHANGELOG.md
 claude.md
 
+
 # Internal documentation
 FEATURES_IT.md
 .gemini/settings.json
@@ -340,3 +339,4 @@ UPDATER.md
 # Changelog files
 changelog-*.md
 PLAN-catalogue-mode.md
+

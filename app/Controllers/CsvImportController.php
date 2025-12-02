@@ -49,12 +49,9 @@ class CsvImportController
      */
     public function processImport(Request $request, Response $response, \mysqli $db): Response
     {
-        $data = (array)$request->getParsedBody();
+        $data = (array) $request->getParsedBody();
 
-        if (!\App\Support\Csrf::validate($data['csrf_token'] ?? null)) {
-            $_SESSION['error'] = __('Token CSRF non valido');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
-        }
+        // CSRF validated by CsrfMiddleware
 
         $uploadedFiles = $request->getUploadedFiles();
 
@@ -118,7 +115,7 @@ class CsvImportController
         ];
 
         $isAjax = !empty($request->getHeaderLine('X-Requested-With')) &&
-                  $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
+            $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
 
         try {
             $result = $this->importCsvData($tmpFile, $db, $enableScraping, $delimiter);
@@ -285,7 +282,7 @@ class CsvImportController
         $output .= implode(';', $headers) . "\n";
 
         foreach ($examples as $example) {
-            $output .= implode(';', array_map(function($field) {
+            $output .= implode(';', array_map(function ($field) {
                 // Prevent CSV injection by prefixing dangerous characters with a single quote
                 // Fix: escape the dash to avoid creating a character range that includes digits
                 if (preg_match('/^[=+\-@].*/', $field)) {
@@ -419,7 +416,7 @@ class CsvImportController
             }
 
             $data = array_combine($headers, $row);
-            
+
             // Sanitize data to prevent CSV injection
             $data = $this->sanitizeCsvData($data);
 
@@ -465,7 +462,8 @@ class CsvImportController
                     $authorOrder = 1;
 
                     foreach ($authors as $authorName) {
-                        if (empty($authorName)) continue;
+                        if (empty($authorName))
+                            continue;
 
                         $authorId = $this->getOrCreateAuthor($db, $authorName);
                         if ($authorId === 'created') {
@@ -554,7 +552,7 @@ class CsvImportController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            return (int)$row['id'];
+            return (int) $row['id'];
         }
 
         // Crea nuovo editore
@@ -576,7 +574,7 @@ class CsvImportController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            return (int)$row['id'];
+            return (int) $row['id'];
         }
 
         // Crea nuovo autore
@@ -592,7 +590,8 @@ class CsvImportController
      */
     private function getGenreId(\mysqli $db, string $name): ?int
     {
-        if (empty($name)) return null;
+        if (empty($name))
+            return null;
 
         $stmt = $db->prepare("SELECT id FROM generi WHERE nome = ? LIMIT 1");
         $stmt->bind_param('s', $name);
@@ -600,7 +599,7 @@ class CsvImportController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            return (int)$row['id'];
+            return (int) $row['id'];
         }
 
         return null;
@@ -619,13 +618,13 @@ class CsvImportController
         // Strategia 1: Cerca per ID
         if (!empty($data['id']) && is_numeric($data['id'])) {
             $stmt = $db->prepare("SELECT id FROM libri WHERE id = ? LIMIT 1");
-            $id = (int)$data['id'];
+            $id = (int) $data['id'];
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
                 $stmt->close();
-                return (int)$row['id'];
+                return (int) $row['id'];
             }
             $stmt->close();
         }
@@ -638,7 +637,7 @@ class CsvImportController
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
                 $stmt->close();
-                return (int)$row['id'];
+                return (int) $row['id'];
             }
             $stmt->close();
         }
@@ -651,7 +650,7 @@ class CsvImportController
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
                 $stmt->close();
-                return (int)$row['id'];
+                return (int) $row['id'];
             }
             $stmt->close();
         }
@@ -693,13 +692,13 @@ class CsvImportController
         $ean = !empty($data['ean']) ? $data['ean'] : null;
         $titolo = $data['titolo'];
         $sottotitolo = !empty($data['sottotitolo']) ? $data['sottotitolo'] : null;
-        $anno = !empty($data['anno_pubblicazione']) ? (int)$data['anno_pubblicazione'] : null;
+        $anno = !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null;
         $lingua = !empty($data['lingua']) ? $data['lingua'] : 'italiano';
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
-        $pagine = !empty($data['numero_pagine']) ? (int)$data['numero_pagine'] : null;
+        $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float)str_replace(',', '.', $data['prezzo']) : null;
+        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
@@ -707,10 +706,24 @@ class CsvImportController
 
         $stmt->bind_param(
             'sssssississdisssssi',
-            $isbn10, $isbn13, $ean, $titolo, $sottotitolo, $anno,
-            $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $formato, $prezzo,
-            $editorId, $collana, $numeroSerie, $traduttore, $paroleChiave,
+            $isbn10,
+            $isbn13,
+            $ean,
+            $titolo,
+            $sottotitolo,
+            $anno,
+            $lingua,
+            $edizione,
+            $pagine,
+            $genreId,
+            $descrizione,
+            $formato,
+            $prezzo,
+            $editorId,
+            $collana,
+            $numeroSerie,
+            $traduttore,
+            $paroleChiave,
             $bookId
         );
 
@@ -764,14 +777,14 @@ class CsvImportController
         $ean = !empty($data['ean']) ? $data['ean'] : null;
         $titolo = $data['titolo'];
         $sottotitolo = !empty($data['sottotitolo']) ? $data['sottotitolo'] : null;
-        $anno = !empty($data['anno_pubblicazione']) ? (int)$data['anno_pubblicazione'] : null;
+        $anno = !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null;
         $lingua = !empty($data['lingua']) ? $data['lingua'] : 'italiano';
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
-        $pagine = !empty($data['numero_pagine']) ? (int)$data['numero_pagine'] : null;
+        $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float)str_replace(',', '.', $data['prezzo']) : null;
-        $copie = !empty($data['copie_totali']) ? (int)$data['copie_totali'] : 1;
+        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null;
+        $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
         if ($copie < 1) {
             $copie = 1;
@@ -785,10 +798,26 @@ class CsvImportController
 
         $stmt->bind_param(
             'sssssississdiiisssss',
-            $isbn10, $isbn13, $ean, $titolo, $sottotitolo, $anno,
-            $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $formato, $prezzo, $copie, $copie,
-            $editorId, $collana, $numeroSerie, $traduttore, $paroleChiave
+            $isbn10,
+            $isbn13,
+            $ean,
+            $titolo,
+            $sottotitolo,
+            $anno,
+            $lingua,
+            $edizione,
+            $pagine,
+            $genreId,
+            $descrizione,
+            $formato,
+            $prezzo,
+            $copie,
+            $copie,
+            $editorId,
+            $collana,
+            $numeroSerie,
+            $traduttore,
+            $paroleChiave
         );
 
         $stmt->execute();
@@ -861,7 +890,7 @@ class CsvImportController
                 $response = $scrapeController->byIsbn($request, $response);
 
                 if ($response->getStatusCode() === 200) {
-                    $body = (string)$response->getBody();
+                    $body = (string) $response->getBody();
                     $data = json_decode($body, true);
                     return $data ?: [];
                 }
@@ -929,7 +958,7 @@ class CsvImportController
             $priceClean = str_replace(',', '.', $priceClean);
             if (is_numeric($priceClean)) {
                 $updates[] = 'prezzo = ?';
-                $params[] = (float)$priceClean;
+                $params[] = (float) $priceClean;
                 $types .= 'd';
             }
         }
@@ -939,7 +968,7 @@ class CsvImportController
             $pagesClean = preg_replace('/[^0-9]/', '', $scrapedData['pages']);
             if (is_numeric($pagesClean)) {
                 $updates[] = 'numero_pagine = ?';
-                $params[] = (int)$pagesClean;
+                $params[] = (int) $pagesClean;
                 $types .= 'i';
             }
         }
@@ -964,7 +993,8 @@ class CsvImportController
             $order = 1;
             foreach ($scrapedData['authors'] as $authorName) {
                 $authorName = trim($authorName);
-                if (empty($authorName)) continue;
+                if (empty($authorName))
+                    continue;
 
                 $authorId = $this->getOrCreateAuthor($db, $authorName);
                 if ($authorId === 'created') {

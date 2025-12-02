@@ -5,7 +5,6 @@ namespace App\Controllers;
 
 use App\Support\ThemeManager;
 use App\Support\ThemeColorizer;
-use App\Support\Csrf;
 use App\Support\HtmlHelper;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -93,16 +92,8 @@ class ThemeController
      */
     public function save(Request $request, Response $response, array $args): Response
     {
-        // CSRF validation
+        // CSRF validated by CsrfMiddleware
         $parsedBody = $request->getParsedBody();
-        $token = $parsedBody['csrf_token'] ?? '';
-
-        if (!Csrf::validateToken($token)) {
-            $_SESSION['error'] = __('Token CSRF non valido');
-            return $response
-                ->withHeader('Location', '/admin/themes')
-                ->withStatus(302);
-        }
 
         $themeId = (int)($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);

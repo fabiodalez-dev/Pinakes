@@ -58,6 +58,15 @@ $htmlLang = substr($currentLocale, 0, 2);
   // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
   do_action('assets.head');
   ?>
+
+  <style>
+    /* Mobile fixes */
+    @media (max-width: 1024px) {
+      #notifications-badge {
+        margin-top: 8px;
+      }
+    }
+  </style>
 </head>
 
 <body class="bg-gray-50 text-gray-900 antialiased">
@@ -109,7 +118,8 @@ $htmlLang = substr($currentLocale, 0, 2);
         <!-- Main Navigation -->
         <div class="space-y-1">
           <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            <?= __("Menu Principale") ?></div>
+            <?= __("Menu Principale") ?>
+          </div>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             href="/admin/dashboard">
@@ -172,17 +182,17 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <?php if (!$isCatalogueMode): ?>
-          <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/prestiti">
-            <div
-              class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
-              <i class="fas fa-handshake text-gray-600"></i>
-            </div>
-            <div class="ml-3">
-              <div class="font-medium"><?= __("Prestiti") ?></div>
-              <div class="text-xs text-gray-500"><?= __("Gestione prestiti") ?></div>
-            </div>
-          </a>
+            <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+              href="/admin/prestiti">
+              <div
+                class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+                <i class="fas fa-handshake text-gray-600"></i>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium"><?= __("Prestiti") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Gestione prestiti") ?></div>
+              </div>
+            </a>
           <?php endif; ?>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
@@ -264,7 +274,8 @@ $htmlLang = substr($currentLocale, 0, 2);
         <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
           <div class="pt-6 mt-6 border-t border-gray-200">
             <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              <?= __("Configurazione") ?></div>
+              <?= __("Configurazione") ?>
+            </div>
             <div class="space-y-1 mt-3">
               <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
                 href="/admin/settings">
@@ -310,27 +321,27 @@ $htmlLang = substr($currentLocale, 0, 2);
             </a>
 
             <?php if (!$isCatalogueMode): ?>
-            <a href="/prestiti/crea"
-              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                <i class="fas fa-handshake text-sm text-gray-600"></i>
-              </div>
-              <div class="ml-3">
-                <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
-              </div>
-            </a>
+              <a href="/prestiti/crea"
+                class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                  <i class="fas fa-handshake text-sm text-gray-600"></i>
+                </div>
+                <div class="ml-3">
+                  <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
+                </div>
+              </a>
 
-            <a href="/admin/loans/pending"
-              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                <i class="fas fa-clock text-sm text-gray-600"></i>
-              </div>
-              <div class="ml-3">
-                <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
-              </div>
-            </a>
+              <a href="/admin/loans/pending"
+                class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                  <i class="fas fa-clock text-sm text-gray-600"></i>
+                </div>
+                <div class="ml-3">
+                  <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
+                </div>
+              </a>
             <?php endif; ?>
 
             <a href="/admin/maintenance/integrity-report"
@@ -349,17 +360,18 @@ $htmlLang = substr($currentLocale, 0, 2);
         <!-- Statistics Section -->
         <div class="pt-6 mt-6 border-t border-gray-200">
           <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            <?= __("Statistiche Rapide") ?></div>
+            <?= __("Statistiche Rapide") ?>
+          </div>
           <div class="grid grid-cols-<?= $isCatalogueMode ? '1' : '2' ?> gap-3 mt-3">
             <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
               <div class="text-2xl font-bold text-gray-900" id="stats-books">-</div>
               <div class="text-xs text-gray-600 font-medium"><?= __("Libri") ?></div>
             </div>
             <?php if (!$isCatalogueMode): ?>
-            <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
-              <div class="text-2xl font-bold text-gray-900" id="stats-loans">-</div>
-              <div class="text-xs text-gray-600 font-medium"><?= __("Prestiti") ?></div>
-            </div>
+              <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
+                <div class="text-2xl font-bold text-gray-900" id="stats-loans">-</div>
+                <div class="text-xs text-gray-600 font-medium"><?= __("Prestiti") ?></div>
+              </div>
             <?php endif; ?>
           </div>
         </div>
@@ -399,8 +411,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <i class="fas fa-bars text-xl text-gray-600"></i>
               </button>
               <div class="flex items-center space-x-3">
-                <div
-                  class="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center shadow-sm">
+                <div class="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center">
                   <?php if ($appLogo !== ''): ?>
                     <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>"
                       class="w-9 h-9 object-contain">
@@ -411,7 +422,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <div class="hidden sm:block leading-tight">
                   <span class="font-bold text-base text-gray-900 block"><?php echo HtmlHelper::e($appName); ?></span>
                   <div class="text-[11px] font-semibold uppercase tracking-wide" style="color:#d70161;">
-                    <?= __("Library Management System") ?></div>
+                    <?= __("Library Management System") ?>
+                  </div>
                 </div>
               </div>
             </div>
@@ -465,10 +477,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                   <div class="text-xs text-gray-600"><?= __("Libri") ?></div>
                 </div>
                 <?php if (!$isCatalogueMode): ?>
-                <div class="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200">
-                  <div class="text-sm font-bold text-gray-900" id="header-loans-count">-</div>
-                  <div class="text-xs text-gray-600"><?= __("Prestiti") ?></div>
-                </div>
+                  <div class="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200">
+                    <div class="text-sm font-bold text-gray-900" id="header-loans-count">-</div>
+                    <div class="text-xs text-gray-600"><?= __("Prestiti") ?></div>
+                  </div>
                 <?php endif; ?>
               </div>
 

@@ -216,7 +216,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><?= __("Ordine:") ?> <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
-                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(__('<?= __("Eliminare questo scaffale? (Solo se vuoto)") ?>'));">
+                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questo scaffale? (Solo se vuoto)")) ?>);">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                             <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
@@ -253,7 +253,7 @@
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="md:col-span-2">
                   <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Scaffale *") ?></label>
-                  <select name="scaffale_id" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" required aria-required="true">
+                  <select name="scaffale_id" id="add-mensola-scaffale" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" required aria-required="true">
                     <option value=""><?= __("Seleziona...") ?></option>
                     <?php foreach ($scaffali as $s): ?>
                       <option value="<?php echo (int)$s['id']; ?>">
@@ -275,36 +275,55 @@
               </div>
             </form>
 
+            <!-- Scaffale Filter for Mensole List -->
+            <div class="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <label class="text-sm font-medium text-gray-700 mb-2 block">
+                <i class="fas fa-filter mr-1"></i>
+                <?= __("Filtra mensole per scaffale") ?>
+              </label>
+              <select id="filter-mensole-scaffale" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full md:w-auto md:min-w-[300px] focus:outline-none focus:ring-2 focus:ring-gray-400">
+                <option value=""><?= __("Seleziona uno scaffale per vedere le sue mensole...") ?></option>
+                <?php foreach ($scaffali as $s): ?>
+                  <option value="<?php echo (int)$s['id']; ?>" data-codice="<?php echo htmlspecialchars((string)($s['codice'] ?? '')); ?>">
+                    <?php echo htmlspecialchars('['.((string)($s['codice'] ?? '')).'] '.((string)($s['nome'] ?? ''))); ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+              <p class="text-xs text-gray-500 mt-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                <?= __("Seleziona uno scaffale per visualizzare e riordinare le sue mensole") ?>
+              </p>
+            </div>
+
             <!-- Sortable List -->
             <div class="border border-gray-200 rounded-lg">
               <ul id="list-mensole" class="divide-y divide-gray-200">
-                <?php if (empty($mensole)): ?>
-                  <li class="p-4 text-center text-gray-500 text-sm">
-                    <i class="fas fa-inbox mb-2 text-2xl"></i>
-                    <p><?= __("Nessuna mensola. Creane una per iniziare!") ?></p>
-                  </li>
-                <?php else: ?>
-                  <?php foreach ($mensole as $m): ?>
-                    <li class="p-4 hover:bg-gray-50 transition-colors cursor-move" data-id="<?php echo (int)$m['id']; ?>">
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                          <i class="fas fa-grip-vertical text-gray-400"></i>
-                          <div>
-                            <span class="inline-block px-2 py-1 bg-gray-700 text-white text-xs font-mono rounded"><?php echo htmlspecialchars((string)($m['scaffale_codice'] ?? '')); ?></span>
-                            <span class="text-gray-700 ml-2"><?= __("Livello") ?> <?php echo (int)$m['numero_livello']; ?></span>
-                          </div>
-                        </div>
-                        <div class="flex items-center gap-2">
-                          <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">ID: <?php echo (int)$m['id']; ?></span>
-                          <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(__('<?= __("Eliminare questa mensola? (Solo se vuota)") ?>'));">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
-                          </form>
+                <li class="p-4 text-center text-gray-500 text-sm" id="mensole-placeholder">
+                  <i class="fas fa-layer-group mb-2 text-2xl"></i>
+                  <p><?= __("Seleziona uno scaffale dal filtro sopra per gestire le sue mensole") ?></p>
+                </li>
+                <?php foreach ($mensole as $m): ?>
+                  <li class="p-4 hover:bg-gray-50 transition-colors cursor-move mensola-item hidden"
+                      data-id="<?php echo (int)$m['id']; ?>"
+                      data-scaffale-id="<?php echo (int)($m['scaffale_id'] ?? 0); ?>">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <i class="fas fa-grip-vertical text-gray-400"></i>
+                        <div>
+                          <span class="inline-block px-2 py-1 bg-gray-700 text-white text-xs font-mono rounded"><?php echo htmlspecialchars((string)($m['scaffale_codice'] ?? '')); ?></span>
+                          <span class="text-gray-700 ml-2"><?= __("Livello") ?> <?php echo (int)$m['numero_livello']; ?></span>
                         </div>
                       </div>
-                    </li>
-                  <?php endforeach; ?>
-                <?php endif; ?>
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mensola-order-label"><?= __("Ordine:") ?> <span class="order-value"><?php echo (int)($m['ordine'] ?? 0); ?></span></span>
+                        <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questa mensola? (Solo se vuota)")) ?>);">
+                          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+                          <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
+                        </form>
+                      </div>
+                    </div>
+                  </li>
+                <?php endforeach; ?>
               </ul>
             </div>
 
@@ -400,6 +419,10 @@ if (typeof window.__ === 'undefined') {
   };
 }
 
+// Pre-translated strings for JavaScript (avoids __() fallback issues)
+const noMensoleMessage = <?= json_encode(__('Nessuna mensola per questo scaffale. Creane una!')) ?>;
+const noBooksMessage = <?= json_encode(__('Nessun libro con collocazione trovato')) ?>;
+
 document.addEventListener('DOMContentLoaded', function() {
 
   // Update order labels after sorting
@@ -415,19 +438,28 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Send new order to server
-  async function sendOrder(type, ids) {
+  async function sendOrder(type, ids, scaffaleId = null) {
     try {
-      await fetch('/api/collocazione/sort', {
+      const payload = {
+        type,
+        ids,
+        csrf_token: '<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>'
+      };
+      // Include scaffale_id for mensole sorting (to ensure we only sort within that scaffale)
+      if (scaffaleId) {
+        payload.scaffale_id = scaffaleId;
+      }
+      const response = await fetch('/api/collocazione/sort', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          ids,
-          csrf_token: '<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>'
-        })
+        body: JSON.stringify(payload)
       });
+      if (!response.ok) {
+        throw new Error('Server returned ' + response.status);
+      }
     } catch (error) {
       console.error('Error updating order:', error);
+      alert(<?= json_encode(__("Errore nel salvataggio dell'ordine. Ricarica la pagina e riprova.")); ?>);
     }
   }
 
@@ -446,16 +478,108 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Initialize Sortable for Mensole
+  // Initialize Sortable for Mensole (after filtering)
   const mensoleList = document.getElementById('list-mensole');
-  if (mensoleList && window.Sortable) {
-    new Sortable(mensoleList, {
-      animation: 150,
-      handle: '.fa-grip-vertical',
-      ghostClass: 'bg-gray-100',
-      onEnd: function() {
-        const ids = Array.from(mensoleList.querySelectorAll('li[data-id]')).map(li => parseInt(li.dataset.id));
-        sendOrder('mensole', ids);
+  let mensoleSortable = null;
+  let currentMensoleScaffaleId = null;
+
+  // Store default placeholder HTML to restore when deselecting scaffale
+  const mensolePlaceholder = document.getElementById('mensole-placeholder');
+  const defaultMensolePlaceholderHtml = mensolePlaceholder ? mensolePlaceholder.innerHTML : '';
+
+  function initMensoleSortable() {
+    if (mensoleSortable) {
+      mensoleSortable.destroy();
+      mensoleSortable = null;
+    }
+    if (mensoleList && window.Sortable && currentMensoleScaffaleId) {
+      mensoleSortable = new Sortable(mensoleList, {
+        animation: 150,
+        handle: '.fa-grip-vertical',
+        ghostClass: 'bg-gray-100',
+        filter: '#mensole-placeholder, .hidden',
+        onEnd: function() {
+          // Only get visible mensole IDs (those belonging to selected scaffale)
+          const ids = Array.from(mensoleList.querySelectorAll('li.mensola-item:not(.hidden)')).map(li => parseInt(li.dataset.id));
+          sendOrder('mensole', ids, currentMensoleScaffaleId);
+          updateMensoleOrderLabels();
+        }
+      });
+    }
+  }
+
+  function updateMensoleOrderLabels() {
+    const visibleMensole = Array.from(mensoleList.querySelectorAll('li.mensola-item:not(.hidden)'));
+    visibleMensole.forEach((li, idx) => {
+      const orderLabel = li.querySelector('.order-value');
+      if (orderLabel) {
+        orderLabel.textContent = (idx + 1);
+      }
+    });
+  }
+
+  function filterMensoleByScaffale(scaffaleId) {
+    currentMensoleScaffaleId = scaffaleId ? parseInt(scaffaleId) : null;
+    const placeholder = document.getElementById('mensole-placeholder');
+    const allMensole = mensoleList.querySelectorAll('li.mensola-item');
+
+    if (!scaffaleId) {
+      // Show placeholder with default text, hide all mensole
+      if (placeholder) {
+        placeholder.innerHTML = defaultMensolePlaceholderHtml;
+        placeholder.classList.remove('hidden');
+      }
+      allMensole.forEach(li => li.classList.add('hidden'));
+      if (mensoleSortable) {
+        mensoleSortable.destroy();
+        mensoleSortable = null;
+      }
+      return;
+    }
+
+    // Hide placeholder
+    if (placeholder) placeholder.classList.add('hidden');
+
+    // Show only mensole for selected scaffale
+    let hasVisible = false;
+    allMensole.forEach(li => {
+      const liScaffaleId = parseInt(li.dataset.scaffaleId);
+      if (liScaffaleId === currentMensoleScaffaleId) {
+        li.classList.remove('hidden');
+        hasVisible = true;
+      } else {
+        li.classList.add('hidden');
+      }
+    });
+
+    // If no mensole for this scaffale, show a message
+    if (!hasVisible) {
+      if (placeholder) {
+        placeholder.innerHTML = '<i class="fas fa-inbox mb-2 text-2xl"></i><p>' + noMensoleMessage + '</p>';
+        placeholder.classList.remove('hidden');
+      }
+    }
+
+    // Re-initialize sortable
+    initMensoleSortable();
+    updateMensoleOrderLabels();
+  }
+
+  // Handle mensole filter change
+  const filterMensoleScaffale = document.getElementById('filter-mensole-scaffale');
+  if (filterMensoleScaffale) {
+    filterMensoleScaffale.addEventListener('change', function() {
+      filterMensoleByScaffale(this.value);
+    });
+  }
+
+  // Sync add form scaffale selection with filter
+  const addMensolaScaffale = document.getElementById('add-mensola-scaffale');
+  if (addMensolaScaffale && filterMensoleScaffale) {
+    addMensolaScaffale.addEventListener('change', function() {
+      if (this.value) {
+        filterMensoleScaffale.value = this.value;
+        filterMensoleByScaffale(this.value);
       }
     });
   }
@@ -480,29 +604,41 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // SECURITY: Escape HTML to prevent XSS
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
   function renderBooks(books) {
     const tbody = document.getElementById('collocation-tbody');
 
     if (books.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-inbox mr-2"></i>' + __('Nessun libro con collocazione trovato') + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500"><i class="fas fa-inbox mr-2"></i>' + noBooksMessage + '</td></tr>';
       return;
     }
 
-    tbody.innerHTML = books.map(book => `
-      <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3">
-          <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">${book.collocazione || '-'}</code>
-        </td>
-        <td class="px-4 py-3 text-gray-900 font-medium">${book.titolo}</td>
-        <td class="px-4 py-3 text-gray-700 text-xs">${book.autori || '-'}</td>
-        <td class="px-4 py-3 text-gray-600 text-xs">${book.editore || '-'}</td>
-        <td class="px-4 py-3 text-center">
-          <a href="/admin/libri/modifica/${book.id}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>">
-            <i class="fas fa-edit"></i>
-          </a>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = books.map(book => {
+      const bookId = parseInt(book.id, 10);
+      // Validate book ID to prevent invalid URLs
+      const editLink = Number.isFinite(bookId) && bookId > 0
+        ? `<a href="/admin/libri/modifica/${bookId}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>"><i class="fas fa-edit"></i></a>`
+        : '<span class="text-gray-400" title="ID non valido"><i class="fas fa-edit"></i></span>';
+
+      return `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3">
+            <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">${escapeHtml(book.collocazione) || '-'}</code>
+          </td>
+          <td class="px-4 py-3 text-gray-900 font-medium">${escapeHtml(book.titolo)}</td>
+          <td class="px-4 py-3 text-gray-700 text-xs">${escapeHtml(book.autori) || '-'}</td>
+          <td class="px-4 py-3 text-gray-600 text-xs">${escapeHtml(book.editore) || '-'}</td>
+          <td class="px-4 py-3 text-center">${editLink}</td>
+        </tr>
+      `;
+    }).join('');
   }
 
   function filterBooks() {

@@ -793,23 +793,6 @@
   --swal2-timer-progress-bar-background: rgba(255, 255, 255, 0.7);
 }
 
-@media (prefers-color-scheme: dark) {
-  [data-swal2-theme=auto] {
-    --swal2-dark-theme-black: #19191a;
-    --swal2-dark-theme-white: #e1e1e1;
-    --swal2-background: var(--swal2-dark-theme-black);
-    --swal2-color: var(--swal2-dark-theme-white);
-    --swal2-footer-border-color: #555;
-    --swal2-input-background: color-mix(in srgb, var(--swal2-dark-theme-black), var(--swal2-dark-theme-white) 10%);
-    --swal2-validation-message-background: color-mix(
-      in srgb,
-      var(--swal2-dark-theme-black),
-      var(--swal2-dark-theme-white) 10%
-    );
-    --swal2-validation-message-color: var(--swal2-dark-theme-white);
-    --swal2-timer-progress-bar-background: rgba(255, 255, 255, 0.7);
-  }
-}
 body.swal2-shown:not(.swal2-no-backdrop, .swal2-toast-shown) {
   overflow: hidden;
 }
@@ -2992,35 +2975,6 @@ select {
   }
 .form-input:hover {
     border-color: var(--color-gray-400);
-  }
-/* Dark mode support for form inputs */
-@media (prefers-color-scheme: dark) {
-    .form-input {
-      background-color: var(--color-gray-800);
-      border-color: var(--color-gray-600);
-      color: var(--color-gray-100);
-    }
-    
-    .form-input:focus {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 3px rgb(37 99 235 / 0.2);
-    }
-    
-    .form-input:hover {
-      border-color: var(--color-gray-500);
-    }
-  }
-[data-theme="dark"] .form-input {
-    background-color: var(--color-gray-800);
-    border-color: var(--color-gray-600);
-    color: var(--color-gray-100);
-  }
-[data-theme="dark"] .form-input:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.2);
-  }
-[data-theme="dark"] .form-input:hover {
-    border-color: var(--color-gray-500);
   }
 /* Form Label */
 .form-label {
@@ -5405,92 +5359,6 @@ table {
   }
 }
 
-/* === COMPREHENSIVE DARK MODE SUPPORT === */
-/* Dark mode for all button types */
-@media (prefers-color-scheme: dark) {
-  /* Primary button dark mode */
-  .btn-primary {
-    background: linear-gradient(135deg, #3b82f6 0%, var(--color-primary-light) 100%);
-  }
-  
-  .btn-primary:hover {
-    background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
-  }
-  
-  /* Secondary button dark mode */
-  .btn-secondary {
-    background-color: var(--color-gray-800);
-    border-color: var(--color-gray-600);
-    color: var(--color-gray-100);
-  }
-  
-  .btn-secondary:hover {
-    background-color: var(--color-gray-700);
-    border-color: var(--color-primary);
-    color: var(--color-gray-100);
-  }
-  
-  /* Danger button dark mode */
-  .btn-danger {
-    background: linear-gradient(135deg, #f87171 0%, var(--color-danger-dark) 100%);
-  }
-  
-  .btn-danger:hover {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  }
-  
-  /* Outline button dark mode */
-  .btn-outline {
-    background-color: transparent;
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
-  
-  .btn-outline:hover {
-    background-color: var(--color-primary);
-    color: white;
-  }
-}
-
-[data-theme="dark"] .btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, var(--color-primary-light) 100%);
-}
-
-[data-theme="dark"] .btn-primary:hover {
-  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
-}
-
-[data-theme="dark"] .btn-secondary {
-  background-color: var(--color-gray-800);
-  border-color: var(--color-gray-600);
-  color: var(--color-gray-100);
-}
-
-[data-theme="dark"] .btn-secondary:hover {
-  background-color: var(--color-gray-700);
-  border-color: var(--color-primary);
-  color: var(--color-gray-100);
-}
-
-[data-theme="dark"] .btn-danger {
-  background: linear-gradient(135deg, #f87171 0%, var(--color-danger-dark) 100%);
-}
-
-[data-theme="dark"] .btn-danger:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-}
-
-[data-theme="dark"] .btn-outline {
-  background-color: transparent;
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-[data-theme="dark"] .btn-outline:hover {
-  background-color: var(--color-primary);
-  color: white;
-}
-
 /* === CSS IMPORT ORDER VERIFICATION === */
 /* CSS is loaded in the following order (ensures proper cascade):
    1. Tailwind base styles
@@ -5515,10 +5383,6 @@ table {
  * UTILITIES:
  * .text-primary, .bg-primary, .border-primary - Color utilities
  * .fade-in, .slide-in-up, .pulse-subtle - Animation utilities
- *
- * DARK MODE:
- * All components support both @media (prefers-color-scheme: dark) and [data-theme="dark"]
- * for maximum compatibility and user preference respect.
  */
 
 /* === DATATABLES SELECT DROPDOWN FIX === */
@@ -5533,18 +5397,6 @@ div.dt-container select.dt-input {
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
   background-size: 12px;
-}
-
-/* Dark mode support for select dropdown arrow */
-@media (prefers-color-scheme: dark) {
-  div.dt-container select.dt-input {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 12 12%27%3E%3Cpath fill=%27%23d1d5db%27 d=%27M6 9L1 4h10z%27/%3E%3C/svg%3E");
-  }
-}
-
-html.dark div.dt-container select.dt-input,
-[data-theme="dark"] div.dt-container select.dt-input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 12 12%27%3E%3Cpath fill=%27%23d1d5db%27 d=%27M6 9L1 4h10z%27/%3E%3C/svg%3E");
 }
 
 /* === DATATABLES CONSISTENT PADDING === */

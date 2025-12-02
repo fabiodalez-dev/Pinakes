@@ -25,7 +25,7 @@ class NotificationsController
     public function getRecent(Request $request, Response $response): Response
     {
         $queryParams = $request->getQueryParams();
-        $limit = (int)($queryParams['limit'] ?? 10);
+        $limit = (int) ($queryParams['limit'] ?? 10);
         $unreadOnly = isset($queryParams['unread_only']) && $queryParams['unread_only'] === 'true';
 
         $notifications = $this->notificationService->getRecentNotifications($limit, $unreadOnly);
@@ -56,13 +56,9 @@ class NotificationsController
      */
     public function markAsRead(Request $request, Response $response, array $args): Response
     {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+        // CSRF validated by CsrfMiddleware
 
-        $id = (int)($args['id'] ?? 0);
+        $id = (int) ($args['id'] ?? 0);
 
         $success = $this->notificationService->markNotificationAsRead($id);
 
@@ -80,11 +76,7 @@ class NotificationsController
      */
     public function markAllAsRead(Request $request, Response $response): Response
     {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+        // CSRF validated by CsrfMiddleware
 
         $success = $this->notificationService->markAllNotificationsAsRead();
 
@@ -102,13 +94,9 @@ class NotificationsController
      */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $csrfToken = $request->getHeaderLine('X-CSRF-Token');
-        if (!\App\Support\Csrf::validate($csrfToken)) {
-            $response->getBody()->write(json_encode(['error' => __('Token CSRF non valido')]));
-            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
-        }
+        // CSRF validated by CsrfMiddleware
 
-        $id = (int)($args['id'] ?? 0);
+        $id = (int) ($args['id'] ?? 0);
 
         $success = $this->notificationService->deleteNotification($id);
 
