@@ -479,6 +479,10 @@ document.addEventListener('DOMContentLoaded', function() {
   let mensoleSortable = null;
   let currentMensoleScaffaleId = null;
 
+  // Store default placeholder HTML to restore when deselecting scaffale
+  const mensolePlaceholder = document.getElementById('mensole-placeholder');
+  const defaultMensolePlaceholderHtml = mensolePlaceholder ? mensolePlaceholder.innerHTML : '';
+
   function initMensoleSortable() {
     if (mensoleSortable) {
       mensoleSortable.destroy();
@@ -516,8 +520,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const allMensole = mensoleList.querySelectorAll('li.mensola-item');
 
     if (!scaffaleId) {
-      // Show placeholder, hide all mensole
-      if (placeholder) placeholder.classList.remove('hidden');
+      // Show placeholder with default text, hide all mensole
+      if (placeholder) {
+        placeholder.innerHTML = defaultMensolePlaceholderHtml;
+        placeholder.classList.remove('hidden');
+      }
       allMensole.forEach(li => li.classList.add('hidden'));
       if (mensoleSortable) {
         mensoleSortable.destroy();
@@ -609,21 +616,25 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    tbody.innerHTML = books.map(book => `
-      <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3">
-          <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">${escapeHtml(book.collocazione) || '-'}</code>
-        </td>
-        <td class="px-4 py-3 text-gray-900 font-medium">${escapeHtml(book.titolo)}</td>
-        <td class="px-4 py-3 text-gray-700 text-xs">${escapeHtml(book.autori) || '-'}</td>
-        <td class="px-4 py-3 text-gray-600 text-xs">${escapeHtml(book.editore) || '-'}</td>
-        <td class="px-4 py-3 text-center">
-          <a href="/admin/libri/modifica/${parseInt(book.id, 10)}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>">
-            <i class="fas fa-edit"></i>
-          </a>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = books.map(book => {
+      const bookId = parseInt(book.id, 10);
+      // Validate book ID to prevent invalid URLs
+      const editLink = Number.isFinite(bookId) && bookId > 0
+        ? `<a href="/admin/libri/modifica/${bookId}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>"><i class="fas fa-edit"></i></a>`
+        : '<span class="text-gray-400" title="ID non valido"><i class="fas fa-edit"></i></span>';
+
+      return `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3">
+            <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">${escapeHtml(book.collocazione) || '-'}</code>
+          </td>
+          <td class="px-4 py-3 text-gray-900 font-medium">${escapeHtml(book.titolo)}</td>
+          <td class="px-4 py-3 text-gray-700 text-xs">${escapeHtml(book.autori) || '-'}</td>
+          <td class="px-4 py-3 text-gray-600 text-xs">${escapeHtml(book.editore) || '-'}</td>
+          <td class="px-4 py-3 text-center">${editLink}</td>
+        </tr>
+      `;
+    }).join('');
   }
 
   function filterBooks() {
