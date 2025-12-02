@@ -17,9 +17,6 @@ class CollocazioneController
         $posizioni = $repo->getPosizioni();
 
         ob_start();
-        $scaffali = $scaffali;
-        $mensole = $mensole;
-        $posizioni = $posizioni;
         require __DIR__ . '/../Views/collocazione/index.php';
         $content = ob_get_clean();
 
