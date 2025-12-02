@@ -10,12 +10,46 @@ use mysqli;
 class CopyController
 {
     /**
+     * SECURITY: Validate and sanitize HTTP_REFERER to prevent open redirect
+     */
+    private function safeReferer(string $default = '/admin/libri'): string
+    {
+        $referer = $_SERVER['HTTP_REFERER'] ?? $default;
+
+        // Block CRLF injection
+        if (strpos($referer, "\r") !== false || strpos($referer, "\n") !== false) {
+            return $default;
+        }
+
+        // Allow relative internal URLs
+        if (str_starts_with($referer, '/') && !str_starts_with($referer, '//')) {
+            return $referer;
+        }
+
+        // For absolute URLs, only allow same host
+        $parsed = parse_url($referer);
+        if (!$parsed || empty($parsed['host'])) {
+            return $default;
+        }
+
+        $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+        if ($parsed['host'] === $currentHost) {
+            $path = $parsed['path'] ?? '/';
+            if (!empty($parsed['query'])) {
+                $path .= '?' . $parsed['query'];
+            }
+            return $path;
+        }
+
+        return $default;
+    }
+
+    /**
      * Aggiorna lo stato di una singola copia
      */
     public function updateCopy(Request $request, Response $response, mysqli $db, int $copyId): Response
     {
         $data = (array) $request->getParsedBody();
-
         // CSRF validated by CsrfMiddleware
 
         $stato = $data['stato'] ?? 'disponibile';
@@ -25,7 +59,7 @@ class CopyController
         $statiValidi = ['disponibile', 'prestato', 'manutenzione', 'danneggiato', 'perso'];
         if (!in_array($stato, $statiValidi)) {
             $_SESSION['error_message'] = __('Stato non valido.');
-            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+            return $response->withHeader('Location', $this->safeReferer('/admin/libri'))->withStatus(302);
         }
 
         // Recupera la copia per ottenere il libro_id
@@ -38,7 +72,7 @@ class CopyController
 
         if (!$copy) {
             $_SESSION['error_message'] = __('Copia non trovata.');
-            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+            return $response->withHeader('Location', $this->safeReferer('/admin/libri'))->withStatus(302);
         }
 
         $libroId = (int) $copy['libro_id'];
@@ -110,8 +144,6 @@ class CopyController
      */
     public function deleteCopy(Request $request, Response $response, mysqli $db, int $copyId): Response
     {
-        $data = (array) $request->getParsedBody();
-
         // CSRF validated by CsrfMiddleware
 
         // Recupera la copia per ottenere il libro_id e verificare lo stato
@@ -124,7 +156,7 @@ class CopyController
 
         if (!$copy) {
             $_SESSION['error_message'] = __('Copia non trovata.');
-            return $response->withHeader('Location', $_SERVER['HTTP_REFERER'] ?? '/admin/libri')->withStatus(302);
+            return $response->withHeader('Location', $this->safeReferer('/admin/libri'))->withStatus(302);
         }
 
         $libroId = (int) $copy['libro_id'];

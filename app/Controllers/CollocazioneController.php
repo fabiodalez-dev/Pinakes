@@ -219,7 +219,10 @@ class CollocazioneController
         }
 
         $position = null;
-        if ($existingPosition && (int) ($existingPosition['scaffale_id'] ?? 0) === $scaffaleId && (int) ($existingPosition['mensola_id'] ?? 0) === $mensolaId) {
+        // Check if existing position matches current scaffale/mensola
+        $matchesScaffale = $existingPosition && (int) ($existingPosition['scaffale_id'] ?? 0) === $scaffaleId;
+        $matchesMensola = $existingPosition && (int) ($existingPosition['mensola_id'] ?? 0) === $mensolaId;
+        if ($matchesScaffale && $matchesMensola) {
             $position = (int) ($existingPosition['posizione_progressiva'] ?? 0);
         }
 
@@ -248,8 +251,8 @@ class CollocazioneController
     public function getLibri(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $scaffaleId = isset($q['scaffale_id']) ? (int) $q['scaffale_id'] : 0;
-        $mensolaId = isset($q['mensola_id']) ? (int) $q['mensola_id'] : 0;
+        $scaffaleId = (int) ($q['scaffale_id'] ?? 0);
+        $mensolaId = (int) ($q['mensola_id'] ?? 0);
 
         $sql = "SELECT l.id, l.titolo, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
                        s.codice as scaffale_codice, m.numero_livello,
@@ -318,8 +321,8 @@ class CollocazioneController
     public function exportCSV(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
-        $scaffaleId = isset($q['scaffale_id']) ? (int) $q['scaffale_id'] : 0;
-        $mensolaId = isset($q['mensola_id']) ? (int) $q['mensola_id'] : 0;
+        $scaffaleId = (int) ($q['scaffale_id'] ?? 0);
+        $mensolaId = (int) ($q['mensola_id'] ?? 0);
 
         $sql = "SELECT l.id, l.titolo, COALESCE(l.isbn13, l.isbn10) as isbn, l.anno_pubblicazione,
                        s.codice as scaffale_codice, m.numero_livello, l.posizione_progressiva,

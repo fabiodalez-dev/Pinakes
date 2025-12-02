@@ -600,7 +600,6 @@ class SettingsController
 
     public function regenerateSitemap(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
@@ -744,7 +743,6 @@ class SettingsController
 
     public function toggleApiKey(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
         try {
@@ -762,7 +760,6 @@ class SettingsController
 
     public function deleteApiKey(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
         try {
