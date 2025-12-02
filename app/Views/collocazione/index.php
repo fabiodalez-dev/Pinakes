@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (error) {
       console.error('Error updating order:', error);
-      alert('<?= __("Errore nel salvataggio dell'ordine. Ricarica la pagina e riprova.") ?>');
+      alert(<?= json_encode(__("Errore nel salvataggio dell'ordine. Ricarica la pagina e riprova.")); ?>);
     }
   }
 
