@@ -69,7 +69,9 @@ class DeweyEditorPlugin
     {
         // Create backup directory
         if (!is_dir($this->backupDir)) {
-            mkdir($this->backupDir, 0755, true);
+            if (!mkdir($this->backupDir, 0755, true)) {
+                error_log("Dewey Editor: impossibile creare directory backup: {$this->backupDir}");
+            }
         }
     }
 
@@ -279,7 +281,9 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Errore nel caricamento del file.'), 400);
         }
 
-        $content = (string) $file->getStream();
+        $stream = $file->getStream();
+        $stream->rewind();
+        $content = $stream->getContents();
         $data = json_decode($content, true);
 
         if ($data === null) {
@@ -325,7 +329,9 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Errore nel caricamento del file.'), 400);
         }
 
-        $content = (string) $file->getStream();
+        $stream = $file->getStream();
+        $stream->rewind();
+        $content = $stream->getContents();
         $importData = json_decode($content, true);
 
         if ($importData === null) {
@@ -518,7 +524,10 @@ class DeweyEditorPlugin
     private function createBackup(string $locale): void
     {
         if (!is_dir($this->backupDir)) {
-            mkdir($this->backupDir, 0755, true);
+            if (!mkdir($this->backupDir, 0755, true)) {
+                error_log("Dewey Editor: impossibile creare directory backup: {$this->backupDir}");
+                return;
+            }
         }
 
         $sourcePath = $this->getJsonPath($locale);
@@ -528,7 +537,10 @@ class DeweyEditorPlugin
 
         $timestamp = date('Ymd_His');
         $backupPath = $this->backupDir . "/dewey_{$locale}_{$timestamp}.json";
-        copy($sourcePath, $backupPath);
+        if (!copy($sourcePath, $backupPath)) {
+            error_log("Dewey Editor: impossibile creare backup: {$backupPath}");
+            return;
+        }
 
         // Cleanup old backups
         $this->cleanupOldBackups($locale);
@@ -549,7 +561,9 @@ class DeweyEditorPlugin
         // Delete oldest backups
         $toDelete = array_slice($files, self::MAX_BACKUPS);
         foreach ($toDelete as $file) {
-            unlink($file);
+            if (!unlink($file)) {
+                error_log("Dewey Editor: impossibile eliminare vecchio backup: {$file}");
+            }
         }
     }
 

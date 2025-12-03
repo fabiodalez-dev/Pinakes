@@ -552,13 +552,25 @@ $pageTitle = __('Editor Classificazione Dewey');
             if (result.success) {
                 originalData = JSON.parse(JSON.stringify(deweyData));
                 hasChanges = false;
-                Swal.fire(<?= json_encode(__('Salvato')) ?>, result.message, 'success');
+                Swal.fire({
+                    icon: 'success',
+                    title: <?= json_encode(__('Salvato')) ?>,
+                    text: result.message
+                });
             } else {
-                Swal.fire(<?= json_encode(__('Errore')) ?>, result.error, 'error');
+                Swal.fire({
+                    icon: 'error',
+                    title: <?= json_encode(__('Errore')) ?>,
+                    text: result.error
+                });
             }
         } catch (error) {
             console.error('Save error:', error);
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Errore di connessione.')) ?>, 'error');
+            Swal.fire({
+                icon: 'error',
+                title: <?= json_encode(__('Errore')) ?>,
+                text: <?= json_encode(__('Errore di connessione.')) ?>
+            });
         }
 
         saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i><?= __('Salva Modifiche') ?>';
@@ -631,13 +643,17 @@ $pageTitle = __('Editor Classificazione Dewey');
             let html = '<div class="p-6"><h3 class="text-lg font-semibold mb-4"><?= __('Backup disponibili') ?></h3>';
             html += '<div class="space-y-2 max-h-64 overflow-y-auto">';
             result.backups.forEach(b => {
+                // Sanitize values for safe HTML insertion
+                const safeDate = escapeHtml(b.date);
+                const safeSize = escapeHtml((b.size / 1024).toFixed(1));
+                const safeFilename = encodeURIComponent(b.filename);
                 html += `<div class="flex items-center justify-between p-2 bg-gray-50 rounded">
                     <div>
-                        <div class="font-medium">${b.date}</div>
-                        <div class="text-xs text-gray-500">${(b.size / 1024).toFixed(1)} KB</div>
+                        <div class="font-medium">${safeDate}</div>
+                        <div class="text-xs text-gray-500">${safeSize} KB</div>
                     </div>
                     <button class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                            onclick="DeweyEditor.restoreBackup('${b.filename}')">
+                            onclick="DeweyEditor.restoreBackup(decodeURIComponent('${safeFilename}'))">
                         <?= __('Ripristina') ?>
                     </button>
                 </div>`;
