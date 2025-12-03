@@ -220,7 +220,7 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Locale non supportato.'), 400);
         }
 
-        $body = $request->getParsedBody();
+        $body = $this->getJsonBody($request);
         $data = $body['data'] ?? null;
 
         if (!$data) {
@@ -260,7 +260,7 @@ class DeweyEditorPlugin
 
     public function validateData(Request $request, Response $response): Response
     {
-        $body = $request->getParsedBody();
+        $body = $this->getJsonBody($request);
         $data = $body['data'] ?? null;
 
         if (!$data) {
@@ -521,7 +521,7 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Locale non supportato.'), 400);
         }
 
-        $body = $request->getParsedBody();
+        $body = $this->getJsonBody($request);
         $filename = $body['filename'] ?? null;
 
         if (!$filename || !preg_match('/^dewey_' . preg_quote($locale) . '_\d{8}_\d{6}\.json$/', $filename)) {
@@ -615,6 +615,28 @@ class DeweyEditorPlugin
             }
         }
         return $count;
+    }
+
+    /**
+     * Parse JSON body from request
+     * Slim 4 doesn't automatically parse JSON - need to do it manually
+     */
+    private function getJsonBody(Request $request): array
+    {
+        $contentType = $request->getHeaderLine('Content-Type');
+
+        // If JSON content type, parse manually
+        if (stripos($contentType, 'application/json') !== false) {
+            $body = $request->getBody();
+            $body->rewind();
+            $contents = $body->getContents();
+            $parsed = json_decode($contents, true);
+            return is_array($parsed) ? $parsed : [];
+        }
+
+        // Fallback to parsed body for form data
+        $parsed = $request->getParsedBody();
+        return is_array($parsed) ? $parsed : [];
     }
 
     private function jsonSuccess(Response $response, array $data): Response
