@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\DeweyAutoPopulator;
 
 class ScrapeController
 {
@@ -62,6 +63,9 @@ class ScrapeController
             // Hook: scrape.response - Modify final JSON response
             $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$cleanIsbn, $sources, ['timestamp' => time()]]);
 
+            // Auto-populate Dewey JSON if classification found (language-aware)
+            DeweyAutoPopulator::processBookData($payload);
+
             $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if ($json === false) {
                 $response->getBody()->write(json_encode([
@@ -86,6 +90,9 @@ class ScrapeController
         if ($fallbackData !== null) {
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);
+
+            // Auto-populate Dewey JSON if classification found (language-aware)
+            DeweyAutoPopulator::processBookData($fallbackData);
 
             $json = json_encode($fallbackData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if ($json === false) {

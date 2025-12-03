@@ -2899,7 +2899,28 @@
                                 "code": "335.4",
                                 "name": "Marxismo",
                                 "level": 4,
-                                "children": []
+                                "children": [
+                                    {
+                                        "code": "335.40",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "335.409",
+                                                "name": "",
+                                                "level": 6,
+                                                "children": [
+                                                    {
+                                                        "code": "335.4092",
+                                                        "name": "Sistemi Marxiani (Marxismo). Persone Collegate Con Il Soggetto",
+                                                        "level": 7,
+                                                        "children": []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -6542,7 +6563,14 @@
                         "code": "808.8",
                         "name": "Raccolte",
                         "level": 4,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "808.81",
+                                "name": "Raccolte Di Più Letterature. Poesia",
+                                "level": 5,
+                                "children": []
+                            }
+                        ]
                     }
                 ]
             },

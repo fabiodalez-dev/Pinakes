@@ -1089,7 +1089,7 @@ async function initializeDewey() {
           }
         }
       } catch (e) {
-        console.log('Dewey name not found, using code only');
+        // Silently fail - code will be set without name
       }
     }
 
@@ -1100,6 +1100,9 @@ async function initializeDewey() {
     chipContainer.style.display = 'block';
     manualInput.value = '';
   };
+
+  // Expose to global scope for scraping handler
+  window.setDeweyCode = setDeweyCode;
 
   // Rimuovi il codice Dewey corrente
   const clearDeweyCode = () => {
@@ -2864,6 +2867,23 @@ function initializeIsbnImport() {
                     }
                 }
             } catch (err) {
+            }
+
+            // Handle Dewey classification (classificazione_dewey) - from SBN or other sources
+            try {
+                if (data.classificazione_dewey) {
+                    if (typeof window.setDeweyCode === 'function') {
+                        await window.setDeweyCode(data.classificazione_dewey, null);
+                    } else {
+                        // Fallback if setDeweyCode not available
+                        const deweyHidden = document.getElementById('classificazione_dewey');
+                        if (deweyHidden) {
+                            deweyHidden.value = data.classificazione_dewey;
+                        }
+                    }
+                }
+            } catch (err) {
+                // Silently fail - Dewey is optional
             }
 
             // Data di acquisizione is not from scraping - it's when WE acquire the book

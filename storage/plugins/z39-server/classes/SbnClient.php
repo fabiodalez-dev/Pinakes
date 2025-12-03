@@ -313,6 +313,17 @@ class SbnClient
                 $books[$index]['language'] = $lang;
                 $books[$index]['lingua'] = $this->mapLanguageToCode($lang);
             }
+
+            // Dewey classification
+            if (empty($books[$index]['classificazione_dewey']) && !empty($fullRecord['classificazioneDewey'])) {
+                $deweyData = $this->extractDeweyData($fullRecord['classificazioneDewey']);
+                if ($deweyData && $deweyData['code']) {
+                    $books[$index]['classificazione_dewey'] = $deweyData['code'];
+                    if (!empty($deweyData['name'])) {
+                        $books[$index]['_dewey_name_sbn'] = $deweyData['name'];
+                    }
+                }
+            }
         }
 
         return $books;
@@ -399,6 +410,16 @@ class SbnClient
             $coverUrl = str_replace('/small/', '/medium/', $record['copertina']);
             $book['image'] = $coverUrl;
             $book['copertina_url'] = $coverUrl;
+        }
+
+        // Dewey Classification
+        $deweyData = $this->extractDeweyData($record['classificazioneDewey'] ?? '');
+        if ($deweyData && $deweyData['code']) {
+            $book['classificazione_dewey'] = $deweyData['code'];
+            // Pass raw name for auto-population (prefixed with _ to indicate internal use)
+            if (!empty($deweyData['name'])) {
+                $book['_dewey_name_sbn'] = $deweyData['name'];
+            }
         }
 
         // Source identification
@@ -577,6 +598,43 @@ class SbnClient
         }
 
         return empty($result) ? null : $result;
+    }
+
+    /**
+     * Extract Dewey classification code and name from SBN format
+     *
+     * @param string $deweyStr Format: "808.81 (12.) RACCOLTE DI PIU LETTERATURE. POESIA"
+     * @return array{code: string, name: string}|null Dewey data or null
+     */
+    private function extractDeweyData(string $deweyStr): ?array
+    {
+        if (empty($deweyStr)) {
+            return null;
+        }
+
+        // Extract code, optional edition, and name
+        // Format: "808.81 (12.) RACCOLTE DI PIU LETTERATURE. POESIA"
+        // Or: "808.81 RACCOLTE DI PIU LETTERATURE. POESIA"
+        if (preg_match('/^(\d{3}(?:\.\d+)?)\s*(?:\([^)]+\)\s*)?(.+)?$/u', $deweyStr, $match)) {
+            $code = $match[1];
+            $name = isset($match[2]) ? trim($match[2]) : null;
+
+            // Clean up the name - remove trailing dots, normalize case
+            if ($name) {
+                $name = rtrim($name, '. ');
+                // Convert from ALL CAPS to Title Case if needed
+                if ($name === mb_strtoupper($name, 'UTF-8')) {
+                    $name = mb_convert_case(mb_strtolower($name, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
+                }
+            }
+
+            return [
+                'code' => $code,
+                'name' => $name
+            ];
+        }
+
+        return null;
     }
 
     /**
