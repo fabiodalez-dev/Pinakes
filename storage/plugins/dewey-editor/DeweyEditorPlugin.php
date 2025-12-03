@@ -83,7 +83,7 @@ class DeweyEditorPlugin
     public function onActivate(): void
     {
         // Register routes
-        $this->hookManager->addAction('app.routes.register', [$this, 'registerRoutes']);
+        $this->hookManager->addHook('app.routes.register', [$this, 'registerRoutes']);
     }
 
     public function onDeactivate(): void
