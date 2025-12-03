@@ -81,14 +81,24 @@ $pageTitle = __('Editor Classificazione Dewey');
         </div>
     </div>
 
-    <!-- Tabs -->
+    <!-- Tabs - Dynamic based on installed languages -->
+    <?php
+    $availableLocales = \App\Support\I18n::getAvailableLocales();
+    $defaultLocale = array_key_first($availableLocales) ?: 'it_IT';
+    // Flag emoji mapping for common locales
+    $flagMap = [
+        'it_IT' => '🇮🇹', 'en_US' => '🇬🇧', 'en_GB' => '🇬🇧', 'fr_FR' => '🇫🇷',
+        'de_DE' => '🇩🇪', 'es_ES' => '🇪🇸', 'pt_PT' => '🇵🇹', 'pt_BR' => '🇧🇷',
+        'nl_NL' => '🇳🇱', 'pl_PL' => '🇵🇱', 'ru_RU' => '🇷🇺', 'zh_CN' => '🇨🇳',
+        'ja_JP' => '🇯🇵', 'ko_KR' => '🇰🇷', 'ar_SA' => '🇸🇦', 'he_IL' => '🇮🇱',
+    ];
+    ?>
     <div class="flex border-b border-gray-200 mb-6">
-        <button class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 tab-active" data-locale="it_IT">
-            <span class="mr-2">🇮🇹</span> Italiano
+        <?php $first = true; foreach ($availableLocales as $localeCode => $localeName): ?>
+        <button class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900<?= $first ? ' tab-active' : '' ?>" data-locale="<?= htmlspecialchars($localeCode) ?>">
+            <span class="mr-2"><?= $flagMap[$localeCode] ?? '🌐' ?></span> <?= htmlspecialchars($localeName) ?>
         </button>
-        <button class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900" data-locale="en_US">
-            <span class="mr-2">🇬🇧</span> English
-        </button>
+        <?php $first = false; endforeach; ?>
     </div>
 
     <!-- Stats -->
@@ -147,7 +157,7 @@ $pageTitle = __('Editor Classificazione Dewey');
     'use strict';
 
     const CSRF_TOKEN = <?= json_encode($csrfToken) ?>;
-    let currentLocale = 'it_IT';
+    let currentLocale = <?= json_encode($defaultLocale) ?>;
     let deweyData = null;
     let originalData = null;
     let hasChanges = false;
@@ -194,9 +204,33 @@ $pageTitle = __('Editor Classificazione Dewey');
             window.location.href = `/api/dewey-editor/export/${currentLocale}`;
         });
 
-        // Import
-        importBtn.addEventListener('click', () => importFile.click());
-        importFile.addEventListener('change', handleImport);
+        // Import - show mode selection dialog
+        let importMode = 'replace';
+        importBtn.addEventListener('click', async () => {
+            const { value: mode } = await Swal.fire({
+                title: <?= json_encode(__('Modalità di importazione')) ?>,
+                input: 'radio',
+                inputOptions: {
+                    'merge': <?= json_encode(__('Merge - Aggiungi e aggiorna (mantiene dati esistenti)')) ?>,
+                    'replace': <?= json_encode(__('Sostituisci - Sovrascrivi tutto')) ?>
+                },
+                inputValue: 'merge',
+                showCancelButton: true,
+                confirmButtonText: <?= json_encode(__('Seleziona file')) ?>,
+                cancelButtonText: <?= json_encode(__('Annulla')) ?>,
+                inputValidator: (value) => {
+                    if (!value) {
+                        return <?= json_encode(__('Seleziona una modalità')) ?>;
+                    }
+                }
+            });
+
+            if (mode) {
+                importMode = mode;
+                importFile.click();
+            }
+        });
+        importFile.addEventListener('change', () => handleImport(importMode));
 
         // Backups
         backupsBtn.addEventListener('click', showBackups);
@@ -531,7 +565,7 @@ $pageTitle = __('Editor Classificazione Dewey');
         saveBtn.disabled = !hasChanges;
     }
 
-    async function handleImport() {
+    async function handleImport(mode = 'replace') {
         const file = importFile.files[0];
         if (!file) return;
 
@@ -539,8 +573,13 @@ $pageTitle = __('Editor Classificazione Dewey');
         formData.append('file', file);
         formData.append('csrf_token', CSRF_TOKEN);
 
+        // Use merge endpoint if mode is merge, otherwise use import (replace)
+        const endpoint = mode === 'merge'
+            ? `/api/dewey-editor/merge/${currentLocale}`
+            : `/api/dewey-editor/import/${currentLocale}`;
+
         try {
-            const response = await fetch(`/api/dewey-editor/import/${currentLocale}`, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'X-CSRF-Token': CSRF_TOKEN },
                 body: formData
@@ -549,17 +588,27 @@ $pageTitle = __('Editor Classificazione Dewey');
             const result = await response.json();
 
             if (result.success) {
-                Swal.fire(<?= json_encode(__('Importato')) ?>, result.message, 'success');
+                const title = mode === 'merge'
+                    ? <?= json_encode(__('Merge completato')) ?>
+                    : <?= json_encode(__('Importato')) ?>;
+                Swal.fire(title, result.message, 'success');
                 loadData(currentLocale);
             } else {
-                let errorMsg = result.error;
-                if (result.errors && result.errors.length) {
-                    errorMsg += '<br><br>' + result.errors.slice(0, 5).join('<br>');
+                const lines = [];
+                if (result.error) {
+                    lines.push(result.error);
+                }
+                if (Array.isArray(result.errors) && result.errors.length) {
+                    lines.push(...result.errors.slice(0, 5));
                     if (result.errors.length > 5) {
-                        errorMsg += '<br>... e altri ' + (result.errors.length - 5) + ' errori';
+                        lines.push('... e altri ' + (result.errors.length - 5) + ' errori');
                     }
                 }
-                Swal.fire(<?= json_encode(__('Errore')) ?>, errorMsg, 'error');
+                Swal.fire({
+                    icon: 'error',
+                    title: <?= json_encode(__('Errore')) ?>,
+                    text: lines.join('\n')
+                });
             }
         } catch (error) {
             console.error('Import error:', error);

@@ -63,6 +63,7 @@ class DeweyValidator
 
         $code = $node['code'];
 
+        // Name must exist and have at least 2 characters
         if (!isset($node['name']) || !is_string($node['name']) || strlen(trim($node['name'])) < 2) {
             $this->errors[] = sprintf(__('Il codice %s ha un nome non valido (minimo 2 caratteri).'), $code);
         }
@@ -128,6 +129,18 @@ class DeweyValidator
             $childPrefix = substr($childCode, 0, 1);
             if ($parentPrefix === $childPrefix && strlen($childCode) === 3) {
                 return true;
+            }
+            // Allow decimal codes in same division range (e.g., 490 -> 491.7)
+            // Division codes end in 0 (X10, X20, etc.) and can contain any code X10-X19.999
+            if (preg_match('/^([0-9])[0-9]0$/', $parentCode, $matches)) {
+                $divisionPrefix = $matches[1];
+                // Child decimal code (e.g., 491.7) is valid if first digit matches division
+                if (preg_match(self::PATTERN_DECIMAL_CODE, $childCode)) {
+                    $childFirstDigit = substr($childCode, 0, 1);
+                    if ($childFirstDigit === $divisionPrefix) {
+                        return true;
+                    }
+                }
             }
         }
 

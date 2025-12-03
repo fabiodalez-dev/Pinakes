@@ -118,6 +118,15 @@ class DeweyApiController
             }
 
             $data = $this->loadDeweyData();
+
+            // Il nuovo formato non supporta questo endpoint legacy
+            if ($this->isNewFormat($data)) {
+                $response->getBody()->write(json_encode([
+                    'error' => __('Questo endpoint è supportato solo per il formato Dewey legacy. Usa /api/dewey/children.')
+                ], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $divisions = [];
 
             // Supporta sia la chiave italiana che quella inglese
@@ -166,6 +175,15 @@ class DeweyApiController
             }
 
             $data = $this->loadDeweyData();
+
+            // Il nuovo formato non supporta questo endpoint legacy
+            if ($this->isNewFormat($data)) {
+                $response->getBody()->write(json_encode([
+                    'error' => __('Questo endpoint è supportato solo per il formato Dewey legacy. Usa /api/dewey/children.')
+                ], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $specifics = [];
 
             // Supporta sia la chiave italiana che quella inglese
