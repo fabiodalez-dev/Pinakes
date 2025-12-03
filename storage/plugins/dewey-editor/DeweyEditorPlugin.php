@@ -82,13 +82,51 @@ class DeweyEditorPlugin
 
     public function onActivate(): void
     {
-        // Register routes
-        $this->hookManager->addHook('app.routes.register', [$this, 'registerRoutes']);
+        // Register hooks in database
+        $hooks = [
+            ['app.routes.register', 'registerRoutes', 10],
+        ];
+
+        // Delete existing hooks for this plugin
+        $this->deleteHooks();
+
+        foreach ($hooks as [$hookName, $method, $priority]) {
+            $stmt = $this->db->prepare(
+                "INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                 VALUES (?, ?, ?, ?, ?, 1, NOW())"
+            );
+
+            if ($stmt === false) {
+                error_log("[DeweyEditor] Failed to prepare statement: " . $this->db->error);
+                continue;
+            }
+
+            $callbackClass = 'DeweyEditorPlugin';
+            $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
+
+            if (!$stmt->execute()) {
+                error_log("[DeweyEditor] Failed to register hook {$hookName}: " . $stmt->error);
+            }
+
+            $stmt->close();
+        }
     }
 
     public function onDeactivate(): void
     {
-        // Nothing to clean up
+        $this->deleteHooks();
+    }
+
+    private function deleteHooks(): void
+    {
+        if ($this->pluginId) {
+            $stmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $this->pluginId);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
     }
 
     public function registerRoutes($app): void
