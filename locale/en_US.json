@@ -3309,5 +3309,8 @@
   "Formato codice non valido. Usa formato: 599 oppure 599.9 oppure 599.93": "Invalid code format. Use format: 599 or 599.9 or 599.93",
   "Questo endpoint è supportato solo per il formato Dewey legacy. Usa /api/dewey/children.": "This endpoint is only supported for the legacy Dewey format. Use /api/dewey/children.",
   "Errore nella lettura del backup.": "Error reading backup file.",
-  "Formato dati non valido.": "Invalid data format."
+  "Formato dati non valido.": "Invalid data format.",
+  "Errore nella lettura del file.": "Error reading file.",
+  "Errore nella lettura del file Dewey esistente.": "Error reading existing Dewey file.",
+  "File Dewey esistente non è un JSON valido o è corrotto.": "Existing Dewey file is not valid JSON or is corrupted."
 }

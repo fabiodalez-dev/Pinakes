@@ -274,9 +274,10 @@ $pageTitle = __('Editor Classificazione Dewey');
                 hasChanges = false;
                 saveBtn.disabled = true;
             } else {
+                const errorMsg = result.error || <?= json_encode(__('Errore nel caricamento.')) ?>;
                 treeContainer.innerHTML = `<div class="text-center text-red-500 py-8">
                     <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                    <p>${result.error || <?= json_encode(__('Errore nel caricamento.')) ?>}</p>
+                    <p>${escapeHtml(errorMsg)}</p>
                 </div>`;
             }
         } catch (error) {

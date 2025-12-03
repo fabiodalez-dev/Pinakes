@@ -82,6 +82,11 @@ class DeweyEditorPlugin
 
     public function onActivate(): void
     {
+        if ($this->pluginId === null) {
+            error_log('[DeweyEditor] pluginId non impostato, impossibile registrare i hook.');
+            return;
+        }
+
         // Register hooks in database
         $hooks = [
             ['app.routes.register', 'registerRoutes', 10],
@@ -119,7 +124,7 @@ class DeweyEditorPlugin
 
     private function deleteHooks(): void
     {
-        if ($this->pluginId) {
+        if ($this->pluginId !== null) {
             $stmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
             if ($stmt) {
                 $stmt->bind_param('i', $this->pluginId);
@@ -174,7 +179,7 @@ class DeweyEditorPlugin
         })->add($csrfMiddleware)->add($adminMiddleware);
     }
 
-    public function renderEditor(Request $request, Response $response): Response
+    public function renderEditor(Request $_request, Response $response): Response
     {
         $csrfToken = $_SESSION['csrf_token'] ?? '';
 
@@ -192,7 +197,7 @@ class DeweyEditorPlugin
         return $response->withHeader('Content-Type', 'text/html');
     }
 
-    public function getData(Request $request, Response $response, array $args): Response
+    public function getData(Request $_request, Response $response, array $args): Response
     {
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
@@ -274,6 +279,10 @@ class DeweyEditorPlugin
             }
         }
 
+        if (!is_array($data)) {
+            return $this->jsonError($response, __('Formato dati non valido.'), 400);
+        }
+
         $validator = new DeweyValidator();
         $errors = $validator->validate($data);
 
@@ -284,7 +293,7 @@ class DeweyEditorPlugin
         return $this->jsonSuccess($response, ['valid' => false, 'errors' => $errors]);
     }
 
-    public function exportData(Request $request, Response $response, array $args): Response
+    public function exportData(Request $_request, Response $response, array $args): Response
     {
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
@@ -297,6 +306,10 @@ class DeweyEditorPlugin
         }
 
         $content = file_get_contents($filePath);
+        if ($content === false) {
+            return $this->jsonError($response, __('Errore nella lettura del file.'), 500);
+        }
+
         $filename = "dewey_completo_{$locale}_" . date('Y-m-d_His') . '.json';
 
         $response->getBody()->write($content);
@@ -326,6 +339,10 @@ class DeweyEditorPlugin
 
         if ($data === null) {
             return $this->jsonError($response, __('JSON non valido.'), 400);
+        }
+
+        if (!is_array($data)) {
+            return $this->jsonError($response, __('Formato dati non valido.'), 400);
         }
 
         // Validate
@@ -376,13 +393,22 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('JSON non valido.'), 400);
         }
 
+        if (!is_array($importData)) {
+            return $this->jsonError($response, __('Formato dati non valido.'), 400);
+        }
+
         // Load existing data
         $filePath = $this->getJsonPath($locale);
         $existingData = [];
         if (file_exists($filePath)) {
             $existingContent = file_get_contents($filePath);
-            if ($existingContent !== false) {
-                $existingData = json_decode($existingContent, true) ?? [];
+            if ($existingContent === false) {
+                return $this->jsonError($response, __('Errore nella lettura del file Dewey esistente.'), 500);
+            }
+
+            $existingData = json_decode($existingContent, true);
+            if ($existingData === null || !is_array($existingData)) {
+                return $this->jsonError($response, __('File Dewey esistente non è un JSON valido o è corrotto.'), 500);
             }
         }
 
@@ -489,7 +515,7 @@ class DeweyEditorPlugin
         return $existing;
     }
 
-    public function listBackups(Request $request, Response $response, array $args): Response
+    public function listBackups(Request $_request, Response $response, array $args): Response
     {
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
@@ -497,7 +523,7 @@ class DeweyEditorPlugin
         }
 
         $pattern = $this->backupDir . "/dewey_{$locale}_*.json";
-        $files = glob($pattern);
+        $files = glob($pattern) ?: [];
         $backups = [];
 
         foreach ($files as $file) {
@@ -587,7 +613,7 @@ class DeweyEditorPlugin
     private function cleanupOldBackups(string $locale): void
     {
         $pattern = $this->backupDir . "/dewey_{$locale}_*.json";
-        $files = glob($pattern);
+        $files = glob($pattern) ?: [];
 
         if (count($files) <= self::MAX_BACKUPS) {
             return;
