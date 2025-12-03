@@ -115,6 +115,15 @@ storage/plugins/digital-library/*
 !storage/plugins/digital-library/migrations/
 !storage/plugins/digital-library/migrations/*.php
 !storage/plugins/digital-library/migrations/*.sql
+!storage/plugins/dewey-editor/
+storage/plugins/dewey-editor/*
+!storage/plugins/dewey-editor/*.php
+!storage/plugins/dewey-editor/*.json
+!storage/plugins/dewey-editor/*.md
+!storage/plugins/dewey-editor/classes/
+!storage/plugins/dewey-editor/classes/*.php
+!storage/plugins/dewey-editor/views/
+!storage/plugins/dewey-editor/views/*.php
 
 # Cache & Temp
 cache/*
