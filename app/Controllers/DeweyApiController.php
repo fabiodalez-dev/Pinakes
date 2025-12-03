@@ -58,7 +58,7 @@ class DeweyApiController
     private function isNewFormat(array $data): bool
     {
         // Il nuovo formato è un array diretto, non un oggetto con chiave
-        return isset($data[0]['code']) && isset($data[0]['level']) && isset($data[0]['children']);
+        return !empty($data) && isset($data[0]['code']) && isset($data[0]['level']) && isset($data[0]['children']);
     }
 
     public function getCategories(Request $request, Response $response): Response
@@ -238,7 +238,11 @@ class DeweyApiController
                 } else {
                     // Cerca il nodo parent e ritorna i suoi figli
                     $parent = $this->findNodeByCode($data, $parentCode);
-                    if ($parent && isset($parent['children'])) {
+                    if ($parent === null) {
+                        $response->getBody()->write(json_encode(['error' => __('Codice parent non trovato.')], JSON_UNESCAPED_UNICODE));
+                        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+                    }
+                    if (isset($parent['children'])) {
                         foreach ($parent['children'] as $child) {
                             $children[] = [
                                 'code' => $child['code'],
@@ -311,6 +315,10 @@ class DeweyApiController
                         'has_children' => !empty($node['children'])
                     ];
                 }
+            } else {
+                // Per il vecchio formato, fai fallback ai vecchi endpoint
+                $response->getBody()->write(json_encode(['error' => __('Usa gli endpoint specifici per il formato legacy.')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
             if ($result) {

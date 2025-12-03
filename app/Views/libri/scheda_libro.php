@@ -400,8 +400,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 <span id="dewey_name_display" class="text-sm text-gray-600 italic ml-2"></span>
                 <script>
                 (async function() {
+                  const displayEl = document.getElementById('dewey_name_display');
                   const code = <?php echo json_encode($libro['classificazione_dowey'] ?? ''); ?>;
-                  if (!code) return;
+                  if (!displayEl || !code) return;
 
                   // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
                   const parts = code.split('-');
@@ -421,10 +422,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     const response = await fetch(`/api/dewey/search?code=${encodeURIComponent(finalCode)}`, {
                       credentials: 'same-origin'
                     });
+                    if (!response.ok) return;
                     const result = await response.json();
 
                     if (result && result.name) {
-                      document.getElementById('dewey_name_display').textContent = `— ${result.name}`;
+                      displayEl.textContent = `— ${result.name}`;
                     } else {
                       // Non trovato, cerca parent
                       const parentCode = getParentCode(finalCode);
@@ -432,10 +434,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                         const parentResponse = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
                           credentials: 'same-origin'
                         });
+                        if (!parentResponse.ok) return;
                         const parentResult = await parentResponse.json();
 
                         if (parentResult && parentResult.name) {
-                          document.getElementById('dewey_name_display').textContent = `— ${parentResult.name} > ${finalCode}`;
+                          displayEl.textContent = `— ${parentResult.name} > ${finalCode}`;
                         }
                       }
                     }

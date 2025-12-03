@@ -1067,9 +1067,10 @@ async function initializeDewey() {
     // Se non abbiamo il nome, prova a cercarlo
     if (!currentDeweyName) {
       try {
-        const result = await fetch(`/api/dewey/search?code=${encodeURIComponent(code)}`, {
+        const response = await fetch(`/api/dewey/search?code=${encodeURIComponent(code)}`, {
           credentials: 'same-origin'
-        }).then(r => r.json());
+        });
+        const result = response.ok ? await response.json() : null;
 
         if (result && result.name) {
           currentDeweyName = result.name;
@@ -1077,9 +1078,10 @@ async function initializeDewey() {
           // Non trovato, cerca il parent
           const parentCode = getParentCode(code);
           if (parentCode) {
-            const parentResult = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
+            const parentResponse = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
               credentials: 'same-origin'
-            }).then(r => r.json());
+            });
+            const parentResult = parentResponse.ok ? await parentResponse.json() : null;
 
             if (parentResult && parentResult.name) {
               currentDeweyName = `${parentResult.name} > ${code}`;
@@ -1120,12 +1122,19 @@ async function initializeDewey() {
     const code = manualInput.value.trim();
 
     if (!code) {
-      alert(__('<?= __("Inserisci un codice Dewey") ?>'));
+      Toast.fire({
+        icon: 'warning',
+        title: __('<?= __("Inserisci un codice Dewey") ?>')
+      });
       return;
     }
 
     if (!validateDeweyCode(code)) {
-      alert(__('<?= __("Formato codice non valido. Usa formato: 599 oppure 599.9 oppure 599.93") ?>'));
+      Toast.fire({
+        icon: 'error',
+        title: __('<?= __("Formato codice non valido") ?>'),
+        text: __('<?= __("Usa formato: 599 oppure 599.9 oppure 599.93") ?>')
+      });
       return;
     }
 
@@ -1152,9 +1161,14 @@ async function initializeDewey() {
         ? `/api/dewey/children?parent_code=${encodeURIComponent(parentCode)}`
         : '/api/dewey/children';
 
-      const items = await fetch(url, { credentials: 'same-origin' }).then(r => r.json());
+      const response = await fetch(url, { credentials: 'same-origin' });
+      if (!response.ok) {
+        console.error('Dewey children API error:', response.status);
+        return null;
+      }
+      const items = await response.json();
 
-      if (!items || items.length === 0) return;
+      if (!Array.isArray(items) || items.length === 0) return null;
 
       // Rimuovi tutti i select dopo questo livello
       while (container.children.length > levelIndex) {
