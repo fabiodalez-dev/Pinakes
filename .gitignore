@@ -12,6 +12,7 @@
 config.local.php
 config.local.sample.php
 CLAUDE.md
+.claude/
 
 # ========================================
 # CRITICAL: Database Backups & Archives
@@ -215,7 +216,9 @@ dist/
 build/
 frontend/dist/
 frontend/build/
+frontend/storage/
 public/assets/*.map
+public/assets/*.LICENSE.txt
 
 # ========================================
 # PHPUnit & Tests
@@ -359,5 +362,3 @@ docs/reference/build.md
 docs/reference/backup-instructions.md
 docs/reference/app-documentation.md
 docs/reference/agents.md
-DEWEY_FIX_PLAN.md
-.claude/.dirty-files

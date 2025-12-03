@@ -1222,17 +1222,97 @@ async function initializeDewey() {
     }
   };
 
+  // Calcola il percorso gerarchico per un codice Dewey
+  // es. "133.5" → ["100", "130", "133", "133.5"]
+  const getCodePath = (code) => {
+    const path = [];
+
+    // Prima parte: classe principale (X00)
+    const mainClass = code.substring(0, 1) + '00';
+    path.push(mainClass);
+
+    // Se il codice è solo la classe principale, restituisci
+    if (code === mainClass) return path;
+
+    // Seconda parte: divisione (XX0) se diversa dalla classe
+    const division = code.substring(0, 2) + '0';
+    if (division !== mainClass) {
+      path.push(division);
+    }
+
+    // Terza parte: sezione (XXX) se non è una divisione
+    const intPart = code.split('.')[0];
+    if (intPart.length === 3 && intPart !== division && intPart !== mainClass) {
+      path.push(intPart);
+    }
+
+    // Parti decimali (XXX.X, XXX.XX, etc.)
+    if (code.includes('.')) {
+      const [base, decimal] = code.split('.');
+      // Aggiungi la parte intera se non già presente
+      if (!path.includes(base)) {
+        path.push(base);
+      }
+      // Aggiungi ogni livello decimale
+      for (let i = 1; i <= decimal.length; i++) {
+        const partial = base + '.' + decimal.substring(0, i);
+        path.push(partial);
+      }
+    }
+
+    return path;
+  };
+
+  // Naviga ai dropdown fino al codice specificato
+  const navigateToCode = async (targetCode) => {
+    const path = getCodePath(targetCode);
+
+    // Per ogni codice nel percorso, carica il livello e seleziona
+    for (let i = 0; i < path.length; i++) {
+      const code = path[i];
+      const parentCode = i === 0 ? null : path[i - 1];
+
+      // Assicurati che il dropdown per questo livello esista
+      if (container.children.length <= i) {
+        await loadLevel(parentCode, i);
+      }
+
+      // Trova e seleziona l'opzione nel dropdown
+      const select = container.children[i]?.querySelector('select');
+      if (select) {
+        // Cerca l'opzione con questo codice
+        const option = Array.from(select.options).find(opt => opt.value === code);
+        if (option) {
+          select.value = code;
+
+          // Se ha figli e non è l'ultimo nel percorso, carica il prossimo livello
+          const hasChildren = option.dataset.hasChildren === 'true';
+          const isLast = i === path.length - 1;
+
+          if (hasChildren && !isLast) {
+            await loadLevel(code, i + 1);
+          } else if (isLast) {
+            // Ultimo elemento: aggiorna breadcrumb e chip
+            breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span class="text-gray-500">${code}</span>`;
+            await setDeweyCode(code, option.dataset.name);
+          }
+        }
+      }
+    }
+  };
+
   // Carica primo livello (classi principali)
   await loadLevel(null, 0);
 
-  // Carica valore iniziale se presente
+  // Carica valore iniziale se presente e naviga fino ad esso
   const initialCode = (INITIAL_BOOK.classificazione_dowey || '').trim();
   if (initialCode) {
     // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
     const parts = initialCode.split('-');
     const finalCode = parts.length > 1 ? parts[parts.length - 1] : initialCode;
 
-    await setDeweyCode(finalCode);
+    // Naviga ai dropdown fino al codice
+    await navigateToCode(finalCode);
   }
 }
 

@@ -4,13 +4,13 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
-    'disponibile' => 'inline-flex items-center gap-2 rounded-full border border-green-400/40 bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-200',
-    'prestato'    => 'inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200',
-    'in_ritardo'  => 'inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200',
-    'danneggiato' => 'inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200',
-    'perso'       => 'inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200',
+    'disponibile' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-green-500 text-white',
+    'prestato'    => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-red-500 text-white',
+    'in_ritardo'  => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-amber-500 text-white',
+    'danneggiato' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-orange-500 text-white',
+    'perso'       => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-gray-700 text-white',
 ];
-$statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/60 px-3 py-1 text-xs font-semibold text-slate-200';
+$statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-slate-500 text-white';
 
 $btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700';
 $btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';

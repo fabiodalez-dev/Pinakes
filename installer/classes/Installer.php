@@ -1172,7 +1172,7 @@ HTACCESS;
 
     /**
      * Register and activate default plugins
-     * Plugins: open-library, z39-server, api-book-scraper, digital-library
+     * Plugins: open-library, z39-server, api-book-scraper, digital-library, dewey-editor
      * Excluded: scraping-pro (commercial/proprietary)
      */
     public function installPluginsFromZip() {
@@ -1284,6 +1284,9 @@ HTACCESS;
         ]);
         $installPlugin('api-book-scraper');
         $installPlugin('digital-library', [
+            ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
+        ]);
+        $installPlugin('dewey-editor', [
             ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
         ]);
 
