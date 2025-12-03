@@ -340,3 +340,24 @@ UPDATER.md
 changelog-*.md
 PLAN-catalogue-mode.md
 
+hackernews.md
+docs/reference/bug-gemini.md
+docs/reference/analisi-sicurezza.md
+scripts/generate_dewey_json.py
+docs/reference/start-server.md
+docs/reference/security-audit-report.md
+docs/reference/routes-to-add.md
+docs/reference/recensioni-sistema.md
+docs/reference/README.md
+docs/reference/guida.md
+docs/reference/gemini.md
+docs/reference/dewey.md
+docs/reference/development.md
+docs/reference/database-config.md
+docs/reference/data-consistency-fix.md
+docs/reference/build.md
+docs/reference/backup-instructions.md
+docs/reference/app-documentation.md
+docs/reference/agents.md
+DEWEY_FIX_PLAN.md
+.claude/.dirty-files

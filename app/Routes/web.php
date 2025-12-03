@@ -1447,6 +1447,9 @@ return function (App $app): void {
     $app->get('/api/dewey/categories', [DeweyApiController::class, 'getCategories'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/divisions', [DeweyApiController::class, 'getDivisions'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/specifics', [DeweyApiController::class, 'getSpecifics'])->add(new AdminAuthMiddleware());
+    // Nuovi endpoint per formato completo con decimali (fino a livello 7)
+    $app->get('/api/dewey/children', [DeweyApiController::class, 'getChildren'])->add(new AdminAuthMiddleware());
+    $app->get('/api/dewey/search', [DeweyApiController::class, 'search'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
     $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
     $app->get('/api/dewey/counts', function ($request, $response) use ($app) {

@@ -395,7 +395,56 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <div class="sm:col-span-2">
               <dt class="text-xs uppercase text-gray-500"><?= __("Classificazione Dewey") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dowey'] ?? ''); ?></dd>
+              <dd class="text-gray-900 font-medium">
+                <span class="font-mono"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dowey'] ?? ''); ?></span>
+                <span id="dewey_name_display" class="text-sm text-gray-600 italic ml-2"></span>
+                <script>
+                (async function() {
+                  const code = <?php echo json_encode($libro['classificazione_dowey'] ?? ''); ?>;
+                  if (!code) return;
+
+                  // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
+                  const parts = code.split('-');
+                  const finalCode = parts.length > 1 ? parts[parts.length - 1] : code;
+
+                  // Funzione per ottenere il parent code
+                  const getParentCode = (c) => {
+                    if (!c.includes('.')) return null;
+                    const p = c.split('.');
+                    const intPart = p[0];
+                    const decPart = p[1];
+                    if (decPart.length === 1) return intPart;
+                    return `${intPart}.${decPart.substring(0, decPart.length - 1)}`;
+                  };
+
+                  try {
+                    const response = await fetch(`/api/dewey/search?code=${encodeURIComponent(finalCode)}`, {
+                      credentials: 'same-origin'
+                    });
+                    const result = await response.json();
+
+                    if (result && result.name) {
+                      document.getElementById('dewey_name_display').textContent = `— ${result.name}`;
+                    } else {
+                      // Non trovato, cerca parent
+                      const parentCode = getParentCode(finalCode);
+                      if (parentCode) {
+                        const parentResponse = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
+                          credentials: 'same-origin'
+                        });
+                        const parentResult = await parentResponse.json();
+
+                        if (parentResult && parentResult.name) {
+                          document.getElementById('dewey_name_display').textContent = `— ${parentResult.name} > ${finalCode}`;
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Dewey name fetch error:', e);
+                  }
+                })();
+                </script>
+              </dd>
             </div>
             <?php 
               $scCod = (string)($libro['scaffale_codice'] ?? '');

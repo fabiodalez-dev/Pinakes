@@ -9,1007 +9,1007 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Modalità solo catalogo - disabilita prestiti, prenotazioni e wishlist');
 
-INSERT INTO `classificazione` VALUES (369,NULL,'000','000 - Informatica, informazione e opere generali',1);
-INSERT INTO `classificazione` VALUES (370,NULL,'100','100 - Filosofia e psicologia',1);
-INSERT INTO `classificazione` VALUES (371,NULL,'200','200 - Religione',1);
-INSERT INTO `classificazione` VALUES (372,NULL,'300','300 - Scienze sociali',1);
-INSERT INTO `classificazione` VALUES (373,NULL,'400','400 - Linguaggio',1);
-INSERT INTO `classificazione` VALUES (374,NULL,'500','500 - Scienze naturali e matematica',1);
-INSERT INTO `classificazione` VALUES (375,NULL,'600','600 - Tecnologia (scienze applicate)',1);
-INSERT INTO `classificazione` VALUES (376,NULL,'700','700 - Arti e ricreazione',1);
-INSERT INTO `classificazione` VALUES (377,NULL,'800','800 - Letteratura, retorica e critica',1);
-INSERT INTO `classificazione` VALUES (378,NULL,'900','900 - Storia, geografia e discipline ausiliarie',1);
-INSERT INTO `classificazione` VALUES (379,369,'000','000 - Informatica, conoscenza e sistemi',2);
-INSERT INTO `classificazione` VALUES (380,369,'010','010 - Bibliografie',2);
-INSERT INTO `classificazione` VALUES (381,369,'020','020 - Biblioteconomia e scienze dell\'informazione',2);
-INSERT INTO `classificazione` VALUES (382,369,'030','030 - Enciclopedie e libri di fatti',2);
-INSERT INTO `classificazione` VALUES (383,369,'040','040 - Non assegnato — in precedenza Biografie',2);
-INSERT INTO `classificazione` VALUES (384,369,'050','050 - Riviste, giornali e pubblicazioni seriali',2);
-INSERT INTO `classificazione` VALUES (385,369,'060','060 - Associazioni, organizzazioni e musei',2);
-INSERT INTO `classificazione` VALUES (386,369,'070','070 - Mezzi di informazione, giornalismo ed editoria',2);
-INSERT INTO `classificazione` VALUES (387,369,'080','080 - Citazioni',2);
-INSERT INTO `classificazione` VALUES (388,369,'090','090 - Manoscritti e libri rari',2);
-INSERT INTO `classificazione` VALUES (389,370,'100','100 - Filosofia',2);
-INSERT INTO `classificazione` VALUES (390,370,'110','110 - Metafisica',2);
-INSERT INTO `classificazione` VALUES (391,370,'120','120 - Epistemologia, causalità e genere umano',2);
-INSERT INTO `classificazione` VALUES (392,370,'130','130 - Parapsicologia e occultismo',2);
-INSERT INTO `classificazione` VALUES (393,370,'140','140 - Scuole di pensiero filosofiche',2);
-INSERT INTO `classificazione` VALUES (394,370,'150','150 - Psicologia',2);
-INSERT INTO `classificazione` VALUES (395,370,'160','160 - Logica filosofica',2);
-INSERT INTO `classificazione` VALUES (396,370,'170','170 - Etica (filosofia morale)',2);
-INSERT INTO `classificazione` VALUES (397,370,'180','180 - Filosofia antica, medievale e orientale',2);
-INSERT INTO `classificazione` VALUES (398,370,'190','190 - Filosofia occidentale moderna e altra filosofia non orientale',2);
-INSERT INTO `classificazione` VALUES (399,371,'200','200 - Religione',2);
-INSERT INTO `classificazione` VALUES (400,371,'210','210 - Filosofia e teoria della religione',2);
-INSERT INTO `classificazione` VALUES (401,371,'220','220 - La Bibbia',2);
-INSERT INTO `classificazione` VALUES (402,371,'230','230 - Cristianesimo',2);
-INSERT INTO `classificazione` VALUES (403,371,'240','240 - Teologia morale e devozionale cristiana',2);
-INSERT INTO `classificazione` VALUES (404,371,'250','250 - Chiesa cristiana locale e ordini religiosi cristiani',2);
-INSERT INTO `classificazione` VALUES (405,371,'260','260 - Teologia sociale ed ecclesiastica cristiana',2);
-INSERT INTO `classificazione` VALUES (406,371,'270','270 - Storia, trattamento geografico, biografia del Cristianesimo',2);
-INSERT INTO `classificazione` VALUES (407,371,'280','280 - Denominazioni e sette della Chiesa cristiana',2);
-INSERT INTO `classificazione` VALUES (408,371,'290','290 - Altre religioni',2);
-INSERT INTO `classificazione` VALUES (409,372,'300','300 - Scienze sociali, sociologia e antropologia',2);
-INSERT INTO `classificazione` VALUES (410,372,'310','310 - Statistica',2);
-INSERT INTO `classificazione` VALUES (411,372,'320','320 - Scienza politica (politica e governo)',2);
-INSERT INTO `classificazione` VALUES (412,372,'330','330 - Economia',2);
-INSERT INTO `classificazione` VALUES (413,372,'340','340 - Diritto',2);
-INSERT INTO `classificazione` VALUES (414,372,'350','350 - Amministrazione pubblica e scienza militare',2);
-INSERT INTO `classificazione` VALUES (415,372,'360','360 - Problemi e servizi sociali; associazioni',2);
-INSERT INTO `classificazione` VALUES (416,372,'370','370 - Educazione',2);
-INSERT INTO `classificazione` VALUES (417,372,'380','380 - Commercio, comunicazioni, trasporti',2);
-INSERT INTO `classificazione` VALUES (418,372,'390','390 - Usi e costumi, galateo, folclore',2);
-INSERT INTO `classificazione` VALUES (419,373,'400','400 - Linguaggio',2);
-INSERT INTO `classificazione` VALUES (420,373,'410','410 - Linguistica',2);
-INSERT INTO `classificazione` VALUES (421,373,'420','420 - Inglese e antico inglese (anglosassone)',2);
-INSERT INTO `classificazione` VALUES (422,373,'430','430 - Lingue germaniche e correlate',2);
-INSERT INTO `classificazione` VALUES (423,373,'440','440 - Francese e lingue romanze correlate',2);
-INSERT INTO `classificazione` VALUES (424,373,'450','450 - Italiano, dalmatico, romeno, retoromanzo, sardo, corso',2);
-INSERT INTO `classificazione` VALUES (425,373,'460','460 - Spagnolo, portoghese, galiziano',2);
-INSERT INTO `classificazione` VALUES (426,373,'470','470 - Latino e lingue italiche correlate',2);
-INSERT INTO `classificazione` VALUES (427,373,'480','480 - Greco classico e lingue elleniche correlate',2);
-INSERT INTO `classificazione` VALUES (428,373,'490','490 - Altre lingue',2);
-INSERT INTO `classificazione` VALUES (429,374,'500','500 - Scienza',2);
-INSERT INTO `classificazione` VALUES (430,374,'510','510 - Matematica',2);
-INSERT INTO `classificazione` VALUES (431,374,'520','520 - Astronomia e scienze affini',2);
-INSERT INTO `classificazione` VALUES (432,374,'530','530 - Fisica',2);
-INSERT INTO `classificazione` VALUES (433,374,'540','540 - Chimica e scienze affini',2);
-INSERT INTO `classificazione` VALUES (434,374,'550','550 - Scienze della Terra e geologia',2);
-INSERT INTO `classificazione` VALUES (435,374,'560','560 - Fossili e vita preistorica',2);
-INSERT INTO `classificazione` VALUES (436,374,'570','570 - Biologia',2);
-INSERT INTO `classificazione` VALUES (437,374,'580','580 - Piante',2);
-INSERT INTO `classificazione` VALUES (438,374,'590','590 - Animali (Zoologia)',2);
-INSERT INTO `classificazione` VALUES (439,375,'600','600 - Tecnologia',2);
-INSERT INTO `classificazione` VALUES (440,375,'610','610 - Medicina e salute',2);
-INSERT INTO `classificazione` VALUES (441,375,'620','620 - Ingegneria e operazioni applicate',2);
-INSERT INTO `classificazione` VALUES (442,375,'630','630 - Agricoltura e tecnologie correlate',2);
-INSERT INTO `classificazione` VALUES (443,375,'640','640 - Economia domestica e familiare',2);
-INSERT INTO `classificazione` VALUES (444,375,'650','650 - Gestione e servizi ausiliari',2);
-INSERT INTO `classificazione` VALUES (445,375,'660','660 - Ingegneria chimica e tecnologie correlate',2);
-INSERT INTO `classificazione` VALUES (446,375,'670','670 - Manifattura',2);
-INSERT INTO `classificazione` VALUES (447,375,'680','680 - Fabbricazione di prodotti for usi specifici',2);
-INSERT INTO `classificazione` VALUES (448,375,'690','690 - Costruzione di edifici',2);
-INSERT INTO `classificazione` VALUES (449,376,'700','700 - Le arti',2);
-INSERT INTO `classificazione` VALUES (450,376,'710','710 - Pianificazione territoriale e architettura del paesaggio',2);
-INSERT INTO `classificazione` VALUES (451,376,'720','720 - Architettura',2);
-INSERT INTO `classificazione` VALUES (452,376,'730','730 - Scultura e arti correlate',2);
-INSERT INTO `classificazione` VALUES (453,376,'740','740 - Arti grafiche',2);
-INSERT INTO `classificazione` VALUES (454,376,'750','750 - Pittura e dipinti',2);
-INSERT INTO `classificazione` VALUES (455,376,'760','760 - Incisione e stampe',2);
-INSERT INTO `classificazione` VALUES (456,376,'770','770 - Fotografia, computer art, cinematografia, videografia',2);
-INSERT INTO `classificazione` VALUES (457,376,'780','780 - Musica',2);
-INSERT INTO `classificazione` VALUES (458,376,'790','790 - Arti ricreative e dello spettacolo',2);
-INSERT INTO `classificazione` VALUES (459,377,'800','800 - Letteratura (Belles-lettres) e retorica',2);
-INSERT INTO `classificazione` VALUES (460,377,'810','810 - Letteratura americana in inglese',2);
-INSERT INTO `classificazione` VALUES (461,377,'820','820 - Letterature inglese e antico inglese (anglosassone)',2);
-INSERT INTO `classificazione` VALUES (462,377,'830','830 - Letteratura tedesca e letterature di lingue correlate',2);
-INSERT INTO `classificazione` VALUES (463,377,'840','840 - Letteratura francese e letterature di lingue romanze correlate',2);
-INSERT INTO `classificazione` VALUES (464,377,'850','850 - Letterature delle lingue italiana, dalmatica, romena, retoromanza, sarda, corsa',2);
-INSERT INTO `classificazione` VALUES (465,377,'860','860 - Letterature delle lingue spagnola, portoghese, galiziana',2);
-INSERT INTO `classificazione` VALUES (466,377,'870','870 - Letteratura latina e letterature di lingue italiche correlate',2);
-INSERT INTO `classificazione` VALUES (467,377,'880','880 - Letteratura greca classica e letterature di lingue elleniche correlate',2);
-INSERT INTO `classificazione` VALUES (468,377,'890','890 - Letterature di altre lingue e famiglie linguistiche specifiche',2);
-INSERT INTO `classificazione` VALUES (469,378,'900','900 - Storia',2);
-INSERT INTO `classificazione` VALUES (470,378,'910','910 - Geografia e viaggi',2);
-INSERT INTO `classificazione` VALUES (471,378,'920','920 - Biografia, genealogia, insegne',2);
-INSERT INTO `classificazione` VALUES (472,378,'930','930 - Storia del mondo antico fino al 499 circa',2);
-INSERT INTO `classificazione` VALUES (473,378,'940','940 - Storia d\'Europa',2);
-INSERT INTO `classificazione` VALUES (474,378,'950','950 - Storia dell\'Asia',2);
-INSERT INTO `classificazione` VALUES (475,378,'960','960 - Storia dell\'Africa',2);
-INSERT INTO `classificazione` VALUES (476,378,'970','970 - Storia del Nord America',2);
-INSERT INTO `classificazione` VALUES (477,378,'980','980 - Storia del Sud America',2);
-INSERT INTO `classificazione` VALUES (478,378,'990','990 - Storia di Australasia, isole dell\'Oceano Pacifico, isole dell\'Oceano Atlantico, isole artiche, Antartide, mondi extraterrestri',2);
-INSERT INTO `classificazione` VALUES (479,379,'001','001 - Conoscenza',3);
-INSERT INTO `classificazione` VALUES (480,379,'002','002 - Il libro (scrittura, biblioteche e argomenti correlati)',3);
-INSERT INTO `classificazione` VALUES (481,379,'003','003 - Sistemi',3);
-INSERT INTO `classificazione` VALUES (482,379,'004','004 - Elaborazione dati e informatica',3);
-INSERT INTO `classificazione` VALUES (483,379,'005','005 - Programmazione, programmi e dati informatici',3);
-INSERT INTO `classificazione` VALUES (484,379,'006','006 - Metodi informatici speciali (ad es. IA, multimedia, VR)',3);
-INSERT INTO `classificazione` VALUES (485,379,'007','007 - [Non assegnato]',3);
-INSERT INTO `classificazione` VALUES (486,379,'008','008 - [Non assegnato]',3);
-INSERT INTO `classificazione` VALUES (487,379,'009','009 - [Non assegnato]',3);
-INSERT INTO `classificazione` VALUES (488,380,'011','011 - Bibliografie',3);
-INSERT INTO `classificazione` VALUES (489,380,'012','012 - Bibliografie di individui',3);
-INSERT INTO `classificazione` VALUES (490,380,'013','013 - [Non assegnato]',3);
-INSERT INTO `classificazione` VALUES (491,380,'014','014 - Bibliografie di opere anonime e pseudonime',3);
-INSERT INTO `classificazione` VALUES (492,380,'015','015 - Bibliografie di opere di luoghi specifici',3);
-INSERT INTO `classificazione` VALUES (493,380,'016','016 - Bibliografie di opere su soggetti specifici',3);
-INSERT INTO `classificazione` VALUES (494,380,'017','017 - Cataloghi sistematici generali',3);
-INSERT INTO `classificazione` VALUES (495,380,'018','018 - Cataloghi per autore, data, ecc. [spostato a 017]',3);
-INSERT INTO `classificazione` VALUES (496,380,'019','019 - Cataloghi dizionario [spostato a 017]',3);
-INSERT INTO `classificazione` VALUES (497,381,'021','021 - Relazioni della biblioteca (con archivi, centri di informazione, ecc.)',3);
-INSERT INTO `classificazione` VALUES (498,381,'022','022 - Amministrazione della struttura fisica',3);
-INSERT INTO `classificazione` VALUES (499,381,'023','023 - Gestione del personale',3);
-INSERT INTO `classificazione` VALUES (500,381,'024','024 - [Non assegnato]',3);
-INSERT INTO `classificazione` VALUES (501,381,'025','025 - Attività bibliotecarie',3);
-INSERT INTO `classificazione` VALUES (502,381,'026','026 - Biblioteche per soggetti specifici',3);
-INSERT INTO `classificazione` VALUES (503,381,'027','027 - Biblioteche generali',3);
-INSERT INTO `classificazione` VALUES (504,381,'028','028 - Lettura e uso di altri mezzi di informazione',3);
-INSERT INTO `classificazione` VALUES (505,381,'029','029 - [Non assegnato]',3);
-INSERT INTO `classificazione` VALUES (506,382,'031','031 - Enciclopedie in inglese americano',3);
-INSERT INTO `classificazione` VALUES (507,382,'032','032 - Enciclopedie in inglese',3);
-INSERT INTO `classificazione` VALUES (508,382,'033','033 - Enciclopedie in altre lingue germaniche',3);
-INSERT INTO `classificazione` VALUES (509,382,'034','034 - Enciclopedie in francese, occitano e catalano',3);
-INSERT INTO `classificazione` VALUES (510,382,'035','035 - Enciclopedie in italiano, romeno e lingue correlate',3);
-INSERT INTO `classificazione` VALUES (511,382,'036','036 - Enciclopedie in spagnolo e portoghese',3);
-INSERT INTO `classificazione` VALUES (512,382,'037','037 - Enciclopedie in lingue slave',3);
-INSERT INTO `classificazione` VALUES (513,382,'038','038 - Enciclopedie in lingue scandinave',3);
-INSERT INTO `classificazione` VALUES (514,382,'039','039 - Enciclopedie in altre lingue',3);
-INSERT INTO `classificazione` VALUES (515,384,'051','051 - Pubblicazioni seriali in inglese americano',3);
-INSERT INTO `classificazione` VALUES (516,384,'052','052 - Pubblicazioni seriali in inglese',3);
-INSERT INTO `classificazione` VALUES (517,384,'053','053 - Pubblicazioni seriali in altre lingue germaniche',3);
-INSERT INTO `classificazione` VALUES (518,384,'054','054 - Pubblicazioni seriali in francese, occitano e catalano',3);
-INSERT INTO `classificazione` VALUES (519,384,'055','055 - Pubblicazioni seriali in italiano, romeno e lingue correlate',3);
-INSERT INTO `classificazione` VALUES (520,384,'056','056 - Pubblicazioni seriali in spagnolo e portoghese',3);
-INSERT INTO `classificazione` VALUES (521,384,'057','057 - Pubblicazioni seriali in lingue slave',3);
-INSERT INTO `classificazione` VALUES (522,384,'058','058 - Pubblicazioni seriali in lingue scandinave',3);
-INSERT INTO `classificazione` VALUES (523,384,'059','059 - Pubblicazioni seriali in altre lingue',3);
-INSERT INTO `classificazione` VALUES (524,385,'061','061 - Organizzazioni in Nord America',3);
-INSERT INTO `classificazione` VALUES (525,385,'062','062 - Organizzazioni nelle Isole Britanniche; in Inghilterra',3);
-INSERT INTO `classificazione` VALUES (526,385,'063','063 - Organizzazioni in Europa centrale; in Germania',3);
-INSERT INTO `classificazione` VALUES (527,385,'064','064 - Organizzazioni in Francia e Monaco',3);
-INSERT INTO `classificazione` VALUES (528,385,'065','065 - Organizzazioni in Italia e isole adiacenti',3);
-INSERT INTO `classificazione` VALUES (529,385,'066','066 - Organizzazioni nella Penisola Iberica e isole adiacenti',3);
-INSERT INTO `classificazione` VALUES (530,385,'067','067 - Organizzazioni in Europa orientale; in Russia',3);
-INSERT INTO `classificazione` VALUES (531,385,'068','068 - Organizzazioni in altre aree geografiche',3);
-INSERT INTO `classificazione` VALUES (532,385,'069','069 - Museologia',3);
-INSERT INTO `classificazione` VALUES (533,386,'071','071 - Giornali in Nord America',3);
-INSERT INTO `classificazione` VALUES (534,386,'072','072 - Giornali nelle Isole Britanniche; in Inghilterra',3);
-INSERT INTO `classificazione` VALUES (535,386,'073','073 - Giornali in Europa centrale; in Germania',3);
-INSERT INTO `classificazione` VALUES (536,386,'074','074 - Giornali in Francia e Monaco',3);
-INSERT INTO `classificazione` VALUES (537,386,'075','075 - Giornali in Italia e isole adiacenti',3);
-INSERT INTO `classificazione` VALUES (538,386,'076','076 - Giornali nella penisola iberica e isole adiacenti',3);
-INSERT INTO `classificazione` VALUES (539,386,'077','077 - Giornali in Europa orientale; in Russia',3);
-INSERT INTO `classificazione` VALUES (540,386,'078','078 - Giornali in Scandinavia',3);
-INSERT INTO `classificazione` VALUES (541,386,'079','079 - Giornali in altre aree geografiche',3);
-INSERT INTO `classificazione` VALUES (542,387,'081','081 - Raccolte in inglese americano',3);
-INSERT INTO `classificazione` VALUES (543,387,'082','082 - Raccolte in inglese',3);
-INSERT INTO `classificazione` VALUES (544,387,'083','083 - Raccolte in altre lingue germaniche',3);
-INSERT INTO `classificazione` VALUES (545,387,'084','084 - Raccolte in francese, occitano, catalano',3);
-INSERT INTO `classificazione` VALUES (546,387,'085','085 - Raccolte in italiano, romeno e lingue correlate',3);
-INSERT INTO `classificazione` VALUES (547,387,'086','086 - Raccolte in spagnolo e portoghese',3);
-INSERT INTO `classificazione` VALUES (548,387,'087','087 - Raccolte in lingue slave',3);
-INSERT INTO `classificazione` VALUES (549,387,'088','088 - Raccolte in lingue scandinave',3);
-INSERT INTO `classificazione` VALUES (550,387,'089','089 - Raccolte in altre lingue',3);
-INSERT INTO `classificazione` VALUES (551,388,'091','091 - Manoscritti',3);
-INSERT INTO `classificazione` VALUES (552,388,'092','092 - Libri silografici',3);
-INSERT INTO `classificazione` VALUES (553,388,'093','093 - Incunaboli',3);
-INSERT INTO `classificazione` VALUES (554,388,'094','094 - Libri a stampa',3);
-INSERT INTO `classificazione` VALUES (555,388,'095','095 - Libri notevoli per la legatura',3);
-INSERT INTO `classificazione` VALUES (556,388,'096','096 - Libri notevoli per le illustrazioni',3);
-INSERT INTO `classificazione` VALUES (557,388,'097','097 - Libri notevoli per la proprietà o l\'origine',3);
-INSERT INTO `classificazione` VALUES (558,388,'098','098 - Opere proibite, falsificazioni e inganni',3);
-INSERT INTO `classificazione` VALUES (559,388,'099','099 - Libri notevoli per il formato',3);
-INSERT INTO `classificazione` VALUES (560,389,'101','101 - Teoria della filosofia',3);
-INSERT INTO `classificazione` VALUES (561,389,'102','102 - Miscellanea',3);
-INSERT INTO `classificazione` VALUES (562,389,'103','103 - Dizionari ed enciclopedie',3);
-INSERT INTO `classificazione` VALUES (563,389,'104','104 - Non più in uso — in precedenza Saggi',3);
-INSERT INTO `classificazione` VALUES (564,389,'105','105 - Pubblicazioni seriali',3);
-INSERT INTO `classificazione` VALUES (565,389,'106','106 - Organizzazioni e gestione',3);
-INSERT INTO `classificazione` VALUES (566,389,'107','107 - Educazione, ricerca, argomenti correlati di filosofia',3);
-INSERT INTO `classificazione` VALUES (567,389,'108','108 - Gruppi di persone',3);
-INSERT INTO `classificazione` VALUES (568,389,'109','109 - Storia e biografia collettiva',3);
-INSERT INTO `classificazione` VALUES (569,390,'111','111 - Ontologia',3);
-INSERT INTO `classificazione` VALUES (570,390,'112','112 - Non più in uso — in precedenza Metodologia',3);
-INSERT INTO `classificazione` VALUES (571,390,'113','113 - Cosmologia (Filosofia della natura)',3);
-INSERT INTO `classificazione` VALUES (572,390,'114','114 - Spazio',3);
-INSERT INTO `classificazione` VALUES (573,390,'115','115 - Tempo',3);
-INSERT INTO `classificazione` VALUES (574,390,'116','116 - Cambiamento',3);
-INSERT INTO `classificazione` VALUES (575,390,'117','117 - Struttura',3);
-INSERT INTO `classificazione` VALUES (576,390,'118','118 - Forza ed energia',3);
-INSERT INTO `classificazione` VALUES (577,390,'119','119 - Numero e quantità',3);
-INSERT INTO `classificazione` VALUES (578,391,'121','121 - Epistemologia (teoria della conoscenza)',3);
-INSERT INTO `classificazione` VALUES (579,391,'122','122 - Causalità',3);
-INSERT INTO `classificazione` VALUES (580,391,'123','123 - Determinismo e indeterminismo',3);
-INSERT INTO `classificazione` VALUES (581,391,'124','124 - Teleologia',3);
-INSERT INTO `classificazione` VALUES (582,391,'125','125 - Non più in uso — in precedenza Infinito',3);
-INSERT INTO `classificazione` VALUES (583,391,'126','126 - Il sé',3);
-INSERT INTO `classificazione` VALUES (584,391,'127','127 - L\'inconscio e il subconscio',3);
-INSERT INTO `classificazione` VALUES (585,391,'128','128 - Genere umano',3);
-INSERT INTO `classificazione` VALUES (586,391,'129','129 - Origine e destino delle anime individuali',3);
-INSERT INTO `classificazione` VALUES (587,392,'131','131 - Metodi parapsicologici e occulti per raggiungere benessere, felicità, successo',3);
-INSERT INTO `classificazione` VALUES (588,392,'132','132 - Non più in uso — in precedenza Disturbi mentali',3);
-INSERT INTO `classificazione` VALUES (589,392,'133','133 - Argomenti specifici in parapsicologia e occultismo',3);
-INSERT INTO `classificazione` VALUES (590,392,'134','134 - Non più in uso — in precedenza Mesmerismo e chiaroveggenza',3);
-INSERT INTO `classificazione` VALUES (591,392,'135','135 - Sogni e misteri',3);
-INSERT INTO `classificazione` VALUES (592,392,'136','136 - Non più in uso — in precedenza Caratteristiche mentali',3);
-INSERT INTO `classificazione` VALUES (593,392,'137','137 - Grafologia divinatoria',3);
-INSERT INTO `classificazione` VALUES (594,392,'138','138 - Fisiognomica',3);
-INSERT INTO `classificazione` VALUES (595,392,'139','139 - Frenologia',3);
-INSERT INTO `classificazione` VALUES (596,393,'141','141 - Idealismo e sistemi e dottrine correlati',3);
-INSERT INTO `classificazione` VALUES (597,393,'142','142 - Filosofia critica',3);
-INSERT INTO `classificazione` VALUES (598,393,'143','143 - Bergsonismo e intuizionismo',3);
-INSERT INTO `classificazione` VALUES (599,393,'144','144 - Umanesimo e sistemi e dottrine correlati',3);
-INSERT INTO `classificazione` VALUES (600,393,'145','145 - Sensazionalismo',3);
-INSERT INTO `classificazione` VALUES (601,393,'146','146 - Naturalismo e sistemi e dottrine correlati',3);
-INSERT INTO `classificazione` VALUES (602,393,'147','147 - Panteismo e sistemi e dottrine correlati',3);
-INSERT INTO `classificazione` VALUES (603,393,'148','148 - Dogmatismo, eclettismo, liberalismo, sincretismo e tradizionalismo',3);
-INSERT INTO `classificazione` VALUES (604,393,'149','149 - Altri sistemi e dottrine filosofiche',3);
-INSERT INTO `classificazione` VALUES (605,394,'151','151 - Non più in uso — in precedenza Intelletto',3);
-INSERT INTO `classificazione` VALUES (606,394,'152','152 - Percezione sensoriale, movimento, emozioni e pulsioni fisiologiche',3);
-INSERT INTO `classificazione` VALUES (607,394,'153','153 - Processi mentali coscienti e intelligenza',3);
-INSERT INTO `classificazione` VALUES (608,394,'154','154 - Stati e processi subconsci e alterati',3);
-INSERT INTO `classificazione` VALUES (609,394,'155','155 - Psicologia differenziale e dello sviluppo',3);
-INSERT INTO `classificazione` VALUES (610,394,'156','156 - Psicologia comparata',3);
-INSERT INTO `classificazione` VALUES (611,394,'157','157 - Non più in uso — in precedenza Emozioni',3);
-INSERT INTO `classificazione` VALUES (612,394,'158','158 - Psicologia applicata',3);
-INSERT INTO `classificazione` VALUES (613,394,'159','159 - Non più in uso — in precedenza Volontà',3);
-INSERT INTO `classificazione` VALUES (614,395,'161','161 - Induzione',3);
-INSERT INTO `classificazione` VALUES (615,395,'162','162 - Deduzione',3);
-INSERT INTO `classificazione` VALUES (616,395,'163','163 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (617,395,'164','164 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (618,395,'165','165 - Fallacie e fonti di errore',3);
-INSERT INTO `classificazione` VALUES (619,395,'166','166 - Sillogismi',3);
-INSERT INTO `classificazione` VALUES (620,395,'167','167 - Ipotesi',3);
-INSERT INTO `classificazione` VALUES (621,395,'168','168 - Argomentazione e persuasione',3);
-INSERT INTO `classificazione` VALUES (622,395,'169','169 - Analogia',3);
-INSERT INTO `classificazione` VALUES (623,396,'171','171 - Sistemi etici',3);
-INSERT INTO `classificazione` VALUES (624,396,'172','172 - Etica politica',3);
-INSERT INTO `classificazione` VALUES (625,396,'173','173 - Etica delle relazioni familiari',3);
-INSERT INTO `classificazione` VALUES (626,396,'174','174 - Etica professionale',3);
-INSERT INTO `classificazione` VALUES (627,396,'175','175 - Etica della ricreazione, del tempo libero, delle esibizioni pubbliche, della comunicazione',3);
-INSERT INTO `classificazione` VALUES (628,396,'176','176 - Etica della sessualità e della riproduzione',3);
-INSERT INTO `classificazione` VALUES (629,396,'177','177 - Etica delle relazioni sociali',3);
-INSERT INTO `classificazione` VALUES (630,396,'178','178 - Etica del consumo',3);
-INSERT INTO `classificazione` VALUES (631,396,'179','179 - Altre norme etiche',3);
-INSERT INTO `classificazione` VALUES (632,397,'181','181 - Filosofia orientale',3);
-INSERT INTO `classificazione` VALUES (633,397,'182','182 - Filosofie greche presocratiche',3);
-INSERT INTO `classificazione` VALUES (634,397,'183','183 - Filosofie sofistiche, socratiche e greche correlate',3);
-INSERT INTO `classificazione` VALUES (635,397,'184','184 - Filosofia platonica',3);
-INSERT INTO `classificazione` VALUES (636,397,'185','185 - Filosofia aristotelica',3);
-INSERT INTO `classificazione` VALUES (637,397,'186','186 - Filosofie scettiche e neoplatoniche',3);
-INSERT INTO `classificazione` VALUES (638,397,'187','187 - Filosofia epicurea',3);
-INSERT INTO `classificazione` VALUES (639,397,'188','188 - Filosofia stoica',3);
-INSERT INTO `classificazione` VALUES (640,397,'189','189 - Filosofia occidentale medievale',3);
-INSERT INTO `classificazione` VALUES (641,398,'191','191 - Filosofia degli Stati Uniti e del Canada',3);
-INSERT INTO `classificazione` VALUES (642,398,'192','192 - Filosofia delle Isole Britanniche',3);
-INSERT INTO `classificazione` VALUES (643,398,'193','193 - Filosofia della Germania e dell\'Austria',3);
-INSERT INTO `classificazione` VALUES (644,398,'194','194 - Filosofia della Francia',3);
-INSERT INTO `classificazione` VALUES (645,398,'195','195 - Filosofia dell\'Italia',3);
-INSERT INTO `classificazione` VALUES (646,398,'196','196 - Filosofia della Spagna e del Portogallo',3);
-INSERT INTO `classificazione` VALUES (647,398,'197','197 - Filosofia della Russia',3);
-INSERT INTO `classificazione` VALUES (648,398,'198','198 - Filosofia della Scandinavia e della Finlandia',3);
-INSERT INTO `classificazione` VALUES (649,398,'199','199 - Filosofia in altre aree geografiche',3);
-INSERT INTO `classificazione` VALUES (650,399,'201','201 - Mitologia religiosa, classi generali di religione, relazioni e atteggiamenti interreligiosi, teologia sociale',3);
-INSERT INTO `classificazione` VALUES (651,399,'202','202 - Dottrine',3);
-INSERT INTO `classificazione` VALUES (652,399,'203','203 - Culto pubblico e altre pratiche',3);
-INSERT INTO `classificazione` VALUES (653,399,'204','204 - Esperienza, vita, pratica religiosa',3);
-INSERT INTO `classificazione` VALUES (654,399,'205','205 - Etica religiosa',3);
-INSERT INTO `classificazione` VALUES (655,399,'206','206 - Capi e organizzazione',3);
-INSERT INTO `classificazione` VALUES (656,399,'207','207 - Missioni ed educazione religiosa',3);
-INSERT INTO `classificazione` VALUES (657,399,'208','208 - Fonti',3);
-INSERT INTO `classificazione` VALUES (658,399,'209','209 - Sette e movimenti di riforma',3);
-INSERT INTO `classificazione` VALUES (659,400,'211','211 - Concetti di Dio',3);
-INSERT INTO `classificazione` VALUES (660,400,'212','212 - Esistenza, modi di conoscere Dio, attributi di Dio',3);
-INSERT INTO `classificazione` VALUES (661,400,'213','213 - Creazione',3);
-INSERT INTO `classificazione` VALUES (662,400,'214','214 - Teodicea',3);
-INSERT INTO `classificazione` VALUES (663,400,'215','215 - Scienza e religione',3);
-INSERT INTO `classificazione` VALUES (664,400,'216','216 - Non più in uso—in precedenza Male',3);
-INSERT INTO `classificazione` VALUES (665,400,'217','217 - Non più in uso—in precedenza Preghiera',3);
-INSERT INTO `classificazione` VALUES (666,400,'218','218 - Genere umano',3);
-INSERT INTO `classificazione` VALUES (667,400,'219','219 - Non più in uso—in precedenza Analogies',3);
-INSERT INTO `classificazione` VALUES (668,401,'221','221 - Antico Testamento (Tanakh)',3);
-INSERT INTO `classificazione` VALUES (669,401,'222','222 - Libri storici dell\'Antico Testamento',3);
-INSERT INTO `classificazione` VALUES (670,401,'223','223 - Libri poetici dell\'Antico Testamento',3);
-INSERT INTO `classificazione` VALUES (671,401,'224','224 - Libri profetici dell\'Antico Testamento',3);
-INSERT INTO `classificazione` VALUES (672,401,'225','225 - Nuovo Testamento',3);
-INSERT INTO `classificazione` VALUES (673,401,'226','226 - Vangeli e Atti',3);
-INSERT INTO `classificazione` VALUES (674,401,'227','227 - Epistole',3);
-INSERT INTO `classificazione` VALUES (675,401,'228','228 - Rivelazione (Apocalisse)',3);
-INSERT INTO `classificazione` VALUES (676,401,'229','229 - Apocrifi, pseudepigrafi e opere intertestamentali',3);
-INSERT INTO `classificazione` VALUES (677,402,'231','231 - Dio',3);
-INSERT INTO `classificazione` VALUES (678,402,'232','232 - Gesù Cristo e la sua famiglia',3);
-INSERT INTO `classificazione` VALUES (679,402,'233','233 - Genere umano',3);
-INSERT INTO `classificazione` VALUES (680,402,'234','234 - Salvezza e grazia',3);
-INSERT INTO `classificazione` VALUES (681,402,'235','235 - Esseri spirituali',3);
-INSERT INTO `classificazione` VALUES (682,402,'236','236 - Escatologia',3);
-INSERT INTO `classificazione` VALUES (683,402,'237','237 - Non più in uso—in precedenza Stato futuro',3);
-INSERT INTO `classificazione` VALUES (684,402,'238','238 - Credo, confessioni di fede, patti e catechismi',3);
-INSERT INTO `classificazione` VALUES (685,402,'239','239 - Apologetica e polemica',3);
-INSERT INTO `classificazione` VALUES (686,403,'241','241 - Etica cristiana',3);
-INSERT INTO `classificazione` VALUES (687,403,'242','242 - Letteratura devozionale',3);
-INSERT INTO `classificazione` VALUES (688,403,'243','243 - Scritti evangelistici per individui e famiglie',3);
-INSERT INTO `classificazione` VALUES (689,403,'244','244 - Non più in uso—in precedenza Narrativa religiosa',3);
-INSERT INTO `classificazione` VALUES (690,403,'245','245 - Non più in uso—in precedenza Innologia',3);
-INSERT INTO `classificazione` VALUES (691,403,'246','246 - Uso dell\'arte nel Cristianesimo',3);
-INSERT INTO `classificazione` VALUES (692,403,'247','247 - Arredi ecclesiastici e articoli correlati',3);
-INSERT INTO `classificazione` VALUES (693,403,'248','248 - Esperienza, pratica, vita cristiana',3);
-INSERT INTO `classificazione` VALUES (694,403,'249','249 - Osservanze cristiane nella vita familiare',3);
-INSERT INTO `classificazione` VALUES (695,404,'251','251 - Predicazione (Omiletica)',3);
-INSERT INTO `classificazione` VALUES (696,404,'252','252 - Testi di sermoni',3);
-INSERT INTO `classificazione` VALUES (697,404,'253','253 - Ufficio e lavoro pastorale (Teologia pastorale)',3);
-INSERT INTO `classificazione` VALUES (698,404,'254','254 - Amministrazione parrocchiale',3);
-INSERT INTO `classificazione` VALUES (699,404,'255','255 - Congregazioni e ordini religiosi',3);
-INSERT INTO `classificazione` VALUES (700,404,'256','256 - Non più in uso — in precedenza Società religiose',3);
-INSERT INTO `classificazione` VALUES (701,404,'257','257 - Non più in uso — in precedenza Scuole parrocchiali, biblioteche, ecc.',3);
-INSERT INTO `classificazione` VALUES (702,404,'258','258 - Non più in uso — in precedenza Medicina parrocchiale',3);
-INSERT INTO `classificazione` VALUES (703,404,'259','259 - Cura pastorale delle famiglie, di gruppi specifici di persone',3);
-INSERT INTO `classificazione` VALUES (704,405,'261','261 - Teologia sociale e relazioni e atteggiamenti interreligiosi',3);
-INSERT INTO `classificazione` VALUES (705,405,'262','262 - Ecclesiologia',3);
-INSERT INTO `classificazione` VALUES (706,405,'263','263 - Giorni, tempi, luoghi di osservanza religiosa',3);
-INSERT INTO `classificazione` VALUES (707,405,'264','264 - Culto pubblico',3);
-INSERT INTO `classificazione` VALUES (708,405,'265','265 - Sacramenti, altri riti e atti',3);
-INSERT INTO `classificazione` VALUES (709,405,'266','266 - Missioni',3);
-INSERT INTO `classificazione` VALUES (710,405,'267','267 - Associazioni per opere religiose',3);
-INSERT INTO `classificazione` VALUES (711,405,'268','268 - Educazione religiosa',3);
-INSERT INTO `classificazione` VALUES (712,405,'269','269 - Rinnovamento spirituale',3);
-INSERT INTO `classificazione` VALUES (713,406,'271','271 - Congregazioni e ordini religiosi nella storia della Chiesa',3);
-INSERT INTO `classificazione` VALUES (714,406,'272','272 - Persecuzioni nella storia della Chiesa',3);
-INSERT INTO `classificazione` VALUES (715,406,'273','273 - Controversie dottrinali ed eresie nella storia generale della Chiesa',3);
-INSERT INTO `classificazione` VALUES (716,406,'274','274 - Cristianesimo in Europa',3);
-INSERT INTO `classificazione` VALUES (717,406,'275','275 - Cristianesimo in Asia',3);
-INSERT INTO `classificazione` VALUES (718,406,'276','276 - Cristianesimo in Africa',3);
-INSERT INTO `classificazione` VALUES (719,406,'277','277 - Cristianesimo in Nord America',3);
-INSERT INTO `classificazione` VALUES (720,406,'278','278 - Cristianesimo in Sud America',3);
-INSERT INTO `classificazione` VALUES (721,406,'279','279 - Storia del Cristianesimo in altre aree',3);
-INSERT INTO `classificazione` VALUES (722,407,'281','281 - Chiesa primitiva e Chiese orientali',3);
-INSERT INTO `classificazione` VALUES (723,407,'282','282 - Chiesa cattolica romana',3);
-INSERT INTO `classificazione` VALUES (724,407,'283','283 - Chiese anglicane',3);
-INSERT INTO `classificazione` VALUES (725,407,'284','284 - Denominazioni protestanti di origine continentale (luterana, riformata continentale)',3);
-INSERT INTO `classificazione` VALUES (726,407,'285','285 - Chiese presbiteriane, Chiese riformate con centro in America, Chiese congregazionaliste',3);
-INSERT INTO `classificazione` VALUES (727,407,'286','286 - Chiese battiste, del Movimento di Restaurazione, avventiste',3);
-INSERT INTO `classificazione` VALUES (728,407,'287','287 - Chiese metodiste; chiese legate al Metodismo',3);
-INSERT INTO `classificazione` VALUES (729,407,'288','288 - Non più in uso — in precedenza Unitariano',3);
-INSERT INTO `classificazione` VALUES (730,407,'289','289 - Altre denominazioni e sette',3);
-INSERT INTO `classificazione` VALUES (731,408,'291','291 - Non più in uso — in precedenza Religione comparata',3);
-INSERT INTO `classificazione` VALUES (732,408,'292','292 - Religione classica (religione greca e romana)',3);
-INSERT INTO `classificazione` VALUES (733,408,'293','293 - Religione germanica',3);
-INSERT INTO `classificazione` VALUES (734,408,'294','294 - Religioni di origine indiana',3);
-INSERT INTO `classificazione` VALUES (735,408,'295','295 - Zoroastrismo (Mazdeismo, Parsismo)',3);
-INSERT INTO `classificazione` VALUES (736,408,'296','296 - Ebraismo',3);
-INSERT INTO `classificazione` VALUES (737,408,'297','297 - Islam, Bábismo e Fede Baháʼí',3);
-INSERT INTO `classificazione` VALUES (738,408,'298','298 - Non più in uso — in precedenza Mormonismo',3);
-INSERT INTO `classificazione` VALUES (739,408,'299','299 - Religioni non previste altrove',3);
-INSERT INTO `classificazione` VALUES (740,409,'301','301 - Sociologia e antropologia',3);
-INSERT INTO `classificazione` VALUES (741,409,'302','302 - Interazione sociale',3);
-INSERT INTO `classificazione` VALUES (742,409,'303','303 - Processi sociali',3);
-INSERT INTO `classificazione` VALUES (743,409,'304','304 - Fattori che influenzano il comportamento sociale',3);
-INSERT INTO `classificazione` VALUES (744,409,'305','305 - Gruppi di persone',3);
-INSERT INTO `classificazione` VALUES (745,409,'306','306 - Cultura e istituzioni',3);
-INSERT INTO `classificazione` VALUES (746,409,'307','307 - Comunità',3);
-INSERT INTO `classificazione` VALUES (747,409,'308','308 - Non più in uso — in precedenza Poligrafia',3);
-INSERT INTO `classificazione` VALUES (748,409,'309','309 - Non più in uso — in precedenza Storia della sociologia',3);
-INSERT INTO `classificazione` VALUES (749,410,'311','311 - Non più in uso — in precedenza Teoria e metodi',3);
-INSERT INTO `classificazione` VALUES (750,410,'312','312 - Non più in uso — in precedenza Popolazione',3);
-INSERT INTO `classificazione` VALUES (751,410,'313','313 - Non più in uso — in precedenza Argomenti speciali',3);
-INSERT INTO `classificazione` VALUES (752,410,'314','314 - Statistiche generali dell\'Europa',3);
-INSERT INTO `classificazione` VALUES (753,410,'315','315 - Statistiche generali dell\'Asia',3);
-INSERT INTO `classificazione` VALUES (754,410,'316','316 - Statistiche generali dell\'Africa',3);
-INSERT INTO `classificazione` VALUES (755,410,'317','317 - Statistiche generali del Nord America',3);
-INSERT INTO `classificazione` VALUES (756,410,'318','318 - Statistiche generali del Sud America',3);
-INSERT INTO `classificazione` VALUES (757,410,'319','319 - Statistiche generali di Australasia, isole dell\'Oceano Pacifico, isole dell\'Oceano Atlantico, isole artiche, Antartide',3);
-INSERT INTO `classificazione` VALUES (758,411,'321','321 - Sistemi di governi e stati',3);
-INSERT INTO `classificazione` VALUES (759,411,'322','322 - Relazione dello stato con i gruppi organizzati e i loro membri',3);
-INSERT INTO `classificazione` VALUES (760,411,'323','323 - Diritti civili e politici',3);
-INSERT INTO `classificazione` VALUES (761,411,'324','324 - Processo politico',3);
-INSERT INTO `classificazione` VALUES (762,411,'325','325 - Migrazione internazionale e colonizzazione',3);
-INSERT INTO `classificazione` VALUES (763,411,'326','326 - Schiavitù ed emancipazione',3);
-INSERT INTO `classificazione` VALUES (764,411,'327','327 - Relazioni internazionali',3);
-INSERT INTO `classificazione` VALUES (765,411,'328','328 - Il processo legislativo',3);
-INSERT INTO `classificazione` VALUES (766,411,'329','329 - Non più in uso— in precedenza Partiti politici',3);
-INSERT INTO `classificazione` VALUES (767,412,'331','331 - Economia del lavoro',3);
-INSERT INTO `classificazione` VALUES (768,412,'332','332 - Economia finanziaria',3);
-INSERT INTO `classificazione` VALUES (769,412,'333','333 - Economia della terra e dell\'energia',3);
-INSERT INTO `classificazione` VALUES (770,412,'334','334 - Cooperative',3);
-INSERT INTO `classificazione` VALUES (771,412,'335','335 - Socialismo e sistemi correlati',3);
-INSERT INTO `classificazione` VALUES (772,412,'336','336 - Finanza pubblica',3);
-INSERT INTO `classificazione` VALUES (773,412,'337','337 - Economia internazionale',3);
-INSERT INTO `classificazione` VALUES (774,412,'338','338 - Produzione',3);
-INSERT INTO `classificazione` VALUES (775,412,'339','339 - Macroeconomia e argomenti correlati',3);
-INSERT INTO `classificazione` VALUES (776,413,'341','341 - Diritto delle genti',3);
-INSERT INTO `classificazione` VALUES (777,413,'342','342 - Diritto costituzionale e amministrativo',3);
-INSERT INTO `classificazione` VALUES (778,413,'343','343 - Diritto militare, della difesa, della proprietà pubblica, della finanza pubblica, fiscale, commerciale (scambi), industriale',3);
-INSERT INTO `classificazione` VALUES (779,413,'344','344 - Diritto del lavoro, dei servizi sociali, dell\'istruzione, culturale',3);
-INSERT INTO `classificazione` VALUES (780,413,'345','345 - Diritto penale',3);
-INSERT INTO `classificazione` VALUES (781,413,'346','346 - Diritto privato',3);
-INSERT INTO `classificazione` VALUES (782,413,'347','347 - Procedura e tribunali',3);
-INSERT INTO `classificazione` VALUES (783,413,'348','348 - Leggi, regolamenti, casi',3);
-INSERT INTO `classificazione` VALUES (784,413,'349','349 - Diritto di giurisdizioni, aree, regioni socioeconomiche, organizzazioni intergovernative regionali specifiche',3);
-INSERT INTO `classificazione` VALUES (785,414,'351','351 - Amministrazione pubblica',3);
-INSERT INTO `classificazione` VALUES (786,414,'352','352 - Considerazioni generali sull\'amministrazione pubblica',3);
-INSERT INTO `classificazione` VALUES (787,414,'353','353 - Campi specifici dell\'amministrazione pubblica',3);
-INSERT INTO `classificazione` VALUES (788,414,'354','354 - Amministrazione pubblica dell\'economia e dell\'ambiente',3);
-INSERT INTO `classificazione` VALUES (789,414,'355','355 - Scienza militare',3);
-INSERT INTO `classificazione` VALUES (790,414,'356','356 - Forze di fanteria e guerra terrestre',3);
-INSERT INTO `classificazione` VALUES (791,414,'357','357 - Forze a cavallo e guerra a cavallo',3);
-INSERT INTO `classificazione` VALUES (792,414,'358','358 - Forze aeree e altre forze e guerre specializzate; ingegneria e servizi correlati',3);
-INSERT INTO `classificazione` VALUES (793,414,'359','359 - Forze navali e guerra marittima',3);
-INSERT INTO `classificazione` VALUES (794,415,'361','361 - Problemi e servizi sociali',3);
-INSERT INTO `classificazione` VALUES (795,415,'362','362 - Problemi sociali e servizi a gruppi di persone',3);
-INSERT INTO `classificazione` VALUES (796,415,'363','363 - Altri problemi e servizi sociali',3);
-INSERT INTO `classificazione` VALUES (797,415,'364','364 - Criminologia',3);
-INSERT INTO `classificazione` VALUES (798,415,'365','365 - Istituti penali e correlati',3);
-INSERT INTO `classificazione` VALUES (799,415,'366','366 - Associazioni e società segrete',3);
-INSERT INTO `classificazione` VALUES (800,415,'367','367 - Circoli generali',3);
-INSERT INTO `classificazione` VALUES (801,415,'368','368 - Assicurazioni',3);
-INSERT INTO `classificazione` VALUES (802,415,'369','369 - Associazioni',3);
-INSERT INTO `classificazione` VALUES (803,416,'371','371 - Scuole e loro attività, educazione speciale',3);
-INSERT INTO `classificazione` VALUES (804,416,'372','372 - Educazione primaria (educazione elementare)',3);
-INSERT INTO `classificazione` VALUES (805,416,'373','373 - Educazione secondaria',3);
-INSERT INTO `classificazione` VALUES (806,416,'374','374 - Educazione degli adulti',3);
-INSERT INTO `classificazione` VALUES (807,416,'375','375 - Curriculum',3);
-INSERT INTO `classificazione` VALUES (808,416,'376','376 - Non più in uso — in precedenza Educazione delle donne',3);
-INSERT INTO `classificazione` VALUES (809,416,'377','377 - Non più in uso — in precedenza Educazione etica',3);
-INSERT INTO `classificazione` VALUES (810,416,'378','378 - Istruzione superiore (istruzione terziaria)',3);
-INSERT INTO `classificazione` VALUES (811,416,'379','379 - Questioni di politica pubblica nell\'educazione',3);
-INSERT INTO `classificazione` VALUES (812,417,'381','381 - Commercio (scambi)',3);
-INSERT INTO `classificazione` VALUES (813,417,'382','382 - Commercio internazionale (commercio estero)',3);
-INSERT INTO `classificazione` VALUES (814,417,'383','383 - Comunicazione postale',3);
-INSERT INTO `classificazione` VALUES (815,417,'384','384 - Comunicazioni',3);
-INSERT INTO `classificazione` VALUES (816,417,'385','385 - Trasporto ferroviario',3);
-INSERT INTO `classificazione` VALUES (817,417,'386','386 - Trasporto per vie navigabili interne e traghetti',3);
-INSERT INTO `classificazione` VALUES (818,417,'387','387 - Trasporto marittimo, aereo, spaziale',3);
-INSERT INTO `classificazione` VALUES (819,417,'388','388 - Trasporti',3);
-INSERT INTO `classificazione` VALUES (820,417,'389','389 - Metrologia e standardizzazione',3);
-INSERT INTO `classificazione` VALUES (821,418,'391','391 - Costume e aspetto personale',3);
-INSERT INTO `classificazione` VALUES (822,418,'392','392 - Usi e costumi del ciclo della vita e della vita domestica',3);
-INSERT INTO `classificazione` VALUES (823,418,'393','393 - Usi e costumi funebri',3);
-INSERT INTO `classificazione` VALUES (824,418,'394','394 - Usi e costumi generali',3);
-INSERT INTO `classificazione` VALUES (825,418,'395','395 - Galateo (buone maniere)',3);
-INSERT INTO `classificazione` VALUES (826,418,'396','396 - Non più in uso — in precedenza Posizione e trattamento delle donne',3);
-INSERT INTO `classificazione` VALUES (827,418,'397','397 - Non più in uso — in precedenza Studi sugli emarginati',3);
-INSERT INTO `classificazione` VALUES (828,418,'398','398 - Folclore',3);
-INSERT INTO `classificazione` VALUES (829,418,'399','399 - Usi e costumi di guerra e diplomazia',3);
-INSERT INTO `classificazione` VALUES (830,419,'401','401 - Filosofia e teoria, lingue internazionali',3);
-INSERT INTO `classificazione` VALUES (831,419,'402','402 - Miscellanea',3);
-INSERT INTO `classificazione` VALUES (832,419,'403','403 - Dizionari, enciclopedie, concordanze',3);
-INSERT INTO `classificazione` VALUES (833,419,'404','404 - Argomenti speciali di linguaggio',3);
-INSERT INTO `classificazione` VALUES (834,419,'405','405 - Pubblicazioni seriali',3);
-INSERT INTO `classificazione` VALUES (835,419,'406','406 - Organizzazioni e gestione',3);
-INSERT INTO `classificazione` VALUES (836,419,'407','407 - Educazione, ricerca, argomenti correlati',3);
-INSERT INTO `classificazione` VALUES (837,419,'408','408 - Gruppi di persone',3);
-INSERT INTO `classificazione` VALUES (838,419,'409','409 - Trattamento geografico e biografia',3);
-INSERT INTO `classificazione` VALUES (839,420,'411','411 - Sistemi di scrittura delle forme standard delle lingue',3);
-INSERT INTO `classificazione` VALUES (840,420,'412','412 - Etimologia delle forme standard delle lingue',3);
-INSERT INTO `classificazione` VALUES (841,420,'413','413 - Dizionari delle forme standard delle lingue',3);
-INSERT INTO `classificazione` VALUES (842,420,'414','414 - Fonologia e fonetica delle forme standard delle lingue',3);
-INSERT INTO `classificazione` VALUES (843,420,'415','415 - Grammatica delle forme standard delle lingue',3);
-INSERT INTO `classificazione` VALUES (844,420,'416','416 - Non più in uso — in precedenza Prosodia',3);
-INSERT INTO `classificazione` VALUES (845,420,'417','417 - Dialettologia e linguistica storica',3);
-INSERT INTO `classificazione` VALUES (846,420,'418','418 - Uso standard (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (847,420,'419','419 - Lingue dei segni',3);
-INSERT INTO `classificazione` VALUES (848,421,'421','421 - Sistema di scrittura, fonologia, fonetica dell\'inglese standard',3);
-INSERT INTO `classificazione` VALUES (849,421,'422','422 - Etimologia dell\'inglese standard',3);
-INSERT INTO `classificazione` VALUES (850,421,'423','423 - Dizionari di inglese standard',3);
-INSERT INTO `classificazione` VALUES (851,421,'424','424 - Non più in uso — in precedenza Thesaurus inglesi',3);
-INSERT INTO `classificazione` VALUES (852,421,'425','425 - Grammatica dell\'inglese standard',3);
-INSERT INTO `classificazione` VALUES (853,421,'426','426 - Non più in uso — in precedenza Prosodie inglesi',3);
-INSERT INTO `classificazione` VALUES (854,421,'427','427 - Variazioni storiche e geografiche, variazioni moderne non geografiche dell\'inglese',3);
-INSERT INTO `classificazione` VALUES (855,421,'428','428 - Uso dell\'inglese standard (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (856,421,'429','429 - Antico inglese (anglosassone)',3);
-INSERT INTO `classificazione` VALUES (857,422,'431','431 - Sistemi di scrittura, fonologia, fonetica del tedesco standard',3);
-INSERT INTO `classificazione` VALUES (858,422,'432','432 - Etimologia del tedesco standard',3);
-INSERT INTO `classificazione` VALUES (859,422,'433','433 - Dizionari di tedesco standard',3);
-INSERT INTO `classificazione` VALUES (860,422,'434','434 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (861,422,'435','435 - Grammatica del tedesco standard',3);
-INSERT INTO `classificazione` VALUES (862,422,'436','436 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (863,422,'437','437 - Variazioni storiche e geografiche, variazioni moderne non geografiche del tedesco',3);
-INSERT INTO `classificazione` VALUES (864,422,'438','438 - Uso del tedesco standard (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (865,422,'439','439 - Altre lingue germaniche',3);
-INSERT INTO `classificazione` VALUES (866,423,'441','441 - Sistemi di scrittura, fonologia, fonetica del francese standard',3);
-INSERT INTO `classificazione` VALUES (867,423,'442','442 - Etimologia del francese standard',3);
-INSERT INTO `classificazione` VALUES (868,423,'443','443 - Dizionari di francese standard',3);
-INSERT INTO `classificazione` VALUES (869,423,'444','444 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (870,423,'445','445 - Grammatica del francese standard',3);
-INSERT INTO `classificazione` VALUES (871,423,'446','446 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (872,423,'447','447 - Variazioni storiche e geografiche, variazioni moderne non geografiche del francese',3);
-INSERT INTO `classificazione` VALUES (873,423,'448','448 - Uso del francese standard (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (874,423,'449','449 - Occitano, catalano, francoprovenzale',3);
-INSERT INTO `classificazione` VALUES (875,424,'451','451 - Sistemi di scrittura, fonologia, fonetica dell\'italiano standard',3);
-INSERT INTO `classificazione` VALUES (876,424,'452','452 - Etimologia dell\'italiano standard',3);
-INSERT INTO `classificazione` VALUES (877,424,'453','453 - Dizionari di italiano standard',3);
-INSERT INTO `classificazione` VALUES (878,424,'454','454 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (879,424,'455','455 - Grammatica dell\'italiano standard',3);
-INSERT INTO `classificazione` VALUES (880,424,'456','456 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (881,424,'457','457 - Variazioni storiche e geografiche, variazioni moderne non geografiche dell\'italiano',3);
-INSERT INTO `classificazione` VALUES (882,424,'458','458 - Uso dell\'italiano standard (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (883,424,'459','459 - Romeno, retoromanzo, sardo, corso',3);
-INSERT INTO `classificazione` VALUES (884,425,'461','461 - Sistemi di scrittura, fonologia, fonetica dello spagnolo standard',3);
-INSERT INTO `classificazione` VALUES (885,425,'462','462 - Etimologia dello spagnolo standard',3);
-INSERT INTO `classificazione` VALUES (886,425,'463','463 - Dizionari di spagnolo standard',3);
-INSERT INTO `classificazione` VALUES (887,425,'464','464 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (888,425,'465','465 - Grammatica dello spagnolo standard',3);
-INSERT INTO `classificazione` VALUES (889,425,'466','466 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (890,425,'467','467 - Variazioni storiche e geografiche, variazioni moderne non geografiche dello spagnolo',3);
-INSERT INTO `classificazione` VALUES (891,425,'468','468 - Uso dello spagnolo standard (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (892,425,'469','469 - Portoghese',3);
-INSERT INTO `classificazione` VALUES (893,426,'471','471 - Sistemi di scrittura, fonologia, fonetica del latino classico',3);
-INSERT INTO `classificazione` VALUES (894,426,'472','472 - Etimologia del latino classico',3);
-INSERT INTO `classificazione` VALUES (895,426,'473','473 - Dizionari di latino classico',3);
-INSERT INTO `classificazione` VALUES (896,426,'474','474 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (897,426,'475','475 - Grammatica del latino classico',3);
-INSERT INTO `classificazione` VALUES (898,426,'476','476 - Non più in uso',3);
-INSERT INTO `classificazione` VALUES (899,426,'477','477 - Latino antico, postclassico, volgare',3);
-INSERT INTO `classificazione` VALUES (900,426,'478','478 - Uso del latino classico (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (901,426,'479','479 - Altre lingue italiche',3);
-INSERT INTO `classificazione` VALUES (902,427,'481','481 - Sistemi di scrittura, fonologia, fonetica del greco classico',3);
-INSERT INTO `classificazione` VALUES (903,427,'482','482 - Etimologia del greco classico',3);
-INSERT INTO `classificazione` VALUES (904,427,'483','483 - Dizionari di greco classico',3);
-INSERT INTO `classificazione` VALUES (905,427,'484','484 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (906,427,'485','485 - Grammatica del greco classico',3);
-INSERT INTO `classificazione` VALUES (907,427,'486','486 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (908,427,'487','487 - Greco preclassico e postclassico',3);
-INSERT INTO `classificazione` VALUES (909,427,'488','488 - Uso del greco classico (Linguistica prescrittiva)',3);
-INSERT INTO `classificazione` VALUES (910,427,'489','489 - Altre lingue elleniche',3);
-INSERT INTO `classificazione` VALUES (911,428,'491','491 - Lingue indoeuropee orientali e celtiche',3);
-INSERT INTO `classificazione` VALUES (912,428,'492','492 - Lingue afro-asiatiche',3);
-INSERT INTO `classificazione` VALUES (913,428,'493','493 - Lingue afro-asiatiche non semitiche',3);
-INSERT INTO `classificazione` VALUES (914,428,'494','494 - Lingue altaiche, uraliche, iperboree, dravidiche, lingue varie dell\'Asia meridionale',3);
-INSERT INTO `classificazione` VALUES (915,428,'495','495 - Lingue dell\'Asia orientale e sud-orientale',3);
-INSERT INTO `classificazione` VALUES (916,428,'496','496 - Lingue africane',3);
-INSERT INTO `classificazione` VALUES (917,428,'497','497 - Lingue native del Nord America',3);
-INSERT INTO `classificazione` VALUES (918,428,'498','498 - Lingue native del Sud America',3);
-INSERT INTO `classificazione` VALUES (919,428,'499','499 - Lingue non austronesiane dell\'Oceania, lingue austronesiane, lingue varie',3);
-INSERT INTO `classificazione` VALUES (920,429,'501','501 - Filosofia e teoria',3);
-INSERT INTO `classificazione` VALUES (921,429,'502','502 - Miscellanea',3);
-INSERT INTO `classificazione` VALUES (922,429,'503','503 - Dizionari, enciclopedie, concordanze',3);
-INSERT INTO `classificazione` VALUES (923,429,'504','504 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (924,429,'505','505 - Pubblicazioni seriali',3);
-INSERT INTO `classificazione` VALUES (925,429,'506','506 - Organizzazioni e gestione',3);
-INSERT INTO `classificazione` VALUES (926,429,'507','507 - Educazione, ricerca, argomenti correlati',3);
-INSERT INTO `classificazione` VALUES (927,429,'508','508 - Storia naturale',3);
-INSERT INTO `classificazione` VALUES (928,429,'509','509 - Storia, trattamento geografico, biografia',3);
-INSERT INTO `classificazione` VALUES (929,430,'511','511 - Principi generali di matematica',3);
-INSERT INTO `classificazione` VALUES (930,430,'512','512 - Algebra',3);
-INSERT INTO `classificazione` VALUES (931,430,'513','513 - Aritmetica',3);
-INSERT INTO `classificazione` VALUES (932,430,'514','514 - Topologia',3);
-INSERT INTO `classificazione` VALUES (933,430,'515','515 - Analisi',3);
-INSERT INTO `classificazione` VALUES (934,430,'516','516 - Geometria',3);
-INSERT INTO `classificazione` VALUES (935,430,'517','517 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (936,430,'518','518 - Analisi numerica',3);
-INSERT INTO `classificazione` VALUES (937,430,'519','519 - Probabilità e matematica applicata',3);
-INSERT INTO `classificazione` VALUES (938,431,'521','521 - Meccanica celeste',3);
-INSERT INTO `classificazione` VALUES (939,431,'522','522 - Tecniche, procedure, apparati, attrezzature, materiali',3);
-INSERT INTO `classificazione` VALUES (940,431,'523','523 - Corpi e fenomeni celesti specifici',3);
-INSERT INTO `classificazione` VALUES (941,431,'524','524 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (942,431,'525','525 - Terra (geografia astronomica)',3);
-INSERT INTO `classificazione` VALUES (943,431,'526','526 - Geografia matematica',3);
-INSERT INTO `classificazione` VALUES (944,431,'527','527 - Navigazione astronomica',3);
-INSERT INTO `classificazione` VALUES (945,431,'528','528 - Effemeridi',3);
-INSERT INTO `classificazione` VALUES (946,431,'529','529 - Cronologia',3);
-INSERT INTO `classificazione` VALUES (947,432,'531','531 - Meccanica classica',3);
-INSERT INTO `classificazione` VALUES (948,432,'532','532 - Meccanica dei fluidi',3);
-INSERT INTO `classificazione` VALUES (949,432,'533','533 - Pneumatica (Meccanica dei gas)',3);
-INSERT INTO `classificazione` VALUES (950,432,'534','534 - Suono e vibrazioni correlate',3);
-INSERT INTO `classificazione` VALUES (951,432,'535','535 - Luce e radiazioni correlate',3);
-INSERT INTO `classificazione` VALUES (952,432,'536','536 - Calore',3);
-INSERT INTO `classificazione` VALUES (953,432,'537','537 - Elettricità ed elettronica',3);
-INSERT INTO `classificazione` VALUES (954,432,'538','538 - Magnetismo',3);
-INSERT INTO `classificazione` VALUES (955,432,'539','539 - Fisica moderna',3);
-INSERT INTO `classificazione` VALUES (956,433,'541','541 - Chimica fisica',3);
-INSERT INTO `classificazione` VALUES (957,433,'542','542 - Tecniche, procedure, apparati, attrezzature, materiali',3);
-INSERT INTO `classificazione` VALUES (958,433,'543','543 - Chimica analitica',3);
-INSERT INTO `classificazione` VALUES (959,433,'544','544 - Non più in uso — in precedenza Analisi qualitativa',3);
-INSERT INTO `classificazione` VALUES (960,433,'545','545 - Non più in uso — in precedenza Analisi quantitativa',3);
-INSERT INTO `classificazione` VALUES (961,433,'546','546 - Chimica inorganica',3);
-INSERT INTO `classificazione` VALUES (962,433,'547','547 - Chimica organica',3);
-INSERT INTO `classificazione` VALUES (963,433,'548','548 - Cristallografia',3);
-INSERT INTO `classificazione` VALUES (964,433,'549','549 - Mineralogia',3);
-INSERT INTO `classificazione` VALUES (965,434,'551','551 - Geologia, idrologia, meteorologia',3);
-INSERT INTO `classificazione` VALUES (966,434,'552','552 - Petrologia',3);
-INSERT INTO `classificazione` VALUES (967,434,'553','553 - Geologia economica',3);
-INSERT INTO `classificazione` VALUES (968,434,'554','554 - Scienze della Terra in Europa',3);
-INSERT INTO `classificazione` VALUES (969,434,'555','555 - Scienze della Terra in Asia',3);
-INSERT INTO `classificazione` VALUES (970,434,'556','556 - Scienze della Terra in Africa',3);
-INSERT INTO `classificazione` VALUES (971,434,'557','557 - Scienze della Terra in Nord America',3);
-INSERT INTO `classificazione` VALUES (972,434,'558','558 - Scienze della Terra in Sud America',3);
-INSERT INTO `classificazione` VALUES (973,434,'559','559 - Scienze della Terra in Australasia, isole dell\'Oceano Pacifico, isole dell\'Oceano Atlantico, isole artiche, Antartide, mondi extraterrestri',3);
-INSERT INTO `classificazione` VALUES (974,435,'561','561 - Paleobotanica, microrganismi fossili',3);
-INSERT INTO `classificazione` VALUES (975,435,'562','562 - Invertebrati fossili',3);
-INSERT INTO `classificazione` VALUES (976,435,'563','563 - Invertebrati marini e costieri fossili vari',3);
-INSERT INTO `classificazione` VALUES (977,435,'564','564 - Molluschi e Molluscoidi fossili',3);
-INSERT INTO `classificazione` VALUES (978,435,'565','565 - Artropodi fossili',3);
-INSERT INTO `classificazione` VALUES (979,435,'566','566 - Cordati fossili',3);
-INSERT INTO `classificazione` VALUES (980,435,'567','567 - Vertebrati a sangue freddo fossili',3);
-INSERT INTO `classificazione` VALUES (981,435,'568','568 - Aves (uccelli) fossili',3);
-INSERT INTO `classificazione` VALUES (982,435,'569','569 - Mammiferi fossili',3);
-INSERT INTO `classificazione` VALUES (983,436,'571','571 - Fisiologia e argomenti correlati',3);
-INSERT INTO `classificazione` VALUES (984,436,'572','572 - Biochimica',3);
-INSERT INTO `classificazione` VALUES (985,436,'573','573 - Sistemi fisiologici specifici negli animali, istologia e fisiologia regionale negli animali',3);
-INSERT INTO `classificazione` VALUES (986,436,'574','574 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (987,436,'575','575 - Parti specifiche e sistemi fisiologici nelle piante',3);
-INSERT INTO `classificazione` VALUES (988,436,'576','576 - Genetica ed evoluzione',3);
-INSERT INTO `classificazione` VALUES (989,436,'577','577 - Ecologia',3);
-INSERT INTO `classificazione` VALUES (990,436,'578','578 - Storia naturale degli organismi e argomenti correlati',3);
-INSERT INTO `classificazione` VALUES (991,436,'579','579 - Storia naturale di microrganismi, funghi, alghe',3);
-INSERT INTO `classificazione` VALUES (992,437,'581','581 - Argomenti specifici nella storia naturale delle piante',3);
-INSERT INTO `classificazione` VALUES (993,437,'582','582 - Piante note per specifiche caratteristiche vegetative e fiori',3);
-INSERT INTO `classificazione` VALUES (994,437,'583','583 - Magnoliopsida (Dicotiledoni)',3);
-INSERT INTO `classificazione` VALUES (995,437,'584','584 - Liliopsida (Monocotiledoni)',3);
-INSERT INTO `classificazione` VALUES (996,437,'585','585 - Pinophyta (Gimnosperme)',3);
-INSERT INTO `classificazione` VALUES (997,437,'586','586 - Crittogame (piante senza semi)',3);
-INSERT INTO `classificazione` VALUES (998,437,'587','587 - Pteridophyta',3);
-INSERT INTO `classificazione` VALUES (999,437,'588','588 - Bryophyta',3);
-INSERT INTO `classificazione` VALUES (1000,437,'589','589 - Non più in uso—in precedenza Silvicoltura',3);
-INSERT INTO `classificazione` VALUES (1001,438,'591','591 - Argomenti specifici nella storia naturale degli animali',3);
-INSERT INTO `classificazione` VALUES (1002,438,'592','592 - Invertebrati',3);
-INSERT INTO `classificazione` VALUES (1003,438,'593','593 - Invertebrati marini e costieri vari',3);
-INSERT INTO `classificazione` VALUES (1004,438,'594','594 - Molluschi e Molluscoidi',3);
-INSERT INTO `classificazione` VALUES (1005,438,'595','595 - Artropodi',3);
-INSERT INTO `classificazione` VALUES (1006,438,'596','596 - Cordati',3);
-INSERT INTO `classificazione` VALUES (1007,438,'597','597 - Vertebrati a sangue freddo',3);
-INSERT INTO `classificazione` VALUES (1008,438,'598','598 - Aves (uccelli)',3);
-INSERT INTO `classificazione` VALUES (1009,438,'599','599 - Mammalia (mammiferi)',3);
-INSERT INTO `classificazione` VALUES (1010,439,'601','601 - Filosofia e teoria',3);
-INSERT INTO `classificazione` VALUES (1011,439,'602','602 - Miscellanea',3);
-INSERT INTO `classificazione` VALUES (1012,439,'603','603 - Dizionari, enciclopedie, concordanze',3);
-INSERT INTO `classificazione` VALUES (1013,439,'604','604 - Disegno tecnico, tecnologia dei materiali pericolosi; gruppi di persone',3);
-INSERT INTO `classificazione` VALUES (1014,439,'605','605 - Pubblicazioni seriali',3);
-INSERT INTO `classificazione` VALUES (1015,439,'606','606 - Organizzazioni',3);
-INSERT INTO `classificazione` VALUES (1016,439,'607','607 - Educazione, ricerca, argomenti correlati',3);
-INSERT INTO `classificazione` VALUES (1017,439,'608','608 - Brevetti',3);
-INSERT INTO `classificazione` VALUES (1018,439,'609','609 - Storia, trattamento geografico, biografia',3);
-INSERT INTO `classificazione` VALUES (1019,440,'611','611 - Anatomia umana, citologia, istologia',3);
-INSERT INTO `classificazione` VALUES (1020,440,'612','612 - Fisiologia umana',3);
-INSERT INTO `classificazione` VALUES (1021,440,'613','613 - Salute e sicurezza personale',3);
-INSERT INTO `classificazione` VALUES (1022,440,'614','614 - Medicina legale; incidenza di lesioni, ferite, malattie; medicina preventiva pubblica',3);
-INSERT INTO `classificazione` VALUES (1023,440,'615','615 - Farmacologia e terapeutica',3);
-INSERT INTO `classificazione` VALUES (1024,440,'616','616 - Malattie',3);
-INSERT INTO `classificazione` VALUES (1025,440,'617','617 - Chirurgia, medicina regionale, odontoiatria, oftalmologia, otologia, audiologia',3);
-INSERT INTO `classificazione` VALUES (1026,440,'618','618 - Ginecologia, ostetricia, pediatria, geriatria',3);
-INSERT INTO `classificazione` VALUES (1027,440,'619','619 - Non più in uso—in precedenza Medicina sperimentale',3);
-INSERT INTO `classificazione` VALUES (1028,441,'621','621 - Fisica applicata',3);
-INSERT INTO `classificazione` VALUES (1029,441,'622','622 - Attività minerarie e correlate',3);
-INSERT INTO `classificazione` VALUES (1030,441,'623','623 - Ingegneria militare e navale',3);
-INSERT INTO `classificazione` VALUES (1031,441,'624','624 - Ingegneria civile',3);
-INSERT INTO `classificazione` VALUES (1032,441,'625','625 - Ingegneria di ferrovie, strade',3);
-INSERT INTO `classificazione` VALUES (1033,441,'626','626 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1034,441,'627','627 - Ingegneria idraulica',3);
-INSERT INTO `classificazione` VALUES (1035,441,'628','628 - Ingegneria sanitaria',3);
-INSERT INTO `classificazione` VALUES (1036,441,'629','629 - Altri rami dell\'ingegneria',3);
-INSERT INTO `classificazione` VALUES (1037,442,'631','631 - Tecniche specifiche; apparati, attrezzature, materiali',3);
-INSERT INTO `classificazione` VALUES (1038,442,'632','632 - Danni alle piante, malattie, parassiti',3);
-INSERT INTO `classificazione` VALUES (1039,442,'633','633 - Colture di campo e di piantagione',3);
-INSERT INTO `classificazione` VALUES (1040,442,'634','634 - Frutteti, frutti, silvicoltura',3);
-INSERT INTO `classificazione` VALUES (1041,442,'635','635 - Colture da giardino (orticoltura)',3);
-INSERT INTO `classificazione` VALUES (1042,442,'636','636 - Zootecnia',3);
-INSERT INTO `classificazione` VALUES (1043,442,'637','637 - Lavorazione di prodotti lattiero-caseari e correlati',3);
-INSERT INTO `classificazione` VALUES (1044,442,'638','638 - Insetticoltura',3);
-INSERT INTO `classificazione` VALUES (1045,442,'639','639 - Caccia, pesca, conservazione, tecnologie correlate',3);
-INSERT INTO `classificazione` VALUES (1046,443,'641','641 - Cibo e bevande',3);
-INSERT INTO `classificazione` VALUES (1047,443,'642','642 - Pasti e servizio a tavola',3);
-INSERT INTO `classificazione` VALUES (1048,443,'643','643 - Alloggi e attrezzature domestiche',3);
-INSERT INTO `classificazione` VALUES (1049,443,'644','644 - Utenze domestiche',3);
-INSERT INTO `classificazione` VALUES (1050,443,'645','645 - Arredamento domestico',3);
-INSERT INTO `classificazione` VALUES (1051,443,'646','646 - Cucito, abbigliamento, gestione della vita personale e familiare',3);
-INSERT INTO `classificazione` VALUES (1052,443,'647','647 - Gestione di esercizi pubblici (governo di istituzioni)',3);
-INSERT INTO `classificazione` VALUES (1053,443,'648','648 - Lavori domestici',3);
-INSERT INTO `classificazione` VALUES (1054,443,'649','649 - Puericultura; assistenza domiciliare a persone con disabilità e malattie',3);
-INSERT INTO `classificazione` VALUES (1055,444,'651','651 - Servizi d\'ufficio',3);
-INSERT INTO `classificazione` VALUES (1056,444,'652','652 - Processi di comunicazione scritta',3);
-INSERT INTO `classificazione` VALUES (1057,444,'653','653 - Stenografia',3);
-INSERT INTO `classificazione` VALUES (1058,444,'654','654 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1059,444,'655','655 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1060,444,'656','656 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1061,444,'657','657 - Contabilità',3);
-INSERT INTO `classificazione` VALUES (1062,444,'658','658 - Gestione generale',3);
-INSERT INTO `classificazione` VALUES (1063,444,'659','659 - Pubblicità e pubbliche relazioni',3);
-INSERT INTO `classificazione` VALUES (1064,445,'661','661 - Tecnologia dei prodotti chimici industriali',3);
-INSERT INTO `classificazione` VALUES (1065,445,'662','662 - Tecnologia di esplosivi, combustibili, prodotti correlati',3);
-INSERT INTO `classificazione` VALUES (1066,445,'663','663 - Tecnologia delle bevande',3);
-INSERT INTO `classificazione` VALUES (1067,445,'664','664 - Tecnologia alimentare',3);
-INSERT INTO `classificazione` VALUES (1068,445,'665','665 - Tecnologia di oli, grassi, cere, gas industriali',3);
-INSERT INTO `classificazione` VALUES (1069,445,'666','666 - Tecnologie ceramiche e affini',3);
-INSERT INTO `classificazione` VALUES (1070,445,'667','667 - Pulizia, colore, rivestimento, tecnologie correlate',3);
-INSERT INTO `classificazione` VALUES (1071,445,'668','668 - Tecnologia di altri prodotti organici',3);
-INSERT INTO `classificazione` VALUES (1072,445,'669','669 - Metallurgia',3);
-INSERT INTO `classificazione` VALUES (1073,446,'671','671 - Processi di lavorazione dei metalli e prodotti metallici primari',3);
-INSERT INTO `classificazione` VALUES (1074,446,'672','672 - Ferro, acciaio, altre leghe di ferro',3);
-INSERT INTO `classificazione` VALUES (1075,446,'673','673 - Metalli non ferrosi',3);
-INSERT INTO `classificazione` VALUES (1076,446,'674','674 - Lavorazione del legname, prodotti in legno, sughero',3);
-INSERT INTO `classificazione` VALUES (1077,446,'675','675 - Lavorazione della pelle e della pelliccia',3);
-INSERT INTO `classificazione` VALUES (1078,446,'676','676 - Tecnologia della cellulosa e della carta',3);
-INSERT INTO `classificazione` VALUES (1079,446,'677','677 - Tessili',3);
-INSERT INTO `classificazione` VALUES (1080,446,'678','678 - Elastomeri e prodotti in elastomero',3);
-INSERT INTO `classificazione` VALUES (1081,446,'679','679 - Altri prodotti di specifici tipi di materiali',3);
-INSERT INTO `classificazione` VALUES (1082,447,'681','681 - Strumenti di precisione e altri dispositivi',3);
-INSERT INTO `classificazione` VALUES (1083,447,'682','682 - Piccoli lavori di forgiatura (fabbro)',3);
-INSERT INTO `classificazione` VALUES (1084,447,'683','683 - Ferramenta ed elettrodomestici',3);
-INSERT INTO `classificazione` VALUES (1085,447,'684','684 - Arredamento e laboratori domestici',3);
-INSERT INTO `classificazione` VALUES (1086,447,'685','685 - Articoli in pelle e pelliccia e prodotti correlati',3);
-INSERT INTO `classificazione` VALUES (1087,447,'686','686 - Stampa e attività correlate',3);
-INSERT INTO `classificazione` VALUES (1088,447,'687','687 - Abbigliamento e accessori',3);
-INSERT INTO `classificazione` VALUES (1089,447,'688','688 - Altri prodotti finali e tecnologia di imballaggio',3);
-INSERT INTO `classificazione` VALUES (1090,447,'689','689 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1091,448,'691','691 - Materiali da costruzione',3);
-INSERT INTO `classificazione` VALUES (1092,448,'692','692 - Pratiche ausiliarie di costruzione',3);
-INSERT INTO `classificazione` VALUES (1093,448,'693','693 - Costruzione in tipi specifici di materiali e per scopi specifici',3);
-INSERT INTO `classificazione` VALUES (1094,448,'694','694 - Costruzione in legno',3);
-INSERT INTO `classificazione` VALUES (1095,448,'695','695 - Coperture per tetti',3);
-INSERT INTO `classificazione` VALUES (1096,448,'696','696 - Utenze',3);
-INSERT INTO `classificazione` VALUES (1097,448,'697','697 - Ingegneria del riscaldamento, della ventilazione e del condizionamento dell\'aria',3);
-INSERT INTO `classificazione` VALUES (1098,448,'698','698 - Finiture di dettaglio',3);
-INSERT INTO `classificazione` VALUES (1099,448,'699','699 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1100,449,'701','701 - Filosofia e teoria delle belle arti e delle arti decorative',3);
-INSERT INTO `classificazione` VALUES (1101,449,'702','702 - Miscellanea di belle arti e arti decorative',3);
-INSERT INTO `classificazione` VALUES (1102,449,'703','703 - Dizionari, enciclopedie, concordanze di belle arti e arti decorative',3);
-INSERT INTO `classificazione` VALUES (1103,449,'704','704 - Argomenti speciali in belle arti e arti decorative',3);
-INSERT INTO `classificazione` VALUES (1104,449,'705','705 - Pubblicazioni seriali di belle arti e arti decorative',3);
-INSERT INTO `classificazione` VALUES (1105,449,'706','706 - Organizzazioni e gestione di belle arti e arti decorative',3);
-INSERT INTO `classificazione` VALUES (1106,449,'707','707 - Educazione, ricerca, argomenti correlati di belle arti e arti decorative',3);
-INSERT INTO `classificazione` VALUES (1107,449,'708','708 - Gallerie, musei, collezioni private di belle arti e arti decorative',3);
-INSERT INTO `classificazione` VALUES (1108,449,'709','709 - Storia, trattamento geografico, biografia',3);
-INSERT INTO `classificazione` VALUES (1109,450,'711','711 - Pianificazione territoriale (arte civica)',3);
-INSERT INTO `classificazione` VALUES (1110,450,'712','712 - Architettura del paesaggio (Progettazione del paesaggio)',3);
-INSERT INTO `classificazione` VALUES (1111,450,'713','713 - Architettura del paesaggio delle vie di comunicazione',3);
-INSERT INTO `classificazione` VALUES (1112,450,'714','714 - Elementi acquatici nell\'architettura del paesaggio',3);
-INSERT INTO `classificazione` VALUES (1113,450,'715','715 - Piante legnose nell\'architettura del paesaggio',3);
-INSERT INTO `classificazione` VALUES (1114,450,'716','716 - Piante erbacee nell\'architettura del paesaggio',3);
-INSERT INTO `classificazione` VALUES (1115,450,'717','717 - Strutture nell\'architettura del paesaggio',3);
-INSERT INTO `classificazione` VALUES (1116,450,'718','718 - Progettazione paesaggistica dei cimiteri',3);
-INSERT INTO `classificazione` VALUES (1117,450,'719','719 - Paesaggi naturali',3);
-INSERT INTO `classificazione` VALUES (1118,451,'721','721 - Materiali architettonici ed elementi strutturali',3);
-INSERT INTO `classificazione` VALUES (1119,451,'722','722 - Architettura dai tempi più antichi al 300 circa',3);
-INSERT INTO `classificazione` VALUES (1120,451,'723','723 - Architettura dal 300 al 1399 circa',3);
-INSERT INTO `classificazione` VALUES (1121,451,'724','724 - Architettura dal 1400',3);
-INSERT INTO `classificazione` VALUES (1122,451,'725','725 - Strutture pubbliche',3);
-INSERT INTO `classificazione` VALUES (1123,451,'726','726 - Edifici per scopi religiosi e correlati',3);
-INSERT INTO `classificazione` VALUES (1124,451,'727','727 - Edifici per scopi educativi e di ricerca',3);
-INSERT INTO `classificazione` VALUES (1125,451,'728','728 - Edifici residenziali e correlati',3);
-INSERT INTO `classificazione` VALUES (1126,451,'729','729 - Progettazione e decorazione di strutture e accessori',3);
-INSERT INTO `classificazione` VALUES (1127,452,'731','731 - Processi, forme, soggetti della scultura',3);
-INSERT INTO `classificazione` VALUES (1128,452,'732','732 - Scultura dai tempi più antichi al 500 circa, scultura di popoli non letterati',3);
-INSERT INTO `classificazione` VALUES (1129,452,'733','733 - Scultura greca, etrusca, romana',3);
-INSERT INTO `classificazione` VALUES (1130,452,'734','734 - Scultura dal 500 al 1399 circa',3);
-INSERT INTO `classificazione` VALUES (1131,452,'735','735 - Scultura dal 1400',3);
-INSERT INTO `classificazione` VALUES (1132,452,'736','736 - Intaglio e incisioni',3);
-INSERT INTO `classificazione` VALUES (1133,452,'737','737 - Numismatica e sigillografia',3);
-INSERT INTO `classificazione` VALUES (1134,452,'738','738 - Arti ceramiche',3);
-INSERT INTO `classificazione` VALUES (1135,452,'739','739 - Lavorazione artistica dei metalli',3);
-INSERT INTO `classificazione` VALUES (1136,453,'741','741 - Disegno e disegni',3);
-INSERT INTO `classificazione` VALUES (1137,453,'742','742 - Prospettiva nel disegno',3);
-INSERT INTO `classificazione` VALUES (1138,453,'743','743 - Disegno e disegni per soggetto',3);
-INSERT INTO `classificazione` VALUES (1139,453,'744','744 - Progettazione della comunicazione e progettazione visiva (proposto)',3);
-INSERT INTO `classificazione` VALUES (1140,453,'745','745 - Arti decorative',3);
-INSERT INTO `classificazione` VALUES (1141,453,'746','746 - Arti tessili',3);
-INSERT INTO `classificazione` VALUES (1142,453,'747','747 - Decorazione di interni',3);
-INSERT INTO `classificazione` VALUES (1143,453,'748','748 - Vetro',3);
-INSERT INTO `classificazione` VALUES (1144,453,'749','749 - Mobili e accessori',3);
-INSERT INTO `classificazione` VALUES (1145,454,'751','751 - Tecniche, procedure, apparati, attrezzature, materiali, forme',3);
-INSERT INTO `classificazione` VALUES (1146,454,'752','752 - Colore',3);
-INSERT INTO `classificazione` VALUES (1147,454,'753','753 - Simbolismo, allegoria, mitologia, leggenda',3);
-INSERT INTO `classificazione` VALUES (1148,454,'754','754 - Pittura di genere',3);
-INSERT INTO `classificazione` VALUES (1149,454,'755','755 - Religione',3);
-INSERT INTO `classificazione` VALUES (1150,454,'756','756 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1151,454,'757','757 - Figure umane',3);
-INSERT INTO `classificazione` VALUES (1152,454,'758','758 - Natura, soggetti architettonici e paesaggi urbani, altri soggetti specifici',3);
-INSERT INTO `classificazione` VALUES (1153,454,'759','759 - Storia, trattamento geografico, biografia',3);
-INSERT INTO `classificazione` VALUES (1154,455,'761','761 - Processi a rilievo (stampa a blocchi)',3);
-INSERT INTO `classificazione` VALUES (1155,455,'762','762 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1156,455,'763','763 - Processi litografici (processi planografici)',3);
-INSERT INTO `classificazione` VALUES (1157,455,'764','764 - Cromolitografia e serigrafia',3);
-INSERT INTO `classificazione` VALUES (1158,455,'765','765 - Incisione su metallo',3);
-INSERT INTO `classificazione` VALUES (1159,455,'766','766 - Mezzatinta, acquatinta e processi correlati',3);
-INSERT INTO `classificazione` VALUES (1160,455,'767','767 - Acquaforte e puntasecca',3);
-INSERT INTO `classificazione` VALUES (1161,455,'768','768 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1162,455,'769','769 - Stampe',3);
-INSERT INTO `classificazione` VALUES (1163,456,'771','771 - Tecniche, procedure, apparati, attrezzature, materiali',3);
-INSERT INTO `classificazione` VALUES (1164,456,'772','772 - Processi a sali metallici',3);
-INSERT INTO `classificazione` VALUES (1165,456,'773','773 - Processi di stampa a pigmenti',3);
-INSERT INTO `classificazione` VALUES (1166,456,'774','774 - Non più in uso—in precedenza Olografia',3);
-INSERT INTO `classificazione` VALUES (1167,456,'775','775 - Non più in uso—in precedenza Fotografia digitale',3);
-INSERT INTO `classificazione` VALUES (1168,456,'776','776 - Computer art (arte digitale)',3);
-INSERT INTO `classificazione` VALUES (1169,456,'777','777 - Cinematografia e videografia',3);
-INSERT INTO `classificazione` VALUES (1170,456,'778','778 - Campi specifici e tipi speciali di fotografia',3);
-INSERT INTO `classificazione` VALUES (1171,456,'779','779 - Immagini fotografiche',3);
-INSERT INTO `classificazione` VALUES (1172,457,'781','781 - Principi generali e forme musicali',3);
-INSERT INTO `classificazione` VALUES (1173,457,'782','782 - Musica vocale',3);
-INSERT INTO `classificazione` VALUES (1174,457,'783','783 - Musica per voci singole',3);
-INSERT INTO `classificazione` VALUES (1175,457,'784','784 - Strumenti e complessi strumentali e la loro musica',3);
-INSERT INTO `classificazione` VALUES (1176,457,'785','785 - Complessi con un solo strumento per parte',3);
-INSERT INTO `classificazione` VALUES (1177,457,'786','786 - Strumenti a tastiera, meccanici, elettrofonici, a percussione',3);
-INSERT INTO `classificazione` VALUES (1178,457,'787','787 - Strumenti a corda (cordofoni)',3);
-INSERT INTO `classificazione` VALUES (1179,457,'788','788 - Strumenti a fiato (aerofoni)',3);
-INSERT INTO `classificazione` VALUES (1180,457,'789','789 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1181,458,'791','791 - Spettacoli pubblici',3);
-INSERT INTO `classificazione` VALUES (1182,458,'792','792 - Rappresentazioni teatrali',3);
-INSERT INTO `classificazione` VALUES (1183,458,'793','793 - Giochi e divertimenti al coperto',3);
-INSERT INTO `classificazione` VALUES (1184,458,'794','794 - Giochi di abilità al coperto',3);
-INSERT INTO `classificazione` VALUES (1185,458,'795','795 - Giochi d\'azzardo',3);
-INSERT INTO `classificazione` VALUES (1186,458,'796','796 - Sport e giochi atletici e all\'aperto',3);
-INSERT INTO `classificazione` VALUES (1187,458,'797','797 - Sport acquatici e aerei',3);
-INSERT INTO `classificazione` VALUES (1188,458,'798','798 - Sport equestri e corse di animali',3);
-INSERT INTO `classificazione` VALUES (1189,458,'799','799 - Pesca, caccia, tiro',3);
-INSERT INTO `classificazione` VALUES (1190,459,'801','801 - Filosofia e teoria',3);
-INSERT INTO `classificazione` VALUES (1191,459,'802','802 - Miscellanea',3);
-INSERT INTO `classificazione` VALUES (1192,459,'803','803 - Dizionari, enciclopedie, concordanze',3);
-INSERT INTO `classificazione` VALUES (1193,459,'804','804 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1194,459,'805','805 - Pubblicazioni seriali',3);
-INSERT INTO `classificazione` VALUES (1195,459,'806','806 - Organizzazioni e gestione',3);
-INSERT INTO `classificazione` VALUES (1196,459,'807','807 - Educazione, ricerca, argomenti correlati',3);
-INSERT INTO `classificazione` VALUES (1197,459,'808','808 - Retorica e raccolte di testi letterari da più di due letterature',3);
-INSERT INTO `classificazione` VALUES (1198,459,'809','809 - Storia, descrizione, valutazione critica di più di due letterature',3);
-INSERT INTO `classificazione` VALUES (1199,460,'811','811 - Poesia americana in inglese',3);
-INSERT INTO `classificazione` VALUES (1200,460,'812','812 - Teatro americano in inglese',3);
-INSERT INTO `classificazione` VALUES (1201,460,'813','813 - Narrativa americana in inglese',3);
-INSERT INTO `classificazione` VALUES (1202,460,'814','814 - Saggi americani in inglese',3);
-INSERT INTO `classificazione` VALUES (1203,460,'815','815 - Discorsi americani in inglese',3);
-INSERT INTO `classificazione` VALUES (1204,460,'816','816 - Lettere americane in inglese',3);
-INSERT INTO `classificazione` VALUES (1205,460,'817','817 - Umorismo e satira americani in inglese',3);
-INSERT INTO `classificazione` VALUES (1206,460,'818','818 - Scritti vari americani in inglese',3);
-INSERT INTO `classificazione` VALUES (1207,460,'819','819 - Non più in uso—in precedenza Attività di puzzle',3);
-INSERT INTO `classificazione` VALUES (1208,461,'821','821 - Poesia inglese',3);
-INSERT INTO `classificazione` VALUES (1209,461,'822','822 - Teatro inglese',3);
-INSERT INTO `classificazione` VALUES (1210,461,'823','823 - Narrativa inglese',3);
-INSERT INTO `classificazione` VALUES (1211,461,'824','824 - Saggi inglesi',3);
-INSERT INTO `classificazione` VALUES (1212,461,'825','825 - Discorsi inglesi',3);
-INSERT INTO `classificazione` VALUES (1213,461,'826','826 - Lettere inglesi',3);
-INSERT INTO `classificazione` VALUES (1214,461,'827','827 - Umorismo e satira inglesi',3);
-INSERT INTO `classificazione` VALUES (1215,461,'828','828 - Scritti vari inglesi',3);
-INSERT INTO `classificazione` VALUES (1216,461,'829','829 - Letteratura antico inglese (anglosassone)',3);
-INSERT INTO `classificazione` VALUES (1217,462,'831','831 - Poesia tedesca',3);
-INSERT INTO `classificazione` VALUES (1218,462,'832','832 - Teatro tedesco',3);
-INSERT INTO `classificazione` VALUES (1219,462,'833','833 - Narrativa tedesca',3);
-INSERT INTO `classificazione` VALUES (1220,462,'834','834 - Saggi tedeschi',3);
-INSERT INTO `classificazione` VALUES (1221,462,'835','835 - Discorsi tedeschi',3);
-INSERT INTO `classificazione` VALUES (1222,462,'836','836 - Lettere tedesche',3);
-INSERT INTO `classificazione` VALUES (1223,462,'837','837 - Umorismo e satira tedeschi',3);
-INSERT INTO `classificazione` VALUES (1224,462,'838','838 - Scritti vari tedeschi',3);
-INSERT INTO `classificazione` VALUES (1225,462,'839','839 - Altre letterature germaniche',3);
-INSERT INTO `classificazione` VALUES (1226,463,'841','841 - Poesia francese',3);
-INSERT INTO `classificazione` VALUES (1227,463,'842','842 - Teatro francese',3);
-INSERT INTO `classificazione` VALUES (1228,463,'843','843 - Narrativa francese',3);
-INSERT INTO `classificazione` VALUES (1229,463,'844','844 - Saggi francesi',3);
-INSERT INTO `classificazione` VALUES (1230,463,'845','845 - Discorsi francesi',3);
-INSERT INTO `classificazione` VALUES (1231,463,'846','846 - Lettere francesi',3);
-INSERT INTO `classificazione` VALUES (1232,463,'847','847 - Umorismo e satira francesi',3);
-INSERT INTO `classificazione` VALUES (1233,463,'848','848 - Scritti vari francesi',3);
-INSERT INTO `classificazione` VALUES (1234,463,'849','849 - Letterature occitana, catalana, francoprovenzale',3);
-INSERT INTO `classificazione` VALUES (1235,464,'851','851 - Poesia italiana',3);
-INSERT INTO `classificazione` VALUES (1236,464,'852','852 - Teatro italiano',3);
-INSERT INTO `classificazione` VALUES (1237,464,'853','853 - Narrativa italiana',3);
-INSERT INTO `classificazione` VALUES (1238,464,'854','854 - Saggi italiani',3);
-INSERT INTO `classificazione` VALUES (1239,464,'855','855 - Discorsi italiani',3);
-INSERT INTO `classificazione` VALUES (1240,464,'856','856 - Lettere italiane',3);
-INSERT INTO `classificazione` VALUES (1241,464,'857','857 - Umorismo e satira italiani',3);
-INSERT INTO `classificazione` VALUES (1242,464,'858','858 - Scritti vari italiani',3);
-INSERT INTO `classificazione` VALUES (1243,464,'859','859 - Letterature delle lingue romena, retoromanza, sarda, corsa',3);
-INSERT INTO `classificazione` VALUES (1244,465,'861','861 - Poesia spagnola',3);
-INSERT INTO `classificazione` VALUES (1245,465,'862','862 - Teatro spagnolo',3);
-INSERT INTO `classificazione` VALUES (1246,465,'863','863 - Narrativa spagnola',3);
-INSERT INTO `classificazione` VALUES (1247,465,'864','864 - Saggi spagnoli',3);
-INSERT INTO `classificazione` VALUES (1248,465,'865','865 - Discorsi spagnoli',3);
-INSERT INTO `classificazione` VALUES (1249,465,'866','866 - Lettere spagnole',3);
-INSERT INTO `classificazione` VALUES (1250,465,'867','867 - Umorismo e satira spagnoli',3);
-INSERT INTO `classificazione` VALUES (1251,465,'868','868 - Scritti vari spagnoli',3);
-INSERT INTO `classificazione` VALUES (1252,465,'869','869 - Letterature delle lingue portoghese e galiziana',3);
-INSERT INTO `classificazione` VALUES (1253,466,'871','871 - Poesia latina',3);
-INSERT INTO `classificazione` VALUES (1254,466,'872','872 - Poesia drammatica e teatro latini',3);
-INSERT INTO `classificazione` VALUES (1255,466,'873','873 - Poesia epica e narrativa latine',3);
-INSERT INTO `classificazione` VALUES (1256,466,'874','874 - Poesia lirica latina',3);
-INSERT INTO `classificazione` VALUES (1257,466,'875','875 - Discorsi latini',3);
-INSERT INTO `classificazione` VALUES (1258,466,'876','876 - Lettere latine',3);
-INSERT INTO `classificazione` VALUES (1259,466,'877','877 - Umorismo e satira latini',3);
-INSERT INTO `classificazione` VALUES (1260,466,'878','878 - Scritti vari latini',3);
-INSERT INTO `classificazione` VALUES (1261,466,'879','879 - Letterature di altre lingue italiche',3);
-INSERT INTO `classificazione` VALUES (1262,467,'881','881 - Poesia greca classica',3);
-INSERT INTO `classificazione` VALUES (1263,467,'882','882 - Teatro greco classico',3);
-INSERT INTO `classificazione` VALUES (1264,467,'883','883 - Poesia epica e narrativa greche classiche',3);
-INSERT INTO `classificazione` VALUES (1265,467,'884','884 - Poesia lirica greca classica',3);
-INSERT INTO `classificazione` VALUES (1266,467,'885','885 - Discorsi greci classici',3);
-INSERT INTO `classificazione` VALUES (1267,467,'886','886 - Lettere greche classiche',3);
-INSERT INTO `classificazione` VALUES (1268,467,'887','887 - Umorismo e satira greci classici',3);
-INSERT INTO `classificazione` VALUES (1269,467,'888','888 - Scritti vari greci classici',3);
-INSERT INTO `classificazione` VALUES (1270,467,'889','889 - Letteratura greca moderna',3);
-INSERT INTO `classificazione` VALUES (1271,468,'891','891 - Letterature indoeuropee orientali e celtiche',3);
-INSERT INTO `classificazione` VALUES (1272,468,'892','892 - Letterature afro-asiatiche',3);
-INSERT INTO `classificazione` VALUES (1273,468,'893','893 - Letterature afro-asiatiche non semitiche',3);
-INSERT INTO `classificazione` VALUES (1274,468,'894','894 - Letterature delle lingue altaiche, uraliche, iperboree, dravidiche; letterature di lingue varie dell\'Asia meridionale',3);
-INSERT INTO `classificazione` VALUES (1275,468,'895','895 - Letterature dell\'Asia orientale e sud-orientale',3);
-INSERT INTO `classificazione` VALUES (1276,468,'896','896 - Letterature africane',3);
-INSERT INTO `classificazione` VALUES (1277,468,'897','897 - Letterature delle lingue native del Nord America',3);
-INSERT INTO `classificazione` VALUES (1278,468,'898','898 - Letterature delle lingue native del Sud America',3);
-INSERT INTO `classificazione` VALUES (1279,468,'899','899 - Letterature delle lingue non austronesiane dell\'Oceania, delle lingue austronesiane, di lingue varie',3);
-INSERT INTO `classificazione` VALUES (1280,469,'901','901 - Filosofia e teoria della storia',3);
-INSERT INTO `classificazione` VALUES (1281,469,'902','902 - Miscellanea di storia',3);
-INSERT INTO `classificazione` VALUES (1282,469,'903','903 - Dizionari, enciclopedie, concordanze di storia',3);
-INSERT INTO `classificazione` VALUES (1283,469,'904','904 - Raccolte di resoconti di eventi',3);
-INSERT INTO `classificazione` VALUES (1284,469,'905','905 - Pubblicazioni seriali di storia',3);
-INSERT INTO `classificazione` VALUES (1285,469,'906','906 - Organizzazioni e gestione della storia',3);
-INSERT INTO `classificazione` VALUES (1286,469,'907','907 - Educazione, ricerca, argomenti correlati di storia',3);
-INSERT INTO `classificazione` VALUES (1287,469,'908','908 - Storia rispetto a gruppi di persone',3);
-INSERT INTO `classificazione` VALUES (1288,469,'909','909 - Storia mondiale',3);
-INSERT INTO `classificazione` VALUES (1289,470,'911','911 - Geografia storica',3);
-INSERT INTO `classificazione` VALUES (1290,470,'912','912 - Rappresentazioni grafiche della superficie terrestre e di mondi extraterrestri',3);
-INSERT INTO `classificazione` VALUES (1291,470,'913','913 - Geografia e viaggi nel mondo antico',3);
-INSERT INTO `classificazione` VALUES (1292,470,'914','914 - Geografia e viaggi in Europa',3);
-INSERT INTO `classificazione` VALUES (1293,470,'915','915 - Geografia e viaggi in Asia',3);
-INSERT INTO `classificazione` VALUES (1294,470,'916','916 - Geografia e viaggi in Africa',3);
-INSERT INTO `classificazione` VALUES (1295,470,'917','917 - Geografia e viaggi in Nord America',3);
-INSERT INTO `classificazione` VALUES (1296,470,'918','918 - Geografia e viaggi in Sud America',3);
-INSERT INTO `classificazione` VALUES (1297,470,'919','919 - Geografia e viaggi in Australasia, isole dell\'Oceano Pacifico, isole dell\'Oceano Atlantico, isole artiche, Antartide e su mondi extraterrestri',3);
-INSERT INTO `classificazione` VALUES (1298,471,'921','921 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1299,471,'922','922 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1300,471,'923','923 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1301,471,'924','924 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1302,471,'925','925 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1303,471,'926','926 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1304,471,'927','927 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1305,471,'928','928 - Questo intervallo è riservato come posizione opzionale per le biografie, che sono ordinate alfabeticamente per cognome del soggetto.',3);
-INSERT INTO `classificazione` VALUES (1306,471,'929','929 - Genealogia, nomi, insegne',3);
-INSERT INTO `classificazione` VALUES (1307,472,'931','931 - Cina fino al 420',3);
-INSERT INTO `classificazione` VALUES (1308,472,'932','932 - Egitto fino al 640',3);
-INSERT INTO `classificazione` VALUES (1309,472,'933','933 - Palestina fino al 70',3);
-INSERT INTO `classificazione` VALUES (1310,472,'934','934 - Asia meridionale fino al 647',3);
-INSERT INTO `classificazione` VALUES (1311,472,'935','935 - Mesopotamia e Altopiano iranico fino al 637',3);
-INSERT INTO `classificazione` VALUES (1312,472,'936','936 - Europa a nord e a ovest della Penisola italiana fino al 499 circa',3);
-INSERT INTO `classificazione` VALUES (1313,472,'937','937 - Italia e territori adiacenti fino al 476',3);
-INSERT INTO `classificazione` VALUES (1314,472,'938','938 - Grecia fino al 323',3);
-INSERT INTO `classificazione` VALUES (1315,472,'939','939 - Altre parti del mondo antico',3);
-INSERT INTO `classificazione` VALUES (1316,473,'941','941 - Isole Britanniche',3);
-INSERT INTO `classificazione` VALUES (1317,473,'942','942 - Inghilterra e Galles',3);
-INSERT INTO `classificazione` VALUES (1318,473,'943','943 - Germania e paesi limitrofi dell\'Europa centrale',3);
-INSERT INTO `classificazione` VALUES (1319,473,'944','944 - Francia e Monaco',3);
-INSERT INTO `classificazione` VALUES (1320,473,'945','945 - Italia, San Marino, Città del Vaticano, Malta',3);
-INSERT INTO `classificazione` VALUES (1321,473,'946','946 - Spagna, Andorra, Gibilterra, Portogallo',3);
-INSERT INTO `classificazione` VALUES (1322,473,'947','947 - Russia e paesi limitrofi dell\'Europa orientale',3);
-INSERT INTO `classificazione` VALUES (1323,473,'948','948 - Scandinavia',3);
-INSERT INTO `classificazione` VALUES (1324,473,'949','949 - Altre parti d\'Europa',3);
-INSERT INTO `classificazione` VALUES (1325,474,'951','951 - Cina e aree adiacenti',3);
-INSERT INTO `classificazione` VALUES (1326,474,'952','952 - Giappone',3);
-INSERT INTO `classificazione` VALUES (1327,474,'953','953 - Penisola arabica e aree adiacenti',3);
-INSERT INTO `classificazione` VALUES (1328,474,'954','954 - India e paesi limitrofi dell\'Asia meridionale',3);
-INSERT INTO `classificazione` VALUES (1329,474,'955','955 - Iran',3);
-INSERT INTO `classificazione` VALUES (1330,474,'956','956 - Medio Oriente (Vicino Oriente)',3);
-INSERT INTO `classificazione` VALUES (1331,474,'957','957 - Siberia (Russia asiatica)',3);
-INSERT INTO `classificazione` VALUES (1332,474,'958','958 - Asia centrale',3);
-INSERT INTO `classificazione` VALUES (1333,474,'959','959 - Sud-est asiatico',3);
-INSERT INTO `classificazione` VALUES (1334,475,'961','961 - Tunisia e Libia',3);
-INSERT INTO `classificazione` VALUES (1335,475,'962','962 - Egitto, Sudan, Sud Sudan',3);
-INSERT INTO `classificazione` VALUES (1336,475,'963','963 - Etiopia ed Eritrea',3);
-INSERT INTO `classificazione` VALUES (1337,475,'964','964 - Marocco, Ceuta, Melilla, Sahara Occidentale, Isole Canarie',3);
-INSERT INTO `classificazione` VALUES (1338,475,'965','965 - Algeria',3);
-INSERT INTO `classificazione` VALUES (1339,475,'966','966 - Africa occidentale e isole al largo',3);
-INSERT INTO `classificazione` VALUES (1340,475,'967','967 - Africa centrale e isole al largo',3);
-INSERT INTO `classificazione` VALUES (1341,475,'968','968 - Sudafrica e Africa australe',3);
-INSERT INTO `classificazione` VALUES (1342,475,'969','969 - Isole dell\'Oceano Indiano meridionale',3);
-INSERT INTO `classificazione` VALUES (1343,476,'971','971 - Canada',3);
-INSERT INTO `classificazione` VALUES (1344,476,'972','972 - Messico, America Centrale, Indie Occidentali, Bermuda',3);
-INSERT INTO `classificazione` VALUES (1345,476,'973','973 - Stati Uniti',3);
-INSERT INTO `classificazione` VALUES (1346,476,'974','974 - Stati Uniti nord-orientali (stati del New England e del Medio Atlantico)',3);
-INSERT INTO `classificazione` VALUES (1347,476,'975','975 - Stati Uniti sud-orientali (stati dell\'Atlantico meridionale)',3);
-INSERT INTO `classificazione` VALUES (1348,476,'976','976 - Stati Uniti centro-meridionali',3);
-INSERT INTO `classificazione` VALUES (1349,476,'977','977 - Stati Uniti centro-settentrionali',3);
-INSERT INTO `classificazione` VALUES (1350,476,'978','978 - Stati Uniti occidentali',3);
-INSERT INTO `classificazione` VALUES (1351,476,'979','979 - Regione del Gran Bacino e del Versante Pacifico degli Stati Uniti',3);
-INSERT INTO `classificazione` VALUES (1352,477,'981','981 - Brasile',3);
-INSERT INTO `classificazione` VALUES (1353,477,'982','982 - Argentina',3);
-INSERT INTO `classificazione` VALUES (1354,477,'983','983 - Cile',3);
-INSERT INTO `classificazione` VALUES (1355,477,'984','984 - Bolivia',3);
-INSERT INTO `classificazione` VALUES (1356,477,'985','985 - Perù',3);
-INSERT INTO `classificazione` VALUES (1357,477,'986','986 - Colombia ed Ecuador',3);
-INSERT INTO `classificazione` VALUES (1358,477,'987','987 - Venezuela',3);
-INSERT INTO `classificazione` VALUES (1359,477,'988','988 - Guiana',3);
-INSERT INTO `classificazione` VALUES (1360,477,'989','989 - Paraguay e Uruguay',3);
-INSERT INTO `classificazione` VALUES (1361,478,'991','991 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1362,478,'992','992 - Non assegnato o non più in uso',3);
-INSERT INTO `classificazione` VALUES (1363,478,'993','993 - Nuova Zelanda',3);
-INSERT INTO `classificazione` VALUES (1364,478,'994','994 - Australia',3);
-INSERT INTO `classificazione` VALUES (1365,478,'995','995 - Nuova Guinea e paesi vicini della Melanesia',3);
-INSERT INTO `classificazione` VALUES (1366,478,'996','996 - Polinesia e altre isole dell\'Oceano Pacifico',3);
-INSERT INTO `classificazione` VALUES (1367,478,'997','997 - Isole dell\'Oceano Atlantico',3);
-INSERT INTO `classificazione` VALUES (1368,478,'998','998 - Isole artiche e Antartide',3);
-INSERT INTO `classificazione` VALUES (1369,478,'999','999 - Mondi extraterrestri',3);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 INSERT INTO `generi` VALUES (1,'Prosa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (2,'Poesia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (3,'Teatro',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
@@ -1349,3 +1349,4667 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
 (1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 1, 1, NULL, 2015, 2015, 100.00),
 (2, 'en_US', 'English', 'English', '🇬🇧', 0, 1, 'locale/en_US.json', 2015, 1988, 98.66);
+
+-- =============================================
+-- Classificazione Dewey (Aggiornata: 2025-12-02)
+-- Totale entries: 2106
+-- =============================================
+
+-- Classificazione Dewey
+-- Generato automaticamente da generate_dewey_sql_inserts.php
+-- Data: 2025-12-02 23:36:41
+
+INSERT INTO `classificazione` VALUES (1,NULL,'0','Filosofia e psicologia',1);
+INSERT INTO `classificazione` VALUES (2,1,'100','Filosofia',2);
+INSERT INTO `classificazione` VALUES (3,1,'110','Metafisica',2);
+INSERT INTO `classificazione` VALUES (4,3,'111','Ontologia',3);
+INSERT INTO `classificazione` VALUES (5,3,'113','Cosmologia',3);
+INSERT INTO `classificazione` VALUES (6,3,'114','Spazio',3);
+INSERT INTO `classificazione` VALUES (7,3,'115','Tempo',3);
+INSERT INTO `classificazione` VALUES (8,3,'116','Cambiamento',3);
+INSERT INTO `classificazione` VALUES (9,3,'117','Struttura',3);
+INSERT INTO `classificazione` VALUES (10,3,'118','Forza ed energia',3);
+INSERT INTO `classificazione` VALUES (11,3,'119','Numero e quantità',3);
+INSERT INTO `classificazione` VALUES (12,1,'120','Epistemologia',2);
+INSERT INTO `classificazione` VALUES (13,12,'121','Epistemologia (Teoria della conoscenza)',3);
+INSERT INTO `classificazione` VALUES (14,12,'122','Causalità',3);
+INSERT INTO `classificazione` VALUES (15,12,'123','Determinismo e indeterminismo',3);
+INSERT INTO `classificazione` VALUES (16,12,'124','Teleologia',3);
+INSERT INTO `classificazione` VALUES (17,12,'126','Il sé',3);
+INSERT INTO `classificazione` VALUES (18,12,'127','L\'inconscio e il subconscio',3);
+INSERT INTO `classificazione` VALUES (19,12,'128','L\'umanità',3);
+INSERT INTO `classificazione` VALUES (20,12,'129','Origine e destino delle anime individuali',3);
+INSERT INTO `classificazione` VALUES (21,1,'130','Parapsicologia e occultismo',2);
+INSERT INTO `classificazione` VALUES (22,21,'131','Metodi occulti per il successo',3);
+INSERT INTO `classificazione` VALUES (23,21,'133','Parapsicologia e occultismo',3);
+INSERT INTO `classificazione` VALUES (24,21,'135','Sogni e misteri',3);
+INSERT INTO `classificazione` VALUES (25,21,'137','Divinazione e altre rivelazioni',3);
+INSERT INTO `classificazione` VALUES (26,21,'138','Fisiognomica',3);
+INSERT INTO `classificazione` VALUES (27,21,'139','Frenologia',3);
+INSERT INTO `classificazione` VALUES (28,1,'140','Scuole di pensiero filosofico',2);
+INSERT INTO `classificazione` VALUES (29,28,'141','Idealismo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (30,28,'142','Filosofia critica',3);
+INSERT INTO `classificazione` VALUES (31,28,'143','Intuizionismo e bergsonismo',3);
+INSERT INTO `classificazione` VALUES (32,28,'144','Umanesimo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (33,28,'145','Sensazionalismo',3);
+INSERT INTO `classificazione` VALUES (34,28,'146','Naturalismo',3);
+INSERT INTO `classificazione` VALUES (35,28,'147','Panteismo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (36,28,'148','Liberalismo, eclettismo, tradizionalismo',3);
+INSERT INTO `classificazione` VALUES (37,28,'149','Altre scuole filosofiche',3);
+INSERT INTO `classificazione` VALUES (38,1,'150','Psicologia',2);
+INSERT INTO `classificazione` VALUES (39,38,'151','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (40,38,'152','Percezione sensoriale, movimento, emozioni',3);
+INSERT INTO `classificazione` VALUES (41,38,'153','Processi mentali coscienti e intelligenza',3);
+INSERT INTO `classificazione` VALUES (42,38,'154','Subconscio e stati alterati',3);
+INSERT INTO `classificazione` VALUES (43,38,'155','Psicologia differenziale e dello sviluppo',3);
+INSERT INTO `classificazione` VALUES (44,38,'156','Psicologia comparata',3);
+INSERT INTO `classificazione` VALUES (45,38,'157','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (46,38,'158','Psicologia applicata',3);
+INSERT INTO `classificazione` VALUES (47,38,'159','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (48,1,'160','Logica',2);
+INSERT INTO `classificazione` VALUES (49,48,'161','Induzione',3);
+INSERT INTO `classificazione` VALUES (50,48,'162','Deduzione',3);
+INSERT INTO `classificazione` VALUES (51,48,'165','Fallacie e fonti di errore',3);
+INSERT INTO `classificazione` VALUES (52,48,'166','Sillogismi',3);
+INSERT INTO `classificazione` VALUES (53,48,'167','Ipotesi',3);
+INSERT INTO `classificazione` VALUES (54,48,'168','Argomentazione e persuasione',3);
+INSERT INTO `classificazione` VALUES (55,48,'169','Analogia',3);
+INSERT INTO `classificazione` VALUES (56,1,'170','Etica',2);
+INSERT INTO `classificazione` VALUES (57,56,'171','Sistemi etici',3);
+INSERT INTO `classificazione` VALUES (58,56,'172','Etica politica',3);
+INSERT INTO `classificazione` VALUES (59,56,'173','Etica delle relazioni familiari',3);
+INSERT INTO `classificazione` VALUES (60,56,'174','Etica professionale e occupazionale',3);
+INSERT INTO `classificazione` VALUES (61,56,'175','Etica della ricreazione',3);
+INSERT INTO `classificazione` VALUES (62,56,'176','Etica sessuale',3);
+INSERT INTO `classificazione` VALUES (63,56,'177','Etica delle relazioni sociali',3);
+INSERT INTO `classificazione` VALUES (64,56,'178','Etica del consumo',3);
+INSERT INTO `classificazione` VALUES (65,56,'179','Altre norme etiche',3);
+INSERT INTO `classificazione` VALUES (66,1,'180','Filosofia antica, medievale e orientale',2);
+INSERT INTO `classificazione` VALUES (67,66,'181','Filosofia orientale',3);
+INSERT INTO `classificazione` VALUES (68,66,'182','Filosofia pre-socratica greca',3);
+INSERT INTO `classificazione` VALUES (69,66,'183','Filosofia sofistica e socratica',3);
+INSERT INTO `classificazione` VALUES (70,66,'184','Filosofia platonica',3);
+INSERT INTO `classificazione` VALUES (71,66,'185','Filosofia aristotelica',3);
+INSERT INTO `classificazione` VALUES (72,66,'186','Filosofia scettica e neoplatonica',3);
+INSERT INTO `classificazione` VALUES (73,66,'187','Filosofia epicurea',3);
+INSERT INTO `classificazione` VALUES (74,66,'188','Filosofia stoica',3);
+INSERT INTO `classificazione` VALUES (75,66,'189','Filosofia medievale occidentale',3);
+INSERT INTO `classificazione` VALUES (76,1,'190','Filosofia occidentale moderna',2);
+INSERT INTO `classificazione` VALUES (77,76,'191','Filosofia degli Stati Uniti e Canada',3);
+INSERT INTO `classificazione` VALUES (78,76,'192','Filosofia delle isole britanniche',3);
+INSERT INTO `classificazione` VALUES (79,76,'193','Filosofia della Germania e Austria',3);
+INSERT INTO `classificazione` VALUES (80,76,'194','Filosofia della Francia',3);
+INSERT INTO `classificazione` VALUES (81,76,'195','Filosofia dell\'Italia',3);
+INSERT INTO `classificazione` VALUES (82,76,'196','Filosofia della Spagna e Portogallo',3);
+INSERT INTO `classificazione` VALUES (83,76,'197','Filosofia dell\'Unione Sovietica',3);
+INSERT INTO `classificazione` VALUES (84,76,'198','Filosofia della Scandinavia',3);
+INSERT INTO `classificazione` VALUES (85,76,'199','Filosofia di altre aree geografiche',3);
+INSERT INTO `classificazione` VALUES (86,NULL,'000','Informatica, informazione e opere generali',1);
+INSERT INTO `classificazione` VALUES (87,86,'000','Informatica, conoscenza e sistemi',2);
+INSERT INTO `classificazione` VALUES (88,87,'001','Conoscenza',3);
+INSERT INTO `classificazione` VALUES (89,87,'002','Il libro',3);
+INSERT INTO `classificazione` VALUES (90,87,'003','Sistemi',3);
+INSERT INTO `classificazione` VALUES (91,87,'004','Informatica',3);
+INSERT INTO `classificazione` VALUES (92,87,'005','Programmazione, programmi e dati',3);
+INSERT INTO `classificazione` VALUES (93,87,'006','Metodi speciali (AI, multimedia, VR)',3);
+INSERT INTO `classificazione` VALUES (94,87,'007','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (95,87,'008','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (96,87,'009','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (97,86,'001','Conoscenza',3);
+INSERT INTO `classificazione` VALUES (98,97,'001.1','Vita intellettuale',4);
+INSERT INTO `classificazione` VALUES (99,97,'001.2','Istruzione e ricerca',4);
+INSERT INTO `classificazione` VALUES (100,97,'001.3','Discipline umanistiche',4);
+INSERT INTO `classificazione` VALUES (101,97,'001.4','Ricerca e metodi statistici',4);
+INSERT INTO `classificazione` VALUES (102,101,'001.42','Metodi di raccolta dati',5);
+INSERT INTO `classificazione` VALUES (103,102,'001.422','Metodi statistici',6);
+INSERT INTO `classificazione` VALUES (104,101,'001.43','Analisi e interpretazione dati',5);
+INSERT INTO `classificazione` VALUES (105,97,'001.9','Conoscenza controversa',4);
+INSERT INTO `classificazione` VALUES (106,105,'001.94','Misteri',5);
+INSERT INTO `classificazione` VALUES (107,106,'001.942','Oggetti volanti non identificati (UFO)',6);
+INSERT INTO `classificazione` VALUES (108,106,'001.944','Mostri e creature leggendarie',6);
+INSERT INTO `classificazione` VALUES (109,86,'002','Il libro',3);
+INSERT INTO `classificazione` VALUES (110,86,'003','Sistemi',3);
+INSERT INTO `classificazione` VALUES (111,110,'003.1','Identificazione dei sistemi',4);
+INSERT INTO `classificazione` VALUES (112,110,'003.2','Previsioni e stime',4);
+INSERT INTO `classificazione` VALUES (113,110,'003.3','Modellazione e simulazione',4);
+INSERT INTO `classificazione` VALUES (114,110,'003.5','Cibernetica',4);
+INSERT INTO `classificazione` VALUES (115,114,'003.54','Teoria dell\'informazione',5);
+INSERT INTO `classificazione` VALUES (116,114,'003.56','Teoria delle decisioni',5);
+INSERT INTO `classificazione` VALUES (117,110,'003.7','Tipi di sistemi',4);
+INSERT INTO `classificazione` VALUES (118,110,'003.8','Sistemi temporali',4);
+INSERT INTO `classificazione` VALUES (119,86,'004','Informatica',3);
+INSERT INTO `classificazione` VALUES (120,119,'004.01','Filosofia e teoria',5);
+INSERT INTO `classificazione` VALUES (121,119,'004.1','Hardware',4);
+INSERT INTO `classificazione` VALUES (122,121,'004.11','Supercomputer',5);
+INSERT INTO `classificazione` VALUES (123,121,'004.16','Personal computer',5);
+INSERT INTO `classificazione` VALUES (124,123,'004.165','Dispositivi mobili',6);
+INSERT INTO `classificazione` VALUES (125,119,'004.2','Analisi e progettazione sistemi',4);
+INSERT INTO `classificazione` VALUES (126,119,'004.3','Modalità di elaborazione',4);
+INSERT INTO `classificazione` VALUES (127,119,'004.5','Archiviazione',4);
+INSERT INTO `classificazione` VALUES (128,119,'004.6','Reti e comunicazioni',4);
+INSERT INTO `classificazione` VALUES (129,128,'004.61','Architettura di rete',5);
+INSERT INTO `classificazione` VALUES (130,128,'004.62','Protocolli di rete',5);
+INSERT INTO `classificazione` VALUES (131,128,'004.65','Architettura delle comunicazioni',5);
+INSERT INTO `classificazione` VALUES (132,128,'004.67','Reti geografiche (WAN)',5);
+INSERT INTO `classificazione` VALUES (133,132,'004.678','Internet',6);
+INSERT INTO `classificazione` VALUES (134,133,'004.6782','World Wide Web',7);
+INSERT INTO `classificazione` VALUES (135,128,'004.69','Sicurezza delle reti',5);
+INSERT INTO `classificazione` VALUES (136,119,'004.9','Applicazioni non elettroniche',4);
+INSERT INTO `classificazione` VALUES (137,86,'005','Programmazione, programmi e dati',3);
+INSERT INTO `classificazione` VALUES (138,137,'005.1','Sviluppo software',4);
+INSERT INTO `classificazione` VALUES (139,138,'005.13','Linguaggi di programmazione',5);
+INSERT INTO `classificazione` VALUES (140,139,'005.133','Linguaggi specifici (C, Java, Python)',6);
+INSERT INTO `classificazione` VALUES (141,137,'005.2','Programmazione piattaforme specifiche',4);
+INSERT INTO `classificazione` VALUES (142,137,'005.3','Programmi',4);
+INSERT INTO `classificazione` VALUES (143,137,'005.4','Programmazione di sistema',4);
+INSERT INTO `classificazione` VALUES (144,143,'005.43','Sistemi operativi',5);
+INSERT INTO `classificazione` VALUES (145,144,'005.432','Windows',6);
+INSERT INTO `classificazione` VALUES (146,144,'005.434','UNIX / Linux',6);
+INSERT INTO `classificazione` VALUES (147,144,'005.435','macOS',6);
+INSERT INTO `classificazione` VALUES (148,137,'005.5','Applicazioni generali',4);
+INSERT INTO `classificazione` VALUES (149,137,'005.7','Dati',4);
+INSERT INTO `classificazione` VALUES (150,149,'005.74','Database',5);
+INSERT INTO `classificazione` VALUES (151,149,'005.75','Tipi di database',5);
+INSERT INTO `classificazione` VALUES (152,137,'005.8','Sicurezza informatica',4);
+INSERT INTO `classificazione` VALUES (153,86,'006','Metodi speciali',3);
+INSERT INTO `classificazione` VALUES (154,153,'006.3','Intelligenza artificiale',4);
+INSERT INTO `classificazione` VALUES (155,154,'006.31','Machine learning',5);
+INSERT INTO `classificazione` VALUES (156,154,'006.32','Reti neurali',5);
+INSERT INTO `classificazione` VALUES (157,154,'006.33','Sistemi esperti',5);
+INSERT INTO `classificazione` VALUES (158,154,'006.35','Elaborazione del linguaggio naturale',5);
+INSERT INTO `classificazione` VALUES (159,154,'006.37','Visione artificiale',5);
+INSERT INTO `classificazione` VALUES (160,153,'006.4','Riconoscimento pattern',4);
+INSERT INTO `classificazione` VALUES (161,153,'006.5','Sintesi audio',4);
+INSERT INTO `classificazione` VALUES (162,153,'006.6','Computer grafica',4);
+INSERT INTO `classificazione` VALUES (163,153,'006.7','Multimedia',4);
+INSERT INTO `classificazione` VALUES (164,153,'006.8','Realtà virtuale',4);
+INSERT INTO `classificazione` VALUES (165,86,'007','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (166,86,'008','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (167,86,'009','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (168,86,'010','Bibliografia',2);
+INSERT INTO `classificazione` VALUES (169,168,'011','Bibliografie',3);
+INSERT INTO `classificazione` VALUES (170,168,'012','Bibliografie di individui',3);
+INSERT INTO `classificazione` VALUES (171,168,'013','Bibliografie di opere di autori specifici',3);
+INSERT INTO `classificazione` VALUES (172,168,'014','Bibliografie di opere anonime e pseudonime',3);
+INSERT INTO `classificazione` VALUES (173,168,'015','Bibliografie di opere di specifici luoghi',3);
+INSERT INTO `classificazione` VALUES (174,168,'016','Bibliografie di opere su specifici argomenti',3);
+INSERT INTO `classificazione` VALUES (175,168,'017','Cataloghi generali di argomenti',3);
+INSERT INTO `classificazione` VALUES (176,168,'018','Cataloghi per autore, data, ecc.',3);
+INSERT INTO `classificazione` VALUES (177,168,'019','Cataloghi dizionario',3);
+INSERT INTO `classificazione` VALUES (178,86,'020','Biblioteconomia e scienza dell\'informazione',2);
+INSERT INTO `classificazione` VALUES (179,178,'021','Relazioni delle biblioteche',3);
+INSERT INTO `classificazione` VALUES (180,178,'022','Amministrazione dell\'edificio fisico',3);
+INSERT INTO `classificazione` VALUES (181,178,'023','Gestione del personale',3);
+INSERT INTO `classificazione` VALUES (182,178,'024','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (183,178,'025','Operazioni bibliotecarie',3);
+INSERT INTO `classificazione` VALUES (184,183,'025.04','Recupero informazioni',5);
+INSERT INTO `classificazione` VALUES (185,183,'025.1','Amministrazione',4);
+INSERT INTO `classificazione` VALUES (186,183,'025.2','Acquisizioni',4);
+INSERT INTO `classificazione` VALUES (187,183,'025.3','Catalogazione',4);
+INSERT INTO `classificazione` VALUES (188,187,'025.31','Descrizione bibliografica',5);
+INSERT INTO `classificazione` VALUES (189,187,'025.32','Formati (MARC)',5);
+INSERT INTO `classificazione` VALUES (190,183,'025.4','Classificazione',4);
+INSERT INTO `classificazione` VALUES (191,190,'025.43','Classificazione decimale Dewey',5);
+INSERT INTO `classificazione` VALUES (192,183,'025.5','Servizi al pubblico',4);
+INSERT INTO `classificazione` VALUES (193,178,'026','Biblioteche per argomenti specifici',3);
+INSERT INTO `classificazione` VALUES (194,178,'027','Biblioteche generali',3);
+INSERT INTO `classificazione` VALUES (195,194,'027.4','Biblioteche pubbliche',4);
+INSERT INTO `classificazione` VALUES (196,194,'027.5','Biblioteche nazionali',4);
+INSERT INTO `classificazione` VALUES (197,194,'027.6','Biblioteche per gruppi speciali',4);
+INSERT INTO `classificazione` VALUES (198,194,'027.7','Biblioteche universitarie',4);
+INSERT INTO `classificazione` VALUES (199,194,'027.8','Biblioteche scolastiche',4);
+INSERT INTO `classificazione` VALUES (200,178,'028','Lettura e uso di altri media',3);
+INSERT INTO `classificazione` VALUES (201,200,'028.1','Recensioni',4);
+INSERT INTO `classificazione` VALUES (202,200,'028.5','Lettura per bambini e ragazzi',4);
+INSERT INTO `classificazione` VALUES (203,178,'029','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (204,86,'030','Enciclopedie generali',2);
+INSERT INTO `classificazione` VALUES (205,204,'031','Enciclopedie in lingua inglese americana',3);
+INSERT INTO `classificazione` VALUES (206,204,'032','Enciclopedie in lingua inglese',3);
+INSERT INTO `classificazione` VALUES (207,204,'033','Enciclopedie in altre lingue germaniche',3);
+INSERT INTO `classificazione` VALUES (208,204,'034','Enciclopedie in lingua francese',3);
+INSERT INTO `classificazione` VALUES (209,204,'035','Enciclopedie in lingua italiana, romena, ecc.',3);
+INSERT INTO `classificazione` VALUES (210,204,'036','Enciclopedie in lingua spagnola e portoghese',3);
+INSERT INTO `classificazione` VALUES (211,204,'037','Enciclopedie in lingue slave',3);
+INSERT INTO `classificazione` VALUES (212,204,'038','Enciclopedie in lingue scandinave',3);
+INSERT INTO `classificazione` VALUES (213,204,'039','Enciclopedie in altre lingue',3);
+INSERT INTO `classificazione` VALUES (214,86,'040','Non assegnato',2);
+INSERT INTO `classificazione` VALUES (215,214,'041','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (216,214,'042','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (217,214,'043','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (218,214,'044','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (219,214,'045','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (220,214,'046','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (221,214,'047','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (222,214,'048','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (223,214,'049','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (224,86,'050','Pubblicazioni seriali generali',2);
+INSERT INTO `classificazione` VALUES (225,224,'051','In lingua inglese americana',3);
+INSERT INTO `classificazione` VALUES (226,224,'052','In lingua inglese',3);
+INSERT INTO `classificazione` VALUES (227,224,'053','In altre lingue germaniche',3);
+INSERT INTO `classificazione` VALUES (228,224,'054','In lingua francese',3);
+INSERT INTO `classificazione` VALUES (229,224,'055','In lingua italiana, romena, ecc.',3);
+INSERT INTO `classificazione` VALUES (230,224,'056','In lingua spagnola e portoghese',3);
+INSERT INTO `classificazione` VALUES (231,224,'057','In lingue slave',3);
+INSERT INTO `classificazione` VALUES (232,224,'058','In lingue scandinave',3);
+INSERT INTO `classificazione` VALUES (233,224,'059','In altre lingue',3);
+INSERT INTO `classificazione` VALUES (234,86,'060','Organizzazioni generali e museologia',2);
+INSERT INTO `classificazione` VALUES (235,234,'061','In Nord America',3);
+INSERT INTO `classificazione` VALUES (236,234,'062','Nelle Isole Britanniche',3);
+INSERT INTO `classificazione` VALUES (237,234,'063','In Europa centrale; Germania',3);
+INSERT INTO `classificazione` VALUES (238,234,'064','In Francia e Monaco',3);
+INSERT INTO `classificazione` VALUES (239,234,'065','In Italia e territori limitrofi',3);
+INSERT INTO `classificazione` VALUES (240,234,'066','Nella Penisola Iberica',3);
+INSERT INTO `classificazione` VALUES (241,234,'067','In Europa orientale; Russia',3);
+INSERT INTO `classificazione` VALUES (242,234,'068','In altre aree geografiche',3);
+INSERT INTO `classificazione` VALUES (243,234,'069','Museologia',3);
+INSERT INTO `classificazione` VALUES (244,243,'069.1','Servizi educativi',4);
+INSERT INTO `classificazione` VALUES (245,243,'069.2','Gestione collezioni',4);
+INSERT INTO `classificazione` VALUES (246,243,'069.5','Collezioni ed esposizioni',4);
+INSERT INTO `classificazione` VALUES (247,86,'070','Mezzi di informazione, giornalismo ed editoria',2);
+INSERT INTO `classificazione` VALUES (248,247,'070.1','Media documentari',4);
+INSERT INTO `classificazione` VALUES (249,247,'070.4','Giornalismo',4);
+INSERT INTO `classificazione` VALUES (250,247,'070.5','Editoria',4);
+INSERT INTO `classificazione` VALUES (251,247,'071','Giornalismo Nord America',3);
+INSERT INTO `classificazione` VALUES (252,247,'072','Giornalismo Isole Britanniche',3);
+INSERT INTO `classificazione` VALUES (253,247,'073','In Europa centrale; Germania',3);
+INSERT INTO `classificazione` VALUES (254,247,'074','Giornalismo Francia',3);
+INSERT INTO `classificazione` VALUES (255,247,'075','In Italia e territori limitrofi',3);
+INSERT INTO `classificazione` VALUES (256,247,'076','Giornalismo Penisola Iberica',3);
+INSERT INTO `classificazione` VALUES (257,247,'077','Giornalismo Europa orientale',3);
+INSERT INTO `classificazione` VALUES (258,247,'078','Giornalismo Scandinavia',3);
+INSERT INTO `classificazione` VALUES (259,247,'079','In altre aree geografiche',3);
+INSERT INTO `classificazione` VALUES (260,86,'080','Raccolte generali',2);
+INSERT INTO `classificazione` VALUES (261,260,'081','In lingua inglese americana',3);
+INSERT INTO `classificazione` VALUES (262,260,'082','In lingua inglese',3);
+INSERT INTO `classificazione` VALUES (263,260,'083','In altre lingue germaniche',3);
+INSERT INTO `classificazione` VALUES (264,260,'084','In lingua francese',3);
+INSERT INTO `classificazione` VALUES (265,260,'085','In lingua italiana, romena, ecc.',3);
+INSERT INTO `classificazione` VALUES (266,260,'086','In lingua spagnola e portoghese',3);
+INSERT INTO `classificazione` VALUES (267,260,'087','In lingue slave',3);
+INSERT INTO `classificazione` VALUES (268,260,'088','In lingue scandinave',3);
+INSERT INTO `classificazione` VALUES (269,260,'089','In altre lingue',3);
+INSERT INTO `classificazione` VALUES (270,86,'090','Manoscritti e libri rari',2);
+INSERT INTO `classificazione` VALUES (271,270,'091','Manoscritti',3);
+INSERT INTO `classificazione` VALUES (272,270,'092','Libri xilografici',3);
+INSERT INTO `classificazione` VALUES (273,270,'093','Incunaboli',3);
+INSERT INTO `classificazione` VALUES (274,270,'094','Libri stampati',3);
+INSERT INTO `classificazione` VALUES (275,270,'095','Libri notevoli per la legatura',3);
+INSERT INTO `classificazione` VALUES (276,270,'096','Libri notevoli per le illustrazioni',3);
+INSERT INTO `classificazione` VALUES (277,270,'097','Libri notevoli per la proprietà o l\'origine',3);
+INSERT INTO `classificazione` VALUES (278,270,'098','Opere proibite, falsificazioni, ecc.',3);
+INSERT INTO `classificazione` VALUES (279,270,'099','Libri notevoli per il formato',3);
+INSERT INTO `classificazione` VALUES (280,NULL,'1','Religione',1);
+INSERT INTO `classificazione` VALUES (281,280,'200','Religione',2);
+INSERT INTO `classificazione` VALUES (282,280,'210','Filosofia e teoria della religione',2);
+INSERT INTO `classificazione` VALUES (283,282,'211','Concetti di Dio',3);
+INSERT INTO `classificazione` VALUES (284,282,'212','Esistenza, conoscibilità, attributi di Dio',3);
+INSERT INTO `classificazione` VALUES (285,282,'213','Creazione',3);
+INSERT INTO `classificazione` VALUES (286,282,'214','Teodicea',3);
+INSERT INTO `classificazione` VALUES (287,282,'215','Scienza e religione',3);
+INSERT INTO `classificazione` VALUES (288,282,'216','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (289,282,'217','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (290,282,'218','Genere umano',3);
+INSERT INTO `classificazione` VALUES (291,282,'219','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (292,280,'220','La Bibbia',2);
+INSERT INTO `classificazione` VALUES (293,292,'221','Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (294,292,'222','Libri storici dell\'Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (295,292,'223','Libri poetici dell\'Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (296,292,'224','Libri profetici dell\'Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (297,292,'225','Nuovo Testamento',3);
+INSERT INTO `classificazione` VALUES (298,292,'226','Vangeli e Atti',3);
+INSERT INTO `classificazione` VALUES (299,292,'227','Epistole',3);
+INSERT INTO `classificazione` VALUES (300,292,'228','Apocalisse',3);
+INSERT INTO `classificazione` VALUES (301,292,'229','Apocrifi, pseudoepigrafi',3);
+INSERT INTO `classificazione` VALUES (302,280,'230','Cristianesimo e teologia cristiana',2);
+INSERT INTO `classificazione` VALUES (303,302,'231','Dio',3);
+INSERT INTO `classificazione` VALUES (304,302,'232','Gesù Cristo e sua famiglia',3);
+INSERT INTO `classificazione` VALUES (305,302,'233','Genere umano',3);
+INSERT INTO `classificazione` VALUES (306,302,'234','Salvezza e grazia',3);
+INSERT INTO `classificazione` VALUES (307,302,'235','Esseri spirituali',3);
+INSERT INTO `classificazione` VALUES (308,302,'236','Escatologia',3);
+INSERT INTO `classificazione` VALUES (309,302,'237','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (310,302,'238','Credi e catechismi',3);
+INSERT INTO `classificazione` VALUES (311,302,'239','Apologetica e polemica',3);
+INSERT INTO `classificazione` VALUES (312,280,'240','Pratica e osservanza cristiana',2);
+INSERT INTO `classificazione` VALUES (313,312,'241','Teologia morale cristiana',3);
+INSERT INTO `classificazione` VALUES (314,312,'242','Letteratura devozionale',3);
+INSERT INTO `classificazione` VALUES (315,312,'243','Letteratura evangelistica per individui',3);
+INSERT INTO `classificazione` VALUES (316,312,'244','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (317,312,'245','Testi di inni',3);
+INSERT INTO `classificazione` VALUES (318,312,'246','Uso dell\'arte nella cristianità',3);
+INSERT INTO `classificazione` VALUES (319,312,'247','Arredamento e oggetti ecclesiastici',3);
+INSERT INTO `classificazione` VALUES (320,312,'248','Esperienza, pratica, vita cristiana',3);
+INSERT INTO `classificazione` VALUES (321,312,'249','Devozioni cristiane in famiglia',3);
+INSERT INTO `classificazione` VALUES (322,280,'250','Pratica pastorale e ordini religiosi',2);
+INSERT INTO `classificazione` VALUES (323,322,'251','Predicazione',3);
+INSERT INTO `classificazione` VALUES (324,322,'252','Testi di sermoni',3);
+INSERT INTO `classificazione` VALUES (325,322,'253','Lavoro pastorale e organizzazioni parrocchiali',3);
+INSERT INTO `classificazione` VALUES (326,322,'254','Amministrazione parrocchiale',3);
+INSERT INTO `classificazione` VALUES (327,322,'255','Ordini e comunità religiose',3);
+INSERT INTO `classificazione` VALUES (328,322,'256','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (329,322,'257','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (330,322,'258','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (331,322,'259','Attività parrocchiali',3);
+INSERT INTO `classificazione` VALUES (332,280,'260','Organizzazione, lavoro sociale e culto cristiano',2);
+INSERT INTO `classificazione` VALUES (333,332,'261','Teologia sociale',3);
+INSERT INTO `classificazione` VALUES (334,332,'262','Ecclesiologia',3);
+INSERT INTO `classificazione` VALUES (335,332,'263','Giorni, tempi, luoghi di osservanza religiosa',3);
+INSERT INTO `classificazione` VALUES (336,332,'264','Culto pubblico',3);
+INSERT INTO `classificazione` VALUES (337,332,'265','Sacramenti, altre cerimonie',3);
+INSERT INTO `classificazione` VALUES (338,332,'266','Missioni',3);
+INSERT INTO `classificazione` VALUES (339,332,'267','Associazioni per lavoro religioso',3);
+INSERT INTO `classificazione` VALUES (340,332,'268','Educazione religiosa',3);
+INSERT INTO `classificazione` VALUES (341,332,'269','Rinnovamento spirituale',3);
+INSERT INTO `classificazione` VALUES (342,280,'270','Storia del cristianesimo',2);
+INSERT INTO `classificazione` VALUES (343,342,'271','Ordini religiosi nella storia della chiesa',3);
+INSERT INTO `classificazione` VALUES (344,342,'272','Persecuzioni nella storia generale della chiesa',3);
+INSERT INTO `classificazione` VALUES (345,342,'273','Eresie dottrinali',3);
+INSERT INTO `classificazione` VALUES (346,342,'274','Cristianesimo in Europa',3);
+INSERT INTO `classificazione` VALUES (347,342,'275','Cristianesimo in Asia',3);
+INSERT INTO `classificazione` VALUES (348,342,'276','Cristianesimo in Africa',3);
+INSERT INTO `classificazione` VALUES (349,342,'277','Cristianesimo in Nord America',3);
+INSERT INTO `classificazione` VALUES (350,342,'278','Cristianesimo in Sud America',3);
+INSERT INTO `classificazione` VALUES (351,342,'279','Cristianesimo in altre aree',3);
+INSERT INTO `classificazione` VALUES (352,280,'280','Denominazioni cristiane',2);
+INSERT INTO `classificazione` VALUES (353,352,'281','Chiesa primitiva e chiese orientali',3);
+INSERT INTO `classificazione` VALUES (354,352,'282','Chiesa cattolica romana',3);
+INSERT INTO `classificazione` VALUES (355,352,'283','Chiesa anglicana',3);
+INSERT INTO `classificazione` VALUES (356,352,'284','Protestantesimo',3);
+INSERT INTO `classificazione` VALUES (357,352,'285','Chiese presbiteriane',3);
+INSERT INTO `classificazione` VALUES (358,352,'286','Chiese battiste',3);
+INSERT INTO `classificazione` VALUES (359,352,'287','Chiese metodiste',3);
+INSERT INTO `classificazione` VALUES (360,352,'288','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (361,352,'289','Altre denominazioni',3);
+INSERT INTO `classificazione` VALUES (362,280,'290','Altre religioni',2);
+INSERT INTO `classificazione` VALUES (363,362,'291','Religioni comparate',3);
+INSERT INTO `classificazione` VALUES (364,362,'292','Religione classica',3);
+INSERT INTO `classificazione` VALUES (365,362,'293','Religione germanica',3);
+INSERT INTO `classificazione` VALUES (366,362,'294','Religioni di origine indiana',3);
+INSERT INTO `classificazione` VALUES (367,362,'295','Zoroastrismo',3);
+INSERT INTO `classificazione` VALUES (368,362,'296','Ebraismo',3);
+INSERT INTO `classificazione` VALUES (369,362,'297','Islam',3);
+INSERT INTO `classificazione` VALUES (370,362,'298','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (371,362,'299','Altre religioni',3);
+INSERT INTO `classificazione` VALUES (372,NULL,'100','Filosofia e psicologia',1);
+INSERT INTO `classificazione` VALUES (373,372,'101','Teoria della filosofia',3);
+INSERT INTO `classificazione` VALUES (374,372,'102','Miscellanea',3);
+INSERT INTO `classificazione` VALUES (375,372,'103','Dizionari ed enciclopedie',3);
+INSERT INTO `classificazione` VALUES (376,372,'104','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (377,372,'105','Pubblicazioni seriali',3);
+INSERT INTO `classificazione` VALUES (378,372,'106','Organizzazioni e gestione',3);
+INSERT INTO `classificazione` VALUES (379,372,'107','Educazione, ricerca, argomenti correlati',3);
+INSERT INTO `classificazione` VALUES (380,372,'108','Trattamento di gruppi',3);
+INSERT INTO `classificazione` VALUES (381,372,'109','Storia e biografia collettiva',3);
+INSERT INTO `classificazione` VALUES (382,372,'110','Metafisica',2);
+INSERT INTO `classificazione` VALUES (383,382,'111','Ontologia',3);
+INSERT INTO `classificazione` VALUES (384,382,'112','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (385,382,'113','Cosmologia (Filosofia della natura)',3);
+INSERT INTO `classificazione` VALUES (386,382,'114','Spazio',3);
+INSERT INTO `classificazione` VALUES (387,382,'115','Tempo',3);
+INSERT INTO `classificazione` VALUES (388,382,'116','Cambiamento',3);
+INSERT INTO `classificazione` VALUES (389,382,'117','Struttura',3);
+INSERT INTO `classificazione` VALUES (390,382,'118','Forza ed energia',3);
+INSERT INTO `classificazione` VALUES (391,382,'119','Numero e quantità',3);
+INSERT INTO `classificazione` VALUES (392,372,'120','Epistemologia, causalità e genere umano',2);
+INSERT INTO `classificazione` VALUES (393,392,'121','Epistemologia (Teoria della conoscenza)',3);
+INSERT INTO `classificazione` VALUES (394,392,'122','Causalità',3);
+INSERT INTO `classificazione` VALUES (395,392,'123','Determinismo e indeterminismo',3);
+INSERT INTO `classificazione` VALUES (396,392,'124','Teleologia',3);
+INSERT INTO `classificazione` VALUES (397,392,'125','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (398,392,'126','L\'io',3);
+INSERT INTO `classificazione` VALUES (399,392,'127','L\'inconscio e il subconscio',3);
+INSERT INTO `classificazione` VALUES (400,392,'128','Genere umano',3);
+INSERT INTO `classificazione` VALUES (401,392,'129','Origine e destino dell\'anima individuale',3);
+INSERT INTO `classificazione` VALUES (402,372,'130','Parapsicologia e occultismo',2);
+INSERT INTO `classificazione` VALUES (403,402,'131','Metodi parapsicologici e occulti',3);
+INSERT INTO `classificazione` VALUES (404,402,'132','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (405,402,'133','Argomenti specifici nella parapsicologia',3);
+INSERT INTO `classificazione` VALUES (406,405,'133.1','Spettri',4);
+INSERT INTO `classificazione` VALUES (407,405,'133.3','Divinazione',4);
+INSERT INTO `classificazione` VALUES (408,405,'133.4','Magia e stregoneria',4);
+INSERT INTO `classificazione` VALUES (409,405,'133.5','Astrologia',4);
+INSERT INTO `classificazione` VALUES (410,405,'133.6','Chiromanzia',4);
+INSERT INTO `classificazione` VALUES (411,402,'134','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (412,402,'135','Sogni e misteri',3);
+INSERT INTO `classificazione` VALUES (413,402,'136','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (414,402,'137','Grafologia divinatoria',3);
+INSERT INTO `classificazione` VALUES (415,402,'138','Fisiognomica',3);
+INSERT INTO `classificazione` VALUES (416,402,'139','Frenologia',3);
+INSERT INTO `classificazione` VALUES (417,372,'140','Specifiche scuole filosofiche',2);
+INSERT INTO `classificazione` VALUES (418,417,'141','Idealismo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (419,417,'142','Filosofia critica',3);
+INSERT INTO `classificazione` VALUES (420,417,'143','Bergsonismo e intuizionismo',3);
+INSERT INTO `classificazione` VALUES (421,417,'144','Umanesimo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (422,417,'145','Sensazionalismo',3);
+INSERT INTO `classificazione` VALUES (423,417,'146','Naturalismo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (424,417,'147','Panteismo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (425,417,'148','Dogmatismo, eclettismo, liberalismo',3);
+INSERT INTO `classificazione` VALUES (426,417,'149','Altri sistemi filosofici',3);
+INSERT INTO `classificazione` VALUES (427,372,'150','Psicologia',2);
+INSERT INTO `classificazione` VALUES (428,427,'151','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (429,427,'152','Percezione, movimento, emozioni',3);
+INSERT INTO `classificazione` VALUES (430,427,'153','Processi mentali e intelligenza',3);
+INSERT INTO `classificazione` VALUES (431,430,'153.1','Memoria',4);
+INSERT INTO `classificazione` VALUES (432,430,'153.4','Pensiero',4);
+INSERT INTO `classificazione` VALUES (433,430,'153.9','Intelligenza',4);
+INSERT INTO `classificazione` VALUES (434,427,'154','Subconscio e stati alterati',3);
+INSERT INTO `classificazione` VALUES (435,434,'154.6','Sonno',4);
+INSERT INTO `classificazione` VALUES (436,435,'154.63','Sogni',5);
+INSERT INTO `classificazione` VALUES (437,427,'155','Psicologia differenziale e dello sviluppo',3);
+INSERT INTO `classificazione` VALUES (438,437,'155.2','Psicologia individuale',4);
+INSERT INTO `classificazione` VALUES (439,437,'155.4','Psicologia infantile',4);
+INSERT INTO `classificazione` VALUES (440,437,'155.5','Psicologia dell\'adolescenza',4);
+INSERT INTO `classificazione` VALUES (441,437,'155.6','Psicologia dell\'adulto',4);
+INSERT INTO `classificazione` VALUES (442,437,'155.9','Psicologia ambientale',4);
+INSERT INTO `classificazione` VALUES (443,427,'156','Psicologia comparata',3);
+INSERT INTO `classificazione` VALUES (444,427,'157','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (445,427,'158','Psicologia applicata',3);
+INSERT INTO `classificazione` VALUES (446,445,'158.1','Miglioramento personale',4);
+INSERT INTO `classificazione` VALUES (447,445,'158.2','Relazioni interpersonali',4);
+INSERT INTO `classificazione` VALUES (448,445,'158.7','Psicologia industriale',4);
+INSERT INTO `classificazione` VALUES (449,427,'159','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (450,372,'160','Logica',2);
+INSERT INTO `classificazione` VALUES (451,450,'161','Induzione',3);
+INSERT INTO `classificazione` VALUES (452,450,'162','Deduzione',3);
+INSERT INTO `classificazione` VALUES (453,450,'163','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (454,450,'164','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (455,450,'165','Fallacie e fonti di errore',3);
+INSERT INTO `classificazione` VALUES (456,450,'166','Sillogismi',3);
+INSERT INTO `classificazione` VALUES (457,450,'167','Ipotesi',3);
+INSERT INTO `classificazione` VALUES (458,450,'168','Argomentazione e persuasione',3);
+INSERT INTO `classificazione` VALUES (459,450,'169','Analogia',3);
+INSERT INTO `classificazione` VALUES (460,372,'170','Etica (Filosofia morale)',2);
+INSERT INTO `classificazione` VALUES (461,460,'171','Sistemi etici',3);
+INSERT INTO `classificazione` VALUES (462,460,'172','Etica politica',3);
+INSERT INTO `classificazione` VALUES (463,460,'173','Etica delle relazioni familiari',3);
+INSERT INTO `classificazione` VALUES (464,460,'174','Etica professionale',3);
+INSERT INTO `classificazione` VALUES (465,464,'174.2','Etica medica',4);
+INSERT INTO `classificazione` VALUES (466,464,'174.4','Etica degli affari',4);
+INSERT INTO `classificazione` VALUES (467,460,'175','Etica della ricreazione e del tempo libero',3);
+INSERT INTO `classificazione` VALUES (468,460,'176','Etica del sesso e della riproduzione',3);
+INSERT INTO `classificazione` VALUES (469,460,'177','Etica delle relazioni sociali',3);
+INSERT INTO `classificazione` VALUES (470,460,'178','Etica del consumo',3);
+INSERT INTO `classificazione` VALUES (471,460,'179','Altre norme etiche',3);
+INSERT INTO `classificazione` VALUES (472,471,'179.3','Trattamento degli animali',4);
+INSERT INTO `classificazione` VALUES (473,471,'179.9','Virtù',4);
+INSERT INTO `classificazione` VALUES (474,372,'180','Filosofia antica, medievale e orientale',2);
+INSERT INTO `classificazione` VALUES (475,474,'181','Filosofia orientale',3);
+INSERT INTO `classificazione` VALUES (476,474,'182','Filosofie presocratiche greche',3);
+INSERT INTO `classificazione` VALUES (477,474,'183','Filosofie socratiche e correlate',3);
+INSERT INTO `classificazione` VALUES (478,474,'184','Platonica',3);
+INSERT INTO `classificazione` VALUES (479,474,'185','Aristotelica',3);
+INSERT INTO `classificazione` VALUES (480,474,'186','Scettica e neoplatonica',3);
+INSERT INTO `classificazione` VALUES (481,474,'187','Epicurea',3);
+INSERT INTO `classificazione` VALUES (482,474,'188','Stoica',3);
+INSERT INTO `classificazione` VALUES (483,474,'189','Filosofia medievale occidentale',3);
+INSERT INTO `classificazione` VALUES (484,372,'190','Filosofia moderna occidentale',2);
+INSERT INTO `classificazione` VALUES (485,484,'191','Stati Uniti e Canada',3);
+INSERT INTO `classificazione` VALUES (486,484,'192','Isole Britanniche',3);
+INSERT INTO `classificazione` VALUES (487,484,'193','Germania e Austria',3);
+INSERT INTO `classificazione` VALUES (488,484,'194','Francese',3);
+INSERT INTO `classificazione` VALUES (489,484,'195','Italiana',3);
+INSERT INTO `classificazione` VALUES (490,484,'196','Spagna e Portogallo',3);
+INSERT INTO `classificazione` VALUES (491,484,'197','Ex Unione Sovietica',3);
+INSERT INTO `classificazione` VALUES (492,484,'198','Scandinavia',3);
+INSERT INTO `classificazione` VALUES (493,484,'199','Altre aree geografiche',3);
+INSERT INTO `classificazione` VALUES (494,NULL,'2','Scienze sociali',1);
+INSERT INTO `classificazione` VALUES (495,494,'300','Scienze sociali, sociologia, antropologia',2);
+INSERT INTO `classificazione` VALUES (496,495,'301','Sociologia e antropologia',3);
+INSERT INTO `classificazione` VALUES (497,495,'302','Interazione sociale',3);
+INSERT INTO `classificazione` VALUES (498,495,'303','Processi sociali',3);
+INSERT INTO `classificazione` VALUES (499,495,'304','Fattori che influenzano il comportamento sociale',3);
+INSERT INTO `classificazione` VALUES (500,495,'305','Gruppi sociali',3);
+INSERT INTO `classificazione` VALUES (501,495,'306','Cultura e istituzioni',3);
+INSERT INTO `classificazione` VALUES (502,495,'307','Comunità',3);
+INSERT INTO `classificazione` VALUES (503,495,'308','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (504,495,'309','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (505,494,'310','Statistica',2);
+INSERT INTO `classificazione` VALUES (506,505,'311','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (507,505,'312','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (508,505,'313','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (509,505,'314','Statistiche generali d\'Europa',3);
+INSERT INTO `classificazione` VALUES (510,505,'315','Statistiche generali d\'Asia',3);
+INSERT INTO `classificazione` VALUES (511,505,'316','Statistiche generali d\'Africa',3);
+INSERT INTO `classificazione` VALUES (512,505,'317','Statistiche generali del Nord America',3);
+INSERT INTO `classificazione` VALUES (513,505,'318','Statistiche generali del Sud America',3);
+INSERT INTO `classificazione` VALUES (514,505,'319','Statistiche generali di altre aree',3);
+INSERT INTO `classificazione` VALUES (515,494,'320','Scienza politica',2);
+INSERT INTO `classificazione` VALUES (516,515,'321','Sistemi di governi e stati',3);
+INSERT INTO `classificazione` VALUES (517,515,'322','Relazione dello stato con gruppi organizzati',3);
+INSERT INTO `classificazione` VALUES (518,515,'323','Diritti civili e politici',3);
+INSERT INTO `classificazione` VALUES (519,515,'324','Il processo politico',3);
+INSERT INTO `classificazione` VALUES (520,515,'325','Migrazione internazionale',3);
+INSERT INTO `classificazione` VALUES (521,515,'326','Schiavitù ed emancipazione',3);
+INSERT INTO `classificazione` VALUES (522,515,'327','Relazioni internazionali',3);
+INSERT INTO `classificazione` VALUES (523,515,'328','Il processo legislativo',3);
+INSERT INTO `classificazione` VALUES (524,515,'329','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (525,494,'330','Economia',2);
+INSERT INTO `classificazione` VALUES (526,525,'331','Economia del lavoro',3);
+INSERT INTO `classificazione` VALUES (527,525,'332','Economia finanziaria',3);
+INSERT INTO `classificazione` VALUES (528,525,'333','Economia della terra e dell\'energia',3);
+INSERT INTO `classificazione` VALUES (529,525,'334','Forme cooperative di organizzazione',3);
+INSERT INTO `classificazione` VALUES (530,525,'335','Socialismo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (531,525,'336','Finanza pubblica',3);
+INSERT INTO `classificazione` VALUES (532,525,'337','Economia internazionale',3);
+INSERT INTO `classificazione` VALUES (533,525,'338','Produzione',3);
+INSERT INTO `classificazione` VALUES (534,525,'339','Macroeconomia e argomenti correlati',3);
+INSERT INTO `classificazione` VALUES (535,494,'340','Diritto',2);
+INSERT INTO `classificazione` VALUES (536,535,'341','Diritto internazionale',3);
+INSERT INTO `classificazione` VALUES (537,535,'342','Diritto costituzionale e amministrativo',3);
+INSERT INTO `classificazione` VALUES (538,535,'343','Diritto militare, fiscale, commerciale',3);
+INSERT INTO `classificazione` VALUES (539,535,'344','Diritto del lavoro, sociale, educativo, culturale',3);
+INSERT INTO `classificazione` VALUES (540,535,'345','Diritto penale',3);
+INSERT INTO `classificazione` VALUES (541,535,'346','Diritto privato',3);
+INSERT INTO `classificazione` VALUES (542,535,'347','Procedura civile e tribunali',3);
+INSERT INTO `classificazione` VALUES (543,535,'348','Leggi, regolamenti, giurisprudenza',3);
+INSERT INTO `classificazione` VALUES (544,535,'349','Diritto di giurisdizioni specifiche',3);
+INSERT INTO `classificazione` VALUES (545,494,'350','Amministrazione pubblica e scienza militare',2);
+INSERT INTO `classificazione` VALUES (546,545,'351','Amministrazione pubblica',3);
+INSERT INTO `classificazione` VALUES (547,545,'352','Amministrazione locale',3);
+INSERT INTO `classificazione` VALUES (548,545,'353','Governo federale e statale',3);
+INSERT INTO `classificazione` VALUES (549,545,'354','Amministrazione di economia e ambiente',3);
+INSERT INTO `classificazione` VALUES (550,545,'355','Scienza militare',3);
+INSERT INTO `classificazione` VALUES (551,545,'356','Forze di fanteria',3);
+INSERT INTO `classificazione` VALUES (552,545,'357','Cavalleria, corazzati, artiglieria',3);
+INSERT INTO `classificazione` VALUES (553,545,'358','Forze aeree e spaziali',3);
+INSERT INTO `classificazione` VALUES (554,545,'359','Forze di mare',3);
+INSERT INTO `classificazione` VALUES (555,494,'360','Problemi e servizi sociali',2);
+INSERT INTO `classificazione` VALUES (556,555,'361','Problemi sociali e benessere sociale',3);
+INSERT INTO `classificazione` VALUES (557,555,'362','Problemi e servizi sociali',3);
+INSERT INTO `classificazione` VALUES (558,555,'363','Altri problemi e servizi sociali',3);
+INSERT INTO `classificazione` VALUES (559,555,'364','Criminologia',3);
+INSERT INTO `classificazione` VALUES (560,555,'365','Istituzioni penali e correlate',3);
+INSERT INTO `classificazione` VALUES (561,555,'366','Associazioni',3);
+INSERT INTO `classificazione` VALUES (562,555,'367','Circoli e club generali',3);
+INSERT INTO `classificazione` VALUES (563,555,'368','Assicurazioni',3);
+INSERT INTO `classificazione` VALUES (564,555,'369','Tipi vari di associazioni',3);
+INSERT INTO `classificazione` VALUES (565,494,'370','Educazione',2);
+INSERT INTO `classificazione` VALUES (566,565,'371','Scuole e loro attività',3);
+INSERT INTO `classificazione` VALUES (567,565,'372','Educazione elementare',3);
+INSERT INTO `classificazione` VALUES (568,565,'373','Educazione secondaria',3);
+INSERT INTO `classificazione` VALUES (569,565,'374','Educazione degli adulti',3);
+INSERT INTO `classificazione` VALUES (570,565,'375','Curricula',3);
+INSERT INTO `classificazione` VALUES (571,565,'376','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (572,565,'377','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (573,565,'378','Educazione superiore',3);
+INSERT INTO `classificazione` VALUES (574,565,'379','Pubblico supporto, controllo, relazioni',3);
+INSERT INTO `classificazione` VALUES (575,494,'380','Commercio, comunicazioni, trasporti',2);
+INSERT INTO `classificazione` VALUES (576,575,'381','Commercio interno',3);
+INSERT INTO `classificazione` VALUES (577,575,'382','Commercio internazionale',3);
+INSERT INTO `classificazione` VALUES (578,575,'383','Comunicazioni postali',3);
+INSERT INTO `classificazione` VALUES (579,575,'384','Comunicazioni, telecomunicazioni',3);
+INSERT INTO `classificazione` VALUES (580,575,'385','Trasporto ferroviario',3);
+INSERT INTO `classificazione` VALUES (581,575,'386','Trasporto per vie navigabili interne',3);
+INSERT INTO `classificazione` VALUES (582,575,'387','Trasporto marittimo, aereo, spaziale',3);
+INSERT INTO `classificazione` VALUES (583,575,'388','Trasporto terrestre',3);
+INSERT INTO `classificazione` VALUES (584,575,'389','Metrologia e standardizzazione',3);
+INSERT INTO `classificazione` VALUES (585,494,'390','Costumi, etichetta, folclore',2);
+INSERT INTO `classificazione` VALUES (586,585,'391','Costume e aspetto personale',3);
+INSERT INTO `classificazione` VALUES (587,585,'392','Costumi della vita familiare',3);
+INSERT INTO `classificazione` VALUES (588,585,'393','Costumi della morte',3);
+INSERT INTO `classificazione` VALUES (589,585,'394','Costumi generali',3);
+INSERT INTO `classificazione` VALUES (590,585,'395','Etichetta (buone maniere)',3);
+INSERT INTO `classificazione` VALUES (591,585,'396','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (592,585,'397','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (593,585,'398','Folclore',3);
+INSERT INTO `classificazione` VALUES (594,585,'399','Costumi della guerra e diplomazia',3);
+INSERT INTO `classificazione` VALUES (595,NULL,'200','Religione',1);
+INSERT INTO `classificazione` VALUES (596,595,'201','Mitologia religiosa',3);
+INSERT INTO `classificazione` VALUES (597,595,'202','Dottrine',3);
+INSERT INTO `classificazione` VALUES (598,595,'203','Culto pubblico e altre pratiche',3);
+INSERT INTO `classificazione` VALUES (599,595,'204','Esperienza religiosa, vita, pratica',3);
+INSERT INTO `classificazione` VALUES (600,595,'205','Etica religiosa',3);
+INSERT INTO `classificazione` VALUES (601,595,'206','Leader e organizzazione',3);
+INSERT INTO `classificazione` VALUES (602,595,'207','Missioni ed educazione religiosa',3);
+INSERT INTO `classificazione` VALUES (603,595,'208','Fonti',3);
+INSERT INTO `classificazione` VALUES (604,595,'209','Sette e movimenti riformisti',3);
+INSERT INTO `classificazione` VALUES (605,595,'210','Filosofia e teoria della religione',2);
+INSERT INTO `classificazione` VALUES (606,605,'211','Concetti di Dio',3);
+INSERT INTO `classificazione` VALUES (607,605,'212','Natura di Dio',3);
+INSERT INTO `classificazione` VALUES (608,605,'213','Creazione',3);
+INSERT INTO `classificazione` VALUES (609,605,'214','Teodicea',3);
+INSERT INTO `classificazione` VALUES (610,605,'215','Scienza e religione',3);
+INSERT INTO `classificazione` VALUES (611,605,'216','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (612,605,'217','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (613,605,'218','Genere umano',3);
+INSERT INTO `classificazione` VALUES (614,605,'219','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (615,595,'220','Bibbia',2);
+INSERT INTO `classificazione` VALUES (616,615,'221','Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (617,615,'222','Libri storici dell\'Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (618,615,'223','Libri poetici dell\'Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (619,615,'224','Libri profetici dell\'Antico Testamento',3);
+INSERT INTO `classificazione` VALUES (620,615,'225','Nuovo Testamento',3);
+INSERT INTO `classificazione` VALUES (621,615,'226','Vangeli e Atti degli Apostoli',3);
+INSERT INTO `classificazione` VALUES (622,615,'227','Epistole',3);
+INSERT INTO `classificazione` VALUES (623,615,'228','Apocalisse (Libro della Rivelazione)',3);
+INSERT INTO `classificazione` VALUES (624,615,'229','Apocrifi e pseudepigrafi',3);
+INSERT INTO `classificazione` VALUES (625,595,'230','Cristianesimo e teologia cristiana',2);
+INSERT INTO `classificazione` VALUES (626,625,'231','Dio',3);
+INSERT INTO `classificazione` VALUES (627,625,'232','Gesù Cristo e la sua famiglia',3);
+INSERT INTO `classificazione` VALUES (628,625,'233','Genere umano',3);
+INSERT INTO `classificazione` VALUES (629,625,'234','Salvezza e grazia',3);
+INSERT INTO `classificazione` VALUES (630,625,'235','Esseri spirituali',3);
+INSERT INTO `classificazione` VALUES (631,625,'236','Escatologia',3);
+INSERT INTO `classificazione` VALUES (632,625,'237','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (633,625,'238','Credi e confessioni di fede',3);
+INSERT INTO `classificazione` VALUES (634,625,'239','Apologetica e polemica',3);
+INSERT INTO `classificazione` VALUES (635,595,'240','Teologia morale e devozionale cristiana',2);
+INSERT INTO `classificazione` VALUES (636,635,'241','Teologia morale',3);
+INSERT INTO `classificazione` VALUES (637,635,'242','Letteratura devozionale',3);
+INSERT INTO `classificazione` VALUES (638,635,'243','Scritti evangelistici per individui',3);
+INSERT INTO `classificazione` VALUES (639,635,'244','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (640,635,'245','Inni',3);
+INSERT INTO `classificazione` VALUES (641,635,'246','Uso dell\'arte nel Cristianesimo',3);
+INSERT INTO `classificazione` VALUES (642,635,'247','Arredi e paramenti sacri',3);
+INSERT INTO `classificazione` VALUES (643,635,'248','Esperienza, pratica, vita cristiana',3);
+INSERT INTO `classificazione` VALUES (644,635,'249','Osservanze cristiane nella vita familiare',3);
+INSERT INTO `classificazione` VALUES (645,595,'250','Ordini cristiani e chiesa locale',2);
+INSERT INTO `classificazione` VALUES (646,645,'251','Predicazione',3);
+INSERT INTO `classificazione` VALUES (647,645,'252','Testi di sermoni',3);
+INSERT INTO `classificazione` VALUES (648,645,'253','Ufficio pastorale (Teologia pastorale)',3);
+INSERT INTO `classificazione` VALUES (649,645,'254','Amministrazione parrocchiale',3);
+INSERT INTO `classificazione` VALUES (650,645,'255','Congregazioni e ordini religiosi',3);
+INSERT INTO `classificazione` VALUES (651,645,'256','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (652,645,'257','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (653,645,'258','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (654,645,'259','Cura pastorale di specifici gruppi',3);
+INSERT INTO `classificazione` VALUES (655,595,'260','Teologia sociale cristiana',2);
+INSERT INTO `classificazione` VALUES (656,655,'261','Sociologia cristiana',3);
+INSERT INTO `classificazione` VALUES (657,655,'262','Ecclesiologia',3);
+INSERT INTO `classificazione` VALUES (658,655,'263','Giorni, tempi, luoghi di osservanza',3);
+INSERT INTO `classificazione` VALUES (659,655,'264','Culto pubblico',3);
+INSERT INTO `classificazione` VALUES (660,655,'265','Sacramenti, altri riti e atti',3);
+INSERT INTO `classificazione` VALUES (661,655,'266','Missioni',3);
+INSERT INTO `classificazione` VALUES (662,655,'267','Associazioni per il lavoro religioso',3);
+INSERT INTO `classificazione` VALUES (663,655,'268','Educazione religiosa',3);
+INSERT INTO `classificazione` VALUES (664,655,'269','Rinnovamento spirituale',3);
+INSERT INTO `classificazione` VALUES (665,595,'270','Storia della chiesa cristiana',2);
+INSERT INTO `classificazione` VALUES (666,665,'271','Ordini religiosi nella storia della chiesa',3);
+INSERT INTO `classificazione` VALUES (667,665,'272','Persecuzioni nella storia della chiesa',3);
+INSERT INTO `classificazione` VALUES (668,665,'273','Controversie dottrinali ed eresie',3);
+INSERT INTO `classificazione` VALUES (669,665,'274','In Europa',3);
+INSERT INTO `classificazione` VALUES (670,665,'275','In Asia',3);
+INSERT INTO `classificazione` VALUES (671,665,'276','In Africa',3);
+INSERT INTO `classificazione` VALUES (672,665,'277','In Nord America',3);
+INSERT INTO `classificazione` VALUES (673,665,'278','In Sud America',3);
+INSERT INTO `classificazione` VALUES (674,665,'279','In altre aree',3);
+INSERT INTO `classificazione` VALUES (675,595,'280','Denominazioni e sette cristiane',2);
+INSERT INTO `classificazione` VALUES (676,675,'281','Chiese primitive e orientali',3);
+INSERT INTO `classificazione` VALUES (677,675,'282','Chiesa Cattolica Romana',3);
+INSERT INTO `classificazione` VALUES (678,675,'283','Chiese Anglicane',3);
+INSERT INTO `classificazione` VALUES (679,675,'284','Protestanti di origine continentale',3);
+INSERT INTO `classificazione` VALUES (680,675,'285','Presbiteriane, Riformate, Congregazionali',3);
+INSERT INTO `classificazione` VALUES (681,675,'286','Battiste, Discepoli di Cristo, Avventiste',3);
+INSERT INTO `classificazione` VALUES (682,675,'287','Metodiste e correlate',3);
+INSERT INTO `classificazione` VALUES (683,675,'288','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (684,675,'289','Altre denominazioni e sette',3);
+INSERT INTO `classificazione` VALUES (685,595,'290','Altre religioni',2);
+INSERT INTO `classificazione` VALUES (686,685,'291','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (687,685,'292','Religione classica (Greca e Romana)',3);
+INSERT INTO `classificazione` VALUES (688,685,'293','Mitologia germanica',3);
+INSERT INTO `classificazione` VALUES (689,685,'294','Religioni di origine indiana',3);
+INSERT INTO `classificazione` VALUES (690,689,'294.3','Buddismo',4);
+INSERT INTO `classificazione` VALUES (691,689,'294.5','Induismo',4);
+INSERT INTO `classificazione` VALUES (692,685,'295','Zoroastrismo',3);
+INSERT INTO `classificazione` VALUES (693,685,'296','Ebraismo',3);
+INSERT INTO `classificazione` VALUES (694,685,'297','Islam, Bábismo e Fede Bahá\'í',3);
+INSERT INTO `classificazione` VALUES (695,694,'297.1','Corano',4);
+INSERT INTO `classificazione` VALUES (696,685,'298','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (697,685,'299','Religioni non altrove classificate',3);
+INSERT INTO `classificazione` VALUES (698,697,'299.51','Confucianesimo',5);
+INSERT INTO `classificazione` VALUES (699,698,'299.514','Taoismo',6);
+INSERT INTO `classificazione` VALUES (700,697,'299.6','Religioni africane',4);
+INSERT INTO `classificazione` VALUES (701,NULL,'3','Linguaggio',1);
+INSERT INTO `classificazione` VALUES (702,701,'400','Linguaggio',2);
+INSERT INTO `classificazione` VALUES (703,701,'410','Linguistica',2);
+INSERT INTO `classificazione` VALUES (704,703,'411','Sistemi di scrittura',3);
+INSERT INTO `classificazione` VALUES (705,703,'412','Etimologia',3);
+INSERT INTO `classificazione` VALUES (706,703,'413','Dizionari',3);
+INSERT INTO `classificazione` VALUES (707,703,'414','Fonologia e fonetica',3);
+INSERT INTO `classificazione` VALUES (708,703,'415','Grammatica',3);
+INSERT INTO `classificazione` VALUES (709,703,'416','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (710,703,'417','Dialettologia e linguistica storica',3);
+INSERT INTO `classificazione` VALUES (711,703,'418','Uso standard',3);
+INSERT INTO `classificazione` VALUES (712,703,'419','Linguaggi dei segni',3);
+INSERT INTO `classificazione` VALUES (713,701,'420','Inglese e inglese antico',2);
+INSERT INTO `classificazione` VALUES (714,713,'421','Sistema di scrittura e fonologia inglese',3);
+INSERT INTO `classificazione` VALUES (715,713,'422','Etimologia dell\'inglese',3);
+INSERT INTO `classificazione` VALUES (716,713,'423','Dizionari di inglese',3);
+INSERT INTO `classificazione` VALUES (717,713,'424','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (718,713,'425','Grammatica inglese',3);
+INSERT INTO `classificazione` VALUES (719,713,'426','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (720,713,'427','Varianti storiche e geografiche dell\'inglese',3);
+INSERT INTO `classificazione` VALUES (721,713,'428','Uso standard dell\'inglese',3);
+INSERT INTO `classificazione` VALUES (722,713,'429','Inglese antico',3);
+INSERT INTO `classificazione` VALUES (723,701,'430','Tedesco e lingue correlate',2);
+INSERT INTO `classificazione` VALUES (724,723,'431','Sistema di scrittura e fonologia del tedesco',3);
+INSERT INTO `classificazione` VALUES (725,723,'432','Etimologia del tedesco',3);
+INSERT INTO `classificazione` VALUES (726,723,'433','Dizionari di tedesco',3);
+INSERT INTO `classificazione` VALUES (727,723,'434','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (728,723,'435','Grammatica tedesca',3);
+INSERT INTO `classificazione` VALUES (729,723,'436','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (730,723,'437','Varianti storiche e geografiche del tedesco',3);
+INSERT INTO `classificazione` VALUES (731,723,'438','Uso standard del tedesco',3);
+INSERT INTO `classificazione` VALUES (732,723,'439','Altre lingue germaniche',3);
+INSERT INTO `classificazione` VALUES (733,701,'440','Francese e lingue correlate',2);
+INSERT INTO `classificazione` VALUES (734,733,'441','Sistema di scrittura e fonologia del francese',3);
+INSERT INTO `classificazione` VALUES (735,733,'442','Etimologia del francese',3);
+INSERT INTO `classificazione` VALUES (736,733,'443','Dizionari di francese',3);
+INSERT INTO `classificazione` VALUES (737,733,'444','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (738,733,'445','Grammatica francese',3);
+INSERT INTO `classificazione` VALUES (739,733,'446','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (740,733,'447','Varianti storiche e geografiche del francese',3);
+INSERT INTO `classificazione` VALUES (741,733,'448','Uso standard del francese',3);
+INSERT INTO `classificazione` VALUES (742,733,'449','Provenzale e catalano',3);
+INSERT INTO `classificazione` VALUES (743,701,'450','Italiano, rumeno e lingue correlate',2);
+INSERT INTO `classificazione` VALUES (744,743,'451','Sistema di scrittura e fonologia dell\'italiano',3);
+INSERT INTO `classificazione` VALUES (745,743,'452','Etimologia dell\'italiano',3);
+INSERT INTO `classificazione` VALUES (746,743,'453','Dizionari di italiano',3);
+INSERT INTO `classificazione` VALUES (747,743,'454','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (748,743,'455','Grammatica italiana',3);
+INSERT INTO `classificazione` VALUES (749,743,'456','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (750,743,'457','Varianti storiche e geografiche dell\'italiano',3);
+INSERT INTO `classificazione` VALUES (751,743,'458','Uso standard dell\'italiano',3);
+INSERT INTO `classificazione` VALUES (752,743,'459','Rumeno e altre lingue romanze',3);
+INSERT INTO `classificazione` VALUES (753,701,'460','Spagnolo e portoghese',2);
+INSERT INTO `classificazione` VALUES (754,753,'461','Sistema di scrittura e fonologia dello spagnolo',3);
+INSERT INTO `classificazione` VALUES (755,753,'462','Etimologia dello spagnolo',3);
+INSERT INTO `classificazione` VALUES (756,753,'463','Dizionari di spagnolo',3);
+INSERT INTO `classificazione` VALUES (757,753,'464','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (758,753,'465','Grammatica spagnola',3);
+INSERT INTO `classificazione` VALUES (759,753,'466','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (760,753,'467','Varianti storiche e geografiche dello spagnolo',3);
+INSERT INTO `classificazione` VALUES (761,753,'468','Uso standard dello spagnolo',3);
+INSERT INTO `classificazione` VALUES (762,753,'469','Portoghese',3);
+INSERT INTO `classificazione` VALUES (763,701,'470','Latino e lingue italiche',2);
+INSERT INTO `classificazione` VALUES (764,763,'471','Sistema di scrittura e fonologia del latino',3);
+INSERT INTO `classificazione` VALUES (765,763,'472','Etimologia del latino classico',3);
+INSERT INTO `classificazione` VALUES (766,763,'473','Dizionari di latino classico',3);
+INSERT INTO `classificazione` VALUES (767,763,'474','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (768,763,'475','Grammatica del latino classico',3);
+INSERT INTO `classificazione` VALUES (769,763,'476','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (770,763,'477','Latino antico e postclassico',3);
+INSERT INTO `classificazione` VALUES (771,763,'478','Uso del latino classico',3);
+INSERT INTO `classificazione` VALUES (772,763,'479','Altre lingue italiche',3);
+INSERT INTO `classificazione` VALUES (773,701,'480','Greco classico e moderno',2);
+INSERT INTO `classificazione` VALUES (774,773,'481','Sistema di scrittura e fonologia del greco classico',3);
+INSERT INTO `classificazione` VALUES (775,773,'482','Etimologia del greco classico',3);
+INSERT INTO `classificazione` VALUES (776,773,'483','Dizionari di greco classico',3);
+INSERT INTO `classificazione` VALUES (777,773,'484','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (778,773,'485','Grammatica del greco classico',3);
+INSERT INTO `classificazione` VALUES (779,773,'486','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (780,773,'487','Greco preclassico e postclassico',3);
+INSERT INTO `classificazione` VALUES (781,773,'488','Uso del greco classico',3);
+INSERT INTO `classificazione` VALUES (782,773,'489','Greco moderno',3);
+INSERT INTO `classificazione` VALUES (783,701,'490','Altre lingue',2);
+INSERT INTO `classificazione` VALUES (784,783,'491','Lingue indoeuropee orientali',3);
+INSERT INTO `classificazione` VALUES (785,783,'492','Lingue afro-asiatiche',3);
+INSERT INTO `classificazione` VALUES (786,783,'493','Lingue afro-asiatiche non semitiche',3);
+INSERT INTO `classificazione` VALUES (787,783,'494','Lingue altaiche, uraliche, dravidiche',3);
+INSERT INTO `classificazione` VALUES (788,783,'495','Lingue dell\'Asia orientale e sudorientale',3);
+INSERT INTO `classificazione` VALUES (789,783,'496','Lingue africane',3);
+INSERT INTO `classificazione` VALUES (790,783,'497','Lingue native nordamericane',3);
+INSERT INTO `classificazione` VALUES (791,783,'498','Lingue native sudamericane',3);
+INSERT INTO `classificazione` VALUES (792,783,'499','Austronesiane e altre lingue',3);
+INSERT INTO `classificazione` VALUES (793,NULL,'300','Scienze sociali',1);
+INSERT INTO `classificazione` VALUES (794,793,'301','Sociologia e antropologia',3);
+INSERT INTO `classificazione` VALUES (795,793,'302','Interazione sociale',3);
+INSERT INTO `classificazione` VALUES (796,795,'302.2','Comunicazione',4);
+INSERT INTO `classificazione` VALUES (797,795,'302.3','Gruppi sociali',4);
+INSERT INTO `classificazione` VALUES (798,793,'303','Processi sociali',3);
+INSERT INTO `classificazione` VALUES (799,798,'303.3','Controllo sociale',4);
+INSERT INTO `classificazione` VALUES (800,798,'303.4','Cambiamento sociale',4);
+INSERT INTO `classificazione` VALUES (801,798,'303.6','Conflitto sociale',4);
+INSERT INTO `classificazione` VALUES (802,793,'304','Fattori che influenzano il comportamento sociale',3);
+INSERT INTO `classificazione` VALUES (803,793,'305','Gruppi sociali',3);
+INSERT INTO `classificazione` VALUES (804,803,'305.2','Età',4);
+INSERT INTO `classificazione` VALUES (805,803,'305.3','Genere',4);
+INSERT INTO `classificazione` VALUES (806,803,'305.4','Donne',4);
+INSERT INTO `classificazione` VALUES (807,803,'305.8','Gruppi etnici',4);
+INSERT INTO `classificazione` VALUES (808,793,'306','Cultura e istituzioni',3);
+INSERT INTO `classificazione` VALUES (809,808,'306.7','Sessualità',4);
+INSERT INTO `classificazione` VALUES (810,808,'306.8','Matrimonio e famiglia',4);
+INSERT INTO `classificazione` VALUES (811,793,'307','Comunità',3);
+INSERT INTO `classificazione` VALUES (812,793,'308','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (813,793,'309','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (814,793,'310','Statistica generale',2);
+INSERT INTO `classificazione` VALUES (815,814,'311','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (816,814,'312','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (817,814,'313','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (818,814,'314','Statistica generale dell\'Europa',3);
+INSERT INTO `classificazione` VALUES (819,814,'315','Statistica generale dell\'Asia',3);
+INSERT INTO `classificazione` VALUES (820,814,'316','Statistica generale dell\'Africa',3);
+INSERT INTO `classificazione` VALUES (821,814,'317','Statistica generale del Nord America',3);
+INSERT INTO `classificazione` VALUES (822,814,'318','Statistica generale del Sud America',3);
+INSERT INTO `classificazione` VALUES (823,814,'319','Statistica generale di altre aree',3);
+INSERT INTO `classificazione` VALUES (824,793,'320','Scienza politica',2);
+INSERT INTO `classificazione` VALUES (825,824,'321','Sistemi di governi e stati',3);
+INSERT INTO `classificazione` VALUES (826,825,'321.8','Democrazia',4);
+INSERT INTO `classificazione` VALUES (827,824,'322','Relazioni dello stato con gruppi organizzati',3);
+INSERT INTO `classificazione` VALUES (828,824,'323','Diritti civili e politici',3);
+INSERT INTO `classificazione` VALUES (829,824,'324','Il processo politico',3);
+INSERT INTO `classificazione` VALUES (830,824,'325','Migrazione internazionale e colonizzazione',3);
+INSERT INTO `classificazione` VALUES (831,824,'326','Schiavitù ed emancipazione',3);
+INSERT INTO `classificazione` VALUES (832,824,'327','Relazioni internazionali',3);
+INSERT INTO `classificazione` VALUES (833,824,'328','Il processo legislativo',3);
+INSERT INTO `classificazione` VALUES (834,824,'329','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (835,793,'330','Economia',2);
+INSERT INTO `classificazione` VALUES (836,835,'331','Economia del lavoro',3);
+INSERT INTO `classificazione` VALUES (837,836,'331.1','Forza lavoro',4);
+INSERT INTO `classificazione` VALUES (838,836,'331.2','Salari',4);
+INSERT INTO `classificazione` VALUES (839,836,'331.3','Lavoratori',4);
+INSERT INTO `classificazione` VALUES (840,836,'331.4','Donne lavoratrici',4);
+INSERT INTO `classificazione` VALUES (841,836,'331.8','Sindacati',4);
+INSERT INTO `classificazione` VALUES (842,835,'332','Economia finanziaria',3);
+INSERT INTO `classificazione` VALUES (843,842,'332.1','Banche',4);
+INSERT INTO `classificazione` VALUES (844,842,'332.4','Moneta',4);
+INSERT INTO `classificazione` VALUES (845,842,'332.6','Investimenti',4);
+INSERT INTO `classificazione` VALUES (846,835,'333','Economia della terra e dell\'energia',3);
+INSERT INTO `classificazione` VALUES (847,846,'333.7','Ambiente',4);
+INSERT INTO `classificazione` VALUES (848,846,'333.91','Acqua',5);
+INSERT INTO `classificazione` VALUES (849,835,'334','Cooperative',3);
+INSERT INTO `classificazione` VALUES (850,835,'335','Socialismo e sistemi correlati',3);
+INSERT INTO `classificazione` VALUES (851,850,'335.4','Marxismo',4);
+INSERT INTO `classificazione` VALUES (852,835,'336','Finanza pubblica',3);
+INSERT INTO `classificazione` VALUES (853,835,'337','Economia internazionale',3);
+INSERT INTO `classificazione` VALUES (854,835,'338','Produzione',3);
+INSERT INTO `classificazione` VALUES (855,835,'339','Macroeconomia',3);
+INSERT INTO `classificazione` VALUES (856,793,'340','Diritto',2);
+INSERT INTO `classificazione` VALUES (857,856,'341','Diritto internazionale',3);
+INSERT INTO `classificazione` VALUES (858,857,'341.2','Comunità internazionale',4);
+INSERT INTO `classificazione` VALUES (859,856,'342','Diritto costituzionale e amministrativo',3);
+INSERT INTO `classificazione` VALUES (860,856,'343','Diritto militare, tributario, commerciale',3);
+INSERT INTO `classificazione` VALUES (861,856,'344','Diritto del lavoro, sociale, educativo',3);
+INSERT INTO `classificazione` VALUES (862,856,'345','Diritto penale',3);
+INSERT INTO `classificazione` VALUES (863,856,'346','Diritto privato',3);
+INSERT INTO `classificazione` VALUES (864,856,'347','Procedura civile e tribunali',3);
+INSERT INTO `classificazione` VALUES (865,856,'348','Leggi, regolamenti, giurisprudenza',3);
+INSERT INTO `classificazione` VALUES (866,856,'349','Diritto di specifiche giurisdizioni',3);
+INSERT INTO `classificazione` VALUES (867,793,'350','Amministrazione pubblica e scienza militare',2);
+INSERT INTO `classificazione` VALUES (868,867,'351','Amministrazione pubblica',3);
+INSERT INTO `classificazione` VALUES (869,867,'352','Considerazioni generali sull\'amministrazione',3);
+INSERT INTO `classificazione` VALUES (870,867,'353','Campi specifici dell\'amministrazione',3);
+INSERT INTO `classificazione` VALUES (871,867,'354','Amministrazione dell\'economia e dell\'ambiente',3);
+INSERT INTO `classificazione` VALUES (872,867,'355','Scienza militare',3);
+INSERT INTO `classificazione` VALUES (873,872,'355.4','Operazioni militari',4);
+INSERT INTO `classificazione` VALUES (874,867,'356','Fanteria',3);
+INSERT INTO `classificazione` VALUES (875,867,'357','Cavalleria e unità corazzate',3);
+INSERT INTO `classificazione` VALUES (876,867,'358','Forze aeree e altre forze specializzate',3);
+INSERT INTO `classificazione` VALUES (877,867,'359','Forze navali e marittime',3);
+INSERT INTO `classificazione` VALUES (878,793,'360','Problemi e servizi sociali; associazioni',2);
+INSERT INTO `classificazione` VALUES (879,878,'361','Problemi sociali e benessere sociale',3);
+INSERT INTO `classificazione` VALUES (880,878,'362','Problemi e servizi di assistenza sociale',3);
+INSERT INTO `classificazione` VALUES (881,880,'362.1','Servizi sanitari',4);
+INSERT INTO `classificazione` VALUES (882,880,'362.2','Salute mentale',4);
+INSERT INTO `classificazione` VALUES (883,880,'362.3','Disabilità intellettiva',4);
+INSERT INTO `classificazione` VALUES (884,880,'362.4','Disabilità fisica',4);
+INSERT INTO `classificazione` VALUES (885,880,'362.5','Poveri',4);
+INSERT INTO `classificazione` VALUES (886,880,'362.6','Anziani',4);
+INSERT INTO `classificazione` VALUES (887,880,'362.7','Giovani',4);
+INSERT INTO `classificazione` VALUES (888,878,'363','Altri problemi e servizi sociali',3);
+INSERT INTO `classificazione` VALUES (889,888,'363.1','Sicurezza',4);
+INSERT INTO `classificazione` VALUES (890,888,'363.2','Polizia',4);
+INSERT INTO `classificazione` VALUES (891,888,'363.3','Protezione civile',4);
+INSERT INTO `classificazione` VALUES (892,888,'363.5','Alloggi',4);
+INSERT INTO `classificazione` VALUES (893,888,'363.7','Problemi ambientali',4);
+INSERT INTO `classificazione` VALUES (894,878,'364','Criminologia',3);
+INSERT INTO `classificazione` VALUES (895,894,'364.1','Reati',4);
+INSERT INTO `classificazione` VALUES (896,894,'364.3','Delinquenti',4);
+INSERT INTO `classificazione` VALUES (897,878,'365','Istituti penali e carcerari',3);
+INSERT INTO `classificazione` VALUES (898,878,'366','Associazioni',3);
+INSERT INTO `classificazione` VALUES (899,878,'367','Club generali',3);
+INSERT INTO `classificazione` VALUES (900,878,'368','Assicurazioni',3);
+INSERT INTO `classificazione` VALUES (901,878,'369','Associazioni varie',3);
+INSERT INTO `classificazione` VALUES (902,793,'370','Educazione',2);
+INSERT INTO `classificazione` VALUES (903,902,'370.1','Teoria dell\'educazione',4);
+INSERT INTO `classificazione` VALUES (904,902,'371','Scuole e attività; educazione speciale',3);
+INSERT INTO `classificazione` VALUES (905,904,'371.1','Insegnamento',4);
+INSERT INTO `classificazione` VALUES (906,904,'371.3','Metodi di insegnamento',4);
+INSERT INTO `classificazione` VALUES (907,904,'371.9','Educazione speciale',4);
+INSERT INTO `classificazione` VALUES (908,902,'372','Educazione elementare',3);
+INSERT INTO `classificazione` VALUES (909,902,'373','Educazione secondaria',3);
+INSERT INTO `classificazione` VALUES (910,902,'374','Educazione degli adulti',3);
+INSERT INTO `classificazione` VALUES (911,902,'375','Curricoli',3);
+INSERT INTO `classificazione` VALUES (912,902,'376','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (913,902,'377','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (914,902,'378','Educazione superiore',3);
+INSERT INTO `classificazione` VALUES (915,902,'379','Politiche educative pubbliche',3);
+INSERT INTO `classificazione` VALUES (916,793,'380','Commercio, comunicazioni e trasporti',2);
+INSERT INTO `classificazione` VALUES (917,916,'381','Commercio interno',3);
+INSERT INTO `classificazione` VALUES (918,916,'382','Commercio internazionale',3);
+INSERT INTO `classificazione` VALUES (919,916,'383','Posta e comunicazioni',3);
+INSERT INTO `classificazione` VALUES (920,916,'384','Comunicazioni; Telecomunicazioni',3);
+INSERT INTO `classificazione` VALUES (921,916,'385','Trasporti ferroviari',3);
+INSERT INTO `classificazione` VALUES (922,916,'386','Trasporti per vie d\'acqua interne',3);
+INSERT INTO `classificazione` VALUES (923,916,'387','Trasporti marittimi, aerei, spaziali',3);
+INSERT INTO `classificazione` VALUES (924,916,'388','Trasporti terrestri e stradali',3);
+INSERT INTO `classificazione` VALUES (925,916,'389','Metrologia e standardizzazione',3);
+INSERT INTO `classificazione` VALUES (926,793,'390','Usi e costumi, etichetta, folklore',2);
+INSERT INTO `classificazione` VALUES (927,926,'391','Costume e apparenza personale',3);
+INSERT INTO `classificazione` VALUES (928,926,'392','Usi del ciclo della vita e vita domestica',3);
+INSERT INTO `classificazione` VALUES (929,926,'393','Costumi funebri',3);
+INSERT INTO `classificazione` VALUES (930,926,'394','Costumi generali',3);
+INSERT INTO `classificazione` VALUES (931,930,'394.2','Feste',4);
+INSERT INTO `classificazione` VALUES (932,926,'395','Etichetta (Buone maniere)',3);
+INSERT INTO `classificazione` VALUES (933,926,'396','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (934,926,'397','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (935,926,'398','Folklore',3);
+INSERT INTO `classificazione` VALUES (936,935,'398.2','Fiabe e leggende',4);
+INSERT INTO `classificazione` VALUES (937,926,'399','Usi di guerra e diplomazia',3);
+INSERT INTO `classificazione` VALUES (938,NULL,'4','Scienze naturali',1);
+INSERT INTO `classificazione` VALUES (939,938,'500','Scienze naturali e matematica',2);
+INSERT INTO `classificazione` VALUES (940,938,'510','Matematica',2);
+INSERT INTO `classificazione` VALUES (941,940,'511','Principi generali della matematica',3);
+INSERT INTO `classificazione` VALUES (942,940,'512','Algebra',3);
+INSERT INTO `classificazione` VALUES (943,940,'513','Aritmetica',3);
+INSERT INTO `classificazione` VALUES (944,940,'514','Topologia',3);
+INSERT INTO `classificazione` VALUES (945,940,'515','Analisi matematica',3);
+INSERT INTO `classificazione` VALUES (946,940,'516','Geometria',3);
+INSERT INTO `classificazione` VALUES (947,940,'517','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (948,940,'518','Analisi numerica',3);
+INSERT INTO `classificazione` VALUES (949,940,'519','Probabilità e matematica applicata',3);
+INSERT INTO `classificazione` VALUES (950,938,'520','Astronomia',2);
+INSERT INTO `classificazione` VALUES (951,950,'521','Meccanica celeste',3);
+INSERT INTO `classificazione` VALUES (952,950,'522','Tecniche, attrezzature, materiali',3);
+INSERT INTO `classificazione` VALUES (953,950,'523','Corpi celesti specifici',3);
+INSERT INTO `classificazione` VALUES (954,950,'524','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (955,950,'525','Terra (Astronomia)',3);
+INSERT INTO `classificazione` VALUES (956,950,'526','Geografia matematica',3);
+INSERT INTO `classificazione` VALUES (957,950,'527','Navigazione celeste',3);
+INSERT INTO `classificazione` VALUES (958,950,'528','Effemeridi',3);
+INSERT INTO `classificazione` VALUES (959,950,'529','Cronologia',3);
+INSERT INTO `classificazione` VALUES (960,938,'530','Fisica',2);
+INSERT INTO `classificazione` VALUES (961,960,'531','Meccanica classica',3);
+INSERT INTO `classificazione` VALUES (962,960,'532','Meccanica dei fluidi',3);
+INSERT INTO `classificazione` VALUES (963,960,'533','Meccanica dei gas',3);
+INSERT INTO `classificazione` VALUES (964,960,'534','Suono e vibrazioni correlate',3);
+INSERT INTO `classificazione` VALUES (965,960,'535','Luce e fenomeni correlati',3);
+INSERT INTO `classificazione` VALUES (966,960,'536','Calore',3);
+INSERT INTO `classificazione` VALUES (967,960,'537','Elettricità ed elettronica',3);
+INSERT INTO `classificazione` VALUES (968,960,'538','Magnetismo',3);
+INSERT INTO `classificazione` VALUES (969,960,'539','Fisica moderna',3);
+INSERT INTO `classificazione` VALUES (970,938,'540','Chimica',2);
+INSERT INTO `classificazione` VALUES (971,970,'541','Chimica fisica e teorica',3);
+INSERT INTO `classificazione` VALUES (972,970,'542','Tecniche, attrezzature, materiali',3);
+INSERT INTO `classificazione` VALUES (973,970,'543','Chimica analitica',3);
+INSERT INTO `classificazione` VALUES (974,970,'544','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (975,970,'545','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (976,970,'546','Chimica inorganica',3);
+INSERT INTO `classificazione` VALUES (977,970,'547','Chimica organica',3);
+INSERT INTO `classificazione` VALUES (978,970,'548','Cristallografia',3);
+INSERT INTO `classificazione` VALUES (979,970,'549','Mineralogia',3);
+INSERT INTO `classificazione` VALUES (980,938,'550','Scienze della Terra e geologia',2);
+INSERT INTO `classificazione` VALUES (981,980,'551','Geologia, idrologia, meteorologia',3);
+INSERT INTO `classificazione` VALUES (982,980,'552','Petrologia',3);
+INSERT INTO `classificazione` VALUES (983,980,'553','Geologia economica',3);
+INSERT INTO `classificazione` VALUES (984,980,'554','Scienze della Terra in Europa',3);
+INSERT INTO `classificazione` VALUES (985,980,'555','Scienze della Terra in Asia',3);
+INSERT INTO `classificazione` VALUES (986,980,'556','Scienze della Terra in Africa',3);
+INSERT INTO `classificazione` VALUES (987,980,'557','Scienze della Terra in Nord America',3);
+INSERT INTO `classificazione` VALUES (988,980,'558','Scienze della Terra in Sud America',3);
+INSERT INTO `classificazione` VALUES (989,980,'559','Scienze della Terra in altre aree',3);
+INSERT INTO `classificazione` VALUES (990,938,'560','Paleontologia',2);
+INSERT INTO `classificazione` VALUES (991,990,'561','Paleobotanica',3);
+INSERT INTO `classificazione` VALUES (992,990,'562','Fossili di invertebrati',3);
+INSERT INTO `classificazione` VALUES (993,990,'563','Fossili di protozoi e altri invertebrati',3);
+INSERT INTO `classificazione` VALUES (994,990,'564','Fossili di molluschi',3);
+INSERT INTO `classificazione` VALUES (995,990,'565','Fossili di altri invertebrati',3);
+INSERT INTO `classificazione` VALUES (996,990,'566','Fossili di vertebrati',3);
+INSERT INTO `classificazione` VALUES (997,990,'567','Fossili di vertebrati a sangue freddo',3);
+INSERT INTO `classificazione` VALUES (998,990,'568','Fossili di uccelli',3);
+INSERT INTO `classificazione` VALUES (999,990,'569','Fossili di mammiferi',3);
+INSERT INTO `classificazione` VALUES (1000,938,'570','Biologia',2);
+INSERT INTO `classificazione` VALUES (1001,1000,'571','Fisiologia e argomenti correlati',3);
+INSERT INTO `classificazione` VALUES (1002,1000,'572','Biochimica',3);
+INSERT INTO `classificazione` VALUES (1003,1000,'573','Processi fisici specifici negli organismi',3);
+INSERT INTO `classificazione` VALUES (1004,1000,'574','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1005,1000,'575','Evoluzione e genetica',3);
+INSERT INTO `classificazione` VALUES (1006,1000,'576','Genetica ed evoluzione',3);
+INSERT INTO `classificazione` VALUES (1007,1000,'577','Ecologia',3);
+INSERT INTO `classificazione` VALUES (1008,1000,'578','Storia naturale di organismi',3);
+INSERT INTO `classificazione` VALUES (1009,1000,'579','Microbiologia, funghi, alghe',3);
+INSERT INTO `classificazione` VALUES (1010,938,'580','Botanica',2);
+INSERT INTO `classificazione` VALUES (1011,1010,'581','Botanica specifica',3);
+INSERT INTO `classificazione` VALUES (1012,1010,'582','Piante note per caratteristiche e fiori',3);
+INSERT INTO `classificazione` VALUES (1013,1010,'583','Dicotiledoni',3);
+INSERT INTO `classificazione` VALUES (1014,1010,'584','Monocotiledoni',3);
+INSERT INTO `classificazione` VALUES (1015,1010,'585','Gimnosperme',3);
+INSERT INTO `classificazione` VALUES (1016,1010,'586','Crittogame senza semi',3);
+INSERT INTO `classificazione` VALUES (1017,1010,'587','Pteridofite',3);
+INSERT INTO `classificazione` VALUES (1018,1010,'588','Briofite',3);
+INSERT INTO `classificazione` VALUES (1019,1010,'589','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1020,938,'590','Zoologia',2);
+INSERT INTO `classificazione` VALUES (1021,1020,'591','Argomenti specifici di storia naturale',3);
+INSERT INTO `classificazione` VALUES (1022,1020,'592','Invertebrati',3);
+INSERT INTO `classificazione` VALUES (1023,1020,'593','Invertebrati marini e costieri',3);
+INSERT INTO `classificazione` VALUES (1024,1020,'594','Molluschi e molluschidi',3);
+INSERT INTO `classificazione` VALUES (1025,1020,'595','Artropodi',3);
+INSERT INTO `classificazione` VALUES (1026,1020,'596','Cordati',3);
+INSERT INTO `classificazione` VALUES (1027,1020,'597','Vertebrati a sangue freddo, pesci',3);
+INSERT INTO `classificazione` VALUES (1028,1020,'598','Aves (Uccelli)',3);
+INSERT INTO `classificazione` VALUES (1029,1020,'599','Mammiferi',3);
+INSERT INTO `classificazione` VALUES (1030,NULL,'400','Linguaggio',1);
+INSERT INTO `classificazione` VALUES (1031,1030,'401','Filosofia e teoria',3);
+INSERT INTO `classificazione` VALUES (1032,1030,'402','Miscellanea',3);
+INSERT INTO `classificazione` VALUES (1033,1030,'403','Dizionari ed enciclopedie',3);
+INSERT INTO `classificazione` VALUES (1034,1030,'404','Argomenti speciali',3);
+INSERT INTO `classificazione` VALUES (1035,1030,'405','Pubblicazioni seriali',3);
+INSERT INTO `classificazione` VALUES (1036,1030,'406','Organizzazioni e gestione',3);
+INSERT INTO `classificazione` VALUES (1037,1030,'407','Educazione, ricerca, argomenti correlati',3);
+INSERT INTO `classificazione` VALUES (1038,1030,'408','Gruppi di persone',3);
+INSERT INTO `classificazione` VALUES (1039,1030,'409','Trattamento geografico e biografico',3);
+INSERT INTO `classificazione` VALUES (1040,1030,'410','Linguistica',2);
+INSERT INTO `classificazione` VALUES (1041,1040,'411','Sistemi di scrittura',3);
+INSERT INTO `classificazione` VALUES (1042,1040,'412','Etimologia',3);
+INSERT INTO `classificazione` VALUES (1043,1040,'413','Dizionari',3);
+INSERT INTO `classificazione` VALUES (1044,1040,'414','Fonologia e fonetica',3);
+INSERT INTO `classificazione` VALUES (1045,1040,'415','Grammatica',3);
+INSERT INTO `classificazione` VALUES (1046,1040,'416','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1047,1040,'417','Dialettologia e linguistica storica',3);
+INSERT INTO `classificazione` VALUES (1048,1040,'418','Uso standard e linguistica applicata',3);
+INSERT INTO `classificazione` VALUES (1049,1040,'419','Lingua dei segni',3);
+INSERT INTO `classificazione` VALUES (1050,1030,'420','Inglese e inglese antico',2);
+INSERT INTO `classificazione` VALUES (1051,1050,'421','Sistema di scrittura e fonologia inglese',3);
+INSERT INTO `classificazione` VALUES (1052,1050,'422','Etimologia inglese',3);
+INSERT INTO `classificazione` VALUES (1053,1050,'423','Dizionari inglesi',3);
+INSERT INTO `classificazione` VALUES (1054,1050,'424','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1055,1050,'425','Grammatica inglese',3);
+INSERT INTO `classificazione` VALUES (1056,1050,'426','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1057,1050,'427','Variazioni della lingua inglese',3);
+INSERT INTO `classificazione` VALUES (1058,1050,'428','Uso dell\'inglese standard',3);
+INSERT INTO `classificazione` VALUES (1059,1050,'429','Inglese antico (Anglosassone)',3);
+INSERT INTO `classificazione` VALUES (1060,1030,'430','Lingue germaniche; Tedesco',2);
+INSERT INTO `classificazione` VALUES (1061,1060,'431','Sistemi di scrittura e fonologia tedesca',3);
+INSERT INTO `classificazione` VALUES (1062,1060,'432','Etimologia tedesca',3);
+INSERT INTO `classificazione` VALUES (1063,1060,'433','Dizionari tedeschi',3);
+INSERT INTO `classificazione` VALUES (1064,1060,'434','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1065,1060,'435','Grammatica tedesca',3);
+INSERT INTO `classificazione` VALUES (1066,1060,'436','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1067,1060,'437','Variazioni della lingua tedesca',3);
+INSERT INTO `classificazione` VALUES (1068,1060,'438','Uso del tedesco standard',3);
+INSERT INTO `classificazione` VALUES (1069,1060,'439','Altre lingue germaniche',3);
+INSERT INTO `classificazione` VALUES (1070,1030,'440','Lingue romanze; Francese',2);
+INSERT INTO `classificazione` VALUES (1071,1070,'441','Sistemi di scrittura e fonologia francese',3);
+INSERT INTO `classificazione` VALUES (1072,1070,'442','Etimologia francese',3);
+INSERT INTO `classificazione` VALUES (1073,1070,'443','Dizionari francesi',3);
+INSERT INTO `classificazione` VALUES (1074,1070,'444','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1075,1070,'445','Grammatica francese',3);
+INSERT INTO `classificazione` VALUES (1076,1070,'446','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1077,1070,'447','Variazioni della lingua francese',3);
+INSERT INTO `classificazione` VALUES (1078,1070,'448','Uso del francese standard',3);
+INSERT INTO `classificazione` VALUES (1079,1070,'449','Occitano, Catalano, Franco-Provenzale',3);
+INSERT INTO `classificazione` VALUES (1080,1030,'450','Italiano, Romeno, Retoromanzo',2);
+INSERT INTO `classificazione` VALUES (1081,1080,'451','Sistemi di scrittura e fonologia italiana',3);
+INSERT INTO `classificazione` VALUES (1082,1080,'452','Etimologia italiana',3);
+INSERT INTO `classificazione` VALUES (1083,1080,'453','Dizionari italiani',3);
+INSERT INTO `classificazione` VALUES (1084,1080,'454','Uso linguistico',3);
+INSERT INTO `classificazione` VALUES (1085,1080,'455','Grammatica italiana',3);
+INSERT INTO `classificazione` VALUES (1086,1080,'456','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1087,1080,'457','Variazioni della lingua italiana',3);
+INSERT INTO `classificazione` VALUES (1088,1080,'458','Uso dell\'italiano standard',3);
+INSERT INTO `classificazione` VALUES (1089,1080,'459','Romeno e Retoromanzo',3);
+INSERT INTO `classificazione` VALUES (1090,1030,'460','Lingue Spagnola e Portoghese',2);
+INSERT INTO `classificazione` VALUES (1091,1090,'461','Sistemi di scrittura e fonologia spagnola',3);
+INSERT INTO `classificazione` VALUES (1092,1090,'462','Etimologia spagnola',3);
+INSERT INTO `classificazione` VALUES (1093,1090,'463','Dizionari spagnoli',3);
+INSERT INTO `classificazione` VALUES (1094,1090,'464','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1095,1090,'465','Grammatica spagnola',3);
+INSERT INTO `classificazione` VALUES (1096,1090,'466','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1097,1090,'467','Variazioni della lingua spagnola',3);
+INSERT INTO `classificazione` VALUES (1098,1090,'468','Uso dello spagnolo standard',3);
+INSERT INTO `classificazione` VALUES (1099,1090,'469','Portoghese',3);
+INSERT INTO `classificazione` VALUES (1100,1030,'470','Lingue italiche; Latino',2);
+INSERT INTO `classificazione` VALUES (1101,1100,'471','Sistemi di scrittura e fonologia latina',3);
+INSERT INTO `classificazione` VALUES (1102,1100,'472','Etimologia latina',3);
+INSERT INTO `classificazione` VALUES (1103,1100,'473','Dizionari latini',3);
+INSERT INTO `classificazione` VALUES (1104,1100,'474','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1105,1100,'475','Grammatica latina',3);
+INSERT INTO `classificazione` VALUES (1106,1100,'476','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1107,1100,'477','Latino antico, postclassico, volgare',3);
+INSERT INTO `classificazione` VALUES (1108,1100,'478','Uso del latino classico',3);
+INSERT INTO `classificazione` VALUES (1109,1100,'479','Altre lingue italiche',3);
+INSERT INTO `classificazione` VALUES (1110,1030,'480','Lingue elleniche; Greco classico',2);
+INSERT INTO `classificazione` VALUES (1111,1110,'481','Sistemi di scrittura e fonologia greca',3);
+INSERT INTO `classificazione` VALUES (1112,1110,'482','Etimologia greca',3);
+INSERT INTO `classificazione` VALUES (1113,1110,'483','Dizionari greci',3);
+INSERT INTO `classificazione` VALUES (1114,1110,'484','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1115,1110,'485','Grammatica greca',3);
+INSERT INTO `classificazione` VALUES (1116,1110,'486','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1117,1110,'487','Greco preclassico e postclassico',3);
+INSERT INTO `classificazione` VALUES (1118,1110,'488','Uso del greco classico',3);
+INSERT INTO `classificazione` VALUES (1119,1110,'489','Altre lingue elleniche',3);
+INSERT INTO `classificazione` VALUES (1120,1030,'490','Altre lingue',2);
+INSERT INTO `classificazione` VALUES (1121,1120,'491','Lingue indoeuropee orientali e celtiche',3);
+INSERT INTO `classificazione` VALUES (1122,1120,'491.7','Russo',4);
+INSERT INTO `classificazione` VALUES (1123,1120,'492','Lingue afroasiatiche; Lingue semitiche',3);
+INSERT INTO `classificazione` VALUES (1124,1123,'492.4','Ebraico',4);
+INSERT INTO `classificazione` VALUES (1125,1123,'492.7','Arabo',4);
+INSERT INTO `classificazione` VALUES (1126,1120,'493','Lingue afroasiatiche non semitiche',3);
+INSERT INTO `classificazione` VALUES (1127,1120,'494','Lingue altaiche, uraliche, iperborree',3);
+INSERT INTO `classificazione` VALUES (1128,1120,'495','Lingue dell\'Asia orientale e sudorientale',3);
+INSERT INTO `classificazione` VALUES (1129,1120,'495.1','Cinese',4);
+INSERT INTO `classificazione` VALUES (1130,1120,'495.6','Giapponese',4);
+INSERT INTO `classificazione` VALUES (1131,1120,'496','Lingue africane',3);
+INSERT INTO `classificazione` VALUES (1132,1120,'497','Lingue native nordamericane',3);
+INSERT INTO `classificazione` VALUES (1133,1120,'498','Lingue native sudamericane',3);
+INSERT INTO `classificazione` VALUES (1134,1120,'499','Lingue non austronesiane, altre lingue',3);
+INSERT INTO `classificazione` VALUES (1135,NULL,'5','Tecnologia',1);
+INSERT INTO `classificazione` VALUES (1136,1135,'600','Tecnologia',2);
+INSERT INTO `classificazione` VALUES (1137,1135,'610','Medicina e salute',2);
+INSERT INTO `classificazione` VALUES (1138,1137,'611','Anatomia umana',3);
+INSERT INTO `classificazione` VALUES (1139,1137,'612','Fisiologia umana',3);
+INSERT INTO `classificazione` VALUES (1140,1137,'613','Promozione della salute',3);
+INSERT INTO `classificazione` VALUES (1141,1137,'614','Incidenza e prevenzione delle malattie',3);
+INSERT INTO `classificazione` VALUES (1142,1137,'615','Farmacologia e terapeutica',3);
+INSERT INTO `classificazione` VALUES (1143,1137,'616','Malattie',3);
+INSERT INTO `classificazione` VALUES (1144,1137,'617','Chirurgia',3);
+INSERT INTO `classificazione` VALUES (1145,1137,'618','Ginecologia e altre specialità mediche',3);
+INSERT INTO `classificazione` VALUES (1146,1137,'619','Medicina sperimentale',3);
+INSERT INTO `classificazione` VALUES (1147,1135,'620','Ingegneria',2);
+INSERT INTO `classificazione` VALUES (1148,1147,'621','Fisica applicata',3);
+INSERT INTO `classificazione` VALUES (1149,1147,'622','Ingegneria mineraria',3);
+INSERT INTO `classificazione` VALUES (1150,1147,'623','Ingegneria militare e navale',3);
+INSERT INTO `classificazione` VALUES (1151,1147,'624','Ingegneria civile',3);
+INSERT INTO `classificazione` VALUES (1152,1147,'625','Ingegneria ferroviaria e stradale',3);
+INSERT INTO `classificazione` VALUES (1153,1147,'626','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1154,1147,'627','Ingegneria idraulica',3);
+INSERT INTO `classificazione` VALUES (1155,1147,'628','Ingegneria sanitaria',3);
+INSERT INTO `classificazione` VALUES (1156,1147,'629','Altre branche dell\'ingegneria',3);
+INSERT INTO `classificazione` VALUES (1157,1135,'630','Agricoltura',2);
+INSERT INTO `classificazione` VALUES (1158,1157,'631','Tecniche, attrezzature, materiali',3);
+INSERT INTO `classificazione` VALUES (1159,1157,'632','Danni, malattie, parassiti delle piante',3);
+INSERT INTO `classificazione` VALUES (1160,1157,'633','Colture da campo e pascolo',3);
+INSERT INTO `classificazione` VALUES (1161,1157,'634','Frutticultura e selvicoltura',3);
+INSERT INTO `classificazione` VALUES (1162,1157,'635','Orticoltura',3);
+INSERT INTO `classificazione` VALUES (1163,1157,'636','Allevamento di animali',3);
+INSERT INTO `classificazione` VALUES (1164,1157,'637','Prodotti caseari',3);
+INSERT INTO `classificazione` VALUES (1165,1157,'638','Allevamento di insetti',3);
+INSERT INTO `classificazione` VALUES (1166,1157,'639','Caccia, pesca, conservazione',3);
+INSERT INTO `classificazione` VALUES (1167,1135,'640','Economia domestica e vita familiare',2);
+INSERT INTO `classificazione` VALUES (1168,1167,'641','Cibo e bevande',3);
+INSERT INTO `classificazione` VALUES (1169,1167,'642','Pasti e servizio da tavola',3);
+INSERT INTO `classificazione` VALUES (1170,1167,'643','Abitazione e arredamento',3);
+INSERT INTO `classificazione` VALUES (1171,1167,'644','Servizi domestici',3);
+INSERT INTO `classificazione` VALUES (1172,1167,'645','Arredamento',3);
+INSERT INTO `classificazione` VALUES (1173,1167,'646','Cucito, abbigliamento, cura personale',3);
+INSERT INTO `classificazione` VALUES (1174,1167,'647','Gestione di edifici pubblici',3);
+INSERT INTO `classificazione` VALUES (1175,1167,'648','Pulizia della casa',3);
+INSERT INTO `classificazione` VALUES (1176,1167,'649','Educazione dei figli e cura della casa',3);
+INSERT INTO `classificazione` VALUES (1177,1135,'650','Gestione e servizi ausiliari',2);
+INSERT INTO `classificazione` VALUES (1178,1177,'651','Servizi d\'ufficio',3);
+INSERT INTO `classificazione` VALUES (1179,1177,'652','Processi di comunicazione scritta',3);
+INSERT INTO `classificazione` VALUES (1180,1177,'653','Stenografia',3);
+INSERT INTO `classificazione` VALUES (1181,1177,'654','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1182,1177,'655','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1183,1177,'656','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1184,1177,'657','Contabilità',3);
+INSERT INTO `classificazione` VALUES (1185,1177,'658','Gestione generale',3);
+INSERT INTO `classificazione` VALUES (1186,1177,'659','Pubblicità e pubbliche relazioni',3);
+INSERT INTO `classificazione` VALUES (1187,1135,'660','Ingegneria chimica',2);
+INSERT INTO `classificazione` VALUES (1188,1187,'661','Tecnologia di prodotti chimici industriali',3);
+INSERT INTO `classificazione` VALUES (1189,1187,'662','Tecnologia degli esplosivi, combustibili',3);
+INSERT INTO `classificazione` VALUES (1190,1187,'663','Tecnologia delle bevande',3);
+INSERT INTO `classificazione` VALUES (1191,1187,'664','Tecnologia alimentare',3);
+INSERT INTO `classificazione` VALUES (1192,1187,'665','Tecnologia degli oli, grassi, cere',3);
+INSERT INTO `classificazione` VALUES (1193,1187,'666','Tecnologia ceramica e affini',3);
+INSERT INTO `classificazione` VALUES (1194,1187,'667','Tecnologia di pulizia, colori',3);
+INSERT INTO `classificazione` VALUES (1195,1187,'668','Tecnologia di altri prodotti organici',3);
+INSERT INTO `classificazione` VALUES (1196,1187,'669','Metallurgia',3);
+INSERT INTO `classificazione` VALUES (1197,1135,'670','Manifattura',2);
+INSERT INTO `classificazione` VALUES (1198,1197,'671','Lavorazione dei metalli',3);
+INSERT INTO `classificazione` VALUES (1199,1197,'672','Lavorazione del ferro e acciaio',3);
+INSERT INTO `classificazione` VALUES (1200,1197,'673','Lavorazione di metalli non ferrosi',3);
+INSERT INTO `classificazione` VALUES (1201,1197,'674','Lavorazione del legname',3);
+INSERT INTO `classificazione` VALUES (1202,1197,'675','Lavorazione del cuoio',3);
+INSERT INTO `classificazione` VALUES (1203,1197,'676','Tecnologia della polpa e della carta',3);
+INSERT INTO `classificazione` VALUES (1204,1197,'677','Lavorazione dei tessuti',3);
+INSERT INTO `classificazione` VALUES (1205,1197,'678','Elastomeri e loro prodotti',3);
+INSERT INTO `classificazione` VALUES (1206,1197,'679','Altri prodotti',3);
+INSERT INTO `classificazione` VALUES (1207,1135,'680','Manifattura per usi specifici',2);
+INSERT INTO `classificazione` VALUES (1208,1207,'681','Strumenti di precisione',3);
+INSERT INTO `classificazione` VALUES (1209,1207,'682','Piccoli oggetti forgiati',3);
+INSERT INTO `classificazione` VALUES (1210,1207,'683','Ferramenta e elettrodomestici',3);
+INSERT INTO `classificazione` VALUES (1211,1207,'684','Arredamento e laboratori domestici',3);
+INSERT INTO `classificazione` VALUES (1212,1207,'685','Prodotti in cuoio, pelliccia, affini',3);
+INSERT INTO `classificazione` VALUES (1213,1207,'686','Stampa e attività correlate',3);
+INSERT INTO `classificazione` VALUES (1214,1207,'687','Abbigliamento',3);
+INSERT INTO `classificazione` VALUES (1215,1207,'688','Altri prodotti finali',3);
+INSERT INTO `classificazione` VALUES (1216,1207,'689','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1217,1135,'690','Costruzioni',2);
+INSERT INTO `classificazione` VALUES (1218,1217,'691','Materiali da costruzione',3);
+INSERT INTO `classificazione` VALUES (1219,1217,'692','Pratiche ausiliarie',3);
+INSERT INTO `classificazione` VALUES (1220,1217,'693','Costruzioni in materiali specifici',3);
+INSERT INTO `classificazione` VALUES (1221,1217,'694','Costruzioni in legno',3);
+INSERT INTO `classificazione` VALUES (1222,1217,'695','Coperture',3);
+INSERT INTO `classificazione` VALUES (1223,1217,'696','Impianti',3);
+INSERT INTO `classificazione` VALUES (1224,1217,'697','Riscaldamento, ventilazione, condizionamento',3);
+INSERT INTO `classificazione` VALUES (1225,1217,'698','Dettagli di finitura',3);
+INSERT INTO `classificazione` VALUES (1226,1217,'699','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1227,NULL,'500','Scienze naturali e matematica',1);
+INSERT INTO `classificazione` VALUES (1228,1227,'501','Filosofia e teoria',3);
+INSERT INTO `classificazione` VALUES (1229,1227,'502','Miscellanea',3);
+INSERT INTO `classificazione` VALUES (1230,1227,'503','Dizionari ed enciclopedie',3);
+INSERT INTO `classificazione` VALUES (1231,1227,'504','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1232,1227,'505','Pubblicazioni seriali',3);
+INSERT INTO `classificazione` VALUES (1233,1227,'506','Organizzazioni e gestione',3);
+INSERT INTO `classificazione` VALUES (1234,1227,'507','Educazione, ricerca, argomenti correlati',3);
+INSERT INTO `classificazione` VALUES (1235,1227,'508','Storia naturale',3);
+INSERT INTO `classificazione` VALUES (1236,1227,'509','Storia, trattazione geografica, biografica',3);
+INSERT INTO `classificazione` VALUES (1237,1227,'510','Matematica',2);
+INSERT INTO `classificazione` VALUES (1238,1237,'511','Principi generali',3);
+INSERT INTO `classificazione` VALUES (1239,1237,'512','Algebra',3);
+INSERT INTO `classificazione` VALUES (1240,1237,'513','Aritmetica',3);
+INSERT INTO `classificazione` VALUES (1241,1237,'514','Topologia',3);
+INSERT INTO `classificazione` VALUES (1242,1237,'515','Analisi',3);
+INSERT INTO `classificazione` VALUES (1243,1237,'516','Geometria',3);
+INSERT INTO `classificazione` VALUES (1244,1237,'517','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1245,1237,'518','Analisi numerica',3);
+INSERT INTO `classificazione` VALUES (1246,1237,'519','Probabilità e matematica applicata',3);
+INSERT INTO `classificazione` VALUES (1247,1227,'520','Astronomia e scienze affini',2);
+INSERT INTO `classificazione` VALUES (1248,1247,'521','Meccanica celeste',3);
+INSERT INTO `classificazione` VALUES (1249,1247,'522','Tecniche, equipaggiamento, materiali',3);
+INSERT INTO `classificazione` VALUES (1250,1247,'523','Corpi celesti e fenomeni specifici',3);
+INSERT INTO `classificazione` VALUES (1251,1250,'523.1','Universo',4);
+INSERT INTO `classificazione` VALUES (1252,1250,'523.2','Sistema solare',4);
+INSERT INTO `classificazione` VALUES (1253,1250,'523.3','Luna',4);
+INSERT INTO `classificazione` VALUES (1254,1250,'523.4','Pianeti',4);
+INSERT INTO `classificazione` VALUES (1255,1250,'523.6','Comete',4);
+INSERT INTO `classificazione` VALUES (1256,1250,'523.7','Sole',4);
+INSERT INTO `classificazione` VALUES (1257,1250,'523.8','Stelle',4);
+INSERT INTO `classificazione` VALUES (1258,1247,'524','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1259,1247,'525','La Terra (Geografia astronomica)',3);
+INSERT INTO `classificazione` VALUES (1260,1247,'526','Geografia matematica',3);
+INSERT INTO `classificazione` VALUES (1261,1247,'527','Navigazione celeste',3);
+INSERT INTO `classificazione` VALUES (1262,1247,'528','Effemeridi',3);
+INSERT INTO `classificazione` VALUES (1263,1247,'529','Cronologia',3);
+INSERT INTO `classificazione` VALUES (1264,1227,'530','Fisica',2);
+INSERT INTO `classificazione` VALUES (1265,1264,'531','Meccanica classica',3);
+INSERT INTO `classificazione` VALUES (1266,1264,'532','Meccanica dei fluidi',3);
+INSERT INTO `classificazione` VALUES (1267,1264,'533','Meccanica dei gas',3);
+INSERT INTO `classificazione` VALUES (1268,1264,'534','Suono e vibrazioni',3);
+INSERT INTO `classificazione` VALUES (1269,1264,'535','Luce e fenomeni ottici',3);
+INSERT INTO `classificazione` VALUES (1270,1264,'536','Calore',3);
+INSERT INTO `classificazione` VALUES (1271,1264,'537','Elettricità ed elettronica',3);
+INSERT INTO `classificazione` VALUES (1272,1264,'538','Magnetismo',3);
+INSERT INTO `classificazione` VALUES (1273,1264,'539','Fisica moderna',3);
+INSERT INTO `classificazione` VALUES (1274,1273,'539.7','Fisica atomica',4);
+INSERT INTO `classificazione` VALUES (1275,1227,'540','Chimica e scienze affini',2);
+INSERT INTO `classificazione` VALUES (1276,1275,'541','Chimica fisica e teorica',3);
+INSERT INTO `classificazione` VALUES (1277,1275,'542','Tecniche, equipaggiamento, materiali',3);
+INSERT INTO `classificazione` VALUES (1278,1275,'543','Chimica analitica',3);
+INSERT INTO `classificazione` VALUES (1279,1275,'544','Analisi qualitativa',3);
+INSERT INTO `classificazione` VALUES (1280,1275,'545','Analisi quantitativa',3);
+INSERT INTO `classificazione` VALUES (1281,1275,'546','Chimica inorganica',3);
+INSERT INTO `classificazione` VALUES (1282,1275,'547','Chimica organica',3);
+INSERT INTO `classificazione` VALUES (1283,1275,'548','Cristallografia',3);
+INSERT INTO `classificazione` VALUES (1284,1275,'549','Mineralogia',3);
+INSERT INTO `classificazione` VALUES (1285,1227,'550','Scienze della Terra',2);
+INSERT INTO `classificazione` VALUES (1286,1285,'551','Geologia, idrologia, meteorologia',3);
+INSERT INTO `classificazione` VALUES (1287,1286,'551.2','Vulcani e terremoti',4);
+INSERT INTO `classificazione` VALUES (1288,1286,'551.4','Geomorfologia',4);
+INSERT INTO `classificazione` VALUES (1289,1288,'551.46','Oceanografia',5);
+INSERT INTO `classificazione` VALUES (1290,1286,'551.5','Meteorologia',4);
+INSERT INTO `classificazione` VALUES (1291,1286,'551.6','Climatologia',4);
+INSERT INTO `classificazione` VALUES (1292,1285,'552','Petrografia',3);
+INSERT INTO `classificazione` VALUES (1293,1285,'553','Geologia economica',3);
+INSERT INTO `classificazione` VALUES (1294,1285,'554','Scienze della Terra dell\'Europa',3);
+INSERT INTO `classificazione` VALUES (1295,1285,'555','Scienze della Terra dell\'Asia',3);
+INSERT INTO `classificazione` VALUES (1296,1285,'556','Scienze della Terra dell\'Africa',3);
+INSERT INTO `classificazione` VALUES (1297,1285,'557','Scienze della Terra del Nord America',3);
+INSERT INTO `classificazione` VALUES (1298,1285,'558','Scienze della Terra del Sud America',3);
+INSERT INTO `classificazione` VALUES (1299,1285,'559','Scienze della Terra di altre aree',3);
+INSERT INTO `classificazione` VALUES (1300,1227,'560','Paleontologia; Paleozoologia',2);
+INSERT INTO `classificazione` VALUES (1301,1300,'561','Paleobotanica',3);
+INSERT INTO `classificazione` VALUES (1302,1300,'562','Invertebrati fossili',3);
+INSERT INTO `classificazione` VALUES (1303,1300,'563','Fossili marini e litoranei',3);
+INSERT INTO `classificazione` VALUES (1304,1300,'564','Molluschi e molluscoidi fossili',3);
+INSERT INTO `classificazione` VALUES (1305,1300,'565','Artropodi fossili',3);
+INSERT INTO `classificazione` VALUES (1306,1300,'566','Cordati fossili',3);
+INSERT INTO `classificazione` VALUES (1307,1300,'567','Vertebrati a sangue freddo fossili',3);
+INSERT INTO `classificazione` VALUES (1308,1300,'567.9','Rettili fossili (Dinosauri)',4);
+INSERT INTO `classificazione` VALUES (1309,1300,'568','Uccelli fossili',3);
+INSERT INTO `classificazione` VALUES (1310,1300,'569','Mammiferi fossili',3);
+INSERT INTO `classificazione` VALUES (1311,1227,'570','Scienze della vita; Biologia',2);
+INSERT INTO `classificazione` VALUES (1312,1311,'571','Fisiologia e argomenti correlati',3);
+INSERT INTO `classificazione` VALUES (1313,1311,'572','Biochimica',3);
+INSERT INTO `classificazione` VALUES (1314,1311,'573','Sistemi fisiologici specifici negli animali',3);
+INSERT INTO `classificazione` VALUES (1315,1311,'574','Biologia (vecchio uso)',3);
+INSERT INTO `classificazione` VALUES (1316,1311,'575','Parti specifiche e sistemi nelle piante',3);
+INSERT INTO `classificazione` VALUES (1317,1311,'576','Genetica ed evoluzione',3);
+INSERT INTO `classificazione` VALUES (1318,1317,'576.5','Genetica',4);
+INSERT INTO `classificazione` VALUES (1319,1317,'576.8','Evoluzione',4);
+INSERT INTO `classificazione` VALUES (1320,1311,'577','Ecologia',3);
+INSERT INTO `classificazione` VALUES (1321,1320,'577.3','Ecologia forestale',4);
+INSERT INTO `classificazione` VALUES (1322,1320,'577.7','Ecologia marina',4);
+INSERT INTO `classificazione` VALUES (1323,1311,'578','Storia naturale degli organismi',3);
+INSERT INTO `classificazione` VALUES (1324,1311,'579','Microrganismi, funghi, alghe',3);
+INSERT INTO `classificazione` VALUES (1325,1227,'580','Piante (Botanica)',2);
+INSERT INTO `classificazione` VALUES (1326,1325,'581','Argomenti specifici della botanica',3);
+INSERT INTO `classificazione` VALUES (1327,1325,'582','Piante note per caratteristiche vegetative',3);
+INSERT INTO `classificazione` VALUES (1328,1327,'582.13','Fiori selvatici',5);
+INSERT INTO `classificazione` VALUES (1329,1327,'582.16','Alberi',5);
+INSERT INTO `classificazione` VALUES (1330,1325,'583','Dicotiledoni',3);
+INSERT INTO `classificazione` VALUES (1331,1325,'584','Monocotiledoni',3);
+INSERT INTO `classificazione` VALUES (1332,1325,'585','Gimnosperme',3);
+INSERT INTO `classificazione` VALUES (1333,1325,'586','Crittogame (Piante senza semi)',3);
+INSERT INTO `classificazione` VALUES (1334,1325,'587','Pteridofite',3);
+INSERT INTO `classificazione` VALUES (1335,1325,'588','Briofite',3);
+INSERT INTO `classificazione` VALUES (1336,1325,'589','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1337,1227,'590','Animali (Zoologia)',2);
+INSERT INTO `classificazione` VALUES (1338,1337,'591','Argomenti specifici della zoologia',3);
+INSERT INTO `classificazione` VALUES (1339,1337,'592','Invertebrati',3);
+INSERT INTO `classificazione` VALUES (1340,1337,'593','Invertebrati marini e litoranei',3);
+INSERT INTO `classificazione` VALUES (1341,1337,'594','Molluschi e molluscoidi',3);
+INSERT INTO `classificazione` VALUES (1342,1337,'595','Artropodi',3);
+INSERT INTO `classificazione` VALUES (1343,1342,'595.7','Insetti',4);
+INSERT INTO `classificazione` VALUES (1344,1343,'595.78','Lepidotteri (Farfalle)',5);
+INSERT INTO `classificazione` VALUES (1345,1337,'596','Cordati',3);
+INSERT INTO `classificazione` VALUES (1346,1337,'597','Vertebrati a sangue freddo',3);
+INSERT INTO `classificazione` VALUES (1347,1346,'597.8','Anfibi',4);
+INSERT INTO `classificazione` VALUES (1348,1346,'597.9','Rettili',4);
+INSERT INTO `classificazione` VALUES (1349,1337,'598','Uccelli',3);
+INSERT INTO `classificazione` VALUES (1350,1337,'599','Mammiferi',3);
+INSERT INTO `classificazione` VALUES (1351,1350,'599.2','Marsupiali',4);
+INSERT INTO `classificazione` VALUES (1352,1350,'599.3','Piccoli mammiferi',4);
+INSERT INTO `classificazione` VALUES (1353,1350,'599.4','Pipistrelli',4);
+INSERT INTO `classificazione` VALUES (1354,1350,'599.5','Cetacei',4);
+INSERT INTO `classificazione` VALUES (1355,1354,'599.53','Delfini',5);
+INSERT INTO `classificazione` VALUES (1356,1350,'599.6','Ungulati',4);
+INSERT INTO `classificazione` VALUES (1357,1350,'599.7','Carnivori',4);
+INSERT INTO `classificazione` VALUES (1358,1357,'599.74','Carnivori (vecchio uso)',5);
+INSERT INTO `classificazione` VALUES (1359,1357,'599.75','Felidi',5);
+INSERT INTO `classificazione` VALUES (1360,1357,'599.77','Canidi',5);
+INSERT INTO `classificazione` VALUES (1361,1357,'599.78','Orsi',5);
+INSERT INTO `classificazione` VALUES (1362,1350,'599.8','Primati',4);
+INSERT INTO `classificazione` VALUES (1363,1350,'599.9','Hominidae (Uomo)',4);
+INSERT INTO `classificazione` VALUES (1364,1363,'599.93','Genetica umana',5);
+INSERT INTO `classificazione` VALUES (1365,1363,'599.97','Variazione umana',5);
+INSERT INTO `classificazione` VALUES (1366,1363,'599.98','Adattamento umano',5);
+INSERT INTO `classificazione` VALUES (1367,NULL,'6','Arti e ricreazione',1);
+INSERT INTO `classificazione` VALUES (1368,1367,'700','Arti',2);
+INSERT INTO `classificazione` VALUES (1369,1367,'710','Urbanistica e architettura del paesaggio',2);
+INSERT INTO `classificazione` VALUES (1370,1369,'711','Urbanistica',3);
+INSERT INTO `classificazione` VALUES (1371,1369,'712','Architettura del paesaggio',3);
+INSERT INTO `classificazione` VALUES (1372,1369,'713','Architettura del paesaggio di vie di traffico',3);
+INSERT INTO `classificazione` VALUES (1373,1369,'714','Architettura del paesaggio di specchi d\'acqua',3);
+INSERT INTO `classificazione` VALUES (1374,1369,'715','Piante ornamentali',3);
+INSERT INTO `classificazione` VALUES (1375,1369,'716','Erbe ornamentali',3);
+INSERT INTO `classificazione` VALUES (1376,1369,'717','Strutture in architettura del paesaggio',3);
+INSERT INTO `classificazione` VALUES (1377,1369,'718','Architettura del paesaggio di cimiteri',3);
+INSERT INTO `classificazione` VALUES (1378,1369,'719','Paesaggi naturali',3);
+INSERT INTO `classificazione` VALUES (1379,1367,'720','Architettura',2);
+INSERT INTO `classificazione` VALUES (1380,1379,'721','Strutture architettoniche',3);
+INSERT INTO `classificazione` VALUES (1381,1379,'722','Architettura antica e orientale',3);
+INSERT INTO `classificazione` VALUES (1382,1379,'723','Architettura medievale',3);
+INSERT INTO `classificazione` VALUES (1383,1379,'724','Architettura moderna',3);
+INSERT INTO `classificazione` VALUES (1384,1379,'725','Edifici pubblici',3);
+INSERT INTO `classificazione` VALUES (1385,1379,'726','Edifici per scopi religiosi',3);
+INSERT INTO `classificazione` VALUES (1386,1379,'727','Edifici per educazione e ricerca',3);
+INSERT INTO `classificazione` VALUES (1387,1379,'728','Edifici residenziali e correlati',3);
+INSERT INTO `classificazione` VALUES (1388,1379,'729','Progettazione e decorazione',3);
+INSERT INTO `classificazione` VALUES (1389,1367,'730','Arti plastiche e scultura',2);
+INSERT INTO `classificazione` VALUES (1390,1389,'731','Processi, forme, soggetti',3);
+INSERT INTO `classificazione` VALUES (1391,1389,'732','Scultura antica e orientale',3);
+INSERT INTO `classificazione` VALUES (1392,1389,'733','Scultura greca, etrusca, romana',3);
+INSERT INTO `classificazione` VALUES (1393,1389,'734','Scultura medievale',3);
+INSERT INTO `classificazione` VALUES (1394,1389,'735','Scultura moderna',3);
+INSERT INTO `classificazione` VALUES (1395,1389,'736','Intaglio e incisioni',3);
+INSERT INTO `classificazione` VALUES (1396,1389,'737','Numismatica e sigillografia',3);
+INSERT INTO `classificazione` VALUES (1397,1389,'738','Arte ceramica',3);
+INSERT INTO `classificazione` VALUES (1398,1389,'739','Lavorazione artistica dei metalli',3);
+INSERT INTO `classificazione` VALUES (1399,1367,'740','Disegno e arti decorative',2);
+INSERT INTO `classificazione` VALUES (1400,1399,'741','Disegno e disegni',3);
+INSERT INTO `classificazione` VALUES (1401,1399,'742','Prospettiva',3);
+INSERT INTO `classificazione` VALUES (1402,1399,'743','Disegno e disegni per soggetto',3);
+INSERT INTO `classificazione` VALUES (1403,1399,'744','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1404,1399,'745','Arti decorative',3);
+INSERT INTO `classificazione` VALUES (1405,1399,'746','Arti tessili',3);
+INSERT INTO `classificazione` VALUES (1406,1399,'747','Decorazione d\'interni',3);
+INSERT INTO `classificazione` VALUES (1407,1399,'748','Vetro',3);
+INSERT INTO `classificazione` VALUES (1408,1399,'749','Mobili e accessori',3);
+INSERT INTO `classificazione` VALUES (1409,1367,'750','Pittura',2);
+INSERT INTO `classificazione` VALUES (1410,1409,'751','Tecniche, attrezzature, materiali',3);
+INSERT INTO `classificazione` VALUES (1411,1409,'752','Colore',3);
+INSERT INTO `classificazione` VALUES (1412,1409,'753','Simbolismo, allegoria, mitologia',3);
+INSERT INTO `classificazione` VALUES (1413,1409,'754','Generi di pittura',3);
+INSERT INTO `classificazione` VALUES (1414,1409,'755','Religione',3);
+INSERT INTO `classificazione` VALUES (1415,1409,'756','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1416,1409,'757','Figura umana',3);
+INSERT INTO `classificazione` VALUES (1417,1409,'758','Altri soggetti',3);
+INSERT INTO `classificazione` VALUES (1418,1409,'759','Periodi storici, geografici, personali',3);
+INSERT INTO `classificazione` VALUES (1419,1367,'760','Arte grafica',2);
+INSERT INTO `classificazione` VALUES (1420,1419,'761','Processi di soccorso',3);
+INSERT INTO `classificazione` VALUES (1421,1419,'762','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1422,1419,'763','Processi litografici',3);
+INSERT INTO `classificazione` VALUES (1423,1419,'764','Cromolitografia e serigrafia',3);
+INSERT INTO `classificazione` VALUES (1424,1419,'765','Incisione su metallo',3);
+INSERT INTO `classificazione` VALUES (1425,1419,'766','Mezzotinto e processi correlati',3);
+INSERT INTO `classificazione` VALUES (1426,1419,'767','Acquaforte e acquatinta',3);
+INSERT INTO `classificazione` VALUES (1427,1419,'768','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1428,1419,'769','Stampe',3);
+INSERT INTO `classificazione` VALUES (1429,1367,'770','Fotografia e arte computerizzata',2);
+INSERT INTO `classificazione` VALUES (1430,1429,'771','Tecniche, attrezzature, materiali',3);
+INSERT INTO `classificazione` VALUES (1431,1429,'772','Processi con sali metallici',3);
+INSERT INTO `classificazione` VALUES (1432,1429,'773','Processi pigmentari di stampa',3);
+INSERT INTO `classificazione` VALUES (1433,1429,'774','Olografia',3);
+INSERT INTO `classificazione` VALUES (1434,1429,'775','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1435,1429,'776','Arte computerizzata',3);
+INSERT INTO `classificazione` VALUES (1436,1429,'777','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1437,1429,'778','Campi e tipi di fotografia',3);
+INSERT INTO `classificazione` VALUES (1438,1429,'779','Fotografi',3);
+INSERT INTO `classificazione` VALUES (1439,1367,'780','Musica',2);
+INSERT INTO `classificazione` VALUES (1440,1439,'781','Principi generali e forme musicali',3);
+INSERT INTO `classificazione` VALUES (1441,1439,'782','Musica vocale',3);
+INSERT INTO `classificazione` VALUES (1442,1439,'783','Musica per voci singole',3);
+INSERT INTO `classificazione` VALUES (1443,1439,'784','Strumenti e gruppi strumentali',3);
+INSERT INTO `classificazione` VALUES (1444,1439,'785','Gruppi strumentali',3);
+INSERT INTO `classificazione` VALUES (1445,1439,'786','Strumenti a tastiera',3);
+INSERT INTO `classificazione` VALUES (1446,1439,'787','Strumenti a corda',3);
+INSERT INTO `classificazione` VALUES (1447,1439,'788','Strumenti a fiato',3);
+INSERT INTO `classificazione` VALUES (1448,1439,'789','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1449,1367,'790','Arti ricreative e dello spettacolo',2);
+INSERT INTO `classificazione` VALUES (1450,1449,'791','Spettacoli pubblici',3);
+INSERT INTO `classificazione` VALUES (1451,1449,'792','Rappresentazioni sceniche',3);
+INSERT INTO `classificazione` VALUES (1452,1449,'793','Giochi e intrattenimenti al chiuso',3);
+INSERT INTO `classificazione` VALUES (1453,1449,'794','Giochi di abilità al chiuso',3);
+INSERT INTO `classificazione` VALUES (1454,1449,'795','Giochi d\'azzardo',3);
+INSERT INTO `classificazione` VALUES (1455,1449,'796','Sport atletici e all\'aperto',3);
+INSERT INTO `classificazione` VALUES (1456,1449,'797','Sport acquatici e aerei',3);
+INSERT INTO `classificazione` VALUES (1457,1449,'798','Sport equestri e caccia',3);
+INSERT INTO `classificazione` VALUES (1458,1449,'799','Pesca, caccia, tiro',3);
+INSERT INTO `classificazione` VALUES (1459,NULL,'600','Tecnologia',1);
+INSERT INTO `classificazione` VALUES (1460,1459,'601','Filosofia e teoria',3);
+INSERT INTO `classificazione` VALUES (1461,1459,'602','Miscellanea',3);
+INSERT INTO `classificazione` VALUES (1462,1459,'603','Dizionari ed enciclopedie',3);
+INSERT INTO `classificazione` VALUES (1463,1459,'604','Disegno tecnico',3);
+INSERT INTO `classificazione` VALUES (1464,1459,'605','Pubblicazioni seriali',3);
+INSERT INTO `classificazione` VALUES (1465,1459,'606','Organizzazioni',3);
+INSERT INTO `classificazione` VALUES (1466,1459,'607','Educazione, ricerca',3);
+INSERT INTO `classificazione` VALUES (1467,1459,'608','Invenzioni e brevetti',3);
+INSERT INTO `classificazione` VALUES (1468,1459,'609','Storia e trattazione locale',3);
+INSERT INTO `classificazione` VALUES (1469,1459,'610','Medicina e salute',2);
+INSERT INTO `classificazione` VALUES (1470,1469,'611','Anatomia umana',3);
+INSERT INTO `classificazione` VALUES (1471,1469,'612','Fisiologia umana',3);
+INSERT INTO `classificazione` VALUES (1472,1471,'612.6','Riproduzione',4);
+INSERT INTO `classificazione` VALUES (1473,1469,'613','Promozione della salute',3);
+INSERT INTO `classificazione` VALUES (1474,1473,'613.2','Dietetica',4);
+INSERT INTO `classificazione` VALUES (1475,1473,'613.7','Fitness',4);
+INSERT INTO `classificazione` VALUES (1476,1469,'614','Incidenza e prevenzione delle malattie',3);
+INSERT INTO `classificazione` VALUES (1477,1469,'615','Farmacologia e terapeutica',3);
+INSERT INTO `classificazione` VALUES (1478,1469,'616','Malattie',3);
+INSERT INTO `classificazione` VALUES (1479,1478,'616.1','Cuore',4);
+INSERT INTO `classificazione` VALUES (1480,1478,'616.8','Malattie nervose',4);
+INSERT INTO `classificazione` VALUES (1481,1478,'616.9','Malattie infettive',4);
+INSERT INTO `classificazione` VALUES (1482,1469,'617','Chirurgia',3);
+INSERT INTO `classificazione` VALUES (1483,1469,'618','Ginecologia, ostetricia, pediatria',3);
+INSERT INTO `classificazione` VALUES (1484,1483,'618.92','Pediatria',5);
+INSERT INTO `classificazione` VALUES (1485,1469,'619','Medicina sperimentale',3);
+INSERT INTO `classificazione` VALUES (1486,1459,'620','Ingegneria e attività affini',2);
+INSERT INTO `classificazione` VALUES (1487,1486,'621','Fisica applicata',3);
+INSERT INTO `classificazione` VALUES (1488,1487,'621.3','Elettrotecnica',4);
+INSERT INTO `classificazione` VALUES (1489,1488,'621.38','Elettronica',5);
+INSERT INTO `classificazione` VALUES (1490,1487,'621.4','Motori',4);
+INSERT INTO `classificazione` VALUES (1491,1486,'622','Ingegneria mineraria',3);
+INSERT INTO `classificazione` VALUES (1492,1486,'623','Ingegneria militare e navale',3);
+INSERT INTO `classificazione` VALUES (1493,1486,'624','Ingegneria civile',3);
+INSERT INTO `classificazione` VALUES (1494,1486,'625','Ingegneria delle ferrovie e strade',3);
+INSERT INTO `classificazione` VALUES (1495,1486,'626','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1496,1486,'627','Ingegneria idraulica',3);
+INSERT INTO `classificazione` VALUES (1497,1486,'628','Ingegneria sanitaria',3);
+INSERT INTO `classificazione` VALUES (1498,1486,'629','Altri rami dell\'ingegneria',3);
+INSERT INTO `classificazione` VALUES (1499,1498,'629.1','Aerospaziale',4);
+INSERT INTO `classificazione` VALUES (1500,1499,'629.13','Aeronautica',5);
+INSERT INTO `classificazione` VALUES (1501,1498,'629.2','Veicoli a motore',4);
+INSERT INTO `classificazione` VALUES (1502,1498,'629.4','Astronautica',4);
+INSERT INTO `classificazione` VALUES (1503,1498,'629.8','Automazione',4);
+INSERT INTO `classificazione` VALUES (1504,1459,'630','Agricoltura e tecnologie correlate',2);
+INSERT INTO `classificazione` VALUES (1505,1504,'631','Tecniche, equipaggiamento, materiali',3);
+INSERT INTO `classificazione` VALUES (1506,1504,'632','Danni alle piante, malattie, parassiti',3);
+INSERT INTO `classificazione` VALUES (1507,1504,'633','Colture di campo e piantagioni',3);
+INSERT INTO `classificazione` VALUES (1508,1504,'634','Frutteti, frutti, silvicoltura',3);
+INSERT INTO `classificazione` VALUES (1509,1504,'635','Orticoltura',3);
+INSERT INTO `classificazione` VALUES (1510,1504,'636','Allevamento di animali',3);
+INSERT INTO `classificazione` VALUES (1511,1510,'636.1','Cavalli',4);
+INSERT INTO `classificazione` VALUES (1512,1510,'636.2','Bovini',4);
+INSERT INTO `classificazione` VALUES (1513,1510,'636.3','Ovini',4);
+INSERT INTO `classificazione` VALUES (1514,1510,'636.5','Pollame',4);
+INSERT INTO `classificazione` VALUES (1515,1510,'636.7','Cani',4);
+INSERT INTO `classificazione` VALUES (1516,1510,'636.8','Gatti',4);
+INSERT INTO `classificazione` VALUES (1517,1504,'637','Industria casearia e prodotti correlati',3);
+INSERT INTO `classificazione` VALUES (1518,1504,'638','Allevamento di insetti',3);
+INSERT INTO `classificazione` VALUES (1519,1504,'639','Caccia, pesca, conservazione',3);
+INSERT INTO `classificazione` VALUES (1520,1459,'640','Gestione della casa e della famiglia',2);
+INSERT INTO `classificazione` VALUES (1521,1520,'641','Cibo e bevande',3);
+INSERT INTO `classificazione` VALUES (1522,1521,'641.5','Cucina',4);
+INSERT INTO `classificazione` VALUES (1523,1522,'641.59','Cucina internazionale',5);
+INSERT INTO `classificazione` VALUES (1524,1523,'641.5945','Cucina italiana',7);
+INSERT INTO `classificazione` VALUES (1525,1521,'641.8','Piatti specifici',4);
+INSERT INTO `classificazione` VALUES (1526,1520,'642','Pasti e servizio a tavola',3);
+INSERT INTO `classificazione` VALUES (1527,1520,'643','Alloggio e attrezzature domestiche',3);
+INSERT INTO `classificazione` VALUES (1528,1520,'644','Utenze domestiche',3);
+INSERT INTO `classificazione` VALUES (1529,1520,'645','Arredamento domestico',3);
+INSERT INTO `classificazione` VALUES (1530,1520,'646','Cucito e abbigliamento',3);
+INSERT INTO `classificazione` VALUES (1531,1520,'647','Gestione di pubblici esercizi',3);
+INSERT INTO `classificazione` VALUES (1532,1520,'648','Pulizia domestica',3);
+INSERT INTO `classificazione` VALUES (1533,1520,'649','Puericultura e assistenza domiciliare',3);
+INSERT INTO `classificazione` VALUES (1534,1459,'650','Gestione e servizi ausiliari',2);
+INSERT INTO `classificazione` VALUES (1535,1534,'651','Servizi d\'ufficio',3);
+INSERT INTO `classificazione` VALUES (1536,1534,'652','Processi di comunicazione scritta',3);
+INSERT INTO `classificazione` VALUES (1537,1534,'653','Stenografia',3);
+INSERT INTO `classificazione` VALUES (1538,1534,'654','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1539,1534,'655','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1540,1534,'656','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1541,1534,'657','Contabilità',3);
+INSERT INTO `classificazione` VALUES (1542,1534,'658','Gestione generale',3);
+INSERT INTO `classificazione` VALUES (1543,1542,'658.1','Organizzazione',4);
+INSERT INTO `classificazione` VALUES (1544,1542,'658.3','Risorse umane',4);
+INSERT INTO `classificazione` VALUES (1545,1542,'658.4','Dirigenza',4);
+INSERT INTO `classificazione` VALUES (1546,1542,'658.8','Marketing',4);
+INSERT INTO `classificazione` VALUES (1547,1534,'659','Pubblicità e relazioni pubbliche',3);
+INSERT INTO `classificazione` VALUES (1548,1459,'660','Tecnologia chimica',2);
+INSERT INTO `classificazione` VALUES (1549,1548,'661','Tecnologia dei prodotti chimici industriali',3);
+INSERT INTO `classificazione` VALUES (1550,1548,'662','Tecnologia degli esplosivi, combustibili',3);
+INSERT INTO `classificazione` VALUES (1551,1548,'663','Tecnologia delle bevande',3);
+INSERT INTO `classificazione` VALUES (1552,1551,'663.2','Vino',4);
+INSERT INTO `classificazione` VALUES (1553,1548,'664','Tecnologia alimentare',3);
+INSERT INTO `classificazione` VALUES (1554,1548,'665','Tecnologia degli oli, grassi, cere',3);
+INSERT INTO `classificazione` VALUES (1555,1548,'666','Tecnologia ceramica e affini',3);
+INSERT INTO `classificazione` VALUES (1556,1548,'667','Tecnologia della pulizia, colore',3);
+INSERT INTO `classificazione` VALUES (1557,1548,'668','Tecnologia di altri prodotti organici',3);
+INSERT INTO `classificazione` VALUES (1558,1548,'669','Metallurgia',3);
+INSERT INTO `classificazione` VALUES (1559,1459,'670','Manifattura',2);
+INSERT INTO `classificazione` VALUES (1560,1559,'671','Lavorazione dei metalli',3);
+INSERT INTO `classificazione` VALUES (1561,1559,'672','Manifattura di metalli ferrosi',3);
+INSERT INTO `classificazione` VALUES (1562,1559,'673','Manifattura di metalli non ferrosi',3);
+INSERT INTO `classificazione` VALUES (1563,1559,'674','Lavorazione del legname, prodotti in legno',3);
+INSERT INTO `classificazione` VALUES (1564,1559,'675','Lavorazione della pelle e pellicce',3);
+INSERT INTO `classificazione` VALUES (1565,1559,'676','Tecnologia della carta e polpa',3);
+INSERT INTO `classificazione` VALUES (1566,1559,'677','Tessili',3);
+INSERT INTO `classificazione` VALUES (1567,1559,'678','Elastomeri e prodotti in elastomero',3);
+INSERT INTO `classificazione` VALUES (1568,1559,'679','Altri prodotti di materiali specifici',3);
+INSERT INTO `classificazione` VALUES (1569,1459,'680','Manifattura per scopi specifici',2);
+INSERT INTO `classificazione` VALUES (1570,1569,'681','Strumenti di precisione',3);
+INSERT INTO `classificazione` VALUES (1571,1569,'682','Piccoli lavori di fucina',3);
+INSERT INTO `classificazione` VALUES (1572,1569,'683','Ferramenta ed elettrodomestici',3);
+INSERT INTO `classificazione` VALUES (1573,1569,'684','Arredamento e laboratori domestici',3);
+INSERT INTO `classificazione` VALUES (1574,1569,'685','Articoli in pelle e pelliccia',3);
+INSERT INTO `classificazione` VALUES (1575,1569,'686','Stampa e attività correlate',3);
+INSERT INTO `classificazione` VALUES (1576,1569,'687','Abbigliamento e accessori',3);
+INSERT INTO `classificazione` VALUES (1577,1569,'688','Altri articoli finali, imballaggio',3);
+INSERT INTO `classificazione` VALUES (1578,1569,'689','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1579,1459,'690','Edilizia',2);
+INSERT INTO `classificazione` VALUES (1580,1579,'691','Materiali da costruzione',3);
+INSERT INTO `classificazione` VALUES (1581,1579,'692','Pratiche ausiliarie di costruzione',3);
+INSERT INTO `classificazione` VALUES (1582,1579,'693','Costruzione in materiali specifici',3);
+INSERT INTO `classificazione` VALUES (1583,1579,'694','Costruzione in legno; Carpenteria',3);
+INSERT INTO `classificazione` VALUES (1584,1579,'695','Copertura di tetti',3);
+INSERT INTO `classificazione` VALUES (1585,1579,'696','Impianti idraulici e sanitari',3);
+INSERT INTO `classificazione` VALUES (1586,1579,'697','Ingegneria del riscaldamento e ventilazione',3);
+INSERT INTO `classificazione` VALUES (1587,1579,'698','Finiture di dettaglio',3);
+INSERT INTO `classificazione` VALUES (1588,1579,'699','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1589,NULL,'7','Letteratura',1);
+INSERT INTO `classificazione` VALUES (1590,1589,'800','Letteratura, retorica, critica',2);
+INSERT INTO `classificazione` VALUES (1591,1589,'810','Letteratura americana in inglese',2);
+INSERT INTO `classificazione` VALUES (1592,1591,'811','Poesia americana',3);
+INSERT INTO `classificazione` VALUES (1593,1591,'812','Teatro americano',3);
+INSERT INTO `classificazione` VALUES (1594,1591,'813','Narrativa americana',3);
+INSERT INTO `classificazione` VALUES (1595,1591,'814','Saggi americani',3);
+INSERT INTO `classificazione` VALUES (1596,1591,'815','Discorsi americani',3);
+INSERT INTO `classificazione` VALUES (1597,1591,'816','Lettere americane',3);
+INSERT INTO `classificazione` VALUES (1598,1591,'817','Umorismo e satira americana',3);
+INSERT INTO `classificazione` VALUES (1599,1591,'818','Miscellanea letteraria americana',3);
+INSERT INTO `classificazione` VALUES (1600,1591,'819','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1601,1589,'820','Letteratura inglese',2);
+INSERT INTO `classificazione` VALUES (1602,1601,'821','Poesia inglese',3);
+INSERT INTO `classificazione` VALUES (1603,1601,'822','Teatro inglese',3);
+INSERT INTO `classificazione` VALUES (1604,1601,'823','Narrativa inglese',3);
+INSERT INTO `classificazione` VALUES (1605,1601,'824','Saggi inglesi',3);
+INSERT INTO `classificazione` VALUES (1606,1601,'825','Discorsi inglesi',3);
+INSERT INTO `classificazione` VALUES (1607,1601,'826','Lettere inglesi',3);
+INSERT INTO `classificazione` VALUES (1608,1601,'827','Umorismo e satira inglese',3);
+INSERT INTO `classificazione` VALUES (1609,1601,'828','Miscellanea letteraria inglese',3);
+INSERT INTO `classificazione` VALUES (1610,1601,'829','Letteratura inglese antica',3);
+INSERT INTO `classificazione` VALUES (1611,1589,'830','Letteratura tedesca',2);
+INSERT INTO `classificazione` VALUES (1612,1611,'831','Poesia tedesca',3);
+INSERT INTO `classificazione` VALUES (1613,1611,'832','Teatro tedesco',3);
+INSERT INTO `classificazione` VALUES (1614,1611,'833','Narrativa tedesca',3);
+INSERT INTO `classificazione` VALUES (1615,1611,'834','Saggi tedeschi',3);
+INSERT INTO `classificazione` VALUES (1616,1611,'835','Discorsi tedeschi',3);
+INSERT INTO `classificazione` VALUES (1617,1611,'836','Lettere tedesche',3);
+INSERT INTO `classificazione` VALUES (1618,1611,'837','Umorismo e satira tedesca',3);
+INSERT INTO `classificazione` VALUES (1619,1611,'838','Miscellanea letteraria tedesca',3);
+INSERT INTO `classificazione` VALUES (1620,1611,'839','Altre letterature germaniche',3);
+INSERT INTO `classificazione` VALUES (1621,1589,'840','Letteratura francese',2);
+INSERT INTO `classificazione` VALUES (1622,1621,'841','Poesia francese',3);
+INSERT INTO `classificazione` VALUES (1623,1621,'842','Teatro francese',3);
+INSERT INTO `classificazione` VALUES (1624,1621,'843','Narrativa francese',3);
+INSERT INTO `classificazione` VALUES (1625,1621,'844','Saggi francesi',3);
+INSERT INTO `classificazione` VALUES (1626,1621,'845','Discorsi francesi',3);
+INSERT INTO `classificazione` VALUES (1627,1621,'846','Lettere francesi',3);
+INSERT INTO `classificazione` VALUES (1628,1621,'847','Umorismo e satira francese',3);
+INSERT INTO `classificazione` VALUES (1629,1621,'848','Miscellanea letteraria francese',3);
+INSERT INTO `classificazione` VALUES (1630,1621,'849','Letteratura provenzale e catalana',3);
+INSERT INTO `classificazione` VALUES (1631,1589,'850','Letteratura italiana, rumena, retoromanza',2);
+INSERT INTO `classificazione` VALUES (1632,1631,'851','Poesia italiana',3);
+INSERT INTO `classificazione` VALUES (1633,1631,'852','Teatro italiano',3);
+INSERT INTO `classificazione` VALUES (1634,1631,'853','Narrativa italiana',3);
+INSERT INTO `classificazione` VALUES (1635,1631,'854','Saggi italiani',3);
+INSERT INTO `classificazione` VALUES (1636,1631,'855','Discorsi italiani',3);
+INSERT INTO `classificazione` VALUES (1637,1631,'856','Lettere italiane',3);
+INSERT INTO `classificazione` VALUES (1638,1631,'857','Umorismo e satira italiana',3);
+INSERT INTO `classificazione` VALUES (1639,1631,'858','Miscellanea letteraria italiana',3);
+INSERT INTO `classificazione` VALUES (1640,1631,'859','Letteratura rumena e retoromanza',3);
+INSERT INTO `classificazione` VALUES (1641,1589,'860','Letteratura spagnola e portoghese',2);
+INSERT INTO `classificazione` VALUES (1642,1641,'861','Poesia spagnola',3);
+INSERT INTO `classificazione` VALUES (1643,1641,'862','Teatro spagnolo',3);
+INSERT INTO `classificazione` VALUES (1644,1641,'863','Narrativa spagnola',3);
+INSERT INTO `classificazione` VALUES (1645,1641,'864','Saggi spagnoli',3);
+INSERT INTO `classificazione` VALUES (1646,1641,'865','Discorsi spagnoli',3);
+INSERT INTO `classificazione` VALUES (1647,1641,'866','Lettere spagnole',3);
+INSERT INTO `classificazione` VALUES (1648,1641,'867','Umorismo e satira spagnola',3);
+INSERT INTO `classificazione` VALUES (1649,1641,'868','Miscellanea letteraria spagnola',3);
+INSERT INTO `classificazione` VALUES (1650,1641,'869','Letteratura portoghese',3);
+INSERT INTO `classificazione` VALUES (1651,1589,'870','Letteratura latina',2);
+INSERT INTO `classificazione` VALUES (1652,1651,'871','Poesia latina',3);
+INSERT INTO `classificazione` VALUES (1653,1651,'872','Teatro latino',3);
+INSERT INTO `classificazione` VALUES (1654,1651,'873','Epica e narrativa latina',3);
+INSERT INTO `classificazione` VALUES (1655,1651,'874','Poesia lirica latina',3);
+INSERT INTO `classificazione` VALUES (1656,1651,'875','Discorsi latini',3);
+INSERT INTO `classificazione` VALUES (1657,1651,'876','Lettere latine',3);
+INSERT INTO `classificazione` VALUES (1658,1651,'877','Umorismo e satira latina',3);
+INSERT INTO `classificazione` VALUES (1659,1651,'878','Miscellanea letteraria latina',3);
+INSERT INTO `classificazione` VALUES (1660,1651,'879','Letterature di altre lingue italiche',3);
+INSERT INTO `classificazione` VALUES (1661,1589,'880','Letteratura greca',2);
+INSERT INTO `classificazione` VALUES (1662,1661,'881','Poesia greca classica',3);
+INSERT INTO `classificazione` VALUES (1663,1661,'882','Teatro greco classico',3);
+INSERT INTO `classificazione` VALUES (1664,1661,'883','Epica e narrativa greca',3);
+INSERT INTO `classificazione` VALUES (1665,1661,'884','Poesia lirica greca',3);
+INSERT INTO `classificazione` VALUES (1666,1661,'885','Discorsi greci',3);
+INSERT INTO `classificazione` VALUES (1667,1661,'886','Lettere greche',3);
+INSERT INTO `classificazione` VALUES (1668,1661,'887','Opere satiriche e umoristiche greche',3);
+INSERT INTO `classificazione` VALUES (1669,1661,'888','Miscellanea letteraria greca',3);
+INSERT INTO `classificazione` VALUES (1670,1661,'889','Letteratura neogreca',3);
+INSERT INTO `classificazione` VALUES (1671,1589,'890','Letterature di altre lingue',2);
+INSERT INTO `classificazione` VALUES (1672,1671,'891','Letterature indoeuropee orientali',3);
+INSERT INTO `classificazione` VALUES (1673,1671,'892','Letterature afro-asiatiche',3);
+INSERT INTO `classificazione` VALUES (1674,1671,'893','Letterature afro-asiatiche non semitiche',3);
+INSERT INTO `classificazione` VALUES (1675,1671,'894','Letterature altaiche, uraliche, dravidiche',3);
+INSERT INTO `classificazione` VALUES (1676,1671,'895','Letterature dell\'Asia orientale e sudorientale',3);
+INSERT INTO `classificazione` VALUES (1677,1671,'896','Letterature africane',3);
+INSERT INTO `classificazione` VALUES (1678,1671,'897','Letterature native nordamericane',3);
+INSERT INTO `classificazione` VALUES (1679,1671,'898','Letterature native sudamericane',3);
+INSERT INTO `classificazione` VALUES (1680,1671,'899','Letterature austronesiane e altre',3);
+INSERT INTO `classificazione` VALUES (1681,NULL,'700','Le arti; belle arti e arti decorative',1);
+INSERT INTO `classificazione` VALUES (1682,1681,'701','Filosofia dell\'arte',3);
+INSERT INTO `classificazione` VALUES (1683,1681,'702','Miscellanea',3);
+INSERT INTO `classificazione` VALUES (1684,1681,'703','Dizionari ed enciclopedie',3);
+INSERT INTO `classificazione` VALUES (1685,1681,'704','Argomenti speciali',3);
+INSERT INTO `classificazione` VALUES (1686,1681,'705','Pubblicazioni seriali',3);
+INSERT INTO `classificazione` VALUES (1687,1681,'706','Organizzazioni e gestione',3);
+INSERT INTO `classificazione` VALUES (1688,1681,'707','Educazione, ricerca, argomenti correlati',3);
+INSERT INTO `classificazione` VALUES (1689,1681,'708','Gallerie, musei, collezioni private',3);
+INSERT INTO `classificazione` VALUES (1690,1681,'709','Storia e trattazione geografica',3);
+INSERT INTO `classificazione` VALUES (1691,1690,'709.2','Biografie artisti',4);
+INSERT INTO `classificazione` VALUES (1692,1690,'709.4','Arte europea',4);
+INSERT INTO `classificazione` VALUES (1693,1692,'709.45','Arte italiana',5);
+INSERT INTO `classificazione` VALUES (1694,1681,'710','Urbanistica e arte del paesaggio',2);
+INSERT INTO `classificazione` VALUES (1695,1694,'711','Pianificazione dell\'area (Urbanistica)',3);
+INSERT INTO `classificazione` VALUES (1696,1694,'712','Architettura del paesaggio',3);
+INSERT INTO `classificazione` VALUES (1697,1694,'713','Architettura del paesaggio di vie di traffico',3);
+INSERT INTO `classificazione` VALUES (1698,1694,'714','Caratteristiche dell\'acqua',3);
+INSERT INTO `classificazione` VALUES (1699,1694,'715','Piante legnose',3);
+INSERT INTO `classificazione` VALUES (1700,1694,'716','Piante erbacee',3);
+INSERT INTO `classificazione` VALUES (1701,1694,'717','Strutture nell\'architettura del paesaggio',3);
+INSERT INTO `classificazione` VALUES (1702,1694,'718','Cimiteri',3);
+INSERT INTO `classificazione` VALUES (1703,1694,'719','Paesaggi naturali',3);
+INSERT INTO `classificazione` VALUES (1704,1681,'720','Architettura',2);
+INSERT INTO `classificazione` VALUES (1705,1704,'721','Struttura architettonica',3);
+INSERT INTO `classificazione` VALUES (1706,1704,'722','Architettura antica e orientale',3);
+INSERT INTO `classificazione` VALUES (1707,1704,'723','Architettura medievale',3);
+INSERT INTO `classificazione` VALUES (1708,1704,'724','Architettura moderna',3);
+INSERT INTO `classificazione` VALUES (1709,1704,'725','Strutture pubbliche',3);
+INSERT INTO `classificazione` VALUES (1710,1704,'726','Edifici religiosi',3);
+INSERT INTO `classificazione` VALUES (1711,1704,'727','Edifici per l\'istruzione e la ricerca',3);
+INSERT INTO `classificazione` VALUES (1712,1704,'728','Edifici residenziali',3);
+INSERT INTO `classificazione` VALUES (1713,1704,'729','Design e decorazione',3);
+INSERT INTO `classificazione` VALUES (1714,1681,'730','Arti plastiche; Scultura',2);
+INSERT INTO `classificazione` VALUES (1715,1714,'731','Processi e soggetti della scultura',3);
+INSERT INTO `classificazione` VALUES (1716,1714,'732','Scultura primitiva e orientale',3);
+INSERT INTO `classificazione` VALUES (1717,1714,'733','Scultura greca, etrusca, romana',3);
+INSERT INTO `classificazione` VALUES (1718,1714,'734','Scultura medievale',3);
+INSERT INTO `classificazione` VALUES (1719,1714,'735','Scultura moderna',3);
+INSERT INTO `classificazione` VALUES (1720,1714,'736','Intaglio e scultura',3);
+INSERT INTO `classificazione` VALUES (1721,1714,'737','Numismatica e sigillografia',3);
+INSERT INTO `classificazione` VALUES (1722,1714,'738','Arti ceramiche',3);
+INSERT INTO `classificazione` VALUES (1723,1714,'739','Lavorazione dei metalli artistica',3);
+INSERT INTO `classificazione` VALUES (1724,1681,'740','Disegno e arti decorative',2);
+INSERT INTO `classificazione` VALUES (1725,1724,'741','Disegno e fumetti',3);
+INSERT INTO `classificazione` VALUES (1726,1725,'741.5','Fumetti',4);
+INSERT INTO `classificazione` VALUES (1727,1724,'742','Prospettiva',3);
+INSERT INTO `classificazione` VALUES (1728,1724,'743','Disegno e disegni per soggetto',3);
+INSERT INTO `classificazione` VALUES (1729,1724,'744','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1730,1724,'745','Arti decorative',3);
+INSERT INTO `classificazione` VALUES (1731,1724,'746','Arti tessili',3);
+INSERT INTO `classificazione` VALUES (1732,1724,'747','Decorazione d\'interni',3);
+INSERT INTO `classificazione` VALUES (1733,1724,'748','Vetro',3);
+INSERT INTO `classificazione` VALUES (1734,1724,'749','Mobili e accessori',3);
+INSERT INTO `classificazione` VALUES (1735,1681,'750','Pittura e dipinti',2);
+INSERT INTO `classificazione` VALUES (1736,1735,'751','Tecniche, equipaggiamento, forme',3);
+INSERT INTO `classificazione` VALUES (1737,1735,'752','Colore',3);
+INSERT INTO `classificazione` VALUES (1738,1735,'753','Simbolismo, allegoria, mitologia',3);
+INSERT INTO `classificazione` VALUES (1739,1735,'754','Pittura di genere',3);
+INSERT INTO `classificazione` VALUES (1740,1735,'755','Religione',3);
+INSERT INTO `classificazione` VALUES (1741,1735,'756','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1742,1735,'757','Figure umane',3);
+INSERT INTO `classificazione` VALUES (1743,1735,'758','Altri soggetti',3);
+INSERT INTO `classificazione` VALUES (1744,1735,'759','Storia e trattazione geografica',3);
+INSERT INTO `classificazione` VALUES (1745,1744,'759.5','Pittura italiana',4);
+INSERT INTO `classificazione` VALUES (1746,1681,'760','Arti grafiche; Arte incisoria e stampe',2);
+INSERT INTO `classificazione` VALUES (1747,1746,'761','Processi di rilievo',3);
+INSERT INTO `classificazione` VALUES (1748,1746,'762','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1749,1746,'763','Processi litografici',3);
+INSERT INTO `classificazione` VALUES (1750,1746,'764','Cromolitografia e serigrafia',3);
+INSERT INTO `classificazione` VALUES (1751,1746,'765','Incisione su metallo',3);
+INSERT INTO `classificazione` VALUES (1752,1746,'766','Mezzatinta e acquatinta',3);
+INSERT INTO `classificazione` VALUES (1753,1746,'767','Acquaforte e puntasecca',3);
+INSERT INTO `classificazione` VALUES (1754,1746,'768','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1755,1746,'769','Stampe',3);
+INSERT INTO `classificazione` VALUES (1756,1681,'770','Fotografia e fotografie',2);
+INSERT INTO `classificazione` VALUES (1757,1756,'771','Tecniche, equipaggiamento, materiali',3);
+INSERT INTO `classificazione` VALUES (1758,1756,'772','Processi con sali metallici',3);
+INSERT INTO `classificazione` VALUES (1759,1756,'773','Processi di stampa a pigmenti',3);
+INSERT INTO `classificazione` VALUES (1760,1756,'774','Olografia',3);
+INSERT INTO `classificazione` VALUES (1761,1756,'775','Fotografia digitale',3);
+INSERT INTO `classificazione` VALUES (1762,1756,'776','Arte digitale',3);
+INSERT INTO `classificazione` VALUES (1763,1756,'777','Cinematografia e videografia',3);
+INSERT INTO `classificazione` VALUES (1764,1756,'778','Campi specifici della fotografia',3);
+INSERT INTO `classificazione` VALUES (1765,1756,'779','Raccolte di foto',3);
+INSERT INTO `classificazione` VALUES (1766,1681,'780','Musica',2);
+INSERT INTO `classificazione` VALUES (1767,1766,'780.9','Storia della musica',4);
+INSERT INTO `classificazione` VALUES (1768,1766,'781','Principi generali e forme musicali',3);
+INSERT INTO `classificazione` VALUES (1769,1766,'782','Musica vocale',3);
+INSERT INTO `classificazione` VALUES (1770,1769,'782.1','Opera',4);
+INSERT INTO `classificazione` VALUES (1771,1766,'783','Musica per voci singole',3);
+INSERT INTO `classificazione` VALUES (1772,1766,'784','Strumenti e ensemble strumentali',3);
+INSERT INTO `classificazione` VALUES (1773,1766,'785','Ensemble con un solo strumento per parte',3);
+INSERT INTO `classificazione` VALUES (1774,1766,'786','Strumenti a tastiera e altri',3);
+INSERT INTO `classificazione` VALUES (1775,1766,'787','Strumenti a corda',3);
+INSERT INTO `classificazione` VALUES (1776,1766,'788','Strumenti a fiato',3);
+INSERT INTO `classificazione` VALUES (1777,1766,'789','Compositori e tradizioni musicali',3);
+INSERT INTO `classificazione` VALUES (1778,1681,'790','Arti ricreative e dello spettacolo',2);
+INSERT INTO `classificazione` VALUES (1779,1778,'791','Spettacoli pubblici',3);
+INSERT INTO `classificazione` VALUES (1780,1779,'791.4','Cinema, Radio, TV',4);
+INSERT INTO `classificazione` VALUES (1781,1780,'791.43','Cinema',5);
+INSERT INTO `classificazione` VALUES (1782,1780,'791.45','Televisione',5);
+INSERT INTO `classificazione` VALUES (1783,1778,'792','Rappresentazioni sceniche',3);
+INSERT INTO `classificazione` VALUES (1784,1778,'793','Giochi e divertimenti al coperto',3);
+INSERT INTO `classificazione` VALUES (1785,1778,'794','Giochi di abilità al coperto',3);
+INSERT INTO `classificazione` VALUES (1786,1778,'795','Giochi d\'azzardo',3);
+INSERT INTO `classificazione` VALUES (1787,1778,'796','Sport e giochi all\'aperto',3);
+INSERT INTO `classificazione` VALUES (1788,1787,'796.3','Giochi con palla',4);
+INSERT INTO `classificazione` VALUES (1789,1788,'796.33','Calcio',5);
+INSERT INTO `classificazione` VALUES (1790,1788,'796.34','Tennis',5);
+INSERT INTO `classificazione` VALUES (1791,1788,'796.35','Golf',5);
+INSERT INTO `classificazione` VALUES (1792,1787,'796.4','Atletica',4);
+INSERT INTO `classificazione` VALUES (1793,1787,'796.5','Attività all\'aperto',4);
+INSERT INTO `classificazione` VALUES (1794,1793,'796.52','Alpinismo',5);
+INSERT INTO `classificazione` VALUES (1795,1787,'796.7','Automobilismo',4);
+INSERT INTO `classificazione` VALUES (1796,1787,'796.8','Sport da combattimento',4);
+INSERT INTO `classificazione` VALUES (1797,1778,'797','Sport acquatici e aerei',3);
+INSERT INTO `classificazione` VALUES (1798,1778,'798','Sport equestri e corse di animali',3);
+INSERT INTO `classificazione` VALUES (1799,1778,'799','Pesca, caccia, tiro',3);
+INSERT INTO `classificazione` VALUES (1800,NULL,'8','Storia e geografia',1);
+INSERT INTO `classificazione` VALUES (1801,1800,'900','Storia',2);
+INSERT INTO `classificazione` VALUES (1802,1800,'910','Geografia e viaggi',2);
+INSERT INTO `classificazione` VALUES (1803,1802,'911','Geografia storica',3);
+INSERT INTO `classificazione` VALUES (1804,1802,'912','Rappresentazioni grafiche della Terra',3);
+INSERT INTO `classificazione` VALUES (1805,1802,'913','Geografia del mondo antico',3);
+INSERT INTO `classificazione` VALUES (1806,1802,'914','Geografia dell\'Europa',3);
+INSERT INTO `classificazione` VALUES (1807,1802,'915','Geografia dell\'Asia',3);
+INSERT INTO `classificazione` VALUES (1808,1802,'916','Geografia dell\'Africa',3);
+INSERT INTO `classificazione` VALUES (1809,1802,'917','Geografia del Nord America',3);
+INSERT INTO `classificazione` VALUES (1810,1802,'918','Geografia del Sud America',3);
+INSERT INTO `classificazione` VALUES (1811,1802,'919','Geografia di altre aree',3);
+INSERT INTO `classificazione` VALUES (1812,1800,'920','Biografie, genealogia, insegne',2);
+INSERT INTO `classificazione` VALUES (1813,1812,'921','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1814,1812,'922','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1815,1812,'923','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1816,1812,'924','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1817,1812,'925','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1818,1812,'926','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1819,1812,'927','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1820,1812,'928','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1821,1812,'929','Genealogia, nomi, insegne',3);
+INSERT INTO `classificazione` VALUES (1822,1800,'930','Storia del mondo antico',2);
+INSERT INTO `classificazione` VALUES (1823,1822,'931','Storia della Cina',3);
+INSERT INTO `classificazione` VALUES (1824,1822,'932','Storia dell\'Egitto',3);
+INSERT INTO `classificazione` VALUES (1825,1822,'933','Storia della Palestina',3);
+INSERT INTO `classificazione` VALUES (1826,1822,'934','Storia dell\'Asia meridionale',3);
+INSERT INTO `classificazione` VALUES (1827,1822,'935','Storia della Mesopotamia',3);
+INSERT INTO `classificazione` VALUES (1828,1822,'936','Storia dell\'Europa settentrionale',3);
+INSERT INTO `classificazione` VALUES (1829,1822,'937','Storia dell\'Italia',3);
+INSERT INTO `classificazione` VALUES (1830,1822,'938','Storia della Grecia',3);
+INSERT INTO `classificazione` VALUES (1831,1822,'939','Storia di altre parti del mondo antico',3);
+INSERT INTO `classificazione` VALUES (1832,1800,'940','Storia dell\'Europa',2);
+INSERT INTO `classificazione` VALUES (1833,1832,'941','Storia delle Isole britanniche',3);
+INSERT INTO `classificazione` VALUES (1834,1832,'942','Storia dell\'Inghilterra e Galles',3);
+INSERT INTO `classificazione` VALUES (1835,1832,'943','Storia dell\'Europa centrale, Germania',3);
+INSERT INTO `classificazione` VALUES (1836,1832,'944','Storia della Francia',3);
+INSERT INTO `classificazione` VALUES (1837,1832,'945','Storia d\'Italia',3);
+INSERT INTO `classificazione` VALUES (1838,1832,'946','Storia della Penisola iberica',3);
+INSERT INTO `classificazione` VALUES (1839,1832,'947','Storia dell\'Europa orientale, Russia',3);
+INSERT INTO `classificazione` VALUES (1840,1832,'948','Storia della Scandinavia',3);
+INSERT INTO `classificazione` VALUES (1841,1832,'949','Storia di altre parti d\'Europa',3);
+INSERT INTO `classificazione` VALUES (1842,1800,'950','Storia dell\'Asia',2);
+INSERT INTO `classificazione` VALUES (1843,1842,'951','Storia della Cina',3);
+INSERT INTO `classificazione` VALUES (1844,1842,'952','Storia del Giappone',3);
+INSERT INTO `classificazione` VALUES (1845,1842,'953','Storia della Penisola arabica',3);
+INSERT INTO `classificazione` VALUES (1846,1842,'954','Storia dell\'Asia meridionale',3);
+INSERT INTO `classificazione` VALUES (1847,1842,'955','Storia dell\'Iran',3);
+INSERT INTO `classificazione` VALUES (1848,1842,'956','Storia del Medio Oriente',3);
+INSERT INTO `classificazione` VALUES (1849,1842,'957','Storia della Siberia',3);
+INSERT INTO `classificazione` VALUES (1850,1842,'958','Storia dell\'Asia centrale',3);
+INSERT INTO `classificazione` VALUES (1851,1842,'959','Storia del Sudest asiatico',3);
+INSERT INTO `classificazione` VALUES (1852,1800,'960','Storia dell\'Africa',2);
+INSERT INTO `classificazione` VALUES (1853,1852,'961','Storia della Tunisia e Libia',3);
+INSERT INTO `classificazione` VALUES (1854,1852,'962','Storia dell\'Egitto e Sudan',3);
+INSERT INTO `classificazione` VALUES (1855,1852,'963','Storia dell\'Etiopia ed Eritrea',3);
+INSERT INTO `classificazione` VALUES (1856,1852,'964','Storia della costa nordafricana',3);
+INSERT INTO `classificazione` VALUES (1857,1852,'965','Storia dell\'Algeria',3);
+INSERT INTO `classificazione` VALUES (1858,1852,'966','Storia dell\'Africa occidentale',3);
+INSERT INTO `classificazione` VALUES (1859,1852,'967','Storia dell\'Africa centrale',3);
+INSERT INTO `classificazione` VALUES (1860,1852,'968','Storia dell\'Africa meridionale',3);
+INSERT INTO `classificazione` VALUES (1861,1852,'969','Storia delle isole africane',3);
+INSERT INTO `classificazione` VALUES (1862,1800,'970','Storia del Nord America',2);
+INSERT INTO `classificazione` VALUES (1863,1862,'971','Storia del Canada',3);
+INSERT INTO `classificazione` VALUES (1864,1862,'972','Storia del Messico e America centrale',3);
+INSERT INTO `classificazione` VALUES (1865,1862,'973','Storia degli Stati Uniti',3);
+INSERT INTO `classificazione` VALUES (1866,1862,'974','Storia degli Stati Uniti nordorientali',3);
+INSERT INTO `classificazione` VALUES (1867,1862,'975','Storia degli Stati Uniti sudorientali',3);
+INSERT INTO `classificazione` VALUES (1868,1862,'976','Storia degli Stati Uniti centro-meridionali',3);
+INSERT INTO `classificazione` VALUES (1869,1862,'977','Storia degli Stati Uniti centro-settentrionali',3);
+INSERT INTO `classificazione` VALUES (1870,1862,'978','Storia degli Stati Uniti occidentali',3);
+INSERT INTO `classificazione` VALUES (1871,1862,'979','Storia degli Stati Uniti del Pacifico',3);
+INSERT INTO `classificazione` VALUES (1872,1800,'980','Storia del Sud America',2);
+INSERT INTO `classificazione` VALUES (1873,1872,'981','Storia del Brasile',3);
+INSERT INTO `classificazione` VALUES (1874,1872,'982','Storia dell\'Argentina',3);
+INSERT INTO `classificazione` VALUES (1875,1872,'983','Storia del Cile',3);
+INSERT INTO `classificazione` VALUES (1876,1872,'984','Storia della Bolivia',3);
+INSERT INTO `classificazione` VALUES (1877,1872,'985','Storia del Perù',3);
+INSERT INTO `classificazione` VALUES (1878,1872,'986','Storia della Colombia ed Ecuador',3);
+INSERT INTO `classificazione` VALUES (1879,1872,'987','Storia del Venezuela',3);
+INSERT INTO `classificazione` VALUES (1880,1872,'988','Storia della Guyana',3);
+INSERT INTO `classificazione` VALUES (1881,1872,'989','Storia del Paraguay e Uruguay',3);
+INSERT INTO `classificazione` VALUES (1882,1800,'990','Storia di altre aree',2);
+INSERT INTO `classificazione` VALUES (1883,1882,'991','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1884,1882,'992','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1885,1882,'993','Storia della Nuova Zelanda',3);
+INSERT INTO `classificazione` VALUES (1886,1882,'994','Storia dell\'Australia',3);
+INSERT INTO `classificazione` VALUES (1887,1882,'995','Storia della Melanesia',3);
+INSERT INTO `classificazione` VALUES (1888,1882,'996','Storia di altre parti del Pacifico',3);
+INSERT INTO `classificazione` VALUES (1889,1882,'997','Storia delle isole atlantiche',3);
+INSERT INTO `classificazione` VALUES (1890,1882,'998','Storia delle regioni artiche',3);
+INSERT INTO `classificazione` VALUES (1891,1882,'999','Storia di mondi extraterrestri',3);
+INSERT INTO `classificazione` VALUES (1892,NULL,'800','Letteratura e retorica',1);
+INSERT INTO `classificazione` VALUES (1893,1892,'801','Filosofia e teoria',3);
+INSERT INTO `classificazione` VALUES (1894,1892,'802','Miscellanea',3);
+INSERT INTO `classificazione` VALUES (1895,1892,'803','Dizionari ed enciclopedie',3);
+INSERT INTO `classificazione` VALUES (1896,1892,'804','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1897,1892,'805','Pubblicazioni seriali',3);
+INSERT INTO `classificazione` VALUES (1898,1892,'806','Organizzazioni',3);
+INSERT INTO `classificazione` VALUES (1899,1892,'807','Educazione, ricerca',3);
+INSERT INTO `classificazione` VALUES (1900,1892,'808','Retorica e raccolte',3);
+INSERT INTO `classificazione` VALUES (1901,1900,'808.3','Scrittura narrativa',4);
+INSERT INTO `classificazione` VALUES (1902,1900,'808.8','Raccolte',4);
+INSERT INTO `classificazione` VALUES (1903,1892,'809','Storia, descrizione, critica',3);
+INSERT INTO `classificazione` VALUES (1904,1892,'810','Letteratura americana in inglese',2);
+INSERT INTO `classificazione` VALUES (1905,1904,'811','Poesia americana',3);
+INSERT INTO `classificazione` VALUES (1906,1904,'812','Dramma americano',3);
+INSERT INTO `classificazione` VALUES (1907,1904,'813','Narrativa americana',3);
+INSERT INTO `classificazione` VALUES (1908,1904,'814','Saggi americani',3);
+INSERT INTO `classificazione` VALUES (1909,1904,'815','Discorsi americani',3);
+INSERT INTO `classificazione` VALUES (1910,1904,'816','Lettere americane',3);
+INSERT INTO `classificazione` VALUES (1911,1904,'817','Satira e umorismo americani',3);
+INSERT INTO `classificazione` VALUES (1912,1904,'818','Scritti vari americani',3);
+INSERT INTO `classificazione` VALUES (1913,1904,'819','Non assegnato',3);
+INSERT INTO `classificazione` VALUES (1914,1892,'820','Letterature inglese e inglese antico',2);
+INSERT INTO `classificazione` VALUES (1915,1914,'821','Poesia inglese',3);
+INSERT INTO `classificazione` VALUES (1916,1914,'822','Dramma inglese',3);
+INSERT INTO `classificazione` VALUES (1917,1916,'822.3','Shakespeare',4);
+INSERT INTO `classificazione` VALUES (1918,1914,'823','Narrativa inglese',3);
+INSERT INTO `classificazione` VALUES (1919,1914,'824','Saggi inglesi',3);
+INSERT INTO `classificazione` VALUES (1920,1914,'825','Discorsi inglesi',3);
+INSERT INTO `classificazione` VALUES (1921,1914,'826','Lettere inglesi',3);
+INSERT INTO `classificazione` VALUES (1922,1914,'827','Satira e umorismo inglesi',3);
+INSERT INTO `classificazione` VALUES (1923,1914,'828','Scritti vari inglesi',3);
+INSERT INTO `classificazione` VALUES (1924,1914,'829','Letteratura in inglese antico',3);
+INSERT INTO `classificazione` VALUES (1925,1892,'830','Letterature delle lingue germaniche',2);
+INSERT INTO `classificazione` VALUES (1926,1925,'831','Poesia tedesca',3);
+INSERT INTO `classificazione` VALUES (1927,1925,'832','Dramma tedesco',3);
+INSERT INTO `classificazione` VALUES (1928,1925,'833','Narrativa tedesca',3);
+INSERT INTO `classificazione` VALUES (1929,1925,'834','Saggi tedeschi',3);
+INSERT INTO `classificazione` VALUES (1930,1925,'835','Discorsi tedeschi',3);
+INSERT INTO `classificazione` VALUES (1931,1925,'836','Lettere tedesche',3);
+INSERT INTO `classificazione` VALUES (1932,1925,'837','Satira e umorismo tedeschi',3);
+INSERT INTO `classificazione` VALUES (1933,1925,'838','Scritti vari tedeschi',3);
+INSERT INTO `classificazione` VALUES (1934,1925,'839','Altre letterature germaniche',3);
+INSERT INTO `classificazione` VALUES (1935,1892,'840','Letterature delle lingue romanze',2);
+INSERT INTO `classificazione` VALUES (1936,1935,'841','Poesia francese',3);
+INSERT INTO `classificazione` VALUES (1937,1935,'842','Dramma francese',3);
+INSERT INTO `classificazione` VALUES (1938,1935,'843','Narrativa francese',3);
+INSERT INTO `classificazione` VALUES (1939,1935,'844','Saggi francesi',3);
+INSERT INTO `classificazione` VALUES (1940,1935,'845','Discorsi francesi',3);
+INSERT INTO `classificazione` VALUES (1941,1935,'846','Lettere francesi',3);
+INSERT INTO `classificazione` VALUES (1942,1935,'847','Satira e umorismo francesi',3);
+INSERT INTO `classificazione` VALUES (1943,1935,'848','Scritti vari francesi',3);
+INSERT INTO `classificazione` VALUES (1944,1935,'849','Occitana e Catalana',3);
+INSERT INTO `classificazione` VALUES (1945,1892,'850','Letterature italiana, romena e retoromanza',2);
+INSERT INTO `classificazione` VALUES (1946,1945,'851','Poesia italiana',3);
+INSERT INTO `classificazione` VALUES (1947,1946,'851.1','Dante Alighieri',4);
+INSERT INTO `classificazione` VALUES (1948,1945,'852','Dramma italiano',3);
+INSERT INTO `classificazione` VALUES (1949,1945,'853','Narrativa italiana',3);
+INSERT INTO `classificazione` VALUES (1950,1945,'854','Saggi italiani',3);
+INSERT INTO `classificazione` VALUES (1951,1945,'855','Discorsi italiani',3);
+INSERT INTO `classificazione` VALUES (1952,1945,'856','Lettere italiane',3);
+INSERT INTO `classificazione` VALUES (1953,1945,'857','Satira e umorismo italiani',3);
+INSERT INTO `classificazione` VALUES (1954,1945,'858','Scritti vari italiani',3);
+INSERT INTO `classificazione` VALUES (1955,1945,'859','Romena e Retoromanza',3);
+INSERT INTO `classificazione` VALUES (1956,1892,'860','Letterature spagnola e portoghese',2);
+INSERT INTO `classificazione` VALUES (1957,1956,'861','Poesia spagnola',3);
+INSERT INTO `classificazione` VALUES (1958,1956,'862','Dramma spagnolo',3);
+INSERT INTO `classificazione` VALUES (1959,1956,'863','Narrativa spagnola',3);
+INSERT INTO `classificazione` VALUES (1960,1956,'864','Saggi spagnoli',3);
+INSERT INTO `classificazione` VALUES (1961,1956,'865','Discorsi spagnoli',3);
+INSERT INTO `classificazione` VALUES (1962,1956,'866','Lettere spagnole',3);
+INSERT INTO `classificazione` VALUES (1963,1956,'867','Satira e umorismo spagnoli',3);
+INSERT INTO `classificazione` VALUES (1964,1956,'868','Scritti vari spagnoli',3);
+INSERT INTO `classificazione` VALUES (1965,1956,'869','Portoghese',3);
+INSERT INTO `classificazione` VALUES (1966,1892,'870','Letterature italiche; Latino',2);
+INSERT INTO `classificazione` VALUES (1967,1966,'871','Poesia latina',3);
+INSERT INTO `classificazione` VALUES (1968,1966,'872','Dramma latino',3);
+INSERT INTO `classificazione` VALUES (1969,1966,'873','Poesia epica latina',3);
+INSERT INTO `classificazione` VALUES (1970,1966,'874','Poesia lirica latina',3);
+INSERT INTO `classificazione` VALUES (1971,1966,'875','Discorsi latini',3);
+INSERT INTO `classificazione` VALUES (1972,1966,'876','Lettere latine',3);
+INSERT INTO `classificazione` VALUES (1973,1966,'877','Satira e umorismo latini',3);
+INSERT INTO `classificazione` VALUES (1974,1966,'878','Scritti vari latini',3);
+INSERT INTO `classificazione` VALUES (1975,1966,'879','Altre letterature italiche',3);
+INSERT INTO `classificazione` VALUES (1976,1892,'880','Letterature elleniche; Greco classico',2);
+INSERT INTO `classificazione` VALUES (1977,1976,'881','Poesia greca',3);
+INSERT INTO `classificazione` VALUES (1978,1976,'882','Dramma greco',3);
+INSERT INTO `classificazione` VALUES (1979,1976,'883','Poesia epica greca',3);
+INSERT INTO `classificazione` VALUES (1980,1976,'884','Poesia lirica greca',3);
+INSERT INTO `classificazione` VALUES (1981,1976,'885','Discorsi greci',3);
+INSERT INTO `classificazione` VALUES (1982,1976,'886','Lettere greche',3);
+INSERT INTO `classificazione` VALUES (1983,1976,'887','Satira e umorismo greci',3);
+INSERT INTO `classificazione` VALUES (1984,1976,'888','Scritti vari greci',3);
+INSERT INTO `classificazione` VALUES (1985,1976,'889','Greca moderna',3);
+INSERT INTO `classificazione` VALUES (1986,1892,'890','Letterature di altre lingue',2);
+INSERT INTO `classificazione` VALUES (1987,1986,'891','Indoeuropee orientali e celtiche',3);
+INSERT INTO `classificazione` VALUES (1988,1986,'891.7','Letteratura russa',4);
+INSERT INTO `classificazione` VALUES (1989,1986,'892','Afroasiatiche; Semitiche',3);
+INSERT INTO `classificazione` VALUES (1990,1986,'893','Afroasiatiche non semitiche',3);
+INSERT INTO `classificazione` VALUES (1991,1986,'894','Altaiche, uraliche, iperborree',3);
+INSERT INTO `classificazione` VALUES (1992,1986,'895','Asia orientale e sudorientale',3);
+INSERT INTO `classificazione` VALUES (1993,1986,'896','Africane',3);
+INSERT INTO `classificazione` VALUES (1994,1986,'897','Native nordamericane',3);
+INSERT INTO `classificazione` VALUES (1995,1986,'898','Native sudamericane',3);
+INSERT INTO `classificazione` VALUES (1996,1986,'899','Non austronesiane, altre',3);
+INSERT INTO `classificazione` VALUES (1997,NULL,'900','Storia e geografia',1);
+INSERT INTO `classificazione` VALUES (1998,1997,'901','Filosofia e teoria',3);
+INSERT INTO `classificazione` VALUES (1999,1997,'902','Miscellanea',3);
+INSERT INTO `classificazione` VALUES (2000,1997,'903','Dizionari ed enciclopedie',3);
+INSERT INTO `classificazione` VALUES (2001,1997,'904','Raccolte di resoconti di eventi',3);
+INSERT INTO `classificazione` VALUES (2002,1997,'905','Pubblicazioni seriali',3);
+INSERT INTO `classificazione` VALUES (2003,1997,'906','Organizzazioni',3);
+INSERT INTO `classificazione` VALUES (2004,1997,'907','Educazione, ricerca',3);
+INSERT INTO `classificazione` VALUES (2005,1997,'908','Gruppi di persone',3);
+INSERT INTO `classificazione` VALUES (2006,1997,'909','Storia universale',3);
+INSERT INTO `classificazione` VALUES (2007,1997,'910','Geografia e viaggi',2);
+INSERT INTO `classificazione` VALUES (2008,2007,'911','Geografia storica',3);
+INSERT INTO `classificazione` VALUES (2009,2007,'912','Atlanti, mappe',3);
+INSERT INTO `classificazione` VALUES (2010,2007,'913','Geografia e viaggi mondo antico',3);
+INSERT INTO `classificazione` VALUES (2011,2007,'914','Geografia e viaggi in Europa',3);
+INSERT INTO `classificazione` VALUES (2012,2011,'914.5','Italia (Geografia)',4);
+INSERT INTO `classificazione` VALUES (2013,2007,'915','Geografia e viaggi in Asia',3);
+INSERT INTO `classificazione` VALUES (2014,2007,'916','Geografia e viaggi in Africa',3);
+INSERT INTO `classificazione` VALUES (2015,2007,'917','Geografia e viaggi in Nord America',3);
+INSERT INTO `classificazione` VALUES (2016,2007,'918','Geografia e viaggi in Sud America',3);
+INSERT INTO `classificazione` VALUES (2017,2007,'919','Geografia e viaggi altre aree',3);
+INSERT INTO `classificazione` VALUES (2018,1997,'920','Biografia, genealogia, insegne',2);
+INSERT INTO `classificazione` VALUES (2019,2018,'921','Filosofi e psicologi',3);
+INSERT INTO `classificazione` VALUES (2020,2018,'922','Leader religiosi',3);
+INSERT INTO `classificazione` VALUES (2021,2018,'923','Politici, economisti, giuristi',3);
+INSERT INTO `classificazione` VALUES (2022,2018,'924','Linguisti',3);
+INSERT INTO `classificazione` VALUES (2023,2018,'925','Scienziati',3);
+INSERT INTO `classificazione` VALUES (2024,2018,'926','Tecnologi',3);
+INSERT INTO `classificazione` VALUES (2025,2018,'927','Artisti',3);
+INSERT INTO `classificazione` VALUES (2026,2018,'928','Letterati',3);
+INSERT INTO `classificazione` VALUES (2027,2018,'929','Genealogia, nomi, insegne',3);
+INSERT INTO `classificazione` VALUES (2028,1997,'930','Storia del mondo antico',2);
+INSERT INTO `classificazione` VALUES (2029,2028,'931','Cina antica',3);
+INSERT INTO `classificazione` VALUES (2030,2028,'932','Egitto antico',3);
+INSERT INTO `classificazione` VALUES (2031,2028,'933','Palestina antica',3);
+INSERT INTO `classificazione` VALUES (2032,2028,'934','India',3);
+INSERT INTO `classificazione` VALUES (2033,2028,'935','Mesopotamia e Altopiano Iranico',3);
+INSERT INTO `classificazione` VALUES (2034,2028,'936','Europa a nord e ovest dell\'Italia',3);
+INSERT INTO `classificazione` VALUES (2035,2028,'937','Italia e territori limitrofi',3);
+INSERT INTO `classificazione` VALUES (2036,2028,'938','Grecia antica',3);
+INSERT INTO `classificazione` VALUES (2037,2028,'939','Altre parti del mondo antico',3);
+INSERT INTO `classificazione` VALUES (2038,1997,'940','Storia d\'Europa',2);
+INSERT INTO `classificazione` VALUES (2039,2038,'940.1','Medioevo',4);
+INSERT INTO `classificazione` VALUES (2040,2038,'940.2','Storia moderna',4);
+INSERT INTO `classificazione` VALUES (2041,2038,'940.3','Prima Guerra Mondiale',4);
+INSERT INTO `classificazione` VALUES (2042,2038,'940.5','Seconda Guerra Mondiale',4);
+INSERT INTO `classificazione` VALUES (2043,2038,'941','Isole Britanniche',3);
+INSERT INTO `classificazione` VALUES (2044,2038,'942','Inghilterra e Galles',3);
+INSERT INTO `classificazione` VALUES (2045,2038,'943','Europa centrale; Germania',3);
+INSERT INTO `classificazione` VALUES (2046,2038,'944','Francia e Monaco',3);
+INSERT INTO `classificazione` VALUES (2047,2038,'945','Italia',3);
+INSERT INTO `classificazione` VALUES (2048,2047,'945.01','Medioevo italiano',5);
+INSERT INTO `classificazione` VALUES (2049,2047,'945.05','Rinascimento',5);
+INSERT INTO `classificazione` VALUES (2050,2047,'945.08','Risorgimento',5);
+INSERT INTO `classificazione` VALUES (2051,2047,'945.09','Italia contemporanea',5);
+INSERT INTO `classificazione` VALUES (2052,2038,'946','Penisola Iberica; Spagna',3);
+INSERT INTO `classificazione` VALUES (2053,2038,'947','Europa orientale; Russia',3);
+INSERT INTO `classificazione` VALUES (2054,2038,'948','Scandinavia',3);
+INSERT INTO `classificazione` VALUES (2055,2038,'949','Altre parti d\'Europa',3);
+INSERT INTO `classificazione` VALUES (2056,1997,'950','Storia dell\'Asia; Estremo Oriente',2);
+INSERT INTO `classificazione` VALUES (2057,2056,'951','Cina e aree limitrofe',3);
+INSERT INTO `classificazione` VALUES (2058,2056,'952','Giappone',3);
+INSERT INTO `classificazione` VALUES (2059,2056,'953','Penisola Arabica e aree limitrofe',3);
+INSERT INTO `classificazione` VALUES (2060,2056,'954','Asia meridionale; India',3);
+INSERT INTO `classificazione` VALUES (2061,2056,'955','Iran',3);
+INSERT INTO `classificazione` VALUES (2062,2056,'956','Medio Oriente',3);
+INSERT INTO `classificazione` VALUES (2063,2056,'957','Siberia (Russia asiatica)',3);
+INSERT INTO `classificazione` VALUES (2064,2056,'958','Asia centrale',3);
+INSERT INTO `classificazione` VALUES (2065,2056,'959','Sud-est asiatico',3);
+INSERT INTO `classificazione` VALUES (2066,1997,'960','Storia dell\'Africa',2);
+INSERT INTO `classificazione` VALUES (2067,2066,'961','Tunisia e Libia',3);
+INSERT INTO `classificazione` VALUES (2068,2066,'962','Egitto e Sudan',3);
+INSERT INTO `classificazione` VALUES (2069,2066,'963','Etiopia e Eritrea',3);
+INSERT INTO `classificazione` VALUES (2070,2066,'964','Costa nord-occidentale e isole',3);
+INSERT INTO `classificazione` VALUES (2071,2066,'965','Algeria',3);
+INSERT INTO `classificazione` VALUES (2072,2066,'966','Africa occidentale e isole',3);
+INSERT INTO `classificazione` VALUES (2073,2066,'967','Africa centrale e isole',3);
+INSERT INTO `classificazione` VALUES (2074,2066,'968','Africa meridionale',3);
+INSERT INTO `classificazione` VALUES (2075,2066,'969','Isole dell\'Oceano Indiano meridionale',3);
+INSERT INTO `classificazione` VALUES (2076,1997,'970','Storia del Nord America',2);
+INSERT INTO `classificazione` VALUES (2077,2076,'971','Canada',3);
+INSERT INTO `classificazione` VALUES (2078,2076,'972','Messico, America Centrale, Caraibi',3);
+INSERT INTO `classificazione` VALUES (2079,2076,'973','Stati Uniti',3);
+INSERT INTO `classificazione` VALUES (2080,2079,'973.7','Guerra civile americana',4);
+INSERT INTO `classificazione` VALUES (2081,2076,'974','Stati Uniti nord-orientali',3);
+INSERT INTO `classificazione` VALUES (2082,2076,'975','Stati Uniti sud-orientali',3);
+INSERT INTO `classificazione` VALUES (2083,2076,'976','Stati Uniti centro-meridionali',3);
+INSERT INTO `classificazione` VALUES (2084,2076,'977','Stati Uniti centro-settentrionali',3);
+INSERT INTO `classificazione` VALUES (2085,2076,'978','Stati Uniti occidentali',3);
+INSERT INTO `classificazione` VALUES (2086,2076,'979','Stati Uniti del Gran Bacino e del Pacifico',3);
+INSERT INTO `classificazione` VALUES (2087,1997,'980','Storia del Sud America',2);
+INSERT INTO `classificazione` VALUES (2088,2087,'981','Brasile',3);
+INSERT INTO `classificazione` VALUES (2089,2087,'982','Argentina',3);
+INSERT INTO `classificazione` VALUES (2090,2087,'983','Cile',3);
+INSERT INTO `classificazione` VALUES (2091,2087,'984','Bolivia',3);
+INSERT INTO `classificazione` VALUES (2092,2087,'985','Perù',3);
+INSERT INTO `classificazione` VALUES (2093,2087,'986','Colombia e Ecuador',3);
+INSERT INTO `classificazione` VALUES (2094,2087,'987','Venezuela',3);
+INSERT INTO `classificazione` VALUES (2095,2087,'988','Guiana',3);
+INSERT INTO `classificazione` VALUES (2096,2087,'989','Paraguay e Uruguay',3);
+INSERT INTO `classificazione` VALUES (2097,1997,'990','Storia di altre aree',2);
+INSERT INTO `classificazione` VALUES (2098,2097,'991','Non specificato',3);
+INSERT INTO `classificazione` VALUES (2099,2097,'992','Non specificato',3);
+INSERT INTO `classificazione` VALUES (2100,2097,'993','Nuova Zelanda',3);
+INSERT INTO `classificazione` VALUES (2101,2097,'994','Australia',3);
+INSERT INTO `classificazione` VALUES (2102,2097,'995','Melanesia; Nuova Guinea',3);
+INSERT INTO `classificazione` VALUES (2103,2097,'996','Altre parti del Pacifico; Polinesia',3);
+INSERT INTO `classificazione` VALUES (2104,2097,'997','Isole dell\'Oceano Atlantico',3);
+INSERT INTO `classificazione` VALUES (2105,2097,'998','Isole Artiche e Antartide',3);
+INSERT INTO `classificazione` VALUES (2106,2097,'999','Mondi extraterrestri',3);
+
+-- Fine Classificazione Dewey
+
+
+-- Dewey Decimal Classification
+-- Language: it_IT
+-- Generated: 2025-12-02 23:56:23
+-- Total entries: 1266
+
+INSERT INTO dewey (code, name, level) VALUES
+('000', 'Informatica, informazione e opere generali', 1),
+('001', 'Conoscenza', 3),
+('001.1', 'Vita intellettuale', 4),
+('001.2', 'Istruzione e ricerca', 4),
+('001.3', 'Discipline umanistiche', 4),
+('001.4', 'Ricerca e metodi statistici', 4),
+('001.42', 'Metodi di raccolta dati', 5),
+('001.422', 'Metodi statistici', 6),
+('001.43', 'Analisi e interpretazione dati', 5),
+('001.9', 'Conoscenza controversa', 4),
+('001.94', 'Misteri', 5),
+('001.942', 'Oggetti volanti non identificati (UFO)', 6),
+('001.944', 'Mostri e creature leggendarie', 6),
+('002', 'Il libro', 3),
+('003', 'Sistemi', 3),
+('003.1', 'Identificazione dei sistemi', 4),
+('003.2', 'Previsioni e stime', 4),
+('003.3', 'Modellazione e simulazione', 4),
+('003.5', 'Cibernetica', 4),
+('003.54', 'Teoria dell''informazione', 5),
+('003.56', 'Teoria delle decisioni', 5),
+('003.7', 'Tipi di sistemi', 4),
+('003.8', 'Sistemi temporali', 4),
+('004', 'Informatica', 3),
+('004.01', 'Filosofia e teoria', 5),
+('004.1', 'Hardware', 4),
+('004.11', 'Supercomputer', 5),
+('004.16', 'Personal computer', 5),
+('004.165', 'Dispositivi mobili', 6),
+('004.2', 'Analisi e progettazione sistemi', 4),
+('004.3', 'Modalità di elaborazione', 4),
+('004.5', 'Archiviazione', 4),
+('004.6', 'Reti e comunicazioni', 4),
+('004.61', 'Architettura di rete', 5),
+('004.62', 'Protocolli di rete', 5),
+('004.65', 'Architettura delle comunicazioni', 5),
+('004.67', 'Reti geografiche (WAN)', 5),
+('004.678', 'Internet', 6),
+('004.6782', 'World Wide Web', 7),
+('004.69', 'Sicurezza delle reti', 5),
+('004.9', 'Applicazioni non elettroniche', 4),
+('005', 'Programmazione, programmi e dati', 3),
+('005.1', 'Sviluppo software', 4),
+('005.13', 'Linguaggi di programmazione', 5),
+('005.133', 'Linguaggi specifici (C, Java, Python)', 6),
+('005.2', 'Programmazione piattaforme specifiche', 4),
+('005.3', 'Programmi', 4),
+('005.4', 'Programmazione di sistema', 4),
+('005.43', 'Sistemi operativi', 5),
+('005.432', 'Windows', 6),
+('005.434', 'UNIX / Linux', 6),
+('005.435', 'macOS', 6),
+('005.5', 'Applicazioni generali', 4),
+('005.7', 'Dati', 4),
+('005.74', 'Database', 5),
+('005.75', 'Tipi di database', 5),
+('005.8', 'Sicurezza informatica', 4),
+('006', 'Metodi speciali', 3),
+('006.3', 'Intelligenza artificiale', 4),
+('006.31', 'Machine learning', 5),
+('006.32', 'Reti neurali', 5),
+('006.33', 'Sistemi esperti', 5),
+('006.35', 'Elaborazione del linguaggio naturale', 5),
+('006.37', 'Visione artificiale', 5),
+('006.4', 'Riconoscimento pattern', 4),
+('006.5', 'Sintesi audio', 4),
+('006.6', 'Computer grafica', 4),
+('006.7', 'Multimedia', 4),
+('006.8', 'Realtà virtuale', 4),
+('007', 'Non assegnato', 3),
+('008', 'Non assegnato', 3),
+('009', 'Non assegnato', 3),
+('010', 'Bibliografia', 2),
+('011', 'Bibliografie', 3),
+('012', 'Bibliografie di individui', 3),
+('013', 'Bibliografie di opere di autori specifici', 3),
+('014', 'Bibliografie di opere anonime e pseudonime', 3),
+('015', 'Bibliografie di opere di specifici luoghi', 3),
+('016', 'Bibliografie di opere su specifici argomenti', 3),
+('017', 'Cataloghi generali di argomenti', 3),
+('018', 'Cataloghi per autore, data, ecc.', 3),
+('019', 'Cataloghi dizionario', 3),
+('020', 'Biblioteconomia e scienza dell''informazione', 2),
+('021', 'Relazioni delle biblioteche', 3),
+('022', 'Amministrazione dell''edificio fisico', 3),
+('023', 'Gestione del personale', 3),
+('024', 'Non assegnato', 3),
+('025', 'Operazioni bibliotecarie', 3),
+('025.04', 'Recupero informazioni', 5),
+('025.1', 'Amministrazione', 4),
+('025.2', 'Acquisizioni', 4),
+('025.3', 'Catalogazione', 4),
+('025.31', 'Descrizione bibliografica', 5),
+('025.32', 'Formati (MARC)', 5),
+('025.4', 'Classificazione', 4),
+('025.43', 'Classificazione decimale Dewey', 5),
+('025.5', 'Servizi al pubblico', 4),
+('026', 'Biblioteche per argomenti specifici', 3),
+('027', 'Biblioteche generali', 3),
+('027.4', 'Biblioteche pubbliche', 4),
+('027.5', 'Biblioteche nazionali', 4),
+('027.6', 'Biblioteche per gruppi speciali', 4),
+('027.7', 'Biblioteche universitarie', 4),
+('027.8', 'Biblioteche scolastiche', 4),
+('028', 'Lettura e uso di altri media', 3),
+('028.1', 'Recensioni', 4),
+('028.5', 'Lettura per bambini e ragazzi', 4),
+('029', 'Non assegnato', 3),
+('030', 'Enciclopedie generali', 2),
+('031', 'Enciclopedie in lingua inglese americana', 3),
+('032', 'Enciclopedie in lingua inglese', 3),
+('033', 'Enciclopedie in altre lingue germaniche', 3),
+('034', 'Enciclopedie in lingua francese', 3),
+('035', 'Enciclopedie in lingua italiana, romena, ecc.', 3),
+('036', 'Enciclopedie in lingua spagnola e portoghese', 3),
+('037', 'Enciclopedie in lingue slave', 3),
+('038', 'Enciclopedie in lingue scandinave', 3),
+('039', 'Enciclopedie in altre lingue', 3),
+('040', 'Non assegnato', 2),
+('041', 'Non assegnato', 3),
+('042', 'Non assegnato', 3),
+('043', 'Non assegnato', 3),
+('044', 'Non assegnato', 3),
+('045', 'Non assegnato', 3),
+('046', 'Non assegnato', 3),
+('047', 'Non assegnato', 3),
+('048', 'Non assegnato', 3),
+('049', 'Non assegnato', 3),
+('050', 'Pubblicazioni seriali generali', 2),
+('051', 'In lingua inglese americana', 3),
+('052', 'In lingua inglese', 3),
+('053', 'In altre lingue germaniche', 3),
+('054', 'In lingua francese', 3),
+('055', 'In lingua italiana, romena, ecc.', 3),
+('056', 'In lingua spagnola e portoghese', 3),
+('057', 'In lingue slave', 3),
+('058', 'In lingue scandinave', 3),
+('059', 'In altre lingue', 3),
+('060', 'Organizzazioni generali e museologia', 2),
+('061', 'In Nord America', 3),
+('062', 'Nelle Isole Britanniche', 3),
+('063', 'In Europa centrale; Germania', 3),
+('064', 'In Francia e Monaco', 3),
+('065', 'In Italia e territori limitrofi', 3),
+('066', 'Nella Penisola Iberica', 3),
+('067', 'In Europa orientale; Russia', 3),
+('068', 'In altre aree geografiche', 3),
+('069', 'Museologia', 3),
+('069.1', 'Servizi educativi', 4),
+('069.2', 'Gestione collezioni', 4),
+('069.5', 'Collezioni ed esposizioni', 4),
+('070', 'Mezzi di informazione, giornalismo ed editoria', 2),
+('070.1', 'Media documentari', 4),
+('070.4', 'Giornalismo', 4),
+('070.5', 'Editoria', 4),
+('071', 'Giornalismo Nord America', 3),
+('072', 'Giornalismo Isole Britanniche', 3),
+('073', 'In Europa centrale; Germania', 3),
+('074', 'In Francia e Monaco', 3),
+('075', 'In Italia e territori limitrofi', 3),
+('076', 'Giornalismo Penisola Iberica', 3),
+('077', 'Giornalismo Europa orientale', 3),
+('078', 'Giornalismo Scandinavia', 3),
+('079', 'In altre aree geografiche', 3),
+('080', 'Raccolte generali', 2),
+('081', 'In lingua inglese americana', 3),
+('082', 'In lingua inglese', 3),
+('083', 'In altre lingue germaniche', 3),
+('084', 'In lingua francese', 3),
+('085', 'In lingua italiana, romena, ecc.', 3),
+('086', 'In lingua spagnola e portoghese', 3),
+('087', 'In lingue slave', 3),
+('088', 'In lingue scandinave', 3),
+('089', 'In altre lingue', 3),
+('090', 'Manoscritti e libri rari', 2),
+('091', 'Manoscritti', 3),
+('092', 'Libri xilografici', 3),
+('093', 'Incunaboli', 3),
+('094', 'Libri stampati', 3),
+('095', 'Libri notevoli per la legatura', 3),
+('096', 'Libri notevoli per le illustrazioni', 3),
+('097', 'Libri notevoli per la proprietà o l''origine', 3),
+('098', 'Opere proibite, falsificazioni, ecc.', 3),
+('099', 'Libri notevoli per il formato', 3),
+('100', 'Filosofia e psicologia', 1),
+('101', 'Teoria della filosofia', 3),
+('102', 'Miscellanea', 3),
+('103', 'Dizionari ed enciclopedie', 3),
+('104', 'Non assegnato', 3),
+('105', 'Pubblicazioni seriali', 3),
+('106', 'Organizzazioni e gestione', 3),
+('107', 'Educazione, ricerca, argomenti correlati', 3),
+('108', 'Trattamento di gruppi', 3),
+('109', 'Storia e biografia collettiva', 3),
+('110', 'Metafisica', 2),
+('111', 'Ontologia', 3),
+('112', 'Non assegnato', 3),
+('113', 'Cosmologia (Filosofia della natura)', 3),
+('114', 'Spazio', 3),
+('115', 'Tempo', 3),
+('116', 'Cambiamento', 3),
+('117', 'Struttura', 3),
+('118', 'Forza ed energia', 3),
+('119', 'Numero e quantità', 3),
+('120', 'Epistemologia, causalità e genere umano', 2),
+('121', 'Epistemologia (Teoria della conoscenza)', 3),
+('122', 'Causalità', 3),
+('123', 'Determinismo e indeterminismo', 3),
+('124', 'Teleologia', 3),
+('125', 'Non assegnato', 3),
+('126', 'L''io', 3),
+('127', 'L''inconscio e il subconscio', 3),
+('128', 'Genere umano', 3),
+('129', 'Origine e destino dell''anima individuale', 3),
+('130', 'Parapsicologia e occultismo', 2),
+('131', 'Metodi parapsicologici e occulti', 3),
+('132', 'Non assegnato', 3),
+('133', 'Argomenti specifici nella parapsicologia', 3),
+('133.1', 'Spettri', 4),
+('133.3', 'Divinazione', 4),
+('133.4', 'Magia e stregoneria', 4),
+('133.5', 'Astrologia', 4),
+('133.6', 'Chiromanzia', 4),
+('134', 'Non assegnato', 3),
+('135', 'Sogni e misteri', 3),
+('136', 'Non assegnato', 3),
+('137', 'Grafologia divinatoria', 3),
+('138', 'Fisiognomica', 3),
+('139', 'Frenologia', 3),
+('140', 'Specifiche scuole filosofiche', 2),
+('141', 'Idealismo e sistemi correlati', 3),
+('142', 'Filosofia critica', 3),
+('143', 'Bergsonismo e intuizionismo', 3),
+('144', 'Umanesimo e sistemi correlati', 3),
+('145', 'Sensazionalismo', 3),
+('146', 'Naturalismo e sistemi correlati', 3),
+('147', 'Panteismo e sistemi correlati', 3),
+('148', 'Dogmatismo, eclettismo, liberalismo', 3),
+('149', 'Altri sistemi filosofici', 3),
+('150', 'Psicologia', 2),
+('151', 'Non assegnato', 3),
+('152', 'Percezione, movimento, emozioni', 3),
+('153', 'Processi mentali e intelligenza', 3),
+('153.1', 'Memoria', 4),
+('153.4', 'Pensiero', 4),
+('153.9', 'Intelligenza', 4),
+('154', 'Subconscio e stati alterati', 3),
+('154.6', 'Sonno', 4),
+('154.63', 'Sogni', 5),
+('155', 'Psicologia differenziale e dello sviluppo', 3),
+('155.2', 'Psicologia individuale', 4),
+('155.4', 'Psicologia infantile', 4),
+('155.5', 'Psicologia dell''adolescenza', 4),
+('155.6', 'Psicologia dell''adulto', 4),
+('155.9', 'Psicologia ambientale', 4),
+('156', 'Psicologia comparata', 3),
+('157', 'Non assegnato', 3),
+('158', 'Psicologia applicata', 3),
+('158.1', 'Miglioramento personale', 4),
+('158.2', 'Relazioni interpersonali', 4),
+('158.7', 'Psicologia industriale', 4),
+('159', 'Non assegnato', 3),
+('160', 'Logica', 2),
+('161', 'Induzione', 3),
+('162', 'Deduzione', 3),
+('163', 'Non assegnato', 3),
+('164', 'Non assegnato', 3),
+('165', 'Fallacie e fonti di errore', 3),
+('166', 'Sillogismi', 3),
+('167', 'Ipotesi', 3),
+('168', 'Argomentazione e persuasione', 3),
+('169', 'Analogia', 3),
+('170', 'Etica (Filosofia morale)', 2),
+('171', 'Sistemi etici', 3),
+('172', 'Etica politica', 3),
+('173', 'Etica delle relazioni familiari', 3),
+('174', 'Etica occupazionale', 3),
+('174.2', 'Etica medica', 4),
+('174.4', 'Etica degli affari', 4),
+('175', 'Etica della ricreazione e del tempo libero', 3),
+('176', 'Etica del sesso e della riproduzione', 3),
+('177', 'Etica delle relazioni sociali', 3),
+('178', 'Etica del consumo', 3),
+('179', 'Altre norme etiche', 3),
+('179.3', 'Trattamento degli animali', 4),
+('179.9', 'Virtù', 4),
+('180', 'Filosofia antica, medievale e orientale', 2),
+('181', 'Filosofia orientale', 3),
+('182', 'Filosofie presocratiche greche', 3),
+('183', 'Filosofie socratiche e correlate', 3),
+('184', 'Platonica', 3),
+('185', 'Aristotelica', 3),
+('186', 'Scettica e neoplatonica', 3),
+('187', 'Epicurea', 3),
+('188', 'Stoica', 3),
+('189', 'Filosofia medievale occidentale', 3),
+('190', 'Filosofia moderna occidentale', 2),
+('191', 'Stati Uniti e Canada', 3),
+('192', 'Isole Britanniche', 3),
+('193', 'Germania e Austria', 3),
+('194', 'Francese', 3),
+('195', 'Italiana', 3),
+('196', 'Spagna e Portogallo', 3),
+('197', 'Ex Unione Sovietica', 3),
+('198', 'Scandinavia', 3),
+('199', 'Altre aree geografiche', 3),
+('200', 'Religione', 1),
+('201', 'Mitologia religiosa', 3),
+('202', 'Dottrine', 3),
+('203', 'Culto pubblico e altre pratiche', 3),
+('204', 'Esperienza religiosa, vita, pratica', 3),
+('205', 'Etica religiosa', 3),
+('206', 'Leader e organizzazione', 3),
+('207', 'Missioni ed educazione religiosa', 3),
+('208', 'Fonti', 3),
+('209', 'Sette e movimenti riformisti', 3),
+('210', 'Filosofia e teoria della religione', 2),
+('211', 'Concetti di Dio', 3),
+('212', 'Natura di Dio', 3),
+('213', 'Creazione', 3),
+('214', 'Teodicea', 3),
+('215', 'Scienza e religione', 3),
+('216', 'Non assegnato', 3),
+('217', 'Non assegnato', 3),
+('218', 'Genere umano', 3),
+('219', 'Non assegnato', 3),
+('220', 'Bibbia', 2),
+('221', 'Antico Testamento', 3),
+('222', 'Libri storici dell''Antico Testamento', 3),
+('223', 'Libri poetici dell''Antico Testamento', 3),
+('224', 'Libri profetici dell''Antico Testamento', 3),
+('225', 'Nuovo Testamento', 3),
+('226', 'Vangeli e Atti degli Apostoli', 3),
+('227', 'Epistole', 3),
+('228', 'Apocalisse (Libro della Rivelazione)', 3),
+('229', 'Apocrifi e pseudepigrafi', 3),
+('230', 'Cristianesimo e teologia cristiana', 2),
+('231', 'Dio', 3),
+('232', 'Gesù Cristo e la sua famiglia', 3),
+('233', 'Genere umano', 3),
+('234', 'Salvezza e grazia', 3),
+('235', 'Esseri spirituali', 3),
+('236', 'Escatologia', 3),
+('237', 'Non assegnato', 3),
+('238', 'Credi e confessioni di fede', 3),
+('239', 'Apologetica e polemica', 3),
+('240', 'Teologia morale e devozionale cristiana', 2),
+('241', 'Teologia morale', 3),
+('242', 'Letteratura devozionale', 3),
+('243', 'Scritti evangelistici per individui', 3),
+('244', 'Non assegnato', 3),
+('245', 'Inni', 3),
+('246', 'Uso dell''arte nel Cristianesimo', 3),
+('247', 'Arredi e paramenti sacri', 3),
+('248', 'Esperienza, pratica, vita cristiana', 3),
+('249', 'Osservanze cristiane nella vita familiare', 3),
+('250', 'Ordini cristiani e chiesa locale', 2),
+('251', 'Predicazione', 3),
+('252', 'Testi di sermoni', 3),
+('253', 'Ufficio pastorale (Teologia pastorale)', 3),
+('254', 'Amministrazione parrocchiale', 3),
+('255', 'Congregazioni e ordini religiosi', 3),
+('256', 'Non assegnato', 3),
+('257', 'Non assegnato', 3),
+('258', 'Non assegnato', 3),
+('259', 'Cura pastorale di specifici gruppi', 3),
+('260', 'Teologia sociale cristiana', 2),
+('261', 'Sociologia cristiana', 3),
+('262', 'Ecclesiologia', 3),
+('263', 'Giorni, tempi, luoghi di osservanza', 3),
+('264', 'Culto pubblico', 3),
+('265', 'Sacramenti, altri riti e atti', 3),
+('266', 'Missioni', 3),
+('267', 'Associazioni per il lavoro religioso', 3),
+('268', 'Educazione religiosa', 3),
+('269', 'Rinnovamento spirituale', 3),
+('270', 'Storia della chiesa cristiana', 2),
+('271', 'Ordini religiosi nella storia della chiesa', 3),
+('272', 'Persecuzioni nella storia della chiesa', 3),
+('273', 'Controversie dottrinali ed eresie', 3),
+('274', 'In Europa', 3),
+('275', 'In Asia', 3),
+('276', 'In Africa', 3),
+('277', 'In Nord America', 3),
+('278', 'In Sud America', 3),
+('279', 'In altre aree', 3),
+('280', 'Denominazioni e sette cristiane', 2),
+('281', 'Chiese primitive e orientali', 3),
+('282', 'Chiesa Cattolica Romana', 3),
+('283', 'Chiese Anglicane', 3),
+('284', 'Protestanti di origine continentale', 3),
+('285', 'Presbiteriane, Riformate, Congregazionali', 3),
+('286', 'Battiste, Discepoli di Cristo, Avventiste', 3),
+('287', 'Metodiste e correlate', 3),
+('288', 'Non assegnato', 3),
+('289', 'Altre denominazioni e sette', 3),
+('290', 'Altre religioni', 2),
+('291', 'Non assegnato', 3),
+('292', 'Religione classica (Greca e Romana)', 3),
+('293', 'Religione germanica', 3),
+('294', 'Religioni di origine indiana', 3),
+('294.3', 'Buddismo', 4),
+('294.5', 'Induismo', 4),
+('295', 'Zoroastrismo', 3),
+('296', 'Ebraismo', 3),
+('297', 'Islam, Bábismo e Fede Bahá''í', 3),
+('297.1', 'Corano', 4),
+('298', 'Non assegnato', 3),
+('299', 'Religioni non altrove classificate', 3),
+('299.51', 'Confucianesimo', 5),
+('299.514', 'Taoismo', 6),
+('299.6', 'Religioni africane', 4),
+('300', 'Scienze sociali', 1),
+('301', 'Sociologia e antropologia', 3),
+('302', 'Interazione sociale', 3),
+('302.2', 'Comunicazione', 4),
+('302.3', 'Gruppi sociali', 4),
+('303', 'Processi sociali', 3),
+('303.3', 'Controllo sociale', 4),
+('303.4', 'Cambiamento sociale', 4),
+('303.6', 'Conflitto sociale', 4),
+('304', 'Fattori che influenzano il comportamento sociale', 3),
+('305', 'Gruppi sociali', 3),
+('305.2', 'Età', 4),
+('305.3', 'Genere', 4),
+('305.4', 'Donne', 4),
+('305.8', 'Gruppi etnici', 4),
+('306', 'Cultura e istituzioni', 3),
+('306.7', 'Sessualità', 4),
+('306.8', 'Matrimonio e famiglia', 4),
+('307', 'Comunità', 3),
+('308', 'Non assegnato', 3),
+('309', 'Non assegnato', 3),
+('310', 'Statistica generale', 2),
+('311', 'Non assegnato', 3),
+('312', 'Non assegnato', 3),
+('313', 'Non assegnato', 3),
+('314', 'Statistica generale dell''Europa', 3),
+('315', 'Statistica generale dell''Asia', 3),
+('316', 'Statistica generale dell''Africa', 3),
+('317', 'Statistica generale del Nord America', 3),
+('318', 'Statistica generale del Sud America', 3),
+('319', 'Statistica generale di altre aree', 3),
+('320', 'Scienza politica', 2),
+('321', 'Sistemi di governi e stati', 3),
+('321.8', 'Democrazia', 4),
+('322', 'Relazioni dello stato con gruppi organizzati', 3),
+('323', 'Diritti civili e politici', 3),
+('324', 'Il processo politico', 3),
+('325', 'Migrazione internazionale e colonizzazione', 3),
+('326', 'Schiavitù ed emancipazione', 3),
+('327', 'Relazioni internazionali', 3),
+('328', 'Il processo legislativo', 3),
+('329', 'Non assegnato', 3),
+('330', 'Economia', 2),
+('331', 'Economia del lavoro', 3),
+('331.1', 'Forza lavoro', 4),
+('331.2', 'Salari', 4),
+('331.3', 'Lavoratori', 4),
+('331.4', 'Donne lavoratrici', 4),
+('331.8', 'Sindacati', 4),
+('332', 'Economia finanziaria', 3),
+('332.1', 'Banche', 4),
+('332.4', 'Moneta', 4),
+('332.6', 'Investimenti', 4),
+('333', 'Economia della terra e dell''energia', 3),
+('333.7', 'Ambiente', 4),
+('333.91', 'Acqua', 5),
+('334', 'Cooperative', 3),
+('335', 'Socialismo e sistemi correlati', 3),
+('335.4', 'Marxismo', 4),
+('336', 'Finanza pubblica', 3),
+('337', 'Economia internazionale', 3),
+('338', 'Produzione', 3),
+('339', 'Macroeconomia', 3),
+('340', 'Diritto', 2),
+('341', 'Diritto internazionale', 3),
+('341.2', 'Comunità internazionale', 4),
+('342', 'Diritto costituzionale e amministrativo', 3),
+('343', 'Diritto militare, tributario, commerciale', 3),
+('344', 'Diritto del lavoro, sociale, educativo', 3),
+('345', 'Diritto penale', 3),
+('346', 'Diritto privato', 3),
+('347', 'Procedura civile e tribunali', 3),
+('348', 'Leggi, regolamenti, giurisprudenza', 3),
+('349', 'Diritto di specifiche giurisdizioni', 3),
+('350', 'Amministrazione pubblica e scienza militare', 2),
+('351', 'Amministrazione pubblica', 3),
+('352', 'Considerazioni generali sull''amministrazione', 3),
+('353', 'Campi specifici dell''amministrazione', 3),
+('354', 'Amministrazione dell''economia e dell''ambiente', 3),
+('355', 'Scienza militare', 3),
+('355.4', 'Operazioni militari', 4),
+('356', 'Fanteria', 3),
+('357', 'Cavalleria e unità corazzate', 3),
+('358', 'Forze aeree e altre forze specializzate', 3),
+('359', 'Forze navali e marittime', 3),
+('360', 'Problemi e servizi sociali; associazioni', 2),
+('361', 'Problemi sociali e benessere sociale', 3),
+('362', 'Problemi e servizi di assistenza sociale', 3),
+('362.1', 'Servizi sanitari', 4),
+('362.2', 'Salute mentale', 4),
+('362.3', 'Disabilità intellettiva', 4),
+('362.4', 'Disabilità fisica', 4),
+('362.5', 'Poveri', 4),
+('362.6', 'Anziani', 4),
+('362.7', 'Giovani', 4),
+('363', 'Altri problemi e servizi sociali', 3),
+('363.1', 'Sicurezza', 4),
+('363.2', 'Polizia', 4),
+('363.3', 'Protezione civile', 4),
+('363.5', 'Alloggi', 4),
+('363.7', 'Problemi ambientali', 4),
+('364', 'Criminologia', 3),
+('364.1', 'Reati', 4),
+('364.3', 'Delinquenti', 4),
+('365', 'Istituti penali e carcerari', 3),
+('366', 'Associazioni', 3),
+('367', 'Club generali', 3),
+('368', 'Assicurazioni', 3),
+('369', 'Associazioni varie', 3),
+('370', 'Educazione', 2),
+('370.1', 'Teoria dell''educazione', 4),
+('371', 'Scuole e attività; educazione speciale', 3),
+('371.1', 'Insegnamento', 4),
+('371.3', 'Metodi di insegnamento', 4),
+('371.9', 'Educazione speciale', 4),
+('372', 'Educazione elementare', 3),
+('373', 'Educazione secondaria', 3),
+('374', 'Educazione degli adulti', 3),
+('375', 'Curricoli', 3),
+('376', 'Non assegnato', 3),
+('377', 'Non assegnato', 3),
+('378', 'Educazione superiore', 3),
+('379', 'Politiche educative pubbliche', 3),
+('380', 'Commercio, comunicazioni e trasporti', 2),
+('381', 'Commercio interno', 3),
+('382', 'Commercio internazionale', 3),
+('383', 'Posta e comunicazioni', 3),
+('384', 'Comunicazioni; Telecomunicazioni', 3),
+('385', 'Trasporti ferroviari', 3),
+('386', 'Trasporti per vie d''acqua interne', 3),
+('387', 'Trasporti marittimi, aerei, spaziali', 3),
+('388', 'Trasporti terrestri e stradali', 3),
+('389', 'Metrologia e standardizzazione', 3),
+('390', 'Usi e costumi, etichetta, folklore', 2),
+('391', 'Costume e apparenza personale', 3),
+('392', 'Usi del ciclo della vita e vita domestica', 3),
+('393', 'Costumi funebri', 3),
+('394', 'Costumi generali', 3),
+('394.2', 'Feste', 4),
+('395', 'Etichetta (Buone maniere)', 3),
+('396', 'Non assegnato', 3),
+('397', 'Non assegnato', 3),
+('398', 'Folklore', 3),
+('398.2', 'Fiabe e leggende', 4),
+('399', 'Usi di guerra e diplomazia', 3),
+('400', 'Linguaggio', 1),
+('401', 'Filosofia e teoria', 3),
+('402', 'Miscellanea', 3),
+('403', 'Dizionari ed enciclopedie', 3),
+('404', 'Argomenti speciali', 3),
+('405', 'Pubblicazioni seriali', 3),
+('406', 'Organizzazioni e gestione', 3),
+('407', 'Educazione, ricerca, argomenti correlati', 3),
+('408', 'Gruppi di persone', 3),
+('409', 'Trattamento geografico e biografico', 3),
+('410', 'Linguistica', 2),
+('411', 'Sistemi di scrittura', 3),
+('412', 'Etimologia', 3),
+('413', 'Dizionari', 3),
+('414', 'Fonologia e fonetica', 3),
+('415', 'Grammatica', 3),
+('416', 'Non assegnato', 3),
+('417', 'Dialettologia e linguistica storica', 3),
+('418', 'Uso standard e linguistica applicata', 3),
+('419', 'Lingua dei segni', 3),
+('420', 'Inglese e inglese antico', 2),
+('421', 'Sistema di scrittura e fonologia inglese', 3),
+('422', 'Etimologia inglese', 3),
+('423', 'Dizionari inglesi', 3),
+('424', 'Non assegnato', 3),
+('425', 'Grammatica inglese', 3),
+('426', 'Non assegnato', 3),
+('427', 'Variazioni della lingua inglese', 3),
+('428', 'Uso dell''inglese standard', 3),
+('429', 'Inglese antico (Anglosassone)', 3),
+('430', 'Lingue germaniche; Tedesco', 2),
+('431', 'Sistemi di scrittura e fonologia tedesca', 3),
+('432', 'Etimologia tedesca', 3),
+('433', 'Dizionari tedeschi', 3),
+('434', 'Non assegnato', 3),
+('435', 'Grammatica tedesca', 3),
+('436', 'Non assegnato', 3),
+('437', 'Variazioni della lingua tedesca', 3),
+('438', 'Uso del tedesco standard', 3),
+('439', 'Altre lingue germaniche', 3),
+('440', 'Lingue romanze; Francese', 2),
+('441', 'Sistemi di scrittura e fonologia francese', 3),
+('442', 'Etimologia francese', 3),
+('443', 'Dizionari francesi', 3),
+('444', 'Non assegnato', 3),
+('445', 'Grammatica francese', 3),
+('446', 'Non assegnato', 3),
+('447', 'Variazioni della lingua francese', 3),
+('448', 'Uso del francese standard', 3),
+('449', 'Occitano, Catalano, Franco-Provenzale', 3),
+('450', 'Italiano, Romeno, Retoromanzo', 2),
+('451', 'Sistemi di scrittura e fonologia italiana', 3),
+('452', 'Etimologia italiana', 3),
+('453', 'Dizionari italiani', 3),
+('454', 'Uso linguistico', 3),
+('455', 'Grammatica italiana', 3),
+('456', 'Non assegnato', 3),
+('457', 'Variazioni della lingua italiana', 3),
+('458', 'Uso dell''italiano standard', 3),
+('459', 'Romeno e Retoromanzo', 3),
+('460', 'Lingue Spagnola e Portoghese', 2),
+('461', 'Sistemi di scrittura e fonologia spagnola', 3),
+('462', 'Etimologia spagnola', 3),
+('463', 'Dizionari spagnoli', 3),
+('464', 'Non assegnato', 3),
+('465', 'Grammatica spagnola', 3),
+('466', 'Non assegnato', 3),
+('467', 'Variazioni della lingua spagnola', 3),
+('468', 'Uso dello spagnolo standard', 3),
+('469', 'Portoghese', 3),
+('470', 'Lingue italiche; Latino', 2),
+('471', 'Sistemi di scrittura e fonologia latina', 3),
+('472', 'Etimologia latina', 3),
+('473', 'Dizionari latini', 3),
+('474', 'Non assegnato', 3),
+('475', 'Grammatica latina', 3),
+('476', 'Non assegnato', 3),
+('477', 'Latino antico, postclassico, volgare', 3),
+('478', 'Uso del latino classico', 3),
+('479', 'Altre lingue italiche', 3),
+('480', 'Lingue elleniche; Greco classico', 2),
+('481', 'Sistemi di scrittura e fonologia greca', 3),
+('482', 'Etimologia greca', 3),
+('483', 'Dizionari greci', 3),
+('484', 'Non assegnato', 3),
+('485', 'Grammatica greca', 3),
+('486', 'Non assegnato', 3),
+('487', 'Greco preclassico e postclassico', 3),
+('488', 'Uso del greco classico', 3),
+('489', 'Altre lingue elleniche', 3),
+('490', 'Altre lingue', 2),
+('491', 'Lingue indoeuropee orientali e celtiche', 3),
+('491.7', 'Russo', 4),
+('492', 'Lingue afroasiatiche; Lingue semitiche', 3),
+('492.4', 'Ebraico', 4),
+('492.7', 'Arabo', 4),
+('493', 'Lingue afroasiatiche non semitiche', 3),
+('494', 'Lingue altaiche, uraliche, iperborree', 3),
+('495', 'Lingue dell''Asia orientale e sudorientale', 3),
+('495.1', 'Cinese', 4),
+('495.6', 'Giapponese', 4),
+('496', 'Lingue africane', 3),
+('497', 'Lingue native nordamericane', 3),
+('498', 'Lingue native sudamericane', 3),
+('499', 'Lingue non austronesiane, altre lingue', 3),
+('500', 'Scienze naturali e matematica', 1),
+('501', 'Filosofia e teoria', 3),
+('502', 'Miscellanea', 3),
+('503', 'Dizionari ed enciclopedie', 3),
+('504', 'Non assegnato', 3),
+('505', 'Pubblicazioni seriali', 3),
+('506', 'Organizzazioni e gestione', 3),
+('507', 'Educazione, ricerca, argomenti correlati', 3),
+('508', 'Storia naturale', 3),
+('509', 'Storia, trattazione geografica, biografica', 3),
+('510', 'Matematica', 2),
+('511', 'Principi generali', 3),
+('512', 'Algebra', 3),
+('513', 'Aritmetica', 3),
+('514', 'Topologia', 3),
+('515', 'Analisi', 3),
+('516', 'Geometria', 3),
+('517', 'Non assegnato', 3),
+('518', 'Analisi numerica', 3),
+('519', 'Probabilità e matematica applicata', 3),
+('520', 'Astronomia e scienze affini', 2),
+('521', 'Meccanica celeste', 3),
+('522', 'Tecniche, equipaggiamento, materiali', 3),
+('523', 'Corpi celesti e fenomeni specifici', 3),
+('523.1', 'Universo', 4),
+('523.2', 'Sistema Solare', 4),
+('523.3', 'Luna', 4),
+('523.4', 'Pianeti', 4),
+('523.6', 'Comete', 4),
+('523.7', 'Sole', 4),
+('523.8', 'Stelle', 4),
+('524', 'Non assegnato', 3),
+('525', 'La Terra (Geografia astronomica)', 3),
+('526', 'Geografia matematica', 3),
+('527', 'Navigazione celeste', 3),
+('528', 'Effemeridi', 3),
+('529', 'Cronologia', 3),
+('530', 'Fisica', 2),
+('531', 'Meccanica classica', 3),
+('532', 'Meccanica dei fluidi', 3),
+('533', 'Meccanica dei gas', 3),
+('534', 'Suono e vibrazioni', 3),
+('535', 'Luce e fenomeni ottici', 3),
+('536', 'Calore', 3),
+('537', 'Elettricità ed elettronica', 3),
+('538', 'Magnetismo', 3),
+('539', 'Fisica moderna', 3),
+('539.7', 'Fisica atomica', 4),
+('540', 'Chimica e scienze affini', 2),
+('541', 'Chimica fisica e teorica', 3),
+('542', 'Tecniche, equipaggiamento, materiali', 3),
+('543', 'Chimica analitica', 3),
+('544', 'Analisi qualitativa', 3),
+('545', 'Analisi quantitativa', 3),
+('546', 'Chimica inorganica', 3),
+('547', 'Chimica organica', 3),
+('548', 'Cristallografia', 3),
+('549', 'Mineralogia', 3),
+('550', 'Scienze della Terra', 2),
+('551', 'Geologia, idrologia, meteorologia', 3),
+('551.2', 'Vulcani e terremoti', 4),
+('551.4', 'Geomorfologia', 4),
+('551.46', 'Oceanografia', 5),
+('551.5', 'Meteorologia', 4),
+('551.6', 'Climatologia', 4),
+('552', 'Petrografia', 3),
+('553', 'Geologia economica', 3),
+('554', 'Scienze della Terra dell''Europa', 3),
+('555', 'Scienze della Terra dell''Asia', 3),
+('556', 'Scienze della Terra dell''Africa', 3),
+('557', 'Scienze della Terra del Nord America', 3),
+('558', 'Scienze della Terra del Sud America', 3),
+('559', 'Scienze della Terra di altre aree', 3),
+('560', 'Paleontologia; Paleozoologia', 2),
+('561', 'Paleobotanica', 3),
+('562', 'Invertebrati fossili', 3),
+('563', 'Fossili marini e litoranei', 3),
+('564', 'Molluschi e molluscoidi fossili', 3),
+('565', 'Artropodi fossili', 3),
+('566', 'Cordati fossili', 3),
+('567', 'Vertebrati a sangue freddo fossili', 3),
+('567.9', 'Rettili fossili (Dinosauri)', 4),
+('568', 'Uccelli fossili', 3),
+('569', 'Mammiferi fossili', 3),
+('570', 'Scienze della vita; Biologia', 2),
+('571', 'Fisiologia e argomenti correlati', 3),
+('572', 'Biochimica', 3),
+('573', 'Sistemi fisiologici specifici negli animali', 3),
+('574', 'Biologia (vecchio uso)', 3),
+('575', 'Parti specifiche e sistemi nelle piante', 3),
+('576', 'Genetica ed evoluzione', 3),
+('576.5', 'Genetica', 4),
+('576.8', 'Evoluzione', 4),
+('577', 'Ecologia', 3),
+('577.3', 'Ecologia forestale', 4),
+('577.7', 'Ecologia marina', 4),
+('578', 'Storia naturale degli organismi', 3),
+('579', 'Microrganismi, funghi, alghe', 3),
+('580', 'Piante (Botanica)', 2),
+('581', 'Argomenti specifici della botanica', 3),
+('582', 'Piante note per caratteristiche vegetative', 3),
+('582.13', 'Fiori selvatici', 5),
+('582.16', 'Alberi', 5),
+('583', 'Dicotiledoni', 3),
+('584', 'Monocotiledoni', 3),
+('585', 'Gimnosperme', 3),
+('586', 'Crittogame (Piante senza semi)', 3),
+('587', 'Pteridofite', 3),
+('588', 'Briofite', 3),
+('589', 'Non assegnato', 3),
+('590', 'Animali (Zoologia)', 2),
+('591', 'Argomenti specifici della zoologia', 3),
+('592', 'Invertebrati', 3),
+('593', 'Invertebrati marini e litoranei', 3),
+('594', 'Molluschi e molluscoidi', 3),
+('595', 'Artropodi', 3),
+('595.7', 'Insetti', 4),
+('595.78', 'Lepidotteri (Farfalle)', 5),
+('596', 'Cordati', 3),
+('597', 'Vertebrati a sangue freddo', 3),
+('597.8', 'Anfibi', 4),
+('597.9', 'Rettili', 4),
+('598', 'Uccelli', 3),
+('599', 'Mammiferi', 3),
+('599.2', 'Marsupiali', 4),
+('599.3', 'Piccoli mammiferi', 4),
+('599.4', 'Pipistrelli', 4),
+('599.5', 'Cetacei', 4),
+('599.53', 'Delfini', 5),
+('599.6', 'Ungulati', 4),
+('599.7', 'Carnivori', 4),
+('599.74', 'Carnivori (vecchio uso)', 5),
+('599.75', 'Felidi', 5),
+('599.77', 'Canidi', 5),
+('599.78', 'Orsi', 5),
+('599.8', 'Primati', 4),
+('599.9', 'Hominidae (Uomo)', 4),
+('599.93', 'Genetica umana', 5),
+('599.97', 'Variazione umana', 5),
+('599.98', 'Adattamento umano', 5),
+('600', 'Tecnologia', 1),
+('601', 'Filosofia e teoria', 3),
+('602', 'Miscellanea', 3),
+('603', 'Dizionari ed enciclopedie', 3),
+('604', 'Disegno tecnico', 3),
+('605', 'Pubblicazioni seriali', 3),
+('606', 'Organizzazioni', 3),
+('607', 'Educazione, ricerca', 3),
+('608', 'Invenzioni e brevetti', 3),
+('609', 'Storia e trattazione locale', 3),
+('610', 'Medicina e salute', 2),
+('611', 'Anatomia umana', 3),
+('612', 'Fisiologia umana', 3),
+('612.6', 'Riproduzione', 4),
+('613', 'Promozione della salute', 3),
+('613.2', 'Dietetica', 4),
+('613.7', 'Fitness', 4),
+('614', 'Incidenza e prevenzione delle malattie', 3),
+('615', 'Farmacologia e terapeutica', 3),
+('616', 'Malattie', 3),
+('616.1', 'Cuore', 4),
+('616.8', 'Malattie nervose', 4),
+('616.9', 'Malattie infettive', 4),
+('617', 'Chirurgia', 3),
+('618', 'Ginecologia, ostetricia, pediatria', 3),
+('618.92', 'Pediatria', 5),
+('619', 'Medicina sperimentale', 3),
+('620', 'Ingegneria e attività affini', 2),
+('621', 'Fisica applicata', 3),
+('621.3', 'Elettrotecnica', 4),
+('621.38', 'Elettronica', 5),
+('621.4', 'Motori', 4),
+('622', 'Ingegneria mineraria', 3),
+('623', 'Ingegneria militare e navale', 3),
+('624', 'Ingegneria civile', 3),
+('625', 'Ingegneria delle ferrovie e strade', 3),
+('626', 'Non assegnato', 3),
+('627', 'Ingegneria idraulica', 3),
+('628', 'Ingegneria sanitaria', 3),
+('629', 'Altri rami dell''ingegneria', 3),
+('629.1', 'Aerospaziale', 4),
+('629.13', 'Aeronautica', 5),
+('629.2', 'Veicoli a motore', 4),
+('629.4', 'Astronautica', 4),
+('629.8', 'Automazione', 4),
+('630', 'Agricoltura e tecnologie correlate', 2),
+('631', 'Tecniche, equipaggiamento, materiali', 3),
+('632', 'Danni alle piante, malattie, parassiti', 3),
+('633', 'Colture di campo e piantagioni', 3),
+('634', 'Frutteti, frutti, silvicoltura', 3),
+('635', 'Orticoltura', 3),
+('636', 'Allevamento di animali', 3),
+('636.1', 'Cavalli', 4),
+('636.2', 'Bovini', 4),
+('636.3', 'Ovini', 4),
+('636.5', 'Pollame', 4),
+('636.7', 'Cani', 4),
+('636.8', 'Gatti', 4),
+('637', 'Industria casearia e prodotti correlati', 3),
+('638', 'Allevamento di insetti', 3),
+('639', 'Caccia, pesca, conservazione', 3),
+('640', 'Gestione della casa e della famiglia', 2),
+('641', 'Cibo e bevande', 3),
+('641.5', 'Cucina', 4),
+('641.59', 'Cucina internazionale', 5),
+('641.5945', 'Cucina italiana', 7),
+('641.8', 'Piatti specifici', 4),
+('642', 'Pasti e servizio a tavola', 3),
+('643', 'Alloggio e attrezzature domestiche', 3),
+('644', 'Utenze domestiche', 3),
+('645', 'Arredamento domestico', 3),
+('646', 'Cucito e abbigliamento', 3),
+('647', 'Gestione di pubblici esercizi', 3),
+('648', 'Pulizia domestica', 3),
+('649', 'Puericultura e assistenza domiciliare', 3),
+('650', 'Gestione e servizi ausiliari', 2),
+('651', 'Servizi d''ufficio', 3),
+('652', 'Processi di comunicazione scritta', 3),
+('653', 'Stenografia', 3),
+('654', 'Non assegnato', 3),
+('655', 'Non assegnato', 3),
+('656', 'Non assegnato', 3),
+('657', 'Contabilità', 3),
+('658', 'Gestione generale', 3),
+('658.1', 'Organizzazione', 4),
+('658.3', 'Risorse umane', 4),
+('658.4', 'Dirigenza', 4),
+('658.8', 'Marketing', 4),
+('659', 'Pubblicità e relazioni pubbliche', 3),
+('660', 'Ingegneria chimica', 2),
+('661', 'Tecnologia dei prodotti chimici industriali', 3),
+('662', 'Tecnologia degli esplosivi, combustibili', 3),
+('663', 'Tecnologia delle bevande', 3),
+('663.2', 'Vino', 4),
+('664', 'Tecnologia alimentare', 3),
+('665', 'Tecnologia degli oli, grassi, cere', 3),
+('666', 'Tecnologia ceramica e affini', 3),
+('667', 'Tecnologia della pulizia, colore', 3),
+('668', 'Tecnologia di altri prodotti organici', 3),
+('669', 'Metallurgia', 3),
+('670', 'Manifattura', 2),
+('671', 'Lavorazione dei metalli', 3),
+('672', 'Manifattura di metalli ferrosi', 3),
+('673', 'Manifattura di metalli non ferrosi', 3),
+('674', 'Lavorazione del legname, prodotti in legno', 3),
+('675', 'Lavorazione della pelle e pellicce', 3),
+('676', 'Tecnologia della carta e polpa', 3),
+('677', 'Tessili', 3),
+('678', 'Elastomeri e prodotti in elastomero', 3),
+('679', 'Altri prodotti di materiali specifici', 3),
+('680', 'Manifattura per scopi specifici', 2),
+('681', 'Strumenti di precisione', 3),
+('682', 'Piccoli lavori di fucina', 3),
+('683', 'Ferramenta ed elettrodomestici', 3),
+('684', 'Arredamento e laboratori domestici', 3),
+('685', 'Articoli in pelle e pelliccia', 3),
+('686', 'Stampa e attività correlate', 3),
+('687', 'Abbigliamento e accessori', 3),
+('688', 'Altri articoli finali, imballaggio', 3),
+('689', 'Non assegnato', 3),
+('690', 'Edilizia', 2),
+('691', 'Materiali da costruzione', 3),
+('692', 'Pratiche ausiliarie di costruzione', 3),
+('693', 'Costruzione in materiali specifici', 3),
+('694', 'Costruzione in legno; Carpenteria', 3),
+('695', 'Copertura di tetti', 3),
+('696', 'Impianti idraulici e sanitari', 3),
+('697', 'Ingegneria del riscaldamento e ventilazione', 3),
+('698', 'Finiture di dettaglio', 3),
+('699', 'Non assegnato', 3),
+('700', 'Le arti; belle arti e arti decorative', 1),
+('701', 'Filosofia dell''arte', 3),
+('702', 'Miscellanea', 3),
+('703', 'Dizionari ed enciclopedie', 3),
+('704', 'Argomenti speciali', 3),
+('705', 'Pubblicazioni seriali', 3),
+('706', 'Organizzazioni e gestione', 3),
+('707', 'Educazione, ricerca, argomenti correlati', 3),
+('708', 'Gallerie, musei, collezioni private', 3),
+('709', 'Storia e trattazione geografica', 3),
+('709.2', 'Biografie artisti', 4),
+('709.4', 'Arte europea', 4),
+('709.45', 'Arte italiana', 5),
+('710', 'Urbanistica e arte del paesaggio', 2),
+('711', 'Pianificazione dell''area (Urbanistica)', 3),
+('712', 'Architettura del paesaggio', 3),
+('713', 'Architettura del paesaggio di vie di traffico', 3),
+('714', 'Caratteristiche dell''acqua', 3),
+('715', 'Piante legnose', 3),
+('716', 'Piante erbacee', 3),
+('717', 'Strutture nell''architettura del paesaggio', 3),
+('718', 'Cimiteri', 3),
+('719', 'Paesaggi naturali', 3),
+('720', 'Architettura', 2),
+('721', 'Struttura architettonica', 3),
+('722', 'Architettura antica e orientale', 3),
+('723', 'Architettura medievale', 3),
+('724', 'Architettura moderna', 3),
+('725', 'Strutture pubbliche', 3),
+('726', 'Edifici religiosi', 3),
+('727', 'Edifici per l''istruzione e la ricerca', 3),
+('728', 'Edifici residenziali', 3),
+('729', 'Design e decorazione', 3),
+('730', 'Arti plastiche; Scultura', 2),
+('731', 'Processi e soggetti della scultura', 3),
+('732', 'Scultura primitiva e orientale', 3),
+('733', 'Scultura greca, etrusca, romana', 3),
+('734', 'Scultura medievale', 3),
+('735', 'Scultura moderna', 3),
+('736', 'Intaglio e scultura', 3),
+('737', 'Numismatica e sigillografia', 3),
+('738', 'Arti ceramiche', 3),
+('739', 'Lavorazione dei metalli artistica', 3),
+('740', 'Disegno e arti decorative', 2),
+('741', 'Disegno e disegni', 3),
+('741.5', 'Fumetti', 4),
+('742', 'Prospettiva', 3),
+('743', 'Disegno e disegni per soggetto', 3),
+('744', 'Non assegnato', 3),
+('745', 'Arti decorative', 3),
+('746', 'Arti tessili', 3),
+('747', 'Decorazione d''interni', 3),
+('748', 'Vetro', 3),
+('749', 'Mobili e accessori', 3),
+('750', 'Pittura e dipinti', 2),
+('751', 'Tecniche, equipaggiamento, forme', 3),
+('752', 'Colore', 3),
+('753', 'Simbolismo, allegoria, mitologia', 3),
+('754', 'Pittura di genere', 3),
+('755', 'Religione', 3),
+('756', 'Non assegnato', 3),
+('757', 'Figure umane', 3),
+('758', 'Altri soggetti', 3),
+('759', 'Storia e trattazione geografica', 3),
+('759.5', 'Pittura italiana', 4),
+('760', 'Arti grafiche; Arte incisoria e stampe', 2),
+('761', 'Processi di rilievo', 3),
+('762', 'Non assegnato', 3),
+('763', 'Processi litografici', 3),
+('764', 'Cromolitografia e serigrafia', 3),
+('765', 'Incisione su metallo', 3),
+('766', 'Mezzatinta e acquatinta', 3),
+('767', 'Acquaforte e puntasecca', 3),
+('768', 'Non assegnato', 3),
+('769', 'Stampe', 3),
+('770', 'Fotografia e fotografie', 2),
+('771', 'Tecniche, equipaggiamento, materiali', 3),
+('772', 'Processi con sali metallici', 3),
+('773', 'Processi di stampa a pigmenti', 3),
+('774', 'Olografia', 3),
+('775', 'Fotografia digitale', 3),
+('776', 'Arte digitale', 3),
+('777', 'Cinematografia e videografia', 3),
+('778', 'Campi specifici della fotografia', 3),
+('779', 'Raccolte di foto', 3),
+('780', 'Musica', 2),
+('780.9', 'Storia della musica', 4),
+('781', 'Principi generali e forme musicali', 3),
+('782', 'Musica vocale', 3),
+('782.1', 'Opera', 4),
+('783', 'Musica per voci singole', 3),
+('784', 'Strumenti e ensemble strumentali', 3),
+('785', 'Ensemble con un solo strumento per parte', 3),
+('786', 'Strumenti a tastiera e altri', 3),
+('787', 'Strumenti a corda', 3),
+('788', 'Strumenti a fiato', 3),
+('789', 'Compositori e tradizioni musicali', 3),
+('790', 'Arti ricreative e dello spettacolo', 2),
+('791', 'Spettacoli pubblici', 3),
+('791.4', 'Cinema, Radio, TV', 4),
+('791.43', 'Cinema', 5),
+('791.45', 'Televisione', 5),
+('792', 'Rappresentazioni sceniche', 3),
+('793', 'Giochi e divertimenti al coperto', 3),
+('794', 'Giochi di abilità al coperto', 3),
+('795', 'Giochi d''azzardo', 3),
+('796', 'Sport e giochi all''aperto', 3),
+('796.3', 'Giochi con palla', 4),
+('796.33', 'Calcio', 5),
+('796.34', 'Tennis', 5),
+('796.35', 'Golf', 5),
+('796.4', 'Atletica', 4),
+('796.5', 'Attività all''aperto', 4),
+('796.52', 'Alpinismo', 5),
+('796.7', 'Automobilismo', 4),
+('796.8', 'Sport da combattimento', 4),
+('797', 'Sport acquatici e aerei', 3),
+('798', 'Sport equestri e corse di animali', 3),
+('799', 'Pesca, caccia, tiro', 3),
+('800', 'Letteratura e retorica', 1),
+('801', 'Filosofia e teoria', 3),
+('802', 'Miscellanea', 3),
+('803', 'Dizionari ed enciclopedie', 3),
+('804', 'Non assegnato', 3),
+('805', 'Pubblicazioni seriali', 3),
+('806', 'Organizzazioni', 3),
+('807', 'Educazione, ricerca', 3),
+('808', 'Retorica e raccolte', 3),
+('808.3', 'Scrittura narrativa', 4),
+('808.8', 'Raccolte', 4),
+('809', 'Storia, descrizione, critica', 3),
+('810', 'Letteratura americana in inglese', 2),
+('811', 'Poesia americana', 3),
+('812', 'Dramma americano', 3),
+('813', 'Narrativa americana', 3),
+('814', 'Saggi americani', 3),
+('815', 'Discorsi americani', 3),
+('816', 'Lettere americane', 3),
+('817', 'Satira e umorismo americani', 3),
+('818', 'Scritti vari americani', 3),
+('819', 'Non assegnato', 3),
+('820', 'Letterature inglese e inglese antico', 2),
+('821', 'Poesia inglese', 3),
+('822', 'Dramma inglese', 3),
+('822.3', 'Shakespeare', 4),
+('823', 'Narrativa inglese', 3),
+('824', 'Saggi inglesi', 3),
+('825', 'Discorsi inglesi', 3),
+('826', 'Lettere inglesi', 3),
+('827', 'Satira e umorismo inglesi', 3),
+('828', 'Scritti vari inglesi', 3),
+('829', 'Letteratura in inglese antico', 3),
+('830', 'Letterature delle lingue germaniche', 2),
+('831', 'Poesia tedesca', 3),
+('832', 'Dramma tedesco', 3),
+('833', 'Narrativa tedesca', 3),
+('834', 'Saggi tedeschi', 3),
+('835', 'Discorsi tedeschi', 3),
+('836', 'Lettere tedesche', 3),
+('837', 'Satira e umorismo tedeschi', 3),
+('838', 'Scritti vari tedeschi', 3),
+('839', 'Altre letterature germaniche', 3),
+('840', 'Letterature delle lingue romanze', 2),
+('841', 'Poesia francese', 3),
+('842', 'Dramma francese', 3),
+('843', 'Narrativa francese', 3),
+('844', 'Saggi francesi', 3),
+('845', 'Discorsi francesi', 3),
+('846', 'Lettere francesi', 3),
+('847', 'Satira e umorismo francesi', 3),
+('848', 'Scritti vari francesi', 3),
+('849', 'Occitana e Catalana', 3),
+('850', 'Letterature italiana, romena e retoromanza', 2),
+('851', 'Poesia italiana', 3),
+('851.1', 'Dante Alighieri', 4),
+('852', 'Dramma italiano', 3),
+('853', 'Narrativa italiana', 3),
+('854', 'Saggi italiani', 3),
+('855', 'Discorsi italiani', 3),
+('856', 'Lettere italiane', 3),
+('857', 'Satira e umorismo italiani', 3),
+('858', 'Scritti vari italiani', 3),
+('859', 'Romena e Retoromanza', 3),
+('860', 'Letterature spagnola e portoghese', 2),
+('861', 'Poesia spagnola', 3),
+('862', 'Dramma spagnolo', 3),
+('863', 'Narrativa spagnola', 3),
+('864', 'Saggi spagnoli', 3),
+('865', 'Discorsi spagnoli', 3),
+('866', 'Lettere spagnole', 3),
+('867', 'Satira e umorismo spagnoli', 3),
+('868', 'Scritti vari spagnoli', 3),
+('869', 'Portoghese', 3),
+('870', 'Letterature italiche; Latino', 2),
+('871', 'Poesia latina', 3),
+('872', 'Dramma latino', 3),
+('873', 'Poesia epica latina', 3),
+('874', 'Poesia lirica latina', 3),
+('875', 'Discorsi latini', 3),
+('876', 'Lettere latine', 3),
+('877', 'Satira e umorismo latini', 3),
+('878', 'Scritti vari latini', 3),
+('879', 'Altre letterature italiche', 3),
+('880', 'Letterature elleniche; Greco classico', 2),
+('881', 'Poesia greca', 3),
+('882', 'Dramma greco', 3),
+('883', 'Poesia epica greca', 3),
+('884', 'Poesia lirica greca', 3),
+('885', 'Discorsi greci', 3),
+('886', 'Lettere greche', 3),
+('887', 'Satira e umorismo greci', 3),
+('888', 'Scritti vari greci', 3),
+('889', 'Greca moderna', 3),
+('890', 'Letterature di altre lingue', 2),
+('891', 'Indoeuropee orientali e celtiche', 3),
+('891.7', 'Letteratura russa', 4),
+('892', 'Afroasiatiche; Semitiche', 3),
+('893', 'Afroasiatiche non semitiche', 3),
+('894', 'Altaiche, uraliche, iperborree', 3),
+('895', 'Asia orientale e sudorientale', 3),
+('896', 'Africane', 3),
+('897', 'Native nordamericane', 3),
+('898', 'Native sudamericane', 3),
+('899', 'Non austronesiane, altre', 3),
+('900', 'Storia e geografia', 1),
+('901', 'Filosofia e teoria', 3),
+('902', 'Miscellanea', 3),
+('903', 'Dizionari ed enciclopedie', 3),
+('904', 'Raccolte di resoconti di eventi', 3),
+('905', 'Pubblicazioni seriali', 3),
+('906', 'Organizzazioni', 3),
+('907', 'Educazione, ricerca', 3),
+('908', 'Gruppi di persone', 3),
+('909', 'Storia universale', 3),
+('910', 'Geografia e viaggi', 2),
+('911', 'Geografia storica', 3),
+('912', 'Atlanti, mappe', 3),
+('913', 'Geografia e viaggi mondo antico', 3),
+('914', 'Geografia e viaggi in Europa', 3),
+('914.5', 'Italia (Geografia)', 4),
+('915', 'Geografia e viaggi in Asia', 3),
+('916', 'Geografia e viaggi in Africa', 3),
+('917', 'Geografia e viaggi in Nord America', 3),
+('918', 'Geografia e viaggi in Sud America', 3),
+('919', 'Geografia e viaggi altre aree', 3),
+('920', 'Biografia, genealogia, insegne', 2),
+('921', 'Filosofi e psicologi', 3),
+('922', 'Leader religiosi', 3),
+('923', 'Politici, economisti, giuristi', 3),
+('924', 'Linguisti', 3),
+('925', 'Scienziati', 3),
+('926', 'Tecnologi', 3),
+('927', 'Artisti', 3),
+('928', 'Letterati', 3),
+('929', 'Genealogia, nomi, insegne', 3),
+('930', 'Storia del mondo antico', 2),
+('931', 'Cina antica', 3),
+('932', 'Egitto antico', 3),
+('933', 'Palestina antica', 3),
+('934', 'India', 3),
+('935', 'Mesopotamia e Altopiano Iranico', 3),
+('936', 'Europa a nord e ovest dell''Italia', 3),
+('937', 'Italia e territori limitrofi', 3),
+('938', 'Grecia antica', 3),
+('939', 'Altre parti del mondo antico', 3),
+('940', 'Storia d''Europa', 2),
+('940.1', 'Medioevo', 4),
+('940.2', 'Storia moderna', 4),
+('940.3', 'Prima Guerra Mondiale', 4),
+('940.5', 'Seconda Guerra Mondiale', 4),
+('941', 'Isole Britanniche', 3),
+('942', 'Inghilterra e Galles', 3),
+('943', 'Europa centrale; Germania', 3),
+('944', 'Francia e Monaco', 3),
+('945', 'Italia', 3),
+('945.01', 'Medioevo italiano', 5),
+('945.05', 'Rinascimento', 5),
+('945.08', 'Risorgimento', 5),
+('945.09', 'Italia contemporanea', 5),
+('946', 'Penisola Iberica; Spagna', 3),
+('947', 'Europa orientale; Russia', 3),
+('948', 'Scandinavia', 3),
+('949', 'Altre parti d''Europa', 3),
+('950', 'Storia dell''Asia; Estremo Oriente', 2),
+('951', 'Cina e aree limitrofe', 3),
+('952', 'Giappone', 3),
+('953', 'Penisola Arabica e aree limitrofe', 3),
+('954', 'Asia meridionale; India', 3),
+('955', 'Iran', 3),
+('956', 'Medio Oriente', 3),
+('957', 'Siberia (Russia asiatica)', 3),
+('958', 'Asia centrale', 3),
+('959', 'Sud-est asiatico', 3),
+('960', 'Storia dell''Africa', 2),
+('961', 'Tunisia e Libia', 3),
+('962', 'Egitto e Sudan', 3),
+('963', 'Etiopia e Eritrea', 3),
+('964', 'Costa nord-occidentale e isole', 3),
+('965', 'Algeria', 3),
+('966', 'Africa occidentale e isole', 3),
+('967', 'Africa centrale e isole', 3),
+('968', 'Africa meridionale', 3),
+('969', 'Isole dell''Oceano Indiano meridionale', 3),
+('970', 'Storia del Nord America', 2),
+('971', 'Canada', 3),
+('972', 'Messico, America Centrale, Caraibi', 3),
+('973', 'Stati Uniti', 3),
+('973.7', 'Guerra civile americana', 4),
+('974', 'Stati Uniti nord-orientali', 3),
+('975', 'Stati Uniti sud-orientali', 3),
+('976', 'Stati Uniti centro-meridionali', 3),
+('977', 'Stati Uniti centro-settentrionali', 3),
+('978', 'Stati Uniti occidentali', 3),
+('979', 'Stati Uniti del Gran Bacino e del Pacifico', 3),
+('980', 'Storia del Sud America', 2),
+('981', 'Brasile', 3),
+('982', 'Argentina', 3),
+('983', 'Cile', 3),
+('984', 'Bolivia', 3),
+('985', 'Perù', 3),
+('986', 'Colombia e Ecuador', 3),
+('987', 'Venezuela', 3),
+('988', 'Guiana', 3),
+('989', 'Paraguay e Uruguay', 3),
+('990', 'Storia di altre aree', 2),
+('991', 'Non specificato', 3),
+('992', 'Non specificato', 3),
+('993', 'Nuova Zelanda', 3),
+('994', 'Australia', 3),
+('995', 'Melanesia; Nuova Guinea', 3),
+('996', 'Altre parti del Pacifico; Polinesia', 3),
+('997', 'Isole dell''Oceano Atlantico', 3),
+('998', 'Isole Artiche e Antartide', 3),
+('999', 'Mondi extraterrestri', 3);
+
+-- Language: it_IT
+-- Generated: 2025-12-02 23:56:07
+-- Total entries: 1266
+
+INSERT INTO dewey (code, name, level) VALUES
+('000', 'Informatica, informazione e opere generali', 1),
+('001', 'Conoscenza', 3),
+('001.1', 'Vita intellettuale', 4),
+('001.2', 'Istruzione e ricerca', 4),
+('001.3', 'Discipline umanistiche', 4),
+('001.4', 'Ricerca e metodi statistici', 4),
+('001.42', 'Metodi di raccolta dati', 5),
+('001.422', 'Metodi statistici', 6),
+('001.43', 'Analisi e interpretazione dati', 5),
+('001.9', 'Conoscenza controversa', 4),
+('001.94', 'Misteri', 5),
+('001.942', 'Oggetti volanti non identificati (UFO)', 6),
+('001.944', 'Mostri e creature leggendarie', 6),
+('002', 'Il libro', 3),
+('003', 'Sistemi', 3),
+('003.1', 'Identificazione dei sistemi', 4),
+('003.2', 'Previsioni e stime', 4),
+('003.3', 'Modellazione e simulazione', 4),
+('003.5', 'Cibernetica', 4),
+('003.54', 'Teoria dell''informazione', 5),
+('003.56', 'Teoria delle decisioni', 5),
+('003.7', 'Tipi di sistemi', 4),
+('003.8', 'Sistemi temporali', 4),
+('004', 'Informatica', 3),
+('004.01', 'Filosofia e teoria', 5),
+('004.1', 'Hardware', 4),
+('004.11', 'Supercomputer', 5),
+('004.16', 'Personal computer', 5),
+('004.165', 'Dispositivi mobili', 6),
+('004.2', 'Analisi e progettazione sistemi', 4),
+('004.3', 'Modalità di elaborazione', 4),
+('004.5', 'Archiviazione', 4),
+('004.6', 'Reti e comunicazioni', 4),
+('004.61', 'Architettura di rete', 5),
+('004.62', 'Protocolli di rete', 5),
+('004.65', 'Architettura delle comunicazioni', 5),
+('004.67', 'Reti geografiche (WAN)', 5),
+('004.678', 'Internet', 6),
+('004.6782', 'World Wide Web', 7),
+('004.69', 'Sicurezza delle reti', 5),
+('004.9', 'Applicazioni non elettroniche', 4),
+('005', 'Programmazione, programmi e dati', 3),
+('005.1', 'Sviluppo software', 4),
+('005.13', 'Linguaggi di programmazione', 5),
+('005.133', 'Linguaggi specifici (C, Java, Python)', 6),
+('005.2', 'Programmazione piattaforme specifiche', 4),
+('005.3', 'Programmi', 4),
+('005.4', 'Programmazione di sistema', 4),
+('005.43', 'Sistemi operativi', 5),
+('005.432', 'Windows', 6),
+('005.434', 'UNIX / Linux', 6),
+('005.435', 'macOS', 6),
+('005.5', 'Applicazioni generali', 4),
+('005.7', 'Dati', 4),
+('005.74', 'Database', 5),
+('005.75', 'Tipi di database', 5),
+('005.8', 'Sicurezza informatica', 4),
+('006', 'Metodi speciali', 3),
+('006.3', 'Intelligenza artificiale', 4),
+('006.31', 'Machine learning', 5),
+('006.32', 'Reti neurali', 5),
+('006.33', 'Sistemi esperti', 5),
+('006.35', 'Elaborazione del linguaggio naturale', 5),
+('006.37', 'Visione artificiale', 5),
+('006.4', 'Riconoscimento pattern', 4),
+('006.5', 'Sintesi audio', 4),
+('006.6', 'Computer grafica', 4),
+('006.7', 'Multimedia', 4),
+('006.8', 'Realtà virtuale', 4),
+('007', 'Non assegnato', 3),
+('008', 'Non assegnato', 3),
+('009', 'Non assegnato', 3),
+('010', 'Bibliografia', 2),
+('011', 'Bibliografie', 3),
+('012', 'Bibliografie di individui', 3),
+('013', 'Bibliografie di opere di autori specifici', 3),
+('014', 'Bibliografie di opere anonime e pseudonime', 3),
+('015', 'Bibliografie di opere di specifici luoghi', 3),
+('016', 'Bibliografie di opere su specifici argomenti', 3),
+('017', 'Cataloghi generali di argomenti', 3),
+('018', 'Cataloghi per autore, data, ecc.', 3),
+('019', 'Cataloghi dizionario', 3),
+('020', 'Biblioteconomia e scienza dell''informazione', 2),
+('021', 'Relazioni delle biblioteche', 3),
+('022', 'Amministrazione dell''edificio fisico', 3),
+('023', 'Gestione del personale', 3),
+('024', 'Non assegnato', 3),
+('025', 'Operazioni bibliotecarie', 3),
+('025.04', 'Recupero informazioni', 5),
+('025.1', 'Amministrazione', 4),
+('025.2', 'Acquisizioni', 4),
+('025.3', 'Catalogazione', 4),
+('025.31', 'Descrizione bibliografica', 5),
+('025.32', 'Formati (MARC)', 5),
+('025.4', 'Classificazione', 4),
+('025.43', 'Classificazione decimale Dewey', 5),
+('025.5', 'Servizi al pubblico', 4),
+('026', 'Biblioteche per argomenti specifici', 3),
+('027', 'Biblioteche generali', 3),
+('027.4', 'Biblioteche pubbliche', 4),
+('027.5', 'Biblioteche nazionali', 4),
+('027.6', 'Biblioteche per gruppi speciali', 4),
+('027.7', 'Biblioteche universitarie', 4),
+('027.8', 'Biblioteche scolastiche', 4),
+('028', 'Lettura e uso di altri media', 3),
+('028.1', 'Recensioni', 4),
+('028.5', 'Lettura per bambini e ragazzi', 4),
+('029', 'Non assegnato', 3),
+('030', 'Enciclopedie generali', 2),
+('031', 'Enciclopedie in lingua inglese americana', 3),
+('032', 'Enciclopedie in lingua inglese', 3),
+('033', 'Enciclopedie in altre lingue germaniche', 3),
+('034', 'Enciclopedie in lingua francese', 3),
+('035', 'Enciclopedie in lingua italiana, romena, ecc.', 3),
+('036', 'Enciclopedie in lingua spagnola e portoghese', 3),
+('037', 'Enciclopedie in lingue slave', 3),
+('038', 'Enciclopedie in lingue scandinave', 3),
+('039', 'Enciclopedie in altre lingue', 3),
+('040', 'Non assegnato', 2),
+('041', 'Non assegnato', 3),
+('042', 'Non assegnato', 3),
+('043', 'Non assegnato', 3),
+('044', 'Non assegnato', 3),
+('045', 'Non assegnato', 3),
+('046', 'Non assegnato', 3),
+('047', 'Non assegnato', 3),
+('048', 'Non assegnato', 3),
+('049', 'Non assegnato', 3),
+('050', 'Pubblicazioni seriali generali', 2),
+('051', 'In lingua inglese americana', 3),
+('052', 'In lingua inglese', 3),
+('053', 'In altre lingue germaniche', 3),
+('054', 'In lingua francese', 3),
+('055', 'In lingua italiana, romena, ecc.', 3),
+('056', 'In lingua spagnola e portoghese', 3),
+('057', 'In lingue slave', 3),
+('058', 'In lingue scandinave', 3),
+('059', 'In altre lingue', 3),
+('060', 'Organizzazioni generali e museologia', 2),
+('061', 'In Nord America', 3),
+('062', 'Nelle Isole Britanniche', 3),
+('063', 'In Europa centrale; Germania', 3),
+('064', 'In Francia e Monaco', 3),
+('065', 'In Italia e territori limitrofi', 3),
+('066', 'Nella Penisola Iberica', 3),
+('067', 'In Europa orientale; Russia', 3),
+('068', 'In altre aree geografiche', 3),
+('069', 'Museologia', 3),
+('069.1', 'Servizi educativi', 4),
+('069.2', 'Gestione collezioni', 4),
+('069.5', 'Collezioni ed esposizioni', 4),
+('070', 'Mezzi di informazione, giornalismo ed editoria', 2),
+('070.1', 'Media documentari', 4),
+('070.4', 'Giornalismo', 4),
+('070.5', 'Editoria', 4),
+('071', 'Giornalismo Nord America', 3),
+('072', 'Giornalismo Isole Britanniche', 3),
+('073', 'In Europa centrale; Germania', 3),
+('074', 'In Francia e Monaco', 3),
+('075', 'In Italia e territori limitrofi', 3),
+('076', 'Giornalismo Penisola Iberica', 3),
+('077', 'Giornalismo Europa orientale', 3),
+('078', 'Giornalismo Scandinavia', 3),
+('079', 'In altre aree geografiche', 3),
+('080', 'Raccolte generali', 2),
+('081', 'In lingua inglese americana', 3),
+('082', 'In lingua inglese', 3),
+('083', 'In altre lingue germaniche', 3),
+('084', 'In lingua francese', 3),
+('085', 'In lingua italiana, romena, ecc.', 3),
+('086', 'In lingua spagnola e portoghese', 3),
+('087', 'In lingue slave', 3),
+('088', 'In lingue scandinave', 3),
+('089', 'In altre lingue', 3),
+('090', 'Manoscritti e libri rari', 2),
+('091', 'Manoscritti', 3),
+('092', 'Libri xilografici', 3),
+('093', 'Incunaboli', 3),
+('094', 'Libri stampati', 3),
+('095', 'Libri notevoli per la legatura', 3),
+('096', 'Libri notevoli per le illustrazioni', 3),
+('097', 'Libri notevoli per la proprietà o l''origine', 3),
+('098', 'Opere proibite, falsificazioni, ecc.', 3),
+('099', 'Libri notevoli per il formato', 3),
+('100', 'Filosofia e psicologia', 1),
+('101', 'Teoria della filosofia', 3),
+('102', 'Miscellanea', 3),
+('103', 'Dizionari ed enciclopedie', 3),
+('104', 'Non assegnato', 3),
+('105', 'Pubblicazioni seriali', 3),
+('106', 'Organizzazioni e gestione', 3),
+('107', 'Educazione, ricerca, argomenti correlati', 3),
+('108', 'Trattamento di gruppi', 3),
+('109', 'Storia e biografia collettiva', 3),
+('110', 'Metafisica', 2),
+('111', 'Ontologia', 3),
+('112', 'Non assegnato', 3),
+('113', 'Cosmologia (Filosofia della natura)', 3),
+('114', 'Spazio', 3),
+('115', 'Tempo', 3),
+('116', 'Cambiamento', 3),
+('117', 'Struttura', 3),
+('118', 'Forza ed energia', 3),
+('119', 'Numero e quantità', 3),
+('120', 'Epistemologia, causalità e genere umano', 2),
+('121', 'Epistemologia (Teoria della conoscenza)', 3),
+('122', 'Causalità', 3),
+('123', 'Determinismo e indeterminismo', 3),
+('124', 'Teleologia', 3),
+('125', 'Non assegnato', 3),
+('126', 'L''io', 3),
+('127', 'L''inconscio e il subconscio', 3),
+('128', 'Genere umano', 3),
+('129', 'Origine e destino dell''anima individuale', 3),
+('130', 'Parapsicologia e occultismo', 2),
+('131', 'Metodi parapsicologici e occulti', 3),
+('132', 'Non assegnato', 3),
+('133', 'Argomenti specifici nella parapsicologia', 3),
+('133.1', 'Spettri', 4),
+('133.3', 'Divinazione', 4),
+('133.4', 'Magia e stregoneria', 4),
+('133.5', 'Astrologia', 4),
+('133.6', 'Chiromanzia', 4),
+('134', 'Non assegnato', 3),
+('135', 'Sogni e misteri', 3),
+('136', 'Non assegnato', 3),
+('137', 'Grafologia divinatoria', 3),
+('138', 'Fisiognomica', 3),
+('139', 'Frenologia', 3),
+('140', 'Specifiche scuole filosofiche', 2),
+('141', 'Idealismo e sistemi correlati', 3),
+('142', 'Filosofia critica', 3),
+('143', 'Bergsonismo e intuizionismo', 3),
+('144', 'Umanesimo e sistemi correlati', 3),
+('145', 'Sensazionalismo', 3),
+('146', 'Naturalismo e sistemi correlati', 3),
+('147', 'Panteismo e sistemi correlati', 3),
+('148', 'Dogmatismo, eclettismo, liberalismo', 3),
+('149', 'Altri sistemi filosofici', 3),
+('150', 'Psicologia', 2),
+('151', 'Non assegnato', 3),
+('152', 'Percezione, movimento, emozioni', 3),
+('153', 'Processi mentali e intelligenza', 3),
+('153.1', 'Memoria', 4),
+('153.4', 'Pensiero', 4),
+('153.9', 'Intelligenza', 4),
+('154', 'Subconscio e stati alterati', 3),
+('154.6', 'Sonno', 4),
+('154.63', 'Sogni', 5),
+('155', 'Psicologia differenziale e dello sviluppo', 3),
+('155.2', 'Psicologia individuale', 4),
+('155.4', 'Psicologia infantile', 4),
+('155.5', 'Psicologia dell''adolescenza', 4),
+('155.6', 'Psicologia dell''adulto', 4),
+('155.9', 'Psicologia ambientale', 4),
+('156', 'Psicologia comparata', 3),
+('157', 'Non assegnato', 3),
+('158', 'Psicologia applicata', 3),
+('158.1', 'Miglioramento personale', 4),
+('158.2', 'Relazioni interpersonali', 4),
+('158.7', 'Psicologia industriale', 4),
+('159', 'Non assegnato', 3),
+('160', 'Logica', 2),
+('161', 'Induzione', 3),
+('162', 'Deduzione', 3),
+('163', 'Non assegnato', 3),
+('164', 'Non assegnato', 3),
+('165', 'Fallacie e fonti di errore', 3),
+('166', 'Sillogismi', 3),
+('167', 'Ipotesi', 3),
+('168', 'Argomentazione e persuasione', 3),
+('169', 'Analogia', 3),
+('170', 'Etica (Filosofia morale)', 2),
+('171', 'Sistemi etici', 3),
+('172', 'Etica politica', 3),
+('173', 'Etica delle relazioni familiari', 3),
+('174', 'Etica occupazionale', 3),
+('174.2', 'Etica medica', 4),
+('174.4', 'Etica degli affari', 4),
+('175', 'Etica della ricreazione e del tempo libero', 3),
+('176', 'Etica del sesso e della riproduzione', 3),
+('177', 'Etica delle relazioni sociali', 3),
+('178', 'Etica del consumo', 3),
+('179', 'Altre norme etiche', 3),
+('179.3', 'Trattamento degli animali', 4),
+('179.9', 'Virtù', 4),
+('180', 'Filosofia antica, medievale e orientale', 2),
+('181', 'Filosofia orientale', 3),
+('182', 'Filosofie presocratiche greche', 3),
+('183', 'Filosofie socratiche e correlate', 3),
+('184', 'Platonica', 3),
+('185', 'Aristotelica', 3),
+('186', 'Scettica e neoplatonica', 3),
+('187', 'Epicurea', 3),
+('188', 'Stoica', 3),
+('189', 'Filosofia medievale occidentale', 3),
+('190', 'Filosofia moderna occidentale', 2),
+('191', 'Stati Uniti e Canada', 3),
+('192', 'Isole Britanniche', 3),
+('193', 'Germania e Austria', 3),
+('194', 'Francese', 3),
+('195', 'Italiana', 3),
+('196', 'Spagna e Portogallo', 3),
+('197', 'Ex Unione Sovietica', 3),
+('198', 'Scandinavia', 3),
+('199', 'Altre aree geografiche', 3),
+('200', 'Religione', 1),
+('201', 'Mitologia religiosa', 3),
+('202', 'Dottrine', 3),
+('203', 'Culto pubblico e altre pratiche', 3),
+('204', 'Esperienza religiosa, vita, pratica', 3),
+('205', 'Etica religiosa', 3),
+('206', 'Leader e organizzazione', 3),
+('207', 'Missioni ed educazione religiosa', 3),
+('208', 'Fonti', 3),
+('209', 'Sette e movimenti riformisti', 3),
+('210', 'Filosofia e teoria della religione', 2),
+('211', 'Concetti di Dio', 3),
+('212', 'Natura di Dio', 3),
+('213', 'Creazione', 3),
+('214', 'Teodicea', 3),
+('215', 'Scienza e religione', 3),
+('216', 'Non assegnato', 3),
+('217', 'Non assegnato', 3),
+('218', 'Genere umano', 3),
+('219', 'Non assegnato', 3),
+('220', 'Bibbia', 2),
+('221', 'Antico Testamento', 3),
+('222', 'Libri storici dell''Antico Testamento', 3),
+('223', 'Libri poetici dell''Antico Testamento', 3),
+('224', 'Libri profetici dell''Antico Testamento', 3),
+('225', 'Nuovo Testamento', 3),
+('226', 'Vangeli e Atti degli Apostoli', 3),
+('227', 'Epistole', 3),
+('228', 'Apocalisse (Libro della Rivelazione)', 3),
+('229', 'Apocrifi e pseudepigrafi', 3),
+('230', 'Cristianesimo e teologia cristiana', 2),
+('231', 'Dio', 3),
+('232', 'Gesù Cristo e la sua famiglia', 3),
+('233', 'Genere umano', 3),
+('234', 'Salvezza e grazia', 3),
+('235', 'Esseri spirituali', 3),
+('236', 'Escatologia', 3),
+('237', 'Non assegnato', 3),
+('238', 'Credi e confessioni di fede', 3),
+('239', 'Apologetica e polemica', 3),
+('240', 'Teologia morale e devozionale cristiana', 2),
+('241', 'Teologia morale', 3),
+('242', 'Letteratura devozionale', 3),
+('243', 'Scritti evangelistici per individui', 3),
+('244', 'Non assegnato', 3),
+('245', 'Inni', 3),
+('246', 'Uso dell''arte nel Cristianesimo', 3),
+('247', 'Arredi e paramenti sacri', 3),
+('248', 'Esperienza, pratica, vita cristiana', 3),
+('249', 'Osservanze cristiane nella vita familiare', 3),
+('250', 'Ordini cristiani e chiesa locale', 2),
+('251', 'Predicazione', 3),
+('252', 'Testi di sermoni', 3),
+('253', 'Ufficio pastorale (Teologia pastorale)', 3),
+('254', 'Amministrazione parrocchiale', 3),
+('255', 'Congregazioni e ordini religiosi', 3),
+('256', 'Non assegnato', 3),
+('257', 'Non assegnato', 3),
+('258', 'Non assegnato', 3),
+('259', 'Cura pastorale di specifici gruppi', 3),
+('260', 'Teologia sociale cristiana', 2),
+('261', 'Sociologia cristiana', 3),
+('262', 'Ecclesiologia', 3),
+('263', 'Giorni, tempi, luoghi di osservanza', 3),
+('264', 'Culto pubblico', 3),
+('265', 'Sacramenti, altri riti e atti', 3),
+('266', 'Missioni', 3),
+('267', 'Associazioni per il lavoro religioso', 3),
+('268', 'Educazione religiosa', 3),
+('269', 'Rinnovamento spirituale', 3),
+('270', 'Storia della chiesa cristiana', 2),
+('271', 'Ordini religiosi nella storia della chiesa', 3),
+('272', 'Persecuzioni nella storia della chiesa', 3),
+('273', 'Controversie dottrinali ed eresie', 3),
+('274', 'In Europa', 3),
+('275', 'In Asia', 3),
+('276', 'In Africa', 3),
+('277', 'In Nord America', 3),
+('278', 'In Sud America', 3),
+('279', 'In altre aree', 3),
+('280', 'Denominazioni e sette cristiane', 2),
+('281', 'Chiese primitive e orientali', 3),
+('282', 'Chiesa Cattolica Romana', 3),
+('283', 'Chiese Anglicane', 3),
+('284', 'Protestanti di origine continentale', 3),
+('285', 'Presbiteriane, Riformate, Congregazionali', 3),
+('286', 'Battiste, Discepoli di Cristo, Avventiste', 3),
+('287', 'Metodiste e correlate', 3),
+('288', 'Non assegnato', 3),
+('289', 'Altre denominazioni e sette', 3),
+('290', 'Altre religioni', 2),
+('291', 'Non assegnato', 3),
+('292', 'Religione classica (Greca e Romana)', 3),
+('293', 'Religione germanica', 3),
+('294', 'Religioni di origine indiana', 3),
+('294.3', 'Buddismo', 4),
+('294.5', 'Induismo', 4),
+('295', 'Zoroastrismo', 3),
+('296', 'Ebraismo', 3),
+('297', 'Islam, Bábismo e Fede Bahá''í', 3),
+('297.1', 'Corano', 4),
+('298', 'Non assegnato', 3),
+('299', 'Religioni non altrove classificate', 3),
+('299.51', 'Confucianesimo', 5),
+('299.514', 'Taoismo', 6),
+('299.6', 'Religioni africane', 4),
+('300', 'Scienze sociali', 1),
+('301', 'Sociologia e antropologia', 3),
+('302', 'Interazione sociale', 3),
+('302.2', 'Comunicazione', 4),
+('302.3', 'Gruppi sociali', 4),
+('303', 'Processi sociali', 3),
+('303.3', 'Controllo sociale', 4),
+('303.4', 'Cambiamento sociale', 4),
+('303.6', 'Conflitto sociale', 4),
+('304', 'Fattori che influenzano il comportamento sociale', 3),
+('305', 'Gruppi sociali', 3),
+('305.2', 'Età', 4),
+('305.3', 'Genere', 4),
+('305.4', 'Donne', 4),
+('305.8', 'Gruppi etnici', 4),
+('306', 'Cultura e istituzioni', 3),
+('306.7', 'Sessualità', 4),
+('306.8', 'Matrimonio e famiglia', 4),
+('307', 'Comunità', 3),
+('308', 'Non assegnato', 3),
+('309', 'Non assegnato', 3),
+('310', 'Statistica generale', 2),
+('311', 'Non assegnato', 3),
+('312', 'Non assegnato', 3),
+('313', 'Non assegnato', 3),
+('314', 'Statistica generale dell''Europa', 3),
+('315', 'Statistica generale dell''Asia', 3),
+('316', 'Statistica generale dell''Africa', 3),
+('317', 'Statistica generale del Nord America', 3),
+('318', 'Statistica generale del Sud America', 3),
+('319', 'Statistica generale di altre aree', 3),
+('320', 'Scienza politica', 2),
+('321', 'Sistemi di governi e stati', 3),
+('321.8', 'Democrazia', 4),
+('322', 'Relazioni dello stato con gruppi organizzati', 3),
+('323', 'Diritti civili e politici', 3),
+('324', 'Il processo politico', 3),
+('325', 'Migrazione internazionale e colonizzazione', 3),
+('326', 'Schiavitù ed emancipazione', 3),
+('327', 'Relazioni internazionali', 3),
+('328', 'Il processo legislativo', 3),
+('329', 'Non assegnato', 3),
+('330', 'Economia', 2),
+('331', 'Economia del lavoro', 3),
+('331.1', 'Forza lavoro', 4),
+('331.2', 'Salari', 4),
+('331.3', 'Lavoratori', 4),
+('331.4', 'Donne lavoratrici', 4),
+('331.8', 'Sindacati', 4),
+('332', 'Economia finanziaria', 3),
+('332.1', 'Banche', 4),
+('332.4', 'Moneta', 4),
+('332.6', 'Investimenti', 4),
+('333', 'Economia della terra e dell''energia', 3),
+('333.7', 'Ambiente', 4),
+('333.91', 'Acqua', 5),
+('334', 'Cooperative', 3),
+('335', 'Socialismo e sistemi correlati', 3),
+('335.4', 'Marxismo', 4),
+('336', 'Finanza pubblica', 3),
+('337', 'Economia internazionale', 3),
+('338', 'Produzione', 3),
+('339', 'Macroeconomia', 3),
+('340', 'Diritto', 2),
+('341', 'Diritto internazionale', 3),
+('341.2', 'Comunità internazionale', 4),
+('342', 'Diritto costituzionale e amministrativo', 3),
+('343', 'Diritto militare, tributario, commerciale', 3),
+('344', 'Diritto del lavoro, sociale, educativo', 3),
+('345', 'Diritto penale', 3),
+('346', 'Diritto privato', 3),
+('347', 'Procedura civile e tribunali', 3),
+('348', 'Leggi, regolamenti, giurisprudenza', 3),
+('349', 'Diritto di specifiche giurisdizioni', 3),
+('350', 'Amministrazione pubblica e scienza militare', 2),
+('351', 'Amministrazione pubblica', 3),
+('352', 'Considerazioni generali sull''amministrazione', 3),
+('353', 'Campi specifici dell''amministrazione', 3),
+('354', 'Amministrazione dell''economia e dell''ambiente', 3),
+('355', 'Scienza militare', 3),
+('355.4', 'Operazioni militari', 4),
+('356', 'Fanteria', 3),
+('357', 'Cavalleria e unità corazzate', 3),
+('358', 'Forze aeree e altre forze specializzate', 3),
+('359', 'Forze navali e marittime', 3),
+('360', 'Problemi e servizi sociali; associazioni', 2),
+('361', 'Problemi sociali e benessere sociale', 3),
+('362', 'Problemi e servizi di assistenza sociale', 3),
+('362.1', 'Servizi sanitari', 4),
+('362.2', 'Salute mentale', 4),
+('362.3', 'Disabilità intellettiva', 4),
+('362.4', 'Disabilità fisica', 4),
+('362.5', 'Poveri', 4),
+('362.6', 'Anziani', 4),
+('362.7', 'Giovani', 4),
+('363', 'Altri problemi e servizi sociali', 3),
+('363.1', 'Sicurezza', 4),
+('363.2', 'Polizia', 4),
+('363.3', 'Protezione civile', 4),
+('363.5', 'Alloggi', 4),
+('363.7', 'Problemi ambientali', 4),
+('364', 'Criminologia', 3),
+('364.1', 'Reati', 4),
+('364.3', 'Delinquenti', 4),
+('365', 'Istituti penali e carcerari', 3),
+('366', 'Associazioni', 3),
+('367', 'Club generali', 3),
+('368', 'Assicurazioni', 3),
+('369', 'Associazioni varie', 3),
+('370', 'Educazione', 2),
+('370.1', 'Teoria dell''educazione', 4),
+('371', 'Scuole e attività; educazione speciale', 3),
+('371.1', 'Insegnamento', 4),
+('371.3', 'Metodi di insegnamento', 4),
+('371.9', 'Educazione speciale', 4),
+('372', 'Educazione elementare', 3),
+('373', 'Educazione secondaria', 3),
+('374', 'Educazione degli adulti', 3),
+('375', 'Curricoli', 3),
+('376', 'Non assegnato', 3),
+('377', 'Non assegnato', 3),
+('378', 'Educazione superiore', 3),
+('379', 'Politiche educative pubbliche', 3),
+('380', 'Commercio, comunicazioni e trasporti', 2),
+('381', 'Commercio interno', 3),
+('382', 'Commercio internazionale', 3),
+('383', 'Posta e comunicazioni', 3),
+('384', 'Comunicazioni; Telecomunicazioni', 3),
+('385', 'Trasporti ferroviari', 3),
+('386', 'Trasporti per vie d''acqua interne', 3),
+('387', 'Trasporti marittimi, aerei, spaziali', 3),
+('388', 'Trasporti terrestri e stradali', 3),
+('389', 'Metrologia e standardizzazione', 3),
+('390', 'Usi e costumi, etichetta, folklore', 2),
+('391', 'Costume e apparenza personale', 3),
+('392', 'Usi del ciclo della vita e vita domestica', 3),
+('393', 'Costumi funebri', 3),
+('394', 'Costumi generali', 3),
+('394.2', 'Feste', 4),
+('395', 'Etichetta (Buone maniere)', 3),
+('396', 'Non assegnato', 3),
+('397', 'Non assegnato', 3),
+('398', 'Folklore', 3),
+('398.2', 'Fiabe e leggende', 4),
+('399', 'Usi di guerra e diplomazia', 3),
+('400', 'Linguaggio', 1),
+('401', 'Filosofia e teoria', 3),
+('402', 'Miscellanea', 3),
+('403', 'Dizionari ed enciclopedie', 3),
+('404', 'Argomenti speciali', 3),
+('405', 'Pubblicazioni seriali', 3),
+('406', 'Organizzazioni e gestione', 3),
+('407', 'Educazione, ricerca, argomenti correlati', 3),
+('408', 'Gruppi di persone', 3),
+('409', 'Trattamento geografico e biografico', 3),
+('410', 'Linguistica', 2),
+('411', 'Sistemi di scrittura', 3),
+('412', 'Etimologia', 3),
+('413', 'Dizionari', 3),
+('414', 'Fonologia e fonetica', 3),
+('415', 'Grammatica', 3),
+('416', 'Non assegnato', 3),
+('417', 'Dialettologia e linguistica storica', 3),
+('418', 'Uso standard e linguistica applicata', 3),
+('419', 'Lingua dei segni', 3),
+('420', 'Inglese e inglese antico', 2),
+('421', 'Sistema di scrittura e fonologia inglese', 3),
+('422', 'Etimologia inglese', 3),
+('423', 'Dizionari inglesi', 3),
+('424', 'Non assegnato', 3),
+('425', 'Grammatica inglese', 3),
+('426', 'Non assegnato', 3),
+('427', 'Variazioni della lingua inglese', 3),
+('428', 'Uso dell''inglese standard', 3),
+('429', 'Inglese antico (Anglosassone)', 3),
+('430', 'Lingue germaniche; Tedesco', 2),
+('431', 'Sistemi di scrittura e fonologia tedesca', 3),
+('432', 'Etimologia tedesca', 3),
+('433', 'Dizionari tedeschi', 3),
+('434', 'Non assegnato', 3),
+('435', 'Grammatica tedesca', 3),
+('436', 'Non assegnato', 3),
+('437', 'Variazioni della lingua tedesca', 3),
+('438', 'Uso del tedesco standard', 3),
+('439', 'Altre lingue germaniche', 3),
+('440', 'Lingue romanze; Francese', 2),
+('441', 'Sistemi di scrittura e fonologia francese', 3),
+('442', 'Etimologia francese', 3),
+('443', 'Dizionari francesi', 3),
+('444', 'Non assegnato', 3),
+('445', 'Grammatica francese', 3),
+('446', 'Non assegnato', 3),
+('447', 'Variazioni della lingua francese', 3),
+('448', 'Uso del francese standard', 3),
+('449', 'Occitano, Catalano, Franco-Provenzale', 3),
+('450', 'Italiano, Romeno, Retoromanzo', 2),
+('451', 'Sistemi di scrittura e fonologia italiana', 3),
+('452', 'Etimologia italiana', 3),
+('453', 'Dizionari italiani', 3),
+('454', 'Uso linguistico', 3),
+('455', 'Grammatica italiana', 3),
+('456', 'Non assegnato', 3),
+('457', 'Variazioni della lingua italiana', 3),
+('458', 'Uso dell''italiano standard', 3),
+('459', 'Romeno e Retoromanzo', 3),
+('460', 'Lingue Spagnola e Portoghese', 2),
+('461', 'Sistemi di scrittura e fonologia spagnola', 3),
+('462', 'Etimologia spagnola', 3),
+('463', 'Dizionari spagnoli', 3),
+('464', 'Non assegnato', 3),
+('465', 'Grammatica spagnola', 3),
+('466', 'Non assegnato', 3),
+('467', 'Variazioni della lingua spagnola', 3),
+('468', 'Uso dello spagnolo standard', 3),
+('469', 'Portoghese', 3),
+('470', 'Lingue italiche; Latino', 2),
+('471', 'Sistemi di scrittura e fonologia latina', 3),
+('472', 'Etimologia latina', 3),
+('473', 'Dizionari latini', 3),
+('474', 'Non assegnato', 3),
+('475', 'Grammatica latina', 3),
+('476', 'Non assegnato', 3),
+('477', 'Latino antico, postclassico, volgare', 3),
+('478', 'Uso del latino classico', 3),
+('479', 'Altre lingue italiche', 3),
+('480', 'Lingue elleniche; Greco classico', 2),
+('481', 'Sistemi di scrittura e fonologia greca', 3),
+('482', 'Etimologia greca', 3),
+('483', 'Dizionari greci', 3),
+('484', 'Non assegnato', 3),
+('485', 'Grammatica greca', 3),
+('486', 'Non assegnato', 3),
+('487', 'Greco preclassico e postclassico', 3),
+('488', 'Uso del greco classico', 3),
+('489', 'Altre lingue elleniche', 3),
+('490', 'Altre lingue', 2),
+('491', 'Lingue indoeuropee orientali e celtiche', 3),
+('491.7', 'Russo', 4),
+('492', 'Lingue afroasiatiche; Lingue semitiche', 3),
+('492.4', 'Ebraico', 4),
+('492.7', 'Arabo', 4),
+('493', 'Lingue afroasiatiche non semitiche', 3),
+('494', 'Lingue altaiche, uraliche, iperborree', 3),
+('495', 'Lingue dell''Asia orientale e sudorientale', 3),
+('495.1', 'Cinese', 4),
+('495.6', 'Giapponese', 4),
+('496', 'Lingue africane', 3),
+('497', 'Lingue native nordamericane', 3),
+('498', 'Lingue native sudamericane', 3),
+('499', 'Lingue non austronesiane, altre lingue', 3),
+('500', 'Scienze naturali e matematica', 1),
+('501', 'Filosofia e teoria', 3),
+('502', 'Miscellanea', 3),
+('503', 'Dizionari ed enciclopedie', 3),
+('504', 'Non assegnato', 3),
+('505', 'Pubblicazioni seriali', 3),
+('506', 'Organizzazioni e gestione', 3),
+('507', 'Educazione, ricerca, argomenti correlati', 3),
+('508', 'Storia naturale', 3),
+('509', 'Storia, trattazione geografica, biografica', 3),
+('510', 'Matematica', 2),
+('511', 'Principi generali', 3),
+('512', 'Algebra', 3),
+('513', 'Aritmetica', 3),
+('514', 'Topologia', 3),
+('515', 'Analisi', 3),
+('516', 'Geometria', 3),
+('517', 'Non assegnato', 3),
+('518', 'Analisi numerica', 3),
+('519', 'Probabilità e matematica applicata', 3),
+('520', 'Astronomia e scienze affini', 2),
+('521', 'Meccanica celeste', 3),
+('522', 'Tecniche, equipaggiamento, materiali', 3),
+('523', 'Corpi celesti e fenomeni specifici', 3),
+('523.1', 'Universo', 4),
+('523.2', 'Sistema Solare', 4),
+('523.3', 'Luna', 4),
+('523.4', 'Pianeti', 4),
+('523.6', 'Comete', 4),
+('523.7', 'Sole', 4),
+('523.8', 'Stelle', 4),
+('524', 'Non assegnato', 3),
+('525', 'La Terra (Geografia astronomica)', 3),
+('526', 'Geografia matematica', 3),
+('527', 'Navigazione celeste', 3),
+('528', 'Effemeridi', 3),
+('529', 'Cronologia', 3),
+('530', 'Fisica', 2),
+('531', 'Meccanica classica', 3),
+('532', 'Meccanica dei fluidi', 3),
+('533', 'Meccanica dei gas', 3),
+('534', 'Suono e vibrazioni', 3),
+('535', 'Luce e fenomeni ottici', 3),
+('536', 'Calore', 3),
+('537', 'Elettricità ed elettronica', 3),
+('538', 'Magnetismo', 3),
+('539', 'Fisica moderna', 3),
+('539.7', 'Fisica atomica', 4),
+('540', 'Chimica e scienze affini', 2),
+('541', 'Chimica fisica e teorica', 3),
+('542', 'Tecniche, equipaggiamento, materiali', 3),
+('543', 'Chimica analitica', 3),
+('544', 'Analisi qualitativa', 3),
+('545', 'Analisi quantitativa', 3),
+('546', 'Chimica inorganica', 3),
+('547', 'Chimica organica', 3),
+('548', 'Cristallografia', 3),
+('549', 'Mineralogia', 3),
+('550', 'Scienze della Terra', 2),
+('551', 'Geologia, idrologia, meteorologia', 3),
+('551.2', 'Vulcani e terremoti', 4),
+('551.4', 'Geomorfologia', 4),
+('551.46', 'Oceanografia', 5),
+('551.5', 'Meteorologia', 4),
+('551.6', 'Climatologia', 4),
+('552', 'Petrografia', 3),
+('553', 'Geologia economica', 3),
+('554', 'Scienze della Terra dell''Europa', 3),
+('555', 'Scienze della Terra dell''Asia', 3),
+('556', 'Scienze della Terra dell''Africa', 3),
+('557', 'Scienze della Terra del Nord America', 3),
+('558', 'Scienze della Terra del Sud America', 3),
+('559', 'Scienze della Terra di altre aree', 3),
+('560', 'Paleontologia; Paleozoologia', 2),
+('561', 'Paleobotanica', 3),
+('562', 'Invertebrati fossili', 3),
+('563', 'Fossili marini e litoranei', 3),
+('564', 'Molluschi e molluscoidi fossili', 3),
+('565', 'Artropodi fossili', 3),
+('566', 'Cordati fossili', 3),
+('567', 'Vertebrati a sangue freddo fossili', 3),
+('567.9', 'Rettili fossili (Dinosauri)', 4),
+('568', 'Uccelli fossili', 3),
+('569', 'Mammiferi fossili', 3),
+('570', 'Scienze della vita; Biologia', 2),
+('571', 'Fisiologia e argomenti correlati', 3),
+('572', 'Biochimica', 3),
+('573', 'Sistemi fisiologici specifici negli animali', 3),
+('574', 'Biologia (vecchio uso)', 3),
+('575', 'Parti specifiche e sistemi nelle piante', 3),
+('576', 'Genetica ed evoluzione', 3),
+('576.5', 'Genetica', 4),
+('576.8', 'Evoluzione', 4),
+('577', 'Ecologia', 3),
+('577.3', 'Ecologia forestale', 4),
+('577.7', 'Ecologia marina', 4),
+('578', 'Storia naturale degli organismi', 3),
+('579', 'Microrganismi, funghi, alghe', 3),
+('580', 'Piante (Botanica)', 2),
+('581', 'Argomenti specifici della botanica', 3),
+('582', 'Piante note per caratteristiche vegetative', 3),
+('582.13', 'Fiori selvatici', 5),
+('582.16', 'Alberi', 5),
+('583', 'Dicotiledoni', 3),
+('584', 'Monocotiledoni', 3),
+('585', 'Gimnosperme', 3),
+('586', 'Crittogame (Piante senza semi)', 3),
+('587', 'Pteridofite', 3),
+('588', 'Briofite', 3),
+('589', 'Non assegnato', 3),
+('590', 'Animali (Zoologia)', 2),
+('591', 'Argomenti specifici della zoologia', 3),
+('592', 'Invertebrati', 3),
+('593', 'Invertebrati marini e litoranei', 3),
+('594', 'Molluschi e molluscoidi', 3),
+('595', 'Artropodi', 3),
+('595.7', 'Insetti', 4),
+('595.78', 'Lepidotteri (Farfalle)', 5),
+('596', 'Cordati', 3),
+('597', 'Vertebrati a sangue freddo', 3),
+('597.8', 'Anfibi', 4),
+('597.9', 'Rettili', 4),
+('598', 'Uccelli', 3),
+('599', 'Mammiferi', 3),
+('599.2', 'Marsupiali', 4),
+('599.3', 'Piccoli mammiferi', 4),
+('599.4', 'Pipistrelli', 4),
+('599.5', 'Cetacei', 4),
+('599.53', 'Delfini', 5),
+('599.6', 'Ungulati', 4),
+('599.7', 'Carnivori', 4),
+('599.74', 'Carnivori (vecchio uso)', 5),
+('599.75', 'Felidi', 5),
+('599.77', 'Canidi', 5),
+('599.78', 'Orsi', 5),
+('599.8', 'Primati', 4),
+('599.9', 'Hominidae (Uomo)', 4),
+('599.93', 'Genetica umana', 5),
+('599.97', 'Variazione umana', 5),
+('599.98', 'Adattamento umano', 5),
+('600', 'Tecnologia', 1),
+('601', 'Filosofia e teoria', 3),
+('602', 'Miscellanea', 3),
+('603', 'Dizionari ed enciclopedie', 3),
+('604', 'Disegno tecnico', 3),
+('605', 'Pubblicazioni seriali', 3),
+('606', 'Organizzazioni', 3),
+('607', 'Educazione, ricerca', 3),
+('608', 'Invenzioni e brevetti', 3),
+('609', 'Storia e trattazione locale', 3),
+('610', 'Medicina e salute', 2),
+('611', 'Anatomia umana', 3),
+('612', 'Fisiologia umana', 3),
+('612.6', 'Riproduzione', 4),
+('613', 'Promozione della salute', 3),
+('613.2', 'Dietetica', 4),
+('613.7', 'Fitness', 4),
+('614', 'Incidenza e prevenzione delle malattie', 3),
+('615', 'Farmacologia e terapeutica', 3),
+('616', 'Malattie', 3),
+('616.1', 'Cuore', 4),
+('616.8', 'Malattie nervose', 4),
+('616.9', 'Malattie infettive', 4),
+('617', 'Chirurgia', 3),
+('618', 'Ginecologia, ostetricia, pediatria', 3),
+('618.92', 'Pediatria', 5),
+('619', 'Medicina sperimentale', 3),
+('620', 'Ingegneria e attività affini', 2),
+('621', 'Fisica applicata', 3),
+('621.3', 'Elettrotecnica', 4),
+('621.38', 'Elettronica', 5),
+('621.4', 'Motori', 4),
+('622', 'Ingegneria mineraria', 3),
+('623', 'Ingegneria militare e navale', 3),
+('624', 'Ingegneria civile', 3),
+('625', 'Ingegneria delle ferrovie e strade', 3),
+('626', 'Non assegnato', 3),
+('627', 'Ingegneria idraulica', 3),
+('628', 'Ingegneria sanitaria', 3),
+('629', 'Altri rami dell''ingegneria', 3),
+('629.1', 'Aerospaziale', 4),
+('629.13', 'Aeronautica', 5),
+('629.2', 'Veicoli a motore', 4),
+('629.4', 'Astronautica', 4),
+('629.8', 'Automazione', 4),
+('630', 'Agricoltura e tecnologie correlate', 2),
+('631', 'Tecniche, equipaggiamento, materiali', 3),
+('632', 'Danni alle piante, malattie, parassiti', 3),
+('633', 'Colture di campo e piantagioni', 3),
+('634', 'Frutteti, frutti, silvicoltura', 3),
+('635', 'Orticoltura', 3),
+('636', 'Allevamento di animali', 3),
+('636.1', 'Cavalli', 4),
+('636.2', 'Bovini', 4),
+('636.3', 'Ovini', 4),
+('636.5', 'Pollame', 4),
+('636.7', 'Cani', 4),
+('636.8', 'Gatti', 4),
+('637', 'Industria casearia e prodotti correlati', 3),
+('638', 'Allevamento di insetti', 3),
+('639', 'Caccia, pesca, conservazione', 3),
+('640', 'Gestione della casa e della famiglia', 2),
+('641', 'Cibo e bevande', 3),
+('641.5', 'Cucina', 4),
+('641.59', 'Cucina internazionale', 5),
+('641.5945', 'Cucina italiana', 7),
+('641.8', 'Piatti specifici', 4),
+('642', 'Pasti e servizio a tavola', 3),
+('643', 'Alloggio e attrezzature domestiche', 3),
+('644', 'Utenze domestiche', 3),
+('645', 'Arredamento domestico', 3),
+('646', 'Cucito e abbigliamento', 3),
+('647', 'Gestione di pubblici esercizi', 3),
+('648', 'Pulizia domestica', 3),
+('649', 'Puericultura e assistenza domiciliare', 3),
+('650', 'Gestione e servizi ausiliari', 2),
+('651', 'Servizi d''ufficio', 3),
+('652', 'Processi di comunicazione scritta', 3),
+('653', 'Stenografia', 3),
+('654', 'Non assegnato', 3),
+('655', 'Non assegnato', 3),
+('656', 'Non assegnato', 3),
+('657', 'Contabilità', 3),
+('658', 'Gestione generale', 3),
+('658.1', 'Organizzazione', 4),
+('658.3', 'Risorse umane', 4),
+('658.4', 'Dirigenza', 4),
+('658.8', 'Marketing', 4),
+('659', 'Pubblicità e relazioni pubbliche', 3),
+('660', 'Ingegneria chimica', 2),
+('661', 'Tecnologia dei prodotti chimici industriali', 3),
+('662', 'Tecnologia degli esplosivi, combustibili', 3),
+('663', 'Tecnologia delle bevande', 3),
+('663.2', 'Vino', 4),
+('664', 'Tecnologia alimentare', 3),
+('665', 'Tecnologia degli oli, grassi, cere', 3),
+('666', 'Tecnologia ceramica e affini', 3),
+('667', 'Tecnologia della pulizia, colore', 3),
+('668', 'Tecnologia di altri prodotti organici', 3),
+('669', 'Metallurgia', 3),
+('670', 'Manifattura', 2),
+('671', 'Lavorazione dei metalli', 3),
+('672', 'Manifattura di metalli ferrosi', 3),
+('673', 'Manifattura di metalli non ferrosi', 3),
+('674', 'Lavorazione del legname, prodotti in legno', 3),
+('675', 'Lavorazione della pelle e pellicce', 3),
+('676', 'Tecnologia della carta e polpa', 3),
+('677', 'Tessili', 3),
+('678', 'Elastomeri e prodotti in elastomero', 3),
+('679', 'Altri prodotti di materiali specifici', 3),
+('680', 'Manifattura per scopi specifici', 2),
+('681', 'Strumenti di precisione', 3),
+('682', 'Piccoli lavori di fucina', 3),
+('683', 'Ferramenta ed elettrodomestici', 3),
+('684', 'Arredamento e laboratori domestici', 3),
+('685', 'Articoli in pelle e pelliccia', 3),
+('686', 'Stampa e attività correlate', 3),
+('687', 'Abbigliamento e accessori', 3),
+('688', 'Altri articoli finali, imballaggio', 3),
+('689', 'Non assegnato', 3),
+('690', 'Edilizia', 2),
+('691', 'Materiali da costruzione', 3),
+('692', 'Pratiche ausiliarie di costruzione', 3),
+('693', 'Costruzione in materiali specifici', 3),
+('694', 'Costruzione in legno; Carpenteria', 3),
+('695', 'Copertura di tetti', 3),
+('696', 'Impianti idraulici e sanitari', 3),
+('697', 'Ingegneria del riscaldamento e ventilazione', 3),
+('698', 'Finiture di dettaglio', 3),
+('699', 'Non assegnato', 3),
+('700', 'Le arti; belle arti e arti decorative', 1),
+('701', 'Filosofia dell''arte', 3),
+('702', 'Miscellanea', 3),
+('703', 'Dizionari ed enciclopedie', 3),
+('704', 'Argomenti speciali', 3),
+('705', 'Pubblicazioni seriali', 3),
+('706', 'Organizzazioni e gestione', 3),
+('707', 'Educazione, ricerca, argomenti correlati', 3),
+('708', 'Gallerie, musei, collezioni private', 3),
+('709', 'Storia e trattazione geografica', 3),
+('709.2', 'Biografie artisti', 4),
+('709.4', 'Arte europea', 4),
+('709.45', 'Arte italiana', 5),
+('710', 'Urbanistica e arte del paesaggio', 2),
+('711', 'Pianificazione dell''area (Urbanistica)', 3),
+('712', 'Architettura del paesaggio', 3),
+('713', 'Architettura del paesaggio di vie di traffico', 3),
+('714', 'Caratteristiche dell''acqua', 3),
+('715', 'Piante legnose', 3),
+('716', 'Piante erbacee', 3),
+('717', 'Strutture nell''architettura del paesaggio', 3),
+('718', 'Cimiteri', 3),
+('719', 'Paesaggi naturali', 3),
+('720', 'Architettura', 2),
+('721', 'Struttura architettonica', 3),
+('722', 'Architettura antica e orientale', 3),
+('723', 'Architettura medievale', 3),
+('724', 'Architettura moderna', 3),
+('725', 'Strutture pubbliche', 3),
+('726', 'Edifici religiosi', 3),
+('727', 'Edifici per l''istruzione e la ricerca', 3),
+('728', 'Edifici residenziali', 3),
+('729', 'Design e decorazione', 3),
+('730', 'Arti plastiche; Scultura', 2),
+('731', 'Processi e soggetti della scultura', 3),
+('732', 'Scultura primitiva e orientale', 3),
+('733', 'Scultura greca, etrusca, romana', 3),
+('734', 'Scultura medievale', 3),
+('735', 'Scultura moderna', 3),
+('736', 'Intaglio e scultura', 3),
+('737', 'Numismatica e sigillografia', 3),
+('738', 'Arti ceramiche', 3),
+('739', 'Lavorazione dei metalli artistica', 3),
+('740', 'Disegno e arti decorative', 2),
+('741', 'Disegno e disegni', 3),
+('741.5', 'Fumetti', 4),
+('742', 'Prospettiva', 3),
+('743', 'Disegno e disegni per soggetto', 3),
+('744', 'Non assegnato', 3),
+('745', 'Arti decorative', 3),
+('746', 'Arti tessili', 3),
+('747', 'Decorazione d''interni', 3),
+('748', 'Vetro', 3),
+('749', 'Mobili e accessori', 3),
+('750', 'Pittura e dipinti', 2),
+('751', 'Tecniche, equipaggiamento, forme', 3),
+('752', 'Colore', 3),
+('753', 'Simbolismo, allegoria, mitologia', 3),
+('754', 'Pittura di genere', 3),
+('755', 'Religione', 3),
+('756', 'Non assegnato', 3),
+('757', 'Figure umane', 3),
+('758', 'Altri soggetti', 3),
+('759', 'Storia e trattazione geografica', 3),
+('759.5', 'Pittura italiana', 4),
+('760', 'Arti grafiche; Arte incisoria e stampe', 2),
+('761', 'Processi di rilievo', 3),
+('762', 'Non assegnato', 3),
+('763', 'Processi litografici', 3),
+('764', 'Cromolitografia e serigrafia', 3),
+('765', 'Incisione su metallo', 3),
+('766', 'Mezzatinta e acquatinta', 3),
+('767', 'Acquaforte e puntasecca', 3),
+('768', 'Non assegnato', 3),
+('769', 'Stampe', 3),
+('770', 'Fotografia e fotografie', 2),
+('771', 'Tecniche, equipaggiamento, materiali', 3),
+('772', 'Processi con sali metallici', 3),
+('773', 'Processi di stampa a pigmenti', 3),
+('774', 'Olografia', 3),
+('775', 'Fotografia digitale', 3),
+('776', 'Arte digitale', 3),
+('777', 'Cinematografia e videografia', 3),
+('778', 'Campi specifici della fotografia', 3),
+('779', 'Raccolte di foto', 3),
+('780', 'Musica', 2),
+('780.9', 'Storia della musica', 4),
+('781', 'Principi generali e forme musicali', 3),
+('782', 'Musica vocale', 3),
+('782.1', 'Opera', 4),
+('783', 'Musica per voci singole', 3),
+('784', 'Strumenti e ensemble strumentali', 3),
+('785', 'Ensemble con un solo strumento per parte', 3),
+('786', 'Strumenti a tastiera e altri', 3),
+('787', 'Strumenti a corda', 3),
+('788', 'Strumenti a fiato', 3),
+('789', 'Compositori e tradizioni musicali', 3),
+('790', 'Arti ricreative e dello spettacolo', 2),
+('791', 'Spettacoli pubblici', 3),
+('791.4', 'Cinema, Radio, TV', 4),
+('791.43', 'Cinema', 5),
+('791.45', 'Televisione', 5),
+('792', 'Rappresentazioni sceniche', 3),
+('793', 'Giochi e divertimenti al coperto', 3),
+('794', 'Giochi di abilità al coperto', 3),
+('795', 'Giochi d''azzardo', 3),
+('796', 'Sport e giochi all''aperto', 3),
+('796.3', 'Giochi con palla', 4),
+('796.33', 'Calcio', 5),
+('796.34', 'Tennis', 5),
+('796.35', 'Golf', 5),
+('796.4', 'Atletica', 4),
+('796.5', 'Attività all''aperto', 4),
+('796.52', 'Alpinismo', 5),
+('796.7', 'Automobilismo', 4),
+('796.8', 'Sport da combattimento', 4),
+('797', 'Sport acquatici e aerei', 3),
+('798', 'Sport equestri e corse di animali', 3),
+('799', 'Pesca, caccia, tiro', 3),
+('800', 'Letteratura e retorica', 1),
+('801', 'Filosofia e teoria', 3),
+('802', 'Miscellanea', 3),
+('803', 'Dizionari ed enciclopedie', 3),
+('804', 'Non assegnato', 3),
+('805', 'Pubblicazioni seriali', 3),
+('806', 'Organizzazioni', 3),
+('807', 'Educazione, ricerca', 3),
+('808', 'Retorica e raccolte', 3),
+('808.3', 'Scrittura narrativa', 4),
+('808.8', 'Raccolte', 4),
+('809', 'Storia, descrizione, critica', 3),
+('810', 'Letteratura americana in inglese', 2),
+('811', 'Poesia americana', 3),
+('812', 'Dramma americano', 3),
+('813', 'Narrativa americana', 3),
+('814', 'Saggi americani', 3),
+('815', 'Discorsi americani', 3),
+('816', 'Lettere americane', 3),
+('817', 'Satira e umorismo americani', 3),
+('818', 'Scritti vari americani', 3),
+('819', 'Non assegnato', 3),
+('820', 'Letterature inglese e inglese antico', 2),
+('821', 'Poesia inglese', 3),
+('822', 'Dramma inglese', 3),
+('822.3', 'Shakespeare', 4),
+('823', 'Narrativa inglese', 3),
+('824', 'Saggi inglesi', 3),
+('825', 'Discorsi inglesi', 3),
+('826', 'Lettere inglesi', 3),
+('827', 'Satira e umorismo inglesi', 3),
+('828', 'Scritti vari inglesi', 3),
+('829', 'Letteratura in inglese antico', 3),
+('830', 'Letterature delle lingue germaniche', 2),
+('831', 'Poesia tedesca', 3),
+('832', 'Dramma tedesco', 3),
+('833', 'Narrativa tedesca', 3),
+('834', 'Saggi tedeschi', 3),
+('835', 'Discorsi tedeschi', 3),
+('836', 'Lettere tedesche', 3),
+('837', 'Satira e umorismo tedeschi', 3),
+('838', 'Scritti vari tedeschi', 3),
+('839', 'Altre letterature germaniche', 3),
+('840', 'Letterature delle lingue romanze', 2),
+('841', 'Poesia francese', 3),
+('842', 'Dramma francese', 3),
+('843', 'Narrativa francese', 3),
+('844', 'Saggi francesi', 3),
+('845', 'Discorsi francesi', 3),
+('846', 'Lettere francesi', 3),
+('847', 'Satira e umorismo francesi', 3),
+('848', 'Scritti vari francesi', 3),
+('849', 'Occitana e Catalana', 3),
+('850', 'Letterature italiana, romena e retoromanza', 2),
+('851', 'Poesia italiana', 3),
+('851.1', 'Dante Alighieri', 4),
+('852', 'Dramma italiano', 3),
+('853', 'Narrativa italiana', 3),
+('854', 'Saggi italiani', 3),
+('855', 'Discorsi italiani', 3),
+('856', 'Lettere italiane', 3),
+('857', 'Satira e umorismo italiani', 3),
+('858', 'Scritti vari italiani', 3),
+('859', 'Romena e Retoromanza', 3),
+('860', 'Letterature spagnola e portoghese', 2),
+('861', 'Poesia spagnola', 3),
+('862', 'Dramma spagnolo', 3),
+('863', 'Narrativa spagnola', 3),
+('864', 'Saggi spagnoli', 3),
+('865', 'Discorsi spagnoli', 3),
+('866', 'Lettere spagnole', 3),
+('867', 'Satira e umorismo spagnoli', 3),
+('868', 'Scritti vari spagnoli', 3),
+('869', 'Portoghese', 3),
+('870', 'Letterature italiche; Latino', 2),
+('871', 'Poesia latina', 3),
+('872', 'Dramma latino', 3),
+('873', 'Poesia epica latina', 3),
+('874', 'Poesia lirica latina', 3),
+('875', 'Discorsi latini', 3),
+('876', 'Lettere latine', 3),
+('877', 'Satira e umorismo latini', 3),
+('878', 'Scritti vari latini', 3),
+('879', 'Altre letterature italiche', 3),
+('880', 'Letterature elleniche; Greco classico', 2),
+('881', 'Poesia greca', 3),
+('882', 'Dramma greco', 3),
+('883', 'Poesia epica greca', 3),
+('884', 'Poesia lirica greca', 3),
+('885', 'Discorsi greci', 3),
+('886', 'Lettere greche', 3),
+('887', 'Satira e umorismo greci', 3),
+('888', 'Scritti vari greci', 3),
+('889', 'Greca moderna', 3),
+('890', 'Letterature di altre lingue', 2),
+('891', 'Indoeuropee orientali e celtiche', 3),
+('891.7', 'Letteratura russa', 4),
+('892', 'Afroasiatiche; Semitiche', 3),
+('893', 'Afroasiatiche non semitiche', 3),
+('894', 'Altaiche, uraliche, iperborree', 3),
+('895', 'Asia orientale e sudorientale', 3),
+('896', 'Africane', 3),
+('897', 'Native nordamericane', 3),
+('898', 'Native sudamericane', 3),
+('899', 'Non austronesiane, altre', 3),
+('900', 'Storia e geografia', 1),
+('901', 'Filosofia e teoria', 3),
+('902', 'Miscellanea', 3),
+('903', 'Dizionari ed enciclopedie', 3),
+('904', 'Raccolte di resoconti di eventi', 3),
+('905', 'Pubblicazioni seriali', 3),
+('906', 'Organizzazioni', 3),
+('907', 'Educazione, ricerca', 3),
+('908', 'Gruppi di persone', 3),
+('909', 'Storia universale', 3),
+('910', 'Geografia e viaggi', 2),
+('911', 'Geografia storica', 3),
+('912', 'Atlanti, mappe', 3),
+('913', 'Geografia e viaggi mondo antico', 3),
+('914', 'Geografia e viaggi in Europa', 3),
+('914.5', 'Italia (Geografia)', 4),
+('915', 'Geografia e viaggi in Asia', 3),
+('916', 'Geografia e viaggi in Africa', 3),
+('917', 'Geografia e viaggi in Nord America', 3),
+('918', 'Geografia e viaggi in Sud America', 3),
+('919', 'Geografia e viaggi altre aree', 3),
+('920', 'Biografia, genealogia, insegne', 2),
+('921', 'Filosofi e psicologi', 3),
+('922', 'Leader religiosi', 3),
+('923', 'Politici, economisti, giuristi', 3),
+('924', 'Linguisti', 3),
+('925', 'Scienziati', 3),
+('926', 'Tecnologi', 3),
+('927', 'Artisti', 3),
+('928', 'Letterati', 3),
+('929', 'Genealogia, nomi, insegne', 3),
+('930', 'Storia del mondo antico', 2),
+('931', 'Cina antica', 3),
+('932', 'Egitto antico', 3),
+('933', 'Palestina antica', 3),
+('934', 'India', 3),
+('935', 'Mesopotamia e Altopiano Iranico', 3),
+('936', 'Europa a nord e ovest dell''Italia', 3),
+('937', 'Italia e territori limitrofi', 3),
+('938', 'Grecia antica', 3),
+('939', 'Altre parti del mondo antico', 3),
+('940', 'Storia d''Europa', 2),
+('940.1', 'Medioevo', 4),
+('940.2', 'Storia moderna', 4),
+('940.3', 'Prima Guerra Mondiale', 4),
+('940.5', 'Seconda Guerra Mondiale', 4),
+('941', 'Isole Britanniche', 3),
+('942', 'Inghilterra e Galles', 3),
+('943', 'Europa centrale; Germania', 3),
+('944', 'Francia e Monaco', 3),
+('945', 'Italia', 3),
+('945.01', 'Medioevo italiano', 5),
+('945.05', 'Rinascimento', 5),
+('945.08', 'Risorgimento', 5),
+('945.09', 'Italia contemporanea', 5),
+('946', 'Penisola Iberica; Spagna', 3),
+('947', 'Europa orientale; Russia', 3),
+('948', 'Scandinavia', 3),
+('949', 'Altre parti d''Europa', 3),
+('950', 'Storia dell''Asia; Estremo Oriente', 2),
+('951', 'Cina e aree limitrofe', 3),
+('952', 'Giappone', 3),
+('953', 'Penisola Arabica e aree limitrofe', 3),
+('954', 'Asia meridionale; India', 3),
+('955', 'Iran', 3),
+('956', 'Medio Oriente', 3),
+('957', 'Siberia (Russia asiatica)', 3),
+('958', 'Asia centrale', 3),
+('959', 'Sud-est asiatico', 3),
+('960', 'Storia dell''Africa', 2),
+('961', 'Tunisia e Libia', 3),
+('962', 'Egitto e Sudan', 3),
+('963', 'Etiopia e Eritrea', 3),
+('964', 'Costa nord-occidentale e isole', 3),
+('965', 'Algeria', 3),
+('966', 'Africa occidentale e isole', 3),
+('967', 'Africa centrale e isole', 3),
+('968', 'Africa meridionale', 3),
+('969', 'Isole dell''Oceano Indiano meridionale', 3),
+('970', 'Storia del Nord America', 2),
+('971', 'Canada', 3),
+('972', 'Messico, America Centrale, Caraibi', 3),
+('973', 'Stati Uniti', 3),
+('973.7', 'Guerra civile americana', 4),
+('974', 'Stati Uniti nord-orientali', 3),
+('975', 'Stati Uniti sud-orientali', 3),
+('976', 'Stati Uniti centro-meridionali', 3),
+('977', 'Stati Uniti centro-settentrionali', 3),
+('978', 'Stati Uniti occidentali', 3),
+('979', 'Stati Uniti del Gran Bacino e del Pacifico', 3),
+('980', 'Storia del Sud America', 2),
+('981', 'Brasile', 3),
+('982', 'Argentina', 3),
+('983', 'Cile', 3),
+('984', 'Bolivia', 3),
+('985', 'Perù', 3),
+('986', 'Colombia e Ecuador', 3),
+('987', 'Venezuela', 3),
+('988', 'Guiana', 3),
+('989', 'Paraguay e Uruguay', 3),
+('990', 'Storia di altre aree', 2),
+('991', 'Non specificato', 3),
+('992', 'Non specificato', 3),
+('993', 'Nuova Zelanda', 3),
+('994', 'Australia', 3),
+('995', 'Melanesia; Nuova Guinea', 3),
+('996', 'Altre parti del Pacifico; Polinesia', 3),
+('997', 'Isole dell''Oceano Atlantico', 3),
+('998', 'Isole Artiche e Antartide', 3),
+('999', 'Mondi extraterrestri', 3);

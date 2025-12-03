@@ -241,28 +241,48 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         </div>
         <div class="card-body form-section">
           <input type="hidden" name="classificazione_dowey" id="classificazione_dowey" value="<?php echo HtmlHelper::e($book['classificazione_dowey'] ?? ''); ?>" />
-          <div class="form-grid-3">
-            <div>
-              <label for="dewey_l1" class="form-label"><?= __("Classe (000-900)") ?></label>
-              <select id="dewey_l1" name="dewey_l1" class="form-input">
-                <option value=""><?= __("Seleziona classe...") ?></option>
-              </select>
-            </div>
-            <div>
-              <label for="dewey_l2" class="form-label"><?= __("Divisione (010-990)") ?></label>
-              <select id="dewey_l2" name="dewey_l2" class="form-input" disabled>
-                <option value=""><?= __("Seleziona divisione...") ?></option>
-              </select>
-            </div>
-            <div>
-              <label for="dewey_l3" class="form-label"><?= __("Sezione") ?></label>
-              <select id="dewey_l3" name="dewey_l3" class="form-input" disabled>
-                <option value=""><?= __("Seleziona sezione...") ?></option>
-              </select>
+
+          <!-- Chip Dewey selezionato -->
+          <div id="dewey_chip_container" class="mb-4" style="display: none;">
+            <label class="form-label"><?= __("Classificazione selezionata:") ?></label>
+            <div id="dewey_chip" class="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
+              <span class="font-mono font-bold" id="dewey_chip_code"></span>
+              <span class="text-sm" id="dewey_chip_name"></span>
+              <button type="button" id="dewey_chip_remove" class="text-blue-600 hover:text-blue-900">
+                <i class="fas fa-times"></i>
+              </button>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mt-2"><?= __("Codice Dewey selezionato:") ?> <span id="dewey_code" class="font-mono font-semibold text-gray-900">-</span></p>
-          <p class="text-xs text-gray-500 mt-1"><?= __("La classificazione Dewey è utilizzata per organizzare i libri per argomento secondo standard internazionali") ?></p>
+
+          <!-- Input manuale Dewey -->
+          <div class="mb-4">
+            <label for="dewey_manual_input" class="form-label"><?= __("Codice Dewey") ?></label>
+            <div class="flex gap-2">
+              <input type="text" id="dewey_manual_input" class="form-input" placeholder="<?= __('es. 599.9, 004.6782, 641.5945, 599.1') ?>" />
+              <button type="button" id="dewey_add_btn" class="btn btn-primary">
+                <i class="fas fa-plus"></i> <?= __("Aggiungi") ?>
+              </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Inserisci qualsiasi codice Dewey (anche se non presente nell'elenco)") ?></p>
+          </div>
+
+          <!-- Navigazione per categorie (opzionale) -->
+          <details class="mb-4">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-700 hover:text-blue-600">
+              <?= __("Oppure naviga per categorie") ?>
+            </summary>
+            <div class="mt-3 p-3 bg-gray-50 rounded">
+              <div id="dewey_breadcrumb" class="text-xs text-gray-600 mb-2 flex items-center gap-1">
+                <i class="fas fa-home"></i>
+                <span><?= __("Nessuna selezione") ?></span>
+              </div>
+              <div id="dewey_levels_container" class="space-y-2">
+                <!-- I select verranno aggiunti dinamicamente -->
+              </div>
+            </div>
+          </details>
+
+          <p class="text-xs text-gray-500 mt-2"><?= __("La classificazione Dewey è utilizzata per organizzare i libri per argomento secondo standard internazionali") ?></p>
 
           <h3 class="text-lg font-semibold text-gray-900 mt-6 mb-4"><?= __("Genere") ?></h3>
 
@@ -997,132 +1017,222 @@ function initializeChoicesJS() {
     }
 }
 
-// Initialize Dewey cascading selects
+// Initialize Dewey with chip-based selection
 async function initializeDewey() {
-  const l1 = document.getElementById('dewey_l1');
-  const l2 = document.getElementById('dewey_l2');
-  const l3 = document.getElementById('dewey_l3');
-  const codeOut = document.getElementById('dewey_code');
+  const container = document.getElementById('dewey_levels_container');
+  const breadcrumb = document.getElementById('dewey_breadcrumb');
   const hidden = document.getElementById('classificazione_dowey');
+  const manualInput = document.getElementById('dewey_manual_input');
+  const addBtn = document.getElementById('dewey_add_btn');
+  const chipContainer = document.getElementById('dewey_chip_container');
+  const chipCode = document.getElementById('dewey_chip_code');
+  const chipName = document.getElementById('dewey_chip_name');
+  const chipRemove = document.getElementById('dewey_chip_remove');
 
-  const initialParts = (INITIAL_BOOK.classificazione_dowey || '').split('-').filter(Boolean);
-  let appliedL2 = false;
-  let appliedL3 = false;
+  let currentDeweyCode = '';
+  let currentDeweyName = '';
 
-  const fill = (sel, items, placeholder) => {
-    sel.innerHTML = '';
-    const opt0 = document.createElement('option');
-    opt0.value = ''; opt0.textContent = placeholder; sel.appendChild(opt0);
-    items.forEach(it => {
-      const o = document.createElement('option');
-      o.value = it.codice; // Use the code as value
-      o.dataset.code = it.codice;
-      o.textContent = `${it.codice} — ${it.nome}`;
-      sel.appendChild(o);
-    });
+  // Valida formato codice Dewey (numeri e punti, max 10 caratteri)
+  const validateDeweyCode = (code) => {
+    return /^[0-9]{1,3}(\.[0-9]{1,4})?$/.test(code);
   };
 
-  const updateHidden = () => {
-    const code1 = l1.value || '';
-    const code2 = l2.value || '';
-    const code3 = l3.value || '';
-    
-    let finalCode = '';
-    if (code1 && code2 && code3) {
-      // All three levels selected: XXX-XXX-XXX
-      finalCode = `${code1}-${code2}-${code3}`;
-    } else if (code1 && code2) {
-      // Two levels selected: XXX-XXX
-      finalCode = `${code1}-${code2}`;
-    } else if (code1) {
-      // Only first level selected: XXX
-      finalCode = code1;
+  // Ottieni il codice parent (es. 599.1 → 599, 599.93 → 599.9)
+  const getParentCode = (code) => {
+    if (!code.includes('.')) return null; // Nessun parent se non ha decimali
+
+    const parts = code.split('.');
+    const intPart = parts[0]; // 599
+    const decPart = parts[1]; // 1 oppure 93
+
+    if (decPart.length === 1) {
+      // 599.1 → parent è 599
+      return intPart;
+    } else {
+      // 599.93 → parent è 599.9
+      return `${intPart}.${decPart.substring(0, decPart.length - 1)}`;
     }
-    
-    hidden.value = finalCode;
-    codeOut.textContent = finalCode || '-';
   };
 
-  // Load L1 categories
-  try {
-    const cats = await fetch('/api/dewey/categories', { credentials: 'same-origin' }).then(r => r.json());
-
-    if (!cats || cats.length === 0) {
-      const warn = document.createElement('div');
-      warn.className = 'text-xs text-red-600 mt-2';
-      warn.textContent = '<?= __("Errore caricamento classificazione Dewey") ?>';
-      l1.parentElement.appendChild(warn);
+  // Imposta il codice Dewey corrente
+  const setDeweyCode = async (code, name = null) => {
+    if (!code) {
+      clearDeweyCode();
       return;
     }
-    
-    fill(l1, cats, __('Seleziona classe...'));
-    if (initialParts[0]) {
-      l1.value = initialParts[0];
-      l1.dispatchEvent(new Event('change'));
-    }
-  } catch(e) { 
-    console.error('Dewey L1 error', e);
-    const warn = document.createElement('div');
-    warn.className = 'text-xs text-red-600 mt-2';
-    warn.textContent = '<?= __("Errore caricamento classificazione Dewey") ?>';
-    l1.parentElement.appendChild(warn);
-  }
 
-  l1.addEventListener('change', async () => {
-    l2.disabled = true; 
-    l3.disabled = true; 
-    fill(l2, [], __('Seleziona divisione...')); 
-    fill(l3, [], __('Seleziona sezione...'));
-    updateHidden();
-    
-    const code = l1.value;
-    if (!code) return;
-    
-    try {
-      const divs = await fetch(`/api/dewey/divisions?category_id=${encodeURIComponent(code)}`).then(r => r.json());
-      if (divs && divs.length > 0) {
-        fill(l2, divs, __('Seleziona divisione...')); 
-        l2.disabled = false;
-        if (initialParts[1] && !appliedL2) {
-          l2.value = initialParts[1];
-          appliedL2 = true;
-          l2.dispatchEvent(new Event('change'));
+    currentDeweyCode = code;
+    currentDeweyName = name || '';
+
+    // Se non abbiamo il nome, prova a cercarlo
+    if (!currentDeweyName) {
+      try {
+        const result = await fetch(`/api/dewey/search?code=${encodeURIComponent(code)}`, {
+          credentials: 'same-origin'
+        }).then(r => r.json());
+
+        if (result && result.name) {
+          currentDeweyName = result.name;
+        } else {
+          // Non trovato, cerca il parent
+          const parentCode = getParentCode(code);
+          if (parentCode) {
+            const parentResult = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
+              credentials: 'same-origin'
+            }).then(r => r.json());
+
+            if (parentResult && parentResult.name) {
+              currentDeweyName = `${parentResult.name} > ${code}`;
+            }
+          }
         }
+      } catch (e) {
+        console.log('Dewey name not found, using code only');
       }
-    } catch(e) { 
-      console.error('Dewey L2 error', e); 
+    }
+
+    // Aggiorna UI
+    hidden.value = currentDeweyCode;
+    chipCode.textContent = currentDeweyCode;
+    chipName.textContent = currentDeweyName ? `— ${currentDeweyName}` : '';
+    chipContainer.style.display = 'block';
+    manualInput.value = '';
+  };
+
+  // Rimuovi il codice Dewey corrente
+  const clearDeweyCode = () => {
+    currentDeweyCode = '';
+    currentDeweyName = '';
+    hidden.value = '';
+    chipContainer.style.display = 'none';
+    chipCode.textContent = '';
+    chipName.textContent = '';
+    manualInput.value = '';
+
+    // Reset navigazione
+    container.innerHTML = '';
+    breadcrumb.innerHTML = '<i class="fas fa-home"></i> <span><?= __("Nessuna selezione") ?></span>';
+    loadLevel(null, 0);
+  };
+
+  // Gestione pulsante "Aggiungi"
+  addBtn.addEventListener('click', async () => {
+    const code = manualInput.value.trim();
+
+    if (!code) {
+      alert(__('<?= __("Inserisci un codice Dewey") ?>'));
+      return;
+    }
+
+    if (!validateDeweyCode(code)) {
+      alert(__('<?= __("Formato codice non valido. Usa formato: 599 oppure 599.9 oppure 599.93") ?>'));
+      return;
+    }
+
+    await setDeweyCode(code);
+  });
+
+  // Gestione rimozione chip
+  chipRemove.addEventListener('click', () => {
+    clearDeweyCode();
+  });
+
+  // Gestione Enter nell'input
+  manualInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addBtn.click();
     }
   });
 
-  l2.addEventListener('change', async () => {
-    l3.disabled = true; 
-    fill(l3, [], __('Seleziona sezione...'));
-    updateHidden();
-    
-    const code = l2.value;
-    if (!code) return;
-    
+  // Carica livelli Dewey per navigazione
+  const loadLevel = async (parentCode = null, levelIndex = 0) => {
     try {
-      const specs = await fetch(`/api/dewey/specifics?division_id=${encodeURIComponent(code)}`).then(r => r.json());
-      if (specs && specs.length > 0) {
-        fill(l3, specs, __('Seleziona sezione...')); 
-        l3.disabled = false;
-        if (initialParts[2] && !appliedL3) {
-          l3.value = initialParts[2];
-          appliedL3 = true;
-          updateHidden();
-        }
+      const url = parentCode
+        ? `/api/dewey/children?parent_code=${encodeURIComponent(parentCode)}`
+        : '/api/dewey/children';
+
+      const items = await fetch(url, { credentials: 'same-origin' }).then(r => r.json());
+
+      if (!items || items.length === 0) return;
+
+      // Rimuovi tutti i select dopo questo livello
+      while (container.children.length > levelIndex) {
+        container.removeChild(container.lastChild);
       }
-    } catch(e) { 
-      console.error('Dewey L3 error', e); 
+
+      // Crea nuovo select
+      const selectWrapper = document.createElement('div');
+      const select = document.createElement('select');
+      select.className = 'form-input';
+      select.dataset.level = levelIndex;
+
+      const opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = '<?= __("Seleziona...") ?>';
+      select.appendChild(opt0);
+
+      items.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.code;
+        opt.dataset.hasChildren = item.has_children;
+        opt.dataset.name = item.name;
+        opt.textContent = `${item.code} — ${item.name}`;
+        select.appendChild(opt);
+      });
+
+      select.addEventListener('change', async (e) => {
+        const selectedOption = e.target.selectedOptions[0];
+        const code = e.target.value;
+
+        if (!code) {
+          // Rimuovi select successivi
+          while (container.children.length > levelIndex + 1) {
+            container.removeChild(container.lastChild);
+          }
+          breadcrumb.innerHTML = '<i class="fas fa-home"></i> <span><?= __("Nessuna selezione") ?></span>';
+          return;
+        }
+
+        const name = selectedOption.dataset.name;
+        const hasChildren = selectedOption.dataset.hasChildren === 'true';
+
+        // Aggiorna breadcrumb
+        breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span class="text-gray-500">${code}</span>`;
+
+        // Se ha figli, carica il livello successivo
+        if (hasChildren) {
+          await loadLevel(code, levelIndex + 1);
+        } else {
+          // Rimuovi select successivi (non ci sono più figli)
+          while (container.children.length > levelIndex + 1) {
+            container.removeChild(container.lastChild);
+          }
+          // Imposta questo codice come selezionato
+          await setDeweyCode(code, name);
+        }
+      });
+
+      selectWrapper.appendChild(select);
+      container.appendChild(selectWrapper);
+
+      return select;
+    } catch (e) {
+      console.error('Dewey level error:', e);
     }
-  });
+  };
 
-  l3.addEventListener('change', updateHidden);
+  // Carica primo livello (classi principali)
+  await loadLevel(null, 0);
 
-  // Ensure initial code is reflected if no deeper levels present
-  if (initialParts.length === 1) {
-    updateHidden();
+  // Carica valore iniziale se presente
+  const initialCode = (INITIAL_BOOK.classificazione_dowey || '').trim();
+  if (initialCode) {
+    // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
+    const parts = initialCode.split('-');
+    const finalCode = parts.length > 1 ? parts[parts.length - 1] : initialCode;
+
+    await setDeweyCode(finalCode);
   }
 }
 

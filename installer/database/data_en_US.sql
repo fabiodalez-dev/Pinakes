@@ -35,1015 +35,2287 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('system', 'catalogue_mode', '0', 'Catalogue-only mode - disables loans, reservations and wishlist');
 
 
--- Dewey Decimal Classification - English translations
+-- Dewey Decimal Classification
+-- Language: en_US
+-- Generated: 2025-12-02 23:56:23
+-- Total entries: 1266
+
+INSERT INTO dewey (code, name, level) VALUES
+('000', 'Computer science, information & general works', 1),
+('001', 'Knowledge', 3),
+('001.1', 'Vita intellettuale', 4),
+('001.2', 'Istruzione e ricerca', 4),
+('001.3', 'Discipline umanistiche', 4),
+('001.4', 'Ricerca e metodi statistici', 4),
+('001.42', 'Metodi di raccolta dati', 5),
+('001.422', 'Metodi statistici', 6),
+('001.43', 'Analisi e interpretazione dati', 5),
+('001.9', 'Conoscenza controversa', 4),
+('001.94', 'Misteri', 5),
+('001.942', 'Oggetti volanti non identificati (UFO)', 6),
+('001.944', 'Mostri e creature leggendarie', 6),
+('002', 'The book (writing, libraries, and related topics)', 3),
+('003', 'Systems', 3),
+('003.1', 'Identificazione dei sistemi', 4),
+('003.2', 'Previsioni e stime', 4),
+('003.3', 'Modellazione e simulazione', 4),
+('003.5', 'Cibernetica', 4),
+('003.54', 'Teoria dell''informazione', 5),
+('003.56', 'Teoria delle decisioni', 5),
+('003.7', 'Tipi di sistemi', 4),
+('003.8', 'Sistemi temporali', 4),
+('004', 'Data processing & computer science', 3),
+('004.01', 'Filosofia e teoria', 5),
+('004.1', 'Hardware', 4),
+('004.11', 'Supercomputer', 5),
+('004.16', 'Personal computer', 5),
+('004.165', 'Dispositivi mobili', 6),
+('004.2', 'Analisi e progettazione sistemi', 4),
+('004.3', 'Modalità di elaborazione', 4),
+('004.5', 'Archiviazione', 4),
+('004.6', 'Networks', 4),
+('004.61', 'Architettura di rete', 5),
+('004.62', 'Protocolli di rete', 5),
+('004.65', 'Architettura delle comunicazioni', 5),
+('004.67', 'Reti geografiche (WAN)', 5),
+('004.678', 'Internet', 6),
+('004.6782', 'World Wide Web', 7),
+('004.69', 'Sicurezza delle reti', 5),
+('004.9', 'Applicazioni non elettroniche', 4),
+('005', 'Computer programming, programs & data', 3),
+('005.1', 'Software development', 4),
+('005.13', 'Programming languages', 5),
+('005.133', 'Linguaggi specifici (C, Java, Python)', 6),
+('005.2', 'Programmazione piattaforme specifiche', 4),
+('005.3', 'Programmi', 4),
+('005.4', 'Programmazione di sistema', 4),
+('005.43', 'Sistemi operativi', 5),
+('005.432', 'Windows', 6),
+('005.434', 'UNIX / Linux', 6),
+('005.435', 'macOS', 6),
+('005.5', 'Applicazioni generali', 4),
+('005.7', 'Dati', 4),
+('005.74', 'Database', 5),
+('005.75', 'Tipi di database', 5),
+('005.8', 'Sicurezza informatica', 4),
+('006', 'Special computer methods (e.g., AI, multimedia, VR)', 3),
+('006.3', 'Intelligenza artificiale', 4),
+('006.31', 'Machine learning', 5),
+('006.32', 'Reti neurali', 5),
+('006.33', 'Sistemi esperti', 5),
+('006.35', 'Elaborazione del linguaggio naturale', 5),
+('006.37', 'Visione artificiale', 5),
+('006.4', 'Riconoscimento pattern', 4),
+('006.5', 'Sintesi audio', 4),
+('006.6', 'Computer grafica', 4),
+('006.7', 'Multimedia', 4),
+('006.8', 'Realtà virtuale', 4),
+('007', '[Unassigned]', 3),
+('008', '[Unassigned]', 3),
+('009', '[Unassigned]', 3),
+('010', 'Bibliographies', 2),
+('011', 'Bibliographies', 3),
+('012', 'Bibliographies of individuals', 3),
+('013', '[Unassigned]', 3),
+('014', 'Bibliographies of anonymous & pseudonymous works', 3),
+('015', 'Bibliographies of works from specific places', 3),
+('016', 'Bibliographies of works on specific subjects', 3),
+('017', 'General subject catalogs', 3),
+('018', 'Catalogs arranged by author, date, etc. [moved to 017]', 3),
+('019', 'Dictionary catalogs [moved to 017]', 3),
+('020', 'Library & information sciences', 2),
+('021', 'Library relationships (with archives, information centers, etc.)', 3),
+('022', 'Administration of the physical plant', 3),
+('023', 'Personnel management', 3),
+('024', '[Unassigned]', 3),
+('025', 'Library operations', 3),
+('025.04', 'Recupero informazioni', 5),
+('025.1', 'Amministrazione', 4),
+('025.2', 'Acquisizioni', 4),
+('025.3', 'Catalogazione', 4),
+('025.31', 'Descrizione bibliografica', 5),
+('025.32', 'Formati (MARC)', 5),
+('025.4', 'Classificazione', 4),
+('025.43', 'Classificazione decimale Dewey', 5),
+('025.5', 'Servizi al pubblico', 4),
+('026', 'Libraries for specific subjects', 3),
+('027', 'General libraries', 3),
+('027.4', 'Biblioteche pubbliche', 4),
+('027.5', 'Biblioteche nazionali', 4),
+('027.6', 'Biblioteche per gruppi speciali', 4),
+('027.7', 'Biblioteche universitarie', 4),
+('027.8', 'Biblioteche scolastiche', 4),
+('028', 'Reading & use of other information media', 3),
+('028.1', 'Recensioni', 4),
+('028.5', 'Lettura per bambini e ragazzi', 4),
+('029', '[Unassigned]', 3),
+('030', 'Encyclopedias & books of facts', 2),
+('031', 'Encyclopedias in American English', 3),
+('032', 'Encyclopedias in English', 3),
+('033', 'Encyclopedias in other Germanic languages', 3),
+('034', 'Encyclopedias in French, Occitan & Catalan', 3),
+('035', 'Encyclopedias in Italian, Romanian & related languages', 3),
+('036', 'Encyclopedias in Spanish & Portuguese', 3),
+('037', 'Encyclopedias in Slavic languages', 3),
+('038', 'Encyclopedias in Scandinavian languages', 3),
+('039', 'Encyclopedias in other languages', 3),
+('040', 'Unassigned — formerly Biographies', 2),
+('041', '[Unassigned]', 3),
+('042', '[Unassigned]', 3),
+('043', '[Unassigned]', 3),
+('044', '[Unassigned]', 3),
+('045', '[Unassigned]', 3),
+('046', '[Unassigned]', 3),
+('047', '[Unassigned]', 3),
+('048', '[Unassigned]', 3),
+('049', '[Unassigned]', 3),
+('050', 'Magazines, journals & serials', 2),
+('051', 'Serials in American English', 3),
+('052', 'Serials in English', 3),
+('053', 'Serials in other Germanic languages', 3),
+('054', 'Serials in French, Occitan & Catalan', 3),
+('055', 'Serials in Italian, Romanian & related languages', 3),
+('056', 'Serials in Spanish & Portuguese', 3),
+('057', 'Serials in Slavic languages', 3),
+('058', 'Serials in Scandinavian languages', 3),
+('059', 'Serials in other languages', 3),
+('060', 'Associations, organizations & museums', 2),
+('061', 'Organizations in North America', 3),
+('062', 'Organizations in British Isles; in England', 3),
+('063', 'Organizations in central Europe; in Germany', 3),
+('064', 'Organizations in France & Monaco', 3),
+('065', 'Organizations in Italy & adjacent islands', 3),
+('066', 'Organizations in Iberian Peninsula & adjacent islands', 3),
+('067', 'Organizations in eastern Europe; in Russia', 3),
+('068', 'Organizations in other geographic areas', 3),
+('069', 'Museology (Museum science)', 3),
+('069.1', 'Servizi educativi', 4),
+('069.2', 'Gestione collezioni', 4),
+('069.5', 'Collezioni ed esposizioni', 4),
+('070', 'News media, journalism & publishing', 2),
+('070.1', 'Media documentari', 4),
+('070.4', 'Giornalismo', 4),
+('070.5', 'Editoria', 4),
+('071', 'Newspapers in North America', 3),
+('072', 'Newspapers in British Isles; in England', 3),
+('073', 'Newspapers in central Europe; in Germany', 3),
+('074', 'Newspapers in France & Monaco', 3),
+('075', 'Newspapers in Italy & adjacent islands', 3),
+('076', 'Newspapers in Iberian peninsula & adjacent islands', 3),
+('077', 'Newspapers in eastern Europe; in Russia', 3),
+('078', 'Newspapers in Scandinavia', 3),
+('079', 'Newspapers in other geographic areas', 3),
+('080', 'Quotations', 2),
+('081', 'Collections in American English', 3),
+('082', 'Collections in English', 3),
+('083', 'Collections in other Germanic languages', 3),
+('084', 'Collections in French, Occitan, Catalan', 3),
+('085', 'Collections in Italian, Romanian & related languages', 3),
+('086', 'Collections in Spanish & Portuguese', 3),
+('087', 'Collections in Slavic languages', 3),
+('088', 'Collections in Scandinavian languages', 3),
+('089', 'Collections in other languages', 3),
+('090', 'Manuscripts & rare books', 2),
+('091', 'Manuscripts', 3),
+('092', 'Block books', 3),
+('093', 'Incunabula', 3),
+('094', 'Printed books', 3),
+('095', 'Books notable for bindings', 3),
+('096', 'Books notable for illustrations', 3),
+('097', 'Books notable for ownership or origin', 3),
+('098', 'Prohibited works, forgeries & hoaxes', 3),
+('099', 'Books notable for format', 3),
+('100', 'Social sciences, sociology & anthropology', 1),
+('101', 'Sociology & anthropology', 3),
+('102', 'Social interaction', 3),
+('103', 'Social processes', 3),
+('104', 'Factors affecting social behavior', 3),
+('105', 'Groups of people', 3),
+('106', 'Leaders & organization', 3),
+('107', 'Missions & religious education', 3),
+('108', 'Sources', 3),
+('109', 'Sects & reform movements', 3),
+('110', 'Statistics', 2),
+('111', 'No longer in use — formerly Theory and methods', 3),
+('112', 'Existence, ways of knowing God, attributes of God', 3),
+('113', 'No longer in use — formerly Special topics', 3),
+('114', 'Theodicy', 3),
+('115', 'General statistics of Asia', 3),
+('116', 'No longer in use—formerly Evil', 3),
+('117', 'No longer in use—formerly Prayer', 3),
+('118', 'Humankind', 3),
+('119', 'No longer in use—formerly Analogies', 3),
+('120', 'Political science (politics & government)', 2),
+('121', 'Systems of governments & states', 3),
+('122', 'Historical books of Old Testament', 3),
+('123', 'Poetic books of Old Testament', 3),
+('124', 'Prophetic books of Old Testament', 3),
+('125', 'International migration & colonization', 3),
+('126', 'Gospels & Acts', 3),
+('127', 'Epistles', 3),
+('128', 'Revelation (Apocalypse)', 3),
+('129', 'Apocrypha, pseudepigrapha & intertestamental works', 3),
+('130', 'Economics', 2),
+('131', 'Labor economics', 3),
+('132', 'Financial economics', 3),
+('133', 'Economics of land & energy', 3),
+('133.1', 'Spettri', 4),
+('133.3', 'Divinazione', 4),
+('133.4', 'Magia e stregoneria', 4),
+('133.5', 'Astrologia', 4),
+('133.6', 'Chiromanzia', 4),
+('134', 'Cooperatives', 3),
+('135', 'Spiritual beings', 3),
+('136', 'Public finance', 3),
+('137', 'No longer in use—formerly Future state', 3),
+('138', 'Creeds, confessions of faith, covenants, catechisms', 3),
+('139', 'Macroeconomics & related topics', 3),
+('140', 'Law', 2),
+('141', 'Law of nations', 3),
+('142', 'Constitutional & administrative law', 3),
+('143', 'Evangelistic writings for individuals & families', 3),
+('144', 'No longer in use—formerly Religious fiction', 3),
+('145', 'No longer in use—formerly Hymnology', 3),
+('146', 'Use of art in Christianity', 3),
+('147', 'Church furnishings & related articles', 3),
+('148', 'Laws, regulations, cases', 3),
+('149', 'Christian observances in family life', 3),
+('150', 'Public administration & military science', 2),
+('151', 'Public administration', 3),
+('152', 'Texts of sermons', 3),
+('153', 'Specific fields of public administration', 3),
+('153.1', 'Memoria', 4),
+('153.4', 'Pensiero', 4),
+('153.9', 'Intelligenza', 4),
+('154', 'Parish administration', 3),
+('154.6', 'Sonno', 4),
+('154.63', 'Sogni', 5),
+('155', 'Military science', 3),
+('155.2', 'Psicologia individuale', 4),
+('155.4', 'Psicologia infantile', 4),
+('155.5', 'Psicologia dell''adolescenza', 4),
+('155.6', 'Psicologia dell''adulto', 4),
+('155.9', 'Psicologia ambientale', 4),
+('156', 'No longer in use—formerly Religious societies', 3),
+('157', 'No longer in use—formerly Parish schools, libraries, etc.', 3),
+('158', 'No longer in use—formerly Parish medicine', 3),
+('158.1', 'Miglioramento personale', 4),
+('158.2', 'Relazioni interpersonali', 4),
+('158.7', 'Psicologia industriale', 4),
+('159', 'Pastoral care of families, of specific groups of people', 3),
+('160', 'Social problems & services; associations', 2),
+('161', 'Social problems & services', 3),
+('162', 'Ecclesiology', 3),
+('163', 'Days, times, places of religious observance', 3),
+('164', 'Criminology', 3),
+('165', 'Sacraments, other rites & acts', 3),
+('166', 'Associations & secret societies', 3),
+('167', 'Associations for religious work', 3),
+('168', 'Religious education', 3),
+('169', 'Spiritual renewal', 3),
+('170', 'Education', 2),
+('171', 'Schools & their activities, special education', 3),
+('172', 'Persecutions in church history', 3),
+('173', 'Doctrinal controversies & heresies in general church history', 3),
+('174', 'Adult education', 3),
+('174.2', 'Etica medica', 4),
+('174.4', 'Etica degli affari', 4),
+('175', 'Curriculums', 3),
+('176', 'Christianity in Africa', 3),
+('177', 'Christianity in North America', 3),
+('178', 'Christianity in South America', 3),
+('179', 'History of Christianity in other areas', 3),
+('179.3', 'Trattamento degli animali', 4),
+('179.9', 'Virtù', 4),
+('180', 'Commerce, communications, transport', 2),
+('181', 'Commerce (Trade)', 3),
+('182', 'International commerce (foreign trade)', 3),
+('183', 'Postal communication', 3),
+('184', 'Communications', 3),
+('185', 'Railroad transportation', 3),
+('186', 'Inland waterway & ferry transportation', 3),
+('187', 'Water, air, space transportation', 3),
+('188', 'No longer in use — formerly Unitarian', 3),
+('189', 'Other denominations & sects', 3),
+('190', 'Customs, etiquette, folklore', 2),
+('191', 'No longer in use — formerly Comparative religion', 3),
+('192', 'Customs of life cycle & domestic life', 3),
+('193', 'Death customs', 3),
+('194', 'General customs', 3),
+('195', 'Zoroastrianism (Mazdaism, Parseeism)', 3),
+('196', 'No longer in use — formerly Women''s position and treatment', 3),
+('197', 'No longer in use — formerly Outcast studies', 3),
+('198', 'No longer in use — formerly Mormonism', 3),
+('199', 'Customs of war & diplomacy', 3),
+('200', 'Language', 1),
+('201', 'Philosophy & theory, international languages', 3),
+('202', 'Miscellany', 3),
+('203', 'Dictionaries, encyclopedias, concordances', 3),
+('204', 'Special topics of language', 3),
+('205', 'Serial publications', 3),
+('206', 'Organizations & management', 3),
+('207', 'Education, research, related topics', 3),
+('208', 'No longer in use — formerly Polygraphy', 3),
+('209', 'No longer in use — formerly History of sociology', 3),
+('210', 'Linguistics', 2),
+('211', 'No longer in use — formerly Theory and methods', 3),
+('212', 'No longer in use — formerly Population', 3),
+('213', 'No longer in use — formerly Special topics', 3),
+('214', 'Phonology & phonetics of standard forms of languages', 3),
+('215', 'Grammar of standard forms of languages', 3),
+('216', 'No longer in use — formerly Prosody', 3),
+('217', 'Dialectology & historical linguistics', 3),
+('218', 'Standard usage (Prescriptive linguistics)', 3),
+('219', 'General statistics of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica', 3),
+('220', 'English & Old English (Anglo-Saxon)', 2),
+('221', 'Writing system, phonology, phonetics of standard English', 3),
+('222', 'Relation of state to organized groups & their members', 3),
+('223', 'Dictionaries of standard English', 3),
+('224', 'No longer in use — formerly English thesauruses', 3),
+('225', 'Grammar of standard English', 3),
+('226', 'No longer in use — formerly English prosodies', 3),
+('227', 'Historical & geographic variations, modern nongeographic variations of English', 3),
+('228', 'Standard English usage (Prescriptive linguistics)', 3),
+('229', 'No longer in use— formerly Political parties', 3),
+('230', 'Germanic languages & related languages', 2),
+('231', 'Writing systems, phonology, phonetics of standard German', 3),
+('232', 'Etymology of standard German', 3),
+('233', 'Dictionaries of standard German', 3),
+('234', 'Cooperatives', 3),
+('235', 'Grammar of standard German', 3),
+('236', 'Unassigned or no longer in use', 3),
+('237', 'Historical & geographic variations, modern nongeographic variations of German', 3),
+('238', 'Standard German usage (Prescriptive linguistics)', 3),
+('239', 'Other Germanic languages', 3),
+('240', 'French & related Romance languages', 2),
+('241', 'Writing systems, phonology, phonetics of standard French', 3),
+('242', 'Etymology of standard French', 3),
+('243', 'Dictionaries of standard French', 3),
+('244', 'Unassigned or no longer in use', 3),
+('245', 'Grammar of standard French', 3),
+('246', 'Unassigned or no longer in use', 3),
+('247', 'Historical & geographic variations, modern nongeographic variations of French', 3),
+('248', 'Standard French usage (Prescriptive linguistics)', 3),
+('249', 'Occitan, Catalan, Franco-Provençal', 3),
+('250', 'Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican', 2),
+('251', 'Writing systems, phonology, phonetics of standard Italian', 3),
+('252', 'Etymology of standard Italian', 3),
+('253', 'Specific fields of public administration', 3),
+('254', 'Public administration of economy & environment', 3),
+('255', 'Grammar of standard Italian', 3),
+('256', 'Unassigned or no longer in use', 3),
+('257', 'Mounted forces & warfare', 3),
+('258', 'Standard Italian usage (Prescriptive linguistics)', 3),
+('259', 'Romanian, Rhaetian, Sardinian, Corsican', 3),
+('260', 'Spanish, Portuguese, Galician', 2),
+('261', 'Writing systems, phonology, phonetics of standard Spanish', 3),
+('262', 'Etymology of standard Spanish', 3),
+('263', 'Dictionaries of standard Spanish', 3),
+('264', 'Unassigned or no longer in use', 3),
+('265', 'Grammar of standard Spanish', 3),
+('266', 'Unassigned or no longer in use', 3),
+('267', 'Historical & geographic variations, modern nongeographic variations of Spanish', 3),
+('268', 'Standard Spanish usage (Prescriptive linguistics)', 3),
+('269', 'Associations', 3),
+('270', 'Latin & related Italic languages', 2),
+('271', 'Writing systems, phonology, phonetics of classical Latin', 3),
+('272', 'Etymology of classical Latin', 3),
+('273', 'Dictionaries of classical Latin', 3),
+('274', 'Unassigned or no longer in use', 3),
+('275', 'Grammar of classical Latin', 3),
+('276', 'No longer in use — formerly Education of women', 3),
+('277', 'No longer in use — formerly Ethical education', 3),
+('278', 'Classical Latin usage (Prescriptive linguistics)', 3),
+('279', 'Other Italic languages', 3),
+('280', 'Classical Greek & related Hellenic languages', 2),
+('281', 'Writing systems, phonology, phonetics of classical Greek', 3),
+('282', 'Etymology of classical Greek', 3),
+('283', 'Dictionaries of classical Greek', 3),
+('284', 'Unassigned or no longer in use', 3),
+('285', 'Grammar of classical Greek', 3),
+('286', 'Unassigned or no longer in use', 3),
+('287', 'Preclassical & postclassical Greek', 3),
+('288', 'Classical Greek usage (Prescriptive linguistics)', 3),
+('289', 'Other Hellenic languages', 3),
+('290', 'Other languages', 2),
+('291', 'East Indo-European & Celtic languages', 3),
+('292', 'Afro-Asiatic languages', 3),
+('293', 'Non-Semitic Afro-Asiatic languages', 3),
+('294', 'Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia', 3),
+('294.3', 'Buddismo', 4),
+('294.5', 'Induismo', 4),
+('295', 'Languages of East & Southeast Asia', 3),
+('296', 'No longer in use — formerly Women''s position and treatment', 3),
+('297', 'No longer in use — formerly Outcast studies', 3),
+('297.1', 'Corano', 4),
+('298', 'South American native languages', 3),
+('299', 'Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages', 3),
+('299.51', 'Confucianesimo', 5),
+('299.514', 'Taoismo', 6),
+('299.6', 'Religioni africane', 4),
+('300', 'Science', 1),
+('301', 'Philosophy & theory', 3),
+('302', 'Miscellany', 3),
+('302.2', 'Comunicazione', 4),
+('302.3', 'Gruppi sociali', 4),
+('303', 'Dictionaries, encyclopedias, concordances', 3),
+('303.3', 'Controllo sociale', 4),
+('303.4', 'Cambiamento sociale', 4),
+('303.6', 'Conflitto sociale', 4),
+('304', 'Special topics of language', 3),
+('305', 'Serial publications', 3),
+('305.2', 'Età', 4),
+('305.3', 'Genere', 4),
+('305.4', 'Donne', 4),
+('305.8', 'Gruppi etnici', 4),
+('306', 'Organizations & management', 3),
+('306.7', 'Sessualità', 4),
+('306.8', 'Matrimonio e famiglia', 4),
+('307', 'Education, research, related topics', 3),
+('308', 'Groups of people', 3),
+('309', 'Geographic treatment & biography', 3),
+('310', 'Mathematics', 2),
+('311', 'General principles of mathematics', 3),
+('312', 'Etymology of standard forms of languages', 3),
+('313', 'Dictionaries of standard forms of languages', 3),
+('314', 'Topology', 3),
+('315', 'Analysis', 3),
+('316', 'No longer in use — formerly Prosody', 3),
+('317', 'Dialectology & historical linguistics', 3),
+('318', 'Standard usage (Prescriptive linguistics)', 3),
+('319', 'Probabilities & applied mathematics', 3),
+('320', 'Astronomy & allied sciences', 2),
+('321', 'Writing system, phonology, phonetics of standard English', 3),
+('321.8', 'Democrazia', 4),
+('322', 'Etymology of standard English', 3),
+('323', 'Specific celestial bodies & phenomena', 3),
+('324', 'No longer in use — formerly English thesauruses', 3),
+('325', 'Earth (Astronomical geography)', 3),
+('326', 'No longer in use — formerly English prosodies', 3),
+('327', 'Historical & geographic variations, modern nongeographic variations of English', 3),
+('328', 'Standard English usage (Prescriptive linguistics)', 3),
+('329', 'Old English (Anglo-Saxon)', 3),
+('330', 'Physics', 2),
+('331', 'Writing systems, phonology, phonetics of standard German', 3),
+('331.1', 'Forza lavoro', 4),
+('331.2', 'Salari', 4),
+('331.3', 'Lavoratori', 4),
+('331.4', 'Donne lavoratrici', 4),
+('331.8', 'Sindacati', 4),
+('332', 'Etymology of standard German', 3),
+('332.1', 'Banche', 4),
+('332.4', 'Moneta', 4),
+('332.6', 'Investimenti', 4),
+('333', 'Pneumatics (Gas mechanics)', 3),
+('333.7', 'Ambiente', 4),
+('333.91', 'Acqua', 5),
+('334', 'Unassigned or no longer in use', 3),
+('335', 'Light & related radiation', 3),
+('335.4', 'Marxismo', 4),
+('336', 'Unassigned or no longer in use', 3),
+('337', 'Historical & geographic variations, modern nongeographic variations of German', 3),
+('338', 'Standard German usage (Prescriptive linguistics)', 3),
+('339', 'Other Germanic languages', 3),
+('340', 'Chemistry & allied sciences', 2),
+('341', 'Writing systems, phonology, phonetics of standard French', 3),
+('341.2', 'Comunità internazionale', 4),
+('342', 'Etymology of standard French', 3),
+('343', 'Analytical chemistry', 3),
+('344', 'Unassigned or no longer in use', 3),
+('345', 'No longer in use — formerly Quantitative analysis', 3),
+('346', 'Unassigned or no longer in use', 3),
+('347', 'Historical & geographic variations, modern nongeographic variations of French', 3),
+('348', 'Standard French usage (Prescriptive linguistics)', 3),
+('349', 'Occitan, Catalan, Franco-Provençal', 3),
+('350', 'Earth sciences & geology', 2),
+('351', 'Geology, hydrology, meteorology', 3),
+('352', 'Petrology', 3),
+('353', 'Economic geology', 3),
+('354', 'Earth sciences of Europe', 3),
+('355', 'Earth sciences of Asia', 3),
+('355.4', 'Operazioni militari', 4),
+('356', 'Unassigned or no longer in use', 3),
+('357', 'Earth sciences of North America', 3),
+('358', 'Earth sciences of South America', 3),
+('359', 'Romanian, Rhaetian, Sardinian, Corsican', 3),
+('360', 'Fossils & prehistoric life', 2),
+('361', 'Writing systems, phonology, phonetics of standard Spanish', 3),
+('362', 'Etymology of standard Spanish', 3),
+('362.1', 'Servizi sanitari', 4),
+('362.2', 'Salute mentale', 4),
+('362.3', 'Disabilità intellettiva', 4),
+('362.4', 'Disabilità fisica', 4),
+('362.5', 'Poveri', 4),
+('362.6', 'Anziani', 4),
+('362.7', 'Giovani', 4),
+('363', 'Miscellaneous fossil marine & seashore invertebrates', 3),
+('363.1', 'Sicurezza', 4),
+('363.2', 'Polizia', 4),
+('363.3', 'Protezione civile', 4),
+('363.5', 'Alloggi', 4),
+('363.7', 'Problemi ambientali', 4),
+('364', 'Unassigned or no longer in use', 3),
+('364.1', 'Reati', 4),
+('364.3', 'Delinquenti', 4),
+('365', 'Fossil Arthropoda', 3),
+('366', 'Unassigned or no longer in use', 3),
+('367', 'Historical & geographic variations, modern nongeographic variations of Spanish', 3),
+('368', 'Standard Spanish usage (Prescriptive linguistics)', 3),
+('369', 'Fossil Mammalia', 3),
+('370', 'Biology', 2),
+('370.1', 'Teoria dell''educazione', 4),
+('371', 'Writing systems, phonology, phonetics of classical Latin', 3),
+('371.1', 'Insegnamento', 4),
+('371.3', 'Metodi di insegnamento', 4),
+('371.9', 'Educazione speciale', 4),
+('372', 'Etymology of classical Latin', 3),
+('373', 'Specific physiological systems in animals, regional histology & physiology in animals', 3),
+('374', 'Unassigned or no longer in use', 3),
+('375', 'Specific parts of & physiological systems in plants', 3),
+('376', 'No longer in use', 3),
+('377', 'Old, postclassical, Vulgar Latin', 3),
+('378', 'Classical Latin usage (Prescriptive linguistics)', 3),
+('379', 'Other Italic languages', 3),
+('380', 'Plants', 2),
+('381', 'Writing systems, phonology, phonetics of classical Greek', 3),
+('382', 'Etymology of classical Greek', 3),
+('383', 'Magnoliopsida (Dicotyledones)', 3),
+('384', 'Unassigned or no longer in use', 3),
+('385', 'Pinophyta (Gymnosperms)', 3),
+('386', 'Unassigned or no longer in use', 3),
+('387', 'Preclassical & postclassical Greek', 3),
+('388', 'Classical Greek usage (Prescriptive linguistics)', 3),
+('389', 'Other Hellenic languages', 3),
+('390', 'Animals (Zoology)', 2),
+('391', 'East Indo-European & Celtic languages', 3),
+('392', 'Invertebrates', 3),
+('393', 'Non-Semitic Afro-Asiatic languages', 3),
+('394', 'Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia', 3),
+('394.2', 'Feste', 4),
+('395', 'Languages of East & Southeast Asia', 3),
+('396', 'African languages', 3),
+('397', 'North American native languages', 3),
+('398', 'South American native languages', 3),
+('398.2', 'Fiabe e leggende', 4),
+('399', 'Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages', 3),
+('400', 'Technology', 1),
+('401', 'Philosophy & theory', 3),
+('402', 'Miscellany', 3),
+('403', 'Dictionaries, encyclopedias, concordances', 3),
+('404', 'Unassigned or no longer in use', 3),
+('405', 'Serial publications', 3),
+('406', 'Organizations & management', 3),
+('407', 'Education, research, related topics', 3),
+('408', 'Natural history', 3),
+('409', 'History, geographic treatment, biography', 3),
+('410', 'Medicine & health', 2),
+('411', 'Human anatomy, cytology, histology', 3),
+('412', 'Human physiology', 3),
+('413', 'Personal health & safety', 3),
+('414', 'Forensic medicine; incidence of injuries, wounds, disease; public preventive medicine', 3),
+('415', 'Pharmacology & therapeutics', 3),
+('416', 'Diseases', 3),
+('417', 'Unassigned or no longer in use', 3),
+('418', 'Numerical analysis', 3),
+('419', 'No longer in use—formerly Experimental medicine', 3),
+('420', 'Engineering & Applied operations', 2),
+('421', 'Applied physics', 3),
+('422', 'Techniques, procedures, apparatus, equipment, materials', 3),
+('423', 'Military & nautical engineering', 3),
+('424', 'Unassigned or no longer in use', 3),
+('425', 'Engineering of railroads, roads', 3),
+('426', 'Mathematical geography', 3),
+('427', 'Celestial navigation', 3),
+('428', 'Ephemerides', 3),
+('429', 'Other branches of engineering', 3),
+('430', 'Agriculture & related technologies', 2),
+('431', 'Specific techniques; apparatus, equipment, materials', 3),
+('432', 'Plant injuries, diseases, pests', 3),
+('433', 'Field & plantation crops', 3),
+('434', 'Orchards, fruits, forestry', 3),
+('435', 'Garden crops (Horticulture)', 3),
+('436', 'Animal husbandry', 3),
+('437', 'Processing dairy & related products', 3),
+('438', 'Insect culture', 3),
+('439', 'Hunting, fishing, conservation, related technologies', 3),
+('440', 'Home & family management', 2),
+('441', 'Food & drink', 3),
+('442', 'Techniques, procedures, apparatus, equipment, materials', 3),
+('443', 'Housing & household equipment', 3),
+('444', 'No longer in use — formerly Qualitative analysis', 3),
+('445', 'No longer in use — formerly Quantitative analysis', 3),
+('446', 'Sewing, clothing, management of personal and family life', 3),
+('447', 'Management of public households (Institutional housekeeping)', 3),
+('448', 'Housekeeping', 3),
+('449', 'Child rearing; home care of people with disabilities and illnesses', 3),
+('450', 'Management & auxiliary services', 2),
+('451', 'Office services', 3),
+('452', 'Processes of written communication', 3),
+('453', 'Shorthand', 3),
+('454', 'Earth sciences of Europe', 3),
+('455', 'Earth sciences of Asia', 3),
+('456', 'Earth sciences of Africa', 3),
+('457', 'Earth sciences of North America', 3),
+('458', 'Earth sciences of South America', 3),
+('459', 'Earth sciences of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds', 3),
+('460', 'Chemical engineering & related technologies', 2),
+('461', 'Paleobotany, fossil microorganisms', 3),
+('462', 'Fossil invertebrates', 3),
+('463', 'Miscellaneous fossil marine & seashore invertebrates', 3),
+('464', 'Fossil Mollusca & Molluscoidea', 3),
+('465', 'Fossil Arthropoda', 3),
+('466', 'Fossil Chordata', 3),
+('467', 'Fossil cold-blooded vertebrates', 3),
+('468', 'Fossil Aves (birds)', 3),
+('469', 'Fossil Mammalia', 3),
+('470', 'Manufacturing', 2),
+('471', 'Metalworking processes & primary metal products', 3),
+('472', 'Iron, steel, other iron alloys', 3),
+('473', 'Specific physiological systems in animals, regional histology & physiology in animals', 3),
+('474', 'Lumber processing, wood products, cork', 3),
+('475', 'Leather & fur processing', 3),
+('476', 'Pulp & paper technology', 3),
+('477', 'Textiles', 3),
+('478', 'Natural history of organisms & related subjects', 3),
+('479', 'Other products of specific kinds of materials', 3),
+('480', 'Manufacture of products for specific uses', 2),
+('481', 'Precision instruments & other devices', 3),
+('482', 'Small forge work (Blacksmithing)', 3),
+('483', 'Magnoliopsida (Dicotyledones)', 3),
+('484', 'Liliopsida (Monocotyledones)', 3),
+('485', 'Pinophyta (Gymnosperms)', 3),
+('486', 'Cryptogamia (Seedless plants)', 3),
+('487', 'Pteridophyta', 3),
+('488', 'Bryophyta', 3),
+('489', 'No longer in use—formerly Forestry', 3),
+('490', 'Building construction', 2),
+('491', 'Building materials', 3),
+('491.7', 'Russo', 4),
+('492', 'Auxiliary construction practices', 3),
+('492.4', 'Ebraico', 4),
+('492.7', 'Arabo', 4),
+('493', 'Construction in specific types of materials & for specific purposes', 3),
+('494', 'Wood construction', 3),
+('495', 'Roof covering', 3),
+('495.1', 'Cinese', 4),
+('495.6', 'Giapponese', 4),
+('496', 'Utilities', 3),
+('497', 'Heating, ventilating, air-conditioning engineering', 3),
+('498', 'Detail finishing', 3),
+('499', 'Unassigned or no longer in use', 3),
+('500', 'The arts', 1),
+('501', 'Philosophy & theory', 3),
+('502', 'Miscellany', 3),
+('503', 'Dictionaries, encyclopedias, concordances', 3),
+('504', 'Technical drawing, hazardous materials technology; groups of people', 3),
+('505', 'Serial publications', 3),
+('506', 'Organizations', 3),
+('507', 'Education, research, related topics', 3),
+('508', 'Galleries, museums, private collections of fine & decorative arts', 3),
+('509', 'History, geographic treatment, biography', 3),
+('510', 'Area planning & landscape architecture', 2),
+('511', 'Area planning (Civic art)', 3),
+('512', 'Landscape architecture (Landscape design)', 3),
+('513', 'Landscape architecture of trafficways', 3),
+('514', 'Water features in landscape architecture', 3),
+('515', 'Woody plants in landscape architecture', 3),
+('516', 'Herbaceous plants in landscape architecture', 3),
+('517', 'Structures in landscape architecture', 3),
+('518', 'Landscape design of cemeteries', 3),
+('519', 'No longer in use—formerly Experimental medicine', 3),
+('520', 'Architecture', 2),
+('521', 'Architectural materials & structural elements', 3),
+('522', 'Mining & related operations', 3),
+('523', 'Architecture from ca. 300 to 1399', 3),
+('523.1', 'Universo', 4),
+('523.2', 'Sistema solare', 4),
+('523.3', 'Luna', 4),
+('523.4', 'Pianeti', 4),
+('523.6', 'Comete', 4),
+('523.7', 'Sole', 4),
+('523.8', 'Stelle', 4),
+('524', 'Architecture from 1400', 3),
+('525', 'Public structures', 3),
+('526', 'Unassigned or no longer in use', 3),
+('527', 'Buildings for educational & research purposes', 3),
+('528', 'Residential & related buildings', 3),
+('529', 'Design & decoration of structures & accessories', 3),
+('530', 'Sculpture & related arts', 2),
+('531', 'Processes, forms, subjects of sculpture', 3),
+('532', 'Plant injuries, diseases, pests', 3),
+('533', 'Greek, Etruscan, Roman sculpture', 3),
+('534', 'Sculpture from ca. 500 to 1399', 3),
+('535', 'Sculpture from 1400', 3),
+('536', 'Carving & carvings', 3),
+('537', 'Processing dairy & related products', 3),
+('538', 'Insect culture', 3),
+('539', 'Art metalwork', 3),
+('539.7', 'Fisica atomica', 4),
+('540', 'Graphic arts', 2),
+('541', 'Drawing & drawings', 3),
+('542', 'Meals & table service', 3),
+('543', 'Drawing & drawings by subject', 3),
+('544', 'Household utilities', 3),
+('545', 'Household furnishings', 3),
+('546', 'Textile arts', 3),
+('547', 'Management of public households (Institutional housekeeping)', 3),
+('548', 'Housekeeping', 3),
+('549', 'Furniture & accessories', 3),
+('550', 'Painting & paintings', 2),
+('551', 'Techniques, procedures, apparatus, equipment, materials, forms', 3),
+('551.2', 'Vulcani e terremoti', 4),
+('551.4', 'Geomorfologia', 4),
+('551.46', 'Oceanografia', 5),
+('551.5', 'Meteorologia', 4),
+('551.6', 'Climatologia', 4),
+('552', 'Processes of written communication', 3),
+('553', 'Shorthand', 3),
+('554', 'Unassigned or no longer in use', 3),
+('555', 'Unassigned or no longer in use', 3),
+('556', 'Unassigned or no longer in use', 3),
+('557', 'Human figures', 3),
+('558', 'Nature, architectural subjects & cityscapes, other specific subjects', 3),
+('559', 'History, geographic treatment, biography', 3),
+('560', 'Printmaking & prints', 2),
+('561', 'Technology of industrial chemicals', 3),
+('562', 'Technology of explosives, fuels, related products', 3),
+('563', 'Lithographic processes (Planographic processes)', 3),
+('564', 'Chromolithography & serigraphy', 3),
+('565', 'Technology of industrial oils, fats, waxes, gases', 3),
+('566', 'Ceramic & allied technologies', 3),
+('567', 'Cleaning, color, coating, related technologies', 3),
+('567.9', 'Rettili fossili (Dinosauri)', 4),
+('568', 'Technology of other organic products', 3),
+('569', 'Prints', 3),
+('570', 'Photography, computer art, cinematography, videography', 2),
+('571', 'Metalworking processes & primary metal products', 3),
+('572', 'Iron, steel, other iron alloys', 3),
+('573', 'Nonferrous metals', 3),
+('574', 'Lumber processing, wood products, cork', 3),
+('575', 'Leather & fur processing', 3),
+('576', 'Pulp & paper technology', 3),
+('576.5', 'Genetica', 4),
+('576.8', 'Evoluzione', 4),
+('577', 'Cinematography & videography', 3),
+('577.3', 'Ecologia forestale', 4),
+('577.7', 'Ecologia marina', 4),
+('578', 'Elastomers & elastomer products', 3),
+('579', 'Other products of specific kinds of materials', 3),
+('580', 'Music', 2),
+('581', 'General principles & musical forms', 3),
+('582', 'Small forge work (Blacksmithing)', 3),
+('582.13', 'Fiori selvatici', 5),
+('582.16', 'Alberi', 5),
+('583', 'Hardware & household appliances', 3),
+('584', 'Instruments & instrumental ensembles & their music', 3),
+('585', 'Leather & fur goods & related products', 3),
+('586', 'Printing & related activities', 3),
+('587', 'Clothing & accessories', 3),
+('588', 'Other final products & packaging technology', 3),
+('589', 'Unassigned or no longer in use', 3),
+('590', 'Recreational & performing arts', 2),
+('591', 'Building materials', 3),
+('592', 'Auxiliary construction practices', 3),
+('593', 'Construction in specific types of materials & for specific purposes', 3),
+('594', 'Wood construction', 3),
+('595', 'Roof covering', 3),
+('595.7', 'Insetti', 4),
+('595.78', 'Lepidotteri (Farfalle)', 5),
+('596', 'Utilities', 3),
+('597', 'Heating, ventilating, air-conditioning engineering', 3),
+('597.8', 'Anfibi', 4),
+('597.9', 'Rettili', 4),
+('598', 'Detail finishing', 3),
+('599', 'Unassigned or no longer in use', 3),
+('599.2', 'Marsupialia', 4),
+('599.3', 'Small mammals', 4),
+('599.4', 'Chiroptera (Bats)', 4),
+('599.5', 'Cetacea & Sirenia', 4),
+('599.53', 'Delfini', 5),
+('599.6', 'Ungulata (Hoofed mammals)', 4),
+('599.7', 'Carnivora', 4),
+('599.74', 'Carnivori (vecchio uso)', 5),
+('599.75', 'Felidi', 5),
+('599.77', 'Canidi', 5),
+('599.78', 'Orsi', 5),
+('599.8', 'Primates', 4),
+('599.9', 'Hominidae (Humans)', 4),
+('599.93', 'Human genetics', 5),
+('599.97', 'Human variation', 5),
+('599.98', 'Human adaptation', 5),
+('600', 'Literature (Belles-lettres) & rhetoric', 1),
+('601', 'Philosophy & theory', 3),
+('602', 'Miscellany of fine & decorative arts', 3),
+('603', 'Dictionaries, encyclopedias, concordances of fine & decorative arts', 3),
+('604', 'Unassigned or no longer in use', 3),
+('605', 'Serial publications of fine & decorative arts', 3),
+('606', 'Organizations & management of fine & decorative arts', 3),
+('607', 'Education, research, related topics of fine & decorative arts', 3),
+('608', 'Rhetoric & collections of literary texts from more than two literatures', 3),
+('609', 'History, description, critical appraisal of more than two literatures', 3),
+('610', 'American literature in English', 2),
+('611', 'American poetry in English', 3),
+('612', 'American drama in English', 3),
+('612.6', 'Riproduzione', 4),
+('613', 'Landscape architecture of trafficways', 3),
+('613.2', 'Dietetica', 4),
+('613.7', 'Fitness', 4),
+('614', 'Water features in landscape architecture', 3),
+('615', 'Woody plants in landscape architecture', 3),
+('616', 'Herbaceous plants in landscape architecture', 3),
+('616.1', 'Cuore', 4),
+('616.8', 'Malattie nervose', 4),
+('616.9', 'Malattie infettive', 4),
+('617', 'Structures in landscape architecture', 3),
+('618', 'Landscape design of cemeteries', 3),
+('618.92', 'Pediatria', 5),
+('619', 'Natural landscapes', 3),
+('620', 'English & Old English (Anglo-Saxon) literatures', 2),
+('621', 'Architectural materials & structural elements', 3),
+('621.3', 'Elettrotecnica', 4),
+('621.38', 'Elettronica', 5),
+('621.4', 'Motori', 4),
+('622', 'English drama', 3),
+('623', 'English fiction', 3),
+('624', 'English essays', 3),
+('625', 'English speeches', 3),
+('626', 'English letters', 3),
+('627', 'Buildings for educational & research purposes', 3),
+('628', 'English miscellaneous writings', 3),
+('629', 'Design & decoration of structures & accessories', 3),
+('629.1', 'Aerospaziale', 4),
+('629.13', 'Aeronautica', 5),
+('629.2', 'Veicoli a motore', 4),
+('629.4', 'Astronautica', 4),
+('629.8', 'Automazione', 4),
+('630', 'German literature & literatures of related languages', 2),
+('631', 'Processes, forms, subjects of sculpture', 3),
+('632', 'Sculpture from earliest times to ca. 500, sculpture of nonliterate peoples', 3),
+('633', 'Greek, Etruscan, Roman sculpture', 3),
+('634', 'Sculpture from ca. 500 to 1399', 3),
+('635', 'Sculpture from 1400', 3),
+('636', 'German letters', 3),
+('636.1', 'Cavalli', 4),
+('636.2', 'Bovini', 4),
+('636.3', 'Ovini', 4),
+('636.5', 'Pollame', 4),
+('636.7', 'Cani', 4),
+('636.8', 'Gatti', 4),
+('637', 'German humor & satire', 3),
+('638', 'German miscellaneous writings', 3),
+('639', 'Other Germanic literatures', 3),
+('640', 'French literature & literatures of related Romance languages', 2),
+('641', 'French poetry', 3),
+('641.5', 'Cucina', 4),
+('641.59', 'Cucina internazionale', 5),
+('641.5945', 'Cucina italiana', 7),
+('641.8', 'Piatti specifici', 4),
+('642', 'Perspective in drawing', 3),
+('643', 'Drawing & drawings by subject', 3),
+('644', 'Communication design & visual design (proposed)', 3),
+('645', 'French speeches', 3),
+('646', 'French letters', 3),
+('647', 'French humor & satire', 3),
+('648', 'Glass', 3),
+('649', 'Furniture & accessories', 3),
+('650', 'Literatures of Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican languages', 2),
+('651', 'Italian poetry', 3),
+('652', 'Color', 3),
+('653', 'Italian fiction', 3),
+('654', 'Genre paintings', 3),
+('655', 'Religion', 3),
+('656', 'Unassigned or no longer in use', 3),
+('657', 'Human figures', 3),
+('658', 'Nature, architectural subjects & cityscapes, other specific subjects', 3),
+('658.1', 'Organizzazione', 4),
+('658.3', 'Risorse umane', 4),
+('658.4', 'Dirigenza', 4),
+('658.8', 'Marketing', 4),
+('659', 'Literatures of Romanian, Rhaetian, Sardinian, Corsican languages', 3),
+('660', 'Literatures of Spanish, Portuguese, Galician languages', 2),
+('661', 'Relief processes (Block printing)', 3),
+('662', 'Unassigned or no longer in use', 3),
+('663', 'Lithographic processes (Planographic processes)', 3),
+('663.2', 'Vino', 4),
+('664', 'Chromolithography & serigraphy', 3),
+('665', 'Metal engraving', 3),
+('666', 'Mezzotinting, aquatinting & related processes', 3),
+('667', 'Etching & drypoint', 3),
+('668', 'Unassigned or no longer in use', 3),
+('669', 'Prints', 3),
+('670', 'Latin literature & literatures of related Italic languages', 2),
+('671', 'Latin poetry', 3),
+('672', 'Metallic salt processes', 3),
+('673', 'Pigment processes of printing', 3),
+('674', 'No longer in use—formerly Holography', 3),
+('675', 'No longer in use—formerly Digital photography', 3),
+('676', 'Computer art (Digital art)', 3),
+('677', 'Cinematography & videography', 3),
+('678', 'Latin miscellaneous writings', 3),
+('679', 'Literatures of other Italic languages', 3),
+('680', 'Classical Greek literature & literatures of related Hellenic languages', 2),
+('681', 'Classical Greek poetry', 3),
+('682', 'Classical Greek drama', 3),
+('683', 'Classical Greek epic poetry & fiction', 3),
+('684', 'Classical Greek lyric poetry', 3),
+('685', 'Classical Greek speeches', 3),
+('686', 'Classical Greek letters', 3),
+('687', 'Classical Greek humor & satire', 3),
+('688', 'Classical Greek miscellaneous writings', 3),
+('689', 'Unassigned or no longer in use', 3),
+('690', 'Literatures of other specific languages & language families', 2),
+('691', 'East Indo-European & Celtic literatures', 3),
+('692', 'Afro-Asiatic literatures', 3),
+('693', 'Non-Semitic Afro-Asiatic literatures', 3),
+('694', 'Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia', 3),
+('695', 'Games of chance', 3),
+('696', 'African literatures', 3),
+('697', 'Literatures of North American native languages', 3),
+('698', 'Literatures of South American native languages', 3),
+('699', 'Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages', 3),
+('700', 'History', 1),
+('701', 'Philosophy & theory of history', 3),
+('702', 'Miscellany', 3),
+('703', 'Dictionaries, encyclopedias, concordances', 3),
+('704', 'Unassigned or no longer in use', 3),
+('705', 'Serial publications', 3),
+('706', 'Organizations & management', 3),
+('707', 'Education, research, related topics', 3),
+('708', 'History with respect to groups of people', 3),
+('709', 'World history', 3),
+('709.2', 'Biografie artisti', 4),
+('709.4', 'Arte europea', 4),
+('709.45', 'Arte italiana', 5),
+('710', 'Geography & travel', 2),
+('711', 'Historical geography', 3),
+('712', 'Graphic representations of surface of Earth & of extraterrestrial worlds', 3),
+('713', 'Geography of & travel in ancient world', 3),
+('714', 'Geography of & travel in Europe', 3),
+('715', 'American speeches in English', 3),
+('716', 'American letters in English', 3),
+('717', 'American humor & satire in English', 3),
+('718', 'American miscellaneous writings in English', 3),
+('719', 'No longer in use—formerly Puzzle activities', 3),
+('720', 'Biography, genealogy, insignia', 2),
+('721', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('722', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('723', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('724', 'English essays', 3),
+('725', 'English speeches', 3),
+('726', 'English letters', 3),
+('727', 'English humor & satire', 3),
+('728', 'English miscellaneous writings', 3),
+('729', 'Old English (Anglo-Saxon) literature', 3),
+('730', 'History of ancient world to ca. 499', 2),
+('731', 'China to 420', 3),
+('732', 'German drama', 3),
+('733', 'Palestine to 70', 3),
+('734', 'German essays', 3),
+('735', 'German speeches', 3),
+('736', 'German letters', 3),
+('737', 'German humor & satire', 3),
+('738', 'German miscellaneous writings', 3),
+('739', 'Other Germanic literatures', 3),
+('740', 'History of Europe', 2),
+('741', 'British Isles', 3),
+('741.5', 'Fumetti', 4),
+('742', 'England & Wales', 3),
+('743', 'Germany & neighboring central European countries', 3),
+('744', 'French essays', 3),
+('745', 'French speeches', 3),
+('746', 'French letters', 3),
+('747', 'French humor & satire', 3),
+('748', 'French miscellaneous writings', 3),
+('749', 'Occitan, Catalan, Franco-Provençal literatures', 3),
+('750', 'History of Asia', 2),
+('751', 'China & adjacent areas', 3),
+('752', 'Japan', 3),
+('753', 'Arabian Peninsula & adjacent areas', 3),
+('754', 'India & neighboring south Asian countries', 3),
+('755', 'Italian speeches', 3),
+('756', 'Italian letters', 3),
+('757', 'Italian humor & satire', 3),
+('758', 'Central Asia', 3),
+('759', 'Literatures of Romanian, Rhaetian, Sardinian, Corsican languages', 3),
+('759.5', 'Pittura italiana', 4),
+('760', 'History of Africa', 2),
+('761', 'Tunisia & Libya', 3),
+('762', 'Spanish drama', 3),
+('763', 'Ethiopia & Eritrea', 3),
+('764', 'Spanish essays', 3),
+('765', 'Spanish speeches', 3),
+('766', 'Spanish letters', 3),
+('767', 'Spanish humor & satire', 3),
+('768', 'Spanish miscellaneous writings', 3),
+('769', 'Literatures of Portuguese & Galician languages', 3),
+('770', 'History of North America', 2),
+('771', 'Canada', 3),
+('772', 'Latin dramatic poetry & drama', 3),
+('773', 'Latin epic poetry & fiction', 3),
+('774', 'Latin lyric poetry', 3),
+('775', 'Latin speeches', 3),
+('776', 'Latin letters', 3),
+('777', 'Latin humor & satire', 3),
+('778', 'Latin miscellaneous writings', 3),
+('779', 'Literatures of other Italic languages', 3),
+('780', 'History of South America', 2),
+('780.9', 'Storia della musica', 4),
+('781', 'Classical Greek poetry', 3),
+('782', 'Classical Greek drama', 3),
+('782.1', 'Opera', 4),
+('783', 'Chile', 3),
+('784', 'Classical Greek lyric poetry', 3),
+('785', 'Classical Greek speeches', 3),
+('786', 'Classical Greek letters', 3),
+('787', 'Classical Greek humor & satire', 3),
+('788', 'Classical Greek miscellaneous writings', 3),
+('789', 'Modern Greek literature', 3),
+('790', 'History of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds', 2),
+('791', 'East Indo-European & Celtic literatures', 3),
+('791.4', 'Cinema, Radio, TV', 4),
+('791.43', 'Cinema', 5),
+('791.45', 'Televisione', 5),
+('792', 'Afro-Asiatic literatures', 3),
+('793', 'Non-Semitic Afro-Asiatic literatures', 3),
+('794', 'Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia', 3),
+('795', 'New Guinea & neighboring countries of Melanesia', 3),
+('796', 'African literatures', 3),
+('796.3', 'Giochi con palla', 4),
+('796.33', 'Calcio', 5),
+('796.34', 'Tennis', 5),
+('796.35', 'Golf', 5),
+('796.4', 'Atletica', 4),
+('796.5', 'Attività all''aperto', 4),
+('796.52', 'Alpinismo', 5),
+('796.7', 'Automobilismo', 4),
+('796.8', 'Sport da combattimento', 4),
+('797', 'Literatures of North American native languages', 3),
+('798', 'Literatures of South American native languages', 3),
+('799', 'Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages', 3),
+('800', 'Philosophy & psychology', 1),
+('801', 'Philosophy & theory of history', 3),
+('802', 'Miscellany of history', 3),
+('803', 'Dictionaries, encyclopedias, concordances of history', 3),
+('804', 'Science', 3),
+('805', 'Serial publications of history', 3),
+('806', 'Organizations & management of history', 3),
+('807', 'Education, research, related topics of history', 3),
+('808', 'History with respect to groups of people', 3),
+('808.3', 'Scrittura narrativa', 4),
+('808.8', 'Raccolte', 4),
+('809', 'Psychology', 3),
+('810', 'Political science', 2),
+('811', 'Historical geography', 3),
+('812', 'Law', 3),
+('813', 'Geography of & travel in ancient world', 3),
+('814', 'Mammalia (Mammals)', 3),
+('815', 'Asia (Geografia)', 3),
+('816', 'Africa (Geografia)', 3),
+('817', 'Nord America (Geografia)', 3),
+('818', 'Sud America (Geografia)', 3),
+('819', 'Geography of & travel in Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, & on extraterrestrial worlds', 3),
+('820', 'Biografia', 2),
+('821', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('822', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('822.3', 'Shakespeare', 4),
+('823', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('824', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('825', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('826', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('827', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('828', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('829', 'Genealogia', 3),
+('830', 'Storia antica', 2),
+('831', 'Cina antica', 3),
+('832', 'Egitto antico', 3),
+('833', 'Palestina antica', 3),
+('834', 'South Asia to 647', 3),
+('835', 'Mesopotamia', 3),
+('836', 'Europe north & west of Italian Peninsula to ca. 499', 3),
+('837', 'Roma antica', 3),
+('838', 'Grecia antica', 3),
+('839', 'Other parts of ancient world', 3),
+('840', 'Storia d''Europa', 2),
+('841', 'Isole Britanniche', 3),
+('842', 'Inghilterra', 3),
+('843', 'Germania', 3),
+('844', 'Francia', 3),
+('845', 'Italia', 3),
+('846', 'Spagna', 3),
+('847', 'Russia', 3),
+('848', 'Scandinavia', 3),
+('849', 'Other parts of Europe', 3),
+('850', 'Storia dell''Asia', 2),
+('851', 'Cina', 3),
+('851.1', 'Dante Alighieri', 4),
+('852', 'Giappone', 3),
+('853', 'Arabia', 3),
+('854', 'India', 3),
+('855', 'Iran', 3),
+('856', 'Medio Oriente', 3),
+('857', 'Siberia (Asiatic Russia)', 3),
+('858', 'Central Asia', 3),
+('859', 'Southeast Asia', 3),
+('860', 'Storia dell''Africa', 2),
+('861', 'Tunisia & Libya', 3),
+('862', 'Egitto', 3),
+('863', 'Ethiopia & Eritrea', 3),
+('864', 'Morocco, Ceuta, Melilla, Western Sahara, Canary Islands', 3),
+('865', 'Algeria', 3),
+('866', 'West Africa & offshore islands', 3),
+('867', 'Central Africa & offshore islands', 3),
+('868', 'Republic of South Africa & Southern Africa', 3),
+('869', 'South Indian Ocean islands', 3),
+('870', 'Storia del Nord America', 2),
+('871', 'Canada', 3),
+('872', 'Mexico, Central America, West Indies, Bermuda', 3),
+('873', 'Stati Uniti', 3),
+('874', 'Northeastern United States (New England & Middle Atlantic states)', 3),
+('875', 'Southeastern United States (South Atlantic states)', 3),
+('876', 'South central United States', 3),
+('877', 'North central United States', 3),
+('878', 'Western United States', 3),
+('879', 'Great Basin & Pacific Slope region of United States', 3),
+('880', 'Storia del Sud America', 2),
+('881', 'Brazil', 3),
+('882', 'Argentina', 3),
+('883', 'Chile', 3),
+('884', 'Bolivia', 3),
+('885', 'Peru', 3),
+('886', 'Colombia & Ecuador', 3),
+('887', 'Venezuela', 3),
+('888', 'Guiana', 3),
+('889', 'Paraguay & Uruguay', 3),
+('890', 'Altre aree', 2),
+('891', 'Unassigned or no longer in use', 3),
+('891.7', 'Letteratura russa', 4),
+('892', 'Unassigned or no longer in use', 3),
+('893', 'New Zealand', 3),
+('894', 'Australia', 3),
+('895', 'New Guinea & neighboring countries of Melanesia', 3),
+('896', 'Polynesia & other Pacific Ocean islands', 3),
+('897', 'Atlantic Ocean islands', 3),
+('898', 'Arctic islands & Antarctica', 3),
+('899', 'Extraterrestrial worlds', 3),
+('900', 'Philosophy & psychology', 1),
+('901', 'Religion', 3),
+('902', 'Social sciences', 3),
+('903', 'Language', 3),
+('904', 'Natural sciences & mathematics', 3),
+('905', 'Technology', 3),
+('906', 'Arts & recreation', 3),
+('907', 'Literature', 3),
+('908', 'History & geography', 3),
+('909', 'Mathematics', 3),
+('910', 'Astronomy', 2),
+('911', 'Physics', 3),
+('912', 'Chemistry', 3),
+('913', 'Earth sciences & geology', 3),
+('914', 'Fossils & prehistoric life', 3),
+('914.5', 'Italia (Geografia)', 4),
+('915', 'Life sciences; biology', 3),
+('916', 'Plants (Botany)', 3),
+('917', 'Animals (Zoology)', 3),
+('918', 'Medicine & health', 3),
+('919', 'Engineering', 3),
+('920', 'Agriculture', 2),
+('921', 'Home & family management', 3),
+('922', 'Management & public relations', 3),
+('923', 'Chemical engineering', 3),
+('924', 'Manufacturing', 3),
+('925', 'Manufacture for specific uses', 3),
+('926', 'Building & construction', 3),
+('927', 'Area planning & landscape architecture', 3),
+('928', 'Architecture', 3),
+('929', 'Sculpture, ceramics & metalwork', 3),
+('930', 'Drawing & decorative arts', 2),
+('931', 'Painting', 3),
+('932', 'Graphic arts', 3),
+('933', 'Photography & computer art', 3),
+('934', 'Music', 3),
+('935', 'Sports, games & entertainment', 3),
+('936', 'American literature', 3),
+('937', 'English & Old English literatures', 3),
+('938', 'German & related literatures', 3),
+('939', 'French & related literatures', 3),
+('940', 'Italian, Romanian & related literatures', 2),
+('940.1', 'Medioevo', 4),
+('940.2', 'Storia moderna', 4),
+('940.3', 'Prima Guerra Mondiale', 4),
+('940.5', 'Seconda Guerra Mondiale', 4),
+('941', 'Spanish & Portuguese literatures', 3),
+('942', 'Latin & Italic literatures', 3),
+('943', 'Classical & modern Greek literatures', 3),
+('944', 'Other literatures', 3),
+('945', 'Geography & travel', 3),
+('945.01', 'Medioevo italiano', 5),
+('945.05', 'Rinascimento', 5),
+('945.08', 'Risorgimento', 5),
+('945.09', 'Italia contemporanea', 5),
+('946', 'Biography & genealogy', 3),
+('947', 'History of ancient world (to ca. 499)', 3),
+('948', 'History of Europe', 3),
+('949', 'History of Asia', 3),
+('950', 'History of Africa', 2),
+('951', 'History of North America', 3),
+('952', 'History of South America', 3),
+('953', 'History of other areas', 3),
+('954', 'Dialectology & historical linguistics', 3),
+('955', '[Unassigned]', 3),
+('956', 'Mammalia (Mammals)', 3),
+('957', 'Siberia (Russia asiatica)', 3),
+('958', 'Asia centrale', 3),
+('959', 'Sud-est asiatico', 3),
+('960', 'History dell''Africa', 2),
+('961', 'Tunisia e Libia', 3),
+('962', 'Egitto e Sudan', 3),
+('963', 'Etiopia e Eritrea', 3),
+('964', 'Costa nord-occidentale e isole', 3),
+('965', 'Algeria', 3),
+('966', 'Africa occidentale e isole', 3),
+('967', 'Africa centrale e isole', 3),
+('968', 'Africa meridionale', 3),
+('969', 'Isole dell''Oceano Indiano meridionale', 3),
+('970', 'History del Nord America', 2),
+('971', 'Canada', 3),
+('972', 'Messico, America Centrale, Caraibi', 3),
+('973', 'Stati Uniti', 3),
+('973.7', 'Guerra civile americana', 4),
+('974', 'Stati Uniti nord-orientali', 3),
+('975', 'Stati Uniti sud-orientali', 3),
+('976', 'Stati Uniti centro-meridionali', 3),
+('977', 'Stati Uniti centro-settentrionali', 3),
+('978', 'Stati Uniti occidentali', 3),
+('979', 'Stati Uniti del Gran Bacino e del Pacifico', 3),
+('980', 'History del Sud America', 2),
+('981', 'Brasile', 3),
+('982', 'Argentina', 3),
+('983', 'Cile', 3),
+('984', 'Bolivia', 3),
+('985', 'Perù', 3),
+('986', 'Colombia e Ecuador', 3),
+('987', 'Venezuela', 3),
+('988', 'Guiana', 3),
+('989', 'Paraguay e Uruguay', 3),
+('990', 'History di altre aree', 2),
+('991', '[Unspecified]', 3),
+('992', '[Unspecified]', 3),
+('993', 'Nuova Zelanda', 3),
+('994', 'Australia', 3),
+('995', 'Melanesia; Nuova Guinea', 3),
+('996', 'Altre parti del Pacifico; Polinesia', 3),
+('997', 'Isole dell''Oceano Atlantico', 3),
+('998', 'Isole Artiche e Antartide', 3),
+('999', 'Mondi extraterrestri', 3);
+
 -- Generated from dewey_en.json
 
 -- Main classes (level 1)
-INSERT INTO `classificazione` VALUES (1,NULL,'000','000 - Computer science, information & general works',1);
-INSERT INTO `classificazione` VALUES (2,NULL,'100','100 - Philosophy & psychology',1);
-INSERT INTO `classificazione` VALUES (3,NULL,'200','200 - Religion',1);
-INSERT INTO `classificazione` VALUES (4,NULL,'300','300 - Social sciences',1);
-INSERT INTO `classificazione` VALUES (5,NULL,'400','400 - Language',1);
-INSERT INTO `classificazione` VALUES (6,NULL,'500','500 - Natural sciences & mathematics',1);
-INSERT INTO `classificazione` VALUES (7,NULL,'600','600 - Technology (Applied sciences)',1);
-INSERT INTO `classificazione` VALUES (8,NULL,'700','700 - Arts & recreation',1);
-INSERT INTO `classificazione` VALUES (9,NULL,'800','800 - Literature, rhetoric & criticism',1);
-INSERT INTO `classificazione` VALUES (10,NULL,'900','900 - History, geography & auxiliary disciplines',1);
+
+
+
+
+
+
+
+
+
+
 
 -- Divisions (level 2)
-INSERT INTO `classificazione` VALUES (11,1,'000','000 - Computer science, knowledge & systems',2);
-INSERT INTO `classificazione` VALUES (12,1,'010','010 - Bibliographies',2);
-INSERT INTO `classificazione` VALUES (13,1,'020','020 - Library & information sciences',2);
-INSERT INTO `classificazione` VALUES (14,1,'030','030 - Encyclopedias & books of facts',2);
-INSERT INTO `classificazione` VALUES (15,1,'040','040 - Unassigned — formerly Biographies',2);
-INSERT INTO `classificazione` VALUES (16,1,'050','050 - Magazines, journals & serials',2);
-INSERT INTO `classificazione` VALUES (17,1,'060','060 - Associations, organizations & museums',2);
-INSERT INTO `classificazione` VALUES (18,1,'070','070 - News media, journalism & publishing',2);
-INSERT INTO `classificazione` VALUES (19,1,'080','080 - Quotations',2);
-INSERT INTO `classificazione` VALUES (20,1,'090','090 - Manuscripts & rare books',2);
-INSERT INTO `classificazione` VALUES (21,2,'100','100 - Philosophy',2);
-INSERT INTO `classificazione` VALUES (22,2,'110','110 - Metaphysics',2);
-INSERT INTO `classificazione` VALUES (23,2,'120','120 - Epistemology, causation, & humankind',2);
-INSERT INTO `classificazione` VALUES (24,2,'130','130 - Parapsychology & occultism',2);
-INSERT INTO `classificazione` VALUES (25,2,'140','140 - Philosophical schools of thought',2);
-INSERT INTO `classificazione` VALUES (26,2,'150','150 - Psychology',2);
-INSERT INTO `classificazione` VALUES (27,2,'160','160 - Philosophical logic',2);
-INSERT INTO `classificazione` VALUES (28,2,'170','170 - Ethics (Moral philosophy)',2);
-INSERT INTO `classificazione` VALUES (29,2,'180','180 - Ancient, medieval, & Eastern philosophy',2);
-INSERT INTO `classificazione` VALUES (30,2,'190','190 - Modern Western & other non-Eastern philosophy',2);
-INSERT INTO `classificazione` VALUES (31,3,'200','200 - Religion',2);
-INSERT INTO `classificazione` VALUES (32,3,'210','210 - Philosophy & theory of religion',2);
-INSERT INTO `classificazione` VALUES (33,3,'220','220 - The Bible',2);
-INSERT INTO `classificazione` VALUES (34,3,'230','230 - Christianity',2);
-INSERT INTO `classificazione` VALUES (35,3,'240','240 - Christian moral & devotional theology',2);
-INSERT INTO `classificazione` VALUES (36,3,'250','250 - Local Christian church & Christian religious orders',2);
-INSERT INTO `classificazione` VALUES (37,3,'260','260 - Christian social & ecclesiastical theology',2);
-INSERT INTO `classificazione` VALUES (38,3,'270','270 - History, geographic treatment, biography of Christianity',2);
-INSERT INTO `classificazione` VALUES (39,3,'280','280 - Denominations & sects of Christian church',2);
-INSERT INTO `classificazione` VALUES (40,3,'290','290 - Other religions',2);
-INSERT INTO `classificazione` VALUES (41,4,'300','300 - Social sciences, sociology & anthropology',2);
-INSERT INTO `classificazione` VALUES (42,4,'310','310 - Statistics',2);
-INSERT INTO `classificazione` VALUES (43,4,'320','320 - Political science (politics & government)',2);
-INSERT INTO `classificazione` VALUES (44,4,'330','330 - Economics',2);
-INSERT INTO `classificazione` VALUES (45,4,'340','340 - Law',2);
-INSERT INTO `classificazione` VALUES (46,4,'350','350 - Public administration & military science',2);
-INSERT INTO `classificazione` VALUES (47,4,'360','360 - Social problems & services; associations',2);
-INSERT INTO `classificazione` VALUES (48,4,'370','370 - Education',2);
-INSERT INTO `classificazione` VALUES (49,4,'380','380 - Commerce, communications, transport',2);
-INSERT INTO `classificazione` VALUES (50,4,'390','390 - Customs, etiquette, folklore',2);
-INSERT INTO `classificazione` VALUES (51,5,'400','400 - Language',2);
-INSERT INTO `classificazione` VALUES (52,5,'410','410 - Linguistics',2);
-INSERT INTO `classificazione` VALUES (53,5,'420','420 - English & Old English (Anglo-Saxon)',2);
-INSERT INTO `classificazione` VALUES (54,5,'430','430 - Germanic languages & related languages',2);
-INSERT INTO `classificazione` VALUES (55,5,'440','440 - French & related Romance languages',2);
-INSERT INTO `classificazione` VALUES (56,5,'450','450 - Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican',2);
-INSERT INTO `classificazione` VALUES (57,5,'460','460 - Spanish, Portuguese, Galician',2);
-INSERT INTO `classificazione` VALUES (58,5,'470','470 - Latin & related Italic languages',2);
-INSERT INTO `classificazione` VALUES (59,5,'480','480 - Classical Greek & related Hellenic languages',2);
-INSERT INTO `classificazione` VALUES (60,5,'490','490 - Other languages',2);
-INSERT INTO `classificazione` VALUES (61,6,'500','500 - Science',2);
-INSERT INTO `classificazione` VALUES (62,6,'510','510 - Mathematics',2);
-INSERT INTO `classificazione` VALUES (63,6,'520','520 - Astronomy & allied sciences',2);
-INSERT INTO `classificazione` VALUES (64,6,'530','530 - Physics',2);
-INSERT INTO `classificazione` VALUES (65,6,'540','540 - Chemistry & allied sciences',2);
-INSERT INTO `classificazione` VALUES (66,6,'550','550 - Earth sciences & geology',2);
-INSERT INTO `classificazione` VALUES (67,6,'560','560 - Fossils & prehistoric life',2);
-INSERT INTO `classificazione` VALUES (68,6,'570','570 - Biology',2);
-INSERT INTO `classificazione` VALUES (69,6,'580','580 - Plants',2);
-INSERT INTO `classificazione` VALUES (70,6,'590','590 - Animals (Zoology)',2);
-INSERT INTO `classificazione` VALUES (71,7,'600','600 - Technology',2);
-INSERT INTO `classificazione` VALUES (72,7,'610','610 - Medicine & health',2);
-INSERT INTO `classificazione` VALUES (73,7,'620','620 - Engineering & Applied operations',2);
-INSERT INTO `classificazione` VALUES (74,7,'630','630 - Agriculture & related technologies',2);
-INSERT INTO `classificazione` VALUES (75,7,'640','640 - Home & family management',2);
-INSERT INTO `classificazione` VALUES (76,7,'650','650 - Management & auxiliary services',2);
-INSERT INTO `classificazione` VALUES (77,7,'660','660 - Chemical engineering & related technologies',2);
-INSERT INTO `classificazione` VALUES (78,7,'670','670 - Manufacturing',2);
-INSERT INTO `classificazione` VALUES (79,7,'680','680 - Manufacture of products for specific uses',2);
-INSERT INTO `classificazione` VALUES (80,7,'690','690 - Building construction',2);
-INSERT INTO `classificazione` VALUES (81,8,'700','700 - The arts',2);
-INSERT INTO `classificazione` VALUES (82,8,'710','710 - Area planning & landscape architecture',2);
-INSERT INTO `classificazione` VALUES (83,8,'720','720 - Architecture',2);
-INSERT INTO `classificazione` VALUES (84,8,'730','730 - Sculpture & related arts',2);
-INSERT INTO `classificazione` VALUES (85,8,'740','740 - Graphic arts',2);
-INSERT INTO `classificazione` VALUES (86,8,'750','750 - Painting & paintings',2);
-INSERT INTO `classificazione` VALUES (87,8,'760','760 - Printmaking & prints',2);
-INSERT INTO `classificazione` VALUES (88,8,'770','770 - Photography, computer art, cinematography, videography',2);
-INSERT INTO `classificazione` VALUES (89,8,'780','780 - Music',2);
-INSERT INTO `classificazione` VALUES (90,8,'790','790 - Recreational & performing arts',2);
-INSERT INTO `classificazione` VALUES (91,9,'800','800 - Literature (Belles-lettres) & rhetoric',2);
-INSERT INTO `classificazione` VALUES (92,9,'810','810 - American literature in English',2);
-INSERT INTO `classificazione` VALUES (93,9,'820','820 - English & Old English (Anglo-Saxon) literatures',2);
-INSERT INTO `classificazione` VALUES (94,9,'830','830 - German literature & literatures of related languages',2);
-INSERT INTO `classificazione` VALUES (95,9,'840','840 - French literature & literatures of related Romance languages',2);
-INSERT INTO `classificazione` VALUES (96,9,'850','850 - Literatures of Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican languages',2);
-INSERT INTO `classificazione` VALUES (97,9,'860','860 - Literatures of Spanish, Portuguese, Galician languages',2);
-INSERT INTO `classificazione` VALUES (98,9,'870','870 - Latin literature & literatures of related Italic languages',2);
-INSERT INTO `classificazione` VALUES (99,9,'880','880 - Classical Greek literature & literatures of related Hellenic languages',2);
-INSERT INTO `classificazione` VALUES (100,9,'890','890 - Literatures of other specific languages & language families',2);
-INSERT INTO `classificazione` VALUES (101,10,'900','900 - History',2);
-INSERT INTO `classificazione` VALUES (102,10,'910','910 - Geography & travel',2);
-INSERT INTO `classificazione` VALUES (103,10,'920','920 - Biography, genealogy, insignia',2);
-INSERT INTO `classificazione` VALUES (104,10,'930','930 - History of ancient world to ca. 499',2);
-INSERT INTO `classificazione` VALUES (105,10,'940','940 - History of Europe',2);
-INSERT INTO `classificazione` VALUES (106,10,'950','950 - History of Asia',2);
-INSERT INTO `classificazione` VALUES (107,10,'960','960 - History of Africa',2);
-INSERT INTO `classificazione` VALUES (108,10,'970','970 - History of North America',2);
-INSERT INTO `classificazione` VALUES (109,10,'980','980 - History of South America',2);
-INSERT INTO `classificazione` VALUES (110,10,'990','990 - History of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds',2);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- Sections (level 3)
-INSERT INTO `classificazione` VALUES (111,11,'001','001 - Knowledge',3);
-INSERT INTO `classificazione` VALUES (112,11,'002','002 - The book (writing, libraries, and related topics)',3);
-INSERT INTO `classificazione` VALUES (113,11,'003','003 - Systems',3);
-INSERT INTO `classificazione` VALUES (114,11,'004','004 - Data processing & computer science',3);
-INSERT INTO `classificazione` VALUES (115,11,'005','005 - Computer programming, programs & data',3);
-INSERT INTO `classificazione` VALUES (116,11,'006','006 - Special computer methods (e.g., AI, multimedia, VR)',3);
-INSERT INTO `classificazione` VALUES (117,11,'007','007 - [Unassigned]',3);
-INSERT INTO `classificazione` VALUES (118,11,'008','008 - [Unassigned]',3);
-INSERT INTO `classificazione` VALUES (119,11,'009','009 - [Unassigned]',3);
-INSERT INTO `classificazione` VALUES (120,12,'011','011 - Bibliographies',3);
-INSERT INTO `classificazione` VALUES (121,12,'012','012 - Bibliographies of individuals',3);
-INSERT INTO `classificazione` VALUES (122,12,'013','013 - [Unassigned]',3);
-INSERT INTO `classificazione` VALUES (123,12,'014','014 - Bibliographies of anonymous & pseudonymous works',3);
-INSERT INTO `classificazione` VALUES (124,12,'015','015 - Bibliographies of works from specific places',3);
-INSERT INTO `classificazione` VALUES (125,12,'016','016 - Bibliographies of works on specific subjects',3);
-INSERT INTO `classificazione` VALUES (126,12,'017','017 - General subject catalogs',3);
-INSERT INTO `classificazione` VALUES (127,12,'018','018 - Catalogs arranged by author, date, etc. [moved to 017]',3);
-INSERT INTO `classificazione` VALUES (128,12,'019','019 - Dictionary catalogs [moved to 017]',3);
-INSERT INTO `classificazione` VALUES (129,13,'021','021 - Library relationships (with archives, information centers, etc.)',3);
-INSERT INTO `classificazione` VALUES (130,13,'022','022 - Administration of the physical plant',3);
-INSERT INTO `classificazione` VALUES (131,13,'023','023 - Personnel management',3);
-INSERT INTO `classificazione` VALUES (132,13,'024','024 - [Unassigned]',3);
-INSERT INTO `classificazione` VALUES (133,13,'025','025 - Library operations',3);
-INSERT INTO `classificazione` VALUES (134,13,'026','026 - Libraries for specific subjects',3);
-INSERT INTO `classificazione` VALUES (135,13,'027','027 - General libraries',3);
-INSERT INTO `classificazione` VALUES (136,13,'028','028 - Reading & use of other information media',3);
-INSERT INTO `classificazione` VALUES (137,13,'029','029 - [Unassigned]',3);
-INSERT INTO `classificazione` VALUES (138,14,'031','031 - Encyclopedias in American English',3);
-INSERT INTO `classificazione` VALUES (139,14,'032','032 - Encyclopedias in English',3);
-INSERT INTO `classificazione` VALUES (140,14,'033','033 - Encyclopedias in other Germanic languages',3);
-INSERT INTO `classificazione` VALUES (141,14,'034','034 - Encyclopedias in French, Occitan & Catalan',3);
-INSERT INTO `classificazione` VALUES (142,14,'035','035 - Encyclopedias in Italian, Romanian & related languages',3);
-INSERT INTO `classificazione` VALUES (143,14,'036','036 - Encyclopedias in Spanish & Portuguese',3);
-INSERT INTO `classificazione` VALUES (144,14,'037','037 - Encyclopedias in Slavic languages',3);
-INSERT INTO `classificazione` VALUES (145,14,'038','038 - Encyclopedias in Scandinavian languages',3);
-INSERT INTO `classificazione` VALUES (146,14,'039','039 - Encyclopedias in other languages',3);
-INSERT INTO `classificazione` VALUES (147,16,'051','051 - Serials in American English',3);
-INSERT INTO `classificazione` VALUES (148,16,'052','052 - Serials in English',3);
-INSERT INTO `classificazione` VALUES (149,16,'053','053 - Serials in other Germanic languages',3);
-INSERT INTO `classificazione` VALUES (150,16,'054','054 - Serials in French, Occitan & Catalan',3);
-INSERT INTO `classificazione` VALUES (151,16,'055','055 - Serials in Italian, Romanian & related languages',3);
-INSERT INTO `classificazione` VALUES (152,16,'056','056 - Serials in Spanish & Portuguese',3);
-INSERT INTO `classificazione` VALUES (153,16,'057','057 - Serials in Slavic languages',3);
-INSERT INTO `classificazione` VALUES (154,16,'058','058 - Serials in Scandinavian languages',3);
-INSERT INTO `classificazione` VALUES (155,16,'059','059 - Serials in other languages',3);
-INSERT INTO `classificazione` VALUES (156,17,'061','061 - Organizations in North America',3);
-INSERT INTO `classificazione` VALUES (157,17,'062','062 - Organizations in British Isles; in England',3);
-INSERT INTO `classificazione` VALUES (158,17,'063','063 - Organizations in central Europe; in Germany',3);
-INSERT INTO `classificazione` VALUES (159,17,'064','064 - Organizations in France & Monaco',3);
-INSERT INTO `classificazione` VALUES (160,17,'065','065 - Organizations in Italy & adjacent islands',3);
-INSERT INTO `classificazione` VALUES (161,17,'066','066 - Organizations in Iberian Peninsula & adjacent islands',3);
-INSERT INTO `classificazione` VALUES (162,17,'067','067 - Organizations in eastern Europe; in Russia',3);
-INSERT INTO `classificazione` VALUES (163,17,'068','068 - Organizations in other geographic areas',3);
-INSERT INTO `classificazione` VALUES (164,17,'069','069 - Museology (Museum science)',3);
-INSERT INTO `classificazione` VALUES (165,18,'071','071 - Newspapers in North America',3);
-INSERT INTO `classificazione` VALUES (166,18,'072','072 - Newspapers in British Isles; in England',3);
-INSERT INTO `classificazione` VALUES (167,18,'073','073 - Newspapers in central Europe; in Germany',3);
-INSERT INTO `classificazione` VALUES (168,18,'074','074 - Newspapers in France & Monaco',3);
-INSERT INTO `classificazione` VALUES (169,18,'075','075 - Newspapers in Italy & adjacent islands',3);
-INSERT INTO `classificazione` VALUES (170,18,'076','076 - Newspapers in Iberian peninsula & adjacent islands',3);
-INSERT INTO `classificazione` VALUES (171,18,'077','077 - Newspapers in eastern Europe; in Russia',3);
-INSERT INTO `classificazione` VALUES (172,18,'078','078 - Newspapers in Scandinavia',3);
-INSERT INTO `classificazione` VALUES (173,18,'079','079 - Newspapers in other geographic areas',3);
-INSERT INTO `classificazione` VALUES (174,19,'081','081 - Collections in American English',3);
-INSERT INTO `classificazione` VALUES (175,19,'082','082 - Collections in English',3);
-INSERT INTO `classificazione` VALUES (176,19,'083','083 - Collections in other Germanic languages',3);
-INSERT INTO `classificazione` VALUES (177,19,'084','084 - Collections in French, Occitan, Catalan',3);
-INSERT INTO `classificazione` VALUES (178,19,'085','085 - Collections in Italian, Romanian & related languages',3);
-INSERT INTO `classificazione` VALUES (179,19,'086','086 - Collections in Spanish & Portuguese',3);
-INSERT INTO `classificazione` VALUES (180,19,'087','087 - Collections in Slavic languages',3);
-INSERT INTO `classificazione` VALUES (181,19,'088','088 - Collections in Scandinavian languages',3);
-INSERT INTO `classificazione` VALUES (182,19,'089','089 - Collections in other languages',3);
-INSERT INTO `classificazione` VALUES (183,20,'091','091 - Manuscripts',3);
-INSERT INTO `classificazione` VALUES (184,20,'092','092 - Block books',3);
-INSERT INTO `classificazione` VALUES (185,20,'093','093 - Incunabula',3);
-INSERT INTO `classificazione` VALUES (186,20,'094','094 - Printed books',3);
-INSERT INTO `classificazione` VALUES (187,20,'095','095 - Books notable for bindings',3);
-INSERT INTO `classificazione` VALUES (188,20,'096','096 - Books notable for illustrations',3);
-INSERT INTO `classificazione` VALUES (189,20,'097','097 - Books notable for ownership or origin',3);
-INSERT INTO `classificazione` VALUES (190,20,'098','098 - Prohibited works, forgeries & hoaxes',3);
-INSERT INTO `classificazione` VALUES (191,20,'099','099 - Books notable for format',3);
-INSERT INTO `classificazione` VALUES (192,21,'101','101 - Theory of philosophy',3);
-INSERT INTO `classificazione` VALUES (193,21,'102','102 - Miscellany',3);
-INSERT INTO `classificazione` VALUES (194,21,'103','103 - Dictionaries & encyclopedias',3);
-INSERT INTO `classificazione` VALUES (195,21,'104','104 - No longer in use — formerly Essays',3);
-INSERT INTO `classificazione` VALUES (196,21,'105','105 - Serial publications',3);
-INSERT INTO `classificazione` VALUES (197,21,'106','106 - Organizations & management',3);
-INSERT INTO `classificazione` VALUES (198,21,'107','107 - Education, research, related topics of philosophy',3);
-INSERT INTO `classificazione` VALUES (199,21,'108','108 - Groups of people',3);
-INSERT INTO `classificazione` VALUES (200,21,'109','109 - History & collected biography',3);
-INSERT INTO `classificazione` VALUES (201,22,'111','111 - Ontology',3);
-INSERT INTO `classificazione` VALUES (202,22,'112','112 - No longer in use — formerly Methodology',3);
-INSERT INTO `classificazione` VALUES (203,22,'113','113 - Cosmology (Philosophy of nature)',3);
-INSERT INTO `classificazione` VALUES (204,22,'114','114 - Space',3);
-INSERT INTO `classificazione` VALUES (205,22,'115','115 - Time',3);
-INSERT INTO `classificazione` VALUES (206,22,'116','116 - Change',3);
-INSERT INTO `classificazione` VALUES (207,22,'117','117 - Structure',3);
-INSERT INTO `classificazione` VALUES (208,22,'118','118 - Force & energy',3);
-INSERT INTO `classificazione` VALUES (209,22,'119','119 - Number & quantity',3);
-INSERT INTO `classificazione` VALUES (210,23,'121','121 - Epistemology (Theory of knowledge)',3);
-INSERT INTO `classificazione` VALUES (211,23,'122','122 - Causation',3);
-INSERT INTO `classificazione` VALUES (212,23,'123','123 - Determinism & indeterminism',3);
-INSERT INTO `classificazione` VALUES (213,23,'124','124 - Teleology',3);
-INSERT INTO `classificazione` VALUES (214,23,'125','125 - No longer in use — formerly Infinity',3);
-INSERT INTO `classificazione` VALUES (215,23,'126','126 - The self',3);
-INSERT INTO `classificazione` VALUES (216,23,'127','127 - The unconscious & the subconscious',3);
-INSERT INTO `classificazione` VALUES (217,23,'128','128 - Humankind',3);
-INSERT INTO `classificazione` VALUES (218,23,'129','129 - Origin & destiny of individual souls',3);
-INSERT INTO `classificazione` VALUES (219,24,'131','131 - Parapsychological and occult methods for achieving well-being, happiness, success',3);
-INSERT INTO `classificazione` VALUES (220,24,'132','132 - No longer in use — formerly Mental derangements',3);
-INSERT INTO `classificazione` VALUES (221,24,'133','133 - Specific topics in parapsychology & occultism',3);
-INSERT INTO `classificazione` VALUES (222,24,'134','134 - No longer in use — formerly Mesmerism & clairvoyance',3);
-INSERT INTO `classificazione` VALUES (223,24,'135','135 - Dreams & mysteries',3);
-INSERT INTO `classificazione` VALUES (224,24,'136','136 - No longer in use — formerly Mental characteristics',3);
-INSERT INTO `classificazione` VALUES (225,24,'137','137 - Divinatory graphology',3);
-INSERT INTO `classificazione` VALUES (226,24,'138','138 - Physiognomy',3);
-INSERT INTO `classificazione` VALUES (227,24,'139','139 - Phrenology',3);
-INSERT INTO `classificazione` VALUES (228,25,'141','141 - Idealism & related systems & doctrines',3);
-INSERT INTO `classificazione` VALUES (229,25,'142','142 - Critical philosophy',3);
-INSERT INTO `classificazione` VALUES (230,25,'143','143 - Bergsonism & intuitionism',3);
-INSERT INTO `classificazione` VALUES (231,25,'144','144 - Humanism & related systems & doctrines',3);
-INSERT INTO `classificazione` VALUES (232,25,'145','145 - Sensationalism',3);
-INSERT INTO `classificazione` VALUES (233,25,'146','146 - Naturalism & related systems & doctrines',3);
-INSERT INTO `classificazione` VALUES (234,25,'147','147 - Pantheism & related systems & doctrines',3);
-INSERT INTO `classificazione` VALUES (235,25,'148','148 - Dogmatism, eclecticism, liberalism, syncretism & traditionalism',3);
-INSERT INTO `classificazione` VALUES (236,25,'149','149 - Other philosophical systems & doctrines',3);
-INSERT INTO `classificazione` VALUES (237,26,'151','151 - No longer in use — formerly Intellect',3);
-INSERT INTO `classificazione` VALUES (238,26,'152','152 - Sensory perception, movement, emotions & physiological drives',3);
-INSERT INTO `classificazione` VALUES (239,26,'153','153 - Conscious mental processes & intelligence',3);
-INSERT INTO `classificazione` VALUES (240,26,'154','154 - Subconscious & altered states & processes',3);
-INSERT INTO `classificazione` VALUES (241,26,'155','155 - Differential & developmental psychology',3);
-INSERT INTO `classificazione` VALUES (242,26,'156','156 - Comparative psychology',3);
-INSERT INTO `classificazione` VALUES (243,26,'157','157 - No longer in use — formerly Emotions',3);
-INSERT INTO `classificazione` VALUES (244,26,'158','158 - Applied psychology',3);
-INSERT INTO `classificazione` VALUES (245,26,'159','159 - No longer in use — formerly Will',3);
-INSERT INTO `classificazione` VALUES (246,27,'161','161 - Induction',3);
-INSERT INTO `classificazione` VALUES (247,27,'162','162 - Deduction',3);
-INSERT INTO `classificazione` VALUES (248,27,'163','163 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (249,27,'164','164 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (250,27,'165','165 - Fallacies & sources of error',3);
-INSERT INTO `classificazione` VALUES (251,27,'166','166 - Syllogisms',3);
-INSERT INTO `classificazione` VALUES (252,27,'167','167 - Hypotheses',3);
-INSERT INTO `classificazione` VALUES (253,27,'168','168 - Argument & persuasion',3);
-INSERT INTO `classificazione` VALUES (254,27,'169','169 - Analogy',3);
-INSERT INTO `classificazione` VALUES (255,28,'171','171 - Ethical systems',3);
-INSERT INTO `classificazione` VALUES (256,28,'172','172 - Political ethics',3);
-INSERT INTO `classificazione` VALUES (257,28,'173','173 - Ethics of family relationships',3);
-INSERT INTO `classificazione` VALUES (258,28,'174','174 - Occupational ethics',3);
-INSERT INTO `classificazione` VALUES (259,28,'175','175 - Ethics of recreation, leisure, public performances, communication',3);
-INSERT INTO `classificazione` VALUES (260,28,'176','176 - Ethics of sex & reproduction',3);
-INSERT INTO `classificazione` VALUES (261,28,'177','177 - Ethics of social relations',3);
-INSERT INTO `classificazione` VALUES (262,28,'178','178 - Ethics of consumption',3);
-INSERT INTO `classificazione` VALUES (263,28,'179','179 - Other ethical norms',3);
-INSERT INTO `classificazione` VALUES (264,29,'181','181 - Eastern philosophy',3);
-INSERT INTO `classificazione` VALUES (265,29,'182','182 - Pre-Socratic Greek philosophies',3);
-INSERT INTO `classificazione` VALUES (266,29,'183','183 - Sophistic, Socratic & related Greek philosophies',3);
-INSERT INTO `classificazione` VALUES (267,29,'184','184 - Platonic philosophy',3);
-INSERT INTO `classificazione` VALUES (268,29,'185','185 - Aristotelian philosophy',3);
-INSERT INTO `classificazione` VALUES (269,29,'186','186 - Skeptic & Neoplatonic philosophies',3);
-INSERT INTO `classificazione` VALUES (270,29,'187','187 - Epicurean philosophy',3);
-INSERT INTO `classificazione` VALUES (271,29,'188','188 - Stoic philosophy',3);
-INSERT INTO `classificazione` VALUES (272,29,'189','189 - Medieval Western philosophy',3);
-INSERT INTO `classificazione` VALUES (273,30,'191','191 - Philosophy of the United States & Canada',3);
-INSERT INTO `classificazione` VALUES (274,30,'192','192 - Philosophy of the British Isles',3);
-INSERT INTO `classificazione` VALUES (275,30,'193','193 - Philosophy of Germany & Austria',3);
-INSERT INTO `classificazione` VALUES (276,30,'194','194 - Philosophy of France',3);
-INSERT INTO `classificazione` VALUES (277,30,'195','195 - Philosophy of Italy',3);
-INSERT INTO `classificazione` VALUES (278,30,'196','196 - Philosophy of Spain & Portugal',3);
-INSERT INTO `classificazione` VALUES (279,30,'197','197 - Philosophy of Russia',3);
-INSERT INTO `classificazione` VALUES (280,30,'198','198 - Philosophy of Scandinavia & Finland',3);
-INSERT INTO `classificazione` VALUES (281,30,'199','199 - Philosophy in other geographic areas',3);
-INSERT INTO `classificazione` VALUES (282,31,'201','201 - Religious mythology, general classes of religion, interreligious relations and attitudes, social theology',3);
-INSERT INTO `classificazione` VALUES (283,31,'202','202 - Doctrines',3);
-INSERT INTO `classificazione` VALUES (284,31,'203','203 - Public worship & other practices',3);
-INSERT INTO `classificazione` VALUES (285,31,'204','204 - Religious experience, life, practice',3);
-INSERT INTO `classificazione` VALUES (286,31,'205','205 - Religious ethics',3);
-INSERT INTO `classificazione` VALUES (287,31,'206','206 - Leaders & organization',3);
-INSERT INTO `classificazione` VALUES (288,31,'207','207 - Missions & religious education',3);
-INSERT INTO `classificazione` VALUES (289,31,'208','208 - Sources',3);
-INSERT INTO `classificazione` VALUES (290,31,'209','209 - Sects & reform movements',3);
-INSERT INTO `classificazione` VALUES (291,32,'211','211 - Concepts of God',3);
-INSERT INTO `classificazione` VALUES (292,32,'212','212 - Existence, ways of knowing God, attributes of God',3);
-INSERT INTO `classificazione` VALUES (293,32,'213','213 - Creation',3);
-INSERT INTO `classificazione` VALUES (294,32,'214','214 - Theodicy',3);
-INSERT INTO `classificazione` VALUES (295,32,'215','215 - Science & religion',3);
-INSERT INTO `classificazione` VALUES (296,32,'216','216 - No longer in use—formerly Evil',3);
-INSERT INTO `classificazione` VALUES (297,32,'217','217 - No longer in use—formerly Prayer',3);
-INSERT INTO `classificazione` VALUES (298,32,'218','218 - Humankind',3);
-INSERT INTO `classificazione` VALUES (299,32,'219','219 - No longer in use—formerly Analogies',3);
-INSERT INTO `classificazione` VALUES (300,33,'221','221 - Old Testament (Tanakh)',3);
-INSERT INTO `classificazione` VALUES (301,33,'222','222 - Historical books of Old Testament',3);
-INSERT INTO `classificazione` VALUES (302,33,'223','223 - Poetic books of Old Testament',3);
-INSERT INTO `classificazione` VALUES (303,33,'224','224 - Prophetic books of Old Testament',3);
-INSERT INTO `classificazione` VALUES (304,33,'225','225 - New Testament',3);
-INSERT INTO `classificazione` VALUES (305,33,'226','226 - Gospels & Acts',3);
-INSERT INTO `classificazione` VALUES (306,33,'227','227 - Epistles',3);
-INSERT INTO `classificazione` VALUES (307,33,'228','228 - Revelation (Apocalypse)',3);
-INSERT INTO `classificazione` VALUES (308,33,'229','229 - Apocrypha, pseudepigrapha & intertestamental works',3);
-INSERT INTO `classificazione` VALUES (309,34,'231','231 - God',3);
-INSERT INTO `classificazione` VALUES (310,34,'232','232 - Jesus Christ & his family',3);
-INSERT INTO `classificazione` VALUES (311,34,'233','233 - Humankind',3);
-INSERT INTO `classificazione` VALUES (312,34,'234','234 - Salvation & grace',3);
-INSERT INTO `classificazione` VALUES (313,34,'235','235 - Spiritual beings',3);
-INSERT INTO `classificazione` VALUES (314,34,'236','236 - Eschatology',3);
-INSERT INTO `classificazione` VALUES (315,34,'237','237 - No longer in use—formerly Future state',3);
-INSERT INTO `classificazione` VALUES (316,34,'238','238 - Creeds, confessions of faith, covenants, catechisms',3);
-INSERT INTO `classificazione` VALUES (317,34,'239','239 - Apologetics & polemics',3);
-INSERT INTO `classificazione` VALUES (318,35,'241','241 - Christian ethics',3);
-INSERT INTO `classificazione` VALUES (319,35,'242','242 - Devotional literature',3);
-INSERT INTO `classificazione` VALUES (320,35,'243','243 - Evangelistic writings for individuals & families',3);
-INSERT INTO `classificazione` VALUES (321,35,'244','244 - No longer in use—formerly Religious fiction',3);
-INSERT INTO `classificazione` VALUES (322,35,'245','245 - No longer in use—formerly Hymnology',3);
-INSERT INTO `classificazione` VALUES (323,35,'246','246 - Use of art in Christianity',3);
-INSERT INTO `classificazione` VALUES (324,35,'247','247 - Church furnishings & related articles',3);
-INSERT INTO `classificazione` VALUES (325,35,'248','248 - Christian experience, practice, life',3);
-INSERT INTO `classificazione` VALUES (326,35,'249','249 - Christian observances in family life',3);
-INSERT INTO `classificazione` VALUES (327,36,'251','251 - Preaching (Homiletics)',3);
-INSERT INTO `classificazione` VALUES (328,36,'252','252 - Texts of sermons',3);
-INSERT INTO `classificazione` VALUES (329,36,'253','253 - Pastoral office & work (Pastoral theology)',3);
-INSERT INTO `classificazione` VALUES (330,36,'254','254 - Parish administration',3);
-INSERT INTO `classificazione` VALUES (331,36,'255','255 - Religious congregations & orders',3);
-INSERT INTO `classificazione` VALUES (332,36,'256','256 - No longer in use—formerly Religious societies',3);
-INSERT INTO `classificazione` VALUES (333,36,'257','257 - No longer in use—formerly Parish schools, libraries, etc.',3);
-INSERT INTO `classificazione` VALUES (334,36,'258','258 - No longer in use—formerly Parish medicine',3);
-INSERT INTO `classificazione` VALUES (335,36,'259','259 - Pastoral care of families, of specific groups of people',3);
-INSERT INTO `classificazione` VALUES (336,37,'261','261 - Social theology and interreligious relations and attitudes',3);
-INSERT INTO `classificazione` VALUES (337,37,'262','262 - Ecclesiology',3);
-INSERT INTO `classificazione` VALUES (338,37,'263','263 - Days, times, places of religious observance',3);
-INSERT INTO `classificazione` VALUES (339,37,'264','264 - Public worship',3);
-INSERT INTO `classificazione` VALUES (340,37,'265','265 - Sacraments, other rites & acts',3);
-INSERT INTO `classificazione` VALUES (341,37,'266','266 - Missions',3);
-INSERT INTO `classificazione` VALUES (342,37,'267','267 - Associations for religious work',3);
-INSERT INTO `classificazione` VALUES (343,37,'268','268 - Religious education',3);
-INSERT INTO `classificazione` VALUES (344,37,'269','269 - Spiritual renewal',3);
-INSERT INTO `classificazione` VALUES (345,38,'271','271 - Religious congregations & orders in church history',3);
-INSERT INTO `classificazione` VALUES (346,38,'272','272 - Persecutions in church history',3);
-INSERT INTO `classificazione` VALUES (347,38,'273','273 - Doctrinal controversies & heresies in general church history',3);
-INSERT INTO `classificazione` VALUES (348,38,'274','274 - Christianity in Europe',3);
-INSERT INTO `classificazione` VALUES (349,38,'275','275 - Christianity in Asia',3);
-INSERT INTO `classificazione` VALUES (350,38,'276','276 - Christianity in Africa',3);
-INSERT INTO `classificazione` VALUES (351,38,'277','277 - Christianity in North America',3);
-INSERT INTO `classificazione` VALUES (352,38,'278','278 - Christianity in South America',3);
-INSERT INTO `classificazione` VALUES (353,38,'279','279 - History of Christianity in other areas',3);
-INSERT INTO `classificazione` VALUES (354,39,'281','281 - Early church & Oriental churches',3);
-INSERT INTO `classificazione` VALUES (355,39,'282','282 - Roman Catholic Church',3);
-INSERT INTO `classificazione` VALUES (356,39,'283','283 - Anglican churches',3);
-INSERT INTO `classificazione` VALUES (357,39,'284','284 - Protestant denominations of Continental origin (Lutheran, Continental Reformed)',3);
-INSERT INTO `classificazione` VALUES (358,39,'285','285 - Presbyterian churches, Reformed churches centered in America, Congregational churches',3);
-INSERT INTO `classificazione` VALUES (359,39,'286','286 - Baptist, Restoration Movement, Adventist churches',3);
-INSERT INTO `classificazione` VALUES (360,39,'287','287 - Methodist churches; churches related to Methodism',3);
-INSERT INTO `classificazione` VALUES (361,39,'288','288 - No longer in use — formerly Unitarian',3);
-INSERT INTO `classificazione` VALUES (362,39,'289','289 - Other denominations & sects',3);
-INSERT INTO `classificazione` VALUES (363,40,'291','291 - No longer in use — formerly Comparative religion',3);
-INSERT INTO `classificazione` VALUES (364,40,'292','292 - Classical religion (Greek & Roman religion)',3);
-INSERT INTO `classificazione` VALUES (365,40,'293','293 - Germanic religion',3);
-INSERT INTO `classificazione` VALUES (366,40,'294','294 - Religions of Indic origin',3);
-INSERT INTO `classificazione` VALUES (367,40,'295','295 - Zoroastrianism (Mazdaism, Parseeism)',3);
-INSERT INTO `classificazione` VALUES (368,40,'296','296 - Judaism',3);
-INSERT INTO `classificazione` VALUES (369,40,'297','297 - Islam, Bábism & Baháʼí Faith',3);
-INSERT INTO `classificazione` VALUES (370,40,'298','298 - No longer in use — formerly Mormonism',3);
-INSERT INTO `classificazione` VALUES (371,40,'299','299 - Religions not provided for elsewhere',3);
-INSERT INTO `classificazione` VALUES (372,41,'301','301 - Sociology & anthropology',3);
-INSERT INTO `classificazione` VALUES (373,41,'302','302 - Social interaction',3);
-INSERT INTO `classificazione` VALUES (374,41,'303','303 - Social processes',3);
-INSERT INTO `classificazione` VALUES (375,41,'304','304 - Factors affecting social behavior',3);
-INSERT INTO `classificazione` VALUES (376,41,'305','305 - Groups of people',3);
-INSERT INTO `classificazione` VALUES (377,41,'306','306 - Culture & institutions',3);
-INSERT INTO `classificazione` VALUES (378,41,'307','307 - Communities',3);
-INSERT INTO `classificazione` VALUES (379,41,'308','308 - No longer in use — formerly Polygraphy',3);
-INSERT INTO `classificazione` VALUES (380,41,'309','309 - No longer in use — formerly History of sociology',3);
-INSERT INTO `classificazione` VALUES (381,42,'311','311 - No longer in use — formerly Theory and methods',3);
-INSERT INTO `classificazione` VALUES (382,42,'312','312 - No longer in use — formerly Population',3);
-INSERT INTO `classificazione` VALUES (383,42,'313','313 - No longer in use — formerly Special topics',3);
-INSERT INTO `classificazione` VALUES (384,42,'314','314 - General statistics of Europe',3);
-INSERT INTO `classificazione` VALUES (385,42,'315','315 - General statistics of Asia',3);
-INSERT INTO `classificazione` VALUES (386,42,'316','316 - General statistics of Africa',3);
-INSERT INTO `classificazione` VALUES (387,42,'317','317 - General statistics of North America',3);
-INSERT INTO `classificazione` VALUES (388,42,'318','318 - General statistics of South America',3);
-INSERT INTO `classificazione` VALUES (389,42,'319','319 - General statistics of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica',3);
-INSERT INTO `classificazione` VALUES (390,43,'321','321 - Systems of governments & states',3);
-INSERT INTO `classificazione` VALUES (391,43,'322','322 - Relation of state to organized groups & their members',3);
-INSERT INTO `classificazione` VALUES (392,43,'323','323 - Civil & political rights',3);
-INSERT INTO `classificazione` VALUES (393,43,'324','324 - The political process',3);
-INSERT INTO `classificazione` VALUES (394,43,'325','325 - International migration & colonization',3);
-INSERT INTO `classificazione` VALUES (395,43,'326','326 - Slavery & emancipation',3);
-INSERT INTO `classificazione` VALUES (396,43,'327','327 - International relations',3);
-INSERT INTO `classificazione` VALUES (397,43,'328','328 - The legislative process',3);
-INSERT INTO `classificazione` VALUES (398,43,'329','329 - No longer in use— formerly Political parties',3);
-INSERT INTO `classificazione` VALUES (399,44,'331','331 - Labor economics',3);
-INSERT INTO `classificazione` VALUES (400,44,'332','332 - Financial economics',3);
-INSERT INTO `classificazione` VALUES (401,44,'333','333 - Economics of land & energy',3);
-INSERT INTO `classificazione` VALUES (402,44,'334','334 - Cooperatives',3);
-INSERT INTO `classificazione` VALUES (403,44,'335','335 - Socialism & related systems',3);
-INSERT INTO `classificazione` VALUES (404,44,'336','336 - Public finance',3);
-INSERT INTO `classificazione` VALUES (405,44,'337','337 - International economics',3);
-INSERT INTO `classificazione` VALUES (406,44,'338','338 - Production',3);
-INSERT INTO `classificazione` VALUES (407,44,'339','339 - Macroeconomics & related topics',3);
-INSERT INTO `classificazione` VALUES (408,45,'341','341 - Law of nations',3);
-INSERT INTO `classificazione` VALUES (409,45,'342','342 - Constitutional & administrative law',3);
-INSERT INTO `classificazione` VALUES (410,45,'343','343 - Military, defense, public property, public finance, tax, commerce (trade), industrial law',3);
-INSERT INTO `classificazione` VALUES (411,45,'344','344 - Labor, social service, education, cultural law',3);
-INSERT INTO `classificazione` VALUES (412,45,'345','345 - Criminal law',3);
-INSERT INTO `classificazione` VALUES (413,45,'346','346 - Private law',3);
-INSERT INTO `classificazione` VALUES (414,45,'347','347 - Procedure & courts',3);
-INSERT INTO `classificazione` VALUES (415,45,'348','348 - Laws, regulations, cases',3);
-INSERT INTO `classificazione` VALUES (416,45,'349','349 - Law of specific jurisdictions, areas, socioeconomic regions, regional intergovernmental organizations',3);
-INSERT INTO `classificazione` VALUES (417,46,'351','351 - Public administration',3);
-INSERT INTO `classificazione` VALUES (418,46,'352','352 - General considerations of public administration',3);
-INSERT INTO `classificazione` VALUES (419,46,'353','353 - Specific fields of public administration',3);
-INSERT INTO `classificazione` VALUES (420,46,'354','354 - Public administration of economy & environment',3);
-INSERT INTO `classificazione` VALUES (421,46,'355','355 - Military science',3);
-INSERT INTO `classificazione` VALUES (422,46,'356','356 - Foot forces & warfare',3);
-INSERT INTO `classificazione` VALUES (423,46,'357','357 - Mounted forces & warfare',3);
-INSERT INTO `classificazione` VALUES (424,46,'358','358 - Air & other specialized forces & warfare; engineering & related services',3);
-INSERT INTO `classificazione` VALUES (425,46,'359','359 - Sea forces & warfare',3);
-INSERT INTO `classificazione` VALUES (426,47,'361','361 - Social problems & services',3);
-INSERT INTO `classificazione` VALUES (427,47,'362','362 - Social problems of & services to groups of people',3);
-INSERT INTO `classificazione` VALUES (428,47,'363','363 - Other social problems & services',3);
-INSERT INTO `classificazione` VALUES (429,47,'364','364 - Criminology',3);
-INSERT INTO `classificazione` VALUES (430,47,'365','365 - Penal & related institutions',3);
-INSERT INTO `classificazione` VALUES (431,47,'366','366 - Associations & secret societies',3);
-INSERT INTO `classificazione` VALUES (432,47,'367','367 - General clubs',3);
-INSERT INTO `classificazione` VALUES (433,47,'368','368 - Insurance',3);
-INSERT INTO `classificazione` VALUES (434,47,'369','369 - Associations',3);
-INSERT INTO `classificazione` VALUES (435,48,'371','371 - Schools & their activities, special education',3);
-INSERT INTO `classificazione` VALUES (436,48,'372','372 - Primary education (elementary education)',3);
-INSERT INTO `classificazione` VALUES (437,48,'373','373 - Secondary education',3);
-INSERT INTO `classificazione` VALUES (438,48,'374','374 - Adult education',3);
-INSERT INTO `classificazione` VALUES (439,48,'375','375 - Curriculums',3);
-INSERT INTO `classificazione` VALUES (440,48,'376','376 - No longer in use — formerly Education of women',3);
-INSERT INTO `classificazione` VALUES (441,48,'377','377 - No longer in use — formerly Ethical education',3);
-INSERT INTO `classificazione` VALUES (442,48,'378','378 - Higher education (tertiary education)',3);
-INSERT INTO `classificazione` VALUES (443,48,'379','379 - Public policy issues in education',3);
-INSERT INTO `classificazione` VALUES (444,49,'381','381 - Commerce (Trade)',3);
-INSERT INTO `classificazione` VALUES (445,49,'382','382 - International commerce (foreign trade)',3);
-INSERT INTO `classificazione` VALUES (446,49,'383','383 - Postal communication',3);
-INSERT INTO `classificazione` VALUES (447,49,'384','384 - Communications',3);
-INSERT INTO `classificazione` VALUES (448,49,'385','385 - Railroad transportation',3);
-INSERT INTO `classificazione` VALUES (449,49,'386','386 - Inland waterway & ferry transportation',3);
-INSERT INTO `classificazione` VALUES (450,49,'387','387 - Water, air, space transportation',3);
-INSERT INTO `classificazione` VALUES (451,49,'388','388 - Transportation',3);
-INSERT INTO `classificazione` VALUES (452,49,'389','389 - Metrology & standardization',3);
-INSERT INTO `classificazione` VALUES (453,50,'391','391 - Costume & personal appearance',3);
-INSERT INTO `classificazione` VALUES (454,50,'392','392 - Customs of life cycle & domestic life',3);
-INSERT INTO `classificazione` VALUES (455,50,'393','393 - Death customs',3);
-INSERT INTO `classificazione` VALUES (456,50,'394','394 - General customs',3);
-INSERT INTO `classificazione` VALUES (457,50,'395','395 - Etiquette (Manners)',3);
-INSERT INTO `classificazione` VALUES (458,50,'396','396 - No longer in use — formerly Women''s position and treatment',3);
-INSERT INTO `classificazione` VALUES (459,50,'397','397 - No longer in use — formerly Outcast studies',3);
-INSERT INTO `classificazione` VALUES (460,50,'398','398 - Folklore',3);
-INSERT INTO `classificazione` VALUES (461,50,'399','399 - Customs of war & diplomacy',3);
-INSERT INTO `classificazione` VALUES (462,51,'401','401 - Philosophy & theory, international languages',3);
-INSERT INTO `classificazione` VALUES (463,51,'402','402 - Miscellany',3);
-INSERT INTO `classificazione` VALUES (464,51,'403','403 - Dictionaries, encyclopedias, concordances',3);
-INSERT INTO `classificazione` VALUES (465,51,'404','404 - Special topics of language',3);
-INSERT INTO `classificazione` VALUES (466,51,'405','405 - Serial publications',3);
-INSERT INTO `classificazione` VALUES (467,51,'406','406 - Organizations & management',3);
-INSERT INTO `classificazione` VALUES (468,51,'407','407 - Education, research, related topics',3);
-INSERT INTO `classificazione` VALUES (469,51,'408','408 - Groups of people',3);
-INSERT INTO `classificazione` VALUES (470,51,'409','409 - Geographic treatment & biography',3);
-INSERT INTO `classificazione` VALUES (471,52,'411','411 - Writing systems of standard forms of languages',3);
-INSERT INTO `classificazione` VALUES (472,52,'412','412 - Etymology of standard forms of languages',3);
-INSERT INTO `classificazione` VALUES (473,52,'413','413 - Dictionaries of standard forms of languages',3);
-INSERT INTO `classificazione` VALUES (474,52,'414','414 - Phonology & phonetics of standard forms of languages',3);
-INSERT INTO `classificazione` VALUES (475,52,'415','415 - Grammar of standard forms of languages',3);
-INSERT INTO `classificazione` VALUES (476,52,'416','416 - No longer in use — formerly Prosody',3);
-INSERT INTO `classificazione` VALUES (477,52,'417','417 - Dialectology & historical linguistics',3);
-INSERT INTO `classificazione` VALUES (478,52,'418','418 - Standard usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (479,52,'419','419 - Sign languages',3);
-INSERT INTO `classificazione` VALUES (480,53,'421','421 - Writing system, phonology, phonetics of standard English',3);
-INSERT INTO `classificazione` VALUES (481,53,'422','422 - Etymology of standard English',3);
-INSERT INTO `classificazione` VALUES (482,53,'423','423 - Dictionaries of standard English',3);
-INSERT INTO `classificazione` VALUES (483,53,'424','424 - No longer in use — formerly English thesauruses',3);
-INSERT INTO `classificazione` VALUES (484,53,'425','425 - Grammar of standard English',3);
-INSERT INTO `classificazione` VALUES (485,53,'426','426 - No longer in use — formerly English prosodies',3);
-INSERT INTO `classificazione` VALUES (486,53,'427','427 - Historical & geographic variations, modern nongeographic variations of English',3);
-INSERT INTO `classificazione` VALUES (487,53,'428','428 - Standard English usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (488,53,'429','429 - Old English (Anglo-Saxon)',3);
-INSERT INTO `classificazione` VALUES (489,54,'431','431 - Writing systems, phonology, phonetics of standard German',3);
-INSERT INTO `classificazione` VALUES (490,54,'432','432 - Etymology of standard German',3);
-INSERT INTO `classificazione` VALUES (491,54,'433','433 - Dictionaries of standard German',3);
-INSERT INTO `classificazione` VALUES (492,54,'434','434 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (493,54,'435','435 - Grammar of standard German',3);
-INSERT INTO `classificazione` VALUES (494,54,'436','436 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (495,54,'437','437 - Historical & geographic variations, modern nongeographic variations of German',3);
-INSERT INTO `classificazione` VALUES (496,54,'438','438 - Standard German usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (497,54,'439','439 - Other Germanic languages',3);
-INSERT INTO `classificazione` VALUES (498,55,'441','441 - Writing systems, phonology, phonetics of standard French',3);
-INSERT INTO `classificazione` VALUES (499,55,'442','442 - Etymology of standard French',3);
-INSERT INTO `classificazione` VALUES (500,55,'443','443 - Dictionaries of standard French',3);
-INSERT INTO `classificazione` VALUES (501,55,'444','444 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (502,55,'445','445 - Grammar of standard French',3);
-INSERT INTO `classificazione` VALUES (503,55,'446','446 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (504,55,'447','447 - Historical & geographic variations, modern nongeographic variations of French',3);
-INSERT INTO `classificazione` VALUES (505,55,'448','448 - Standard French usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (506,55,'449','449 - Occitan, Catalan, Franco-Provençal',3);
-INSERT INTO `classificazione` VALUES (507,56,'451','451 - Writing systems, phonology, phonetics of standard Italian',3);
-INSERT INTO `classificazione` VALUES (508,56,'452','452 - Etymology of standard Italian',3);
-INSERT INTO `classificazione` VALUES (509,56,'453','453 - Dictionaries of standard Italian',3);
-INSERT INTO `classificazione` VALUES (510,56,'454','454 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (511,56,'455','455 - Grammar of standard Italian',3);
-INSERT INTO `classificazione` VALUES (512,56,'456','456 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (513,56,'457','457 - Historical & geographic variations, modern nongeographic variations of Italian',3);
-INSERT INTO `classificazione` VALUES (514,56,'458','458 - Standard Italian usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (515,56,'459','459 - Romanian, Rhaetian, Sardinian, Corsican',3);
-INSERT INTO `classificazione` VALUES (516,57,'461','461 - Writing systems, phonology, phonetics of standard Spanish',3);
-INSERT INTO `classificazione` VALUES (517,57,'462','462 - Etymology of standard Spanish',3);
-INSERT INTO `classificazione` VALUES (518,57,'463','463 - Dictionaries of standard Spanish',3);
-INSERT INTO `classificazione` VALUES (519,57,'464','464 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (520,57,'465','465 - Grammar of standard Spanish',3);
-INSERT INTO `classificazione` VALUES (521,57,'466','466 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (522,57,'467','467 - Historical & geographic variations, modern nongeographic variations of Spanish',3);
-INSERT INTO `classificazione` VALUES (523,57,'468','468 - Standard Spanish usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (524,57,'469','469 - Portuguese',3);
-INSERT INTO `classificazione` VALUES (525,58,'471','471 - Writing systems, phonology, phonetics of classical Latin',3);
-INSERT INTO `classificazione` VALUES (526,58,'472','472 - Etymology of classical Latin',3);
-INSERT INTO `classificazione` VALUES (527,58,'473','473 - Dictionaries of classical Latin',3);
-INSERT INTO `classificazione` VALUES (528,58,'474','474 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (529,58,'475','475 - Grammar of classical Latin',3);
-INSERT INTO `classificazione` VALUES (530,58,'476','476 - No longer in use',3);
-INSERT INTO `classificazione` VALUES (531,58,'477','477 - Old, postclassical, Vulgar Latin',3);
-INSERT INTO `classificazione` VALUES (532,58,'478','478 - Classical Latin usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (533,58,'479','479 - Other Italic languages',3);
-INSERT INTO `classificazione` VALUES (534,59,'481','481 - Writing systems, phonology, phonetics of classical Greek',3);
-INSERT INTO `classificazione` VALUES (535,59,'482','482 - Etymology of classical Greek',3);
-INSERT INTO `classificazione` VALUES (536,59,'483','483 - Dictionaries of classical Greek',3);
-INSERT INTO `classificazione` VALUES (537,59,'484','484 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (538,59,'485','485 - Grammar of classical Greek',3);
-INSERT INTO `classificazione` VALUES (539,59,'486','486 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (540,59,'487','487 - Preclassical & postclassical Greek',3);
-INSERT INTO `classificazione` VALUES (541,59,'488','488 - Classical Greek usage (Prescriptive linguistics)',3);
-INSERT INTO `classificazione` VALUES (542,59,'489','489 - Other Hellenic languages',3);
-INSERT INTO `classificazione` VALUES (543,60,'491','491 - East Indo-European & Celtic languages',3);
-INSERT INTO `classificazione` VALUES (544,60,'492','492 - Afro-Asiatic languages',3);
-INSERT INTO `classificazione` VALUES (545,60,'493','493 - Non-Semitic Afro-Asiatic languages',3);
-INSERT INTO `classificazione` VALUES (546,60,'494','494 - Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia',3);
-INSERT INTO `classificazione` VALUES (547,60,'495','495 - Languages of East & Southeast Asia',3);
-INSERT INTO `classificazione` VALUES (548,60,'496','496 - African languages',3);
-INSERT INTO `classificazione` VALUES (549,60,'497','497 - North American native languages',3);
-INSERT INTO `classificazione` VALUES (550,60,'498','498 - South American native languages',3);
-INSERT INTO `classificazione` VALUES (551,60,'499','499 - Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages',3);
-INSERT INTO `classificazione` VALUES (552,61,'501','501 - Philosophy & theory',3);
-INSERT INTO `classificazione` VALUES (553,61,'502','502 - Miscellany',3);
-INSERT INTO `classificazione` VALUES (554,61,'503','503 - Dictionaries, encyclopedias, concordances',3);
-INSERT INTO `classificazione` VALUES (555,61,'504','504 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (556,61,'505','505 - Serial publications',3);
-INSERT INTO `classificazione` VALUES (557,61,'506','506 - Organizations & management',3);
-INSERT INTO `classificazione` VALUES (558,61,'507','507 - Education, research, related topics',3);
-INSERT INTO `classificazione` VALUES (559,61,'508','508 - Natural history',3);
-INSERT INTO `classificazione` VALUES (560,61,'509','509 - History, geographic treatment, biography',3);
-INSERT INTO `classificazione` VALUES (561,62,'511','511 - General principles of mathematics',3);
-INSERT INTO `classificazione` VALUES (562,62,'512','512 - Algebra',3);
-INSERT INTO `classificazione` VALUES (563,62,'513','513 - Arithmetic',3);
-INSERT INTO `classificazione` VALUES (564,62,'514','514 - Topology',3);
-INSERT INTO `classificazione` VALUES (565,62,'515','515 - Analysis',3);
-INSERT INTO `classificazione` VALUES (566,62,'516','516 - Geometry',3);
-INSERT INTO `classificazione` VALUES (567,62,'517','517 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (568,62,'518','518 - Numerical analysis',3);
-INSERT INTO `classificazione` VALUES (569,62,'519','519 - Probabilities & applied mathematics',3);
-INSERT INTO `classificazione` VALUES (570,63,'521','521 - Celestial mechanics',3);
-INSERT INTO `classificazione` VALUES (571,63,'522','522 - Techniques, procedures, apparatus, equipment, materials',3);
-INSERT INTO `classificazione` VALUES (572,63,'523','523 - Specific celestial bodies & phenomena',3);
-INSERT INTO `classificazione` VALUES (573,63,'524','524 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (574,63,'525','525 - Earth (Astronomical geography)',3);
-INSERT INTO `classificazione` VALUES (575,63,'526','526 - Mathematical geography',3);
-INSERT INTO `classificazione` VALUES (576,63,'527','527 - Celestial navigation',3);
-INSERT INTO `classificazione` VALUES (577,63,'528','528 - Ephemerides',3);
-INSERT INTO `classificazione` VALUES (578,63,'529','529 - Chronology',3);
-INSERT INTO `classificazione` VALUES (579,64,'531','531 - Classical mechanics',3);
-INSERT INTO `classificazione` VALUES (580,64,'532','532 - Fluid mechanics',3);
-INSERT INTO `classificazione` VALUES (581,64,'533','533 - Pneumatics (Gas mechanics)',3);
-INSERT INTO `classificazione` VALUES (582,64,'534','534 - Sound & related vibrations',3);
-INSERT INTO `classificazione` VALUES (583,64,'535','535 - Light & related radiation',3);
-INSERT INTO `classificazione` VALUES (584,64,'536','536 - Heat',3);
-INSERT INTO `classificazione` VALUES (585,64,'537','537 - Electricity & electronics',3);
-INSERT INTO `classificazione` VALUES (586,64,'538','538 - Magnetism',3);
-INSERT INTO `classificazione` VALUES (587,64,'539','539 - Modern physics',3);
-INSERT INTO `classificazione` VALUES (588,65,'541','541 - Physical chemistry',3);
-INSERT INTO `classificazione` VALUES (589,65,'542','542 - Techniques, procedures, apparatus, equipment, materials',3);
-INSERT INTO `classificazione` VALUES (590,65,'543','543 - Analytical chemistry',3);
-INSERT INTO `classificazione` VALUES (591,65,'544','544 - No longer in use — formerly Qualitative analysis',3);
-INSERT INTO `classificazione` VALUES (592,65,'545','545 - No longer in use — formerly Quantitative analysis',3);
-INSERT INTO `classificazione` VALUES (593,65,'546','546 - Inorganic chemistry',3);
-INSERT INTO `classificazione` VALUES (594,65,'547','547 - Organic chemistry',3);
-INSERT INTO `classificazione` VALUES (595,65,'548','548 - Crystallography',3);
-INSERT INTO `classificazione` VALUES (596,65,'549','549 - Mineralogy',3);
-INSERT INTO `classificazione` VALUES (597,66,'551','551 - Geology, hydrology, meteorology',3);
-INSERT INTO `classificazione` VALUES (598,66,'552','552 - Petrology',3);
-INSERT INTO `classificazione` VALUES (599,66,'553','553 - Economic geology',3);
-INSERT INTO `classificazione` VALUES (600,66,'554','554 - Earth sciences of Europe',3);
-INSERT INTO `classificazione` VALUES (601,66,'555','555 - Earth sciences of Asia',3);
-INSERT INTO `classificazione` VALUES (602,66,'556','556 - Earth sciences of Africa',3);
-INSERT INTO `classificazione` VALUES (603,66,'557','557 - Earth sciences of North America',3);
-INSERT INTO `classificazione` VALUES (604,66,'558','558 - Earth sciences of South America',3);
-INSERT INTO `classificazione` VALUES (605,66,'559','559 - Earth sciences of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds',3);
-INSERT INTO `classificazione` VALUES (606,67,'561','561 - Paleobotany, fossil microorganisms',3);
-INSERT INTO `classificazione` VALUES (607,67,'562','562 - Fossil invertebrates',3);
-INSERT INTO `classificazione` VALUES (608,67,'563','563 - Miscellaneous fossil marine & seashore invertebrates',3);
-INSERT INTO `classificazione` VALUES (609,67,'564','564 - Fossil Mollusca & Molluscoidea',3);
-INSERT INTO `classificazione` VALUES (610,67,'565','565 - Fossil Arthropoda',3);
-INSERT INTO `classificazione` VALUES (611,67,'566','566 - Fossil Chordata',3);
-INSERT INTO `classificazione` VALUES (612,67,'567','567 - Fossil cold-blooded vertebrates',3);
-INSERT INTO `classificazione` VALUES (613,67,'568','568 - Fossil Aves (birds)',3);
-INSERT INTO `classificazione` VALUES (614,67,'569','569 - Fossil Mammalia',3);
-INSERT INTO `classificazione` VALUES (615,68,'571','571 - Physiology & related subjects',3);
-INSERT INTO `classificazione` VALUES (616,68,'572','572 - Biochemistry',3);
-INSERT INTO `classificazione` VALUES (617,68,'573','573 - Specific physiological systems in animals, regional histology & physiology in animals',3);
-INSERT INTO `classificazione` VALUES (618,68,'574','574 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (619,68,'575','575 - Specific parts of & physiological systems in plants',3);
-INSERT INTO `classificazione` VALUES (620,68,'576','576 - Genetics & evolution',3);
-INSERT INTO `classificazione` VALUES (621,68,'577','577 - Ecology',3);
-INSERT INTO `classificazione` VALUES (622,68,'578','578 - Natural history of organisms & related subjects',3);
-INSERT INTO `classificazione` VALUES (623,68,'579','579 - Natural history of microorganisms, fungi, algae',3);
-INSERT INTO `classificazione` VALUES (624,69,'581','581 - Specific topics in natural history of plants',3);
-INSERT INTO `classificazione` VALUES (625,69,'582','582 - Plants noted for specific vegetative characteristics & flowers',3);
-INSERT INTO `classificazione` VALUES (626,69,'583','583 - Magnoliopsida (Dicotyledones)',3);
-INSERT INTO `classificazione` VALUES (627,69,'584','584 - Liliopsida (Monocotyledones)',3);
-INSERT INTO `classificazione` VALUES (628,69,'585','585 - Pinophyta (Gymnosperms)',3);
-INSERT INTO `classificazione` VALUES (629,69,'586','586 - Cryptogamia (Seedless plants)',3);
-INSERT INTO `classificazione` VALUES (630,69,'587','587 - Pteridophyta',3);
-INSERT INTO `classificazione` VALUES (631,69,'588','588 - Bryophyta',3);
-INSERT INTO `classificazione` VALUES (632,69,'589','589 - No longer in use—formerly Forestry',3);
-INSERT INTO `classificazione` VALUES (633,70,'591','591 - Specific topics in natural history of animals',3);
-INSERT INTO `classificazione` VALUES (634,70,'592','592 - Invertebrates',3);
-INSERT INTO `classificazione` VALUES (635,70,'593','593 - Miscellaneous marine & seashore invertebrates',3);
-INSERT INTO `classificazione` VALUES (636,70,'594','594 - Mollusca & Molluscoidea',3);
-INSERT INTO `classificazione` VALUES (637,70,'595','595 - Arthropoda',3);
-INSERT INTO `classificazione` VALUES (638,70,'596','596 - Chordata',3);
-INSERT INTO `classificazione` VALUES (639,70,'597','597 - Cold-blooded vertebrates',3);
-INSERT INTO `classificazione` VALUES (640,70,'598','598 - Aves (Birds)',3);
-INSERT INTO `classificazione` VALUES (641,70,'599','599 - Mammalia (Mammals)',3);
-INSERT INTO `classificazione` VALUES (642,71,'601','601 - Philosophy & theory',3);
-INSERT INTO `classificazione` VALUES (643,71,'602','602 - Miscellany',3);
-INSERT INTO `classificazione` VALUES (644,71,'603','603 - Dictionaries, encyclopedias, concordances',3);
-INSERT INTO `classificazione` VALUES (645,71,'604','604 - Technical drawing, hazardous materials technology; groups of people',3);
-INSERT INTO `classificazione` VALUES (646,71,'605','605 - Serial publications',3);
-INSERT INTO `classificazione` VALUES (647,71,'606','606 - Organizations',3);
-INSERT INTO `classificazione` VALUES (648,71,'607','607 - Education, research, related topics',3);
-INSERT INTO `classificazione` VALUES (649,71,'608','608 - Patents',3);
-INSERT INTO `classificazione` VALUES (650,71,'609','609 - History, geographic treatment, biography',3);
-INSERT INTO `classificazione` VALUES (651,72,'611','611 - Human anatomy, cytology, histology',3);
-INSERT INTO `classificazione` VALUES (652,72,'612','612 - Human physiology',3);
-INSERT INTO `classificazione` VALUES (653,72,'613','613 - Personal health & safety',3);
-INSERT INTO `classificazione` VALUES (654,72,'614','614 - Forensic medicine; incidence of injuries, wounds, disease; public preventive medicine',3);
-INSERT INTO `classificazione` VALUES (655,72,'615','615 - Pharmacology & therapeutics',3);
-INSERT INTO `classificazione` VALUES (656,72,'616','616 - Diseases',3);
-INSERT INTO `classificazione` VALUES (657,72,'617','617 - Surgery, regional medicine, dentistry, ophthalmology, otology, audiology',3);
-INSERT INTO `classificazione` VALUES (658,72,'618','618 - Gynecology, obstetrics, pediatrics, geriatrics',3);
-INSERT INTO `classificazione` VALUES (659,72,'619','619 - No longer in use—formerly Experimental medicine',3);
-INSERT INTO `classificazione` VALUES (660,73,'621','621 - Applied physics',3);
-INSERT INTO `classificazione` VALUES (661,73,'622','622 - Mining & related operations',3);
-INSERT INTO `classificazione` VALUES (662,73,'623','623 - Military & nautical engineering',3);
-INSERT INTO `classificazione` VALUES (663,73,'624','624 - Civil engineering',3);
-INSERT INTO `classificazione` VALUES (664,73,'625','625 - Engineering of railroads, roads',3);
-INSERT INTO `classificazione` VALUES (665,73,'626','626 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (666,73,'627','627 - Hydraulic engineering',3);
-INSERT INTO `classificazione` VALUES (667,73,'628','628 - Sanitary engineering',3);
-INSERT INTO `classificazione` VALUES (668,73,'629','629 - Other branches of engineering',3);
-INSERT INTO `classificazione` VALUES (669,74,'631','631 - Specific techniques; apparatus, equipment, materials',3);
-INSERT INTO `classificazione` VALUES (670,74,'632','632 - Plant injuries, diseases, pests',3);
-INSERT INTO `classificazione` VALUES (671,74,'633','633 - Field & plantation crops',3);
-INSERT INTO `classificazione` VALUES (672,74,'634','634 - Orchards, fruits, forestry',3);
-INSERT INTO `classificazione` VALUES (673,74,'635','635 - Garden crops (Horticulture)',3);
-INSERT INTO `classificazione` VALUES (674,74,'636','636 - Animal husbandry',3);
-INSERT INTO `classificazione` VALUES (675,74,'637','637 - Processing dairy & related products',3);
-INSERT INTO `classificazione` VALUES (676,74,'638','638 - Insect culture',3);
-INSERT INTO `classificazione` VALUES (677,74,'639','639 - Hunting, fishing, conservation, related technologies',3);
-INSERT INTO `classificazione` VALUES (678,75,'641','641 - Food & drink',3);
-INSERT INTO `classificazione` VALUES (679,75,'642','642 - Meals & table service',3);
-INSERT INTO `classificazione` VALUES (680,75,'643','643 - Housing & household equipment',3);
-INSERT INTO `classificazione` VALUES (681,75,'644','644 - Household utilities',3);
-INSERT INTO `classificazione` VALUES (682,75,'645','645 - Household furnishings',3);
-INSERT INTO `classificazione` VALUES (683,75,'646','646 - Sewing, clothing, management of personal and family life',3);
-INSERT INTO `classificazione` VALUES (684,75,'647','647 - Management of public households (Institutional housekeeping)',3);
-INSERT INTO `classificazione` VALUES (685,75,'648','648 - Housekeeping',3);
-INSERT INTO `classificazione` VALUES (686,75,'649','649 - Child rearing; home care of people with disabilities and illnesses',3);
-INSERT INTO `classificazione` VALUES (687,76,'651','651 - Office services',3);
-INSERT INTO `classificazione` VALUES (688,76,'652','652 - Processes of written communication',3);
-INSERT INTO `classificazione` VALUES (689,76,'653','653 - Shorthand',3);
-INSERT INTO `classificazione` VALUES (690,76,'654','654 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (691,76,'655','655 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (692,76,'656','656 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (693,76,'657','657 - Accounting',3);
-INSERT INTO `classificazione` VALUES (694,76,'658','658 - General management',3);
-INSERT INTO `classificazione` VALUES (695,76,'659','659 - Advertising & public relations',3);
-INSERT INTO `classificazione` VALUES (696,77,'661','661 - Technology of industrial chemicals',3);
-INSERT INTO `classificazione` VALUES (697,77,'662','662 - Technology of explosives, fuels, related products',3);
-INSERT INTO `classificazione` VALUES (698,77,'663','663 - Beverage technology',3);
-INSERT INTO `classificazione` VALUES (699,77,'664','664 - Food technology',3);
-INSERT INTO `classificazione` VALUES (700,77,'665','665 - Technology of industrial oils, fats, waxes, gases',3);
-INSERT INTO `classificazione` VALUES (701,77,'666','666 - Ceramic & allied technologies',3);
-INSERT INTO `classificazione` VALUES (702,77,'667','667 - Cleaning, color, coating, related technologies',3);
-INSERT INTO `classificazione` VALUES (703,77,'668','668 - Technology of other organic products',3);
-INSERT INTO `classificazione` VALUES (704,77,'669','669 - Metallurgy',3);
-INSERT INTO `classificazione` VALUES (705,78,'671','671 - Metalworking processes & primary metal products',3);
-INSERT INTO `classificazione` VALUES (706,78,'672','672 - Iron, steel, other iron alloys',3);
-INSERT INTO `classificazione` VALUES (707,78,'673','673 - Nonferrous metals',3);
-INSERT INTO `classificazione` VALUES (708,78,'674','674 - Lumber processing, wood products, cork',3);
-INSERT INTO `classificazione` VALUES (709,78,'675','675 - Leather & fur processing',3);
-INSERT INTO `classificazione` VALUES (710,78,'676','676 - Pulp & paper technology',3);
-INSERT INTO `classificazione` VALUES (711,78,'677','677 - Textiles',3);
-INSERT INTO `classificazione` VALUES (712,78,'678','678 - Elastomers & elastomer products',3);
-INSERT INTO `classificazione` VALUES (713,78,'679','679 - Other products of specific kinds of materials',3);
-INSERT INTO `classificazione` VALUES (714,79,'681','681 - Precision instruments & other devices',3);
-INSERT INTO `classificazione` VALUES (715,79,'682','682 - Small forge work (Blacksmithing)',3);
-INSERT INTO `classificazione` VALUES (716,79,'683','683 - Hardware & household appliances',3);
-INSERT INTO `classificazione` VALUES (717,79,'684','684 - Furnishings & home workshops',3);
-INSERT INTO `classificazione` VALUES (718,79,'685','685 - Leather & fur goods & related products',3);
-INSERT INTO `classificazione` VALUES (719,79,'686','686 - Printing & related activities',3);
-INSERT INTO `classificazione` VALUES (720,79,'687','687 - Clothing & accessories',3);
-INSERT INTO `classificazione` VALUES (721,79,'688','688 - Other final products & packaging technology',3);
-INSERT INTO `classificazione` VALUES (722,79,'689','689 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (723,80,'691','691 - Building materials',3);
-INSERT INTO `classificazione` VALUES (724,80,'692','692 - Auxiliary construction practices',3);
-INSERT INTO `classificazione` VALUES (725,80,'693','693 - Construction in specific types of materials & for specific purposes',3);
-INSERT INTO `classificazione` VALUES (726,80,'694','694 - Wood construction',3);
-INSERT INTO `classificazione` VALUES (727,80,'695','695 - Roof covering',3);
-INSERT INTO `classificazione` VALUES (728,80,'696','696 - Utilities',3);
-INSERT INTO `classificazione` VALUES (729,80,'697','697 - Heating, ventilating, air-conditioning engineering',3);
-INSERT INTO `classificazione` VALUES (730,80,'698','698 - Detail finishing',3);
-INSERT INTO `classificazione` VALUES (731,80,'699','699 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (732,81,'701','701 - Philosophy & theory of fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (733,81,'702','702 - Miscellany of fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (734,81,'703','703 - Dictionaries, encyclopedias, concordances of fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (735,81,'704','704 - Special topics in fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (736,81,'705','705 - Serial publications of fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (737,81,'706','706 - Organizations & management of fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (738,81,'707','707 - Education, research, related topics of fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (739,81,'708','708 - Galleries, museums, private collections of fine & decorative arts',3);
-INSERT INTO `classificazione` VALUES (740,81,'709','709 - History, geographic treatment, biography',3);
-INSERT INTO `classificazione` VALUES (741,82,'711','711 - Area planning (Civic art)',3);
-INSERT INTO `classificazione` VALUES (742,82,'712','712 - Landscape architecture (Landscape design)',3);
-INSERT INTO `classificazione` VALUES (743,82,'713','713 - Landscape architecture of trafficways',3);
-INSERT INTO `classificazione` VALUES (744,82,'714','714 - Water features in landscape architecture',3);
-INSERT INTO `classificazione` VALUES (745,82,'715','715 - Woody plants in landscape architecture',3);
-INSERT INTO `classificazione` VALUES (746,82,'716','716 - Herbaceous plants in landscape architecture',3);
-INSERT INTO `classificazione` VALUES (747,82,'717','717 - Structures in landscape architecture',3);
-INSERT INTO `classificazione` VALUES (748,82,'718','718 - Landscape design of cemeteries',3);
-INSERT INTO `classificazione` VALUES (749,82,'719','719 - Natural landscapes',3);
-INSERT INTO `classificazione` VALUES (750,83,'721','721 - Architectural materials & structural elements',3);
-INSERT INTO `classificazione` VALUES (751,83,'722','722 - Architecture from earliest times to ca. 300',3);
-INSERT INTO `classificazione` VALUES (752,83,'723','723 - Architecture from ca. 300 to 1399',3);
-INSERT INTO `classificazione` VALUES (753,83,'724','724 - Architecture from 1400',3);
-INSERT INTO `classificazione` VALUES (754,83,'725','725 - Public structures',3);
-INSERT INTO `classificazione` VALUES (755,83,'726','726 - Buildings for religious & related purposes',3);
-INSERT INTO `classificazione` VALUES (756,83,'727','727 - Buildings for educational & research purposes',3);
-INSERT INTO `classificazione` VALUES (757,83,'728','728 - Residential & related buildings',3);
-INSERT INTO `classificazione` VALUES (758,83,'729','729 - Design & decoration of structures & accessories',3);
-INSERT INTO `classificazione` VALUES (759,84,'731','731 - Processes, forms, subjects of sculpture',3);
-INSERT INTO `classificazione` VALUES (760,84,'732','732 - Sculpture from earliest times to ca. 500, sculpture of nonliterate peoples',3);
-INSERT INTO `classificazione` VALUES (761,84,'733','733 - Greek, Etruscan, Roman sculpture',3);
-INSERT INTO `classificazione` VALUES (762,84,'734','734 - Sculpture from ca. 500 to 1399',3);
-INSERT INTO `classificazione` VALUES (763,84,'735','735 - Sculpture from 1400',3);
-INSERT INTO `classificazione` VALUES (764,84,'736','736 - Carving & carvings',3);
-INSERT INTO `classificazione` VALUES (765,84,'737','737 - Numismatics & sigillography',3);
-INSERT INTO `classificazione` VALUES (766,84,'738','738 - Ceramic arts',3);
-INSERT INTO `classificazione` VALUES (767,84,'739','739 - Art metalwork',3);
-INSERT INTO `classificazione` VALUES (768,85,'741','741 - Drawing & drawings',3);
-INSERT INTO `classificazione` VALUES (769,85,'742','742 - Perspective in drawing',3);
-INSERT INTO `classificazione` VALUES (770,85,'743','743 - Drawing & drawings by subject',3);
-INSERT INTO `classificazione` VALUES (771,85,'744','744 - Communication design & visual design (proposed)',3);
-INSERT INTO `classificazione` VALUES (772,85,'745','745 - Decorative arts',3);
-INSERT INTO `classificazione` VALUES (773,85,'746','746 - Textile arts',3);
-INSERT INTO `classificazione` VALUES (774,85,'747','747 - Interior decoration',3);
-INSERT INTO `classificazione` VALUES (775,85,'748','748 - Glass',3);
-INSERT INTO `classificazione` VALUES (776,85,'749','749 - Furniture & accessories',3);
-INSERT INTO `classificazione` VALUES (777,86,'751','751 - Techniques, procedures, apparatus, equipment, materials, forms',3);
-INSERT INTO `classificazione` VALUES (778,86,'752','752 - Color',3);
-INSERT INTO `classificazione` VALUES (779,86,'753','753 - Symbolism, allegory, mythology, legend',3);
-INSERT INTO `classificazione` VALUES (780,86,'754','754 - Genre paintings',3);
-INSERT INTO `classificazione` VALUES (781,86,'755','755 - Religion',3);
-INSERT INTO `classificazione` VALUES (782,86,'756','756 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (783,86,'757','757 - Human figures',3);
-INSERT INTO `classificazione` VALUES (784,86,'758','758 - Nature, architectural subjects & cityscapes, other specific subjects',3);
-INSERT INTO `classificazione` VALUES (785,86,'759','759 - History, geographic treatment, biography',3);
-INSERT INTO `classificazione` VALUES (786,87,'761','761 - Relief processes (Block printing)',3);
-INSERT INTO `classificazione` VALUES (787,87,'762','762 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (788,87,'763','763 - Lithographic processes (Planographic processes)',3);
-INSERT INTO `classificazione` VALUES (789,87,'764','764 - Chromolithography & serigraphy',3);
-INSERT INTO `classificazione` VALUES (790,87,'765','765 - Metal engraving',3);
-INSERT INTO `classificazione` VALUES (791,87,'766','766 - Mezzotinting, aquatinting & related processes',3);
-INSERT INTO `classificazione` VALUES (792,87,'767','767 - Etching & drypoint',3);
-INSERT INTO `classificazione` VALUES (793,87,'768','768 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (794,87,'769','769 - Prints',3);
-INSERT INTO `classificazione` VALUES (795,88,'771','771 - Techniques, procedures, apparatus, equipment, materials',3);
-INSERT INTO `classificazione` VALUES (796,88,'772','772 - Metallic salt processes',3);
-INSERT INTO `classificazione` VALUES (797,88,'773','773 - Pigment processes of printing',3);
-INSERT INTO `classificazione` VALUES (798,88,'774','774 - No longer in use—formerly Holography',3);
-INSERT INTO `classificazione` VALUES (799,88,'775','775 - No longer in use—formerly Digital photography',3);
-INSERT INTO `classificazione` VALUES (800,88,'776','776 - Computer art (Digital art)',3);
-INSERT INTO `classificazione` VALUES (801,88,'777','777 - Cinematography & videography',3);
-INSERT INTO `classificazione` VALUES (802,88,'778','778 - Specific fields & special kinds of photography',3);
-INSERT INTO `classificazione` VALUES (803,88,'779','779 - Photographic images',3);
-INSERT INTO `classificazione` VALUES (804,89,'781','781 - General principles & musical forms',3);
-INSERT INTO `classificazione` VALUES (805,89,'782','782 - Vocal music',3);
-INSERT INTO `classificazione` VALUES (806,89,'783','783 - Music for single voices',3);
-INSERT INTO `classificazione` VALUES (807,89,'784','784 - Instruments & instrumental ensembles & their music',3);
-INSERT INTO `classificazione` VALUES (808,89,'785','785 - Ensembles with only one instrument per part',3);
-INSERT INTO `classificazione` VALUES (809,89,'786','786 - Keyboard, mechanical, electrophonic, percussion instruments',3);
-INSERT INTO `classificazione` VALUES (810,89,'787','787 - Stringed instruments (Chordophones)',3);
-INSERT INTO `classificazione` VALUES (811,89,'788','788 - Wind instruments (Aerophones)',3);
-INSERT INTO `classificazione` VALUES (812,89,'789','789 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (813,90,'791','791 - Public performances',3);
-INSERT INTO `classificazione` VALUES (814,90,'792','792 - Stage presentations',3);
-INSERT INTO `classificazione` VALUES (815,90,'793','793 - Indoor games & amusements',3);
-INSERT INTO `classificazione` VALUES (816,90,'794','794 - Indoor games of skill',3);
-INSERT INTO `classificazione` VALUES (817,90,'795','795 - Games of chance',3);
-INSERT INTO `classificazione` VALUES (818,90,'796','796 - Athletic & outdoor sports & games',3);
-INSERT INTO `classificazione` VALUES (819,90,'797','797 - Aquatic & air sports',3);
-INSERT INTO `classificazione` VALUES (820,90,'798','798 - Equestrian sports & animal racing',3);
-INSERT INTO `classificazione` VALUES (821,90,'799','799 - Fishing, hunting, shooting',3);
-INSERT INTO `classificazione` VALUES (822,91,'801','801 - Philosophy & theory',3);
-INSERT INTO `classificazione` VALUES (823,91,'802','802 - Miscellany',3);
-INSERT INTO `classificazione` VALUES (824,91,'803','803 - Dictionaries, encyclopedias, concordances',3);
-INSERT INTO `classificazione` VALUES (825,91,'804','804 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (826,91,'805','805 - Serial publications',3);
-INSERT INTO `classificazione` VALUES (827,91,'806','806 - Organizations & management',3);
-INSERT INTO `classificazione` VALUES (828,91,'807','807 - Education, research, related topics',3);
-INSERT INTO `classificazione` VALUES (829,91,'808','808 - Rhetoric & collections of literary texts from more than two literatures',3);
-INSERT INTO `classificazione` VALUES (830,91,'809','809 - History, description, critical appraisal of more than two literatures',3);
-INSERT INTO `classificazione` VALUES (831,92,'811','811 - American poetry in English',3);
-INSERT INTO `classificazione` VALUES (832,92,'812','812 - American drama in English',3);
-INSERT INTO `classificazione` VALUES (833,92,'813','813 - American fiction in English',3);
-INSERT INTO `classificazione` VALUES (834,92,'814','814 - American essays in English',3);
-INSERT INTO `classificazione` VALUES (835,92,'815','815 - American speeches in English',3);
-INSERT INTO `classificazione` VALUES (836,92,'816','816 - American letters in English',3);
-INSERT INTO `classificazione` VALUES (837,92,'817','817 - American humor & satire in English',3);
-INSERT INTO `classificazione` VALUES (838,92,'818','818 - American miscellaneous writings in English',3);
-INSERT INTO `classificazione` VALUES (839,92,'819','819 - No longer in use—formerly Puzzle activities',3);
-INSERT INTO `classificazione` VALUES (840,93,'821','821 - English poetry',3);
-INSERT INTO `classificazione` VALUES (841,93,'822','822 - English drama',3);
-INSERT INTO `classificazione` VALUES (842,93,'823','823 - English fiction',3);
-INSERT INTO `classificazione` VALUES (843,93,'824','824 - English essays',3);
-INSERT INTO `classificazione` VALUES (844,93,'825','825 - English speeches',3);
-INSERT INTO `classificazione` VALUES (845,93,'826','826 - English letters',3);
-INSERT INTO `classificazione` VALUES (846,93,'827','827 - English humor & satire',3);
-INSERT INTO `classificazione` VALUES (847,93,'828','828 - English miscellaneous writings',3);
-INSERT INTO `classificazione` VALUES (848,93,'829','829 - Old English (Anglo-Saxon) literature',3);
-INSERT INTO `classificazione` VALUES (849,94,'831','831 - German poetry',3);
-INSERT INTO `classificazione` VALUES (850,94,'832','832 - German drama',3);
-INSERT INTO `classificazione` VALUES (851,94,'833','833 - German fiction',3);
-INSERT INTO `classificazione` VALUES (852,94,'834','834 - German essays',3);
-INSERT INTO `classificazione` VALUES (853,94,'835','835 - German speeches',3);
-INSERT INTO `classificazione` VALUES (854,94,'836','836 - German letters',3);
-INSERT INTO `classificazione` VALUES (855,94,'837','837 - German humor & satire',3);
-INSERT INTO `classificazione` VALUES (856,94,'838','838 - German miscellaneous writings',3);
-INSERT INTO `classificazione` VALUES (857,94,'839','839 - Other Germanic literatures',3);
-INSERT INTO `classificazione` VALUES (858,95,'841','841 - French poetry',3);
-INSERT INTO `classificazione` VALUES (859,95,'842','842 - French drama',3);
-INSERT INTO `classificazione` VALUES (860,95,'843','843 - French fiction',3);
-INSERT INTO `classificazione` VALUES (861,95,'844','844 - French essays',3);
-INSERT INTO `classificazione` VALUES (862,95,'845','845 - French speeches',3);
-INSERT INTO `classificazione` VALUES (863,95,'846','846 - French letters',3);
-INSERT INTO `classificazione` VALUES (864,95,'847','847 - French humor & satire',3);
-INSERT INTO `classificazione` VALUES (865,95,'848','848 - French miscellaneous writings',3);
-INSERT INTO `classificazione` VALUES (866,95,'849','849 - Occitan, Catalan, Franco-Provençal literatures',3);
-INSERT INTO `classificazione` VALUES (867,96,'851','851 - Italian poetry',3);
-INSERT INTO `classificazione` VALUES (868,96,'852','852 - Italian drama',3);
-INSERT INTO `classificazione` VALUES (869,96,'853','853 - Italian fiction',3);
-INSERT INTO `classificazione` VALUES (870,96,'854','854 - Italian essays',3);
-INSERT INTO `classificazione` VALUES (871,96,'855','855 - Italian speeches',3);
-INSERT INTO `classificazione` VALUES (872,96,'856','856 - Italian letters',3);
-INSERT INTO `classificazione` VALUES (873,96,'857','857 - Italian humor & satire',3);
-INSERT INTO `classificazione` VALUES (874,96,'858','858 - Italian miscellaneous writings',3);
-INSERT INTO `classificazione` VALUES (875,96,'859','859 - Literatures of Romanian, Rhaetian, Sardinian, Corsican languages',3);
-INSERT INTO `classificazione` VALUES (876,97,'861','861 - Spanish poetry',3);
-INSERT INTO `classificazione` VALUES (877,97,'862','862 - Spanish drama',3);
-INSERT INTO `classificazione` VALUES (878,97,'863','863 - Spanish fiction',3);
-INSERT INTO `classificazione` VALUES (879,97,'864','864 - Spanish essays',3);
-INSERT INTO `classificazione` VALUES (880,97,'865','865 - Spanish speeches',3);
-INSERT INTO `classificazione` VALUES (881,97,'866','866 - Spanish letters',3);
-INSERT INTO `classificazione` VALUES (882,97,'867','867 - Spanish humor & satire',3);
-INSERT INTO `classificazione` VALUES (883,97,'868','868 - Spanish miscellaneous writings',3);
-INSERT INTO `classificazione` VALUES (884,97,'869','869 - Literatures of Portuguese & Galician languages',3);
-INSERT INTO `classificazione` VALUES (885,98,'871','871 - Latin poetry',3);
-INSERT INTO `classificazione` VALUES (886,98,'872','872 - Latin dramatic poetry & drama',3);
-INSERT INTO `classificazione` VALUES (887,98,'873','873 - Latin epic poetry & fiction',3);
-INSERT INTO `classificazione` VALUES (888,98,'874','874 - Latin lyric poetry',3);
-INSERT INTO `classificazione` VALUES (889,98,'875','875 - Latin speeches',3);
-INSERT INTO `classificazione` VALUES (890,98,'876','876 - Latin letters',3);
-INSERT INTO `classificazione` VALUES (891,98,'877','877 - Latin humor & satire',3);
-INSERT INTO `classificazione` VALUES (892,98,'878','878 - Latin miscellaneous writings',3);
-INSERT INTO `classificazione` VALUES (893,98,'879','879 - Literatures of other Italic languages',3);
-INSERT INTO `classificazione` VALUES (894,99,'881','881 - Classical Greek poetry',3);
-INSERT INTO `classificazione` VALUES (895,99,'882','882 - Classical Greek drama',3);
-INSERT INTO `classificazione` VALUES (896,99,'883','883 - Classical Greek epic poetry & fiction',3);
-INSERT INTO `classificazione` VALUES (897,99,'884','884 - Classical Greek lyric poetry',3);
-INSERT INTO `classificazione` VALUES (898,99,'885','885 - Classical Greek speeches',3);
-INSERT INTO `classificazione` VALUES (899,99,'886','886 - Classical Greek letters',3);
-INSERT INTO `classificazione` VALUES (900,99,'887','887 - Classical Greek humor & satire',3);
-INSERT INTO `classificazione` VALUES (901,99,'888','888 - Classical Greek miscellaneous writings',3);
-INSERT INTO `classificazione` VALUES (902,99,'889','889 - Modern Greek literature',3);
-INSERT INTO `classificazione` VALUES (903,100,'891','891 - East Indo-European & Celtic literatures',3);
-INSERT INTO `classificazione` VALUES (904,100,'892','892 - Afro-Asiatic literatures',3);
-INSERT INTO `classificazione` VALUES (905,100,'893','893 - Non-Semitic Afro-Asiatic literatures',3);
-INSERT INTO `classificazione` VALUES (906,100,'894','894 - Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia',3);
-INSERT INTO `classificazione` VALUES (907,100,'895','895 - Literatures of East & Southeast Asia',3);
-INSERT INTO `classificazione` VALUES (908,100,'896','896 - African literatures',3);
-INSERT INTO `classificazione` VALUES (909,100,'897','897 - Literatures of North American native languages',3);
-INSERT INTO `classificazione` VALUES (910,100,'898','898 - Literatures of South American native languages',3);
-INSERT INTO `classificazione` VALUES (911,100,'899','899 - Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages',3);
-INSERT INTO `classificazione` VALUES (912,101,'901','901 - Philosophy & theory of history',3);
-INSERT INTO `classificazione` VALUES (913,101,'902','902 - Miscellany of history',3);
-INSERT INTO `classificazione` VALUES (914,101,'903','903 - Dictionaries, encyclopedias, concordances of history',3);
-INSERT INTO `classificazione` VALUES (915,101,'904','904 - Collected accounts of events',3);
-INSERT INTO `classificazione` VALUES (916,101,'905','905 - Serial publications of history',3);
-INSERT INTO `classificazione` VALUES (917,101,'906','906 - Organizations & management of history',3);
-INSERT INTO `classificazione` VALUES (918,101,'907','907 - Education, research, related topics of history',3);
-INSERT INTO `classificazione` VALUES (919,101,'908','908 - History with respect to groups of people',3);
-INSERT INTO `classificazione` VALUES (920,101,'909','909 - World history',3);
-INSERT INTO `classificazione` VALUES (921,102,'911','911 - Historical geography',3);
-INSERT INTO `classificazione` VALUES (922,102,'912','912 - Graphic representations of surface of Earth & of extraterrestrial worlds',3);
-INSERT INTO `classificazione` VALUES (923,102,'913','913 - Geography of & travel in ancient world',3);
-INSERT INTO `classificazione` VALUES (924,102,'914','914 - Geography of & travel in Europe',3);
-INSERT INTO `classificazione` VALUES (925,102,'915','915 - Geography of & travel in Asia',3);
-INSERT INTO `classificazione` VALUES (926,102,'916','916 - Geography of & travel in Africa',3);
-INSERT INTO `classificazione` VALUES (927,102,'917','917 - Geography of & travel in North America',3);
-INSERT INTO `classificazione` VALUES (928,102,'918','918 - Geography of & travel in South America',3);
-INSERT INTO `classificazione` VALUES (929,102,'919','919 - Geography of & travel in Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, & on extraterrestrial worlds',3);
-INSERT INTO `classificazione` VALUES (930,103,'921','921 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (931,103,'922','922 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (932,103,'923','923 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (933,103,'924','924 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (934,103,'925','925 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (935,103,'926','926 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (936,103,'927','927 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (937,103,'928','928 - This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.',3);
-INSERT INTO `classificazione` VALUES (938,103,'929','929 - Genealogy, names, insignia',3);
-INSERT INTO `classificazione` VALUES (939,104,'931','931 - China to 420',3);
-INSERT INTO `classificazione` VALUES (940,104,'932','932 - Egypt to 640',3);
-INSERT INTO `classificazione` VALUES (941,104,'933','933 - Palestine to 70',3);
-INSERT INTO `classificazione` VALUES (942,104,'934','934 - South Asia to 647',3);
-INSERT INTO `classificazione` VALUES (943,104,'935','935 - Mesopotamia & Iranian Plateau to 637',3);
-INSERT INTO `classificazione` VALUES (944,104,'936','936 - Europe north & west of Italian Peninsula to ca. 499',3);
-INSERT INTO `classificazione` VALUES (945,104,'937','937 - Italian Peninsula & adjacent territories to 476',3);
-INSERT INTO `classificazione` VALUES (946,104,'938','938 - Greece to 323',3);
-INSERT INTO `classificazione` VALUES (947,104,'939','939 - Other parts of ancient world',3);
-INSERT INTO `classificazione` VALUES (948,105,'941','941 - British Isles',3);
-INSERT INTO `classificazione` VALUES (949,105,'942','942 - England & Wales',3);
-INSERT INTO `classificazione` VALUES (950,105,'943','943 - Germany & neighboring central European countries',3);
-INSERT INTO `classificazione` VALUES (951,105,'944','944 - France & Monaco',3);
-INSERT INTO `classificazione` VALUES (952,105,'945','945 - Italy, San Marino, Vatican City, Malta',3);
-INSERT INTO `classificazione` VALUES (953,105,'946','946 - Spain, Andorra, Gibraltar, Portugal',3);
-INSERT INTO `classificazione` VALUES (954,105,'947','947 - Russia & neighboring east European countries',3);
-INSERT INTO `classificazione` VALUES (955,105,'948','948 - Scandinavia',3);
-INSERT INTO `classificazione` VALUES (956,105,'949','949 - Other parts of Europe',3);
-INSERT INTO `classificazione` VALUES (957,106,'951','951 - China & adjacent areas',3);
-INSERT INTO `classificazione` VALUES (958,106,'952','952 - Japan',3);
-INSERT INTO `classificazione` VALUES (959,106,'953','953 - Arabian Peninsula & adjacent areas',3);
-INSERT INTO `classificazione` VALUES (960,106,'954','954 - India & neighboring south Asian countries',3);
-INSERT INTO `classificazione` VALUES (961,106,'955','955 - Iran',3);
-INSERT INTO `classificazione` VALUES (962,106,'956','956 - Middle East (Near East)',3);
-INSERT INTO `classificazione` VALUES (963,106,'957','957 - Siberia (Asiatic Russia)',3);
-INSERT INTO `classificazione` VALUES (964,106,'958','958 - Central Asia',3);
-INSERT INTO `classificazione` VALUES (965,106,'959','959 - Southeast Asia',3);
-INSERT INTO `classificazione` VALUES (966,107,'961','961 - Tunisia & Libya',3);
-INSERT INTO `classificazione` VALUES (967,107,'962','962 - Egypt, Sudan, South Sudan',3);
-INSERT INTO `classificazione` VALUES (968,107,'963','963 - Ethiopia & Eritrea',3);
-INSERT INTO `classificazione` VALUES (969,107,'964','964 - Morocco, Ceuta, Melilla, Western Sahara, Canary Islands',3);
-INSERT INTO `classificazione` VALUES (970,107,'965','965 - Algeria',3);
-INSERT INTO `classificazione` VALUES (971,107,'966','966 - West Africa & offshore islands',3);
-INSERT INTO `classificazione` VALUES (972,107,'967','967 - Central Africa & offshore islands',3);
-INSERT INTO `classificazione` VALUES (973,107,'968','968 - Republic of South Africa & Southern Africa',3);
-INSERT INTO `classificazione` VALUES (974,107,'969','969 - South Indian Ocean islands',3);
-INSERT INTO `classificazione` VALUES (975,108,'971','971 - Canada',3);
-INSERT INTO `classificazione` VALUES (976,108,'972','972 - Mexico, Central America, West Indies, Bermuda',3);
-INSERT INTO `classificazione` VALUES (977,108,'973','973 - United States',3);
-INSERT INTO `classificazione` VALUES (978,108,'974','974 - Northeastern United States (New England & Middle Atlantic states)',3);
-INSERT INTO `classificazione` VALUES (979,108,'975','975 - Southeastern United States (South Atlantic states)',3);
-INSERT INTO `classificazione` VALUES (980,108,'976','976 - South central United States',3);
-INSERT INTO `classificazione` VALUES (981,108,'977','977 - North central United States',3);
-INSERT INTO `classificazione` VALUES (982,108,'978','978 - Western United States',3);
-INSERT INTO `classificazione` VALUES (983,108,'979','979 - Great Basin & Pacific Slope region of United States',3);
-INSERT INTO `classificazione` VALUES (984,109,'981','981 - Brazil',3);
-INSERT INTO `classificazione` VALUES (985,109,'982','982 - Argentina',3);
-INSERT INTO `classificazione` VALUES (986,109,'983','983 - Chile',3);
-INSERT INTO `classificazione` VALUES (987,109,'984','984 - Bolivia',3);
-INSERT INTO `classificazione` VALUES (988,109,'985','985 - Peru',3);
-INSERT INTO `classificazione` VALUES (989,109,'986','986 - Colombia & Ecuador',3);
-INSERT INTO `classificazione` VALUES (990,109,'987','987 - Venezuela',3);
-INSERT INTO `classificazione` VALUES (991,109,'988','988 - Guiana',3);
-INSERT INTO `classificazione` VALUES (992,109,'989','989 - Paraguay & Uruguay',3);
-INSERT INTO `classificazione` VALUES (993,110,'991','991 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (994,110,'992','992 - Unassigned or no longer in use',3);
-INSERT INTO `classificazione` VALUES (995,110,'993','993 - New Zealand',3);
-INSERT INTO `classificazione` VALUES (996,110,'994','994 - Australia',3);
-INSERT INTO `classificazione` VALUES (997,110,'995','995 - New Guinea & neighboring countries of Melanesia',3);
-INSERT INTO `classificazione` VALUES (998,110,'996','996 - Polynesia & other Pacific Ocean islands',3);
-INSERT INTO `classificazione` VALUES (999,110,'997','997 - Atlantic Ocean islands',3);
-INSERT INTO `classificazione` VALUES (1000,110,'998','998 - Arctic islands & Antarctica',3);
-INSERT INTO `classificazione` VALUES (1001,110,'999','999 - Extraterrestrial worlds',3);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- Total records: 1001
 -- ✅ SQL generation completed!
@@ -1282,7 +2554,1279 @@ INSERT INTO `email_templates` VALUES (40,'admin_invitation','en_US','🎉 Admini
 INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
 (1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 2015, 2015, 100.00),
 (2, 'en_US', 'English', 'English', '🇬🇧', 1, 1, 'locale/en_US.json', 2015, 1988, 98.66);
--- Dewey Decimal Classification (English)
+-- Dewey Decimal Classification
+-- Language: en_US
+-- Generated: 2025-12-02 23:56:23
+-- Total entries: 1266
+
+INSERT INTO dewey (code, name, level) VALUES
+('000', 'Computer science, information & general works', 1),
+('001', 'Knowledge', 3),
+('001.1', 'Vita intellettuale', 4),
+('001.2', 'Istruzione e ricerca', 4),
+('001.3', 'Discipline umanistiche', 4),
+('001.4', 'Ricerca e metodi statistici', 4),
+('001.42', 'Metodi di raccolta dati', 5),
+('001.422', 'Metodi statistici', 6),
+('001.43', 'Analisi e interpretazione dati', 5),
+('001.9', 'Conoscenza controversa', 4),
+('001.94', 'Misteri', 5),
+('001.942', 'Oggetti volanti non identificati (UFO)', 6),
+('001.944', 'Mostri e creature leggendarie', 6),
+('002', 'The book (writing, libraries, and related topics)', 3),
+('003', 'Systems', 3),
+('003.1', 'Identificazione dei sistemi', 4),
+('003.2', 'Previsioni e stime', 4),
+('003.3', 'Modellazione e simulazione', 4),
+('003.5', 'Cibernetica', 4),
+('003.54', 'Teoria dell''informazione', 5),
+('003.56', 'Teoria delle decisioni', 5),
+('003.7', 'Tipi di sistemi', 4),
+('003.8', 'Sistemi temporali', 4),
+('004', 'Data processing & computer science', 3),
+('004.01', 'Filosofia e teoria', 5),
+('004.1', 'Hardware', 4),
+('004.11', 'Supercomputer', 5),
+('004.16', 'Personal computer', 5),
+('004.165', 'Dispositivi mobili', 6),
+('004.2', 'Analisi e progettazione sistemi', 4),
+('004.3', 'Modalità di elaborazione', 4),
+('004.5', 'Archiviazione', 4),
+('004.6', 'Networks', 4),
+('004.61', 'Architettura di rete', 5),
+('004.62', 'Protocolli di rete', 5),
+('004.65', 'Architettura delle comunicazioni', 5),
+('004.67', 'Reti geografiche (WAN)', 5),
+('004.678', 'Internet', 6),
+('004.6782', 'World Wide Web', 7),
+('004.69', 'Sicurezza delle reti', 5),
+('004.9', 'Applicazioni non elettroniche', 4),
+('005', 'Computer programming, programs & data', 3),
+('005.1', 'Software development', 4),
+('005.13', 'Programming languages', 5),
+('005.133', 'Linguaggi specifici (C, Java, Python)', 6),
+('005.2', 'Programmazione piattaforme specifiche', 4),
+('005.3', 'Programmi', 4),
+('005.4', 'Programmazione di sistema', 4),
+('005.43', 'Sistemi operativi', 5),
+('005.432', 'Windows', 6),
+('005.434', 'UNIX / Linux', 6),
+('005.435', 'macOS', 6),
+('005.5', 'Applicazioni generali', 4),
+('005.7', 'Dati', 4),
+('005.74', 'Database', 5),
+('005.75', 'Tipi di database', 5),
+('005.8', 'Sicurezza informatica', 4),
+('006', 'Special computer methods (e.g., AI, multimedia, VR)', 3),
+('006.3', 'Intelligenza artificiale', 4),
+('006.31', 'Machine learning', 5),
+('006.32', 'Reti neurali', 5),
+('006.33', 'Sistemi esperti', 5),
+('006.35', 'Elaborazione del linguaggio naturale', 5),
+('006.37', 'Visione artificiale', 5),
+('006.4', 'Riconoscimento pattern', 4),
+('006.5', 'Sintesi audio', 4),
+('006.6', 'Computer grafica', 4),
+('006.7', 'Multimedia', 4),
+('006.8', 'Realtà virtuale', 4),
+('007', '[Unassigned]', 3),
+('008', '[Unassigned]', 3),
+('009', '[Unassigned]', 3),
+('010', 'Bibliographies', 2),
+('011', 'Bibliographies', 3),
+('012', 'Bibliographies of individuals', 3),
+('013', '[Unassigned]', 3),
+('014', 'Bibliographies of anonymous & pseudonymous works', 3),
+('015', 'Bibliographies of works from specific places', 3),
+('016', 'Bibliographies of works on specific subjects', 3),
+('017', 'General subject catalogs', 3),
+('018', 'Catalogs arranged by author, date, etc. [moved to 017]', 3),
+('019', 'Dictionary catalogs [moved to 017]', 3),
+('020', 'Library & information sciences', 2),
+('021', 'Library relationships (with archives, information centers, etc.)', 3),
+('022', 'Administration of the physical plant', 3),
+('023', 'Personnel management', 3),
+('024', '[Unassigned]', 3),
+('025', 'Library operations', 3),
+('025.04', 'Recupero informazioni', 5),
+('025.1', 'Amministrazione', 4),
+('025.2', 'Acquisizioni', 4),
+('025.3', 'Catalogazione', 4),
+('025.31', 'Descrizione bibliografica', 5),
+('025.32', 'Formati (MARC)', 5),
+('025.4', 'Classificazione', 4),
+('025.43', 'Classificazione decimale Dewey', 5),
+('025.5', 'Servizi al pubblico', 4),
+('026', 'Libraries for specific subjects', 3),
+('027', 'General libraries', 3),
+('027.4', 'Biblioteche pubbliche', 4),
+('027.5', 'Biblioteche nazionali', 4),
+('027.6', 'Biblioteche per gruppi speciali', 4),
+('027.7', 'Biblioteche universitarie', 4),
+('027.8', 'Biblioteche scolastiche', 4),
+('028', 'Reading & use of other information media', 3),
+('028.1', 'Recensioni', 4),
+('028.5', 'Lettura per bambini e ragazzi', 4),
+('029', '[Unassigned]', 3),
+('030', 'Encyclopedias & books of facts', 2),
+('031', 'Encyclopedias in American English', 3),
+('032', 'Encyclopedias in English', 3),
+('033', 'Encyclopedias in other Germanic languages', 3),
+('034', 'Encyclopedias in French, Occitan & Catalan', 3),
+('035', 'Encyclopedias in Italian, Romanian & related languages', 3),
+('036', 'Encyclopedias in Spanish & Portuguese', 3),
+('037', 'Encyclopedias in Slavic languages', 3),
+('038', 'Encyclopedias in Scandinavian languages', 3),
+('039', 'Encyclopedias in other languages', 3),
+('040', 'Unassigned — formerly Biographies', 2),
+('041', '[Unassigned]', 3),
+('042', '[Unassigned]', 3),
+('043', '[Unassigned]', 3),
+('044', '[Unassigned]', 3),
+('045', '[Unassigned]', 3),
+('046', '[Unassigned]', 3),
+('047', '[Unassigned]', 3),
+('048', '[Unassigned]', 3),
+('049', '[Unassigned]', 3),
+('050', 'Magazines, journals & serials', 2),
+('051', 'Serials in American English', 3),
+('052', 'Serials in English', 3),
+('053', 'Serials in other Germanic languages', 3),
+('054', 'Serials in French, Occitan & Catalan', 3),
+('055', 'Serials in Italian, Romanian & related languages', 3),
+('056', 'Serials in Spanish & Portuguese', 3),
+('057', 'Serials in Slavic languages', 3),
+('058', 'Serials in Scandinavian languages', 3),
+('059', 'Serials in other languages', 3),
+('060', 'Associations, organizations & museums', 2),
+('061', 'Organizations in North America', 3),
+('062', 'Organizations in British Isles; in England', 3),
+('063', 'Organizations in central Europe; in Germany', 3),
+('064', 'Organizations in France & Monaco', 3),
+('065', 'Organizations in Italy & adjacent islands', 3),
+('066', 'Organizations in Iberian Peninsula & adjacent islands', 3),
+('067', 'Organizations in eastern Europe; in Russia', 3),
+('068', 'Organizations in other geographic areas', 3),
+('069', 'Museology (Museum science)', 3),
+('069.1', 'Servizi educativi', 4),
+('069.2', 'Gestione collezioni', 4),
+('069.5', 'Collezioni ed esposizioni', 4),
+('070', 'News media, journalism & publishing', 2),
+('070.1', 'Media documentari', 4),
+('070.4', 'Giornalismo', 4),
+('070.5', 'Editoria', 4),
+('071', 'Newspapers in North America', 3),
+('072', 'Newspapers in British Isles; in England', 3),
+('073', 'Newspapers in central Europe; in Germany', 3),
+('074', 'Newspapers in France & Monaco', 3),
+('075', 'Newspapers in Italy & adjacent islands', 3),
+('076', 'Newspapers in Iberian peninsula & adjacent islands', 3),
+('077', 'Newspapers in eastern Europe; in Russia', 3),
+('078', 'Newspapers in Scandinavia', 3),
+('079', 'Newspapers in other geographic areas', 3),
+('080', 'Quotations', 2),
+('081', 'Collections in American English', 3),
+('082', 'Collections in English', 3),
+('083', 'Collections in other Germanic languages', 3),
+('084', 'Collections in French, Occitan, Catalan', 3),
+('085', 'Collections in Italian, Romanian & related languages', 3),
+('086', 'Collections in Spanish & Portuguese', 3),
+('087', 'Collections in Slavic languages', 3),
+('088', 'Collections in Scandinavian languages', 3),
+('089', 'Collections in other languages', 3),
+('090', 'Manuscripts & rare books', 2),
+('091', 'Manuscripts', 3),
+('092', 'Block books', 3),
+('093', 'Incunabula', 3),
+('094', 'Printed books', 3),
+('095', 'Books notable for bindings', 3),
+('096', 'Books notable for illustrations', 3),
+('097', 'Books notable for ownership or origin', 3),
+('098', 'Prohibited works, forgeries & hoaxes', 3),
+('099', 'Books notable for format', 3),
+('100', 'Social sciences, sociology & anthropology', 1),
+('101', 'Sociology & anthropology', 3),
+('102', 'Social interaction', 3),
+('103', 'Social processes', 3),
+('104', 'Factors affecting social behavior', 3),
+('105', 'Groups of people', 3),
+('106', 'Leaders & organization', 3),
+('107', 'Missions & religious education', 3),
+('108', 'Sources', 3),
+('109', 'Sects & reform movements', 3),
+('110', 'Statistics', 2),
+('111', 'No longer in use — formerly Theory and methods', 3),
+('112', 'Existence, ways of knowing God, attributes of God', 3),
+('113', 'No longer in use — formerly Special topics', 3),
+('114', 'Theodicy', 3),
+('115', 'General statistics of Asia', 3),
+('116', 'No longer in use—formerly Evil', 3),
+('117', 'No longer in use—formerly Prayer', 3),
+('118', 'Humankind', 3),
+('119', 'No longer in use—formerly Analogies', 3),
+('120', 'Political science (politics & government)', 2),
+('121', 'Systems of governments & states', 3),
+('122', 'Historical books of Old Testament', 3),
+('123', 'Poetic books of Old Testament', 3),
+('124', 'Prophetic books of Old Testament', 3),
+('125', 'International migration & colonization', 3),
+('126', 'Gospels & Acts', 3),
+('127', 'Epistles', 3),
+('128', 'Revelation (Apocalypse)', 3),
+('129', 'Apocrypha, pseudepigrapha & intertestamental works', 3),
+('130', 'Economics', 2),
+('131', 'Labor economics', 3),
+('132', 'Financial economics', 3),
+('133', 'Economics of land & energy', 3),
+('133.1', 'Spettri', 4),
+('133.3', 'Divinazione', 4),
+('133.4', 'Magia e stregoneria', 4),
+('133.5', 'Astrologia', 4),
+('133.6', 'Chiromanzia', 4),
+('134', 'Cooperatives', 3),
+('135', 'Spiritual beings', 3),
+('136', 'Public finance', 3),
+('137', 'No longer in use—formerly Future state', 3),
+('138', 'Creeds, confessions of faith, covenants, catechisms', 3),
+('139', 'Macroeconomics & related topics', 3),
+('140', 'Law', 2),
+('141', 'Law of nations', 3),
+('142', 'Constitutional & administrative law', 3),
+('143', 'Evangelistic writings for individuals & families', 3),
+('144', 'No longer in use—formerly Religious fiction', 3),
+('145', 'No longer in use—formerly Hymnology', 3),
+('146', 'Use of art in Christianity', 3),
+('147', 'Church furnishings & related articles', 3),
+('148', 'Laws, regulations, cases', 3),
+('149', 'Christian observances in family life', 3),
+('150', 'Public administration & military science', 2),
+('151', 'Public administration', 3),
+('152', 'Texts of sermons', 3),
+('153', 'Specific fields of public administration', 3),
+('153.1', 'Memoria', 4),
+('153.4', 'Pensiero', 4),
+('153.9', 'Intelligenza', 4),
+('154', 'Parish administration', 3),
+('154.6', 'Sonno', 4),
+('154.63', 'Sogni', 5),
+('155', 'Military science', 3),
+('155.2', 'Psicologia individuale', 4),
+('155.4', 'Psicologia infantile', 4),
+('155.5', 'Psicologia dell''adolescenza', 4),
+('155.6', 'Psicologia dell''adulto', 4),
+('155.9', 'Psicologia ambientale', 4),
+('156', 'No longer in use—formerly Religious societies', 3),
+('157', 'No longer in use—formerly Parish schools, libraries, etc.', 3),
+('158', 'No longer in use—formerly Parish medicine', 3),
+('158.1', 'Miglioramento personale', 4),
+('158.2', 'Relazioni interpersonali', 4),
+('158.7', 'Psicologia industriale', 4),
+('159', 'Pastoral care of families, of specific groups of people', 3),
+('160', 'Social problems & services; associations', 2),
+('161', 'Social problems & services', 3),
+('162', 'Ecclesiology', 3),
+('163', 'Days, times, places of religious observance', 3),
+('164', 'Criminology', 3),
+('165', 'Sacraments, other rites & acts', 3),
+('166', 'Associations & secret societies', 3),
+('167', 'Associations for religious work', 3),
+('168', 'Religious education', 3),
+('169', 'Spiritual renewal', 3),
+('170', 'Education', 2),
+('171', 'Schools & their activities, special education', 3),
+('172', 'Persecutions in church history', 3),
+('173', 'Doctrinal controversies & heresies in general church history', 3),
+('174', 'Adult education', 3),
+('174.2', 'Etica medica', 4),
+('174.4', 'Etica degli affari', 4),
+('175', 'Curriculums', 3),
+('176', 'Christianity in Africa', 3),
+('177', 'Christianity in North America', 3),
+('178', 'Christianity in South America', 3),
+('179', 'History of Christianity in other areas', 3),
+('179.3', 'Trattamento degli animali', 4),
+('179.9', 'Virtù', 4),
+('180', 'Commerce, communications, transport', 2),
+('181', 'Commerce (Trade)', 3),
+('182', 'International commerce (foreign trade)', 3),
+('183', 'Postal communication', 3),
+('184', 'Communications', 3),
+('185', 'Railroad transportation', 3),
+('186', 'Inland waterway & ferry transportation', 3),
+('187', 'Water, air, space transportation', 3),
+('188', 'No longer in use — formerly Unitarian', 3),
+('189', 'Other denominations & sects', 3),
+('190', 'Customs, etiquette, folklore', 2),
+('191', 'No longer in use — formerly Comparative religion', 3),
+('192', 'Customs of life cycle & domestic life', 3),
+('193', 'Death customs', 3),
+('194', 'General customs', 3),
+('195', 'Zoroastrianism (Mazdaism, Parseeism)', 3),
+('196', 'No longer in use — formerly Women''s position and treatment', 3),
+('197', 'No longer in use — formerly Outcast studies', 3),
+('198', 'No longer in use — formerly Mormonism', 3),
+('199', 'Customs of war & diplomacy', 3),
+('200', 'Language', 1),
+('201', 'Philosophy & theory, international languages', 3),
+('202', 'Miscellany', 3),
+('203', 'Dictionaries, encyclopedias, concordances', 3),
+('204', 'Special topics of language', 3),
+('205', 'Serial publications', 3),
+('206', 'Organizations & management', 3),
+('207', 'Education, research, related topics', 3),
+('208', 'No longer in use — formerly Polygraphy', 3),
+('209', 'No longer in use — formerly History of sociology', 3),
+('210', 'Linguistics', 2),
+('211', 'No longer in use — formerly Theory and methods', 3),
+('212', 'No longer in use — formerly Population', 3),
+('213', 'No longer in use — formerly Special topics', 3),
+('214', 'Phonology & phonetics of standard forms of languages', 3),
+('215', 'Grammar of standard forms of languages', 3),
+('216', 'No longer in use — formerly Prosody', 3),
+('217', 'Dialectology & historical linguistics', 3),
+('218', 'Standard usage (Prescriptive linguistics)', 3),
+('219', 'General statistics of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica', 3),
+('220', 'English & Old English (Anglo-Saxon)', 2),
+('221', 'Writing system, phonology, phonetics of standard English', 3),
+('222', 'Relation of state to organized groups & their members', 3),
+('223', 'Dictionaries of standard English', 3),
+('224', 'No longer in use — formerly English thesauruses', 3),
+('225', 'Grammar of standard English', 3),
+('226', 'No longer in use — formerly English prosodies', 3),
+('227', 'Historical & geographic variations, modern nongeographic variations of English', 3),
+('228', 'Standard English usage (Prescriptive linguistics)', 3),
+('229', 'No longer in use— formerly Political parties', 3),
+('230', 'Germanic languages & related languages', 2),
+('231', 'Writing systems, phonology, phonetics of standard German', 3),
+('232', 'Etymology of standard German', 3),
+('233', 'Dictionaries of standard German', 3),
+('234', 'Cooperatives', 3),
+('235', 'Grammar of standard German', 3),
+('236', 'Unassigned or no longer in use', 3),
+('237', 'Historical & geographic variations, modern nongeographic variations of German', 3),
+('238', 'Standard German usage (Prescriptive linguistics)', 3),
+('239', 'Other Germanic languages', 3),
+('240', 'French & related Romance languages', 2),
+('241', 'Writing systems, phonology, phonetics of standard French', 3),
+('242', 'Etymology of standard French', 3),
+('243', 'Dictionaries of standard French', 3),
+('244', 'Unassigned or no longer in use', 3),
+('245', 'Grammar of standard French', 3),
+('246', 'Unassigned or no longer in use', 3),
+('247', 'Historical & geographic variations, modern nongeographic variations of French', 3),
+('248', 'Standard French usage (Prescriptive linguistics)', 3),
+('249', 'Occitan, Catalan, Franco-Provençal', 3),
+('250', 'Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican', 2),
+('251', 'Writing systems, phonology, phonetics of standard Italian', 3),
+('252', 'Etymology of standard Italian', 3),
+('253', 'Specific fields of public administration', 3),
+('254', 'Public administration of economy & environment', 3),
+('255', 'Grammar of standard Italian', 3),
+('256', 'Unassigned or no longer in use', 3),
+('257', 'Mounted forces & warfare', 3),
+('258', 'Standard Italian usage (Prescriptive linguistics)', 3),
+('259', 'Romanian, Rhaetian, Sardinian, Corsican', 3),
+('260', 'Spanish, Portuguese, Galician', 2),
+('261', 'Writing systems, phonology, phonetics of standard Spanish', 3),
+('262', 'Etymology of standard Spanish', 3),
+('263', 'Dictionaries of standard Spanish', 3),
+('264', 'Unassigned or no longer in use', 3),
+('265', 'Grammar of standard Spanish', 3),
+('266', 'Unassigned or no longer in use', 3),
+('267', 'Historical & geographic variations, modern nongeographic variations of Spanish', 3),
+('268', 'Standard Spanish usage (Prescriptive linguistics)', 3),
+('269', 'Associations', 3),
+('270', 'Latin & related Italic languages', 2),
+('271', 'Writing systems, phonology, phonetics of classical Latin', 3),
+('272', 'Etymology of classical Latin', 3),
+('273', 'Dictionaries of classical Latin', 3),
+('274', 'Unassigned or no longer in use', 3),
+('275', 'Grammar of classical Latin', 3),
+('276', 'No longer in use — formerly Education of women', 3),
+('277', 'No longer in use — formerly Ethical education', 3),
+('278', 'Classical Latin usage (Prescriptive linguistics)', 3),
+('279', 'Other Italic languages', 3),
+('280', 'Classical Greek & related Hellenic languages', 2),
+('281', 'Writing systems, phonology, phonetics of classical Greek', 3),
+('282', 'Etymology of classical Greek', 3),
+('283', 'Dictionaries of classical Greek', 3),
+('284', 'Unassigned or no longer in use', 3),
+('285', 'Grammar of classical Greek', 3),
+('286', 'Unassigned or no longer in use', 3),
+('287', 'Preclassical & postclassical Greek', 3),
+('288', 'Classical Greek usage (Prescriptive linguistics)', 3),
+('289', 'Other Hellenic languages', 3),
+('290', 'Other languages', 2),
+('291', 'East Indo-European & Celtic languages', 3),
+('292', 'Afro-Asiatic languages', 3),
+('293', 'Non-Semitic Afro-Asiatic languages', 3),
+('294', 'Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia', 3),
+('294.3', 'Buddismo', 4),
+('294.5', 'Induismo', 4),
+('295', 'Languages of East & Southeast Asia', 3),
+('296', 'No longer in use — formerly Women''s position and treatment', 3),
+('297', 'No longer in use — formerly Outcast studies', 3),
+('297.1', 'Corano', 4),
+('298', 'South American native languages', 3),
+('299', 'Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages', 3),
+('299.51', 'Confucianesimo', 5),
+('299.514', 'Taoismo', 6),
+('299.6', 'Religioni africane', 4),
+('300', 'Science', 1),
+('301', 'Philosophy & theory', 3),
+('302', 'Miscellany', 3),
+('302.2', 'Comunicazione', 4),
+('302.3', 'Gruppi sociali', 4),
+('303', 'Dictionaries, encyclopedias, concordances', 3),
+('303.3', 'Controllo sociale', 4),
+('303.4', 'Cambiamento sociale', 4),
+('303.6', 'Conflitto sociale', 4),
+('304', 'Special topics of language', 3),
+('305', 'Serial publications', 3),
+('305.2', 'Età', 4),
+('305.3', 'Genere', 4),
+('305.4', 'Donne', 4),
+('305.8', 'Gruppi etnici', 4),
+('306', 'Organizations & management', 3),
+('306.7', 'Sessualità', 4),
+('306.8', 'Matrimonio e famiglia', 4),
+('307', 'Education, research, related topics', 3),
+('308', 'Groups of people', 3),
+('309', 'Geographic treatment & biography', 3),
+('310', 'Mathematics', 2),
+('311', 'General principles of mathematics', 3),
+('312', 'Etymology of standard forms of languages', 3),
+('313', 'Dictionaries of standard forms of languages', 3),
+('314', 'Topology', 3),
+('315', 'Analysis', 3),
+('316', 'No longer in use — formerly Prosody', 3),
+('317', 'Dialectology & historical linguistics', 3),
+('318', 'Standard usage (Prescriptive linguistics)', 3),
+('319', 'Probabilities & applied mathematics', 3),
+('320', 'Astronomy & allied sciences', 2),
+('321', 'Writing system, phonology, phonetics of standard English', 3),
+('321.8', 'Democrazia', 4),
+('322', 'Etymology of standard English', 3),
+('323', 'Specific celestial bodies & phenomena', 3),
+('324', 'No longer in use — formerly English thesauruses', 3),
+('325', 'Earth (Astronomical geography)', 3),
+('326', 'No longer in use — formerly English prosodies', 3),
+('327', 'Historical & geographic variations, modern nongeographic variations of English', 3),
+('328', 'Standard English usage (Prescriptive linguistics)', 3),
+('329', 'Old English (Anglo-Saxon)', 3),
+('330', 'Physics', 2),
+('331', 'Writing systems, phonology, phonetics of standard German', 3),
+('331.1', 'Forza lavoro', 4),
+('331.2', 'Salari', 4),
+('331.3', 'Lavoratori', 4),
+('331.4', 'Donne lavoratrici', 4),
+('331.8', 'Sindacati', 4),
+('332', 'Etymology of standard German', 3),
+('332.1', 'Banche', 4),
+('332.4', 'Moneta', 4),
+('332.6', 'Investimenti', 4),
+('333', 'Pneumatics (Gas mechanics)', 3),
+('333.7', 'Ambiente', 4),
+('333.91', 'Acqua', 5),
+('334', 'Unassigned or no longer in use', 3),
+('335', 'Light & related radiation', 3),
+('335.4', 'Marxismo', 4),
+('336', 'Unassigned or no longer in use', 3),
+('337', 'Historical & geographic variations, modern nongeographic variations of German', 3),
+('338', 'Standard German usage (Prescriptive linguistics)', 3),
+('339', 'Other Germanic languages', 3),
+('340', 'Chemistry & allied sciences', 2),
+('341', 'Writing systems, phonology, phonetics of standard French', 3),
+('341.2', 'Comunità internazionale', 4),
+('342', 'Etymology of standard French', 3),
+('343', 'Analytical chemistry', 3),
+('344', 'Unassigned or no longer in use', 3),
+('345', 'No longer in use — formerly Quantitative analysis', 3),
+('346', 'Unassigned or no longer in use', 3),
+('347', 'Historical & geographic variations, modern nongeographic variations of French', 3),
+('348', 'Standard French usage (Prescriptive linguistics)', 3),
+('349', 'Occitan, Catalan, Franco-Provençal', 3),
+('350', 'Earth sciences & geology', 2),
+('351', 'Geology, hydrology, meteorology', 3),
+('352', 'Petrology', 3),
+('353', 'Economic geology', 3),
+('354', 'Earth sciences of Europe', 3),
+('355', 'Earth sciences of Asia', 3),
+('355.4', 'Operazioni militari', 4),
+('356', 'Unassigned or no longer in use', 3),
+('357', 'Earth sciences of North America', 3),
+('358', 'Earth sciences of South America', 3),
+('359', 'Romanian, Rhaetian, Sardinian, Corsican', 3),
+('360', 'Fossils & prehistoric life', 2),
+('361', 'Writing systems, phonology, phonetics of standard Spanish', 3),
+('362', 'Etymology of standard Spanish', 3),
+('362.1', 'Servizi sanitari', 4),
+('362.2', 'Salute mentale', 4),
+('362.3', 'Disabilità intellettiva', 4),
+('362.4', 'Disabilità fisica', 4),
+('362.5', 'Poveri', 4),
+('362.6', 'Anziani', 4),
+('362.7', 'Giovani', 4),
+('363', 'Miscellaneous fossil marine & seashore invertebrates', 3),
+('363.1', 'Sicurezza', 4),
+('363.2', 'Polizia', 4),
+('363.3', 'Protezione civile', 4),
+('363.5', 'Alloggi', 4),
+('363.7', 'Problemi ambientali', 4),
+('364', 'Unassigned or no longer in use', 3),
+('364.1', 'Reati', 4),
+('364.3', 'Delinquenti', 4),
+('365', 'Fossil Arthropoda', 3),
+('366', 'Unassigned or no longer in use', 3),
+('367', 'Historical & geographic variations, modern nongeographic variations of Spanish', 3),
+('368', 'Standard Spanish usage (Prescriptive linguistics)', 3),
+('369', 'Fossil Mammalia', 3),
+('370', 'Biology', 2),
+('370.1', 'Teoria dell''educazione', 4),
+('371', 'Writing systems, phonology, phonetics of classical Latin', 3),
+('371.1', 'Insegnamento', 4),
+('371.3', 'Metodi di insegnamento', 4),
+('371.9', 'Educazione speciale', 4),
+('372', 'Etymology of classical Latin', 3),
+('373', 'Specific physiological systems in animals, regional histology & physiology in animals', 3),
+('374', 'Unassigned or no longer in use', 3),
+('375', 'Specific parts of & physiological systems in plants', 3),
+('376', 'No longer in use', 3),
+('377', 'Old, postclassical, Vulgar Latin', 3),
+('378', 'Classical Latin usage (Prescriptive linguistics)', 3),
+('379', 'Other Italic languages', 3),
+('380', 'Plants', 2),
+('381', 'Writing systems, phonology, phonetics of classical Greek', 3),
+('382', 'Etymology of classical Greek', 3),
+('383', 'Magnoliopsida (Dicotyledones)', 3),
+('384', 'Unassigned or no longer in use', 3),
+('385', 'Pinophyta (Gymnosperms)', 3),
+('386', 'Unassigned or no longer in use', 3),
+('387', 'Preclassical & postclassical Greek', 3),
+('388', 'Classical Greek usage (Prescriptive linguistics)', 3),
+('389', 'Other Hellenic languages', 3),
+('390', 'Animals (Zoology)', 2),
+('391', 'East Indo-European & Celtic languages', 3),
+('392', 'Invertebrates', 3),
+('393', 'Non-Semitic Afro-Asiatic languages', 3),
+('394', 'Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia', 3),
+('394.2', 'Feste', 4),
+('395', 'Languages of East & Southeast Asia', 3),
+('396', 'African languages', 3),
+('397', 'North American native languages', 3),
+('398', 'South American native languages', 3),
+('398.2', 'Fiabe e leggende', 4),
+('399', 'Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages', 3),
+('400', 'Technology', 1),
+('401', 'Philosophy & theory', 3),
+('402', 'Miscellany', 3),
+('403', 'Dictionaries, encyclopedias, concordances', 3),
+('404', 'Unassigned or no longer in use', 3),
+('405', 'Serial publications', 3),
+('406', 'Organizations & management', 3),
+('407', 'Education, research, related topics', 3),
+('408', 'Natural history', 3),
+('409', 'History, geographic treatment, biography', 3),
+('410', 'Medicine & health', 2),
+('411', 'Human anatomy, cytology, histology', 3),
+('412', 'Human physiology', 3),
+('413', 'Personal health & safety', 3),
+('414', 'Forensic medicine; incidence of injuries, wounds, disease; public preventive medicine', 3),
+('415', 'Pharmacology & therapeutics', 3),
+('416', 'Diseases', 3),
+('417', 'Unassigned or no longer in use', 3),
+('418', 'Numerical analysis', 3),
+('419', 'No longer in use—formerly Experimental medicine', 3),
+('420', 'Engineering & Applied operations', 2),
+('421', 'Applied physics', 3),
+('422', 'Techniques, procedures, apparatus, equipment, materials', 3),
+('423', 'Military & nautical engineering', 3),
+('424', 'Unassigned or no longer in use', 3),
+('425', 'Engineering of railroads, roads', 3),
+('426', 'Mathematical geography', 3),
+('427', 'Celestial navigation', 3),
+('428', 'Ephemerides', 3),
+('429', 'Other branches of engineering', 3),
+('430', 'Agriculture & related technologies', 2),
+('431', 'Specific techniques; apparatus, equipment, materials', 3),
+('432', 'Plant injuries, diseases, pests', 3),
+('433', 'Field & plantation crops', 3),
+('434', 'Orchards, fruits, forestry', 3),
+('435', 'Garden crops (Horticulture)', 3),
+('436', 'Animal husbandry', 3),
+('437', 'Processing dairy & related products', 3),
+('438', 'Insect culture', 3),
+('439', 'Hunting, fishing, conservation, related technologies', 3),
+('440', 'Home & family management', 2),
+('441', 'Food & drink', 3),
+('442', 'Techniques, procedures, apparatus, equipment, materials', 3),
+('443', 'Housing & household equipment', 3),
+('444', 'No longer in use — formerly Qualitative analysis', 3),
+('445', 'No longer in use — formerly Quantitative analysis', 3),
+('446', 'Sewing, clothing, management of personal and family life', 3),
+('447', 'Management of public households (Institutional housekeeping)', 3),
+('448', 'Housekeeping', 3),
+('449', 'Child rearing; home care of people with disabilities and illnesses', 3),
+('450', 'Management & auxiliary services', 2),
+('451', 'Office services', 3),
+('452', 'Processes of written communication', 3),
+('453', 'Shorthand', 3),
+('454', 'Earth sciences of Europe', 3),
+('455', 'Earth sciences of Asia', 3),
+('456', 'Earth sciences of Africa', 3),
+('457', 'Earth sciences of North America', 3),
+('458', 'Earth sciences of South America', 3),
+('459', 'Earth sciences of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds', 3),
+('460', 'Chemical engineering & related technologies', 2),
+('461', 'Paleobotany, fossil microorganisms', 3),
+('462', 'Fossil invertebrates', 3),
+('463', 'Miscellaneous fossil marine & seashore invertebrates', 3),
+('464', 'Fossil Mollusca & Molluscoidea', 3),
+('465', 'Fossil Arthropoda', 3),
+('466', 'Fossil Chordata', 3),
+('467', 'Fossil cold-blooded vertebrates', 3),
+('468', 'Fossil Aves (birds)', 3),
+('469', 'Fossil Mammalia', 3),
+('470', 'Manufacturing', 2),
+('471', 'Metalworking processes & primary metal products', 3),
+('472', 'Iron, steel, other iron alloys', 3),
+('473', 'Specific physiological systems in animals, regional histology & physiology in animals', 3),
+('474', 'Lumber processing, wood products, cork', 3),
+('475', 'Leather & fur processing', 3),
+('476', 'Pulp & paper technology', 3),
+('477', 'Textiles', 3),
+('478', 'Natural history of organisms & related subjects', 3),
+('479', 'Other products of specific kinds of materials', 3),
+('480', 'Manufacture of products for specific uses', 2),
+('481', 'Precision instruments & other devices', 3),
+('482', 'Small forge work (Blacksmithing)', 3),
+('483', 'Magnoliopsida (Dicotyledones)', 3),
+('484', 'Liliopsida (Monocotyledones)', 3),
+('485', 'Pinophyta (Gymnosperms)', 3),
+('486', 'Cryptogamia (Seedless plants)', 3),
+('487', 'Pteridophyta', 3),
+('488', 'Bryophyta', 3),
+('489', 'No longer in use—formerly Forestry', 3),
+('490', 'Building construction', 2),
+('491', 'Building materials', 3),
+('491.7', 'Russo', 4),
+('492', 'Auxiliary construction practices', 3),
+('492.4', 'Ebraico', 4),
+('492.7', 'Arabo', 4),
+('493', 'Construction in specific types of materials & for specific purposes', 3),
+('494', 'Wood construction', 3),
+('495', 'Roof covering', 3),
+('495.1', 'Cinese', 4),
+('495.6', 'Giapponese', 4),
+('496', 'Utilities', 3),
+('497', 'Heating, ventilating, air-conditioning engineering', 3),
+('498', 'Detail finishing', 3),
+('499', 'Unassigned or no longer in use', 3),
+('500', 'The arts', 1),
+('501', 'Philosophy & theory', 3),
+('502', 'Miscellany', 3),
+('503', 'Dictionaries, encyclopedias, concordances', 3),
+('504', 'Technical drawing, hazardous materials technology; groups of people', 3),
+('505', 'Serial publications', 3),
+('506', 'Organizations', 3),
+('507', 'Education, research, related topics', 3),
+('508', 'Galleries, museums, private collections of fine & decorative arts', 3),
+('509', 'History, geographic treatment, biography', 3),
+('510', 'Area planning & landscape architecture', 2),
+('511', 'Area planning (Civic art)', 3),
+('512', 'Landscape architecture (Landscape design)', 3),
+('513', 'Landscape architecture of trafficways', 3),
+('514', 'Water features in landscape architecture', 3),
+('515', 'Woody plants in landscape architecture', 3),
+('516', 'Herbaceous plants in landscape architecture', 3),
+('517', 'Structures in landscape architecture', 3),
+('518', 'Landscape design of cemeteries', 3),
+('519', 'No longer in use—formerly Experimental medicine', 3),
+('520', 'Architecture', 2),
+('521', 'Architectural materials & structural elements', 3),
+('522', 'Mining & related operations', 3),
+('523', 'Architecture from ca. 300 to 1399', 3),
+('523.1', 'Universo', 4),
+('523.2', 'Sistema solare', 4),
+('523.3', 'Luna', 4),
+('523.4', 'Pianeti', 4),
+('523.6', 'Comete', 4),
+('523.7', 'Sole', 4),
+('523.8', 'Stelle', 4),
+('524', 'Architecture from 1400', 3),
+('525', 'Public structures', 3),
+('526', 'Unassigned or no longer in use', 3),
+('527', 'Buildings for educational & research purposes', 3),
+('528', 'Residential & related buildings', 3),
+('529', 'Design & decoration of structures & accessories', 3),
+('530', 'Sculpture & related arts', 2),
+('531', 'Processes, forms, subjects of sculpture', 3),
+('532', 'Plant injuries, diseases, pests', 3),
+('533', 'Greek, Etruscan, Roman sculpture', 3),
+('534', 'Sculpture from ca. 500 to 1399', 3),
+('535', 'Sculpture from 1400', 3),
+('536', 'Carving & carvings', 3),
+('537', 'Processing dairy & related products', 3),
+('538', 'Insect culture', 3),
+('539', 'Art metalwork', 3),
+('539.7', 'Fisica atomica', 4),
+('540', 'Graphic arts', 2),
+('541', 'Drawing & drawings', 3),
+('542', 'Meals & table service', 3),
+('543', 'Drawing & drawings by subject', 3),
+('544', 'Household utilities', 3),
+('545', 'Household furnishings', 3),
+('546', 'Textile arts', 3),
+('547', 'Management of public households (Institutional housekeeping)', 3),
+('548', 'Housekeeping', 3),
+('549', 'Furniture & accessories', 3),
+('550', 'Painting & paintings', 2),
+('551', 'Techniques, procedures, apparatus, equipment, materials, forms', 3),
+('551.2', 'Vulcani e terremoti', 4),
+('551.4', 'Geomorfologia', 4),
+('551.46', 'Oceanografia', 5),
+('551.5', 'Meteorologia', 4),
+('551.6', 'Climatologia', 4),
+('552', 'Processes of written communication', 3),
+('553', 'Shorthand', 3),
+('554', 'Unassigned or no longer in use', 3),
+('555', 'Unassigned or no longer in use', 3),
+('556', 'Unassigned or no longer in use', 3),
+('557', 'Human figures', 3),
+('558', 'Nature, architectural subjects & cityscapes, other specific subjects', 3),
+('559', 'History, geographic treatment, biography', 3),
+('560', 'Printmaking & prints', 2),
+('561', 'Technology of industrial chemicals', 3),
+('562', 'Technology of explosives, fuels, related products', 3),
+('563', 'Lithographic processes (Planographic processes)', 3),
+('564', 'Chromolithography & serigraphy', 3),
+('565', 'Technology of industrial oils, fats, waxes, gases', 3),
+('566', 'Ceramic & allied technologies', 3),
+('567', 'Cleaning, color, coating, related technologies', 3),
+('567.9', 'Rettili fossili (Dinosauri)', 4),
+('568', 'Technology of other organic products', 3),
+('569', 'Prints', 3),
+('570', 'Photography, computer art, cinematography, videography', 2),
+('571', 'Metalworking processes & primary metal products', 3),
+('572', 'Iron, steel, other iron alloys', 3),
+('573', 'Nonferrous metals', 3),
+('574', 'Lumber processing, wood products, cork', 3),
+('575', 'Leather & fur processing', 3),
+('576', 'Pulp & paper technology', 3),
+('576.5', 'Genetica', 4),
+('576.8', 'Evoluzione', 4),
+('577', 'Cinematography & videography', 3),
+('577.3', 'Ecologia forestale', 4),
+('577.7', 'Ecologia marina', 4),
+('578', 'Elastomers & elastomer products', 3),
+('579', 'Other products of specific kinds of materials', 3),
+('580', 'Music', 2),
+('581', 'General principles & musical forms', 3),
+('582', 'Small forge work (Blacksmithing)', 3),
+('582.13', 'Fiori selvatici', 5),
+('582.16', 'Alberi', 5),
+('583', 'Hardware & household appliances', 3),
+('584', 'Instruments & instrumental ensembles & their music', 3),
+('585', 'Leather & fur goods & related products', 3),
+('586', 'Printing & related activities', 3),
+('587', 'Clothing & accessories', 3),
+('588', 'Other final products & packaging technology', 3),
+('589', 'Unassigned or no longer in use', 3),
+('590', 'Recreational & performing arts', 2),
+('591', 'Building materials', 3),
+('592', 'Auxiliary construction practices', 3),
+('593', 'Construction in specific types of materials & for specific purposes', 3),
+('594', 'Wood construction', 3),
+('595', 'Roof covering', 3),
+('595.7', 'Insetti', 4),
+('595.78', 'Lepidotteri (Farfalle)', 5),
+('596', 'Utilities', 3),
+('597', 'Heating, ventilating, air-conditioning engineering', 3),
+('597.8', 'Anfibi', 4),
+('597.9', 'Rettili', 4),
+('598', 'Detail finishing', 3),
+('599', 'Unassigned or no longer in use', 3),
+('599.2', 'Marsupialia', 4),
+('599.3', 'Small mammals', 4),
+('599.4', 'Chiroptera (Bats)', 4),
+('599.5', 'Cetacea & Sirenia', 4),
+('599.53', 'Delfini', 5),
+('599.6', 'Ungulata (Hoofed mammals)', 4),
+('599.7', 'Carnivora', 4),
+('599.74', 'Carnivori (vecchio uso)', 5),
+('599.75', 'Felidi', 5),
+('599.77', 'Canidi', 5),
+('599.78', 'Orsi', 5),
+('599.8', 'Primates', 4),
+('599.9', 'Hominidae (Humans)', 4),
+('599.93', 'Human genetics', 5),
+('599.97', 'Human variation', 5),
+('599.98', 'Human adaptation', 5),
+('600', 'Literature (Belles-lettres) & rhetoric', 1),
+('601', 'Philosophy & theory', 3),
+('602', 'Miscellany of fine & decorative arts', 3),
+('603', 'Dictionaries, encyclopedias, concordances of fine & decorative arts', 3),
+('604', 'Unassigned or no longer in use', 3),
+('605', 'Serial publications of fine & decorative arts', 3),
+('606', 'Organizations & management of fine & decorative arts', 3),
+('607', 'Education, research, related topics of fine & decorative arts', 3),
+('608', 'Rhetoric & collections of literary texts from more than two literatures', 3),
+('609', 'History, description, critical appraisal of more than two literatures', 3),
+('610', 'American literature in English', 2),
+('611', 'American poetry in English', 3),
+('612', 'American drama in English', 3),
+('612.6', 'Riproduzione', 4),
+('613', 'Landscape architecture of trafficways', 3),
+('613.2', 'Dietetica', 4),
+('613.7', 'Fitness', 4),
+('614', 'Water features in landscape architecture', 3),
+('615', 'Woody plants in landscape architecture', 3),
+('616', 'Herbaceous plants in landscape architecture', 3),
+('616.1', 'Cuore', 4),
+('616.8', 'Malattie nervose', 4),
+('616.9', 'Malattie infettive', 4),
+('617', 'Structures in landscape architecture', 3),
+('618', 'Landscape design of cemeteries', 3),
+('618.92', 'Pediatria', 5),
+('619', 'Natural landscapes', 3),
+('620', 'English & Old English (Anglo-Saxon) literatures', 2),
+('621', 'Architectural materials & structural elements', 3),
+('621.3', 'Elettrotecnica', 4),
+('621.38', 'Elettronica', 5),
+('621.4', 'Motori', 4),
+('622', 'English drama', 3),
+('623', 'English fiction', 3),
+('624', 'English essays', 3),
+('625', 'English speeches', 3),
+('626', 'English letters', 3),
+('627', 'Buildings for educational & research purposes', 3),
+('628', 'English miscellaneous writings', 3),
+('629', 'Design & decoration of structures & accessories', 3),
+('629.1', 'Aerospaziale', 4),
+('629.13', 'Aeronautica', 5),
+('629.2', 'Veicoli a motore', 4),
+('629.4', 'Astronautica', 4),
+('629.8', 'Automazione', 4),
+('630', 'German literature & literatures of related languages', 2),
+('631', 'Processes, forms, subjects of sculpture', 3),
+('632', 'Sculpture from earliest times to ca. 500, sculpture of nonliterate peoples', 3),
+('633', 'Greek, Etruscan, Roman sculpture', 3),
+('634', 'Sculpture from ca. 500 to 1399', 3),
+('635', 'Sculpture from 1400', 3),
+('636', 'German letters', 3),
+('636.1', 'Cavalli', 4),
+('636.2', 'Bovini', 4),
+('636.3', 'Ovini', 4),
+('636.5', 'Pollame', 4),
+('636.7', 'Cani', 4),
+('636.8', 'Gatti', 4),
+('637', 'German humor & satire', 3),
+('638', 'German miscellaneous writings', 3),
+('639', 'Other Germanic literatures', 3),
+('640', 'French literature & literatures of related Romance languages', 2),
+('641', 'French poetry', 3),
+('641.5', 'Cucina', 4),
+('641.59', 'Cucina internazionale', 5),
+('641.5945', 'Cucina italiana', 7),
+('641.8', 'Piatti specifici', 4),
+('642', 'Perspective in drawing', 3),
+('643', 'Drawing & drawings by subject', 3),
+('644', 'Communication design & visual design (proposed)', 3),
+('645', 'French speeches', 3),
+('646', 'French letters', 3),
+('647', 'French humor & satire', 3),
+('648', 'Glass', 3),
+('649', 'Furniture & accessories', 3),
+('650', 'Literatures of Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican languages', 2),
+('651', 'Italian poetry', 3),
+('652', 'Color', 3),
+('653', 'Italian fiction', 3),
+('654', 'Genre paintings', 3),
+('655', 'Religion', 3),
+('656', 'Unassigned or no longer in use', 3),
+('657', 'Human figures', 3),
+('658', 'Nature, architectural subjects & cityscapes, other specific subjects', 3),
+('658.1', 'Organizzazione', 4),
+('658.3', 'Risorse umane', 4),
+('658.4', 'Dirigenza', 4),
+('658.8', 'Marketing', 4),
+('659', 'Literatures of Romanian, Rhaetian, Sardinian, Corsican languages', 3),
+('660', 'Literatures of Spanish, Portuguese, Galician languages', 2),
+('661', 'Relief processes (Block printing)', 3),
+('662', 'Unassigned or no longer in use', 3),
+('663', 'Lithographic processes (Planographic processes)', 3),
+('663.2', 'Vino', 4),
+('664', 'Chromolithography & serigraphy', 3),
+('665', 'Metal engraving', 3),
+('666', 'Mezzotinting, aquatinting & related processes', 3),
+('667', 'Etching & drypoint', 3),
+('668', 'Unassigned or no longer in use', 3),
+('669', 'Prints', 3),
+('670', 'Latin literature & literatures of related Italic languages', 2),
+('671', 'Latin poetry', 3),
+('672', 'Metallic salt processes', 3),
+('673', 'Pigment processes of printing', 3),
+('674', 'No longer in use—formerly Holography', 3),
+('675', 'No longer in use—formerly Digital photography', 3),
+('676', 'Computer art (Digital art)', 3),
+('677', 'Cinematography & videography', 3),
+('678', 'Latin miscellaneous writings', 3),
+('679', 'Literatures of other Italic languages', 3),
+('680', 'Classical Greek literature & literatures of related Hellenic languages', 2),
+('681', 'Classical Greek poetry', 3),
+('682', 'Classical Greek drama', 3),
+('683', 'Classical Greek epic poetry & fiction', 3),
+('684', 'Classical Greek lyric poetry', 3),
+('685', 'Classical Greek speeches', 3),
+('686', 'Classical Greek letters', 3),
+('687', 'Classical Greek humor & satire', 3),
+('688', 'Classical Greek miscellaneous writings', 3),
+('689', 'Unassigned or no longer in use', 3),
+('690', 'Literatures of other specific languages & language families', 2),
+('691', 'East Indo-European & Celtic literatures', 3),
+('692', 'Afro-Asiatic literatures', 3),
+('693', 'Non-Semitic Afro-Asiatic literatures', 3),
+('694', 'Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia', 3),
+('695', 'Games of chance', 3),
+('696', 'African literatures', 3),
+('697', 'Literatures of North American native languages', 3),
+('698', 'Literatures of South American native languages', 3),
+('699', 'Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages', 3),
+('700', 'History', 1),
+('701', 'Philosophy & theory of history', 3),
+('702', 'Miscellany', 3),
+('703', 'Dictionaries, encyclopedias, concordances', 3),
+('704', 'Unassigned or no longer in use', 3),
+('705', 'Serial publications', 3),
+('706', 'Organizations & management', 3),
+('707', 'Education, research, related topics', 3),
+('708', 'History with respect to groups of people', 3),
+('709', 'World history', 3),
+('709.2', 'Biografie artisti', 4),
+('709.4', 'Arte europea', 4),
+('709.45', 'Arte italiana', 5),
+('710', 'Geography & travel', 2),
+('711', 'Historical geography', 3),
+('712', 'Graphic representations of surface of Earth & of extraterrestrial worlds', 3),
+('713', 'Geography of & travel in ancient world', 3),
+('714', 'Geography of & travel in Europe', 3),
+('715', 'American speeches in English', 3),
+('716', 'American letters in English', 3),
+('717', 'American humor & satire in English', 3),
+('718', 'American miscellaneous writings in English', 3),
+('719', 'No longer in use—formerly Puzzle activities', 3),
+('720', 'Biography, genealogy, insignia', 2),
+('721', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('722', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('723', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('724', 'English essays', 3),
+('725', 'English speeches', 3),
+('726', 'English letters', 3),
+('727', 'English humor & satire', 3),
+('728', 'English miscellaneous writings', 3),
+('729', 'Old English (Anglo-Saxon) literature', 3),
+('730', 'History of ancient world to ca. 499', 2),
+('731', 'China to 420', 3),
+('732', 'German drama', 3),
+('733', 'Palestine to 70', 3),
+('734', 'German essays', 3),
+('735', 'German speeches', 3),
+('736', 'German letters', 3),
+('737', 'German humor & satire', 3),
+('738', 'German miscellaneous writings', 3),
+('739', 'Other Germanic literatures', 3),
+('740', 'History of Europe', 2),
+('741', 'British Isles', 3),
+('741.5', 'Fumetti', 4),
+('742', 'England & Wales', 3),
+('743', 'Germany & neighboring central European countries', 3),
+('744', 'French essays', 3),
+('745', 'French speeches', 3),
+('746', 'French letters', 3),
+('747', 'French humor & satire', 3),
+('748', 'French miscellaneous writings', 3),
+('749', 'Occitan, Catalan, Franco-Provençal literatures', 3),
+('750', 'History of Asia', 2),
+('751', 'China & adjacent areas', 3),
+('752', 'Japan', 3),
+('753', 'Arabian Peninsula & adjacent areas', 3),
+('754', 'India & neighboring south Asian countries', 3),
+('755', 'Italian speeches', 3),
+('756', 'Italian letters', 3),
+('757', 'Italian humor & satire', 3),
+('758', 'Central Asia', 3),
+('759', 'Literatures of Romanian, Rhaetian, Sardinian, Corsican languages', 3),
+('759.5', 'Pittura italiana', 4),
+('760', 'History of Africa', 2),
+('761', 'Tunisia & Libya', 3),
+('762', 'Spanish drama', 3),
+('763', 'Ethiopia & Eritrea', 3),
+('764', 'Spanish essays', 3),
+('765', 'Spanish speeches', 3),
+('766', 'Spanish letters', 3),
+('767', 'Spanish humor & satire', 3),
+('768', 'Spanish miscellaneous writings', 3),
+('769', 'Literatures of Portuguese & Galician languages', 3),
+('770', 'History of North America', 2),
+('771', 'Canada', 3),
+('772', 'Latin dramatic poetry & drama', 3),
+('773', 'Latin epic poetry & fiction', 3),
+('774', 'Latin lyric poetry', 3),
+('775', 'Latin speeches', 3),
+('776', 'Latin letters', 3),
+('777', 'Latin humor & satire', 3),
+('778', 'Latin miscellaneous writings', 3),
+('779', 'Literatures of other Italic languages', 3),
+('780', 'History of South America', 2),
+('780.9', 'Storia della musica', 4),
+('781', 'Classical Greek poetry', 3),
+('782', 'Classical Greek drama', 3),
+('782.1', 'Opera', 4),
+('783', 'Chile', 3),
+('784', 'Classical Greek lyric poetry', 3),
+('785', 'Classical Greek speeches', 3),
+('786', 'Classical Greek letters', 3),
+('787', 'Classical Greek humor & satire', 3),
+('788', 'Classical Greek miscellaneous writings', 3),
+('789', 'Modern Greek literature', 3),
+('790', 'History of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds', 2),
+('791', 'East Indo-European & Celtic literatures', 3),
+('791.4', 'Cinema, Radio, TV', 4),
+('791.43', 'Cinema', 5),
+('791.45', 'Televisione', 5),
+('792', 'Afro-Asiatic literatures', 3),
+('793', 'Non-Semitic Afro-Asiatic literatures', 3),
+('794', 'Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia', 3),
+('795', 'New Guinea & neighboring countries of Melanesia', 3),
+('796', 'African literatures', 3),
+('796.3', 'Giochi con palla', 4),
+('796.33', 'Calcio', 5),
+('796.34', 'Tennis', 5),
+('796.35', 'Golf', 5),
+('796.4', 'Atletica', 4),
+('796.5', 'Attività all''aperto', 4),
+('796.52', 'Alpinismo', 5),
+('796.7', 'Automobilismo', 4),
+('796.8', 'Sport da combattimento', 4),
+('797', 'Literatures of North American native languages', 3),
+('798', 'Literatures of South American native languages', 3),
+('799', 'Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages', 3),
+('800', 'Philosophy & psychology', 1),
+('801', 'Philosophy & theory of history', 3),
+('802', 'Miscellany of history', 3),
+('803', 'Dictionaries, encyclopedias, concordances of history', 3),
+('804', 'Science', 3),
+('805', 'Serial publications of history', 3),
+('806', 'Organizations & management of history', 3),
+('807', 'Education, research, related topics of history', 3),
+('808', 'History with respect to groups of people', 3),
+('808.3', 'Scrittura narrativa', 4),
+('808.8', 'Raccolte', 4),
+('809', 'Psychology', 3),
+('810', 'Political science', 2),
+('811', 'Historical geography', 3),
+('812', 'Law', 3),
+('813', 'Geography of & travel in ancient world', 3),
+('814', 'Mammalia (Mammals)', 3),
+('815', 'Asia (Geografia)', 3),
+('816', 'Africa (Geografia)', 3),
+('817', 'Nord America (Geografia)', 3),
+('818', 'Sud America (Geografia)', 3),
+('819', 'Geography of & travel in Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, & on extraterrestrial worlds', 3),
+('820', 'Biografia', 2),
+('821', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('822', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('822.3', 'Shakespeare', 4),
+('823', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('824', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('825', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('826', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('827', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('828', 'This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject''s last name.', 3),
+('829', 'Genealogia', 3),
+('830', 'Storia antica', 2),
+('831', 'Cina antica', 3),
+('832', 'Egitto antico', 3),
+('833', 'Palestina antica', 3),
+('834', 'South Asia to 647', 3),
+('835', 'Mesopotamia', 3),
+('836', 'Europe north & west of Italian Peninsula to ca. 499', 3),
+('837', 'Roma antica', 3),
+('838', 'Grecia antica', 3),
+('839', 'Other parts of ancient world', 3),
+('840', 'Storia d''Europa', 2),
+('841', 'Isole Britanniche', 3),
+('842', 'Inghilterra', 3),
+('843', 'Germania', 3),
+('844', 'Francia', 3),
+('845', 'Italia', 3),
+('846', 'Spagna', 3),
+('847', 'Russia', 3),
+('848', 'Scandinavia', 3),
+('849', 'Other parts of Europe', 3),
+('850', 'Storia dell''Asia', 2),
+('851', 'Cina', 3),
+('851.1', 'Dante Alighieri', 4),
+('852', 'Giappone', 3),
+('853', 'Arabia', 3),
+('854', 'India', 3),
+('855', 'Iran', 3),
+('856', 'Medio Oriente', 3),
+('857', 'Siberia (Asiatic Russia)', 3),
+('858', 'Central Asia', 3),
+('859', 'Southeast Asia', 3),
+('860', 'Storia dell''Africa', 2),
+('861', 'Tunisia & Libya', 3),
+('862', 'Egitto', 3),
+('863', 'Ethiopia & Eritrea', 3),
+('864', 'Morocco, Ceuta, Melilla, Western Sahara, Canary Islands', 3),
+('865', 'Algeria', 3),
+('866', 'West Africa & offshore islands', 3),
+('867', 'Central Africa & offshore islands', 3),
+('868', 'Republic of South Africa & Southern Africa', 3),
+('869', 'South Indian Ocean islands', 3),
+('870', 'Storia del Nord America', 2),
+('871', 'Canada', 3),
+('872', 'Mexico, Central America, West Indies, Bermuda', 3),
+('873', 'Stati Uniti', 3),
+('874', 'Northeastern United States (New England & Middle Atlantic states)', 3),
+('875', 'Southeastern United States (South Atlantic states)', 3),
+('876', 'South central United States', 3),
+('877', 'North central United States', 3),
+('878', 'Western United States', 3),
+('879', 'Great Basin & Pacific Slope region of United States', 3),
+('880', 'Storia del Sud America', 2),
+('881', 'Brazil', 3),
+('882', 'Argentina', 3),
+('883', 'Chile', 3),
+('884', 'Bolivia', 3),
+('885', 'Peru', 3),
+('886', 'Colombia & Ecuador', 3),
+('887', 'Venezuela', 3),
+('888', 'Guiana', 3),
+('889', 'Paraguay & Uruguay', 3),
+('890', 'Altre aree', 2),
+('891', 'Unassigned or no longer in use', 3),
+('891.7', 'Letteratura russa', 4),
+('892', 'Unassigned or no longer in use', 3),
+('893', 'New Zealand', 3),
+('894', 'Australia', 3),
+('895', 'New Guinea & neighboring countries of Melanesia', 3),
+('896', 'Polynesia & other Pacific Ocean islands', 3),
+('897', 'Atlantic Ocean islands', 3),
+('898', 'Arctic islands & Antarctica', 3),
+('899', 'Extraterrestrial worlds', 3),
+('900', 'Philosophy & psychology', 1),
+('901', 'Religion', 3),
+('902', 'Social sciences', 3),
+('903', 'Language', 3),
+('904', 'Natural sciences & mathematics', 3),
+('905', 'Technology', 3),
+('906', 'Arts & recreation', 3),
+('907', 'Literature', 3),
+('908', 'History & geography', 3),
+('909', 'Mathematics', 3),
+('910', 'Astronomy', 2),
+('911', 'Physics', 3),
+('912', 'Chemistry', 3),
+('913', 'Earth sciences & geology', 3),
+('914', 'Fossils & prehistoric life', 3),
+('914.5', 'Italia (Geografia)', 4),
+('915', 'Life sciences; biology', 3),
+('916', 'Plants (Botany)', 3),
+('917', 'Animals (Zoology)', 3),
+('918', 'Medicine & health', 3),
+('919', 'Engineering', 3),
+('920', 'Agriculture', 2),
+('921', 'Home & family management', 3),
+('922', 'Management & public relations', 3),
+('923', 'Chemical engineering', 3),
+('924', 'Manufacturing', 3),
+('925', 'Manufacture for specific uses', 3),
+('926', 'Building & construction', 3),
+('927', 'Area planning & landscape architecture', 3),
+('928', 'Architecture', 3),
+('929', 'Sculpture, ceramics & metalwork', 3),
+('930', 'Drawing & decorative arts', 2),
+('931', 'Painting', 3),
+('932', 'Graphic arts', 3),
+('933', 'Photography & computer art', 3),
+('934', 'Music', 3),
+('935', 'Sports, games & entertainment', 3),
+('936', 'American literature', 3),
+('937', 'English & Old English literatures', 3),
+('938', 'German & related literatures', 3),
+('939', 'French & related literatures', 3),
+('940', 'Italian, Romanian & related literatures', 2),
+('940.1', 'Medioevo', 4),
+('940.2', 'Storia moderna', 4),
+('940.3', 'Prima Guerra Mondiale', 4),
+('940.5', 'Seconda Guerra Mondiale', 4),
+('941', 'Spanish & Portuguese literatures', 3),
+('942', 'Latin & Italic literatures', 3),
+('943', 'Classical & modern Greek literatures', 3),
+('944', 'Other literatures', 3),
+('945', 'Geography & travel', 3),
+('945.01', 'Medioevo italiano', 5),
+('945.05', 'Rinascimento', 5),
+('945.08', 'Risorgimento', 5),
+('945.09', 'Italia contemporanea', 5),
+('946', 'Biography & genealogy', 3),
+('947', 'History of ancient world (to ca. 499)', 3),
+('948', 'History of Europe', 3),
+('949', 'History of Asia', 3),
+('950', 'History of Africa', 2),
+('951', 'History of North America', 3),
+('952', 'History of South America', 3),
+('953', 'History of other areas', 3),
+('954', 'Dialectology & historical linguistics', 3),
+('955', '[Unassigned]', 3),
+('956', 'Mammalia (Mammals)', 3),
+('957', 'Siberia (Russia asiatica)', 3),
+('958', 'Asia centrale', 3),
+('959', 'Sud-est asiatico', 3),
+('960', 'History dell''Africa', 2),
+('961', 'Tunisia e Libia', 3),
+('962', 'Egitto e Sudan', 3),
+('963', 'Etiopia e Eritrea', 3),
+('964', 'Costa nord-occidentale e isole', 3),
+('965', 'Algeria', 3),
+('966', 'Africa occidentale e isole', 3),
+('967', 'Africa centrale e isole', 3),
+('968', 'Africa meridionale', 3),
+('969', 'Isole dell''Oceano Indiano meridionale', 3),
+('970', 'History del Nord America', 2),
+('971', 'Canada', 3),
+('972', 'Messico, America Centrale, Caraibi', 3),
+('973', 'Stati Uniti', 3),
+('973.7', 'Guerra civile americana', 4),
+('974', 'Stati Uniti nord-orientali', 3),
+('975', 'Stati Uniti sud-orientali', 3),
+('976', 'Stati Uniti centro-meridionali', 3),
+('977', 'Stati Uniti centro-settentrionali', 3),
+('978', 'Stati Uniti occidentali', 3),
+('979', 'Stati Uniti del Gran Bacino e del Pacifico', 3),
+('980', 'History del Sud America', 2),
+('981', 'Brasile', 3),
+('982', 'Argentina', 3),
+('983', 'Cile', 3),
+('984', 'Bolivia', 3),
+('985', 'Perù', 3),
+('986', 'Colombia e Ecuador', 3),
+('987', 'Venezuela', 3),
+('988', 'Guiana', 3),
+('989', 'Paraguay e Uruguay', 3),
+('990', 'History di altre aree', 2),
+('991', '[Unspecified]', 3),
+('992', '[Unspecified]', 3),
+('993', 'Nuova Zelanda', 3),
+('994', 'Australia', 3),
+('995', 'Melanesia; Nuova Guinea', 3),
+('996', 'Altre parti del Pacifico; Polinesia', 3),
+('997', 'Isole dell''Oceano Atlantico', 3),
+('998', 'Isole Artiche e Antartide', 3),
+('999', 'Mondi extraterrestri', 3);
+
 -- Generated from data/dewey/dewey_en.json
 -- ============================================================================
 -- System Settings - Complete default configuration (ENGLISH)
@@ -1375,3 +3919,2121 @@ SET FOREIGN_KEY_CHECKS=0;
 
 
 SET FOREIGN_KEY_CHECKS=1;
+-- =============================================
+-- Classificazione Dewey (Aggiornata: 2025-12-02)
+-- Totale entries: 2106
+-- =============================================
+
+-- Classificazione Dewey
+-- Generato automaticamente da generate_dewey_sql_inserts.php
+-- Data: 2025-12-02 23:36:41
+
+INSERT INTO `classificazione` VALUES (1,NULL,'0','Religion',1);
+INSERT INTO `classificazione` VALUES (2,1,'100','Social sciences, sociology & anthropology',2);
+INSERT INTO `classificazione` VALUES (3,1,'110','Statistics',2);
+INSERT INTO `classificazione` VALUES (4,3,'111','No longer in use — formerly Theory and methods',3);
+INSERT INTO `classificazione` VALUES (5,3,'113','No longer in use — formerly Special topics',3);
+INSERT INTO `classificazione` VALUES (6,3,'114','Theodicy',3);
+INSERT INTO `classificazione` VALUES (7,3,'115','General statistics of Asia',3);
+INSERT INTO `classificazione` VALUES (8,3,'116','No longer in use—formerly Evil',3);
+INSERT INTO `classificazione` VALUES (9,3,'117','No longer in use—formerly Prayer',3);
+INSERT INTO `classificazione` VALUES (10,3,'118','Humankind',3);
+INSERT INTO `classificazione` VALUES (11,3,'119','No longer in use—formerly Analogies',3);
+INSERT INTO `classificazione` VALUES (12,1,'120','Political science (politics & government)',2);
+INSERT INTO `classificazione` VALUES (13,12,'121','Systems of governments & states',3);
+INSERT INTO `classificazione` VALUES (14,12,'122','Historical books of Old Testament',3);
+INSERT INTO `classificazione` VALUES (15,12,'123','Poetic books of Old Testament',3);
+INSERT INTO `classificazione` VALUES (16,12,'124','Prophetic books of Old Testament',3);
+INSERT INTO `classificazione` VALUES (17,12,'126','Gospels & Acts',3);
+INSERT INTO `classificazione` VALUES (18,12,'127','Epistles',3);
+INSERT INTO `classificazione` VALUES (19,12,'128','Revelation (Apocalypse)',3);
+INSERT INTO `classificazione` VALUES (20,12,'129','Apocrypha, pseudepigrapha & intertestamental works',3);
+INSERT INTO `classificazione` VALUES (21,1,'130','Economics',2);
+INSERT INTO `classificazione` VALUES (22,21,'131','Labor economics',3);
+INSERT INTO `classificazione` VALUES (23,21,'133','Economics of land & energy',3);
+INSERT INTO `classificazione` VALUES (24,21,'135','Spiritual beings',3);
+INSERT INTO `classificazione` VALUES (25,21,'137','No longer in use—formerly Future state',3);
+INSERT INTO `classificazione` VALUES (26,21,'138','Creeds, confessions of faith, covenants, catechisms',3);
+INSERT INTO `classificazione` VALUES (27,21,'139','Macroeconomics & related topics',3);
+INSERT INTO `classificazione` VALUES (28,1,'140','Law',2);
+INSERT INTO `classificazione` VALUES (29,28,'141','Law of nations',3);
+INSERT INTO `classificazione` VALUES (30,28,'142','Constitutional & administrative law',3);
+INSERT INTO `classificazione` VALUES (31,28,'143','Evangelistic writings for individuals & families',3);
+INSERT INTO `classificazione` VALUES (32,28,'144','No longer in use—formerly Religious fiction',3);
+INSERT INTO `classificazione` VALUES (33,28,'145','No longer in use—formerly Hymnology',3);
+INSERT INTO `classificazione` VALUES (34,28,'146','Use of art in Christianity',3);
+INSERT INTO `classificazione` VALUES (35,28,'147','Church furnishings & related articles',3);
+INSERT INTO `classificazione` VALUES (36,28,'148','Laws, regulations, cases',3);
+INSERT INTO `classificazione` VALUES (37,28,'149','Christian observances in family life',3);
+INSERT INTO `classificazione` VALUES (38,1,'150','Public administration & military science',2);
+INSERT INTO `classificazione` VALUES (39,38,'151','Public administration',3);
+INSERT INTO `classificazione` VALUES (40,38,'152','Texts of sermons',3);
+INSERT INTO `classificazione` VALUES (41,38,'153','Specific fields of public administration',3);
+INSERT INTO `classificazione` VALUES (42,38,'154','Parish administration',3);
+INSERT INTO `classificazione` VALUES (43,38,'155','Military science',3);
+INSERT INTO `classificazione` VALUES (44,38,'156','No longer in use—formerly Religious societies',3);
+INSERT INTO `classificazione` VALUES (45,38,'157','No longer in use—formerly Parish schools, libraries, etc.',3);
+INSERT INTO `classificazione` VALUES (46,38,'158','No longer in use—formerly Parish medicine',3);
+INSERT INTO `classificazione` VALUES (47,38,'159','Pastoral care of families, of specific groups of people',3);
+INSERT INTO `classificazione` VALUES (48,1,'160','Social problems & services; associations',2);
+INSERT INTO `classificazione` VALUES (49,48,'161','Social problems & services',3);
+INSERT INTO `classificazione` VALUES (50,48,'162','Ecclesiology',3);
+INSERT INTO `classificazione` VALUES (51,48,'165','Sacraments, other rites & acts',3);
+INSERT INTO `classificazione` VALUES (52,48,'166','Associations & secret societies',3);
+INSERT INTO `classificazione` VALUES (53,48,'167','Associations for religious work',3);
+INSERT INTO `classificazione` VALUES (54,48,'168','Religious education',3);
+INSERT INTO `classificazione` VALUES (55,48,'169','Spiritual renewal',3);
+INSERT INTO `classificazione` VALUES (56,1,'170','Education',2);
+INSERT INTO `classificazione` VALUES (57,56,'171','Schools & their activities, special education',3);
+INSERT INTO `classificazione` VALUES (58,56,'172','Persecutions in church history',3);
+INSERT INTO `classificazione` VALUES (59,56,'173','Doctrinal controversies & heresies in general church history',3);
+INSERT INTO `classificazione` VALUES (60,56,'174','Adult education',3);
+INSERT INTO `classificazione` VALUES (61,56,'175','Curriculums',3);
+INSERT INTO `classificazione` VALUES (62,56,'176','Christianity in Africa',3);
+INSERT INTO `classificazione` VALUES (63,56,'177','Christianity in North America',3);
+INSERT INTO `classificazione` VALUES (64,56,'178','Christianity in South America',3);
+INSERT INTO `classificazione` VALUES (65,56,'179','History of Christianity in other areas',3);
+INSERT INTO `classificazione` VALUES (66,1,'180','Commerce, communications, transport',2);
+INSERT INTO `classificazione` VALUES (67,66,'181','Commerce (Trade)',3);
+INSERT INTO `classificazione` VALUES (68,66,'182','International commerce (foreign trade)',3);
+INSERT INTO `classificazione` VALUES (69,66,'183','Postal communication',3);
+INSERT INTO `classificazione` VALUES (70,66,'184','Communications',3);
+INSERT INTO `classificazione` VALUES (71,66,'185','Railroad transportation',3);
+INSERT INTO `classificazione` VALUES (72,66,'186','Inland waterway & ferry transportation',3);
+INSERT INTO `classificazione` VALUES (73,66,'187','Water, air, space transportation',3);
+INSERT INTO `classificazione` VALUES (74,66,'188','No longer in use — formerly Unitarian',3);
+INSERT INTO `classificazione` VALUES (75,66,'189','Other denominations & sects',3);
+INSERT INTO `classificazione` VALUES (76,1,'190','Customs, etiquette, folklore',2);
+INSERT INTO `classificazione` VALUES (77,76,'191','No longer in use — formerly Comparative religion',3);
+INSERT INTO `classificazione` VALUES (78,76,'192','Customs of life cycle & domestic life',3);
+INSERT INTO `classificazione` VALUES (79,76,'193','Death customs',3);
+INSERT INTO `classificazione` VALUES (80,76,'194','General customs',3);
+INSERT INTO `classificazione` VALUES (81,76,'195','Zoroastrianism (Mazdaism, Parseeism)',3);
+INSERT INTO `classificazione` VALUES (82,76,'196','No longer in use — formerly Women\'s position and treatment',3);
+INSERT INTO `classificazione` VALUES (83,76,'197','No longer in use — formerly Outcast studies',3);
+INSERT INTO `classificazione` VALUES (84,76,'198','No longer in use — formerly Mormonism',3);
+INSERT INTO `classificazione` VALUES (85,76,'199','Customs of war & diplomacy',3);
+INSERT INTO `classificazione` VALUES (86,NULL,'000','Computer science, information & general works',1);
+INSERT INTO `classificazione` VALUES (87,86,'000','Computer science, information & general works',2);
+INSERT INTO `classificazione` VALUES (88,87,'001','Knowledge',3);
+INSERT INTO `classificazione` VALUES (89,87,'002','The book (writing, libraries, and related topics)',3);
+INSERT INTO `classificazione` VALUES (90,87,'003','Systems',3);
+INSERT INTO `classificazione` VALUES (91,87,'004','Data processing & computer science',3);
+INSERT INTO `classificazione` VALUES (92,87,'005','Computer programming, programs & data',3);
+INSERT INTO `classificazione` VALUES (93,87,'006','Special computer methods (e.g., AI, multimedia, VR)',3);
+INSERT INTO `classificazione` VALUES (94,87,'007','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (95,87,'008','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (96,87,'009','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (97,86,'001','Knowledge',3);
+INSERT INTO `classificazione` VALUES (98,97,'001.1','Vita intellettuale',4);
+INSERT INTO `classificazione` VALUES (99,97,'001.2','Istruzione e ricerca',4);
+INSERT INTO `classificazione` VALUES (100,97,'001.3','Discipline umanistiche',4);
+INSERT INTO `classificazione` VALUES (101,97,'001.4','Ricerca e metodi statistici',4);
+INSERT INTO `classificazione` VALUES (102,101,'001.42','Metodi di raccolta dati',5);
+INSERT INTO `classificazione` VALUES (103,102,'001.422','Metodi statistici',6);
+INSERT INTO `classificazione` VALUES (104,101,'001.43','Analisi e interpretazione dati',5);
+INSERT INTO `classificazione` VALUES (105,97,'001.9','Conoscenza controversa',4);
+INSERT INTO `classificazione` VALUES (106,105,'001.94','Misteri',5);
+INSERT INTO `classificazione` VALUES (107,106,'001.942','Oggetti volanti non identificati (UFO)',6);
+INSERT INTO `classificazione` VALUES (108,106,'001.944','Mostri e creature leggendarie',6);
+INSERT INTO `classificazione` VALUES (109,86,'002','The book (writing, libraries, and related topics)',3);
+INSERT INTO `classificazione` VALUES (110,86,'003','Systems',3);
+INSERT INTO `classificazione` VALUES (111,110,'003.1','Identificazione dei sistemi',4);
+INSERT INTO `classificazione` VALUES (112,110,'003.2','Previsioni e stime',4);
+INSERT INTO `classificazione` VALUES (113,110,'003.3','Modellazione e simulazione',4);
+INSERT INTO `classificazione` VALUES (114,110,'003.5','Cibernetica',4);
+INSERT INTO `classificazione` VALUES (115,114,'003.54','Teoria dell\'informazione',5);
+INSERT INTO `classificazione` VALUES (116,114,'003.56','Teoria delle decisioni',5);
+INSERT INTO `classificazione` VALUES (117,110,'003.7','Tipi di sistemi',4);
+INSERT INTO `classificazione` VALUES (118,110,'003.8','Sistemi temporali',4);
+INSERT INTO `classificazione` VALUES (119,86,'004','Data processing & computer science',3);
+INSERT INTO `classificazione` VALUES (120,119,'004.01','Filosofia e teoria',5);
+INSERT INTO `classificazione` VALUES (121,119,'004.1','Hardware',4);
+INSERT INTO `classificazione` VALUES (122,121,'004.11','Supercomputer',5);
+INSERT INTO `classificazione` VALUES (123,121,'004.16','Personal computer',5);
+INSERT INTO `classificazione` VALUES (124,123,'004.165','Dispositivi mobili',6);
+INSERT INTO `classificazione` VALUES (125,119,'004.2','Analisi e progettazione sistemi',4);
+INSERT INTO `classificazione` VALUES (126,119,'004.3','Modalità di elaborazione',4);
+INSERT INTO `classificazione` VALUES (127,119,'004.5','Archiviazione',4);
+INSERT INTO `classificazione` VALUES (128,119,'004.6','Networks',4);
+INSERT INTO `classificazione` VALUES (129,128,'004.61','Architettura di rete',5);
+INSERT INTO `classificazione` VALUES (130,128,'004.62','Protocolli di rete',5);
+INSERT INTO `classificazione` VALUES (131,128,'004.65','Architettura delle comunicazioni',5);
+INSERT INTO `classificazione` VALUES (132,128,'004.67','Reti geografiche (WAN)',5);
+INSERT INTO `classificazione` VALUES (133,132,'004.678','Internet',6);
+INSERT INTO `classificazione` VALUES (134,133,'004.6782','World Wide Web',7);
+INSERT INTO `classificazione` VALUES (135,128,'004.69','Sicurezza delle reti',5);
+INSERT INTO `classificazione` VALUES (136,119,'004.9','Applicazioni non elettroniche',4);
+INSERT INTO `classificazione` VALUES (137,86,'005','Computer programming, programs & data',3);
+INSERT INTO `classificazione` VALUES (138,137,'005.1','Software development',4);
+INSERT INTO `classificazione` VALUES (139,138,'005.13','Programming languages',5);
+INSERT INTO `classificazione` VALUES (140,139,'005.133','Linguaggi specifici (C, Java, Python)',6);
+INSERT INTO `classificazione` VALUES (141,137,'005.2','Programmazione piattaforme specifiche',4);
+INSERT INTO `classificazione` VALUES (142,137,'005.3','Programmi',4);
+INSERT INTO `classificazione` VALUES (143,137,'005.4','Programmazione di sistema',4);
+INSERT INTO `classificazione` VALUES (144,143,'005.43','Sistemi operativi',5);
+INSERT INTO `classificazione` VALUES (145,144,'005.432','Windows',6);
+INSERT INTO `classificazione` VALUES (146,144,'005.434','UNIX / Linux',6);
+INSERT INTO `classificazione` VALUES (147,144,'005.435','macOS',6);
+INSERT INTO `classificazione` VALUES (148,137,'005.5','Applicazioni generali',4);
+INSERT INTO `classificazione` VALUES (149,137,'005.7','Dati',4);
+INSERT INTO `classificazione` VALUES (150,149,'005.74','Database',5);
+INSERT INTO `classificazione` VALUES (151,149,'005.75','Tipi di database',5);
+INSERT INTO `classificazione` VALUES (152,137,'005.8','Sicurezza informatica',4);
+INSERT INTO `classificazione` VALUES (153,86,'006','Special computer methods (e.g., AI, multimedia, VR)',3);
+INSERT INTO `classificazione` VALUES (154,153,'006.3','Intelligenza artificiale',4);
+INSERT INTO `classificazione` VALUES (155,154,'006.31','Machine learning',5);
+INSERT INTO `classificazione` VALUES (156,154,'006.32','Reti neurali',5);
+INSERT INTO `classificazione` VALUES (157,154,'006.33','Sistemi esperti',5);
+INSERT INTO `classificazione` VALUES (158,154,'006.35','Elaborazione del linguaggio naturale',5);
+INSERT INTO `classificazione` VALUES (159,154,'006.37','Visione artificiale',5);
+INSERT INTO `classificazione` VALUES (160,153,'006.4','Riconoscimento pattern',4);
+INSERT INTO `classificazione` VALUES (161,153,'006.5','Sintesi audio',4);
+INSERT INTO `classificazione` VALUES (162,153,'006.6','Computer grafica',4);
+INSERT INTO `classificazione` VALUES (163,153,'006.7','Multimedia',4);
+INSERT INTO `classificazione` VALUES (164,153,'006.8','Realtà virtuale',4);
+INSERT INTO `classificazione` VALUES (165,86,'007','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (166,86,'008','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (167,86,'009','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (168,86,'010','Bibliographies',2);
+INSERT INTO `classificazione` VALUES (169,168,'011','Bibliographies',3);
+INSERT INTO `classificazione` VALUES (170,168,'012','Bibliographies of individuals',3);
+INSERT INTO `classificazione` VALUES (171,168,'013','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (172,168,'014','Bibliographies of anonymous & pseudonymous works',3);
+INSERT INTO `classificazione` VALUES (173,168,'015','Bibliographies of works from specific places',3);
+INSERT INTO `classificazione` VALUES (174,168,'016','Bibliographies of works on specific subjects',3);
+INSERT INTO `classificazione` VALUES (175,168,'017','General subject catalogs',3);
+INSERT INTO `classificazione` VALUES (176,168,'018','Catalogs arranged by author, date, etc. [moved to 017]',3);
+INSERT INTO `classificazione` VALUES (177,168,'019','Dictionary catalogs [moved to 017]',3);
+INSERT INTO `classificazione` VALUES (178,86,'020','Library & information sciences',2);
+INSERT INTO `classificazione` VALUES (179,178,'021','Library relationships (with archives, information centers, etc.)',3);
+INSERT INTO `classificazione` VALUES (180,178,'022','Administration of the physical plant',3);
+INSERT INTO `classificazione` VALUES (181,178,'023','Personnel management',3);
+INSERT INTO `classificazione` VALUES (182,178,'024','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (183,178,'025','Library operations',3);
+INSERT INTO `classificazione` VALUES (184,183,'025.04','Recupero informazioni',5);
+INSERT INTO `classificazione` VALUES (185,183,'025.1','Amministrazione',4);
+INSERT INTO `classificazione` VALUES (186,183,'025.2','Acquisizioni',4);
+INSERT INTO `classificazione` VALUES (187,183,'025.3','Catalogazione',4);
+INSERT INTO `classificazione` VALUES (188,187,'025.31','Descrizione bibliografica',5);
+INSERT INTO `classificazione` VALUES (189,187,'025.32','Formati (MARC)',5);
+INSERT INTO `classificazione` VALUES (190,183,'025.4','Classificazione',4);
+INSERT INTO `classificazione` VALUES (191,190,'025.43','Classificazione decimale Dewey',5);
+INSERT INTO `classificazione` VALUES (192,183,'025.5','Servizi al pubblico',4);
+INSERT INTO `classificazione` VALUES (193,178,'026','Libraries for specific subjects',3);
+INSERT INTO `classificazione` VALUES (194,178,'027','General libraries',3);
+INSERT INTO `classificazione` VALUES (195,194,'027.4','Biblioteche pubbliche',4);
+INSERT INTO `classificazione` VALUES (196,194,'027.5','Biblioteche nazionali',4);
+INSERT INTO `classificazione` VALUES (197,194,'027.6','Biblioteche per gruppi speciali',4);
+INSERT INTO `classificazione` VALUES (198,194,'027.7','Biblioteche universitarie',4);
+INSERT INTO `classificazione` VALUES (199,194,'027.8','Biblioteche scolastiche',4);
+INSERT INTO `classificazione` VALUES (200,178,'028','Reading & use of other information media',3);
+INSERT INTO `classificazione` VALUES (201,200,'028.1','Recensioni',4);
+INSERT INTO `classificazione` VALUES (202,200,'028.5','Lettura per bambini e ragazzi',4);
+INSERT INTO `classificazione` VALUES (203,178,'029','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (204,86,'030','Encyclopedias & books of facts',2);
+INSERT INTO `classificazione` VALUES (205,204,'031','Encyclopedias in American English',3);
+INSERT INTO `classificazione` VALUES (206,204,'032','Encyclopedias in English',3);
+INSERT INTO `classificazione` VALUES (207,204,'033','Encyclopedias in other Germanic languages',3);
+INSERT INTO `classificazione` VALUES (208,204,'034','Encyclopedias in French, Occitan & Catalan',3);
+INSERT INTO `classificazione` VALUES (209,204,'035','Encyclopedias in Italian, Romanian & related languages',3);
+INSERT INTO `classificazione` VALUES (210,204,'036','Encyclopedias in Spanish & Portuguese',3);
+INSERT INTO `classificazione` VALUES (211,204,'037','Encyclopedias in Slavic languages',3);
+INSERT INTO `classificazione` VALUES (212,204,'038','Encyclopedias in Scandinavian languages',3);
+INSERT INTO `classificazione` VALUES (213,204,'039','Encyclopedias in other languages',3);
+INSERT INTO `classificazione` VALUES (214,86,'040','Unassigned — formerly Biographies',2);
+INSERT INTO `classificazione` VALUES (215,214,'041','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (216,214,'042','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (217,214,'043','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (218,214,'044','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (219,214,'045','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (220,214,'046','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (221,214,'047','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (222,214,'048','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (223,214,'049','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (224,86,'050','Magazines, journals & serials',2);
+INSERT INTO `classificazione` VALUES (225,224,'051','Serials in American English',3);
+INSERT INTO `classificazione` VALUES (226,224,'052','Serials in English',3);
+INSERT INTO `classificazione` VALUES (227,224,'053','Serials in other Germanic languages',3);
+INSERT INTO `classificazione` VALUES (228,224,'054','Serials in French, Occitan & Catalan',3);
+INSERT INTO `classificazione` VALUES (229,224,'055','Serials in Italian, Romanian & related languages',3);
+INSERT INTO `classificazione` VALUES (230,224,'056','Serials in Spanish & Portuguese',3);
+INSERT INTO `classificazione` VALUES (231,224,'057','Serials in Slavic languages',3);
+INSERT INTO `classificazione` VALUES (232,224,'058','Serials in Scandinavian languages',3);
+INSERT INTO `classificazione` VALUES (233,224,'059','Serials in other languages',3);
+INSERT INTO `classificazione` VALUES (234,86,'060','Associations, organizations & museums',2);
+INSERT INTO `classificazione` VALUES (235,234,'061','Organizations in North America',3);
+INSERT INTO `classificazione` VALUES (236,234,'062','Organizations in British Isles; in England',3);
+INSERT INTO `classificazione` VALUES (237,234,'063','Organizations in central Europe; in Germany',3);
+INSERT INTO `classificazione` VALUES (238,234,'064','Organizations in France & Monaco',3);
+INSERT INTO `classificazione` VALUES (239,234,'065','Organizations in Italy & adjacent islands',3);
+INSERT INTO `classificazione` VALUES (240,234,'066','Organizations in Iberian Peninsula & adjacent islands',3);
+INSERT INTO `classificazione` VALUES (241,234,'067','Organizations in eastern Europe; in Russia',3);
+INSERT INTO `classificazione` VALUES (242,234,'068','Organizations in other geographic areas',3);
+INSERT INTO `classificazione` VALUES (243,234,'069','Museology (Museum science)',3);
+INSERT INTO `classificazione` VALUES (244,243,'069.1','Servizi educativi',4);
+INSERT INTO `classificazione` VALUES (245,243,'069.2','Gestione collezioni',4);
+INSERT INTO `classificazione` VALUES (246,243,'069.5','Collezioni ed esposizioni',4);
+INSERT INTO `classificazione` VALUES (247,86,'070','News media, journalism & publishing',2);
+INSERT INTO `classificazione` VALUES (248,247,'070.1','Media documentari',4);
+INSERT INTO `classificazione` VALUES (249,247,'070.4','Giornalismo',4);
+INSERT INTO `classificazione` VALUES (250,247,'070.5','Editoria',4);
+INSERT INTO `classificazione` VALUES (251,247,'071','Newspapers in North America',3);
+INSERT INTO `classificazione` VALUES (252,247,'072','Newspapers in British Isles; in England',3);
+INSERT INTO `classificazione` VALUES (253,247,'073','Newspapers in central Europe; in Germany',3);
+INSERT INTO `classificazione` VALUES (254,247,'074','Newspapers in France & Monaco',3);
+INSERT INTO `classificazione` VALUES (255,247,'075','Newspapers in Italy & adjacent islands',3);
+INSERT INTO `classificazione` VALUES (256,247,'076','Newspapers in Iberian peninsula & adjacent islands',3);
+INSERT INTO `classificazione` VALUES (257,247,'077','Newspapers in eastern Europe; in Russia',3);
+INSERT INTO `classificazione` VALUES (258,247,'078','Newspapers in Scandinavia',3);
+INSERT INTO `classificazione` VALUES (259,247,'079','Newspapers in other geographic areas',3);
+INSERT INTO `classificazione` VALUES (260,86,'080','Quotations',2);
+INSERT INTO `classificazione` VALUES (261,260,'081','Collections in American English',3);
+INSERT INTO `classificazione` VALUES (262,260,'082','Collections in English',3);
+INSERT INTO `classificazione` VALUES (263,260,'083','Collections in other Germanic languages',3);
+INSERT INTO `classificazione` VALUES (264,260,'084','Collections in French, Occitan, Catalan',3);
+INSERT INTO `classificazione` VALUES (265,260,'085','Collections in Italian, Romanian & related languages',3);
+INSERT INTO `classificazione` VALUES (266,260,'086','Collections in Spanish & Portuguese',3);
+INSERT INTO `classificazione` VALUES (267,260,'087','Collections in Slavic languages',3);
+INSERT INTO `classificazione` VALUES (268,260,'088','Collections in Scandinavian languages',3);
+INSERT INTO `classificazione` VALUES (269,260,'089','Collections in other languages',3);
+INSERT INTO `classificazione` VALUES (270,86,'090','Manuscripts & rare books',2);
+INSERT INTO `classificazione` VALUES (271,270,'091','Manuscripts',3);
+INSERT INTO `classificazione` VALUES (272,270,'092','Block books',3);
+INSERT INTO `classificazione` VALUES (273,270,'093','Incunabula',3);
+INSERT INTO `classificazione` VALUES (274,270,'094','Printed books',3);
+INSERT INTO `classificazione` VALUES (275,270,'095','Books notable for bindings',3);
+INSERT INTO `classificazione` VALUES (276,270,'096','Books notable for illustrations',3);
+INSERT INTO `classificazione` VALUES (277,270,'097','Books notable for ownership or origin',3);
+INSERT INTO `classificazione` VALUES (278,270,'098','Prohibited works, forgeries & hoaxes',3);
+INSERT INTO `classificazione` VALUES (279,270,'099','Books notable for format',3);
+INSERT INTO `classificazione` VALUES (280,NULL,'1','Religious mythology, general classes of religion, interreligious relations and attitudes, social theology',1);
+INSERT INTO `classificazione` VALUES (281,280,'200','Language',2);
+INSERT INTO `classificazione` VALUES (282,280,'210','Linguistics',2);
+INSERT INTO `classificazione` VALUES (283,282,'211','No longer in use — formerly Theory and methods',3);
+INSERT INTO `classificazione` VALUES (284,282,'212','No longer in use — formerly Population',3);
+INSERT INTO `classificazione` VALUES (285,282,'213','No longer in use — formerly Special topics',3);
+INSERT INTO `classificazione` VALUES (286,282,'214','Phonology & phonetics of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (287,282,'215','Grammar of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (288,282,'216','No longer in use — formerly Prosody',3);
+INSERT INTO `classificazione` VALUES (289,282,'217','Dialectology & historical linguistics',3);
+INSERT INTO `classificazione` VALUES (290,282,'218','Standard usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (291,282,'219','General statistics of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica',3);
+INSERT INTO `classificazione` VALUES (292,280,'220','English & Old English (Anglo-Saxon)',2);
+INSERT INTO `classificazione` VALUES (293,292,'221','Writing system, phonology, phonetics of standard English',3);
+INSERT INTO `classificazione` VALUES (294,292,'222','Relation of state to organized groups & their members',3);
+INSERT INTO `classificazione` VALUES (295,292,'223','Dictionaries of standard English',3);
+INSERT INTO `classificazione` VALUES (296,292,'224','No longer in use — formerly English thesauruses',3);
+INSERT INTO `classificazione` VALUES (297,292,'225','Grammar of standard English',3);
+INSERT INTO `classificazione` VALUES (298,292,'226','No longer in use — formerly English prosodies',3);
+INSERT INTO `classificazione` VALUES (299,292,'227','Historical & geographic variations, modern nongeographic variations of English',3);
+INSERT INTO `classificazione` VALUES (300,292,'228','Standard English usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (301,292,'229','No longer in use— formerly Political parties',3);
+INSERT INTO `classificazione` VALUES (302,280,'230','Germanic languages & related languages',2);
+INSERT INTO `classificazione` VALUES (303,302,'231','Writing systems, phonology, phonetics of standard German',3);
+INSERT INTO `classificazione` VALUES (304,302,'232','Etymology of standard German',3);
+INSERT INTO `classificazione` VALUES (305,302,'233','Dictionaries of standard German',3);
+INSERT INTO `classificazione` VALUES (306,302,'234','Cooperatives',3);
+INSERT INTO `classificazione` VALUES (307,302,'235','Grammar of standard German',3);
+INSERT INTO `classificazione` VALUES (308,302,'236','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (309,302,'237','Historical & geographic variations, modern nongeographic variations of German',3);
+INSERT INTO `classificazione` VALUES (310,302,'238','Standard German usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (311,302,'239','Other Germanic languages',3);
+INSERT INTO `classificazione` VALUES (312,280,'240','French & related Romance languages',2);
+INSERT INTO `classificazione` VALUES (313,312,'241','Writing systems, phonology, phonetics of standard French',3);
+INSERT INTO `classificazione` VALUES (314,312,'242','Etymology of standard French',3);
+INSERT INTO `classificazione` VALUES (315,312,'243','Dictionaries of standard French',3);
+INSERT INTO `classificazione` VALUES (316,312,'244','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (317,312,'245','Grammar of standard French',3);
+INSERT INTO `classificazione` VALUES (318,312,'246','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (319,312,'247','Historical & geographic variations, modern nongeographic variations of French',3);
+INSERT INTO `classificazione` VALUES (320,312,'248','Standard French usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (321,312,'249','Occitan, Catalan, Franco-Provençal',3);
+INSERT INTO `classificazione` VALUES (322,280,'250','Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican',2);
+INSERT INTO `classificazione` VALUES (323,322,'251','Writing systems, phonology, phonetics of standard Italian',3);
+INSERT INTO `classificazione` VALUES (324,322,'252','Etymology of standard Italian',3);
+INSERT INTO `classificazione` VALUES (325,322,'253','Specific fields of public administration',3);
+INSERT INTO `classificazione` VALUES (326,322,'254','Public administration of economy & environment',3);
+INSERT INTO `classificazione` VALUES (327,322,'255','Grammar of standard Italian',3);
+INSERT INTO `classificazione` VALUES (328,322,'256','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (329,322,'257','Mounted forces & warfare',3);
+INSERT INTO `classificazione` VALUES (330,322,'258','Standard Italian usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (331,322,'259','Romanian, Rhaetian, Sardinian, Corsican',3);
+INSERT INTO `classificazione` VALUES (332,280,'260','Spanish, Portuguese, Galician',2);
+INSERT INTO `classificazione` VALUES (333,332,'261','Writing systems, phonology, phonetics of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (334,332,'262','Etymology of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (335,332,'263','Dictionaries of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (336,332,'264','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (337,332,'265','Grammar of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (338,332,'266','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (339,332,'267','Historical & geographic variations, modern nongeographic variations of Spanish',3);
+INSERT INTO `classificazione` VALUES (340,332,'268','Standard Spanish usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (341,332,'269','Associations',3);
+INSERT INTO `classificazione` VALUES (342,280,'270','Latin & related Italic languages',2);
+INSERT INTO `classificazione` VALUES (343,342,'271','Writing systems, phonology, phonetics of classical Latin',3);
+INSERT INTO `classificazione` VALUES (344,342,'272','Etymology of classical Latin',3);
+INSERT INTO `classificazione` VALUES (345,342,'273','Dictionaries of classical Latin',3);
+INSERT INTO `classificazione` VALUES (346,342,'274','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (347,342,'275','Grammar of classical Latin',3);
+INSERT INTO `classificazione` VALUES (348,342,'276','No longer in use — formerly Education of women',3);
+INSERT INTO `classificazione` VALUES (349,342,'277','No longer in use — formerly Ethical education',3);
+INSERT INTO `classificazione` VALUES (350,342,'278','Classical Latin usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (351,342,'279','Other Italic languages',3);
+INSERT INTO `classificazione` VALUES (352,280,'280','Classical Greek & related Hellenic languages',2);
+INSERT INTO `classificazione` VALUES (353,352,'281','Writing systems, phonology, phonetics of classical Greek',3);
+INSERT INTO `classificazione` VALUES (354,352,'282','Etymology of classical Greek',3);
+INSERT INTO `classificazione` VALUES (355,352,'283','Dictionaries of classical Greek',3);
+INSERT INTO `classificazione` VALUES (356,352,'284','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (357,352,'285','Grammar of classical Greek',3);
+INSERT INTO `classificazione` VALUES (358,352,'286','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (359,352,'287','Preclassical & postclassical Greek',3);
+INSERT INTO `classificazione` VALUES (360,352,'288','Classical Greek usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (361,352,'289','Other Hellenic languages',3);
+INSERT INTO `classificazione` VALUES (362,280,'290','Other languages',2);
+INSERT INTO `classificazione` VALUES (363,362,'291','East Indo-European & Celtic languages',3);
+INSERT INTO `classificazione` VALUES (364,362,'292','Afro-Asiatic languages',3);
+INSERT INTO `classificazione` VALUES (365,362,'293','Non-Semitic Afro-Asiatic languages',3);
+INSERT INTO `classificazione` VALUES (366,362,'294','Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (367,362,'295','Languages of East & Southeast Asia',3);
+INSERT INTO `classificazione` VALUES (368,362,'296','No longer in use — formerly Women\'s position and treatment',3);
+INSERT INTO `classificazione` VALUES (369,362,'297','No longer in use — formerly Outcast studies',3);
+INSERT INTO `classificazione` VALUES (370,362,'298','South American native languages',3);
+INSERT INTO `classificazione` VALUES (371,362,'299','Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (372,NULL,'100','Social sciences, sociology & anthropology',1);
+INSERT INTO `classificazione` VALUES (373,372,'101','Sociology & anthropology',3);
+INSERT INTO `classificazione` VALUES (374,372,'102','Social interaction',3);
+INSERT INTO `classificazione` VALUES (375,372,'103','Social processes',3);
+INSERT INTO `classificazione` VALUES (376,372,'104','Factors affecting social behavior',3);
+INSERT INTO `classificazione` VALUES (377,372,'105','Groups of people',3);
+INSERT INTO `classificazione` VALUES (378,372,'106','Leaders & organization',3);
+INSERT INTO `classificazione` VALUES (379,372,'107','Missions & religious education',3);
+INSERT INTO `classificazione` VALUES (380,372,'108','Sources',3);
+INSERT INTO `classificazione` VALUES (381,372,'109','Sects & reform movements',3);
+INSERT INTO `classificazione` VALUES (382,372,'110','Statistics',2);
+INSERT INTO `classificazione` VALUES (383,382,'111','No longer in use — formerly Theory and methods',3);
+INSERT INTO `classificazione` VALUES (384,382,'112','Existence, ways of knowing God, attributes of God',3);
+INSERT INTO `classificazione` VALUES (385,382,'113','No longer in use — formerly Special topics',3);
+INSERT INTO `classificazione` VALUES (386,382,'114','Theodicy',3);
+INSERT INTO `classificazione` VALUES (387,382,'115','General statistics of Asia',3);
+INSERT INTO `classificazione` VALUES (388,382,'116','No longer in use—formerly Evil',3);
+INSERT INTO `classificazione` VALUES (389,382,'117','No longer in use—formerly Prayer',3);
+INSERT INTO `classificazione` VALUES (390,382,'118','Humankind',3);
+INSERT INTO `classificazione` VALUES (391,382,'119','No longer in use—formerly Analogies',3);
+INSERT INTO `classificazione` VALUES (392,372,'120','Political science (politics & government)',2);
+INSERT INTO `classificazione` VALUES (393,392,'121','Systems of governments & states',3);
+INSERT INTO `classificazione` VALUES (394,392,'122','Historical books of Old Testament',3);
+INSERT INTO `classificazione` VALUES (395,392,'123','Poetic books of Old Testament',3);
+INSERT INTO `classificazione` VALUES (396,392,'124','Prophetic books of Old Testament',3);
+INSERT INTO `classificazione` VALUES (397,392,'125','International migration & colonization',3);
+INSERT INTO `classificazione` VALUES (398,392,'126','Gospels & Acts',3);
+INSERT INTO `classificazione` VALUES (399,392,'127','Epistles',3);
+INSERT INTO `classificazione` VALUES (400,392,'128','Revelation (Apocalypse)',3);
+INSERT INTO `classificazione` VALUES (401,392,'129','Apocrypha, pseudepigrapha & intertestamental works',3);
+INSERT INTO `classificazione` VALUES (402,372,'130','Economics',2);
+INSERT INTO `classificazione` VALUES (403,402,'131','Labor economics',3);
+INSERT INTO `classificazione` VALUES (404,402,'132','Financial economics',3);
+INSERT INTO `classificazione` VALUES (405,402,'133','Economics of land & energy',3);
+INSERT INTO `classificazione` VALUES (406,405,'133.1','Spettri',4);
+INSERT INTO `classificazione` VALUES (407,405,'133.3','Divinazione',4);
+INSERT INTO `classificazione` VALUES (408,405,'133.4','Magia e stregoneria',4);
+INSERT INTO `classificazione` VALUES (409,405,'133.5','Astrologia',4);
+INSERT INTO `classificazione` VALUES (410,405,'133.6','Chiromanzia',4);
+INSERT INTO `classificazione` VALUES (411,402,'134','Cooperatives',3);
+INSERT INTO `classificazione` VALUES (412,402,'135','Spiritual beings',3);
+INSERT INTO `classificazione` VALUES (413,402,'136','Public finance',3);
+INSERT INTO `classificazione` VALUES (414,402,'137','No longer in use—formerly Future state',3);
+INSERT INTO `classificazione` VALUES (415,402,'138','Creeds, confessions of faith, covenants, catechisms',3);
+INSERT INTO `classificazione` VALUES (416,402,'139','Macroeconomics & related topics',3);
+INSERT INTO `classificazione` VALUES (417,372,'140','Law',2);
+INSERT INTO `classificazione` VALUES (418,417,'141','Law of nations',3);
+INSERT INTO `classificazione` VALUES (419,417,'142','Constitutional & administrative law',3);
+INSERT INTO `classificazione` VALUES (420,417,'143','Evangelistic writings for individuals & families',3);
+INSERT INTO `classificazione` VALUES (421,417,'144','No longer in use—formerly Religious fiction',3);
+INSERT INTO `classificazione` VALUES (422,417,'145','No longer in use—formerly Hymnology',3);
+INSERT INTO `classificazione` VALUES (423,417,'146','Use of art in Christianity',3);
+INSERT INTO `classificazione` VALUES (424,417,'147','Church furnishings & related articles',3);
+INSERT INTO `classificazione` VALUES (425,417,'148','Laws, regulations, cases',3);
+INSERT INTO `classificazione` VALUES (426,417,'149','Christian observances in family life',3);
+INSERT INTO `classificazione` VALUES (427,372,'150','Public administration & military science',2);
+INSERT INTO `classificazione` VALUES (428,427,'151','Public administration',3);
+INSERT INTO `classificazione` VALUES (429,427,'152','Texts of sermons',3);
+INSERT INTO `classificazione` VALUES (430,427,'153','Specific fields of public administration',3);
+INSERT INTO `classificazione` VALUES (431,430,'153.1','Memoria',4);
+INSERT INTO `classificazione` VALUES (432,430,'153.4','Pensiero',4);
+INSERT INTO `classificazione` VALUES (433,430,'153.9','Intelligenza',4);
+INSERT INTO `classificazione` VALUES (434,427,'154','Parish administration',3);
+INSERT INTO `classificazione` VALUES (435,434,'154.6','Sonno',4);
+INSERT INTO `classificazione` VALUES (436,435,'154.63','Sogni',5);
+INSERT INTO `classificazione` VALUES (437,427,'155','Military science',3);
+INSERT INTO `classificazione` VALUES (438,437,'155.2','Psicologia individuale',4);
+INSERT INTO `classificazione` VALUES (439,437,'155.4','Psicologia infantile',4);
+INSERT INTO `classificazione` VALUES (440,437,'155.5','Psicologia dell\'adolescenza',4);
+INSERT INTO `classificazione` VALUES (441,437,'155.6','Psicologia dell\'adulto',4);
+INSERT INTO `classificazione` VALUES (442,437,'155.9','Psicologia ambientale',4);
+INSERT INTO `classificazione` VALUES (443,427,'156','No longer in use—formerly Religious societies',3);
+INSERT INTO `classificazione` VALUES (444,427,'157','No longer in use—formerly Parish schools, libraries, etc.',3);
+INSERT INTO `classificazione` VALUES (445,427,'158','No longer in use—formerly Parish medicine',3);
+INSERT INTO `classificazione` VALUES (446,445,'158.1','Miglioramento personale',4);
+INSERT INTO `classificazione` VALUES (447,445,'158.2','Relazioni interpersonali',4);
+INSERT INTO `classificazione` VALUES (448,445,'158.7','Psicologia industriale',4);
+INSERT INTO `classificazione` VALUES (449,427,'159','Pastoral care of families, of specific groups of people',3);
+INSERT INTO `classificazione` VALUES (450,372,'160','Social problems & services; associations',2);
+INSERT INTO `classificazione` VALUES (451,450,'161','Social problems & services',3);
+INSERT INTO `classificazione` VALUES (452,450,'162','Ecclesiology',3);
+INSERT INTO `classificazione` VALUES (453,450,'163','Days, times, places of religious observance',3);
+INSERT INTO `classificazione` VALUES (454,450,'164','Criminology',3);
+INSERT INTO `classificazione` VALUES (455,450,'165','Sacraments, other rites & acts',3);
+INSERT INTO `classificazione` VALUES (456,450,'166','Associations & secret societies',3);
+INSERT INTO `classificazione` VALUES (457,450,'167','Associations for religious work',3);
+INSERT INTO `classificazione` VALUES (458,450,'168','Religious education',3);
+INSERT INTO `classificazione` VALUES (459,450,'169','Spiritual renewal',3);
+INSERT INTO `classificazione` VALUES (460,372,'170','Education',2);
+INSERT INTO `classificazione` VALUES (461,460,'171','Schools & their activities, special education',3);
+INSERT INTO `classificazione` VALUES (462,460,'172','Persecutions in church history',3);
+INSERT INTO `classificazione` VALUES (463,460,'173','Doctrinal controversies & heresies in general church history',3);
+INSERT INTO `classificazione` VALUES (464,460,'174','Adult education',3);
+INSERT INTO `classificazione` VALUES (465,464,'174.2','Etica medica',4);
+INSERT INTO `classificazione` VALUES (466,464,'174.4','Etica degli affari',4);
+INSERT INTO `classificazione` VALUES (467,460,'175','Curriculums',3);
+INSERT INTO `classificazione` VALUES (468,460,'176','Christianity in Africa',3);
+INSERT INTO `classificazione` VALUES (469,460,'177','Christianity in North America',3);
+INSERT INTO `classificazione` VALUES (470,460,'178','Christianity in South America',3);
+INSERT INTO `classificazione` VALUES (471,460,'179','History of Christianity in other areas',3);
+INSERT INTO `classificazione` VALUES (472,471,'179.3','Trattamento degli animali',4);
+INSERT INTO `classificazione` VALUES (473,471,'179.9','Virtù',4);
+INSERT INTO `classificazione` VALUES (474,372,'180','Commerce, communications, transport',2);
+INSERT INTO `classificazione` VALUES (475,474,'181','Commerce (Trade)',3);
+INSERT INTO `classificazione` VALUES (476,474,'182','International commerce (foreign trade)',3);
+INSERT INTO `classificazione` VALUES (477,474,'183','Postal communication',3);
+INSERT INTO `classificazione` VALUES (478,474,'184','Communications',3);
+INSERT INTO `classificazione` VALUES (479,474,'185','Railroad transportation',3);
+INSERT INTO `classificazione` VALUES (480,474,'186','Inland waterway & ferry transportation',3);
+INSERT INTO `classificazione` VALUES (481,474,'187','Water, air, space transportation',3);
+INSERT INTO `classificazione` VALUES (482,474,'188','No longer in use — formerly Unitarian',3);
+INSERT INTO `classificazione` VALUES (483,474,'189','Other denominations & sects',3);
+INSERT INTO `classificazione` VALUES (484,372,'190','Customs, etiquette, folklore',2);
+INSERT INTO `classificazione` VALUES (485,484,'191','No longer in use — formerly Comparative religion',3);
+INSERT INTO `classificazione` VALUES (486,484,'192','Customs of life cycle & domestic life',3);
+INSERT INTO `classificazione` VALUES (487,484,'193','Death customs',3);
+INSERT INTO `classificazione` VALUES (488,484,'194','General customs',3);
+INSERT INTO `classificazione` VALUES (489,484,'195','Zoroastrianism (Mazdaism, Parseeism)',3);
+INSERT INTO `classificazione` VALUES (490,484,'196','No longer in use — formerly Women\'s position and treatment',3);
+INSERT INTO `classificazione` VALUES (491,484,'197','No longer in use — formerly Outcast studies',3);
+INSERT INTO `classificazione` VALUES (492,484,'198','No longer in use — formerly Mormonism',3);
+INSERT INTO `classificazione` VALUES (493,484,'199','Customs of war & diplomacy',3);
+INSERT INTO `classificazione` VALUES (494,NULL,'2','Doctrines',1);
+INSERT INTO `classificazione` VALUES (495,494,'300','Science',2);
+INSERT INTO `classificazione` VALUES (496,495,'301','Philosophy & theory',3);
+INSERT INTO `classificazione` VALUES (497,495,'302','Miscellany',3);
+INSERT INTO `classificazione` VALUES (498,495,'303','Dictionaries, encyclopedias, concordances',3);
+INSERT INTO `classificazione` VALUES (499,495,'304','Special topics of language',3);
+INSERT INTO `classificazione` VALUES (500,495,'305','Serial publications',3);
+INSERT INTO `classificazione` VALUES (501,495,'306','Organizations & management',3);
+INSERT INTO `classificazione` VALUES (502,495,'307','Education, research, related topics',3);
+INSERT INTO `classificazione` VALUES (503,495,'308','Groups of people',3);
+INSERT INTO `classificazione` VALUES (504,495,'309','Geographic treatment & biography',3);
+INSERT INTO `classificazione` VALUES (505,494,'310','Mathematics',2);
+INSERT INTO `classificazione` VALUES (506,505,'311','General principles of mathematics',3);
+INSERT INTO `classificazione` VALUES (507,505,'312','Etymology of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (508,505,'313','Dictionaries of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (509,505,'314','Topology',3);
+INSERT INTO `classificazione` VALUES (510,505,'315','Analysis',3);
+INSERT INTO `classificazione` VALUES (511,505,'316','No longer in use — formerly Prosody',3);
+INSERT INTO `classificazione` VALUES (512,505,'317','Dialectology & historical linguistics',3);
+INSERT INTO `classificazione` VALUES (513,505,'318','Standard usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (514,505,'319','Probabilities & applied mathematics',3);
+INSERT INTO `classificazione` VALUES (515,494,'320','Astronomy & allied sciences',2);
+INSERT INTO `classificazione` VALUES (516,515,'321','Writing system, phonology, phonetics of standard English',3);
+INSERT INTO `classificazione` VALUES (517,515,'322','Etymology of standard English',3);
+INSERT INTO `classificazione` VALUES (518,515,'323','Specific celestial bodies & phenomena',3);
+INSERT INTO `classificazione` VALUES (519,515,'324','No longer in use — formerly English thesauruses',3);
+INSERT INTO `classificazione` VALUES (520,515,'325','Earth (Astronomical geography)',3);
+INSERT INTO `classificazione` VALUES (521,515,'326','No longer in use — formerly English prosodies',3);
+INSERT INTO `classificazione` VALUES (522,515,'327','Historical & geographic variations, modern nongeographic variations of English',3);
+INSERT INTO `classificazione` VALUES (523,515,'328','Standard English usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (524,515,'329','Old English (Anglo-Saxon)',3);
+INSERT INTO `classificazione` VALUES (525,494,'330','Physics',2);
+INSERT INTO `classificazione` VALUES (526,525,'331','Writing systems, phonology, phonetics of standard German',3);
+INSERT INTO `classificazione` VALUES (527,525,'332','Etymology of standard German',3);
+INSERT INTO `classificazione` VALUES (528,525,'333','Pneumatics (Gas mechanics)',3);
+INSERT INTO `classificazione` VALUES (529,525,'334','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (530,525,'335','Light & related radiation',3);
+INSERT INTO `classificazione` VALUES (531,525,'336','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (532,525,'337','Historical & geographic variations, modern nongeographic variations of German',3);
+INSERT INTO `classificazione` VALUES (533,525,'338','Standard German usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (534,525,'339','Other Germanic languages',3);
+INSERT INTO `classificazione` VALUES (535,494,'340','Chemistry & allied sciences',2);
+INSERT INTO `classificazione` VALUES (536,535,'341','Writing systems, phonology, phonetics of standard French',3);
+INSERT INTO `classificazione` VALUES (537,535,'342','Etymology of standard French',3);
+INSERT INTO `classificazione` VALUES (538,535,'343','Analytical chemistry',3);
+INSERT INTO `classificazione` VALUES (539,535,'344','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (540,535,'345','No longer in use — formerly Quantitative analysis',3);
+INSERT INTO `classificazione` VALUES (541,535,'346','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (542,535,'347','Historical & geographic variations, modern nongeographic variations of French',3);
+INSERT INTO `classificazione` VALUES (543,535,'348','Standard French usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (544,535,'349','Occitan, Catalan, Franco-Provençal',3);
+INSERT INTO `classificazione` VALUES (545,494,'350','Earth sciences & geology',2);
+INSERT INTO `classificazione` VALUES (546,545,'351','Geology, hydrology, meteorology',3);
+INSERT INTO `classificazione` VALUES (547,545,'352','Petrology',3);
+INSERT INTO `classificazione` VALUES (548,545,'353','Economic geology',3);
+INSERT INTO `classificazione` VALUES (549,545,'354','Earth sciences of Europe',3);
+INSERT INTO `classificazione` VALUES (550,545,'355','Earth sciences of Asia',3);
+INSERT INTO `classificazione` VALUES (551,545,'356','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (552,545,'357','Earth sciences of North America',3);
+INSERT INTO `classificazione` VALUES (553,545,'358','Earth sciences of South America',3);
+INSERT INTO `classificazione` VALUES (554,545,'359','Romanian, Rhaetian, Sardinian, Corsican',3);
+INSERT INTO `classificazione` VALUES (555,494,'360','Fossils & prehistoric life',2);
+INSERT INTO `classificazione` VALUES (556,555,'361','Writing systems, phonology, phonetics of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (557,555,'362','Etymology of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (558,555,'363','Miscellaneous fossil marine & seashore invertebrates',3);
+INSERT INTO `classificazione` VALUES (559,555,'364','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (560,555,'365','Fossil Arthropoda',3);
+INSERT INTO `classificazione` VALUES (561,555,'366','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (562,555,'367','Historical & geographic variations, modern nongeographic variations of Spanish',3);
+INSERT INTO `classificazione` VALUES (563,555,'368','Standard Spanish usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (564,555,'369','Fossil Mammalia',3);
+INSERT INTO `classificazione` VALUES (565,494,'370','Biology',2);
+INSERT INTO `classificazione` VALUES (566,565,'371','Writing systems, phonology, phonetics of classical Latin',3);
+INSERT INTO `classificazione` VALUES (567,565,'372','Etymology of classical Latin',3);
+INSERT INTO `classificazione` VALUES (568,565,'373','Specific physiological systems in animals, regional histology & physiology in animals',3);
+INSERT INTO `classificazione` VALUES (569,565,'374','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (570,565,'375','Specific parts of & physiological systems in plants',3);
+INSERT INTO `classificazione` VALUES (571,565,'376','No longer in use',3);
+INSERT INTO `classificazione` VALUES (572,565,'377','Old, postclassical, Vulgar Latin',3);
+INSERT INTO `classificazione` VALUES (573,565,'378','Classical Latin usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (574,565,'379','Other Italic languages',3);
+INSERT INTO `classificazione` VALUES (575,494,'380','Plants',2);
+INSERT INTO `classificazione` VALUES (576,575,'381','Writing systems, phonology, phonetics of classical Greek',3);
+INSERT INTO `classificazione` VALUES (577,575,'382','Etymology of classical Greek',3);
+INSERT INTO `classificazione` VALUES (578,575,'383','Magnoliopsida (Dicotyledones)',3);
+INSERT INTO `classificazione` VALUES (579,575,'384','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (580,575,'385','Pinophyta (Gymnosperms)',3);
+INSERT INTO `classificazione` VALUES (581,575,'386','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (582,575,'387','Preclassical & postclassical Greek',3);
+INSERT INTO `classificazione` VALUES (583,575,'388','Classical Greek usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (584,575,'389','Other Hellenic languages',3);
+INSERT INTO `classificazione` VALUES (585,494,'390','Animals (Zoology)',2);
+INSERT INTO `classificazione` VALUES (586,585,'391','East Indo-European & Celtic languages',3);
+INSERT INTO `classificazione` VALUES (587,585,'392','Invertebrates',3);
+INSERT INTO `classificazione` VALUES (588,585,'393','Non-Semitic Afro-Asiatic languages',3);
+INSERT INTO `classificazione` VALUES (589,585,'394','Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (590,585,'395','Languages of East & Southeast Asia',3);
+INSERT INTO `classificazione` VALUES (591,585,'396','African languages',3);
+INSERT INTO `classificazione` VALUES (592,585,'397','North American native languages',3);
+INSERT INTO `classificazione` VALUES (593,585,'398','South American native languages',3);
+INSERT INTO `classificazione` VALUES (594,585,'399','Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (595,NULL,'200','Language',1);
+INSERT INTO `classificazione` VALUES (596,595,'201','Philosophy & theory, international languages',3);
+INSERT INTO `classificazione` VALUES (597,595,'202','Miscellany',3);
+INSERT INTO `classificazione` VALUES (598,595,'203','Dictionaries, encyclopedias, concordances',3);
+INSERT INTO `classificazione` VALUES (599,595,'204','Special topics of language',3);
+INSERT INTO `classificazione` VALUES (600,595,'205','Serial publications',3);
+INSERT INTO `classificazione` VALUES (601,595,'206','Organizations & management',3);
+INSERT INTO `classificazione` VALUES (602,595,'207','Education, research, related topics',3);
+INSERT INTO `classificazione` VALUES (603,595,'208','No longer in use — formerly Polygraphy',3);
+INSERT INTO `classificazione` VALUES (604,595,'209','No longer in use — formerly History of sociology',3);
+INSERT INTO `classificazione` VALUES (605,595,'210','Linguistics',2);
+INSERT INTO `classificazione` VALUES (606,605,'211','No longer in use — formerly Theory and methods',3);
+INSERT INTO `classificazione` VALUES (607,605,'212','No longer in use — formerly Population',3);
+INSERT INTO `classificazione` VALUES (608,605,'213','No longer in use — formerly Special topics',3);
+INSERT INTO `classificazione` VALUES (609,605,'214','Phonology & phonetics of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (610,605,'215','Grammar of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (611,605,'216','No longer in use — formerly Prosody',3);
+INSERT INTO `classificazione` VALUES (612,605,'217','Dialectology & historical linguistics',3);
+INSERT INTO `classificazione` VALUES (613,605,'218','Standard usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (614,605,'219','General statistics of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica',3);
+INSERT INTO `classificazione` VALUES (615,595,'220','English & Old English (Anglo-Saxon)',2);
+INSERT INTO `classificazione` VALUES (616,615,'221','Writing system, phonology, phonetics of standard English',3);
+INSERT INTO `classificazione` VALUES (617,615,'222','Relation of state to organized groups & their members',3);
+INSERT INTO `classificazione` VALUES (618,615,'223','Dictionaries of standard English',3);
+INSERT INTO `classificazione` VALUES (619,615,'224','No longer in use — formerly English thesauruses',3);
+INSERT INTO `classificazione` VALUES (620,615,'225','Grammar of standard English',3);
+INSERT INTO `classificazione` VALUES (621,615,'226','No longer in use — formerly English prosodies',3);
+INSERT INTO `classificazione` VALUES (622,615,'227','Historical & geographic variations, modern nongeographic variations of English',3);
+INSERT INTO `classificazione` VALUES (623,615,'228','Standard English usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (624,615,'229','No longer in use— formerly Political parties',3);
+INSERT INTO `classificazione` VALUES (625,595,'230','Germanic languages & related languages',2);
+INSERT INTO `classificazione` VALUES (626,625,'231','Writing systems, phonology, phonetics of standard German',3);
+INSERT INTO `classificazione` VALUES (627,625,'232','Etymology of standard German',3);
+INSERT INTO `classificazione` VALUES (628,625,'233','Dictionaries of standard German',3);
+INSERT INTO `classificazione` VALUES (629,625,'234','Cooperatives',3);
+INSERT INTO `classificazione` VALUES (630,625,'235','Grammar of standard German',3);
+INSERT INTO `classificazione` VALUES (631,625,'236','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (632,625,'237','Historical & geographic variations, modern nongeographic variations of German',3);
+INSERT INTO `classificazione` VALUES (633,625,'238','Standard German usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (634,625,'239','Other Germanic languages',3);
+INSERT INTO `classificazione` VALUES (635,595,'240','French & related Romance languages',2);
+INSERT INTO `classificazione` VALUES (636,635,'241','Writing systems, phonology, phonetics of standard French',3);
+INSERT INTO `classificazione` VALUES (637,635,'242','Etymology of standard French',3);
+INSERT INTO `classificazione` VALUES (638,635,'243','Dictionaries of standard French',3);
+INSERT INTO `classificazione` VALUES (639,635,'244','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (640,635,'245','Grammar of standard French',3);
+INSERT INTO `classificazione` VALUES (641,635,'246','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (642,635,'247','Historical & geographic variations, modern nongeographic variations of French',3);
+INSERT INTO `classificazione` VALUES (643,635,'248','Standard French usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (644,635,'249','Occitan, Catalan, Franco-Provençal',3);
+INSERT INTO `classificazione` VALUES (645,595,'250','Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican',2);
+INSERT INTO `classificazione` VALUES (646,645,'251','Writing systems, phonology, phonetics of standard Italian',3);
+INSERT INTO `classificazione` VALUES (647,645,'252','Etymology of standard Italian',3);
+INSERT INTO `classificazione` VALUES (648,645,'253','Specific fields of public administration',3);
+INSERT INTO `classificazione` VALUES (649,645,'254','Public administration of economy & environment',3);
+INSERT INTO `classificazione` VALUES (650,645,'255','Grammar of standard Italian',3);
+INSERT INTO `classificazione` VALUES (651,645,'256','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (652,645,'257','Mounted forces & warfare',3);
+INSERT INTO `classificazione` VALUES (653,645,'258','Standard Italian usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (654,645,'259','Romanian, Rhaetian, Sardinian, Corsican',3);
+INSERT INTO `classificazione` VALUES (655,595,'260','Spanish, Portuguese, Galician',2);
+INSERT INTO `classificazione` VALUES (656,655,'261','Writing systems, phonology, phonetics of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (657,655,'262','Etymology of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (658,655,'263','Dictionaries of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (659,655,'264','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (660,655,'265','Grammar of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (661,655,'266','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (662,655,'267','Historical & geographic variations, modern nongeographic variations of Spanish',3);
+INSERT INTO `classificazione` VALUES (663,655,'268','Standard Spanish usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (664,655,'269','Associations',3);
+INSERT INTO `classificazione` VALUES (665,595,'270','Latin & related Italic languages',2);
+INSERT INTO `classificazione` VALUES (666,665,'271','Writing systems, phonology, phonetics of classical Latin',3);
+INSERT INTO `classificazione` VALUES (667,665,'272','Etymology of classical Latin',3);
+INSERT INTO `classificazione` VALUES (668,665,'273','Dictionaries of classical Latin',3);
+INSERT INTO `classificazione` VALUES (669,665,'274','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (670,665,'275','Grammar of classical Latin',3);
+INSERT INTO `classificazione` VALUES (671,665,'276','No longer in use — formerly Education of women',3);
+INSERT INTO `classificazione` VALUES (672,665,'277','No longer in use — formerly Ethical education',3);
+INSERT INTO `classificazione` VALUES (673,665,'278','Classical Latin usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (674,665,'279','Other Italic languages',3);
+INSERT INTO `classificazione` VALUES (675,595,'280','Classical Greek & related Hellenic languages',2);
+INSERT INTO `classificazione` VALUES (676,675,'281','Writing systems, phonology, phonetics of classical Greek',3);
+INSERT INTO `classificazione` VALUES (677,675,'282','Etymology of classical Greek',3);
+INSERT INTO `classificazione` VALUES (678,675,'283','Dictionaries of classical Greek',3);
+INSERT INTO `classificazione` VALUES (679,675,'284','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (680,675,'285','Grammar of classical Greek',3);
+INSERT INTO `classificazione` VALUES (681,675,'286','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (682,675,'287','Preclassical & postclassical Greek',3);
+INSERT INTO `classificazione` VALUES (683,675,'288','Classical Greek usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (684,675,'289','Other Hellenic languages',3);
+INSERT INTO `classificazione` VALUES (685,595,'290','Other languages',2);
+INSERT INTO `classificazione` VALUES (686,685,'291','East Indo-European & Celtic languages',3);
+INSERT INTO `classificazione` VALUES (687,685,'292','Afro-Asiatic languages',3);
+INSERT INTO `classificazione` VALUES (688,685,'293','Non-Semitic Afro-Asiatic languages',3);
+INSERT INTO `classificazione` VALUES (689,685,'294','Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (690,689,'294.3','Buddismo',4);
+INSERT INTO `classificazione` VALUES (691,689,'294.5','Induismo',4);
+INSERT INTO `classificazione` VALUES (692,685,'295','Languages of East & Southeast Asia',3);
+INSERT INTO `classificazione` VALUES (693,685,'296','No longer in use — formerly Women\'s position and treatment',3);
+INSERT INTO `classificazione` VALUES (694,685,'297','No longer in use — formerly Outcast studies',3);
+INSERT INTO `classificazione` VALUES (695,694,'297.1','Corano',4);
+INSERT INTO `classificazione` VALUES (696,685,'298','South American native languages',3);
+INSERT INTO `classificazione` VALUES (697,685,'299','Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (698,697,'299.51','Confucianesimo',5);
+INSERT INTO `classificazione` VALUES (699,698,'299.514','Taoismo',6);
+INSERT INTO `classificazione` VALUES (700,697,'299.6','Religioni africane',4);
+INSERT INTO `classificazione` VALUES (701,NULL,'3','Public worship & other practices',1);
+INSERT INTO `classificazione` VALUES (702,701,'400','Technology',2);
+INSERT INTO `classificazione` VALUES (703,701,'410','Medicine & health',2);
+INSERT INTO `classificazione` VALUES (704,703,'411','Human anatomy, cytology, histology',3);
+INSERT INTO `classificazione` VALUES (705,703,'412','Human physiology',3);
+INSERT INTO `classificazione` VALUES (706,703,'413','Personal health & safety',3);
+INSERT INTO `classificazione` VALUES (707,703,'414','Forensic medicine; incidence of injuries, wounds, disease; public preventive medicine',3);
+INSERT INTO `classificazione` VALUES (708,703,'415','Pharmacology & therapeutics',3);
+INSERT INTO `classificazione` VALUES (709,703,'416','Diseases',3);
+INSERT INTO `classificazione` VALUES (710,703,'417','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (711,703,'418','Numerical analysis',3);
+INSERT INTO `classificazione` VALUES (712,703,'419','No longer in use—formerly Experimental medicine',3);
+INSERT INTO `classificazione` VALUES (713,701,'420','Engineering & Applied operations',2);
+INSERT INTO `classificazione` VALUES (714,713,'421','Applied physics',3);
+INSERT INTO `classificazione` VALUES (715,713,'422','Techniques, procedures, apparatus, equipment, materials',3);
+INSERT INTO `classificazione` VALUES (716,713,'423','Military & nautical engineering',3);
+INSERT INTO `classificazione` VALUES (717,713,'424','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (718,713,'425','Engineering of railroads, roads',3);
+INSERT INTO `classificazione` VALUES (719,713,'426','Mathematical geography',3);
+INSERT INTO `classificazione` VALUES (720,713,'427','Celestial navigation',3);
+INSERT INTO `classificazione` VALUES (721,713,'428','Ephemerides',3);
+INSERT INTO `classificazione` VALUES (722,713,'429','Other branches of engineering',3);
+INSERT INTO `classificazione` VALUES (723,701,'430','Agriculture & related technologies',2);
+INSERT INTO `classificazione` VALUES (724,723,'431','Specific techniques; apparatus, equipment, materials',3);
+INSERT INTO `classificazione` VALUES (725,723,'432','Plant injuries, diseases, pests',3);
+INSERT INTO `classificazione` VALUES (726,723,'433','Field & plantation crops',3);
+INSERT INTO `classificazione` VALUES (727,723,'434','Orchards, fruits, forestry',3);
+INSERT INTO `classificazione` VALUES (728,723,'435','Garden crops (Horticulture)',3);
+INSERT INTO `classificazione` VALUES (729,723,'436','Animal husbandry',3);
+INSERT INTO `classificazione` VALUES (730,723,'437','Processing dairy & related products',3);
+INSERT INTO `classificazione` VALUES (731,723,'438','Insect culture',3);
+INSERT INTO `classificazione` VALUES (732,723,'439','Hunting, fishing, conservation, related technologies',3);
+INSERT INTO `classificazione` VALUES (733,701,'440','Home & family management',2);
+INSERT INTO `classificazione` VALUES (734,733,'441','Food & drink',3);
+INSERT INTO `classificazione` VALUES (735,733,'442','Techniques, procedures, apparatus, equipment, materials',3);
+INSERT INTO `classificazione` VALUES (736,733,'443','Housing & household equipment',3);
+INSERT INTO `classificazione` VALUES (737,733,'444','No longer in use — formerly Qualitative analysis',3);
+INSERT INTO `classificazione` VALUES (738,733,'445','No longer in use — formerly Quantitative analysis',3);
+INSERT INTO `classificazione` VALUES (739,733,'446','Sewing, clothing, management of personal and family life',3);
+INSERT INTO `classificazione` VALUES (740,733,'447','Management of public households (Institutional housekeeping)',3);
+INSERT INTO `classificazione` VALUES (741,733,'448','Housekeeping',3);
+INSERT INTO `classificazione` VALUES (742,733,'449','Child rearing; home care of people with disabilities and illnesses',3);
+INSERT INTO `classificazione` VALUES (743,701,'450','Management & auxiliary services',2);
+INSERT INTO `classificazione` VALUES (744,743,'451','Office services',3);
+INSERT INTO `classificazione` VALUES (745,743,'452','Processes of written communication',3);
+INSERT INTO `classificazione` VALUES (746,743,'453','Shorthand',3);
+INSERT INTO `classificazione` VALUES (747,743,'454','Earth sciences of Europe',3);
+INSERT INTO `classificazione` VALUES (748,743,'455','Earth sciences of Asia',3);
+INSERT INTO `classificazione` VALUES (749,743,'456','Earth sciences of Africa',3);
+INSERT INTO `classificazione` VALUES (750,743,'457','Earth sciences of North America',3);
+INSERT INTO `classificazione` VALUES (751,743,'458','Earth sciences of South America',3);
+INSERT INTO `classificazione` VALUES (752,743,'459','Earth sciences of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (753,701,'460','Chemical engineering & related technologies',2);
+INSERT INTO `classificazione` VALUES (754,753,'461','Paleobotany, fossil microorganisms',3);
+INSERT INTO `classificazione` VALUES (755,753,'462','Fossil invertebrates',3);
+INSERT INTO `classificazione` VALUES (756,753,'463','Miscellaneous fossil marine & seashore invertebrates',3);
+INSERT INTO `classificazione` VALUES (757,753,'464','Fossil Mollusca & Molluscoidea',3);
+INSERT INTO `classificazione` VALUES (758,753,'465','Fossil Arthropoda',3);
+INSERT INTO `classificazione` VALUES (759,753,'466','Fossil Chordata',3);
+INSERT INTO `classificazione` VALUES (760,753,'467','Fossil cold-blooded vertebrates',3);
+INSERT INTO `classificazione` VALUES (761,753,'468','Fossil Aves (birds)',3);
+INSERT INTO `classificazione` VALUES (762,753,'469','Fossil Mammalia',3);
+INSERT INTO `classificazione` VALUES (763,701,'470','Manufacturing',2);
+INSERT INTO `classificazione` VALUES (764,763,'471','Metalworking processes & primary metal products',3);
+INSERT INTO `classificazione` VALUES (765,763,'472','Iron, steel, other iron alloys',3);
+INSERT INTO `classificazione` VALUES (766,763,'473','Specific physiological systems in animals, regional histology & physiology in animals',3);
+INSERT INTO `classificazione` VALUES (767,763,'474','Lumber processing, wood products, cork',3);
+INSERT INTO `classificazione` VALUES (768,763,'475','Leather & fur processing',3);
+INSERT INTO `classificazione` VALUES (769,763,'476','Pulp & paper technology',3);
+INSERT INTO `classificazione` VALUES (770,763,'477','Textiles',3);
+INSERT INTO `classificazione` VALUES (771,763,'478','Natural history of organisms & related subjects',3);
+INSERT INTO `classificazione` VALUES (772,763,'479','Other products of specific kinds of materials',3);
+INSERT INTO `classificazione` VALUES (773,701,'480','Manufacture of products for specific uses',2);
+INSERT INTO `classificazione` VALUES (774,773,'481','Precision instruments & other devices',3);
+INSERT INTO `classificazione` VALUES (775,773,'482','Small forge work (Blacksmithing)',3);
+INSERT INTO `classificazione` VALUES (776,773,'483','Magnoliopsida (Dicotyledones)',3);
+INSERT INTO `classificazione` VALUES (777,773,'484','Liliopsida (Monocotyledones)',3);
+INSERT INTO `classificazione` VALUES (778,773,'485','Pinophyta (Gymnosperms)',3);
+INSERT INTO `classificazione` VALUES (779,773,'486','Cryptogamia (Seedless plants)',3);
+INSERT INTO `classificazione` VALUES (780,773,'487','Pteridophyta',3);
+INSERT INTO `classificazione` VALUES (781,773,'488','Bryophyta',3);
+INSERT INTO `classificazione` VALUES (782,773,'489','No longer in use—formerly Forestry',3);
+INSERT INTO `classificazione` VALUES (783,701,'490','Building construction',2);
+INSERT INTO `classificazione` VALUES (784,783,'491','Building materials',3);
+INSERT INTO `classificazione` VALUES (785,783,'492','Auxiliary construction practices',3);
+INSERT INTO `classificazione` VALUES (786,783,'493','Construction in specific types of materials & for specific purposes',3);
+INSERT INTO `classificazione` VALUES (787,783,'494','Wood construction',3);
+INSERT INTO `classificazione` VALUES (788,783,'495','Roof covering',3);
+INSERT INTO `classificazione` VALUES (789,783,'496','Utilities',3);
+INSERT INTO `classificazione` VALUES (790,783,'497','Heating, ventilating, air-conditioning engineering',3);
+INSERT INTO `classificazione` VALUES (791,783,'498','Detail finishing',3);
+INSERT INTO `classificazione` VALUES (792,783,'499','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (793,NULL,'300','Science',1);
+INSERT INTO `classificazione` VALUES (794,793,'301','Philosophy & theory',3);
+INSERT INTO `classificazione` VALUES (795,793,'302','Miscellany',3);
+INSERT INTO `classificazione` VALUES (796,795,'302.2','Comunicazione',4);
+INSERT INTO `classificazione` VALUES (797,795,'302.3','Gruppi sociali',4);
+INSERT INTO `classificazione` VALUES (798,793,'303','Dictionaries, encyclopedias, concordances',3);
+INSERT INTO `classificazione` VALUES (799,798,'303.3','Controllo sociale',4);
+INSERT INTO `classificazione` VALUES (800,798,'303.4','Cambiamento sociale',4);
+INSERT INTO `classificazione` VALUES (801,798,'303.6','Conflitto sociale',4);
+INSERT INTO `classificazione` VALUES (802,793,'304','Special topics of language',3);
+INSERT INTO `classificazione` VALUES (803,793,'305','Serial publications',3);
+INSERT INTO `classificazione` VALUES (804,803,'305.2','Età',4);
+INSERT INTO `classificazione` VALUES (805,803,'305.3','Genere',4);
+INSERT INTO `classificazione` VALUES (806,803,'305.4','Donne',4);
+INSERT INTO `classificazione` VALUES (807,803,'305.8','Gruppi etnici',4);
+INSERT INTO `classificazione` VALUES (808,793,'306','Organizations & management',3);
+INSERT INTO `classificazione` VALUES (809,808,'306.7','Sessualità',4);
+INSERT INTO `classificazione` VALUES (810,808,'306.8','Matrimonio e famiglia',4);
+INSERT INTO `classificazione` VALUES (811,793,'307','Education, research, related topics',3);
+INSERT INTO `classificazione` VALUES (812,793,'308','Groups of people',3);
+INSERT INTO `classificazione` VALUES (813,793,'309','Geographic treatment & biography',3);
+INSERT INTO `classificazione` VALUES (814,793,'310','Mathematics',2);
+INSERT INTO `classificazione` VALUES (815,814,'311','General principles of mathematics',3);
+INSERT INTO `classificazione` VALUES (816,814,'312','Etymology of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (817,814,'313','Dictionaries of standard forms of languages',3);
+INSERT INTO `classificazione` VALUES (818,814,'314','Topology',3);
+INSERT INTO `classificazione` VALUES (819,814,'315','Analysis',3);
+INSERT INTO `classificazione` VALUES (820,814,'316','No longer in use — formerly Prosody',3);
+INSERT INTO `classificazione` VALUES (821,814,'317','Dialectology & historical linguistics',3);
+INSERT INTO `classificazione` VALUES (822,814,'318','Standard usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (823,814,'319','Probabilities & applied mathematics',3);
+INSERT INTO `classificazione` VALUES (824,793,'320','Astronomy & allied sciences',2);
+INSERT INTO `classificazione` VALUES (825,824,'321','Writing system, phonology, phonetics of standard English',3);
+INSERT INTO `classificazione` VALUES (826,825,'321.8','Democrazia',4);
+INSERT INTO `classificazione` VALUES (827,824,'322','Etymology of standard English',3);
+INSERT INTO `classificazione` VALUES (828,824,'323','Specific celestial bodies & phenomena',3);
+INSERT INTO `classificazione` VALUES (829,824,'324','No longer in use — formerly English thesauruses',3);
+INSERT INTO `classificazione` VALUES (830,824,'325','Earth (Astronomical geography)',3);
+INSERT INTO `classificazione` VALUES (831,824,'326','No longer in use — formerly English prosodies',3);
+INSERT INTO `classificazione` VALUES (832,824,'327','Historical & geographic variations, modern nongeographic variations of English',3);
+INSERT INTO `classificazione` VALUES (833,824,'328','Standard English usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (834,824,'329','Old English (Anglo-Saxon)',3);
+INSERT INTO `classificazione` VALUES (835,793,'330','Physics',2);
+INSERT INTO `classificazione` VALUES (836,835,'331','Writing systems, phonology, phonetics of standard German',3);
+INSERT INTO `classificazione` VALUES (837,836,'331.1','Forza lavoro',4);
+INSERT INTO `classificazione` VALUES (838,836,'331.2','Salari',4);
+INSERT INTO `classificazione` VALUES (839,836,'331.3','Lavoratori',4);
+INSERT INTO `classificazione` VALUES (840,836,'331.4','Donne lavoratrici',4);
+INSERT INTO `classificazione` VALUES (841,836,'331.8','Sindacati',4);
+INSERT INTO `classificazione` VALUES (842,835,'332','Etymology of standard German',3);
+INSERT INTO `classificazione` VALUES (843,842,'332.1','Banche',4);
+INSERT INTO `classificazione` VALUES (844,842,'332.4','Moneta',4);
+INSERT INTO `classificazione` VALUES (845,842,'332.6','Investimenti',4);
+INSERT INTO `classificazione` VALUES (846,835,'333','Pneumatics (Gas mechanics)',3);
+INSERT INTO `classificazione` VALUES (847,846,'333.7','Ambiente',4);
+INSERT INTO `classificazione` VALUES (848,846,'333.91','Acqua',5);
+INSERT INTO `classificazione` VALUES (849,835,'334','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (850,835,'335','Light & related radiation',3);
+INSERT INTO `classificazione` VALUES (851,850,'335.4','Marxismo',4);
+INSERT INTO `classificazione` VALUES (852,835,'336','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (853,835,'337','Historical & geographic variations, modern nongeographic variations of German',3);
+INSERT INTO `classificazione` VALUES (854,835,'338','Standard German usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (855,835,'339','Other Germanic languages',3);
+INSERT INTO `classificazione` VALUES (856,793,'340','Chemistry & allied sciences',2);
+INSERT INTO `classificazione` VALUES (857,856,'341','Writing systems, phonology, phonetics of standard French',3);
+INSERT INTO `classificazione` VALUES (858,857,'341.2','Comunità internazionale',4);
+INSERT INTO `classificazione` VALUES (859,856,'342','Etymology of standard French',3);
+INSERT INTO `classificazione` VALUES (860,856,'343','Analytical chemistry',3);
+INSERT INTO `classificazione` VALUES (861,856,'344','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (862,856,'345','No longer in use — formerly Quantitative analysis',3);
+INSERT INTO `classificazione` VALUES (863,856,'346','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (864,856,'347','Historical & geographic variations, modern nongeographic variations of French',3);
+INSERT INTO `classificazione` VALUES (865,856,'348','Standard French usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (866,856,'349','Occitan, Catalan, Franco-Provençal',3);
+INSERT INTO `classificazione` VALUES (867,793,'350','Earth sciences & geology',2);
+INSERT INTO `classificazione` VALUES (868,867,'351','Geology, hydrology, meteorology',3);
+INSERT INTO `classificazione` VALUES (869,867,'352','Petrology',3);
+INSERT INTO `classificazione` VALUES (870,867,'353','Economic geology',3);
+INSERT INTO `classificazione` VALUES (871,867,'354','Earth sciences of Europe',3);
+INSERT INTO `classificazione` VALUES (872,867,'355','Earth sciences of Asia',3);
+INSERT INTO `classificazione` VALUES (873,872,'355.4','Operazioni militari',4);
+INSERT INTO `classificazione` VALUES (874,867,'356','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (875,867,'357','Earth sciences of North America',3);
+INSERT INTO `classificazione` VALUES (876,867,'358','Earth sciences of South America',3);
+INSERT INTO `classificazione` VALUES (877,867,'359','Romanian, Rhaetian, Sardinian, Corsican',3);
+INSERT INTO `classificazione` VALUES (878,793,'360','Fossils & prehistoric life',2);
+INSERT INTO `classificazione` VALUES (879,878,'361','Writing systems, phonology, phonetics of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (880,878,'362','Etymology of standard Spanish',3);
+INSERT INTO `classificazione` VALUES (881,880,'362.1','Servizi sanitari',4);
+INSERT INTO `classificazione` VALUES (882,880,'362.2','Salute mentale',4);
+INSERT INTO `classificazione` VALUES (883,880,'362.3','Disabilità intellettiva',4);
+INSERT INTO `classificazione` VALUES (884,880,'362.4','Disabilità fisica',4);
+INSERT INTO `classificazione` VALUES (885,880,'362.5','Poveri',4);
+INSERT INTO `classificazione` VALUES (886,880,'362.6','Anziani',4);
+INSERT INTO `classificazione` VALUES (887,880,'362.7','Giovani',4);
+INSERT INTO `classificazione` VALUES (888,878,'363','Miscellaneous fossil marine & seashore invertebrates',3);
+INSERT INTO `classificazione` VALUES (889,888,'363.1','Sicurezza',4);
+INSERT INTO `classificazione` VALUES (890,888,'363.2','Polizia',4);
+INSERT INTO `classificazione` VALUES (891,888,'363.3','Protezione civile',4);
+INSERT INTO `classificazione` VALUES (892,888,'363.5','Alloggi',4);
+INSERT INTO `classificazione` VALUES (893,888,'363.7','Problemi ambientali',4);
+INSERT INTO `classificazione` VALUES (894,878,'364','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (895,894,'364.1','Reati',4);
+INSERT INTO `classificazione` VALUES (896,894,'364.3','Delinquenti',4);
+INSERT INTO `classificazione` VALUES (897,878,'365','Fossil Arthropoda',3);
+INSERT INTO `classificazione` VALUES (898,878,'366','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (899,878,'367','Historical & geographic variations, modern nongeographic variations of Spanish',3);
+INSERT INTO `classificazione` VALUES (900,878,'368','Standard Spanish usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (901,878,'369','Fossil Mammalia',3);
+INSERT INTO `classificazione` VALUES (902,793,'370','Biology',2);
+INSERT INTO `classificazione` VALUES (903,902,'370.1','Teoria dell\'educazione',4);
+INSERT INTO `classificazione` VALUES (904,902,'371','Writing systems, phonology, phonetics of classical Latin',3);
+INSERT INTO `classificazione` VALUES (905,904,'371.1','Insegnamento',4);
+INSERT INTO `classificazione` VALUES (906,904,'371.3','Metodi di insegnamento',4);
+INSERT INTO `classificazione` VALUES (907,904,'371.9','Educazione speciale',4);
+INSERT INTO `classificazione` VALUES (908,902,'372','Etymology of classical Latin',3);
+INSERT INTO `classificazione` VALUES (909,902,'373','Specific physiological systems in animals, regional histology & physiology in animals',3);
+INSERT INTO `classificazione` VALUES (910,902,'374','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (911,902,'375','Specific parts of & physiological systems in plants',3);
+INSERT INTO `classificazione` VALUES (912,902,'376','No longer in use',3);
+INSERT INTO `classificazione` VALUES (913,902,'377','Old, postclassical, Vulgar Latin',3);
+INSERT INTO `classificazione` VALUES (914,902,'378','Classical Latin usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (915,902,'379','Other Italic languages',3);
+INSERT INTO `classificazione` VALUES (916,793,'380','Plants',2);
+INSERT INTO `classificazione` VALUES (917,916,'381','Writing systems, phonology, phonetics of classical Greek',3);
+INSERT INTO `classificazione` VALUES (918,916,'382','Etymology of classical Greek',3);
+INSERT INTO `classificazione` VALUES (919,916,'383','Magnoliopsida (Dicotyledones)',3);
+INSERT INTO `classificazione` VALUES (920,916,'384','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (921,916,'385','Pinophyta (Gymnosperms)',3);
+INSERT INTO `classificazione` VALUES (922,916,'386','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (923,916,'387','Preclassical & postclassical Greek',3);
+INSERT INTO `classificazione` VALUES (924,916,'388','Classical Greek usage (Prescriptive linguistics)',3);
+INSERT INTO `classificazione` VALUES (925,916,'389','Other Hellenic languages',3);
+INSERT INTO `classificazione` VALUES (926,793,'390','Animals (Zoology)',2);
+INSERT INTO `classificazione` VALUES (927,926,'391','East Indo-European & Celtic languages',3);
+INSERT INTO `classificazione` VALUES (928,926,'392','Invertebrates',3);
+INSERT INTO `classificazione` VALUES (929,926,'393','Non-Semitic Afro-Asiatic languages',3);
+INSERT INTO `classificazione` VALUES (930,926,'394','Altaic, Uralic, Hyperborean, Dravidian languages, miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (931,930,'394.2','Feste',4);
+INSERT INTO `classificazione` VALUES (932,926,'395','Languages of East & Southeast Asia',3);
+INSERT INTO `classificazione` VALUES (933,926,'396','African languages',3);
+INSERT INTO `classificazione` VALUES (934,926,'397','North American native languages',3);
+INSERT INTO `classificazione` VALUES (935,926,'398','South American native languages',3);
+INSERT INTO `classificazione` VALUES (936,935,'398.2','Fiabe e leggende',4);
+INSERT INTO `classificazione` VALUES (937,926,'399','Non-Austronesian languages of Oceania, Austronesian languages, miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (938,NULL,'4','Religious experience, life, practice',1);
+INSERT INTO `classificazione` VALUES (939,938,'500','The arts',2);
+INSERT INTO `classificazione` VALUES (940,938,'510','Area planning & landscape architecture',2);
+INSERT INTO `classificazione` VALUES (941,940,'511','Area planning (Civic art)',3);
+INSERT INTO `classificazione` VALUES (942,940,'512','Landscape architecture (Landscape design)',3);
+INSERT INTO `classificazione` VALUES (943,940,'513','Landscape architecture of trafficways',3);
+INSERT INTO `classificazione` VALUES (944,940,'514','Water features in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (945,940,'515','Woody plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (946,940,'516','Herbaceous plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (947,940,'517','Structures in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (948,940,'518','Landscape design of cemeteries',3);
+INSERT INTO `classificazione` VALUES (949,940,'519','No longer in use—formerly Experimental medicine',3);
+INSERT INTO `classificazione` VALUES (950,938,'520','Architecture',2);
+INSERT INTO `classificazione` VALUES (951,950,'521','Architectural materials & structural elements',3);
+INSERT INTO `classificazione` VALUES (952,950,'522','Mining & related operations',3);
+INSERT INTO `classificazione` VALUES (953,950,'523','Architecture from ca. 300 to 1399',3);
+INSERT INTO `classificazione` VALUES (954,950,'524','Architecture from 1400',3);
+INSERT INTO `classificazione` VALUES (955,950,'525','Public structures',3);
+INSERT INTO `classificazione` VALUES (956,950,'526','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (957,950,'527','Buildings for educational & research purposes',3);
+INSERT INTO `classificazione` VALUES (958,950,'528','Residential & related buildings',3);
+INSERT INTO `classificazione` VALUES (959,950,'529','Design & decoration of structures & accessories',3);
+INSERT INTO `classificazione` VALUES (960,938,'530','Sculpture & related arts',2);
+INSERT INTO `classificazione` VALUES (961,960,'531','Processes, forms, subjects of sculpture',3);
+INSERT INTO `classificazione` VALUES (962,960,'532','Plant injuries, diseases, pests',3);
+INSERT INTO `classificazione` VALUES (963,960,'533','Greek, Etruscan, Roman sculpture',3);
+INSERT INTO `classificazione` VALUES (964,960,'534','Sculpture from ca. 500 to 1399',3);
+INSERT INTO `classificazione` VALUES (965,960,'535','Sculpture from 1400',3);
+INSERT INTO `classificazione` VALUES (966,960,'536','Carving & carvings',3);
+INSERT INTO `classificazione` VALUES (967,960,'537','Processing dairy & related products',3);
+INSERT INTO `classificazione` VALUES (968,960,'538','Insect culture',3);
+INSERT INTO `classificazione` VALUES (969,960,'539','Art metalwork',3);
+INSERT INTO `classificazione` VALUES (970,938,'540','Graphic arts',2);
+INSERT INTO `classificazione` VALUES (971,970,'541','Drawing & drawings',3);
+INSERT INTO `classificazione` VALUES (972,970,'542','Meals & table service',3);
+INSERT INTO `classificazione` VALUES (973,970,'543','Drawing & drawings by subject',3);
+INSERT INTO `classificazione` VALUES (974,970,'544','Household utilities',3);
+INSERT INTO `classificazione` VALUES (975,970,'545','Household furnishings',3);
+INSERT INTO `classificazione` VALUES (976,970,'546','Textile arts',3);
+INSERT INTO `classificazione` VALUES (977,970,'547','Management of public households (Institutional housekeeping)',3);
+INSERT INTO `classificazione` VALUES (978,970,'548','Housekeeping',3);
+INSERT INTO `classificazione` VALUES (979,970,'549','Furniture & accessories',3);
+INSERT INTO `classificazione` VALUES (980,938,'550','Painting & paintings',2);
+INSERT INTO `classificazione` VALUES (981,980,'551','Techniques, procedures, apparatus, equipment, materials, forms',3);
+INSERT INTO `classificazione` VALUES (982,980,'552','Processes of written communication',3);
+INSERT INTO `classificazione` VALUES (983,980,'553','Shorthand',3);
+INSERT INTO `classificazione` VALUES (984,980,'554','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (985,980,'555','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (986,980,'556','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (987,980,'557','Human figures',3);
+INSERT INTO `classificazione` VALUES (988,980,'558','Nature, architectural subjects & cityscapes, other specific subjects',3);
+INSERT INTO `classificazione` VALUES (989,980,'559','History, geographic treatment, biography',3);
+INSERT INTO `classificazione` VALUES (990,938,'560','Printmaking & prints',2);
+INSERT INTO `classificazione` VALUES (991,990,'561','Technology of industrial chemicals',3);
+INSERT INTO `classificazione` VALUES (992,990,'562','Technology of explosives, fuels, related products',3);
+INSERT INTO `classificazione` VALUES (993,990,'563','Lithographic processes (Planographic processes)',3);
+INSERT INTO `classificazione` VALUES (994,990,'564','Chromolithography & serigraphy',3);
+INSERT INTO `classificazione` VALUES (995,990,'565','Technology of industrial oils, fats, waxes, gases',3);
+INSERT INTO `classificazione` VALUES (996,990,'566','Ceramic & allied technologies',3);
+INSERT INTO `classificazione` VALUES (997,990,'567','Cleaning, color, coating, related technologies',3);
+INSERT INTO `classificazione` VALUES (998,990,'568','Technology of other organic products',3);
+INSERT INTO `classificazione` VALUES (999,990,'569','Prints',3);
+INSERT INTO `classificazione` VALUES (1000,938,'570','Photography, computer art, cinematography, videography',2);
+INSERT INTO `classificazione` VALUES (1001,1000,'571','Metalworking processes & primary metal products',3);
+INSERT INTO `classificazione` VALUES (1002,1000,'572','Iron, steel, other iron alloys',3);
+INSERT INTO `classificazione` VALUES (1003,1000,'573','Nonferrous metals',3);
+INSERT INTO `classificazione` VALUES (1004,1000,'574','Lumber processing, wood products, cork',3);
+INSERT INTO `classificazione` VALUES (1005,1000,'575','Leather & fur processing',3);
+INSERT INTO `classificazione` VALUES (1006,1000,'576','Pulp & paper technology',3);
+INSERT INTO `classificazione` VALUES (1007,1000,'577','Cinematography & videography',3);
+INSERT INTO `classificazione` VALUES (1008,1000,'578','Elastomers & elastomer products',3);
+INSERT INTO `classificazione` VALUES (1009,1000,'579','Other products of specific kinds of materials',3);
+INSERT INTO `classificazione` VALUES (1010,938,'580','Music',2);
+INSERT INTO `classificazione` VALUES (1011,1010,'581','General principles & musical forms',3);
+INSERT INTO `classificazione` VALUES (1012,1010,'582','Small forge work (Blacksmithing)',3);
+INSERT INTO `classificazione` VALUES (1013,1010,'583','Hardware & household appliances',3);
+INSERT INTO `classificazione` VALUES (1014,1010,'584','Instruments & instrumental ensembles & their music',3);
+INSERT INTO `classificazione` VALUES (1015,1010,'585','Leather & fur goods & related products',3);
+INSERT INTO `classificazione` VALUES (1016,1010,'586','Printing & related activities',3);
+INSERT INTO `classificazione` VALUES (1017,1010,'587','Clothing & accessories',3);
+INSERT INTO `classificazione` VALUES (1018,1010,'588','Other final products & packaging technology',3);
+INSERT INTO `classificazione` VALUES (1019,1010,'589','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1020,938,'590','Recreational & performing arts',2);
+INSERT INTO `classificazione` VALUES (1021,1020,'591','Building materials',3);
+INSERT INTO `classificazione` VALUES (1022,1020,'592','Auxiliary construction practices',3);
+INSERT INTO `classificazione` VALUES (1023,1020,'593','Construction in specific types of materials & for specific purposes',3);
+INSERT INTO `classificazione` VALUES (1024,1020,'594','Wood construction',3);
+INSERT INTO `classificazione` VALUES (1025,1020,'595','Roof covering',3);
+INSERT INTO `classificazione` VALUES (1026,1020,'596','Utilities',3);
+INSERT INTO `classificazione` VALUES (1027,1020,'597','Heating, ventilating, air-conditioning engineering',3);
+INSERT INTO `classificazione` VALUES (1028,1020,'598','Detail finishing',3);
+INSERT INTO `classificazione` VALUES (1029,1020,'599','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1030,NULL,'400','Technology',1);
+INSERT INTO `classificazione` VALUES (1031,1030,'401','Philosophy & theory',3);
+INSERT INTO `classificazione` VALUES (1032,1030,'402','Miscellany',3);
+INSERT INTO `classificazione` VALUES (1033,1030,'403','Dictionaries, encyclopedias, concordances',3);
+INSERT INTO `classificazione` VALUES (1034,1030,'404','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1035,1030,'405','Serial publications',3);
+INSERT INTO `classificazione` VALUES (1036,1030,'406','Organizations & management',3);
+INSERT INTO `classificazione` VALUES (1037,1030,'407','Education, research, related topics',3);
+INSERT INTO `classificazione` VALUES (1038,1030,'408','Natural history',3);
+INSERT INTO `classificazione` VALUES (1039,1030,'409','History, geographic treatment, biography',3);
+INSERT INTO `classificazione` VALUES (1040,1030,'410','Medicine & health',2);
+INSERT INTO `classificazione` VALUES (1041,1040,'411','Human anatomy, cytology, histology',3);
+INSERT INTO `classificazione` VALUES (1042,1040,'412','Human physiology',3);
+INSERT INTO `classificazione` VALUES (1043,1040,'413','Personal health & safety',3);
+INSERT INTO `classificazione` VALUES (1044,1040,'414','Forensic medicine; incidence of injuries, wounds, disease; public preventive medicine',3);
+INSERT INTO `classificazione` VALUES (1045,1040,'415','Pharmacology & therapeutics',3);
+INSERT INTO `classificazione` VALUES (1046,1040,'416','Diseases',3);
+INSERT INTO `classificazione` VALUES (1047,1040,'417','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1048,1040,'418','Numerical analysis',3);
+INSERT INTO `classificazione` VALUES (1049,1040,'419','No longer in use—formerly Experimental medicine',3);
+INSERT INTO `classificazione` VALUES (1050,1030,'420','Engineering & Applied operations',2);
+INSERT INTO `classificazione` VALUES (1051,1050,'421','Applied physics',3);
+INSERT INTO `classificazione` VALUES (1052,1050,'422','Techniques, procedures, apparatus, equipment, materials',3);
+INSERT INTO `classificazione` VALUES (1053,1050,'423','Military & nautical engineering',3);
+INSERT INTO `classificazione` VALUES (1054,1050,'424','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1055,1050,'425','Engineering of railroads, roads',3);
+INSERT INTO `classificazione` VALUES (1056,1050,'426','Mathematical geography',3);
+INSERT INTO `classificazione` VALUES (1057,1050,'427','Celestial navigation',3);
+INSERT INTO `classificazione` VALUES (1058,1050,'428','Ephemerides',3);
+INSERT INTO `classificazione` VALUES (1059,1050,'429','Other branches of engineering',3);
+INSERT INTO `classificazione` VALUES (1060,1030,'430','Agriculture & related technologies',2);
+INSERT INTO `classificazione` VALUES (1061,1060,'431','Specific techniques; apparatus, equipment, materials',3);
+INSERT INTO `classificazione` VALUES (1062,1060,'432','Plant injuries, diseases, pests',3);
+INSERT INTO `classificazione` VALUES (1063,1060,'433','Field & plantation crops',3);
+INSERT INTO `classificazione` VALUES (1064,1060,'434','Orchards, fruits, forestry',3);
+INSERT INTO `classificazione` VALUES (1065,1060,'435','Garden crops (Horticulture)',3);
+INSERT INTO `classificazione` VALUES (1066,1060,'436','Animal husbandry',3);
+INSERT INTO `classificazione` VALUES (1067,1060,'437','Processing dairy & related products',3);
+INSERT INTO `classificazione` VALUES (1068,1060,'438','Insect culture',3);
+INSERT INTO `classificazione` VALUES (1069,1060,'439','Hunting, fishing, conservation, related technologies',3);
+INSERT INTO `classificazione` VALUES (1070,1030,'440','Home & family management',2);
+INSERT INTO `classificazione` VALUES (1071,1070,'441','Food & drink',3);
+INSERT INTO `classificazione` VALUES (1072,1070,'442','Techniques, procedures, apparatus, equipment, materials',3);
+INSERT INTO `classificazione` VALUES (1073,1070,'443','Housing & household equipment',3);
+INSERT INTO `classificazione` VALUES (1074,1070,'444','No longer in use — formerly Qualitative analysis',3);
+INSERT INTO `classificazione` VALUES (1075,1070,'445','No longer in use — formerly Quantitative analysis',3);
+INSERT INTO `classificazione` VALUES (1076,1070,'446','Sewing, clothing, management of personal and family life',3);
+INSERT INTO `classificazione` VALUES (1077,1070,'447','Management of public households (Institutional housekeeping)',3);
+INSERT INTO `classificazione` VALUES (1078,1070,'448','Housekeeping',3);
+INSERT INTO `classificazione` VALUES (1079,1070,'449','Child rearing; home care of people with disabilities and illnesses',3);
+INSERT INTO `classificazione` VALUES (1080,1030,'450','Management & auxiliary services',2);
+INSERT INTO `classificazione` VALUES (1081,1080,'451','Office services',3);
+INSERT INTO `classificazione` VALUES (1082,1080,'452','Processes of written communication',3);
+INSERT INTO `classificazione` VALUES (1083,1080,'453','Shorthand',3);
+INSERT INTO `classificazione` VALUES (1084,1080,'454','Earth sciences of Europe',3);
+INSERT INTO `classificazione` VALUES (1085,1080,'455','Earth sciences of Asia',3);
+INSERT INTO `classificazione` VALUES (1086,1080,'456','Earth sciences of Africa',3);
+INSERT INTO `classificazione` VALUES (1087,1080,'457','Earth sciences of North America',3);
+INSERT INTO `classificazione` VALUES (1088,1080,'458','Earth sciences of South America',3);
+INSERT INTO `classificazione` VALUES (1089,1080,'459','Earth sciences of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (1090,1030,'460','Chemical engineering & related technologies',2);
+INSERT INTO `classificazione` VALUES (1091,1090,'461','Paleobotany, fossil microorganisms',3);
+INSERT INTO `classificazione` VALUES (1092,1090,'462','Fossil invertebrates',3);
+INSERT INTO `classificazione` VALUES (1093,1090,'463','Miscellaneous fossil marine & seashore invertebrates',3);
+INSERT INTO `classificazione` VALUES (1094,1090,'464','Fossil Mollusca & Molluscoidea',3);
+INSERT INTO `classificazione` VALUES (1095,1090,'465','Fossil Arthropoda',3);
+INSERT INTO `classificazione` VALUES (1096,1090,'466','Fossil Chordata',3);
+INSERT INTO `classificazione` VALUES (1097,1090,'467','Fossil cold-blooded vertebrates',3);
+INSERT INTO `classificazione` VALUES (1098,1090,'468','Fossil Aves (birds)',3);
+INSERT INTO `classificazione` VALUES (1099,1090,'469','Fossil Mammalia',3);
+INSERT INTO `classificazione` VALUES (1100,1030,'470','Manufacturing',2);
+INSERT INTO `classificazione` VALUES (1101,1100,'471','Metalworking processes & primary metal products',3);
+INSERT INTO `classificazione` VALUES (1102,1100,'472','Iron, steel, other iron alloys',3);
+INSERT INTO `classificazione` VALUES (1103,1100,'473','Specific physiological systems in animals, regional histology & physiology in animals',3);
+INSERT INTO `classificazione` VALUES (1104,1100,'474','Lumber processing, wood products, cork',3);
+INSERT INTO `classificazione` VALUES (1105,1100,'475','Leather & fur processing',3);
+INSERT INTO `classificazione` VALUES (1106,1100,'476','Pulp & paper technology',3);
+INSERT INTO `classificazione` VALUES (1107,1100,'477','Textiles',3);
+INSERT INTO `classificazione` VALUES (1108,1100,'478','Natural history of organisms & related subjects',3);
+INSERT INTO `classificazione` VALUES (1109,1100,'479','Other products of specific kinds of materials',3);
+INSERT INTO `classificazione` VALUES (1110,1030,'480','Manufacture of products for specific uses',2);
+INSERT INTO `classificazione` VALUES (1111,1110,'481','Precision instruments & other devices',3);
+INSERT INTO `classificazione` VALUES (1112,1110,'482','Small forge work (Blacksmithing)',3);
+INSERT INTO `classificazione` VALUES (1113,1110,'483','Magnoliopsida (Dicotyledones)',3);
+INSERT INTO `classificazione` VALUES (1114,1110,'484','Liliopsida (Monocotyledones)',3);
+INSERT INTO `classificazione` VALUES (1115,1110,'485','Pinophyta (Gymnosperms)',3);
+INSERT INTO `classificazione` VALUES (1116,1110,'486','Cryptogamia (Seedless plants)',3);
+INSERT INTO `classificazione` VALUES (1117,1110,'487','Pteridophyta',3);
+INSERT INTO `classificazione` VALUES (1118,1110,'488','Bryophyta',3);
+INSERT INTO `classificazione` VALUES (1119,1110,'489','No longer in use—formerly Forestry',3);
+INSERT INTO `classificazione` VALUES (1120,1030,'490','Building construction',2);
+INSERT INTO `classificazione` VALUES (1121,1120,'491','Building materials',3);
+INSERT INTO `classificazione` VALUES (1122,1120,'491.7','Russo',4);
+INSERT INTO `classificazione` VALUES (1123,1120,'492','Auxiliary construction practices',3);
+INSERT INTO `classificazione` VALUES (1124,1123,'492.4','Ebraico',4);
+INSERT INTO `classificazione` VALUES (1125,1123,'492.7','Arabo',4);
+INSERT INTO `classificazione` VALUES (1126,1120,'493','Construction in specific types of materials & for specific purposes',3);
+INSERT INTO `classificazione` VALUES (1127,1120,'494','Wood construction',3);
+INSERT INTO `classificazione` VALUES (1128,1120,'495','Roof covering',3);
+INSERT INTO `classificazione` VALUES (1129,1120,'495.1','Cinese',4);
+INSERT INTO `classificazione` VALUES (1130,1120,'495.6','Giapponese',4);
+INSERT INTO `classificazione` VALUES (1131,1120,'496','Utilities',3);
+INSERT INTO `classificazione` VALUES (1132,1120,'497','Heating, ventilating, air-conditioning engineering',3);
+INSERT INTO `classificazione` VALUES (1133,1120,'498','Detail finishing',3);
+INSERT INTO `classificazione` VALUES (1134,1120,'499','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1135,NULL,'5','Religious ethics',1);
+INSERT INTO `classificazione` VALUES (1136,1135,'600','Literature (Belles-lettres) & rhetoric',2);
+INSERT INTO `classificazione` VALUES (1137,1135,'610','American literature in English',2);
+INSERT INTO `classificazione` VALUES (1138,1137,'611','American poetry in English',3);
+INSERT INTO `classificazione` VALUES (1139,1137,'612','American drama in English',3);
+INSERT INTO `classificazione` VALUES (1140,1137,'613','Landscape architecture of trafficways',3);
+INSERT INTO `classificazione` VALUES (1141,1137,'614','Water features in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1142,1137,'615','Woody plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1143,1137,'616','Herbaceous plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1144,1137,'617','Structures in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1145,1137,'618','Landscape design of cemeteries',3);
+INSERT INTO `classificazione` VALUES (1146,1137,'619','Natural landscapes',3);
+INSERT INTO `classificazione` VALUES (1147,1135,'620','English & Old English (Anglo-Saxon) literatures',2);
+INSERT INTO `classificazione` VALUES (1148,1147,'621','Architectural materials & structural elements',3);
+INSERT INTO `classificazione` VALUES (1149,1147,'622','English drama',3);
+INSERT INTO `classificazione` VALUES (1150,1147,'623','English fiction',3);
+INSERT INTO `classificazione` VALUES (1151,1147,'624','English essays',3);
+INSERT INTO `classificazione` VALUES (1152,1147,'625','English speeches',3);
+INSERT INTO `classificazione` VALUES (1153,1147,'626','English letters',3);
+INSERT INTO `classificazione` VALUES (1154,1147,'627','Buildings for educational & research purposes',3);
+INSERT INTO `classificazione` VALUES (1155,1147,'628','English miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1156,1147,'629','Design & decoration of structures & accessories',3);
+INSERT INTO `classificazione` VALUES (1157,1135,'630','German literature & literatures of related languages',2);
+INSERT INTO `classificazione` VALUES (1158,1157,'631','Processes, forms, subjects of sculpture',3);
+INSERT INTO `classificazione` VALUES (1159,1157,'632','Sculpture from earliest times to ca. 500, sculpture of nonliterate peoples',3);
+INSERT INTO `classificazione` VALUES (1160,1157,'633','Greek, Etruscan, Roman sculpture',3);
+INSERT INTO `classificazione` VALUES (1161,1157,'634','Sculpture from ca. 500 to 1399',3);
+INSERT INTO `classificazione` VALUES (1162,1157,'635','Sculpture from 1400',3);
+INSERT INTO `classificazione` VALUES (1163,1157,'636','German letters',3);
+INSERT INTO `classificazione` VALUES (1164,1157,'637','German humor & satire',3);
+INSERT INTO `classificazione` VALUES (1165,1157,'638','German miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1166,1157,'639','Other Germanic literatures',3);
+INSERT INTO `classificazione` VALUES (1167,1135,'640','French literature & literatures of related Romance languages',2);
+INSERT INTO `classificazione` VALUES (1168,1167,'641','French poetry',3);
+INSERT INTO `classificazione` VALUES (1169,1167,'642','Perspective in drawing',3);
+INSERT INTO `classificazione` VALUES (1170,1167,'643','Drawing & drawings by subject',3);
+INSERT INTO `classificazione` VALUES (1171,1167,'644','Communication design & visual design (proposed)',3);
+INSERT INTO `classificazione` VALUES (1172,1167,'645','French speeches',3);
+INSERT INTO `classificazione` VALUES (1173,1167,'646','French letters',3);
+INSERT INTO `classificazione` VALUES (1174,1167,'647','French humor & satire',3);
+INSERT INTO `classificazione` VALUES (1175,1167,'648','Glass',3);
+INSERT INTO `classificazione` VALUES (1176,1167,'649','Furniture & accessories',3);
+INSERT INTO `classificazione` VALUES (1177,1135,'650','Literatures of Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican languages',2);
+INSERT INTO `classificazione` VALUES (1178,1177,'651','Italian poetry',3);
+INSERT INTO `classificazione` VALUES (1179,1177,'652','Color',3);
+INSERT INTO `classificazione` VALUES (1180,1177,'653','Italian fiction',3);
+INSERT INTO `classificazione` VALUES (1181,1177,'654','Genre paintings',3);
+INSERT INTO `classificazione` VALUES (1182,1177,'655','Religion',3);
+INSERT INTO `classificazione` VALUES (1183,1177,'656','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1184,1177,'657','Human figures',3);
+INSERT INTO `classificazione` VALUES (1185,1177,'658','Nature, architectural subjects & cityscapes, other specific subjects',3);
+INSERT INTO `classificazione` VALUES (1186,1177,'659','Literatures of Romanian, Rhaetian, Sardinian, Corsican languages',3);
+INSERT INTO `classificazione` VALUES (1187,1135,'660','Literatures of Spanish, Portuguese, Galician languages',2);
+INSERT INTO `classificazione` VALUES (1188,1187,'661','Relief processes (Block printing)',3);
+INSERT INTO `classificazione` VALUES (1189,1187,'662','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1190,1187,'663','Lithographic processes (Planographic processes)',3);
+INSERT INTO `classificazione` VALUES (1191,1187,'664','Chromolithography & serigraphy',3);
+INSERT INTO `classificazione` VALUES (1192,1187,'665','Metal engraving',3);
+INSERT INTO `classificazione` VALUES (1193,1187,'666','Mezzotinting, aquatinting & related processes',3);
+INSERT INTO `classificazione` VALUES (1194,1187,'667','Etching & drypoint',3);
+INSERT INTO `classificazione` VALUES (1195,1187,'668','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1196,1187,'669','Prints',3);
+INSERT INTO `classificazione` VALUES (1197,1135,'670','Latin literature & literatures of related Italic languages',2);
+INSERT INTO `classificazione` VALUES (1198,1197,'671','Latin poetry',3);
+INSERT INTO `classificazione` VALUES (1199,1197,'672','Metallic salt processes',3);
+INSERT INTO `classificazione` VALUES (1200,1197,'673','Pigment processes of printing',3);
+INSERT INTO `classificazione` VALUES (1201,1197,'674','No longer in use—formerly Holography',3);
+INSERT INTO `classificazione` VALUES (1202,1197,'675','No longer in use—formerly Digital photography',3);
+INSERT INTO `classificazione` VALUES (1203,1197,'676','Computer art (Digital art)',3);
+INSERT INTO `classificazione` VALUES (1204,1197,'677','Cinematography & videography',3);
+INSERT INTO `classificazione` VALUES (1205,1197,'678','Latin miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1206,1197,'679','Literatures of other Italic languages',3);
+INSERT INTO `classificazione` VALUES (1207,1135,'680','Classical Greek literature & literatures of related Hellenic languages',2);
+INSERT INTO `classificazione` VALUES (1208,1207,'681','Classical Greek poetry',3);
+INSERT INTO `classificazione` VALUES (1209,1207,'682','Classical Greek drama',3);
+INSERT INTO `classificazione` VALUES (1210,1207,'683','Classical Greek epic poetry & fiction',3);
+INSERT INTO `classificazione` VALUES (1211,1207,'684','Classical Greek lyric poetry',3);
+INSERT INTO `classificazione` VALUES (1212,1207,'685','Classical Greek speeches',3);
+INSERT INTO `classificazione` VALUES (1213,1207,'686','Classical Greek letters',3);
+INSERT INTO `classificazione` VALUES (1214,1207,'687','Classical Greek humor & satire',3);
+INSERT INTO `classificazione` VALUES (1215,1207,'688','Classical Greek miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1216,1207,'689','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1217,1135,'690','Literatures of other specific languages & language families',2);
+INSERT INTO `classificazione` VALUES (1218,1217,'691','East Indo-European & Celtic literatures',3);
+INSERT INTO `classificazione` VALUES (1219,1217,'692','Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1220,1217,'693','Non-Semitic Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1221,1217,'694','Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (1222,1217,'695','Games of chance',3);
+INSERT INTO `classificazione` VALUES (1223,1217,'696','African literatures',3);
+INSERT INTO `classificazione` VALUES (1224,1217,'697','Literatures of North American native languages',3);
+INSERT INTO `classificazione` VALUES (1225,1217,'698','Literatures of South American native languages',3);
+INSERT INTO `classificazione` VALUES (1226,1217,'699','Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (1227,NULL,'500','The arts',1);
+INSERT INTO `classificazione` VALUES (1228,1227,'501','Philosophy & theory',3);
+INSERT INTO `classificazione` VALUES (1229,1227,'502','Miscellany',3);
+INSERT INTO `classificazione` VALUES (1230,1227,'503','Dictionaries, encyclopedias, concordances',3);
+INSERT INTO `classificazione` VALUES (1231,1227,'504','Technical drawing, hazardous materials technology; groups of people',3);
+INSERT INTO `classificazione` VALUES (1232,1227,'505','Serial publications',3);
+INSERT INTO `classificazione` VALUES (1233,1227,'506','Organizations',3);
+INSERT INTO `classificazione` VALUES (1234,1227,'507','Education, research, related topics',3);
+INSERT INTO `classificazione` VALUES (1235,1227,'508','Galleries, museums, private collections of fine & decorative arts',3);
+INSERT INTO `classificazione` VALUES (1236,1227,'509','History, geographic treatment, biography',3);
+INSERT INTO `classificazione` VALUES (1237,1227,'510','Area planning & landscape architecture',2);
+INSERT INTO `classificazione` VALUES (1238,1237,'511','Area planning (Civic art)',3);
+INSERT INTO `classificazione` VALUES (1239,1237,'512','Landscape architecture (Landscape design)',3);
+INSERT INTO `classificazione` VALUES (1240,1237,'513','Landscape architecture of trafficways',3);
+INSERT INTO `classificazione` VALUES (1241,1237,'514','Water features in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1242,1237,'515','Woody plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1243,1237,'516','Herbaceous plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1244,1237,'517','Structures in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1245,1237,'518','Landscape design of cemeteries',3);
+INSERT INTO `classificazione` VALUES (1246,1237,'519','No longer in use—formerly Experimental medicine',3);
+INSERT INTO `classificazione` VALUES (1247,1227,'520','Architecture',2);
+INSERT INTO `classificazione` VALUES (1248,1247,'521','Architectural materials & structural elements',3);
+INSERT INTO `classificazione` VALUES (1249,1247,'522','Mining & related operations',3);
+INSERT INTO `classificazione` VALUES (1250,1247,'523','Architecture from ca. 300 to 1399',3);
+INSERT INTO `classificazione` VALUES (1251,1250,'523.1','Universo',4);
+INSERT INTO `classificazione` VALUES (1252,1250,'523.2','Sistema solare',4);
+INSERT INTO `classificazione` VALUES (1253,1250,'523.3','Luna',4);
+INSERT INTO `classificazione` VALUES (1254,1250,'523.4','Pianeti',4);
+INSERT INTO `classificazione` VALUES (1255,1250,'523.6','Comete',4);
+INSERT INTO `classificazione` VALUES (1256,1250,'523.7','Sole',4);
+INSERT INTO `classificazione` VALUES (1257,1250,'523.8','Stelle',4);
+INSERT INTO `classificazione` VALUES (1258,1247,'524','Architecture from 1400',3);
+INSERT INTO `classificazione` VALUES (1259,1247,'525','Public structures',3);
+INSERT INTO `classificazione` VALUES (1260,1247,'526','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1261,1247,'527','Buildings for educational & research purposes',3);
+INSERT INTO `classificazione` VALUES (1262,1247,'528','Residential & related buildings',3);
+INSERT INTO `classificazione` VALUES (1263,1247,'529','Design & decoration of structures & accessories',3);
+INSERT INTO `classificazione` VALUES (1264,1227,'530','Sculpture & related arts',2);
+INSERT INTO `classificazione` VALUES (1265,1264,'531','Processes, forms, subjects of sculpture',3);
+INSERT INTO `classificazione` VALUES (1266,1264,'532','Plant injuries, diseases, pests',3);
+INSERT INTO `classificazione` VALUES (1267,1264,'533','Greek, Etruscan, Roman sculpture',3);
+INSERT INTO `classificazione` VALUES (1268,1264,'534','Sculpture from ca. 500 to 1399',3);
+INSERT INTO `classificazione` VALUES (1269,1264,'535','Sculpture from 1400',3);
+INSERT INTO `classificazione` VALUES (1270,1264,'536','Carving & carvings',3);
+INSERT INTO `classificazione` VALUES (1271,1264,'537','Processing dairy & related products',3);
+INSERT INTO `classificazione` VALUES (1272,1264,'538','Insect culture',3);
+INSERT INTO `classificazione` VALUES (1273,1264,'539','Art metalwork',3);
+INSERT INTO `classificazione` VALUES (1274,1273,'539.7','Fisica atomica',4);
+INSERT INTO `classificazione` VALUES (1275,1227,'540','Graphic arts',2);
+INSERT INTO `classificazione` VALUES (1276,1275,'541','Drawing & drawings',3);
+INSERT INTO `classificazione` VALUES (1277,1275,'542','Meals & table service',3);
+INSERT INTO `classificazione` VALUES (1278,1275,'543','Drawing & drawings by subject',3);
+INSERT INTO `classificazione` VALUES (1279,1275,'544','Household utilities',3);
+INSERT INTO `classificazione` VALUES (1280,1275,'545','Household furnishings',3);
+INSERT INTO `classificazione` VALUES (1281,1275,'546','Textile arts',3);
+INSERT INTO `classificazione` VALUES (1282,1275,'547','Management of public households (Institutional housekeeping)',3);
+INSERT INTO `classificazione` VALUES (1283,1275,'548','Housekeeping',3);
+INSERT INTO `classificazione` VALUES (1284,1275,'549','Furniture & accessories',3);
+INSERT INTO `classificazione` VALUES (1285,1227,'550','Painting & paintings',2);
+INSERT INTO `classificazione` VALUES (1286,1285,'551','Techniques, procedures, apparatus, equipment, materials, forms',3);
+INSERT INTO `classificazione` VALUES (1287,1286,'551.2','Vulcani e terremoti',4);
+INSERT INTO `classificazione` VALUES (1288,1286,'551.4','Geomorfologia',4);
+INSERT INTO `classificazione` VALUES (1289,1288,'551.46','Oceanografia',5);
+INSERT INTO `classificazione` VALUES (1290,1286,'551.5','Meteorologia',4);
+INSERT INTO `classificazione` VALUES (1291,1286,'551.6','Climatologia',4);
+INSERT INTO `classificazione` VALUES (1292,1285,'552','Processes of written communication',3);
+INSERT INTO `classificazione` VALUES (1293,1285,'553','Shorthand',3);
+INSERT INTO `classificazione` VALUES (1294,1285,'554','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1295,1285,'555','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1296,1285,'556','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1297,1285,'557','Human figures',3);
+INSERT INTO `classificazione` VALUES (1298,1285,'558','Nature, architectural subjects & cityscapes, other specific subjects',3);
+INSERT INTO `classificazione` VALUES (1299,1285,'559','History, geographic treatment, biography',3);
+INSERT INTO `classificazione` VALUES (1300,1227,'560','Printmaking & prints',2);
+INSERT INTO `classificazione` VALUES (1301,1300,'561','Technology of industrial chemicals',3);
+INSERT INTO `classificazione` VALUES (1302,1300,'562','Technology of explosives, fuels, related products',3);
+INSERT INTO `classificazione` VALUES (1303,1300,'563','Lithographic processes (Planographic processes)',3);
+INSERT INTO `classificazione` VALUES (1304,1300,'564','Chromolithography & serigraphy',3);
+INSERT INTO `classificazione` VALUES (1305,1300,'565','Technology of industrial oils, fats, waxes, gases',3);
+INSERT INTO `classificazione` VALUES (1306,1300,'566','Ceramic & allied technologies',3);
+INSERT INTO `classificazione` VALUES (1307,1300,'567','Cleaning, color, coating, related technologies',3);
+INSERT INTO `classificazione` VALUES (1308,1300,'567.9','Rettili fossili (Dinosauri)',4);
+INSERT INTO `classificazione` VALUES (1309,1300,'568','Technology of other organic products',3);
+INSERT INTO `classificazione` VALUES (1310,1300,'569','Prints',3);
+INSERT INTO `classificazione` VALUES (1311,1227,'570','Photography, computer art, cinematography, videography',2);
+INSERT INTO `classificazione` VALUES (1312,1311,'571','Metalworking processes & primary metal products',3);
+INSERT INTO `classificazione` VALUES (1313,1311,'572','Iron, steel, other iron alloys',3);
+INSERT INTO `classificazione` VALUES (1314,1311,'573','Nonferrous metals',3);
+INSERT INTO `classificazione` VALUES (1315,1311,'574','Lumber processing, wood products, cork',3);
+INSERT INTO `classificazione` VALUES (1316,1311,'575','Leather & fur processing',3);
+INSERT INTO `classificazione` VALUES (1317,1311,'576','Pulp & paper technology',3);
+INSERT INTO `classificazione` VALUES (1318,1317,'576.5','Genetica',4);
+INSERT INTO `classificazione` VALUES (1319,1317,'576.8','Evoluzione',4);
+INSERT INTO `classificazione` VALUES (1320,1311,'577','Cinematography & videography',3);
+INSERT INTO `classificazione` VALUES (1321,1320,'577.3','Ecologia forestale',4);
+INSERT INTO `classificazione` VALUES (1322,1320,'577.7','Ecologia marina',4);
+INSERT INTO `classificazione` VALUES (1323,1311,'578','Elastomers & elastomer products',3);
+INSERT INTO `classificazione` VALUES (1324,1311,'579','Other products of specific kinds of materials',3);
+INSERT INTO `classificazione` VALUES (1325,1227,'580','Music',2);
+INSERT INTO `classificazione` VALUES (1326,1325,'581','General principles & musical forms',3);
+INSERT INTO `classificazione` VALUES (1327,1325,'582','Small forge work (Blacksmithing)',3);
+INSERT INTO `classificazione` VALUES (1328,1327,'582.13','Fiori selvatici',5);
+INSERT INTO `classificazione` VALUES (1329,1327,'582.16','Alberi',5);
+INSERT INTO `classificazione` VALUES (1330,1325,'583','Hardware & household appliances',3);
+INSERT INTO `classificazione` VALUES (1331,1325,'584','Instruments & instrumental ensembles & their music',3);
+INSERT INTO `classificazione` VALUES (1332,1325,'585','Leather & fur goods & related products',3);
+INSERT INTO `classificazione` VALUES (1333,1325,'586','Printing & related activities',3);
+INSERT INTO `classificazione` VALUES (1334,1325,'587','Clothing & accessories',3);
+INSERT INTO `classificazione` VALUES (1335,1325,'588','Other final products & packaging technology',3);
+INSERT INTO `classificazione` VALUES (1336,1325,'589','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1337,1227,'590','Recreational & performing arts',2);
+INSERT INTO `classificazione` VALUES (1338,1337,'591','Building materials',3);
+INSERT INTO `classificazione` VALUES (1339,1337,'592','Auxiliary construction practices',3);
+INSERT INTO `classificazione` VALUES (1340,1337,'593','Construction in specific types of materials & for specific purposes',3);
+INSERT INTO `classificazione` VALUES (1341,1337,'594','Wood construction',3);
+INSERT INTO `classificazione` VALUES (1342,1337,'595','Roof covering',3);
+INSERT INTO `classificazione` VALUES (1343,1342,'595.7','Insetti',4);
+INSERT INTO `classificazione` VALUES (1344,1343,'595.78','Lepidotteri (Farfalle)',5);
+INSERT INTO `classificazione` VALUES (1345,1337,'596','Utilities',3);
+INSERT INTO `classificazione` VALUES (1346,1337,'597','Heating, ventilating, air-conditioning engineering',3);
+INSERT INTO `classificazione` VALUES (1347,1346,'597.8','Anfibi',4);
+INSERT INTO `classificazione` VALUES (1348,1346,'597.9','Rettili',4);
+INSERT INTO `classificazione` VALUES (1349,1337,'598','Detail finishing',3);
+INSERT INTO `classificazione` VALUES (1350,1337,'599','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1351,1350,'599.2','Marsupialia',4);
+INSERT INTO `classificazione` VALUES (1352,1350,'599.3','Small mammals',4);
+INSERT INTO `classificazione` VALUES (1353,1350,'599.4','Chiroptera (Bats)',4);
+INSERT INTO `classificazione` VALUES (1354,1350,'599.5','Cetacea & Sirenia',4);
+INSERT INTO `classificazione` VALUES (1355,1354,'599.53','Delfini',5);
+INSERT INTO `classificazione` VALUES (1356,1350,'599.6','Ungulata (Hoofed mammals)',4);
+INSERT INTO `classificazione` VALUES (1357,1350,'599.7','Carnivora',4);
+INSERT INTO `classificazione` VALUES (1358,1357,'599.74','Carnivori (vecchio uso)',5);
+INSERT INTO `classificazione` VALUES (1359,1357,'599.75','Felidi',5);
+INSERT INTO `classificazione` VALUES (1360,1357,'599.77','Canidi',5);
+INSERT INTO `classificazione` VALUES (1361,1357,'599.78','Orsi',5);
+INSERT INTO `classificazione` VALUES (1362,1350,'599.8','Primates',4);
+INSERT INTO `classificazione` VALUES (1363,1350,'599.9','Hominidae (Humans)',4);
+INSERT INTO `classificazione` VALUES (1364,1363,'599.93','Human genetics',5);
+INSERT INTO `classificazione` VALUES (1365,1363,'599.97','Human variation',5);
+INSERT INTO `classificazione` VALUES (1366,1363,'599.98','Human adaptation',5);
+INSERT INTO `classificazione` VALUES (1367,NULL,'6','Leaders & organization',1);
+INSERT INTO `classificazione` VALUES (1368,1367,'700','History',2);
+INSERT INTO `classificazione` VALUES (1369,1367,'710','Geography & travel',2);
+INSERT INTO `classificazione` VALUES (1370,1369,'711','Historical geography',3);
+INSERT INTO `classificazione` VALUES (1371,1369,'712','Graphic representations of surface of Earth & of extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (1372,1369,'713','Geography of & travel in ancient world',3);
+INSERT INTO `classificazione` VALUES (1373,1369,'714','Geography of & travel in Europe',3);
+INSERT INTO `classificazione` VALUES (1374,1369,'715','American speeches in English',3);
+INSERT INTO `classificazione` VALUES (1375,1369,'716','American letters in English',3);
+INSERT INTO `classificazione` VALUES (1376,1369,'717','American humor & satire in English',3);
+INSERT INTO `classificazione` VALUES (1377,1369,'718','American miscellaneous writings in English',3);
+INSERT INTO `classificazione` VALUES (1378,1369,'719','No longer in use—formerly Puzzle activities',3);
+INSERT INTO `classificazione` VALUES (1379,1367,'720','Biography, genealogy, insignia',2);
+INSERT INTO `classificazione` VALUES (1380,1379,'721','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1381,1379,'722','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1382,1379,'723','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1383,1379,'724','English essays',3);
+INSERT INTO `classificazione` VALUES (1384,1379,'725','English speeches',3);
+INSERT INTO `classificazione` VALUES (1385,1379,'726','English letters',3);
+INSERT INTO `classificazione` VALUES (1386,1379,'727','English humor & satire',3);
+INSERT INTO `classificazione` VALUES (1387,1379,'728','English miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1388,1379,'729','Old English (Anglo-Saxon) literature',3);
+INSERT INTO `classificazione` VALUES (1389,1367,'730','History of ancient world to ca. 499',2);
+INSERT INTO `classificazione` VALUES (1390,1389,'731','China to 420',3);
+INSERT INTO `classificazione` VALUES (1391,1389,'732','German drama',3);
+INSERT INTO `classificazione` VALUES (1392,1389,'733','Palestine to 70',3);
+INSERT INTO `classificazione` VALUES (1393,1389,'734','German essays',3);
+INSERT INTO `classificazione` VALUES (1394,1389,'735','German speeches',3);
+INSERT INTO `classificazione` VALUES (1395,1389,'736','German letters',3);
+INSERT INTO `classificazione` VALUES (1396,1389,'737','German humor & satire',3);
+INSERT INTO `classificazione` VALUES (1397,1389,'738','German miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1398,1389,'739','Other Germanic literatures',3);
+INSERT INTO `classificazione` VALUES (1399,1367,'740','History of Europe',2);
+INSERT INTO `classificazione` VALUES (1400,1399,'741','British Isles',3);
+INSERT INTO `classificazione` VALUES (1401,1399,'742','England & Wales',3);
+INSERT INTO `classificazione` VALUES (1402,1399,'743','Germany & neighboring central European countries',3);
+INSERT INTO `classificazione` VALUES (1403,1399,'744','French essays',3);
+INSERT INTO `classificazione` VALUES (1404,1399,'745','French speeches',3);
+INSERT INTO `classificazione` VALUES (1405,1399,'746','French letters',3);
+INSERT INTO `classificazione` VALUES (1406,1399,'747','French humor & satire',3);
+INSERT INTO `classificazione` VALUES (1407,1399,'748','French miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1408,1399,'749','Occitan, Catalan, Franco-Provençal literatures',3);
+INSERT INTO `classificazione` VALUES (1409,1367,'750','History of Asia',2);
+INSERT INTO `classificazione` VALUES (1410,1409,'751','China & adjacent areas',3);
+INSERT INTO `classificazione` VALUES (1411,1409,'752','Japan',3);
+INSERT INTO `classificazione` VALUES (1412,1409,'753','Arabian Peninsula & adjacent areas',3);
+INSERT INTO `classificazione` VALUES (1413,1409,'754','India & neighboring south Asian countries',3);
+INSERT INTO `classificazione` VALUES (1414,1409,'755','Italian speeches',3);
+INSERT INTO `classificazione` VALUES (1415,1409,'756','Italian letters',3);
+INSERT INTO `classificazione` VALUES (1416,1409,'757','Italian humor & satire',3);
+INSERT INTO `classificazione` VALUES (1417,1409,'758','Central Asia',3);
+INSERT INTO `classificazione` VALUES (1418,1409,'759','Literatures of Romanian, Rhaetian, Sardinian, Corsican languages',3);
+INSERT INTO `classificazione` VALUES (1419,1367,'760','History of Africa',2);
+INSERT INTO `classificazione` VALUES (1420,1419,'761','Tunisia & Libya',3);
+INSERT INTO `classificazione` VALUES (1421,1419,'762','Spanish drama',3);
+INSERT INTO `classificazione` VALUES (1422,1419,'763','Ethiopia & Eritrea',3);
+INSERT INTO `classificazione` VALUES (1423,1419,'764','Spanish essays',3);
+INSERT INTO `classificazione` VALUES (1424,1419,'765','Spanish speeches',3);
+INSERT INTO `classificazione` VALUES (1425,1419,'766','Spanish letters',3);
+INSERT INTO `classificazione` VALUES (1426,1419,'767','Spanish humor & satire',3);
+INSERT INTO `classificazione` VALUES (1427,1419,'768','Spanish miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1428,1419,'769','Literatures of Portuguese & Galician languages',3);
+INSERT INTO `classificazione` VALUES (1429,1367,'770','History of North America',2);
+INSERT INTO `classificazione` VALUES (1430,1429,'771','Canada',3);
+INSERT INTO `classificazione` VALUES (1431,1429,'772','Latin dramatic poetry & drama',3);
+INSERT INTO `classificazione` VALUES (1432,1429,'773','Latin epic poetry & fiction',3);
+INSERT INTO `classificazione` VALUES (1433,1429,'774','Latin lyric poetry',3);
+INSERT INTO `classificazione` VALUES (1434,1429,'775','Latin speeches',3);
+INSERT INTO `classificazione` VALUES (1435,1429,'776','Latin letters',3);
+INSERT INTO `classificazione` VALUES (1436,1429,'777','Latin humor & satire',3);
+INSERT INTO `classificazione` VALUES (1437,1429,'778','Latin miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1438,1429,'779','Literatures of other Italic languages',3);
+INSERT INTO `classificazione` VALUES (1439,1367,'780','History of South America',2);
+INSERT INTO `classificazione` VALUES (1440,1439,'781','Classical Greek poetry',3);
+INSERT INTO `classificazione` VALUES (1441,1439,'782','Classical Greek drama',3);
+INSERT INTO `classificazione` VALUES (1442,1439,'783','Chile',3);
+INSERT INTO `classificazione` VALUES (1443,1439,'784','Classical Greek lyric poetry',3);
+INSERT INTO `classificazione` VALUES (1444,1439,'785','Classical Greek speeches',3);
+INSERT INTO `classificazione` VALUES (1445,1439,'786','Classical Greek letters',3);
+INSERT INTO `classificazione` VALUES (1446,1439,'787','Classical Greek humor & satire',3);
+INSERT INTO `classificazione` VALUES (1447,1439,'788','Classical Greek miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1448,1439,'789','Modern Greek literature',3);
+INSERT INTO `classificazione` VALUES (1449,1367,'790','History of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds',2);
+INSERT INTO `classificazione` VALUES (1450,1449,'791','East Indo-European & Celtic literatures',3);
+INSERT INTO `classificazione` VALUES (1451,1449,'792','Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1452,1449,'793','Non-Semitic Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1453,1449,'794','Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (1454,1449,'795','New Guinea & neighboring countries of Melanesia',3);
+INSERT INTO `classificazione` VALUES (1455,1449,'796','African literatures',3);
+INSERT INTO `classificazione` VALUES (1456,1449,'797','Literatures of North American native languages',3);
+INSERT INTO `classificazione` VALUES (1457,1449,'798','Literatures of South American native languages',3);
+INSERT INTO `classificazione` VALUES (1458,1449,'799','Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (1459,NULL,'600','Literature (Belles-lettres) & rhetoric',1);
+INSERT INTO `classificazione` VALUES (1460,1459,'601','Philosophy & theory',3);
+INSERT INTO `classificazione` VALUES (1461,1459,'602','Miscellany of fine & decorative arts',3);
+INSERT INTO `classificazione` VALUES (1462,1459,'603','Dictionaries, encyclopedias, concordances of fine & decorative arts',3);
+INSERT INTO `classificazione` VALUES (1463,1459,'604','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1464,1459,'605','Serial publications of fine & decorative arts',3);
+INSERT INTO `classificazione` VALUES (1465,1459,'606','Organizations & management of fine & decorative arts',3);
+INSERT INTO `classificazione` VALUES (1466,1459,'607','Education, research, related topics of fine & decorative arts',3);
+INSERT INTO `classificazione` VALUES (1467,1459,'608','Rhetoric & collections of literary texts from more than two literatures',3);
+INSERT INTO `classificazione` VALUES (1468,1459,'609','History, description, critical appraisal of more than two literatures',3);
+INSERT INTO `classificazione` VALUES (1469,1459,'610','American literature in English',2);
+INSERT INTO `classificazione` VALUES (1470,1469,'611','American poetry in English',3);
+INSERT INTO `classificazione` VALUES (1471,1469,'612','American drama in English',3);
+INSERT INTO `classificazione` VALUES (1472,1471,'612.6','Riproduzione',4);
+INSERT INTO `classificazione` VALUES (1473,1469,'613','Landscape architecture of trafficways',3);
+INSERT INTO `classificazione` VALUES (1474,1473,'613.2','Dietetica',4);
+INSERT INTO `classificazione` VALUES (1475,1473,'613.7','Fitness',4);
+INSERT INTO `classificazione` VALUES (1476,1469,'614','Water features in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1477,1469,'615','Woody plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1478,1469,'616','Herbaceous plants in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1479,1478,'616.1','Cuore',4);
+INSERT INTO `classificazione` VALUES (1480,1478,'616.8','Malattie nervose',4);
+INSERT INTO `classificazione` VALUES (1481,1478,'616.9','Malattie infettive',4);
+INSERT INTO `classificazione` VALUES (1482,1469,'617','Structures in landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1483,1469,'618','Landscape design of cemeteries',3);
+INSERT INTO `classificazione` VALUES (1484,1483,'618.92','Pediatria',5);
+INSERT INTO `classificazione` VALUES (1485,1469,'619','Natural landscapes',3);
+INSERT INTO `classificazione` VALUES (1486,1459,'620','English & Old English (Anglo-Saxon) literatures',2);
+INSERT INTO `classificazione` VALUES (1487,1486,'621','Architectural materials & structural elements',3);
+INSERT INTO `classificazione` VALUES (1488,1487,'621.3','Elettrotecnica',4);
+INSERT INTO `classificazione` VALUES (1489,1488,'621.38','Elettronica',5);
+INSERT INTO `classificazione` VALUES (1490,1487,'621.4','Motori',4);
+INSERT INTO `classificazione` VALUES (1491,1486,'622','English drama',3);
+INSERT INTO `classificazione` VALUES (1492,1486,'623','English fiction',3);
+INSERT INTO `classificazione` VALUES (1493,1486,'624','English essays',3);
+INSERT INTO `classificazione` VALUES (1494,1486,'625','English speeches',3);
+INSERT INTO `classificazione` VALUES (1495,1486,'626','English letters',3);
+INSERT INTO `classificazione` VALUES (1496,1486,'627','Buildings for educational & research purposes',3);
+INSERT INTO `classificazione` VALUES (1497,1486,'628','English miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1498,1486,'629','Design & decoration of structures & accessories',3);
+INSERT INTO `classificazione` VALUES (1499,1498,'629.1','Aerospaziale',4);
+INSERT INTO `classificazione` VALUES (1500,1499,'629.13','Aeronautica',5);
+INSERT INTO `classificazione` VALUES (1501,1498,'629.2','Veicoli a motore',4);
+INSERT INTO `classificazione` VALUES (1502,1498,'629.4','Astronautica',4);
+INSERT INTO `classificazione` VALUES (1503,1498,'629.8','Automazione',4);
+INSERT INTO `classificazione` VALUES (1504,1459,'630','German literature & literatures of related languages',2);
+INSERT INTO `classificazione` VALUES (1505,1504,'631','Processes, forms, subjects of sculpture',3);
+INSERT INTO `classificazione` VALUES (1506,1504,'632','Sculpture from earliest times to ca. 500, sculpture of nonliterate peoples',3);
+INSERT INTO `classificazione` VALUES (1507,1504,'633','Greek, Etruscan, Roman sculpture',3);
+INSERT INTO `classificazione` VALUES (1508,1504,'634','Sculpture from ca. 500 to 1399',3);
+INSERT INTO `classificazione` VALUES (1509,1504,'635','Sculpture from 1400',3);
+INSERT INTO `classificazione` VALUES (1510,1504,'636','German letters',3);
+INSERT INTO `classificazione` VALUES (1511,1510,'636.1','Cavalli',4);
+INSERT INTO `classificazione` VALUES (1512,1510,'636.2','Bovini',4);
+INSERT INTO `classificazione` VALUES (1513,1510,'636.3','Ovini',4);
+INSERT INTO `classificazione` VALUES (1514,1510,'636.5','Pollame',4);
+INSERT INTO `classificazione` VALUES (1515,1510,'636.7','Cani',4);
+INSERT INTO `classificazione` VALUES (1516,1510,'636.8','Gatti',4);
+INSERT INTO `classificazione` VALUES (1517,1504,'637','German humor & satire',3);
+INSERT INTO `classificazione` VALUES (1518,1504,'638','German miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1519,1504,'639','Other Germanic literatures',3);
+INSERT INTO `classificazione` VALUES (1520,1459,'640','French literature & literatures of related Romance languages',2);
+INSERT INTO `classificazione` VALUES (1521,1520,'641','French poetry',3);
+INSERT INTO `classificazione` VALUES (1522,1521,'641.5','Cucina',4);
+INSERT INTO `classificazione` VALUES (1523,1522,'641.59','Cucina internazionale',5);
+INSERT INTO `classificazione` VALUES (1524,1523,'641.5945','Cucina italiana',7);
+INSERT INTO `classificazione` VALUES (1525,1521,'641.8','Piatti specifici',4);
+INSERT INTO `classificazione` VALUES (1526,1520,'642','Perspective in drawing',3);
+INSERT INTO `classificazione` VALUES (1527,1520,'643','Drawing & drawings by subject',3);
+INSERT INTO `classificazione` VALUES (1528,1520,'644','Communication design & visual design (proposed)',3);
+INSERT INTO `classificazione` VALUES (1529,1520,'645','French speeches',3);
+INSERT INTO `classificazione` VALUES (1530,1520,'646','French letters',3);
+INSERT INTO `classificazione` VALUES (1531,1520,'647','French humor & satire',3);
+INSERT INTO `classificazione` VALUES (1532,1520,'648','Glass',3);
+INSERT INTO `classificazione` VALUES (1533,1520,'649','Furniture & accessories',3);
+INSERT INTO `classificazione` VALUES (1534,1459,'650','Literatures of Italian, Dalmatian, Romanian, Rhaetian, Sardinian, Corsican languages',2);
+INSERT INTO `classificazione` VALUES (1535,1534,'651','Italian poetry',3);
+INSERT INTO `classificazione` VALUES (1536,1534,'652','Color',3);
+INSERT INTO `classificazione` VALUES (1537,1534,'653','Italian fiction',3);
+INSERT INTO `classificazione` VALUES (1538,1534,'654','Genre paintings',3);
+INSERT INTO `classificazione` VALUES (1539,1534,'655','Religion',3);
+INSERT INTO `classificazione` VALUES (1540,1534,'656','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1541,1534,'657','Human figures',3);
+INSERT INTO `classificazione` VALUES (1542,1534,'658','Nature, architectural subjects & cityscapes, other specific subjects',3);
+INSERT INTO `classificazione` VALUES (1543,1542,'658.1','Organizzazione',4);
+INSERT INTO `classificazione` VALUES (1544,1542,'658.3','Risorse umane',4);
+INSERT INTO `classificazione` VALUES (1545,1542,'658.4','Dirigenza',4);
+INSERT INTO `classificazione` VALUES (1546,1542,'658.8','Marketing',4);
+INSERT INTO `classificazione` VALUES (1547,1534,'659','Literatures of Romanian, Rhaetian, Sardinian, Corsican languages',3);
+INSERT INTO `classificazione` VALUES (1548,1459,'660','Literatures of Spanish, Portuguese, Galician languages',2);
+INSERT INTO `classificazione` VALUES (1549,1548,'661','Relief processes (Block printing)',3);
+INSERT INTO `classificazione` VALUES (1550,1548,'662','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1551,1548,'663','Lithographic processes (Planographic processes)',3);
+INSERT INTO `classificazione` VALUES (1552,1551,'663.2','Vino',4);
+INSERT INTO `classificazione` VALUES (1553,1548,'664','Chromolithography & serigraphy',3);
+INSERT INTO `classificazione` VALUES (1554,1548,'665','Metal engraving',3);
+INSERT INTO `classificazione` VALUES (1555,1548,'666','Mezzotinting, aquatinting & related processes',3);
+INSERT INTO `classificazione` VALUES (1556,1548,'667','Etching & drypoint',3);
+INSERT INTO `classificazione` VALUES (1557,1548,'668','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1558,1548,'669','Prints',3);
+INSERT INTO `classificazione` VALUES (1559,1459,'670','Latin literature & literatures of related Italic languages',2);
+INSERT INTO `classificazione` VALUES (1560,1559,'671','Latin poetry',3);
+INSERT INTO `classificazione` VALUES (1561,1559,'672','Metallic salt processes',3);
+INSERT INTO `classificazione` VALUES (1562,1559,'673','Pigment processes of printing',3);
+INSERT INTO `classificazione` VALUES (1563,1559,'674','No longer in use—formerly Holography',3);
+INSERT INTO `classificazione` VALUES (1564,1559,'675','No longer in use—formerly Digital photography',3);
+INSERT INTO `classificazione` VALUES (1565,1559,'676','Computer art (Digital art)',3);
+INSERT INTO `classificazione` VALUES (1566,1559,'677','Cinematography & videography',3);
+INSERT INTO `classificazione` VALUES (1567,1559,'678','Latin miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1568,1559,'679','Literatures of other Italic languages',3);
+INSERT INTO `classificazione` VALUES (1569,1459,'680','Classical Greek literature & literatures of related Hellenic languages',2);
+INSERT INTO `classificazione` VALUES (1570,1569,'681','Classical Greek poetry',3);
+INSERT INTO `classificazione` VALUES (1571,1569,'682','Classical Greek drama',3);
+INSERT INTO `classificazione` VALUES (1572,1569,'683','Classical Greek epic poetry & fiction',3);
+INSERT INTO `classificazione` VALUES (1573,1569,'684','Classical Greek lyric poetry',3);
+INSERT INTO `classificazione` VALUES (1574,1569,'685','Classical Greek speeches',3);
+INSERT INTO `classificazione` VALUES (1575,1569,'686','Classical Greek letters',3);
+INSERT INTO `classificazione` VALUES (1576,1569,'687','Classical Greek humor & satire',3);
+INSERT INTO `classificazione` VALUES (1577,1569,'688','Classical Greek miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1578,1569,'689','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1579,1459,'690','Literatures of other specific languages & language families',2);
+INSERT INTO `classificazione` VALUES (1580,1579,'691','East Indo-European & Celtic literatures',3);
+INSERT INTO `classificazione` VALUES (1581,1579,'692','Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1582,1579,'693','Non-Semitic Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1583,1579,'694','Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (1584,1579,'695','Games of chance',3);
+INSERT INTO `classificazione` VALUES (1585,1579,'696','African literatures',3);
+INSERT INTO `classificazione` VALUES (1586,1579,'697','Literatures of North American native languages',3);
+INSERT INTO `classificazione` VALUES (1587,1579,'698','Literatures of South American native languages',3);
+INSERT INTO `classificazione` VALUES (1588,1579,'699','Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (1589,NULL,'7','Missions & religious education',1);
+INSERT INTO `classificazione` VALUES (1590,1589,'800','Philosophy & psychology',2);
+INSERT INTO `classificazione` VALUES (1591,1589,'810','Political science',2);
+INSERT INTO `classificazione` VALUES (1592,1591,'811','Historical geography',3);
+INSERT INTO `classificazione` VALUES (1593,1591,'812','Law',3);
+INSERT INTO `classificazione` VALUES (1594,1591,'813','Geography of & travel in ancient world',3);
+INSERT INTO `classificazione` VALUES (1595,1591,'814','Mammalia (Mammals)',3);
+INSERT INTO `classificazione` VALUES (1596,1591,'815','Asia (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1597,1591,'816','Africa (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1598,1591,'817','Nord America (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1599,1591,'818','Sud America (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1600,1591,'819','Geography of & travel in Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, & on extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (1601,1589,'820','Biografia',2);
+INSERT INTO `classificazione` VALUES (1602,1601,'821','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1603,1601,'822','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1604,1601,'823','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1605,1601,'824','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1606,1601,'825','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1607,1601,'826','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1608,1601,'827','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1609,1601,'828','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1610,1601,'829','Genealogia',3);
+INSERT INTO `classificazione` VALUES (1611,1589,'830','Storia antica',2);
+INSERT INTO `classificazione` VALUES (1612,1611,'831','Cina antica',3);
+INSERT INTO `classificazione` VALUES (1613,1611,'832','Egitto antico',3);
+INSERT INTO `classificazione` VALUES (1614,1611,'833','Palestina antica',3);
+INSERT INTO `classificazione` VALUES (1615,1611,'834','South Asia to 647',3);
+INSERT INTO `classificazione` VALUES (1616,1611,'835','Mesopotamia',3);
+INSERT INTO `classificazione` VALUES (1617,1611,'836','Europe north & west of Italian Peninsula to ca. 499',3);
+INSERT INTO `classificazione` VALUES (1618,1611,'837','Roma antica',3);
+INSERT INTO `classificazione` VALUES (1619,1611,'838','Grecia antica',3);
+INSERT INTO `classificazione` VALUES (1620,1611,'839','Other parts of ancient world',3);
+INSERT INTO `classificazione` VALUES (1621,1589,'840','Storia d\'Europa',2);
+INSERT INTO `classificazione` VALUES (1622,1621,'841','Isole Britanniche',3);
+INSERT INTO `classificazione` VALUES (1623,1621,'842','Inghilterra',3);
+INSERT INTO `classificazione` VALUES (1624,1621,'843','Germania',3);
+INSERT INTO `classificazione` VALUES (1625,1621,'844','Francia',3);
+INSERT INTO `classificazione` VALUES (1626,1621,'845','Italia',3);
+INSERT INTO `classificazione` VALUES (1627,1621,'846','Spagna',3);
+INSERT INTO `classificazione` VALUES (1628,1621,'847','Russia',3);
+INSERT INTO `classificazione` VALUES (1629,1621,'848','Scandinavia',3);
+INSERT INTO `classificazione` VALUES (1630,1621,'849','Other parts of Europe',3);
+INSERT INTO `classificazione` VALUES (1631,1589,'850','Storia dell\'Asia',2);
+INSERT INTO `classificazione` VALUES (1632,1631,'851','Cina',3);
+INSERT INTO `classificazione` VALUES (1633,1631,'852','Giappone',3);
+INSERT INTO `classificazione` VALUES (1634,1631,'853','Arabia',3);
+INSERT INTO `classificazione` VALUES (1635,1631,'854','India',3);
+INSERT INTO `classificazione` VALUES (1636,1631,'855','Iran',3);
+INSERT INTO `classificazione` VALUES (1637,1631,'856','Medio Oriente',3);
+INSERT INTO `classificazione` VALUES (1638,1631,'857','Siberia (Asiatic Russia)',3);
+INSERT INTO `classificazione` VALUES (1639,1631,'858','Central Asia',3);
+INSERT INTO `classificazione` VALUES (1640,1631,'859','Southeast Asia',3);
+INSERT INTO `classificazione` VALUES (1641,1589,'860','Storia dell\'Africa',2);
+INSERT INTO `classificazione` VALUES (1642,1641,'861','Tunisia & Libya',3);
+INSERT INTO `classificazione` VALUES (1643,1641,'862','Egitto',3);
+INSERT INTO `classificazione` VALUES (1644,1641,'863','Ethiopia & Eritrea',3);
+INSERT INTO `classificazione` VALUES (1645,1641,'864','Morocco, Ceuta, Melilla, Western Sahara, Canary Islands',3);
+INSERT INTO `classificazione` VALUES (1646,1641,'865','Algeria',3);
+INSERT INTO `classificazione` VALUES (1647,1641,'866','West Africa & offshore islands',3);
+INSERT INTO `classificazione` VALUES (1648,1641,'867','Central Africa & offshore islands',3);
+INSERT INTO `classificazione` VALUES (1649,1641,'868','Republic of South Africa & Southern Africa',3);
+INSERT INTO `classificazione` VALUES (1650,1641,'869','South Indian Ocean islands',3);
+INSERT INTO `classificazione` VALUES (1651,1589,'870','Storia del Nord America',2);
+INSERT INTO `classificazione` VALUES (1652,1651,'871','Canada',3);
+INSERT INTO `classificazione` VALUES (1653,1651,'872','Mexico, Central America, West Indies, Bermuda',3);
+INSERT INTO `classificazione` VALUES (1654,1651,'873','Stati Uniti',3);
+INSERT INTO `classificazione` VALUES (1655,1651,'874','Northeastern United States (New England & Middle Atlantic states)',3);
+INSERT INTO `classificazione` VALUES (1656,1651,'875','Southeastern United States (South Atlantic states)',3);
+INSERT INTO `classificazione` VALUES (1657,1651,'876','South central United States',3);
+INSERT INTO `classificazione` VALUES (1658,1651,'877','North central United States',3);
+INSERT INTO `classificazione` VALUES (1659,1651,'878','Western United States',3);
+INSERT INTO `classificazione` VALUES (1660,1651,'879','Great Basin & Pacific Slope region of United States',3);
+INSERT INTO `classificazione` VALUES (1661,1589,'880','Storia del Sud America',2);
+INSERT INTO `classificazione` VALUES (1662,1661,'881','Brazil',3);
+INSERT INTO `classificazione` VALUES (1663,1661,'882','Argentina',3);
+INSERT INTO `classificazione` VALUES (1664,1661,'883','Chile',3);
+INSERT INTO `classificazione` VALUES (1665,1661,'884','Bolivia',3);
+INSERT INTO `classificazione` VALUES (1666,1661,'885','Peru',3);
+INSERT INTO `classificazione` VALUES (1667,1661,'886','Colombia & Ecuador',3);
+INSERT INTO `classificazione` VALUES (1668,1661,'887','Venezuela',3);
+INSERT INTO `classificazione` VALUES (1669,1661,'888','Guiana',3);
+INSERT INTO `classificazione` VALUES (1670,1661,'889','Paraguay & Uruguay',3);
+INSERT INTO `classificazione` VALUES (1671,1589,'890','Altre aree',2);
+INSERT INTO `classificazione` VALUES (1672,1671,'891','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1673,1671,'892','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1674,1671,'893','New Zealand',3);
+INSERT INTO `classificazione` VALUES (1675,1671,'894','Australia',3);
+INSERT INTO `classificazione` VALUES (1676,1671,'895','New Guinea & neighboring countries of Melanesia',3);
+INSERT INTO `classificazione` VALUES (1677,1671,'896','Polynesia & other Pacific Ocean islands',3);
+INSERT INTO `classificazione` VALUES (1678,1671,'897','Atlantic Ocean islands',3);
+INSERT INTO `classificazione` VALUES (1679,1671,'898','Arctic islands & Antarctica',3);
+INSERT INTO `classificazione` VALUES (1680,1671,'899','Extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (1681,NULL,'700','History',1);
+INSERT INTO `classificazione` VALUES (1682,1681,'701','Philosophy & theory of history',3);
+INSERT INTO `classificazione` VALUES (1683,1681,'702','Miscellany',3);
+INSERT INTO `classificazione` VALUES (1684,1681,'703','Dictionaries, encyclopedias, concordances',3);
+INSERT INTO `classificazione` VALUES (1685,1681,'704','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1686,1681,'705','Serial publications',3);
+INSERT INTO `classificazione` VALUES (1687,1681,'706','Organizations & management',3);
+INSERT INTO `classificazione` VALUES (1688,1681,'707','Education, research, related topics',3);
+INSERT INTO `classificazione` VALUES (1689,1681,'708','History with respect to groups of people',3);
+INSERT INTO `classificazione` VALUES (1690,1681,'709','World history',3);
+INSERT INTO `classificazione` VALUES (1691,1690,'709.2','Biografie artisti',4);
+INSERT INTO `classificazione` VALUES (1692,1690,'709.4','Arte europea',4);
+INSERT INTO `classificazione` VALUES (1693,1692,'709.45','Arte italiana',5);
+INSERT INTO `classificazione` VALUES (1694,1681,'710','Geography & travel',2);
+INSERT INTO `classificazione` VALUES (1695,1694,'711','Historical geography',3);
+INSERT INTO `classificazione` VALUES (1696,1694,'712','Graphic representations of surface of Earth & of extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (1697,1694,'713','Geography of & travel in ancient world',3);
+INSERT INTO `classificazione` VALUES (1698,1694,'714','Geography of & travel in Europe',3);
+INSERT INTO `classificazione` VALUES (1699,1694,'715','American speeches in English',3);
+INSERT INTO `classificazione` VALUES (1700,1694,'716','American letters in English',3);
+INSERT INTO `classificazione` VALUES (1701,1694,'717','American humor & satire in English',3);
+INSERT INTO `classificazione` VALUES (1702,1694,'718','American miscellaneous writings in English',3);
+INSERT INTO `classificazione` VALUES (1703,1694,'719','No longer in use—formerly Puzzle activities',3);
+INSERT INTO `classificazione` VALUES (1704,1681,'720','Biography, genealogy, insignia',2);
+INSERT INTO `classificazione` VALUES (1705,1704,'721','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1706,1704,'722','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1707,1704,'723','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1708,1704,'724','English essays',3);
+INSERT INTO `classificazione` VALUES (1709,1704,'725','English speeches',3);
+INSERT INTO `classificazione` VALUES (1710,1704,'726','English letters',3);
+INSERT INTO `classificazione` VALUES (1711,1704,'727','English humor & satire',3);
+INSERT INTO `classificazione` VALUES (1712,1704,'728','English miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1713,1704,'729','Old English (Anglo-Saxon) literature',3);
+INSERT INTO `classificazione` VALUES (1714,1681,'730','History of ancient world to ca. 499',2);
+INSERT INTO `classificazione` VALUES (1715,1714,'731','China to 420',3);
+INSERT INTO `classificazione` VALUES (1716,1714,'732','German drama',3);
+INSERT INTO `classificazione` VALUES (1717,1714,'733','Palestine to 70',3);
+INSERT INTO `classificazione` VALUES (1718,1714,'734','German essays',3);
+INSERT INTO `classificazione` VALUES (1719,1714,'735','German speeches',3);
+INSERT INTO `classificazione` VALUES (1720,1714,'736','German letters',3);
+INSERT INTO `classificazione` VALUES (1721,1714,'737','German humor & satire',3);
+INSERT INTO `classificazione` VALUES (1722,1714,'738','German miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1723,1714,'739','Other Germanic literatures',3);
+INSERT INTO `classificazione` VALUES (1724,1681,'740','History of Europe',2);
+INSERT INTO `classificazione` VALUES (1725,1724,'741','British Isles',3);
+INSERT INTO `classificazione` VALUES (1726,1725,'741.5','Fumetti',4);
+INSERT INTO `classificazione` VALUES (1727,1724,'742','England & Wales',3);
+INSERT INTO `classificazione` VALUES (1728,1724,'743','Germany & neighboring central European countries',3);
+INSERT INTO `classificazione` VALUES (1729,1724,'744','French essays',3);
+INSERT INTO `classificazione` VALUES (1730,1724,'745','French speeches',3);
+INSERT INTO `classificazione` VALUES (1731,1724,'746','French letters',3);
+INSERT INTO `classificazione` VALUES (1732,1724,'747','French humor & satire',3);
+INSERT INTO `classificazione` VALUES (1733,1724,'748','French miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1734,1724,'749','Occitan, Catalan, Franco-Provençal literatures',3);
+INSERT INTO `classificazione` VALUES (1735,1681,'750','History of Asia',2);
+INSERT INTO `classificazione` VALUES (1736,1735,'751','China & adjacent areas',3);
+INSERT INTO `classificazione` VALUES (1737,1735,'752','Japan',3);
+INSERT INTO `classificazione` VALUES (1738,1735,'753','Arabian Peninsula & adjacent areas',3);
+INSERT INTO `classificazione` VALUES (1739,1735,'754','India & neighboring south Asian countries',3);
+INSERT INTO `classificazione` VALUES (1740,1735,'755','Italian speeches',3);
+INSERT INTO `classificazione` VALUES (1741,1735,'756','Italian letters',3);
+INSERT INTO `classificazione` VALUES (1742,1735,'757','Italian humor & satire',3);
+INSERT INTO `classificazione` VALUES (1743,1735,'758','Central Asia',3);
+INSERT INTO `classificazione` VALUES (1744,1735,'759','Literatures of Romanian, Rhaetian, Sardinian, Corsican languages',3);
+INSERT INTO `classificazione` VALUES (1745,1744,'759.5','Pittura italiana',4);
+INSERT INTO `classificazione` VALUES (1746,1681,'760','History of Africa',2);
+INSERT INTO `classificazione` VALUES (1747,1746,'761','Tunisia & Libya',3);
+INSERT INTO `classificazione` VALUES (1748,1746,'762','Spanish drama',3);
+INSERT INTO `classificazione` VALUES (1749,1746,'763','Ethiopia & Eritrea',3);
+INSERT INTO `classificazione` VALUES (1750,1746,'764','Spanish essays',3);
+INSERT INTO `classificazione` VALUES (1751,1746,'765','Spanish speeches',3);
+INSERT INTO `classificazione` VALUES (1752,1746,'766','Spanish letters',3);
+INSERT INTO `classificazione` VALUES (1753,1746,'767','Spanish humor & satire',3);
+INSERT INTO `classificazione` VALUES (1754,1746,'768','Spanish miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1755,1746,'769','Literatures of Portuguese & Galician languages',3);
+INSERT INTO `classificazione` VALUES (1756,1681,'770','History of North America',2);
+INSERT INTO `classificazione` VALUES (1757,1756,'771','Canada',3);
+INSERT INTO `classificazione` VALUES (1758,1756,'772','Latin dramatic poetry & drama',3);
+INSERT INTO `classificazione` VALUES (1759,1756,'773','Latin epic poetry & fiction',3);
+INSERT INTO `classificazione` VALUES (1760,1756,'774','Latin lyric poetry',3);
+INSERT INTO `classificazione` VALUES (1761,1756,'775','Latin speeches',3);
+INSERT INTO `classificazione` VALUES (1762,1756,'776','Latin letters',3);
+INSERT INTO `classificazione` VALUES (1763,1756,'777','Latin humor & satire',3);
+INSERT INTO `classificazione` VALUES (1764,1756,'778','Latin miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1765,1756,'779','Literatures of other Italic languages',3);
+INSERT INTO `classificazione` VALUES (1766,1681,'780','History of South America',2);
+INSERT INTO `classificazione` VALUES (1767,1766,'780.9','Storia della musica',4);
+INSERT INTO `classificazione` VALUES (1768,1766,'781','Classical Greek poetry',3);
+INSERT INTO `classificazione` VALUES (1769,1766,'782','Classical Greek drama',3);
+INSERT INTO `classificazione` VALUES (1770,1769,'782.1','Opera',4);
+INSERT INTO `classificazione` VALUES (1771,1766,'783','Chile',3);
+INSERT INTO `classificazione` VALUES (1772,1766,'784','Classical Greek lyric poetry',3);
+INSERT INTO `classificazione` VALUES (1773,1766,'785','Classical Greek speeches',3);
+INSERT INTO `classificazione` VALUES (1774,1766,'786','Classical Greek letters',3);
+INSERT INTO `classificazione` VALUES (1775,1766,'787','Classical Greek humor & satire',3);
+INSERT INTO `classificazione` VALUES (1776,1766,'788','Classical Greek miscellaneous writings',3);
+INSERT INTO `classificazione` VALUES (1777,1766,'789','Modern Greek literature',3);
+INSERT INTO `classificazione` VALUES (1778,1681,'790','History of Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, extraterrestrial worlds',2);
+INSERT INTO `classificazione` VALUES (1779,1778,'791','East Indo-European & Celtic literatures',3);
+INSERT INTO `classificazione` VALUES (1780,1779,'791.4','Cinema, Radio, TV',4);
+INSERT INTO `classificazione` VALUES (1781,1780,'791.43','Cinema',5);
+INSERT INTO `classificazione` VALUES (1782,1780,'791.45','Televisione',5);
+INSERT INTO `classificazione` VALUES (1783,1778,'792','Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1784,1778,'793','Non-Semitic Afro-Asiatic literatures',3);
+INSERT INTO `classificazione` VALUES (1785,1778,'794','Literatures of Altaic, Uralic, Hyperborean, Dravidian languages; literatures of miscellaneous languages of South Asia',3);
+INSERT INTO `classificazione` VALUES (1786,1778,'795','New Guinea & neighboring countries of Melanesia',3);
+INSERT INTO `classificazione` VALUES (1787,1778,'796','African literatures',3);
+INSERT INTO `classificazione` VALUES (1788,1787,'796.3','Giochi con palla',4);
+INSERT INTO `classificazione` VALUES (1789,1788,'796.33','Calcio',5);
+INSERT INTO `classificazione` VALUES (1790,1788,'796.34','Tennis',5);
+INSERT INTO `classificazione` VALUES (1791,1788,'796.35','Golf',5);
+INSERT INTO `classificazione` VALUES (1792,1787,'796.4','Atletica',4);
+INSERT INTO `classificazione` VALUES (1793,1787,'796.5','Attività all\'aperto',4);
+INSERT INTO `classificazione` VALUES (1794,1793,'796.52','Alpinismo',5);
+INSERT INTO `classificazione` VALUES (1795,1787,'796.7','Automobilismo',4);
+INSERT INTO `classificazione` VALUES (1796,1787,'796.8','Sport da combattimento',4);
+INSERT INTO `classificazione` VALUES (1797,1778,'797','Literatures of North American native languages',3);
+INSERT INTO `classificazione` VALUES (1798,1778,'798','Literatures of South American native languages',3);
+INSERT INTO `classificazione` VALUES (1799,1778,'799','Literatures of non-Austronesian languages of Oceania, of Austronesian languages, of miscellaneous languages',3);
+INSERT INTO `classificazione` VALUES (1800,NULL,'8','Sources',1);
+INSERT INTO `classificazione` VALUES (1801,1800,'900','Philosophy & psychology',2);
+INSERT INTO `classificazione` VALUES (1802,1800,'910','Astronomy',2);
+INSERT INTO `classificazione` VALUES (1803,1802,'911','Physics',3);
+INSERT INTO `classificazione` VALUES (1804,1802,'912','Chemistry',3);
+INSERT INTO `classificazione` VALUES (1805,1802,'913','Earth sciences & geology',3);
+INSERT INTO `classificazione` VALUES (1806,1802,'914','Fossils & prehistoric life',3);
+INSERT INTO `classificazione` VALUES (1807,1802,'915','Life sciences; biology',3);
+INSERT INTO `classificazione` VALUES (1808,1802,'916','Plants (Botany)',3);
+INSERT INTO `classificazione` VALUES (1809,1802,'917','Animals (Zoology)',3);
+INSERT INTO `classificazione` VALUES (1810,1802,'918','Medicine & health',3);
+INSERT INTO `classificazione` VALUES (1811,1802,'919','Engineering',3);
+INSERT INTO `classificazione` VALUES (1812,1800,'920','Agriculture',2);
+INSERT INTO `classificazione` VALUES (1813,1812,'921','Home & family management',3);
+INSERT INTO `classificazione` VALUES (1814,1812,'922','Management & public relations',3);
+INSERT INTO `classificazione` VALUES (1815,1812,'923','Chemical engineering',3);
+INSERT INTO `classificazione` VALUES (1816,1812,'924','Manufacturing',3);
+INSERT INTO `classificazione` VALUES (1817,1812,'925','Manufacture for specific uses',3);
+INSERT INTO `classificazione` VALUES (1818,1812,'926','Building & construction',3);
+INSERT INTO `classificazione` VALUES (1819,1812,'927','Area planning & landscape architecture',3);
+INSERT INTO `classificazione` VALUES (1820,1812,'928','Architecture',3);
+INSERT INTO `classificazione` VALUES (1821,1812,'929','Sculpture, ceramics & metalwork',3);
+INSERT INTO `classificazione` VALUES (1822,1800,'930','Drawing & decorative arts',2);
+INSERT INTO `classificazione` VALUES (1823,1822,'931','Painting',3);
+INSERT INTO `classificazione` VALUES (1824,1822,'932','Graphic arts',3);
+INSERT INTO `classificazione` VALUES (1825,1822,'933','Photography & computer art',3);
+INSERT INTO `classificazione` VALUES (1826,1822,'934','Music',3);
+INSERT INTO `classificazione` VALUES (1827,1822,'935','Sports, games & entertainment',3);
+INSERT INTO `classificazione` VALUES (1828,1822,'936','American literature',3);
+INSERT INTO `classificazione` VALUES (1829,1822,'937','English & Old English literatures',3);
+INSERT INTO `classificazione` VALUES (1830,1822,'938','German & related literatures',3);
+INSERT INTO `classificazione` VALUES (1831,1822,'939','French & related literatures',3);
+INSERT INTO `classificazione` VALUES (1832,1800,'940','Italian, Romanian & related literatures',2);
+INSERT INTO `classificazione` VALUES (1833,1832,'941','Spanish & Portuguese literatures',3);
+INSERT INTO `classificazione` VALUES (1834,1832,'942','Latin & Italic literatures',3);
+INSERT INTO `classificazione` VALUES (1835,1832,'943','Classical & modern Greek literatures',3);
+INSERT INTO `classificazione` VALUES (1836,1832,'944','Other literatures',3);
+INSERT INTO `classificazione` VALUES (1837,1832,'945','Geography & travel',3);
+INSERT INTO `classificazione` VALUES (1838,1832,'946','Biography & genealogy',3);
+INSERT INTO `classificazione` VALUES (1839,1832,'947','History of ancient world (to ca. 499)',3);
+INSERT INTO `classificazione` VALUES (1840,1832,'948','History of Europe',3);
+INSERT INTO `classificazione` VALUES (1841,1832,'949','History of Asia',3);
+INSERT INTO `classificazione` VALUES (1842,1800,'950','History of Africa',2);
+INSERT INTO `classificazione` VALUES (1843,1842,'951','History of North America',3);
+INSERT INTO `classificazione` VALUES (1844,1842,'952','History of South America',3);
+INSERT INTO `classificazione` VALUES (1845,1842,'953','History of other areas',3);
+INSERT INTO `classificazione` VALUES (1846,1842,'954','Dialectology & historical linguistics',3);
+INSERT INTO `classificazione` VALUES (1847,1842,'955','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (1848,1842,'956','Mammalia (Mammals)',3);
+INSERT INTO `classificazione` VALUES (1849,1842,'957','History della Siberia',3);
+INSERT INTO `classificazione` VALUES (1850,1842,'958','History dell\'Asia centrale',3);
+INSERT INTO `classificazione` VALUES (1851,1842,'959','History del Sudest asiatico',3);
+INSERT INTO `classificazione` VALUES (1852,1800,'960','History dell\'Africa',2);
+INSERT INTO `classificazione` VALUES (1853,1852,'961','History della Tunisia e Libia',3);
+INSERT INTO `classificazione` VALUES (1854,1852,'962','History dell\'Egitto e Sudan',3);
+INSERT INTO `classificazione` VALUES (1855,1852,'963','History dell\'Etiopia ed Eritrea',3);
+INSERT INTO `classificazione` VALUES (1856,1852,'964','History della costa nordafricana',3);
+INSERT INTO `classificazione` VALUES (1857,1852,'965','History dell\'Algeria',3);
+INSERT INTO `classificazione` VALUES (1858,1852,'966','History dell\'Africa occidentale',3);
+INSERT INTO `classificazione` VALUES (1859,1852,'967','History dell\'Africa centrale',3);
+INSERT INTO `classificazione` VALUES (1860,1852,'968','History dell\'Africa meridionale',3);
+INSERT INTO `classificazione` VALUES (1861,1852,'969','History delle isole africane',3);
+INSERT INTO `classificazione` VALUES (1862,1800,'970','History del Nord America',2);
+INSERT INTO `classificazione` VALUES (1863,1862,'971','History del Canada',3);
+INSERT INTO `classificazione` VALUES (1864,1862,'972','History del Messico e America centrale',3);
+INSERT INTO `classificazione` VALUES (1865,1862,'973','History degli Stati Uniti',3);
+INSERT INTO `classificazione` VALUES (1866,1862,'974','History degli Stati Uniti nordorientali',3);
+INSERT INTO `classificazione` VALUES (1867,1862,'975','History degli Stati Uniti sudorientali',3);
+INSERT INTO `classificazione` VALUES (1868,1862,'976','History degli Stati Uniti centro-meridionali',3);
+INSERT INTO `classificazione` VALUES (1869,1862,'977','History degli Stati Uniti centro-settentrionali',3);
+INSERT INTO `classificazione` VALUES (1870,1862,'978','History degli Stati Uniti occidentali',3);
+INSERT INTO `classificazione` VALUES (1871,1862,'979','History degli Stati Uniti del Pacifico',3);
+INSERT INTO `classificazione` VALUES (1872,1800,'980','History del Sud America',2);
+INSERT INTO `classificazione` VALUES (1873,1872,'981','History del Brasile',3);
+INSERT INTO `classificazione` VALUES (1874,1872,'982','History dell\'Argentina',3);
+INSERT INTO `classificazione` VALUES (1875,1872,'983','History del Cile',3);
+INSERT INTO `classificazione` VALUES (1876,1872,'984','History della Bolivia',3);
+INSERT INTO `classificazione` VALUES (1877,1872,'985','History del Perù',3);
+INSERT INTO `classificazione` VALUES (1878,1872,'986','History della Colombia ed Ecuador',3);
+INSERT INTO `classificazione` VALUES (1879,1872,'987','History del Venezuela',3);
+INSERT INTO `classificazione` VALUES (1880,1872,'988','History della Guyana',3);
+INSERT INTO `classificazione` VALUES (1881,1872,'989','History del Paraguay e Uruguay',3);
+INSERT INTO `classificazione` VALUES (1882,1800,'990','History di altre aree',2);
+INSERT INTO `classificazione` VALUES (1883,1882,'991','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (1884,1882,'992','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (1885,1882,'993','History della Nuova Zelanda',3);
+INSERT INTO `classificazione` VALUES (1886,1882,'994','History dell\'Australia',3);
+INSERT INTO `classificazione` VALUES (1887,1882,'995','History della Melanesia',3);
+INSERT INTO `classificazione` VALUES (1888,1882,'996','History di altre parti del Pacifico',3);
+INSERT INTO `classificazione` VALUES (1889,1882,'997','History delle isole atlantiche',3);
+INSERT INTO `classificazione` VALUES (1890,1882,'998','History delle regioni artiche',3);
+INSERT INTO `classificazione` VALUES (1891,1882,'999','History di mondi extraterrestri',3);
+INSERT INTO `classificazione` VALUES (1892,NULL,'800','Philosophy & psychology',1);
+INSERT INTO `classificazione` VALUES (1893,1892,'801','Philosophy & theory of history',3);
+INSERT INTO `classificazione` VALUES (1894,1892,'802','Miscellany of history',3);
+INSERT INTO `classificazione` VALUES (1895,1892,'803','Dictionaries, encyclopedias, concordances of history',3);
+INSERT INTO `classificazione` VALUES (1896,1892,'804','Science',3);
+INSERT INTO `classificazione` VALUES (1897,1892,'805','Serial publications of history',3);
+INSERT INTO `classificazione` VALUES (1898,1892,'806','Organizations & management of history',3);
+INSERT INTO `classificazione` VALUES (1899,1892,'807','Education, research, related topics of history',3);
+INSERT INTO `classificazione` VALUES (1900,1892,'808','History with respect to groups of people',3);
+INSERT INTO `classificazione` VALUES (1901,1900,'808.3','Scrittura narrativa',4);
+INSERT INTO `classificazione` VALUES (1902,1900,'808.8','Raccolte',4);
+INSERT INTO `classificazione` VALUES (1903,1892,'809','Psychology',3);
+INSERT INTO `classificazione` VALUES (1904,1892,'810','Political science',2);
+INSERT INTO `classificazione` VALUES (1905,1904,'811','Historical geography',3);
+INSERT INTO `classificazione` VALUES (1906,1904,'812','Law',3);
+INSERT INTO `classificazione` VALUES (1907,1904,'813','Geography of & travel in ancient world',3);
+INSERT INTO `classificazione` VALUES (1908,1904,'814','Mammalia (Mammals)',3);
+INSERT INTO `classificazione` VALUES (1909,1904,'815','Asia (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1910,1904,'816','Africa (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1911,1904,'817','Nord America (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1912,1904,'818','Sud America (Geografia)',3);
+INSERT INTO `classificazione` VALUES (1913,1904,'819','Geography of & travel in Australasia, Pacific Ocean islands, Atlantic Ocean islands, Arctic islands, Antarctica, & on extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (1914,1892,'820','Biografia',2);
+INSERT INTO `classificazione` VALUES (1915,1914,'821','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1916,1914,'822','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1917,1916,'822.3','Shakespeare',4);
+INSERT INTO `classificazione` VALUES (1918,1914,'823','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1919,1914,'824','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1920,1914,'825','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1921,1914,'826','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1922,1914,'827','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1923,1914,'828','This range is reserved as an optional location for biographies, which are shelved alphabetically by the subject\'s last name.',3);
+INSERT INTO `classificazione` VALUES (1924,1914,'829','Genealogia',3);
+INSERT INTO `classificazione` VALUES (1925,1892,'830','Storia antica',2);
+INSERT INTO `classificazione` VALUES (1926,1925,'831','Cina antica',3);
+INSERT INTO `classificazione` VALUES (1927,1925,'832','Egitto antico',3);
+INSERT INTO `classificazione` VALUES (1928,1925,'833','Palestina antica',3);
+INSERT INTO `classificazione` VALUES (1929,1925,'834','South Asia to 647',3);
+INSERT INTO `classificazione` VALUES (1930,1925,'835','Mesopotamia',3);
+INSERT INTO `classificazione` VALUES (1931,1925,'836','Europe north & west of Italian Peninsula to ca. 499',3);
+INSERT INTO `classificazione` VALUES (1932,1925,'837','Roma antica',3);
+INSERT INTO `classificazione` VALUES (1933,1925,'838','Grecia antica',3);
+INSERT INTO `classificazione` VALUES (1934,1925,'839','Other parts of ancient world',3);
+INSERT INTO `classificazione` VALUES (1935,1892,'840','Storia d\'Europa',2);
+INSERT INTO `classificazione` VALUES (1936,1935,'841','Isole Britanniche',3);
+INSERT INTO `classificazione` VALUES (1937,1935,'842','Inghilterra',3);
+INSERT INTO `classificazione` VALUES (1938,1935,'843','Germania',3);
+INSERT INTO `classificazione` VALUES (1939,1935,'844','Francia',3);
+INSERT INTO `classificazione` VALUES (1940,1935,'845','Italia',3);
+INSERT INTO `classificazione` VALUES (1941,1935,'846','Spagna',3);
+INSERT INTO `classificazione` VALUES (1942,1935,'847','Russia',3);
+INSERT INTO `classificazione` VALUES (1943,1935,'848','Scandinavia',3);
+INSERT INTO `classificazione` VALUES (1944,1935,'849','Other parts of Europe',3);
+INSERT INTO `classificazione` VALUES (1945,1892,'850','Storia dell\'Asia',2);
+INSERT INTO `classificazione` VALUES (1946,1945,'851','Cina',3);
+INSERT INTO `classificazione` VALUES (1947,1946,'851.1','Dante Alighieri',4);
+INSERT INTO `classificazione` VALUES (1948,1945,'852','Giappone',3);
+INSERT INTO `classificazione` VALUES (1949,1945,'853','Arabia',3);
+INSERT INTO `classificazione` VALUES (1950,1945,'854','India',3);
+INSERT INTO `classificazione` VALUES (1951,1945,'855','Iran',3);
+INSERT INTO `classificazione` VALUES (1952,1945,'856','Medio Oriente',3);
+INSERT INTO `classificazione` VALUES (1953,1945,'857','Siberia (Asiatic Russia)',3);
+INSERT INTO `classificazione` VALUES (1954,1945,'858','Central Asia',3);
+INSERT INTO `classificazione` VALUES (1955,1945,'859','Southeast Asia',3);
+INSERT INTO `classificazione` VALUES (1956,1892,'860','Storia dell\'Africa',2);
+INSERT INTO `classificazione` VALUES (1957,1956,'861','Tunisia & Libya',3);
+INSERT INTO `classificazione` VALUES (1958,1956,'862','Egitto',3);
+INSERT INTO `classificazione` VALUES (1959,1956,'863','Ethiopia & Eritrea',3);
+INSERT INTO `classificazione` VALUES (1960,1956,'864','Morocco, Ceuta, Melilla, Western Sahara, Canary Islands',3);
+INSERT INTO `classificazione` VALUES (1961,1956,'865','Algeria',3);
+INSERT INTO `classificazione` VALUES (1962,1956,'866','West Africa & offshore islands',3);
+INSERT INTO `classificazione` VALUES (1963,1956,'867','Central Africa & offshore islands',3);
+INSERT INTO `classificazione` VALUES (1964,1956,'868','Republic of South Africa & Southern Africa',3);
+INSERT INTO `classificazione` VALUES (1965,1956,'869','South Indian Ocean islands',3);
+INSERT INTO `classificazione` VALUES (1966,1892,'870','Storia del Nord America',2);
+INSERT INTO `classificazione` VALUES (1967,1966,'871','Canada',3);
+INSERT INTO `classificazione` VALUES (1968,1966,'872','Mexico, Central America, West Indies, Bermuda',3);
+INSERT INTO `classificazione` VALUES (1969,1966,'873','Stati Uniti',3);
+INSERT INTO `classificazione` VALUES (1970,1966,'874','Northeastern United States (New England & Middle Atlantic states)',3);
+INSERT INTO `classificazione` VALUES (1971,1966,'875','Southeastern United States (South Atlantic states)',3);
+INSERT INTO `classificazione` VALUES (1972,1966,'876','South central United States',3);
+INSERT INTO `classificazione` VALUES (1973,1966,'877','North central United States',3);
+INSERT INTO `classificazione` VALUES (1974,1966,'878','Western United States',3);
+INSERT INTO `classificazione` VALUES (1975,1966,'879','Great Basin & Pacific Slope region of United States',3);
+INSERT INTO `classificazione` VALUES (1976,1892,'880','Storia del Sud America',2);
+INSERT INTO `classificazione` VALUES (1977,1976,'881','Brazil',3);
+INSERT INTO `classificazione` VALUES (1978,1976,'882','Argentina',3);
+INSERT INTO `classificazione` VALUES (1979,1976,'883','Chile',3);
+INSERT INTO `classificazione` VALUES (1980,1976,'884','Bolivia',3);
+INSERT INTO `classificazione` VALUES (1981,1976,'885','Peru',3);
+INSERT INTO `classificazione` VALUES (1982,1976,'886','Colombia & Ecuador',3);
+INSERT INTO `classificazione` VALUES (1983,1976,'887','Venezuela',3);
+INSERT INTO `classificazione` VALUES (1984,1976,'888','Guiana',3);
+INSERT INTO `classificazione` VALUES (1985,1976,'889','Paraguay & Uruguay',3);
+INSERT INTO `classificazione` VALUES (1986,1892,'890','Altre aree',2);
+INSERT INTO `classificazione` VALUES (1987,1986,'891','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1988,1986,'891.7','Letteratura russa',4);
+INSERT INTO `classificazione` VALUES (1989,1986,'892','Unassigned or no longer in use',3);
+INSERT INTO `classificazione` VALUES (1990,1986,'893','New Zealand',3);
+INSERT INTO `classificazione` VALUES (1991,1986,'894','Australia',3);
+INSERT INTO `classificazione` VALUES (1992,1986,'895','New Guinea & neighboring countries of Melanesia',3);
+INSERT INTO `classificazione` VALUES (1993,1986,'896','Polynesia & other Pacific Ocean islands',3);
+INSERT INTO `classificazione` VALUES (1994,1986,'897','Atlantic Ocean islands',3);
+INSERT INTO `classificazione` VALUES (1995,1986,'898','Arctic islands & Antarctica',3);
+INSERT INTO `classificazione` VALUES (1996,1986,'899','Extraterrestrial worlds',3);
+INSERT INTO `classificazione` VALUES (1997,NULL,'900','Philosophy & psychology',1);
+INSERT INTO `classificazione` VALUES (1998,1997,'901','Religion',3);
+INSERT INTO `classificazione` VALUES (1999,1997,'902','Social sciences',3);
+INSERT INTO `classificazione` VALUES (2000,1997,'903','Language',3);
+INSERT INTO `classificazione` VALUES (2001,1997,'904','Natural sciences & mathematics',3);
+INSERT INTO `classificazione` VALUES (2002,1997,'905','Technology',3);
+INSERT INTO `classificazione` VALUES (2003,1997,'906','Arts & recreation',3);
+INSERT INTO `classificazione` VALUES (2004,1997,'907','Literature',3);
+INSERT INTO `classificazione` VALUES (2005,1997,'908','History & geography',3);
+INSERT INTO `classificazione` VALUES (2006,1997,'909','Mathematics',3);
+INSERT INTO `classificazione` VALUES (2007,1997,'910','Astronomy',2);
+INSERT INTO `classificazione` VALUES (2008,2007,'911','Physics',3);
+INSERT INTO `classificazione` VALUES (2009,2007,'912','Chemistry',3);
+INSERT INTO `classificazione` VALUES (2010,2007,'913','Earth sciences & geology',3);
+INSERT INTO `classificazione` VALUES (2011,2007,'914','Fossils & prehistoric life',3);
+INSERT INTO `classificazione` VALUES (2012,2011,'914.5','Italia (Geografia)',4);
+INSERT INTO `classificazione` VALUES (2013,2007,'915','Life sciences; biology',3);
+INSERT INTO `classificazione` VALUES (2014,2007,'916','Plants (Botany)',3);
+INSERT INTO `classificazione` VALUES (2015,2007,'917','Animals (Zoology)',3);
+INSERT INTO `classificazione` VALUES (2016,2007,'918','Medicine & health',3);
+INSERT INTO `classificazione` VALUES (2017,2007,'919','Engineering',3);
+INSERT INTO `classificazione` VALUES (2018,1997,'920','Agriculture',2);
+INSERT INTO `classificazione` VALUES (2019,2018,'921','Home & family management',3);
+INSERT INTO `classificazione` VALUES (2020,2018,'922','Management & public relations',3);
+INSERT INTO `classificazione` VALUES (2021,2018,'923','Chemical engineering',3);
+INSERT INTO `classificazione` VALUES (2022,2018,'924','Manufacturing',3);
+INSERT INTO `classificazione` VALUES (2023,2018,'925','Manufacture for specific uses',3);
+INSERT INTO `classificazione` VALUES (2024,2018,'926','Building & construction',3);
+INSERT INTO `classificazione` VALUES (2025,2018,'927','Area planning & landscape architecture',3);
+INSERT INTO `classificazione` VALUES (2026,2018,'928','Architecture',3);
+INSERT INTO `classificazione` VALUES (2027,2018,'929','Sculpture, ceramics & metalwork',3);
+INSERT INTO `classificazione` VALUES (2028,1997,'930','Drawing & decorative arts',2);
+INSERT INTO `classificazione` VALUES (2029,2028,'931','Painting',3);
+INSERT INTO `classificazione` VALUES (2030,2028,'932','Graphic arts',3);
+INSERT INTO `classificazione` VALUES (2031,2028,'933','Photography & computer art',3);
+INSERT INTO `classificazione` VALUES (2032,2028,'934','Music',3);
+INSERT INTO `classificazione` VALUES (2033,2028,'935','Sports, games & entertainment',3);
+INSERT INTO `classificazione` VALUES (2034,2028,'936','American literature',3);
+INSERT INTO `classificazione` VALUES (2035,2028,'937','English & Old English literatures',3);
+INSERT INTO `classificazione` VALUES (2036,2028,'938','German & related literatures',3);
+INSERT INTO `classificazione` VALUES (2037,2028,'939','French & related literatures',3);
+INSERT INTO `classificazione` VALUES (2038,1997,'940','Italian, Romanian & related literatures',2);
+INSERT INTO `classificazione` VALUES (2039,2038,'940.1','Medioevo',4);
+INSERT INTO `classificazione` VALUES (2040,2038,'940.2','Storia moderna',4);
+INSERT INTO `classificazione` VALUES (2041,2038,'940.3','Prima Guerra Mondiale',4);
+INSERT INTO `classificazione` VALUES (2042,2038,'940.5','Seconda Guerra Mondiale',4);
+INSERT INTO `classificazione` VALUES (2043,2038,'941','Spanish & Portuguese literatures',3);
+INSERT INTO `classificazione` VALUES (2044,2038,'942','Latin & Italic literatures',3);
+INSERT INTO `classificazione` VALUES (2045,2038,'943','Classical & modern Greek literatures',3);
+INSERT INTO `classificazione` VALUES (2046,2038,'944','Other literatures',3);
+INSERT INTO `classificazione` VALUES (2047,2038,'945','Geography & travel',3);
+INSERT INTO `classificazione` VALUES (2048,2047,'945.01','Medioevo italiano',5);
+INSERT INTO `classificazione` VALUES (2049,2047,'945.05','Rinascimento',5);
+INSERT INTO `classificazione` VALUES (2050,2047,'945.08','Risorgimento',5);
+INSERT INTO `classificazione` VALUES (2051,2047,'945.09','Italia contemporanea',5);
+INSERT INTO `classificazione` VALUES (2052,2038,'946','Biography & genealogy',3);
+INSERT INTO `classificazione` VALUES (2053,2038,'947','History of ancient world (to ca. 499)',3);
+INSERT INTO `classificazione` VALUES (2054,2038,'948','History of Europe',3);
+INSERT INTO `classificazione` VALUES (2055,2038,'949','History of Asia',3);
+INSERT INTO `classificazione` VALUES (2056,1997,'950','History of Africa',2);
+INSERT INTO `classificazione` VALUES (2057,2056,'951','History of North America',3);
+INSERT INTO `classificazione` VALUES (2058,2056,'952','History of South America',3);
+INSERT INTO `classificazione` VALUES (2059,2056,'953','History of other areas',3);
+INSERT INTO `classificazione` VALUES (2060,2056,'954','Dialectology & historical linguistics',3);
+INSERT INTO `classificazione` VALUES (2061,2056,'955','[Unassigned]',3);
+INSERT INTO `classificazione` VALUES (2062,2056,'956','Mammalia (Mammals)',3);
+INSERT INTO `classificazione` VALUES (2063,2056,'957','Siberia (Russia asiatica)',3);
+INSERT INTO `classificazione` VALUES (2064,2056,'958','Asia centrale',3);
+INSERT INTO `classificazione` VALUES (2065,2056,'959','Sud-est asiatico',3);
+INSERT INTO `classificazione` VALUES (2066,1997,'960','History dell\'Africa',2);
+INSERT INTO `classificazione` VALUES (2067,2066,'961','Tunisia e Libia',3);
+INSERT INTO `classificazione` VALUES (2068,2066,'962','Egitto e Sudan',3);
+INSERT INTO `classificazione` VALUES (2069,2066,'963','Etiopia e Eritrea',3);
+INSERT INTO `classificazione` VALUES (2070,2066,'964','Costa nord-occidentale e isole',3);
+INSERT INTO `classificazione` VALUES (2071,2066,'965','Algeria',3);
+INSERT INTO `classificazione` VALUES (2072,2066,'966','Africa occidentale e isole',3);
+INSERT INTO `classificazione` VALUES (2073,2066,'967','Africa centrale e isole',3);
+INSERT INTO `classificazione` VALUES (2074,2066,'968','Africa meridionale',3);
+INSERT INTO `classificazione` VALUES (2075,2066,'969','Isole dell\'Oceano Indiano meridionale',3);
+INSERT INTO `classificazione` VALUES (2076,1997,'970','History del Nord America',2);
+INSERT INTO `classificazione` VALUES (2077,2076,'971','Canada',3);
+INSERT INTO `classificazione` VALUES (2078,2076,'972','Messico, America Centrale, Caraibi',3);
+INSERT INTO `classificazione` VALUES (2079,2076,'973','Stati Uniti',3);
+INSERT INTO `classificazione` VALUES (2080,2079,'973.7','Guerra civile americana',4);
+INSERT INTO `classificazione` VALUES (2081,2076,'974','Stati Uniti nord-orientali',3);
+INSERT INTO `classificazione` VALUES (2082,2076,'975','Stati Uniti sud-orientali',3);
+INSERT INTO `classificazione` VALUES (2083,2076,'976','Stati Uniti centro-meridionali',3);
+INSERT INTO `classificazione` VALUES (2084,2076,'977','Stati Uniti centro-settentrionali',3);
+INSERT INTO `classificazione` VALUES (2085,2076,'978','Stati Uniti occidentali',3);
+INSERT INTO `classificazione` VALUES (2086,2076,'979','Stati Uniti del Gran Bacino e del Pacifico',3);
+INSERT INTO `classificazione` VALUES (2087,1997,'980','History del Sud America',2);
+INSERT INTO `classificazione` VALUES (2088,2087,'981','Brasile',3);
+INSERT INTO `classificazione` VALUES (2089,2087,'982','Argentina',3);
+INSERT INTO `classificazione` VALUES (2090,2087,'983','Cile',3);
+INSERT INTO `classificazione` VALUES (2091,2087,'984','Bolivia',3);
+INSERT INTO `classificazione` VALUES (2092,2087,'985','Perù',3);
+INSERT INTO `classificazione` VALUES (2093,2087,'986','Colombia e Ecuador',3);
+INSERT INTO `classificazione` VALUES (2094,2087,'987','Venezuela',3);
+INSERT INTO `classificazione` VALUES (2095,2087,'988','Guiana',3);
+INSERT INTO `classificazione` VALUES (2096,2087,'989','Paraguay e Uruguay',3);
+INSERT INTO `classificazione` VALUES (2097,1997,'990','History di altre aree',2);
+INSERT INTO `classificazione` VALUES (2098,2097,'991','[Unspecified]',3);
+INSERT INTO `classificazione` VALUES (2099,2097,'992','[Unspecified]',3);
+INSERT INTO `classificazione` VALUES (2100,2097,'993','Nuova Zelanda',3);
+INSERT INTO `classificazione` VALUES (2101,2097,'994','Australia',3);
+INSERT INTO `classificazione` VALUES (2102,2097,'995','Melanesia; Nuova Guinea',3);
+INSERT INTO `classificazione` VALUES (2103,2097,'996','Altre parti del Pacifico; Polinesia',3);
+INSERT INTO `classificazione` VALUES (2104,2097,'997','Isole dell\'Oceano Atlantico',3);
+INSERT INTO `classificazione` VALUES (2105,2097,'998','Isole Artiche e Antartide',3);
+INSERT INTO `classificazione` VALUES (2106,2097,'999','Mondi extraterrestri',3);
+
+-- Fine Classificazione Dewey
+
