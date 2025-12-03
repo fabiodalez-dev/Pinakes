@@ -256,6 +256,9 @@ class DeweyEditorPlugin
         // Save
         $filePath = $this->getJsonPath($locale);
         $jsonContent = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        if ($jsonContent === false) {
+            return $this->jsonError($response, __('Errore nella codifica JSON.'), 500);
+        }
         if (file_put_contents($filePath, $jsonContent) === false) {
             return $this->jsonError($response, __('Errore nel salvataggio del file.'), 500);
         }
@@ -358,6 +361,9 @@ class DeweyEditorPlugin
         // Save imported data
         $filePath = $this->getJsonPath($locale);
         $jsonContent = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        if ($jsonContent === false) {
+            return $this->jsonError($response, __('Errore nella codifica JSON.'), 500);
+        }
         if (file_put_contents($filePath, $jsonContent) === false) {
             return $this->jsonError($response, __('Errore nel salvataggio del file.'), 500);
         }
@@ -428,6 +434,9 @@ class DeweyEditorPlugin
 
         // Save merged data
         $jsonContent = json_encode($mergedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        if ($jsonContent === false) {
+            return $this->jsonError($response, __('Errore nella codifica JSON.'), 500);
+        }
         if (file_put_contents($filePath, $jsonContent) === false) {
             return $this->jsonError($response, __('Errore nel salvataggio del file.'), 500);
         }

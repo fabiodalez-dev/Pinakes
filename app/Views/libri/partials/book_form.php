@@ -26,7 +26,7 @@ $initialData = [
     'radice_id' => (int)($book['radice_id'] ?? 0),
     'genere_id' => (int)($book['genere_id'] ?? 0),
     'sottogenere_id' => (int)($book['sottogenere_id'] ?? 0),
-    'classificazione_dowey' => $book['classificazione_dowey'] ?? '',
+    'classificazione_dewey' => $book['classificazione_dewey'] ?? '',
     'editore_id' => (int)($book['editore_id'] ?? 0),
     'editore_nome' => $book['editore_nome'] ?? '',
     'scaffale_id' => (int)($book['scaffale_id'] ?? 0),
@@ -240,7 +240,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           </h2>
         </div>
         <div class="card-body form-section">
-          <input type="hidden" name="classificazione_dowey" id="classificazione_dowey" value="<?php echo HtmlHelper::e($book['classificazione_dowey'] ?? ''); ?>" />
+          <input type="hidden" name="classificazione_dewey" id="classificazione_dewey" value="<?php echo HtmlHelper::e($book['classificazione_dewey'] ?? ''); ?>" />
 
           <!-- Chip Dewey selezionato -->
           <div id="dewey_chip_container" class="mb-4" style="display: none;">
@@ -1021,7 +1021,7 @@ function initializeChoicesJS() {
 async function initializeDewey() {
   const container = document.getElementById('dewey_levels_container');
   const breadcrumb = document.getElementById('dewey_breadcrumb');
-  const hidden = document.getElementById('classificazione_dowey');
+  const hidden = document.getElementById('classificazione_dewey');
   const manualInput = document.getElementById('dewey_manual_input');
   const addBtn = document.getElementById('dewey_add_btn');
   const chipContainer = document.getElementById('dewey_chip_container');
@@ -1280,6 +1280,8 @@ async function initializeDewey() {
   // Naviga ai dropdown fino al codice specificato
   const navigateToCode = async (targetCode) => {
     const path = getCodePath(targetCode);
+    let lastFoundCode = null;
+    let lastFoundName = null;
 
     // Per ogni codice nel percorso, carica il livello e seleziona
     for (let i = 0; i < path.length; i++) {
@@ -1298,6 +1300,8 @@ async function initializeDewey() {
         const option = Array.from(select.options).find(opt => opt.value === code);
         if (option) {
           select.value = code;
+          lastFoundCode = code;
+          lastFoundName = option.dataset.name;
 
           // Se ha figli e non è l'ultimo nel percorso, carica il prossimo livello
           const hasChildren = option.dataset.hasChildren === 'true';
@@ -1309,9 +1313,21 @@ async function initializeDewey() {
             // Ultimo elemento: aggiorna breadcrumb e chip
             breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span class="text-gray-500">${code}</span>`;
             await setDeweyCode(code, option.dataset.name);
+            return; // Successfully navigated to target
           }
+        } else {
+          // Codice non trovato nel dropdown - è un codice personalizzato
+          break;
         }
       }
+    }
+
+    // Se non abbiamo raggiunto il targetCode, mostra comunque il chip
+    // Questo gestisce i codici personalizzati non presenti nel JSON (es. 708.2)
+    if (targetCode !== lastFoundCode) {
+      breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span class="text-gray-500">${lastFoundCode || ''} > ${targetCode}</span>`;
+      // setDeweyCode cercherà il nome tramite API (o mostrerà il nome del parent)
+      await setDeweyCode(targetCode, null);
     }
   };
 
@@ -1319,7 +1335,7 @@ async function initializeDewey() {
   await loadLevel(null, 0);
 
   // Carica valore iniziale se presente e naviga fino ad esso
-  const initialCode = (INITIAL_BOOK.classificazione_dowey || '').trim();
+  const initialCode = (INITIAL_BOOK.classificazione_dewey || '').trim();
   if (initialCode) {
     // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
     const parts = initialCode.split('-');

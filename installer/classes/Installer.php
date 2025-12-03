@@ -9,7 +9,6 @@ class Installer {
         'admin_notifications',
         'api_keys',
         'autori',
-        'classificazione',
         'cms_pages',
         'contact_messages',
         'copie',

@@ -3312,5 +3312,6 @@
   "Formato dati non valido.": "Invalid data format.",
   "Errore nella lettura del file.": "Error reading file.",
   "Errore nella lettura del file Dewey esistente.": "Error reading existing Dewey file.",
-  "File Dewey esistente non è un JSON valido o è corrotto.": "Existing Dewey file is not valid JSON or is corrupted."
+  "File Dewey esistente non è un JSON valido o è corrotto.": "Existing Dewey file is not valid JSON or is corrupted.",
+  "Errore nella codifica JSON.": "JSON encoding error."
 }

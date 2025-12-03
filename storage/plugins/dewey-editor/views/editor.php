@@ -387,14 +387,17 @@ $pageTitle = __('Editor Classificazione Dewey');
 
     function showAddModal(parentNode) {
         const parentCode = parentNode.code;
-        const suggestedCode = parentCode.includes('.') ? parentCode : parentCode + '.';
+        // Get base code (first 3 digits) for suggested value
+        const baseCode = parentCode.includes('.') ? parentCode.split('.')[0] : parentCode;
+        const suggestedCode = baseCode + '.';
+        const exampleCode = baseCode + '.1';
 
         modalContent.innerHTML = `
             <div class="p-6">
                 <h3 class="text-lg font-semibold mb-4"><?= __('Aggiungi decimale sotto') ?> ${escapeHtml(parentCode)}</h3>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1"><?= __('Codice') ?></label>
-                    <input type="text" id="add-code" value="${suggestedCode}" placeholder="es. ${parentCode}.1"
+                    <input type="text" id="add-code" value="${suggestedCode}" placeholder="es. ${exampleCode}"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                     <p class="text-xs text-gray-500 mt-1"><?= __('Formato: 3 cifre + punto + 1-4 cifre decimali') ?></p>
                 </div>
@@ -459,13 +462,11 @@ $pageTitle = __('Editor Classificazione Dewey');
             return;
         }
 
-        // Check code starts with parent
-        if (!code.startsWith(parentCode.replace('.', ''))) {
-            const baseCode = parentCode.includes('.') ? parentCode.split('.')[0] : parentCode;
-            if (!code.startsWith(baseCode)) {
-                Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Il codice deve iniziare con il prefisso del genitore.')) ?>, 'error');
-                return;
-            }
+        // Check code starts with parent base (first 3 digits)
+        const baseCode = parentCode.includes('.') ? parentCode.split('.')[0] : parentCode;
+        if (!code.startsWith(baseCode)) {
+            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Il codice deve iniziare con il prefisso del genitore.')) ?>, 'error');
+            return;
         }
 
         // Check uniqueness

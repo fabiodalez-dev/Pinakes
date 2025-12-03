@@ -254,7 +254,7 @@ class LibriController
             'copie_totali' => 1,
             'copie_disponibili' => 1,
             'numero_inventario' => '',
-            'classificazione_dowey' => '',
+            'classificazione_dewey' => '',
             'collana' => '',
             'numero_serie' => '',
             'note_varie' => '',
@@ -695,7 +695,7 @@ class LibriController
             'copie_totali' => 1,
             'copie_disponibili' => 1,
             'numero_inventario' => '',
-            'classificazione_dowey' => '',
+            'classificazione_dewey' => '',
             'collana' => '',
             'numero_serie' => '',
             'note_varie' => '',
@@ -1813,7 +1813,7 @@ class LibriController
         $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
 
         // Dewey classification
-        $dewey = $libro['classificazione_dowey'] ?? '';
+        $dewey = $libro['classificazione_dewey'] ?? '';
 
         // Calculate total content height
         $totalHeight = 0;
@@ -1955,7 +1955,7 @@ class LibriController
         $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
 
         // Dewey classification
-        $dewey = $libro['classificazione_dowey'] ?? '';
+        $dewey = $libro['classificazione_dewey'] ?? '';
 
         // Calculate total content height
         $totalHeight = 0;

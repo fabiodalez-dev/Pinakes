@@ -314,8 +314,8 @@ class BookRepository
         if ($this->hasColumn('numero_inventario')) {
             $addField('numero_inventario', 's', $data['numero_inventario'] ?? null);
         }
-        if ($this->hasColumn('classificazione_dowey')) {
-            $addField('classificazione_dowey', 's', $data['classificazione_dowey'] ?? null);
+        if ($this->hasColumn('classificazione_dewey')) {
+            $addField('classificazione_dewey', 's', $data['classificazione_dewey'] ?? null);
         }
         if ($this->hasColumn('collana')) {
             $addField('collana', 's', $data['collana'] ?? null);
@@ -526,8 +526,8 @@ class BookRepository
         if ($this->hasColumn('numero_inventario')) {
             $addSet('numero_inventario', 's', $data['numero_inventario'] ?? null);
         }
-        if ($this->hasColumn('classificazione_dowey')) {
-            $addSet('classificazione_dowey', 's', $data['classificazione_dowey'] ?? null);
+        if ($this->hasColumn('classificazione_dewey')) {
+            $addSet('classificazione_dewey', 's', $data['classificazione_dewey'] ?? null);
         }
         if ($this->hasColumn('collana')) {
             $addSet('collana', 's', $data['collana'] ?? null);

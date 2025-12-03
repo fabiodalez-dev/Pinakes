@@ -396,12 +396,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <div class="sm:col-span-2">
               <dt class="text-xs uppercase text-gray-500"><?= __("Classificazione Dewey") ?></dt>
               <dd class="text-gray-900 font-medium">
-                <span class="font-mono"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dowey'] ?? ''); ?></span>
+                <span class="font-mono"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dewey'] ?? ''); ?></span>
                 <span id="dewey_name_display" class="text-sm text-gray-600 italic ml-2"></span>
                 <script>
                 (async function() {
                   const displayEl = document.getElementById('dewey_name_display');
-                  const code = <?php echo json_encode($libro['classificazione_dowey'] ?? ''); ?>;
+                  const code = <?php echo json_encode($libro['classificazione_dewey'] ?? ''); ?>;
                   if (!displayEl || !code) return;
 
                   // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
@@ -422,20 +422,18 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     const response = await fetch(`/api/dewey/search?code=${encodeURIComponent(finalCode)}`, {
                       credentials: 'same-origin'
                     });
-                    if (!response.ok) return;
-                    const result = await response.json();
+                    const result = response.ok ? await response.json() : null;
 
                     if (result && result.name) {
                       displayEl.textContent = `— ${result.name}`;
                     } else {
-                      // Non trovato, cerca parent
+                      // Non trovato o 404, cerca parent
                       const parentCode = getParentCode(finalCode);
                       if (parentCode) {
                         const parentResponse = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
                           credentials: 'same-origin'
                         });
-                        if (!parentResponse.ok) return;
-                        const parentResult = await parentResponse.json();
+                        const parentResult = parentResponse.ok ? await parentResponse.json() : null;
 
                         if (parentResult && parentResult.name) {
                           displayEl.textContent = `— ${parentResult.name} > ${finalCode}`;

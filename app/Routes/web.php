@@ -15,7 +15,6 @@ use App\Controllers\UserActionsController;
 use App\Controllers\UserWishlistController;
 use App\Middleware\AuthMiddleware;
 use App\Controllers\SeoController;
-use App\Controllers\DeweyController;
 use App\Controllers\DeweyApiController;
 use App\Controllers\GeneriApiController;
 use App\Controllers\GeneriController;
@@ -1452,18 +1451,6 @@ return function (App $app): void {
     $app->get('/api/dewey/search', [DeweyApiController::class, 'search'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
     $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
-    $app->get('/api/dewey/counts', function ($request, $response) use ($app) {
-        $controller = new DeweyController();
-        $db = $app->getContainer()->get('db');
-        return $controller->counts($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
-
-    // Admin Dewey page
-    $app->get('/admin/dewey', function ($request, $response) use ($app) {
-        $controller = new DeweyController();
-        $db = $app->getContainer()->get('db');
-        return $controller->adminPage($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
     $app->post('/api/cover/download', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CoverController();
         return $controller->download($request, $response);

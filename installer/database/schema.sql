@@ -62,19 +62,6 @@ CREATE TABLE `autori` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `classificazione` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `parent_id` int DEFAULT NULL,
-  `codice` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `nome` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `livello` int NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `parent_id` (`parent_id`),
-  CONSTRAINT `classificazione_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `classificazione` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=1370 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cms_pages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `slug` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -340,7 +327,7 @@ CREATE TABLE `libri` (
   `copie_disponibili` int DEFAULT '1',
   `editore_id` int DEFAULT NULL,
   `numero_inventario` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `classificazione_dowey` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `classificazione_dewey` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `collana` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `numero_serie` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `note_varie` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -438,7 +425,6 @@ CREATE TABLE `mensole` (
   `scaffale_id` int NOT NULL,
   `numero_livello` int NOT NULL,
   `genere_id` int DEFAULT NULL,
-  `dowey_subcategory_id` int DEFAULT NULL,
   `descrizione` int NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -446,8 +432,6 @@ CREATE TABLE `mensole` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `scaffale_id` (`scaffale_id`,`numero_livello`),
   KEY `genere_id` (`genere_id`),
-  KEY `fk_mensole_dowey` (`dowey_subcategory_id`),
-  CONSTRAINT `fk_mensole_dowey` FOREIGN KEY (`dowey_subcategory_id`) REFERENCES `classificazione` (`id`) ON DELETE SET NULL,
   CONSTRAINT `mensole_ibfk_1` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE CASCADE,
   CONSTRAINT `mensole_ibfk_2` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -672,12 +656,9 @@ CREATE TABLE `scaffali` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `ordine` int DEFAULT '0',
-  `dowey_category_id` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `lettera` (`lettera`),
-  UNIQUE KEY `uniq_codice` (`codice`),
-  KEY `fk_scaffali_dowey` (`dowey_category_id`),
-  CONSTRAINT `fk_scaffali_dowey` FOREIGN KEY (`dowey_category_id`) REFERENCES `classificazione` (`id`)
+  UNIQUE KEY `uniq_codice` (`codice`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
