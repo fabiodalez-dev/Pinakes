@@ -1032,9 +1032,10 @@ async function initializeDewey() {
   let currentDeweyCode = '';
   let currentDeweyName = '';
 
-  // Valida formato codice Dewey (numeri e punti, max 10 caratteri)
+  // Valida formato codice Dewey (3 cifre principali + opzionale parte decimale)
+  // Allineato con DeweyValidator::PATTERN_ANY_CODE lato server
   const validateDeweyCode = (code) => {
-    return /^[0-9]{1,3}(\.[0-9]{1,4})?$/.test(code);
+    return /^[0-9]{3}(\.[0-9]{1,4})?$/.test(code);
   };
 
   // Ottieni il codice parent (es. 599.1 → 599, 599.93 → 599.9)
@@ -1328,7 +1329,13 @@ async function initializeDewey() {
     // Se non abbiamo raggiunto il targetCode, mostra comunque il chip
     // Questo gestisce i codici personalizzati non presenti nel JSON (es. 708.2)
     if (targetCode !== lastFoundCode) {
-      breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span class="text-gray-500">${lastFoundCode || ''} > ${targetCode}</span>`;
+      // Aggiorna breadcrumb in modo sicuro senza inserire HTML non sanificato (XSS prevention)
+      breadcrumb.innerHTML = '<i class="fas fa-home"></i> ';
+      const span = document.createElement('span');
+      span.className = 'text-gray-500';
+      const prefix = lastFoundCode ? `${lastFoundCode} > ` : '';
+      span.textContent = prefix + targetCode;
+      breadcrumb.appendChild(span);
       // setDeweyCode cercherà il nome tramite API (o mostrerà il nome del parent)
       await setDeweyCode(targetCode, null);
     }

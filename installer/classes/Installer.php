@@ -686,12 +686,7 @@ class Installer {
         }
 
         // Check essential data
-        $stmt = $pdo->query("SELECT COUNT(*) as count FROM classificazione");
-        $result = $stmt->fetch();
-        if ($result['count'] == 0) {
-            throw new Exception(__("Dati di classificazione mancanti"));
-        }
-
+        // Note: classificazione table no longer exists - Dewey data is now in JSON files (data/dewey/)
         $stmt = $pdo->query("SELECT COUNT(*) as count FROM generi");
         $result = $stmt->fetch();
         if ($result['count'] == 0) {
