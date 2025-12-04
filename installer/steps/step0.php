@@ -60,7 +60,7 @@ renderHeader(0, 'Selezione Lingua');
                         <?= $currentLanguage === 'it' ? 'checked' : '' ?>
                         class="language-radio"
                     >
-                    <div style="font-size: 32px;">🇮🇹</div>
+                    <div class="flag-emoji" style="font-size: 32px;">🇮🇹</div>
                     <div style="text-align: left; flex: 1;">
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
                             Italiano
@@ -82,7 +82,7 @@ renderHeader(0, 'Selezione Lingua');
                         <?= $currentLanguage === 'en' ? 'checked' : '' ?>
                         class="language-radio"
                     >
-                    <div style="font-size: 32px;">🇬🇧</div>
+                    <div class="flag-emoji" style="font-size: 32px;">🇬🇧</div>
                     <div style="text-align: left; flex: 1;">
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
                             English
