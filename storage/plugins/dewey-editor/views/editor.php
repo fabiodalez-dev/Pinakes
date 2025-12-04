@@ -712,19 +712,25 @@ $pageTitle = __('Editor Classificazione Dewey');
         query = query.toLowerCase().trim();
         const items = treeContainer.querySelectorAll('.dewey-node');
 
+        // Remove existing "no results" message
+        const existingNoResults = treeContainer.querySelector('.dewey-no-results');
+        if (existingNoResults) existingNoResults.remove();
+
         if (!query) {
             items.forEach(item => item.style.display = '');
             return;
         }
 
+        let matchCount = 0;
         items.forEach(item => {
             const code = item.dataset.code.toLowerCase();
             const name = item.querySelector('.dewey-name')?.textContent.toLowerCase() || '';
             const match = code.includes(query) || name.includes(query);
             item.style.display = match ? '' : 'none';
 
-            // Expand parents of matching items
             if (match) {
+                matchCount++;
+                // Expand parents of matching items
                 let parent = item.parentElement;
                 while (parent && parent.classList.contains('dewey-children')) {
                     parent.classList.add('open');
@@ -734,6 +740,14 @@ $pageTitle = __('Editor Classificazione Dewey');
                 }
             }
         });
+
+        // Show "no results" message if nothing found
+        if (matchCount === 0) {
+            const noResults = document.createElement('div');
+            noResults.className = 'dewey-no-results text-center text-gray-500 py-8';
+            noResults.innerHTML = `<i class="fas fa-search text-2xl mb-2"></i><p><?= __('Nessun risultato trovato per la ricerca.') ?></p>`;
+            treeContainer.appendChild(noResults);
+        }
     }
 
     function updateStats() {
