@@ -86,7 +86,7 @@ renderHeader(0, 'Selezione Lingua');
                         <?= $currentLanguage === 'en' ? 'checked' : '' ?>
                         class="language-radio"
                     >
-                    <svg width="60" height="30" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">
+                    <svg width="45" height="30" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">
                         <clipPath id="clip-flag-en"><rect width="60" height="30"/></clipPath>
                         <g clip-path="url(#clip-flag-en)">
                             <path d="M0,0 v30 h60 v-30 z" fill="#00247d"/>

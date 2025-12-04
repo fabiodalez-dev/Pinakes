@@ -60,7 +60,7 @@ class AuthorRepository
 
     public function getBooksByAuthorId(int $authorId): array
     {
-        $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, l.copertina_url,
+        $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.data_acquisizione, l.stato, l.copertina_url,
                        e.nome AS editore_nome,
                        (
                          SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
