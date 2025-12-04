@@ -361,8 +361,9 @@ class SruClient
         $dewey = $getSubfield('082', 'a');
         if ($dewey) {
             // Clean Dewey code: extract just the numeric code (e.g., "823.912" from "823.912 20")
+            // Note: No ^ anchor - some MARC 082 fields have content before the Dewey code
             $dewey = trim($dewey);
-            if (preg_match('/^(\d{3}(?:\.\d+)?)/', $dewey, $matches)) {
+            if (preg_match('/(\d{3}(?:\.\d+)?)/', $dewey, $matches)) {
                 $book['classificazione_dewey'] = $matches[1];
             }
         }
@@ -488,8 +489,9 @@ class SruClient
 
             // Check subjects for Dewey classification (some servers include it here)
             foreach ($subjects as $subject) {
-                // Look for patterns like "DDC: 823.912" or just "823.912" if it looks like a Dewey code
-                if (preg_match('/(?:DDC|Dewey)[:\s]*(\d{3}(?:\.\d+)?)/i', $subject, $matches)) {
+                // Look for patterns like "DDC: 823.912" or pure Dewey codes like "823.912"
+                if (preg_match('/(?:DDC|Dewey)[:\s]*(\d{3}(?:\.\d+)?)/i', $subject, $matches)
+                    || preg_match('/^(\d{3}(?:\.\d+)?)$/', trim($subject), $matches)) {
                     $book['classificazione_dewey'] = $matches[1];
                     break;
                 }
@@ -499,7 +501,8 @@ class SruClient
         // Check dc:coverage for Dewey (some servers use this field)
         $coverage = $getDcElement('coverage');
         if ($coverage && empty($book['classificazione_dewey'])) {
-            if (preg_match('/(?:DDC|Dewey)[:\s]*(\d{3}(?:\.\d+)?)/i', $coverage, $matches)) {
+            if (preg_match('/(?:DDC|Dewey)[:\s]*(\d{3}(?:\.\d+)?)/i', $coverage, $matches)
+                || preg_match('/^(\d{3}(?:\.\d+)?)$/', trim($coverage), $matches)) {
                 $book['classificazione_dewey'] = $matches[1];
             }
         }

@@ -78,7 +78,7 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 ### Cataloging
 - **Multi-copy support** with independent barcodes and statuses for each physical copy
 - **Unified records** for physical books, eBooks, and audiobooks
-- **Dewey Decimal Classification** with 2,106 categories (IT/EN), hierarchical browsing, manual entry for custom codes, and auto-population from SBN scraping
+- **Dewey Decimal Classification** with 1,200+ preset categories (IT/EN), hierarchical browsing, manual entry for custom codes, and auto-population from SBN scraping
 - **CSV bulk import** with field mapping, validation, automatic ISBN enrichment, and Dewey classification from scraping
 - **Automatic duplicate detection** by ID, ISBN13, or EAN (updates existing records without modifying physical copies)
 - **Author and publisher management** with dedicated profiles and bibliography views
@@ -310,7 +310,7 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 Complete Dewey Decimal Classification management system with multilingual support, automatic population, and data exchange capabilities.
 
 **Core Features**:
-- **Tree-based visual editor** — Navigate and edit the complete Dewey hierarchy (2,106 preset entries)
+- **Tree-based visual editor** — Navigate and edit the complete Dewey hierarchy (1,200+ preset entries)
 - **Multi-language support** — Separate JSON files for Italian (`dewey_completo_it.json`) and English (`dewey_completo_en.json`) with full translations
 - **Inline editing** — Add, modify, or delete categories with instant validation
 - **Validation engine** — Checks code format (XXX.XXXX), hierarchy consistency, and duplicate detection

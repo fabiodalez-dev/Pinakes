@@ -87,8 +87,8 @@ renderHeader(0, 'Selezione Lingua');
                         class="language-radio"
                     >
                     <svg width="40" height="30" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">
-                        <clipPath id="t"><rect width="60" height="30"/></clipPath>
-                        <g clip-path="url(#t)">
+                        <clipPath id="clip-flag-en"><rect width="60" height="30"/></clipPath>
+                        <g clip-path="url(#clip-flag-en)">
                             <path d="M0,0 v30 h60 v-30 z" fill="#00247d"/>
                             <path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/>
                             <path d="M0,0 L60,30 M60,0 L0,30" stroke="#cf142b" stroke-width="4"/>
