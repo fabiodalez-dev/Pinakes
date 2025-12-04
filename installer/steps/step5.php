@@ -115,7 +115,7 @@ renderHeader(5, __('Impostazioni Applicazione'));
                 <div>
                     <span style="font-weight: 600; color: #0369a1; display: block;"><?= __("Forza HTTPS") ?></span>
                     <small style="color: #075985; display: block; margin-top: 4px;">
-                        <?= __("Reindirizza automaticamente tutte le richieste HTTP a HTTPS.") ?>
+                        <?= __("Reindirizza automaticamente tutte le richieste HTTP a HTTPS") ?>
                     </small>
                 </div>
             </label>

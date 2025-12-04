@@ -36,7 +36,7 @@ class AuthorNormalizer
         }
 
         // Remove date ranges like <1818-1883> (SBN format)
-        $name = preg_replace('/<[^>]+>/', '', $name);
+        $name = preg_replace('/<[^>]+>/', '', $name) ?? $name;
         $name = trim($name);
 
         // If the name contains a comma, it's likely in "Surname, Name" format
@@ -54,7 +54,7 @@ class AuthorNormalizer
         }
 
         // Normalize multiple spaces to single space
-        $name = preg_replace('/\s+/', ' ', $name);
+        $name = preg_replace('/\s+/', ' ', $name) ?? $name;
 
         // Normalize case: convert all caps to title case
         if ($name === mb_strtoupper($name, 'UTF-8') && mb_strlen($name, 'UTF-8') > 3) {
@@ -92,7 +92,7 @@ class AuthorNormalizer
         $search = self::removeAccents($search);
 
         // Normalize spaces
-        $search = preg_replace('/\s+/', ' ', $search);
+        $search = preg_replace('/\s+/', ' ', $search) ?? $search;
 
         return trim($search);
     }

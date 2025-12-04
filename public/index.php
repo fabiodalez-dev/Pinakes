@@ -200,11 +200,9 @@ if (!$isCli) {
                 $defaultPorts = ['http' => 80, 'https' => 443];
                 $targetHost = $canonicalHostOriginal;
 
-                // Use request scheme if server is forcing HTTPS (canonical is http but request is https)
-                // This prevents redirect loops
-                $targetScheme = ($canonicalScheme === 'http' && $requestScheme === 'https')
-                    ? 'https'
-                    : $canonicalScheme;
+                // Use canonical scheme for redirect (already validated above)
+                // Note: Scheme mismatch redirect only triggers when canonicalScheme === 'https'
+                $targetScheme = $canonicalScheme;
 
                 if ($canonicalPort !== null) {
                     $defaultPort = $defaultPorts[$targetScheme] ?? null;
@@ -212,6 +210,9 @@ if (!$isCli) {
                         $targetHost .= ':' . $canonicalPort;
                     }
                 } elseif ($requestPort !== null) {
+                    // Preserve non-standard port from request when canonical URL doesn't specify a port
+                    // This is useful for development environments (e.g., localhost:8080)
+                    // In production, canonical URL should be complete (including port if non-standard)
                     $defaultPort = $defaultPorts[$targetScheme] ?? null;
                     if ($defaultPort !== null && $requestPort !== $defaultPort) {
                         $targetHost .= ':' . $requestPort;

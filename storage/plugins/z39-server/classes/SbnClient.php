@@ -315,7 +315,9 @@ class SbnClient
             }
 
             // Dewey classification
-            if (empty($books[$index]['classificazione_dewey']) && !empty($fullRecord['classificazioneDewey'])) {
+            // Note: Use explicit check instead of empty() to allow valid codes like '000'
+            $hasDewey = isset($books[$index]['classificazione_dewey']) && $books[$index]['classificazione_dewey'] !== '';
+            if (!$hasDewey && !empty($fullRecord['classificazioneDewey'])) {
                 $deweyData = $this->extractDeweyData($fullRecord['classificazioneDewey']);
                 if ($deweyData && $deweyData['code']) {
                     $books[$index]['classificazione_dewey'] = $deweyData['code'];
@@ -622,11 +624,13 @@ class SbnClient
      * Extract Dewey classification code and name from SBN format
      *
      * @param string $deweyStr Format: "808.81 (12.) RACCOLTE DI PIU LETTERATURE. POESIA"
-     * @return array{code: string, name: string}|null Dewey data or null
+     * @return array{code: string, name: string|null}|null Dewey data or null
      */
     private function extractDeweyData(string $deweyStr): ?array
     {
-        if (empty($deweyStr)) {
+        $deweyStr = trim($deweyStr);
+
+        if ($deweyStr === '') {
             return null;
         }
 

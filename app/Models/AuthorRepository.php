@@ -148,6 +148,10 @@ class AuthorRepository
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
 
+        // Normalize author name to canonical format ("Name Surname")
+        // This ensures consistency when updating existing authors
+        $nome = \App\Support\AuthorNormalizer::normalize($nome);
+
         $stmt->bind_param(
             'sssssssi',
             $nome,
@@ -214,17 +218,37 @@ class AuthorRepository
             }
         }
 
-        // Try fuzzy match with normalized search form (case-insensitive, accent-insensitive)
+        // Try fuzzy match: use database LIKE to narrow candidates, then check in PHP
+        // This is more performant than loading all authors
         $searchForm = \App\Support\AuthorNormalizer::toSearchForm($name);
         if ($searchForm !== '') {
-            // Get all authors and check for match
-            $stmt = $this->db->prepare("SELECT id, nome FROM autori");
-            $stmt->execute();
-            $res = $stmt->get_result();
+            // Extract individual words for LIKE matching
+            $words = explode(' ', $searchForm);
+            if (!empty($words)) {
+                // Build LIKE conditions for each word (case-insensitive via collation)
+                $conditions = [];
+                $params = [];
+                foreach ($words as $word) {
+                    if (strlen($word) >= 2) { // Skip very short words
+                        $conditions[] = "LOWER(nome) LIKE ?";
+                        $params[] = '%' . $word . '%';
+                    }
+                }
 
-            while ($row = $res->fetch_assoc()) {
-                if (\App\Support\AuthorNormalizer::match($name, $row['nome'])) {
-                    return (int)$row['id'];
+                if (!empty($conditions)) {
+                    // Search for authors containing any of the words
+                    $sql = "SELECT id, nome FROM autori WHERE " . implode(' OR ', $conditions) . " LIMIT 50";
+                    $stmt = $this->db->prepare($sql);
+                    $types = str_repeat('s', count($params));
+                    $stmt->bind_param($types, ...$params);
+                    $stmt->execute();
+                    $res = $stmt->get_result();
+
+                    while ($row = $res->fetch_assoc()) {
+                        if (\App\Support\AuthorNormalizer::match($name, $row['nome'])) {
+                            return (int)$row['id'];
+                        }
+                    }
                 }
             }
         }
