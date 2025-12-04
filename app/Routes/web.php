@@ -925,6 +925,57 @@ return function (App $app): void {
         return $controller->delete($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
 
+    // Author duplicates management (admin only)
+    $app->get('/api/autori/duplicates', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $repo = new \App\Models\AuthorRepository($db);
+        $duplicates = $repo->findDuplicates();
+        $response->getBody()->write(json_encode(['success' => true, 'duplicates' => $duplicates]));
+        return $response->withHeader('Content-Type', 'application/json');
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/api/autori/merge', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $data = $request->getParsedBody();
+        if (!$data) {
+            $data = json_decode((string) $request->getBody(), true) ?? [];
+        }
+        $ids = array_map('intval', $data['ids'] ?? []);
+        $requestedPrimaryId = isset($data['primary_id']) ? (int)$data['primary_id'] : null;
+        $newName = isset($data['new_name']) ? trim($data['new_name']) : '';
+
+        if (count($ids) < 2) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Seleziona almeno 2 autori da unire')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $repo = new \App\Models\AuthorRepository($db);
+        $primaryId = $repo->mergeAuthors($ids, $requestedPrimaryId);
+
+        if ($primaryId) {
+            // Rename if requested
+            if ($newName !== '') {
+                $current = $repo->getById($primaryId);
+                $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Autori uniti con successo'),
+                'primary_id' => $primaryId
+            ]));
+        } else {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore durante l\'unione degli autori')
+            ]));
+        }
+        return $response->withHeader('Content-Type', 'application/json');
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Prestiti (protected admin) - Disabled in catalogue mode
     $app->get('/admin/prestiti', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1500,6 +1551,49 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditoriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->bulkExport($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // API Editori - Merge
+    $app->post('/api/editori/merge', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $data = $request->getParsedBody();
+        if (!$data) {
+            $data = json_decode((string) $request->getBody(), true) ?? [];
+        }
+        $ids = array_map('intval', $data['ids'] ?? []);
+        $requestedPrimaryId = isset($data['primary_id']) ? (int)$data['primary_id'] : null;
+        $newName = isset($data['new_name']) ? trim($data['new_name']) : '';
+
+        if (count($ids) < 2) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Seleziona almeno 2 editori da unire')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $repo = new \App\Models\PublisherRepository($db);
+        $primaryId = $repo->mergePublishers($ids, $requestedPrimaryId);
+
+        if ($primaryId) {
+            // Rename if requested
+            if ($newName !== '') {
+                $current = $repo->getById($primaryId);
+                $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Editori uniti con successo'),
+                'primary_id' => $primaryId
+            ]));
+        } else {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore durante l\'unione degli editori')
+            ]));
+        }
+        return $response->withHeader('Content-Type', 'application/json');
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/api/search/autori', function ($request, $response) use ($app) {

@@ -399,7 +399,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                     <label class="block text-sm font-medium text-gray-700 mb-1"><?= __('Codice') ?></label>
                     <input type="text" id="add-code" value="${suggestedCode}" placeholder="es. ${exampleCode}"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                    <p class="text-xs text-gray-500 mt-1"><?= __('Formato: 3 cifre + punto + 1-4 cifre decimali') ?></p>
+                    <p class="text-xs text-gray-500 mt-1"><?= __('Deve iniziare con') ?> ${baseCode}. (<?= __('classe principale') ?>)</p>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1"><?= __('Nome') ?></label>
@@ -462,10 +462,10 @@ $pageTitle = __('Editor Classificazione Dewey');
             return;
         }
 
-        // Check code starts with parent base (first 3 digits)
+        // Check code starts with parent base (first 3 digits of the main class)
         const baseCode = parentCode.includes('.') ? parentCode.split('.')[0] : parentCode;
         if (!code.startsWith(baseCode)) {
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Il codice deve iniziare con il prefisso del genitore.')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore')) ?>, `<?= __('Il codice deve iniziare con le stesse tre cifre della classe principale') ?> (${baseCode})`, 'error');
             return;
         }
 
@@ -583,6 +583,22 @@ $pageTitle = __('Editor Classificazione Dewey');
         const file = importFile.files[0];
         if (!file) return;
 
+        // Warn about unsaved changes
+        if (hasChanges) {
+            const confirm = await Swal.fire({
+                title: <?= json_encode(__('Modifiche non salvate')) ?>,
+                text: <?= json_encode(__('Hai modifiche non salvate che andranno perse. Continuare?')) ?>,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: <?= json_encode(__('Continua')) ?>,
+                cancelButtonText: <?= json_encode(__('Annulla')) ?>
+            });
+            if (!confirm.isConfirmed) {
+                importFile.value = '';
+                return;
+            }
+        }
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('csrf_token', CSRF_TOKEN);
@@ -672,9 +688,14 @@ $pageTitle = __('Editor Classificazione Dewey');
     }
 
     async function restoreBackupHandler(filename) {
+        // Build warning message including unsaved changes if any
+        const warningText = hasChanges
+            ? <?= json_encode(__('Hai modifiche non salvate. I dati attuali verranno sostituiti.')) ?>
+            : <?= json_encode(__('I dati attuali verranno sostituiti.')) ?>;
+
         const confirm = await Swal.fire({
             title: <?= json_encode(__('Ripristinare questo backup?')) ?>,
-            text: <?= json_encode(__('I dati attuali verranno sostituiti.')) ?>,
+            text: warningText,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: <?= json_encode(__('Ripristina')) ?>,

@@ -188,9 +188,12 @@ class AuthorRepository
             return null;
         }
 
-        // First try exact match
+        // Normalize the input name first (this is the key fix!)
+        $normalizedInput = \App\Support\AuthorNormalizer::normalize($name);
+
+        // First try exact match with normalized name
         $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
+        $stmt->bind_param('s', $normalizedInput);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();
@@ -199,16 +202,10 @@ class AuthorRepository
             return (int)$row['id'];
         }
 
-        // Try with normalized variants
-        $variants = \App\Support\AuthorNormalizer::getSearchVariants($name);
-
-        foreach ($variants as $variant) {
-            if ($variant === $name) {
-                continue; // Already tried exact match
-            }
-
+        // Also try the original name (in case DB has unnormalized entries)
+        if ($normalizedInput !== $name) {
             $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-            $stmt->bind_param('s', $variant);
+            $stmt->bind_param('s', $name);
             $stmt->execute();
             $res = $stmt->get_result();
             $row = $res->fetch_assoc();
@@ -218,8 +215,20 @@ class AuthorRepository
             }
         }
 
+        // Try case-insensitive match with normalized name
+        $lowerNormalized = mb_strtolower($normalizedInput, 'UTF-8');
+        $stmt = $this->db->prepare("SELECT id FROM autori WHERE LOWER(nome) = ? LIMIT 1");
+        $stmt->bind_param('s', $lowerNormalized);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res->fetch_assoc();
+
+        if ($row) {
+            return (int)$row['id'];
+        }
+
         // Try fuzzy match: use database LIKE to narrow candidates, then check in PHP
-        // This is more performant than loading all authors
+        // This catches authors with slight variations (accents, particles, etc.)
         $searchForm = \App\Support\AuthorNormalizer::toSearchForm($name);
         if ($searchForm !== '') {
             // Extract individual words for LIKE matching
@@ -236,8 +245,8 @@ class AuthorRepository
                 }
 
                 if (!empty($conditions)) {
-                    // Search for authors containing any of the words
-                    $sql = "SELECT id, nome FROM autori WHERE " . implode(' OR ', $conditions) . " LIMIT 50";
+                    // Search for authors containing ALL of the words (AND condition)
+                    $sql = "SELECT id, nome FROM autori WHERE " . implode(' AND ', $conditions) . " LIMIT 50";
                     $stmt = $this->db->prepare($sql);
                     $types = str_repeat('s', count($params));
                     $stmt->bind_param($types, ...$params);
@@ -254,6 +263,101 @@ class AuthorRepository
         }
 
         return null;
+    }
+
+    /**
+     * Find duplicate authors (same name after normalization)
+     *
+     * @return array Array of arrays containing duplicate author groups
+     */
+    public function findDuplicates(): array
+    {
+        $stmt = $this->db->prepare("SELECT id, nome FROM autori ORDER BY nome");
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        $normalized = [];
+        while ($row = $res->fetch_assoc()) {
+            $normalizedName = \App\Support\AuthorNormalizer::normalize($row['nome']);
+            $key = mb_strtolower($normalizedName, 'UTF-8');
+
+            if (!isset($normalized[$key])) {
+                $normalized[$key] = [];
+            }
+            $normalized[$key][] = [
+                'id' => (int)$row['id'],
+                'nome' => $row['nome'],
+                'normalized' => $normalizedName
+            ];
+        }
+
+        // Return only groups with more than one author (duplicates)
+        $duplicates = [];
+        foreach ($normalized as $key => $group) {
+            if (count($group) > 1) {
+                $duplicates[] = $group;
+            }
+        }
+
+        return $duplicates;
+    }
+
+    /**
+     * Merge duplicate authors into one
+     *
+     * Keeps the specified primary author (or the one with lowest ID if not specified)
+     * and reassigns all books from other authors to the primary one.
+     *
+     * @param array $authorIds Array of author IDs to merge
+     * @param int|null $primaryId Optional specific ID to use as primary (must be in $authorIds)
+     * @return int|null The ID of the merged author, or null on error
+     */
+    public function mergeAuthors(array $authorIds, ?int $primaryId = null): ?int
+    {
+        if (count($authorIds) < 2) {
+            return null;
+        }
+
+        // Use specified primary ID or default to lowest ID
+        if ($primaryId !== null && in_array($primaryId, $authorIds)) {
+            $authorIds = array_values(array_filter($authorIds, fn($id) => $id !== $primaryId));
+        } else {
+            // Sort to get the lowest ID as primary
+            sort($authorIds);
+            $primaryId = array_shift($authorIds);
+        }
+
+        // Start transaction
+        $this->db->begin_transaction();
+
+        try {
+            foreach ($authorIds as $duplicateId) {
+                // Update book-author relationships to point to primary author
+                // Use IGNORE to handle unique constraint violations (book already linked to primary)
+                $stmt = $this->db->prepare(
+                    "UPDATE IGNORE libri_autori SET autore_id = ? WHERE autore_id = ?"
+                );
+                $stmt->bind_param('ii', $primaryId, $duplicateId);
+                $stmt->execute();
+
+                // Delete any remaining duplicate links (where book was already linked to primary)
+                $stmt = $this->db->prepare("DELETE FROM libri_autori WHERE autore_id = ?");
+                $stmt->bind_param('i', $duplicateId);
+                $stmt->execute();
+
+                // Delete the duplicate author
+                $stmt = $this->db->prepare("DELETE FROM autori WHERE id = ?");
+                $stmt->bind_param('i', $duplicateId);
+                $stmt->execute();
+            }
+
+            $this->db->commit();
+            return $primaryId;
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            error_log("[AuthorRepository] Merge failed: " . $e->getMessage());
+            return null;
+        }
     }
 
     public function delete(int $id): bool
