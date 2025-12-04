@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.2.0-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.3.0-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -77,8 +77,8 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 ### Cataloging
 - **Multi-copy support** with independent barcodes and statuses for each physical copy
 - **Unified records** for physical books, eBooks, and audiobooks
-- **Dewey Decimal Classification** preloaded (1,369 categories) with hierarchical browsing
-- **CSV bulk import** with field mapping, validation, and automatic ISBN enrichment
+- **Dewey Decimal Classification** with 2,106 categories (IT/EN), hierarchical browsing, manual entry for custom codes, and auto-population from SBN scraping
+- **CSV bulk import** with field mapping, validation, automatic ISBN enrichment, and Dewey classification from scraping
 - **Automatic duplicate detection** by ID, ISBN13, or EAN (updates existing records without modifying physical copies)
 - **Author and publisher management** with dedicated profiles and bibliography views
 - **Genre/category system** with custom taxonomies and multi-category assignment
@@ -156,11 +156,12 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (4 included):
+**Pre-installed plugins** (5 included):
 - **Open Library** — Metadata scraping from Open Library + Google Books API
-- **Z39 Server** — SRU 1.2 API for catalog interoperability (MARCXML, Dublin Core, MODS)
+- **Z39 Server** — SRU 1.2 API + SBN client for Italian library metadata with Dewey extraction
 - **API Book Scraper** — External ISBN enrichment via custom APIs
 - **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
+- **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
 
 **Available as separate download**:
 - **Scraping Pro** — Advanced metadata scraping with configurable sources
@@ -265,6 +266,8 @@ Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based succes
 
 **Client Mode** (import from external catalogs):
 - **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, national libraries)
+- **SBN Italia client** — Automatic metadata retrieval from Italian national library catalog
+- **Dewey classification extraction** — Parses Dewey codes from SBN responses (format: `335.4092 (19.) SISTEMI MARXIANI`)
 - **Federated search** across multiple configured servers
 - **Automatic retry** with exponential backoff (100ms, 200ms, 400ms)
 - **TLS certificate validation** for secure connections
@@ -282,7 +285,7 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=dc.creator=marx
 curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=9788842058946&recordSchema=dc"
 ```
 
-**Use cases**: Union catalogs, interlibrary loan systems, OPAC federation, copy cataloging workflows.
+**Use cases**: Union catalogs, interlibrary loan systems, OPAC federation, copy cataloging workflows, automatic Dewey classification.
 
 ### 3. API Book Scraper (`api-book-scraper-v1.0.0.zip`)
 - **External API integration** for ISBN enrichment
@@ -298,7 +301,30 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 - **Access control** (public, logged-in users only, specific roles)
 - **Usage statistics** and download history
 
-### 5. Scraping Pro (`scraping-pro-v1.0.0.zip`)
+### 5. Dewey Editor (`dewey-editor-v1.0.0.zip`)
+
+Visual editor for managing Dewey Decimal Classification data. Enables librarians to customize, expand, and maintain the classification system.
+
+**Features**:
+- **Tree-based visual editor** — Navigate and edit the complete Dewey hierarchy (2,106 entries)
+- **Inline editing** — Add, modify, or delete categories with instant validation
+- **Multi-language support** — Separate files for Italian (`dewey_completo_it.json`) and English (`dewey_completo_en.json`)
+- **JSON import/export** — Backup and restore classification data, merge from external sources
+- **Validation engine** — Checks code format, hierarchy consistency, and duplicate detection
+- **Auto-population** — When scraping from SBN, new Dewey codes are automatically added to the JSON file (language-aware: only updates if source language matches app locale)
+
+**Dewey Code Format**:
+- Main classes: `000`-`999` (3 digits)
+- Subdivisions: `000.1` to `999.9999` (up to 4 decimal places)
+- Examples: `599.9` (Mammiferi), `004.6782` (Cloud computing), `641.5945` (Cucina italiana)
+
+**Book Form Integration**:
+- **Chip-based selection** — Selected Dewey code displays as removable chip with code + name
+- **Manual entry** — Accept any valid Dewey code (not limited to predefined list)
+- **Hierarchical navigation** — Optional collapsible "Browse categories" for discovering codes
+- **Validation** — Frontend validates format before submission
+
+### 6. Scraping Pro (`scraping-pro-v1.0.0.zip`)
 - **Advanced metadata scraping** with configurable sources
 - **Custom field mapping** for proprietary databases
 - **Bulk enrichment** for existing catalog

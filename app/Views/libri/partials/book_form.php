@@ -1322,8 +1322,12 @@ async function initializeDewey() {
           if (hasChildren && !isLast) {
             await loadLevel(code, i + 1);
           } else if (isLast) {
-            // Ultimo elemento: aggiorna breadcrumb e chip
-            breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span class="text-gray-500">${code}</span>`;
+            // Ultimo elemento: aggiorna breadcrumb e chip (XSS prevention)
+            breadcrumb.innerHTML = '<i class="fas fa-home"></i> ';
+            const breadcrumbSpan = document.createElement('span');
+            breadcrumbSpan.className = 'text-gray-500';
+            breadcrumbSpan.textContent = code;
+            breadcrumb.appendChild(breadcrumbSpan);
             await setDeweyCode(code, option.dataset.name);
             return; // Successfully navigated to target
           }
