@@ -54,8 +54,11 @@ function handleSRURequest(
     // Get plugin settings
     $settings = getPluginSettings($db, $pluginId);
 
-    // Check if server is enabled
-    if (($settings['server_enabled'] ?? 'false') !== 'true') {
+    // Helper to check boolean settings (accepts '1', 'true', true)
+    $isEnabled = fn($key) => in_array($settings[$key] ?? '', ['1', 'true', true], true);
+
+    // Check if server is enabled (supports both 'enable_server' and legacy 'server_enabled')
+    if (!$isEnabled('enable_server') && !$isEnabled('server_enabled')) {
         $response->getBody()->write(createErrorXML('Server is currently disabled'));
         return $response
             ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
@@ -63,7 +66,7 @@ function handleSRURequest(
     }
 
     // Optional API key authentication
-    if (($settings['require_api_key'] ?? 'false') === 'true') {
+    if ($isEnabled('require_api_key')) {
         $apiKey = $settings['api_key'] ?? '';
         $providedKey = $request->getHeaderLine('X-API-Key')
             ?: ($request->getQueryParams()['api_key'] ?? '');
@@ -79,7 +82,7 @@ function handleSRURequest(
     }
 
     // Rate limiting (OWASP: Protection against DoS)
-    if (($settings['rate_limit_enabled'] ?? 'false') === 'true') {
+    if ($isEnabled('rate_limit_enabled')) {
         $rateLimiter = new RateLimiter(
             $db,
             (int)($settings['rate_limit_requests'] ?? 100),

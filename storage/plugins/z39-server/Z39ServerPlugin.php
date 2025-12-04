@@ -144,7 +144,7 @@ class Z39ServerPlugin
 
         // Log activation
         $this->log('info', 'Z39.50/SRU Server Plugin activated', [
-            'server_enabled' => $this->getSetting('server_enabled') === 'true',
+            'server_enabled' => $this->isSettingEnabled('enable_server') || $this->isSettingEnabled('server_enabled'),
             'supported_formats' => $this->getSetting('supported_formats')
         ]);
     }
@@ -485,15 +485,14 @@ class Z39ServerPlugin
         unset($sources);
 
         // Check if client is enabled
-        $enabled = $this->getSetting('enable_client', '0') === '1';
-        if (!$enabled) {
+        if (!$this->isSettingEnabled('enable_client')) {
             return $existing; // Pass through existing data unchanged
         }
 
         $result = $existing;
 
         // Try SBN first (Italian National Library)
-        $sbnEnabled = $this->getSetting('enable_sbn', '1') === '1';
+        $sbnEnabled = $this->isSettingEnabled('enable_sbn', true);
         if ($sbnEnabled) {
             $sbnData = $this->fetchFromSbn($isbn);
             if ($sbnData) {
@@ -685,6 +684,20 @@ class Z39ServerPlugin
         }
 
         return $value ?? $default;
+    }
+
+    /**
+     * Check if a boolean setting is enabled
+     * Accepts '1', 'true', true as enabled values
+     *
+     * @param string $key Setting key
+     * @param bool $default Default value if setting not found
+     * @return bool
+     */
+    private function isSettingEnabled(string $key, bool $default = false): bool
+    {
+        $value = $this->getSetting($key, $default ? '1' : '0');
+        return in_array($value, ['1', 'true', true], true);
     }
 
     /**
