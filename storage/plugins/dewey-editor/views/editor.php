@@ -710,43 +710,61 @@ $pageTitle = __('Editor Classificazione Dewey');
 
     function filterTree(query) {
         query = query.toLowerCase().trim();
-        const items = treeContainer.querySelectorAll('.dewey-node');
 
         // Remove existing "no results" message
         const existingNoResults = treeContainer.querySelector('.dewey-no-results');
         if (existingNoResults) existingNoResults.remove();
+
+        // If tree was cleared by no-results, re-render it
+        const items = treeContainer.querySelectorAll('.dewey-node');
+        if (items.length === 0 && deweyData && deweyData.length > 0) {
+            renderTree();
+            if (!query) return;
+            // Re-query after re-render
+            return filterTree(query);
+        }
 
         if (!query) {
             items.forEach(item => item.style.display = '');
             return;
         }
 
+        // First pass: hide all items
+        items.forEach(item => item.style.display = 'none');
+
+        // Second pass: show matching items and their parents
         let matchCount = 0;
         items.forEach(item => {
             const code = item.dataset.code.toLowerCase();
             const name = item.querySelector('.dewey-name')?.textContent.toLowerCase() || '';
             const match = code.includes(query) || name.includes(query);
-            item.style.display = match ? '' : 'none';
 
             if (match) {
                 matchCount++;
-                // Expand parents of matching items
-                let parent = item.parentElement;
-                while (parent && parent.classList.contains('dewey-children')) {
-                    parent.classList.add('open');
-                    const toggle = parent.previousElementSibling?.querySelector('.dewey-toggle');
-                    if (toggle) toggle.textContent = '▼';
-                    parent = parent.parentElement?.parentElement;
+                item.style.display = '';
+
+                // Expand and show all parent nodes
+                let parentElement = item.parentElement;
+                while (parentElement && parentElement !== treeContainer) {
+                    if (parentElement.classList.contains('dewey-children')) {
+                        parentElement.classList.add('open');
+                        const toggle = parentElement.previousElementSibling?.querySelector('.dewey-toggle');
+                        if (toggle) toggle.textContent = '▼';
+                    }
+                    if (parentElement.classList.contains('dewey-node')) {
+                        parentElement.style.display = '';
+                    }
+                    parentElement = parentElement.parentElement;
                 }
             }
         });
 
-        // Show "no results" message if nothing found
+        // Show "no results" message if nothing found - replace tree content
         if (matchCount === 0) {
-            const noResults = document.createElement('div');
-            noResults.className = 'dewey-no-results text-center text-gray-500 py-8';
-            noResults.innerHTML = `<i class="fas fa-search text-2xl mb-2"></i><p><?= __('Nessun risultato trovato per la ricerca.') ?></p>`;
-            treeContainer.appendChild(noResults);
+            treeContainer.innerHTML = `<div class="dewey-no-results text-center text-gray-500 py-8">
+                <i class="fas fa-search text-2xl mb-2 block"></i>
+                <p><?= __('Nessun risultato trovato per la ricerca.') ?></p>
+            </div>`;
         }
     }
 
