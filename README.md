@@ -266,9 +266,12 @@ Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based succes
 - **Trusted proxy support** for deployments behind load balancers (CIDR notation)
 
 **Client Mode** (import from external catalogs):
-- **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, national libraries)
+- **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, K10plus, SUDOC, national libraries)
 - **SBN Italia client** — Automatic metadata retrieval from Italian national library catalog
-- **Dewey classification extraction** — Parses Dewey codes from SBN responses (format: `335.4092 (19.) SISTEMI MARXIANI`)
+- **Dewey classification extraction**:
+  - SBN: Parses Dewey codes from `classificazioneDewey` field (format: `335.4092 (19.) SISTEMI MARXIANI`)
+  - SRU/MARCXML: Extracts from MARC field 082 (Dewey Decimal Classification Number)
+  - Dublin Core: Parses from `dc:subject` (DDC scheme) and `dc:coverage` fields
 - **Federated search** across multiple configured servers
 - **Automatic retry** with exponential backoff (100ms, 200ms, 400ms)
 - **TLS certificate validation** for secure connections
@@ -304,26 +307,36 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 
 ### 5. Dewey Editor (`dewey-editor-v1.0.0.zip`)
 
-Visual editor for managing Dewey Decimal Classification data. Enables librarians to customize, expand, and maintain the classification system.
+Complete Dewey Decimal Classification management system with multilingual support, automatic population, and data exchange capabilities.
 
-**Features**:
-- **Tree-based visual editor** — Navigate and edit the complete Dewey hierarchy (2,106 entries)
+**Core Features**:
+- **Tree-based visual editor** — Navigate and edit the complete Dewey hierarchy (2,106 preset entries)
+- **Multi-language support** — Separate JSON files for Italian (`dewey_completo_it.json`) and English (`dewey_completo_en.json`) with full translations
 - **Inline editing** — Add, modify, or delete categories with instant validation
-- **Multi-language support** — Separate files for Italian (`dewey_completo_it.json`) and English (`dewey_completo_en.json`)
-- **JSON import/export** — Backup and restore classification data, merge from external sources
-- **Validation engine** — Checks code format, hierarchy consistency, and duplicate detection
-- **Auto-population** — When scraping from SBN, new Dewey codes are automatically added to the JSON file (language-aware: only updates if source language matches app locale)
+- **Validation engine** — Checks code format (XXX.XXXX), hierarchy consistency, and duplicate detection
+
+**Data Exchange**:
+- **JSON import/export** — Backup and restore classification data for manual editing or exchange with other Pinakes installations
+- **Cross-installation sharing** — Export your customized Dewey database and import it into another Pinakes instance
+- **Merge capability** — Import external classifications while preserving existing entries
+
+**Automatic Dewey Scraping**:
+- **SBN integration** — When scraping book metadata from SBN (Italian National Library), Dewey codes are automatically extracted from the `classificazioneDewey` field
+- **SRU/Z39.50 servers** — Dewey codes extracted from MARC field 082 when querying external catalogs (K10plus, SUDOC, Library of Congress, etc.)
+- **Auto-population** — New Dewey codes discovered during scraping are automatically added to your JSON database (language-aware: only updates when source language matches app locale)
+- **CSV import enrichment** — Books imported via CSV are automatically enriched with Dewey classification through ISBN scraping
 
 **Dewey Code Format**:
 - Main classes: `000`-`999` (3 digits)
 - Subdivisions: `000.1` to `999.9999` (up to 4 decimal places)
-- Examples: `599.9` (Mammiferi), `004.6782` (Cloud computing), `641.5945` (Cucina italiana)
+- Examples: `599.9` (Mammiferi/Mammals), `004.6782` (Cloud computing), `641.5945` (Cucina italiana/Italian cuisine)
 
 **Book Form Integration**:
 - **Chip-based selection** — Selected Dewey code displays as removable chip with code + name
 - **Manual entry** — Accept any valid Dewey code (not limited to predefined list)
 - **Hierarchical navigation** — Optional collapsible "Browse categories" for discovering codes
-- **Validation** — Frontend validates format before submission
+- **Breadcrumb display** — Shows full classification path (e.g., "500 → 590 → 599 → 599.9")
+- **Frontend validation** — Real-time format validation before submission
 
 ---
 

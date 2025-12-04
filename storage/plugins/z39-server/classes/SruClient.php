@@ -273,6 +273,7 @@ class SruClient
             'language' => '',
             'pages' => '',
             'description' => '',
+            'classificazione_dewey' => '',
             'source' => 'Z39.50/SRU'
         ];
 
@@ -355,6 +356,17 @@ class SruClient
             $book['description'] = $description;
         }
 
+        // Dewey Classification (082 $a)
+        // MARC field 082 contains Dewey Decimal Classification number
+        $dewey = $getSubfield('082', 'a');
+        if ($dewey) {
+            // Clean Dewey code: extract just the numeric code (e.g., "823.912" from "823.912 20")
+            $dewey = trim($dewey);
+            if (preg_match('/^(\d{3}(?:\.\d+)?)/', $dewey, $matches)) {
+                $book['classificazione_dewey'] = $matches[1];
+            }
+        }
+
         // Add 'author' field as string for compatibility
         if (!empty($book['authors'])) {
             $book['author'] = implode(', ', $book['authors']);
@@ -401,6 +413,7 @@ class SruClient
             'language' => '',
             'pages' => '',
             'description' => '',
+            'classificazione_dewey' => '',
             'source' => 'Z39.50/SRU (DC)'
         ];
 
@@ -472,6 +485,23 @@ class SruClient
         $subjects = $getAllDcElements('subject');
         if (!empty($subjects)) {
             $book['keywords'] = implode(', ', $subjects);
+
+            // Check subjects for Dewey classification (some servers include it here)
+            foreach ($subjects as $subject) {
+                // Look for patterns like "DDC: 823.912" or just "823.912" if it looks like a Dewey code
+                if (preg_match('/(?:DDC|Dewey)[:\s]*(\d{3}(?:\.\d+)?)/i', $subject, $matches)) {
+                    $book['classificazione_dewey'] = $matches[1];
+                    break;
+                }
+            }
+        }
+
+        // Check dc:coverage for Dewey (some servers use this field)
+        $coverage = $getDcElement('coverage');
+        if ($coverage && empty($book['classificazione_dewey'])) {
+            if (preg_match('/(?:DDC|Dewey)[:\s]*(\d{3}(?:\.\d+)?)/i', $coverage, $matches)) {
+                $book['classificazione_dewey'] = $matches[1];
+            }
         }
 
         // Add 'author' field as string for compatibility
