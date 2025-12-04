@@ -324,7 +324,14 @@ Visual editor for managing Dewey Decimal Classification data. Enables librarians
 - **Hierarchical navigation** — Optional collapsible "Browse categories" for discovering codes
 - **Validation** — Frontend validates format before submission
 
-### 6. Scraping Pro (`scraping-pro-v1.0.0.zip`)
+---
+
+## Optional Plugin (Separate Download)
+
+### Scraping Pro (`scraping-pro-v1.0.0.zip`)
+
+> **Not pre-installed** — Available as a separate download for advanced users.
+
 - **Advanced metadata scraping** with configurable sources
 - **Custom field mapping** for proprietary databases
 - **Bulk enrichment** for existing catalog
