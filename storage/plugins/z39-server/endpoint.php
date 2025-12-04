@@ -54,8 +54,8 @@ function handleSRURequest(
     // Get plugin settings
     $settings = getPluginSettings($db, $pluginId);
 
-    // Helper to check boolean settings (accepts '1', 'true', true)
-    $isEnabled = fn($key) => in_array($settings[$key] ?? '', ['1', 'true', true], true);
+    // Helper to check boolean settings (accepts '1', 'true')
+    $isEnabled = fn($key) => in_array($settings[$key] ?? '', ['1', 'true'], true);
 
     // Check if server is enabled (supports both 'enable_server' and legacy 'server_enabled')
     if (!$isEnabled('enable_server') && !$isEnabled('server_enabled')) {
@@ -165,11 +165,68 @@ function getPluginSettings(mysqli $db, ?int $pluginId): array
 
     $settings = [];
     while ($row = $result->fetch_assoc()) {
-        $settings[$row['setting_key']] = $row['setting_value'];
+        $value = $row['setting_value'];
+        // Decrypt encrypted values (ENC: prefix)
+        if (is_string($value) && str_starts_with($value, 'ENC:')) {
+            $value = decryptSettingValue($value);
+        }
+        $settings[$row['setting_key']] = $value;
     }
 
     $stmt->close();
     return $settings;
+}
+
+/**
+ * Decrypt a setting value encrypted by PluginManager
+ *
+ * @param string $encrypted Encrypted value with ENC: prefix
+ * @return string|null Decrypted value or null on failure
+ */
+function decryptSettingValue(string $encrypted): ?string
+{
+    // Validate ENC: prefix
+    if (!str_starts_with($encrypted, 'ENC:')) {
+        return null;
+    }
+
+    // Remove ENC: prefix
+    $payload = substr($encrypted, 4);
+    $decoded = base64_decode($payload);
+
+    if ($decoded === false || strlen($decoded) < 28) {
+        error_log('[Z39 SRU Endpoint] Invalid encrypted payload');
+        return null;
+    }
+
+    // Get encryption key from environment
+    $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
+        ?? getenv('PLUGIN_ENCRYPTION_KEY')
+        ?? $_ENV['APP_KEY']
+        ?? getenv('APP_KEY')
+        ?? null;
+
+    if ($rawKey === null || $rawKey === '') {
+        error_log('[Z39 SRU Endpoint] Cannot decrypt: PLUGIN_ENCRYPTION_KEY not available');
+        return null;
+    }
+
+    // Hash key exactly like PluginManager does
+    $key = hash('sha256', (string)$rawKey, true);
+
+    try {
+        // Extract IV (12 bytes), tag (16 bytes), and ciphertext
+        $iv = substr($decoded, 0, 12);
+        $tag = substr($decoded, 12, 16);
+        $ciphertext = substr($decoded, 28);
+
+        $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+        return $decrypted !== false ? $decrypted : null;
+    } catch (\Throwable $e) {
+        error_log('[Z39 SRU Endpoint] Decryption error: ' . $e->getMessage());
+        return null;
+    }
 }
 
 /**

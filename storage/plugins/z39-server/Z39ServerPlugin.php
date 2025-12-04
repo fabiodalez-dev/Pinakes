@@ -688,7 +688,7 @@ class Z39ServerPlugin
 
     /**
      * Check if a boolean setting is enabled
-     * Accepts '1', 'true', true as enabled values
+     * Accepts '1', 'true' as enabled values
      *
      * @param string $key Setting key
      * @param bool $default Default value if setting not found
@@ -697,7 +697,7 @@ class Z39ServerPlugin
     private function isSettingEnabled(string $key, bool $default = false): bool
     {
         $value = $this->getSetting($key, $default ? '1' : '0');
-        return in_array($value, ['1', 'true', true], true);
+        return in_array($value, ['1', 'true'], true);
     }
 
     /**
@@ -708,13 +708,19 @@ class Z39ServerPlugin
      */
     private function decryptSettingValue(string $encrypted): ?string
     {
+        // Validate ENC: prefix
+        if (!str_starts_with($encrypted, 'ENC:')) {
+            error_log('[Z39 Server Plugin] Invalid encrypted value: missing ENC: prefix');
+            return null;
+        }
+
         // Remove ENC: prefix
         $payload = substr($encrypted, 4);
         $decoded = base64_decode($payload);
 
         if ($decoded === false || strlen($decoded) < 28) {
-            // Invalid payload, return as-is without prefix
-            return substr($encrypted, 4);
+            error_log('[Z39 Server Plugin] Invalid encrypted payload: decode failed or too short');
+            return null;
         }
 
         // Get encryption key from environment (same order as PluginManager)
