@@ -182,12 +182,16 @@ if (!$isCli) {
                 $needsRedirect = true;
             }
 
+            // Only redirect for scheme mismatch if canonical is HTTPS and request is HTTP
+            // Do NOT redirect if canonical is HTTP but request is HTTPS (server is forcing HTTPS)
+            // This prevents redirect loops when server auto-upgrades to HTTPS
             if (
                 !$isApiRequest
                 && !$needsRedirect
                 && $canonicalScheme !== ''
                 && $requestScheme !== ''
                 && $canonicalScheme !== $requestScheme
+                && $canonicalScheme === 'https' // Only redirect TO https, never FROM https
             ) {
                 $needsRedirect = true;
             }
@@ -196,19 +200,25 @@ if (!$isCli) {
                 $defaultPorts = ['http' => 80, 'https' => 443];
                 $targetHost = $canonicalHostOriginal;
 
+                // Use request scheme if server is forcing HTTPS (canonical is http but request is https)
+                // This prevents redirect loops
+                $targetScheme = ($canonicalScheme === 'http' && $requestScheme === 'https')
+                    ? 'https'
+                    : $canonicalScheme;
+
                 if ($canonicalPort !== null) {
-                    $defaultPort = $defaultPorts[$canonicalScheme] ?? null;
+                    $defaultPort = $defaultPorts[$targetScheme] ?? null;
                     if ($defaultPort === null || $canonicalPort !== $defaultPort) {
                         $targetHost .= ':' . $canonicalPort;
                     }
                 } elseif ($requestPort !== null) {
-                    $defaultPort = $defaultPorts[$canonicalScheme] ?? null;
+                    $defaultPort = $defaultPorts[$targetScheme] ?? null;
                     if ($defaultPort !== null && $requestPort !== $defaultPort) {
                         $targetHost .= ':' . $requestPort;
                     }
                 }
 
-                $targetUrl = $canonicalScheme . '://' . $targetHost . $requestUri;
+                $targetUrl = $targetScheme . '://' . $targetHost . $requestUri;
                 header('Location: ' . $targetUrl, true, 301);
                 exit;
             }
