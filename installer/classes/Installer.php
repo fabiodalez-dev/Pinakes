@@ -1315,9 +1315,10 @@ HTACCESS;
             }
 
             // Check installation locale from session
-            // 'it' = Italian (default), 'en_US' = English
+            // Session value can be 'it' or 'en_US' (from step0.php form)
+            // Use str_starts_with for robustness in case locale format changes
             $locale = $_SESSION['app_locale'] ?? 'it';
-            $isItalian = ($locale === 'it');
+            $isItalian = str_starts_with($locale, 'it');
 
             // Default Z39.50/SRU servers configuration
             // Italian installations: Empty array - only SBN (JSON API) will be used

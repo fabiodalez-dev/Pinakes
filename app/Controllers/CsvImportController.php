@@ -469,10 +469,10 @@ class CsvImportController
                         if (empty($authorName))
                             continue;
 
-                        $authorId = $this->getOrCreateAuthor($db, $authorName);
-                        if ($authorId === 'created') {
+                        $authorResult = $this->getOrCreateAuthor($db, $authorName);
+                        $authorId = $authorResult['id'];
+                        if ($authorResult['created']) {
                             $authorsCreated++;
-                            $authorId = $db->insert_id;
                         }
 
                         // Collega autore al libro
@@ -570,22 +570,23 @@ class CsvImportController
     /**
      * Ottieni o crea autore (con normalizzazione per evitare duplicati)
      * Handles "Levi, Primo" vs "Primo Levi" as same author
-     * Returns 'created' string when new author created (caller uses $db->insert_id)
+     *
+     * @return array{id: int, created: bool} Author ID and whether it was newly created
      */
-    private function getOrCreateAuthor(\mysqli $db, string $name): int|string
+    private function getOrCreateAuthor(\mysqli $db, string $name): array
     {
         $authRepo = new \App\Models\AuthorRepository($db);
 
         // findByName normalizes and handles different formats
         $existingId = $authRepo->findByName($name);
         if ($existingId) {
-            return $existingId;
+            return ['id' => $existingId, 'created' => false];
         }
 
-        // create() also normalizes the name before inserting
-        // Returns new ID, but we return 'created' to match original API
-        // (caller increments counter and uses $db->insert_id)
-        $authRepo->create([
+        // create() normalizes the name and returns the new ID directly
+        // This is safer than relying on $db->insert_id which could be affected
+        // by other insert operations between create() and reading insert_id
+        $newId = $authRepo->create([
             'nome' => $name,
             'pseudonimo' => '',
             'data_nascita' => null,
@@ -595,7 +596,7 @@ class CsvImportController
             'sito_web' => ''
         ]);
 
-        return 'created';
+        return ['id' => $newId, 'created' => true];
     }
 
     /**
