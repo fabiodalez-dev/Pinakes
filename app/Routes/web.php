@@ -216,7 +216,7 @@ return function (App $app): void {
             $db = $app->getContainer()->get('db');
             $controller = new ProfileController();
             return $controller->update($request, $response, $db);
-        }, [new CsrfMiddleware($app->getContainer()), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+        }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
         // Redirect GET to profile update to profile
         $registerRouteIfUnique('GET', $profileUpdateRoute, function ($request, $response) use ($app) {
@@ -228,7 +228,7 @@ return function (App $app): void {
             $db = $app->getContainer()->get('db');
             $controller = new ProfileController();
             return $controller->changePassword($request, $response, $db);
-        }, [new CsrfMiddleware($app->getContainer()), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+        }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
         // Redirect GET to profile password to profile
         $registerRouteIfUnique('GET', $profilePasswordRoute, function ($request, $response) use ($app) {
@@ -285,7 +285,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->register($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(3, 3600))->add(new CsrfMiddleware($app->getContainer())); // 3 attempts per hour
+    })->add(new \App\Middleware\RateLimitMiddleware(3, 3600))->add(new CsrfMiddleware()); // 3 attempts per hour
     $app->get(RouteTranslator::route('register_success'), function ($request, $response) use ($app) {
         $controller = new RegistrationController();
         return $controller->success($request, $response);
@@ -336,12 +336,12 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->loan($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
     $app->post('/user/reserve', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->reserve($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // Rotte frontend per gestire le prenotazioni dell'utente (slug '/prenotazioni')
 
@@ -353,12 +353,12 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->cancelReservation($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
     $app->post('/reservation/change-date', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->changeReservationDate($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // User reservations count (for badge)
     // If authenticated (via session user), returns JSON {count: N}
@@ -379,7 +379,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new UserWishlistController();
         return $controller->toggle($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // Rotte dedicate alla gestione della wishlist utente
 
@@ -395,7 +395,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\RecensioniController();
         return $controller->create($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // Admin review management routes
     $app->get('/admin/recensioni', function ($request, $response) use ($app) {
@@ -408,19 +408,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->approve($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/recensioni/{id:\d+}/reject', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->reject($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->delete('/admin/recensioni/{id:\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->delete($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     // ========== END RECENSIONI ==========
 
     // Admin settings (general + email + templates)
@@ -440,81 +440,81 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updateGeneral($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/email', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updateEmailSettings($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/contacts', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updateContactSettings($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/privacy', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updatePrivacySettings($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/cookie-banner', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updateCookieBannerTexts($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/templates/{template}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         $template = (string) ($args['template'] ?? '');
         return $controller->updateEmailTemplate($request, $response, $db, $template);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/labels', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updateLabels($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/advanced', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updateAdvancedSettings($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/advanced/regenerate-sitemap', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->regenerateSitemap($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // API Settings Routes
     $app->post('/admin/settings/api/toggle', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->toggleApi($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/api/keys/create', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->createApiKey($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/api/keys/{id:\d+}/toggle', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->toggleApiKey($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/api/keys/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->deleteApiKey($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Language Management Routes (Admin Only)
     $app->get('/admin/languages', function ($request, $response) use ($app) {
@@ -533,7 +533,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->store($request, $response, $db, []);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // IMPORTANT: Static routes MUST come BEFORE dynamic routes with {code}
     // to avoid FastRoute shadowing errors
@@ -541,7 +541,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->refreshStats($request, $response, $db, []);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/languages/{code}/download', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -585,7 +585,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->updateRoutes($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/languages/{code}/edit', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -597,25 +597,25 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->update($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/languages/{code}/delete', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->delete($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/languages/{code}/toggle-active', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->toggleActive($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/languages/{code}/set-default', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->setDefault($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Admin Messages API routes
     $app->get('/admin/messages', function ($request, $response) use ($app) {
@@ -634,19 +634,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->delete($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/messages/{id:\d+}/archive', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->archive($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/messages/mark-all-read', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->markAllRead($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Admin Notifications routes
     $app->get('/admin/notifications', function ($request, $response) use ($app) {
@@ -671,19 +671,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->markAsRead($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/notifications/mark-all-read', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->markAllAsRead($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->delete('/admin/notifications/{id:\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->delete($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Admin CMS routes - Homepage
     $app->get('/admin/cms/home', function ($request, $response, $args) use ($app) {
@@ -696,21 +696,21 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\CmsController();
         return $controller->updateHome($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Reorder home sections (AJAX)
     $app->post('/admin/cms/home/reorder', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\CmsController();
         return $controller->reorderHomeSections($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Toggle home section visibility (AJAX)
     $app->post('/admin/cms/home/toggle-visibility', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\CmsController();
         return $controller->toggleSectionVisibility($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Admin Events routes (MUST be before the catch-all /admin/cms/{slug} route)
     $app->get('/admin/cms/events', function ($request, $response, $args) use ($app) {
@@ -723,7 +723,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
         return $controller->toggleVisibility($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/cms/events/create', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -735,7 +735,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/cms/events/edit/{id}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -747,13 +747,13 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
         return $controller->update($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/cms/events/delete/{id}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\EventsController();
         return $controller->delete($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Admin CMS routes - Other pages (catch-all, MUST be after specific routes)
     $app->get('/admin/cms/{slug}', function ($request, $response, $args) use ($app) {
@@ -764,12 +764,12 @@ return function (App $app): void {
     $app->post('/admin/cms/{slug}/update', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\Admin\CmsAdminController();
         return $controller->updatePage($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/cms/upload', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\Admin\CmsAdminController();
         return $controller->uploadImage($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Admin API: pending registrations count/list
     $app->get('/api/admin/pending-registrations-count', function ($request, $response) use ($app) {
@@ -846,7 +846,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/utenti/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
@@ -856,7 +856,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/utenti/dettagli/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
@@ -866,17 +866,17 @@ return function (App $app): void {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/admin/utenti/{id:\d+}/approve-and-send-activation', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->approveAndSendActivation($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/admin/utenti/{id:\d+}/activate-directly', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->activateDirectly($request, $response, $db, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // CSV Export route for users
     $app->get('/admin/utenti/export/csv', function ($request, $response) use ($app) {
@@ -904,7 +904,7 @@ return function (App $app): void {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/autori/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
@@ -914,7 +914,7 @@ return function (App $app): void {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     // Fallback GET to avoid 405 if user navigates directly
     $app->get('/admin/autori/update/{id:\d+}', function ($request, $response, $args) {
         return $response->withHeader('Location', '/admin/autori/modifica/' . (int) $args['id'])->withStatus(302);
@@ -923,7 +923,7 @@ return function (App $app): void {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Author duplicates management (admin only)
     $app->get('/api/autori/duplicates', function ($request, $response) use ($app) {
@@ -938,7 +938,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $data = $request->getParsedBody();
         if (!$data) {
-            $data = json_decode((string) $request->getBody(), true) ?? [];
+            $rawBody = (string) $request->getBody();
+            if ($rawBody !== '') {
+                $data = json_decode($rawBody, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'error' => __('Formato JSON non valido')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+                }
+            } else {
+                $data = [];
+            }
         }
         // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
         $ids = array_values(array_unique(array_map('intval', $data['ids'] ?? [])));
@@ -1029,7 +1041,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/prestiti/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1047,7 +1059,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Libri (protected admin)
     $app->get('/admin/libri', function ($request, $response) use ($app) {
@@ -1072,7 +1084,7 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/libri/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
@@ -1084,7 +1096,7 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/api/libri/{id:\d+}/etichetta-pdf', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
@@ -1097,7 +1109,7 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->fetchCover($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute for bulk operations
+    })->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute for bulk operations
 
     // CSV Import routes
     $app->get('/admin/libri/import', function ($request, $response) {
@@ -1114,7 +1126,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\CsvImportController();
         $db = $app->getContainer()->get('db');
         return $controller->processImport($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/libri/import/progress', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
@@ -1144,20 +1156,20 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Copy management routes
     $app->post('/admin/libri/copie/{id:\d+}/update', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\CopyController();
         $db = $app->getContainer()->get('db');
         return $controller->updateCopy($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/libri/copie/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\CopyController();
         $db = $app->getContainer()->get('db');
         return $controller->deleteCopy($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Generi (protected admin/staff only)
     $app->get('/admin/generi', function ($request, $response) use ($app) {
@@ -1176,7 +1188,7 @@ return function (App $app): void {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/generi/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new GeneriController();
@@ -1194,22 +1206,22 @@ return function (App $app): void {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->createScaffale($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/admin/collocazione/mensole', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->createMensola($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/admin/collocazione/scaffali/{id}/delete', function ($request, $response, $args) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->deleteScaffale($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/admin/collocazione/mensole/{id}/delete', function ($request, $response, $args) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->deleteMensola($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/api/collocazione/suggerisci', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
@@ -1224,7 +1236,7 @@ return function (App $app): void {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->sort($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/api/collocazione/libri', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
@@ -1259,7 +1271,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/prestiti/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1269,12 +1281,12 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/prestiti/close/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->close($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1284,7 +1296,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->processReturn($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/prestiti/dettagli/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1308,7 +1320,7 @@ return function (App $app): void {
         $controller = new LoanApprovalController();
         $db = $app->getContainer()->get('db');
         return $controller->approveLoan($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/loans/reject', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1317,7 +1329,7 @@ return function (App $app): void {
         $controller = new LoanApprovalController();
         $db = $app->getContainer()->get('db');
         return $controller->rejectLoan($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Maintenance routes
     $app->get('/admin/maintenance/integrity-report', function ($request, $response) use ($app) {
@@ -1330,31 +1342,31 @@ return function (App $app): void {
         $controller = new MaintenanceController();
         $db = $app->getContainer()->get('db');
         return $controller->fixIntegrityIssues($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
     $app->post('/admin/maintenance/recalculate-availability', function ($request, $response) use ($app) {
         $controller = new MaintenanceController();
         $db = $app->getContainer()->get('db');
         return $controller->recalculateAvailability($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
     $app->post('/admin/maintenance/perform', function ($request, $response) use ($app) {
         $controller = new MaintenanceController();
         $db = $app->getContainer()->get('db');
         return $controller->performMaintenance($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
     $app->post('/admin/maintenance/apply-config-fix', function ($request, $response) {
         $controller = new MaintenanceController();
         return $controller->applyConfigFix($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
     // Index optimization routes
     $app->post('/admin/maintenance/create-indexes', function ($request, $response) use ($app) {
         $controller = new MaintenanceController();
         $db = $app->getContainer()->get('db');
         return $controller->createMissingIndexes($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
     $app->get('/admin/maintenance/indexes-sql', function ($request, $response) use ($app) {
         $controller = new MaintenanceController();
@@ -1371,12 +1383,12 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->processReturn($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/admin/prestiti/rinnova/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->renew($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/prestiti/dettagli/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1412,7 +1424,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/prenotazioni/modifica/{id:\\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
@@ -1422,7 +1434,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Book availability endpoint
     $app->get('/api/books/{id:\\d+}/availability', function ($request, $response, $args) use ($app) {
@@ -1501,7 +1513,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/editori/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
@@ -1511,7 +1523,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     // API Dewey (basata su JSON) - PROTETTO: Solo admin e staff
     $app->get('/api/dewey/categories', [DeweyApiController::class, 'getCategories'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/divisions', [DeweyApiController::class, 'getDivisions'])->add(new AdminAuthMiddleware());
@@ -1520,11 +1532,11 @@ return function (App $app): void {
     $app->get('/api/dewey/children', [DeweyApiController::class, 'getChildren'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/search', [DeweyApiController::class, 'search'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
-    $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+    $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
     $app->post('/api/cover/download', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CoverController();
         return $controller->download($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()));
+    })->add(new CsrfMiddleware());
     $app->get('/api/libri', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibriApiController();
         $db = $app->getContainer()->get('db');
@@ -1577,7 +1589,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $data = $request->getParsedBody();
         if (!$data) {
-            $data = json_decode((string) $request->getBody(), true) ?? [];
+            $rawBody = (string) $request->getBody();
+            if ($rawBody !== '') {
+                $data = json_decode($rawBody, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'error' => __('Formato JSON non valido')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+                }
+            } else {
+                $data = [];
+            }
         }
         // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
         $ids = array_values(array_unique(array_map('intval', $data['ids'] ?? [])));
@@ -1879,7 +1903,7 @@ return function (App $app): void {
         $controller = new GeneriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->create($request, $response, $db);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/api/generi', function ($request, $response) use ($app) {
         $controller = new GeneriApiController();
         $db = $app->getContainer()->get('db');
@@ -1905,7 +1929,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // API Libri by Author/Publisher
     $app->get('/api/libri/author/{id:\d+}', function ($request, $response, $args) use ($app) {
@@ -2027,7 +2051,7 @@ return function (App $app): void {
         ], JSON_UNESCAPED_UNICODE));
 
         return $response->withHeader('Content-Type', 'application/json');
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AuthMiddleware(['admin']));
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
     // Frontend routes (public)
     $app->get('/home.php', function ($request, $response) use ($app) {
@@ -2105,7 +2129,7 @@ return function (App $app): void {
             $db = $app->getContainer()->get('db');
             $controller = new \App\Controllers\ReservationsController($db);
             return $controller->createReservation($request, $response, $args);
-        }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium']), new CsrfMiddleware($app->getContainer())]);
+        }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium']), new CsrfMiddleware()]);
     }
 
     // API endpoint for AJAX catalog filtering (all language variants)
@@ -2193,7 +2217,7 @@ return function (App $app): void {
             $db = $app->getContainer()->get('db');
             $controller = new \App\Controllers\ContactController();
             return $controller->submitForm($request, $response, $db);
-        }, [new CsrfMiddleware($app->getContainer())]);
+        }, [new CsrfMiddleware()]);
     }
 
     // Privacy Policy page (multi-language variants)
@@ -2575,35 +2599,35 @@ return function (App $app): void {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->upload($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Plugin activate
     $app->post('/admin/plugins/{id}/activate', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->activate($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Plugin deactivate
     $app->post('/admin/plugins/{id}/deactivate', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->deactivate($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Plugin uninstall
     $app->post('/admin/plugins/{id}/uninstall', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->uninstall($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Plugin settings update
     $app->post('/admin/plugins/{id}/settings', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->updateSettings($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // ==========================================
     // Theme Management Routes (Admin Only)
@@ -2628,27 +2652,27 @@ return function (App $app): void {
         $themeColorizer = $app->getContainer()->get('themeColorizer');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer);
         return $controller->save($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/themes/{id}/activate', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer);
         return $controller->activate($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/themes/{id}/reset', function ($request, $response, $args) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer);
         return $controller->reset($request, $response, $args);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/themes/check-contrast', function ($request, $response) use ($app) {
         $themeManager = $app->getContainer()->get('themeManager');
         $themeColorizer = $app->getContainer()->get('themeColorizer');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer);
         return $controller->checkContrast($request, $response);
-    })->add(new CsrfMiddleware($app->getContainer()))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
 };

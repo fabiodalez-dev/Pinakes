@@ -3386,5 +3386,6 @@
   "Errore nel caricamento dei backup.": "Error loading backups.",
   "I dati attuali verranno sostituiti.": "Current data will be replaced.",
   "Ripristinare questo backup?": "Restore this backup?",
-  "Questo codice esiste già.": "This code already exists."
+  "Questo codice esiste già.": "This code already exists.",
+  "Formato JSON non valido": "Invalid JSON format"
 }
