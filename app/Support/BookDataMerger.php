@@ -46,7 +46,12 @@ class BookDataMerger
     /**
      * Fields to skip during merge (internal metadata)
      */
-    private const SKIP_FIELDS = ['_cover_only', '_openlibrary_edition_key', '_openlibrary_work_key'];
+    private const SKIP_FIELDS = ['_cover_only', '_openlibrary_edition_key', '_openlibrary_work_key', '_keywords_priority'];
+
+    /**
+     * Fields with priority protection (e.g., _keywords_priority means keywords from that source take precedence)
+     */
+    private const PRIORITY_PROTECTED_FIELDS = ['keywords'];
 
     /**
      * Merge book data from a new source into existing data
@@ -92,8 +97,23 @@ class BookDataMerger
                 continue;
             }
 
-            // Handle array fields - merge unique values
+            // Handle array fields - check for priority protection first
             if (in_array($key, self::ARRAY_FIELDS, true)) {
+                // Check if this field has priority protection
+                if (in_array($key, self::PRIORITY_PROTECTED_FIELDS, true)) {
+                    $priorityKey = "_{$key}_priority";
+                    // If existing data has priority flag set, keep existing value (don't merge)
+                    if (!empty($merged[$priorityKey])) {
+                        continue;
+                    }
+                    // If new data has priority flag, use new value exclusively
+                    if (!empty($new[$priorityKey])) {
+                        $merged[$key] = $newValue;
+                        $merged[$priorityKey] = $new[$priorityKey];
+                        continue;
+                    }
+                }
+                // Normal merge for array fields
                 $merged[$key] = self::mergeArrayField($existingValue, $newValue);
                 continue;
             }
@@ -178,6 +198,11 @@ class BookDataMerger
     {
         $existingArray = is_array($existing) ? $existing : [];
         $newArray = is_array($new) ? $new : [];
+
+        // If existing is a string (comma-separated), split it
+        if (is_string($existing) && !empty($existing)) {
+            $existingArray = array_map('trim', explode(',', $existing));
+        }
 
         // If new is a string (comma-separated), split it
         if (is_string($new) && !empty($new)) {

@@ -428,6 +428,11 @@ class SbnClient
         $book['_source'] = 'sbn';
         $book['_sbn_bid'] = $record['codiceIdentificativo'] ?? '';
 
+        // Map BID to numero_inventario for form auto-fill
+        if (!empty($book['_sbn_bid'])) {
+            $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
+        }
+
         return $book;
     }
 
@@ -491,6 +496,11 @@ class SbnClient
         // Source
         $book['_source'] = 'sbn';
         $book['_sbn_bid'] = $record['codiceIdentificativo'] ?? '';
+
+        // Map BID to numero_inventario for form auto-fill
+        if (!empty($book['_sbn_bid'])) {
+            $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
+        }
 
         return $book;
     }
