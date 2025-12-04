@@ -1,0 +1,553 @@
+<?php
+use App\Support\HtmlHelper;
+use App\Support\Csrf;
+
+$pageTitle = __('Aggiornamenti');
+$updateInfo = $updateInfo ?? ['available' => false, 'current' => '0.0.0', 'latest' => '0.0.0'];
+$requirements = $requirements ?? ['met' => false, 'requirements' => []];
+$history = $history ?? [];
+$changelog = $changelog ?? [];
+?>
+
+<div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900"><?= __("Aggiornamenti") ?></h1>
+                <p class="mt-2 text-sm text-gray-600"><?= __("Gestisci gli aggiornamenti dell'applicazione") ?></p>
+            </div>
+            <button onclick="checkForUpdates()"
+                class="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 shadow-sm hover:shadow-md">
+                <i class="fas fa-sync-alt mr-2"></i>
+                <?= __("Controlla Aggiornamenti") ?>
+            </button>
+        </div>
+    </div>
+
+    <!-- Version Status Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+        <div class="p-6">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                <!-- Current Version -->
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center">
+                        <i class="fas fa-code-branch text-gray-600 text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500"><?= __("Versione Installata") ?></p>
+                        <p class="text-3xl font-bold text-gray-900">v<?= HtmlHelper::e($updateInfo['current']) ?></p>
+                    </div>
+                </div>
+
+                <!-- Arrow -->
+                <?php if ($updateInfo['available']): ?>
+                <div class="hidden lg:block">
+                    <i class="fas fa-arrow-right text-gray-400 text-2xl"></i>
+                </div>
+                <?php endif; ?>
+
+                <!-- Latest Version -->
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 <?= $updateInfo['available'] ? 'bg-gradient-to-br from-green-100 to-green-200' : 'bg-gradient-to-br from-gray-100 to-gray-200' ?> rounded-2xl flex items-center justify-center">
+                        <i class="fas <?= $updateInfo['available'] ? 'fa-download text-green-600' : 'fa-check-circle text-gray-600' ?> text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500"><?= __("Ultima Versione") ?></p>
+                        <p class="text-3xl font-bold <?= $updateInfo['available'] ? 'text-green-600' : 'text-gray-900' ?>">
+                            v<?= HtmlHelper::e($updateInfo['latest']) ?>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Update Button -->
+                <?php if ($updateInfo['available'] && $requirements['met']): ?>
+                <div>
+                    <button onclick="startUpdate('<?= HtmlHelper::e($updateInfo['latest']) ?>')"
+                        class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg">
+                        <i class="fas fa-download mr-2"></i>
+                        <?= __("Aggiorna Ora") ?>
+                    </button>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Update Available Banner -->
+            <?php if ($updateInfo['available']): ?>
+            <div class="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-info-circle text-green-600 mt-0.5"></i>
+                    <div>
+                        <p class="font-medium text-green-800"><?= __("Nuovo aggiornamento disponibile!") ?></p>
+                        <p class="text-sm text-green-700 mt-1">
+                            <?= sprintf(__("La versione %s è disponibile. Prima di aggiornare, verrà creato un backup automatico del database."), $updateInfo['latest']) ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <?php elseif ($updateInfo['error']): ?>
+            <div class="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-exclamation-triangle text-red-600 mt-0.5"></i>
+                    <div>
+                        <p class="font-medium text-red-800"><?= __("Errore durante il controllo") ?></p>
+                        <p class="text-sm text-red-700 mt-1"><?= HtmlHelper::e($updateInfo['error']) ?></p>
+                    </div>
+                </div>
+            </div>
+            <?php else: ?>
+            <div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-check-circle text-gray-600 mt-0.5"></i>
+                    <div>
+                        <p class="font-medium text-gray-800"><?= __("Pinakes è aggiornato") ?></p>
+                        <p class="text-sm text-gray-600 mt-1"><?= __("Stai utilizzando l'ultima versione disponibile.") ?></p>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Requirements & Changelog in Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- System Requirements -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900"><?= __("Requisiti di Sistema") ?></h2>
+                    <?php if ($requirements['met']): ?>
+                    <span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
+                        <i class="fas fa-check-circle mr-1"></i><?= __("Tutti soddisfatti") ?>
+                    </span>
+                    <?php else: ?>
+                    <span class="px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-lg">
+                        <i class="fas fa-times-circle mr-1"></i><?= __("Alcuni mancanti") ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    <?php foreach ($requirements['requirements'] as $req): ?>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 <?= $req['met'] ? 'bg-green-100' : 'bg-red-100' ?> rounded-lg flex items-center justify-center">
+                                <i class="fas <?= $req['met'] ? 'fa-check text-green-600' : 'fa-times text-red-600' ?> text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900"><?= HtmlHelper::e($req['name']) ?></p>
+                                <p class="text-xs text-gray-500"><?= __("Richiesto:") ?> <?= HtmlHelper::e($req['required']) ?></p>
+                            </div>
+                        </div>
+                        <span class="text-sm <?= $req['met'] ? 'text-gray-600' : 'text-red-600 font-medium' ?>">
+                            <?= HtmlHelper::e($req['current']) ?>
+                        </span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backup & Actions -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900"><?= __("Backup e Sicurezza") ?></h2>
+            </div>
+            <div class="p-6">
+                <div class="space-y-6">
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-shield-alt text-blue-600 mt-0.5"></i>
+                            <div>
+                                <p class="font-medium text-blue-800"><?= __("Backup Automatico") ?></p>
+                                <p class="text-sm text-blue-700 mt-1">
+                                    <?= __("Prima di ogni aggiornamento viene creato automaticamente un backup del database.") ?>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button onclick="createBackup()"
+                            class="w-full inline-flex items-center justify-center px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200">
+                            <i class="fas fa-database mr-2"></i>
+                            <?= __("Crea Backup Manuale") ?>
+                        </button>
+                    </div>
+
+                    <div class="text-sm text-gray-500">
+                        <p><i class="fas fa-folder mr-2"></i><?= __("I backup sono salvati in:") ?></p>
+                        <code class="block mt-2 p-2 bg-gray-100 rounded-lg text-xs">storage/backups/</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Changelog -->
+    <?php if (!empty($changelog)): ?>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900"><?= __("Novità nelle versioni successive") ?></h2>
+        </div>
+        <div class="divide-y divide-gray-200">
+            <?php foreach ($changelog as $release): ?>
+            <div class="p-6">
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-tag text-green-600"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <h3 class="font-semibold text-gray-900">v<?= HtmlHelper::e($release['version']) ?></h3>
+                            <?php if ($release['prerelease']): ?>
+                            <span class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-lg">
+                                Pre-release
+                            </span>
+                            <?php endif; ?>
+                            <?php if ($release['published_at']): ?>
+                            <span class="text-xs text-gray-500">
+                                <?= date('d/m/Y', strtotime($release['published_at'])) ?>
+                            </span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if (!empty($release['body'])): ?>
+                        <div class="prose prose-sm max-w-none text-gray-600">
+                            <?= nl2br(HtmlHelper::e($release['body'])) ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Update History -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900"><?= __("Cronologia Aggiornamenti") ?></h2>
+        </div>
+        <?php if (empty($history)): ?>
+        <div class="p-12 text-center">
+            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-history text-gray-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2"><?= __("Nessun aggiornamento registrato") ?></h3>
+            <p class="text-gray-600"><?= __("La cronologia degli aggiornamenti apparirà qui") ?></p>
+        </div>
+        <?php else: ?>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Data") ?></th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Versione") ?></th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Stato") ?></th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Eseguito da") ?></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <?php foreach ($history as $log): ?>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <?= date('d/m/Y H:i', strtotime($log['started_at'])) ?>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span class="font-mono">
+                                v<?= HtmlHelper::e($log['from_version']) ?>
+                                <i class="fas fa-arrow-right text-gray-400 mx-2"></i>
+                                v<?= HtmlHelper::e($log['to_version']) ?>
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <?php
+                            $statusClass = match($log['status']) {
+                                'completed' => 'bg-green-100 text-green-700',
+                                'failed' => 'bg-red-100 text-red-700',
+                                'rolled_back' => 'bg-yellow-100 text-yellow-700',
+                                default => 'bg-gray-100 text-gray-700'
+                            };
+                            $statusIcon = match($log['status']) {
+                                'completed' => 'fa-check-circle',
+                                'failed' => 'fa-times-circle',
+                                'rolled_back' => 'fa-undo',
+                                default => 'fa-clock'
+                            };
+                            $statusText = match($log['status']) {
+                                'completed' => __('Completato'),
+                                'failed' => __('Fallito'),
+                                'rolled_back' => __('Ripristinato'),
+                                'started' => __('In corso'),
+                                default => $log['status']
+                            };
+                            ?>
+                            <span class="px-2 py-1 text-xs font-medium <?= $statusClass ?> rounded-lg">
+                                <i class="fas <?= $statusIcon ?> mr-1"></i>
+                                <?= $statusText ?>
+                            </span>
+                            <?php if (!empty($log['error_message'])): ?>
+                            <p class="text-xs text-red-600 mt-1"><?= HtmlHelper::e($log['error_message']) ?></p>
+                            <?php endif; ?>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            <?= HtmlHelper::e($log['executed_by_name'] ?? __('Sistema')) ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Update Progress Modal -->
+<div id="updateModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full">
+            <div class="p-6">
+                <div class="text-center">
+                    <div id="updateIcon" class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-spinner fa-spin text-blue-600 text-3xl"></i>
+                    </div>
+                    <h3 id="updateTitle" class="text-xl font-bold text-gray-900 mb-2"><?= __("Aggiornamento in corso...") ?></h3>
+                    <p id="updateMessage" class="text-gray-600"><?= __("Non chiudere questa finestra") ?></p>
+                </div>
+
+                <div id="updateProgress" class="mt-6">
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-3 update-step" data-step="backup">
+                            <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-circle text-gray-400 text-xs"></i>
+                            </div>
+                            <span class="text-sm text-gray-600"><?= __("Creazione backup database") ?></span>
+                        </div>
+                        <div class="flex items-center gap-3 update-step" data-step="download">
+                            <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-circle text-gray-400 text-xs"></i>
+                            </div>
+                            <span class="text-sm text-gray-600"><?= __("Download aggiornamento") ?></span>
+                        </div>
+                        <div class="flex items-center gap-3 update-step" data-step="install">
+                            <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-circle text-gray-400 text-xs"></i>
+                            </div>
+                            <span class="text-sm text-gray-600"><?= __("Installazione file") ?></span>
+                        </div>
+                        <div class="flex items-center gap-3 update-step" data-step="migrate">
+                            <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-circle text-gray-400 text-xs"></i>
+                            </div>
+                            <span class="text-sm text-gray-600"><?= __("Migrazione database") ?></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="updateActions" class="mt-6 hidden">
+                    <button onclick="closeUpdateModal()" class="w-full px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all">
+                        <?= __("Chiudi") ?>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const csrfToken = '<?= Csrf::ensureToken() ?>';
+
+async function checkForUpdates() {
+    try {
+        Swal.fire({
+            title: '<?= __("Controllo aggiornamenti") ?>',
+            text: '<?= __("Verifica in corso...") ?>',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const response = await fetch('/admin/updates/check');
+        const data = await response.json();
+
+        Swal.close();
+
+        if (data.available) {
+            Swal.fire({
+                icon: 'info',
+                title: '<?= __("Aggiornamento disponibile!") ?>',
+                html: `<?= __("Versione") ?> <strong>${data.latest}</strong> <?= __("disponibile") ?>.`,
+                confirmButtonText: '<?= __("OK") ?>'
+            }).then(() => location.reload());
+        } else if (data.error) {
+            Swal.fire({
+                icon: 'error',
+                title: '<?= __("Errore") ?>',
+                text: data.error
+            });
+        } else {
+            Swal.fire({
+                icon: 'success',
+                title: '<?= __("Tutto aggiornato!") ?>',
+                text: '<?= __("Stai utilizzando l\'ultima versione.") ?>'
+            });
+        }
+    } catch (error) {
+        Swal.close();
+        Swal.fire({
+            icon: 'error',
+            title: '<?= __("Errore") ?>',
+            text: error.message
+        });
+    }
+}
+
+async function createBackup() {
+    try {
+        const result = await Swal.fire({
+            title: '<?= __("Creare backup?") ?>',
+            text: '<?= __("Verrà creato un backup completo del database.") ?>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<?= __("Crea Backup") ?>',
+            cancelButtonText: '<?= __("Annulla") ?>'
+        });
+
+        if (!result.isConfirmed) return;
+
+        Swal.fire({
+            title: '<?= __("Creazione backup...") ?>',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const response = await fetch('/admin/updates/backup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}`
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: '<?= __("Backup creato!") ?>',
+                text: data.message
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: '<?= __("Errore") ?>',
+                text: data.error
+            });
+        }
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: '<?= __("Errore") ?>',
+            text: error.message
+        });
+    }
+}
+
+async function startUpdate(version) {
+    const result = await Swal.fire({
+        title: '<?= __("Conferma aggiornamento") ?>',
+        html: `
+            <p><?= __("Stai per aggiornare Pinakes alla versione") ?> <strong>v${version}</strong></p>
+            <p class="text-sm text-gray-500 mt-2"><?= __("Verrà creato automaticamente un backup prima dell'aggiornamento.") ?></p>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<?= __("Aggiorna") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>',
+        confirmButtonColor: '#16a34a'
+    });
+
+    if (!result.isConfirmed) return;
+
+    // Show progress modal
+    document.getElementById('updateModal').classList.remove('hidden');
+    setStepActive('backup');
+
+    try {
+        // Simulate step progress (actual update is single request)
+        await sleep(500);
+        setStepComplete('backup');
+        setStepActive('download');
+
+        // Perform the actual update
+        const response = await fetch('/admin/updates/perform', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&version=${encodeURIComponent(version)}`
+        });
+
+        const data = await response.json();
+
+        setStepComplete('download');
+        setStepActive('install');
+        await sleep(300);
+        setStepComplete('install');
+        setStepActive('migrate');
+        await sleep(300);
+        setStepComplete('migrate');
+
+        if (data.success) {
+            document.getElementById('updateIcon').innerHTML = '<i class="fas fa-check-circle text-green-600 text-3xl"></i>';
+            document.getElementById('updateIcon').className = 'w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4';
+            document.getElementById('updateTitle').textContent = '<?= __("Aggiornamento completato!") ?>';
+            document.getElementById('updateMessage').textContent = '<?= __("Pinakes è stato aggiornato con successo.") ?>';
+        } else {
+            document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
+            document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
+            document.getElementById('updateTitle').textContent = '<?= __("Aggiornamento fallito") ?>';
+            document.getElementById('updateMessage').textContent = data.error || '<?= __("Si è verificato un errore.") ?>';
+        }
+
+        document.getElementById('updateActions').classList.remove('hidden');
+
+    } catch (error) {
+        document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
+        document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
+        document.getElementById('updateTitle').textContent = '<?= __("Errore") ?>';
+        document.getElementById('updateMessage').textContent = error.message;
+        document.getElementById('updateActions').classList.remove('hidden');
+    }
+}
+
+function setStepActive(step) {
+    const el = document.querySelector(`[data-step="${step}"]`);
+    if (el) {
+        el.querySelector('div').className = 'w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center';
+        el.querySelector('i').className = 'fas fa-spinner fa-spin text-white text-xs';
+        el.querySelector('span').className = 'text-sm text-gray-900 font-medium';
+    }
+}
+
+function setStepComplete(step) {
+    const el = document.querySelector(`[data-step="${step}"]`);
+    if (el) {
+        el.querySelector('div').className = 'w-6 h-6 rounded-full bg-green-500 flex items-center justify-center';
+        el.querySelector('i').className = 'fas fa-check text-white text-xs';
+        el.querySelector('span').className = 'text-sm text-green-600';
+    }
+}
+
+function closeUpdateModal() {
+    document.getElementById('updateModal').classList.add('hidden');
+    location.reload();
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+</script>

@@ -2539,4 +2539,43 @@ return function (App $app): void {
         return $controller->checkContrast($request, $response);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // ==========================================
+    // Admin Updates routes
+    // ==========================================
+    $app->get('/admin/updates', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->index($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/updates/check', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->checkUpdates($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/updates/available', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->checkAvailable($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/updates/perform', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->performUpdate($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/updates/backup', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->createBackup($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/updates/history', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->getHistory($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
 };

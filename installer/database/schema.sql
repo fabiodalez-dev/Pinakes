@@ -831,6 +831,48 @@ CREATE TABLE `themes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Theme management system';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `migrations`
+-- Application Update System
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `migrations` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Version number (e.g., 0.3.0)',
+  `filename` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Migration filename',
+  `batch` int NOT NULL DEFAULT '1' COMMENT 'Batch number for rollback',
+  `executed_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT 'When migration was executed',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_version` (`version`),
+  KEY `idx_batch` (`batch`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tracks executed database migrations';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `update_logs`
+-- Application Update System
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `update_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `from_version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `to_version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('started','completed','failed','rolled_back') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'started',
+  `backup_path` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path to backup file',
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` datetime DEFAULT NULL,
+  `executed_by` int DEFAULT NULL COMMENT 'User ID who initiated update',
+  PRIMARY KEY (`id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_started` (`started_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Logs all update attempts';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

@@ -354,6 +354,20 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <div class="text-xs text-gray-500"><?= __("Integrità dati") ?></div>
               </div>
             </a>
+
+            <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
+            <a href="/admin/updates" id="sidebar-updates-link"
+              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 relative">
+                <i class="fas fa-sync-alt text-sm text-gray-600"></i>
+                <span id="sidebar-update-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-100"></span>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium text-sm"><?= __("Aggiornamenti") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Verifica versioni") ?></div>
+              </div>
+            </a>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -703,9 +717,13 @@ $htmlLang = substr($currentLocale, 0, 2);
       initializeDropdowns();
       initializeKeyboardShortcuts();
       loadQuickStats();
+      checkForUpdates();
 
       // Auto-refresh stats every 5 minutes
       setInterval(loadQuickStats, 5 * 60 * 1000);
+
+      // Check for updates every hour (admin only)
+      setInterval(checkForUpdates, 60 * 60 * 1000);
 
     });
 
@@ -1285,6 +1303,42 @@ $htmlLang = substr($currentLocale, 0, 2);
       } catch (error) {
         // Silently handle network errors - stats are optional
         console.debug('Quick stats temporarily unavailable:', error.message);
+      }
+    }
+
+    // Check for application updates (admin only)
+    async function checkForUpdates() {
+      // Only check for admins
+      const isAdmin = <?php echo (($_SESSION['user']['tipo_utente'] ?? '') === 'admin') ? 'true' : 'false'; ?>;
+      if (!isAdmin) return;
+
+      try {
+        const response = await fetch('/admin/updates/available', {
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          cache: 'no-store'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const sidebarBadge = document.getElementById('sidebar-update-badge');
+
+          if (data.available) {
+            // Show update badge in sidebar
+            if (sidebarBadge) {
+              sidebarBadge.classList.remove('hidden');
+              sidebarBadge.title = `v${data.latest} ${window.__('disponibile')}`;
+            }
+          } else {
+            // Hide badge if no updates
+            if (sidebarBadge) {
+              sidebarBadge.classList.add('hidden');
+            }
+          }
+        }
+      } catch (error) {
+        // Silently handle errors - update check is optional
+        console.debug('Update check temporarily unavailable:', error.message);
       }
     }
 
