@@ -550,16 +550,34 @@ class SbnClient
     }
 
     /**
-     * Clean author name (remove dates, etc.)
+     * Clean and normalize author name
      *
-     * @param string $name Raw author name
-     * @return string Cleaned name
+     * Removes date ranges and normalizes format from "Surname, Name" to "Name Surname"
+     * to ensure consistency with other sources (Google Books, Open Library)
+     *
+     * @param string $name Raw author name (typically "Surname, Name" from SBN)
+     * @return string Normalized name in "Name Surname" format
      */
     private function cleanAuthorName(string $name): string
     {
         // Remove date ranges like <1818-1883>
         $name = preg_replace('/<[^>]+>/', '', $name);
-        return trim($name);
+        $name = trim($name);
+
+        // Normalize name format: "Surname, Name" → "Name Surname"
+        // This ensures consistency with other scraping sources (Google Books, Open Library)
+        if (str_contains($name, ',')) {
+            $parts = explode(',', $name, 2);
+            if (count($parts) === 2) {
+                $surname = trim($parts[0]);
+                $firstName = trim($parts[1]);
+                if ($surname !== '' && $firstName !== '') {
+                    $name = $firstName . ' ' . $surname;
+                }
+            }
+        }
+
+        return $name;
     }
 
     /**

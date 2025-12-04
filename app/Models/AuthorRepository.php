@@ -99,18 +99,22 @@ class AuthorRepository
         $sql = "INSERT INTO autori (nome, pseudonimo, data_nascita, data_morte, `nazionalità`, biografia, sito_web, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
         $stmt = $this->db->prepare($sql);
-        
+
         // Handle empty dates by converting them to NULL
         $data_nascita = empty($data['data_nascita']) ? null : $data['data_nascita'];
         $data_morte = empty($data['data_morte']) ? null : $data['data_morte'];
-        
+
         // Decode HTML entities to prevent double encoding
         $nome = \App\Support\HtmlHelper::decode($data['nome']);
         $pseudonimo = \App\Support\HtmlHelper::decode($data['pseudonimo'] ?? '');
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
-        
+
+        // Normalize author name to canonical format ("Name Surname")
+        // This prevents duplicates from different sources (SBN: "Levi, Primo" vs Google: "Primo Levi")
+        $nome = \App\Support\AuthorNormalizer::normalize($nome);
+
         $stmt->bind_param(
             'sssssss',
             $nome,
@@ -164,14 +168,68 @@ class AuthorRepository
         return $result;
     }
 
+    /**
+     * Find an author by name, with normalization to prevent duplicates
+     *
+     * Searches for author using both exact match and normalized variants
+     * to handle different name formats (e.g., "Levi, Primo" vs "Primo Levi")
+     *
+     * @param string $name Author name in any format
+     * @return int|null Author ID if found, null otherwise
+     */
     public function findByName(string $name): ?int
     {
+        $name = trim($name);
+        if ($name === '') {
+            return null;
+        }
+
+        // First try exact match
         $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
         $stmt->bind_param('s', $name);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();
-        return $row ? (int)$row['id'] : null;
+
+        if ($row) {
+            return (int)$row['id'];
+        }
+
+        // Try with normalized variants
+        $variants = \App\Support\AuthorNormalizer::getSearchVariants($name);
+
+        foreach ($variants as $variant) {
+            if ($variant === $name) {
+                continue; // Already tried exact match
+            }
+
+            $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
+            $stmt->bind_param('s', $variant);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res->fetch_assoc();
+
+            if ($row) {
+                return (int)$row['id'];
+            }
+        }
+
+        // Try fuzzy match with normalized search form (case-insensitive, accent-insensitive)
+        $searchForm = \App\Support\AuthorNormalizer::toSearchForm($name);
+        if ($searchForm !== '') {
+            // Get all authors and check for match
+            $stmt = $this->db->prepare("SELECT id, nome FROM autori");
+            $stmt->execute();
+            $res = $stmt->get_result();
+
+            while ($row = $res->fetch_assoc()) {
+                if (\App\Support\AuthorNormalizer::match($name, $row['nome'])) {
+                    return (int)$row['id'];
+                }
+            }
+        }
+
+        return null;
     }
 
     public function delete(int $id): bool
