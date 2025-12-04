@@ -115,38 +115,65 @@ class DeweyValidator
 
     /**
      * Check if child code is valid for given parent
+     *
+     * Valid relationships:
+     * - 800 (main class) -> 810, 820, etc. (divisions)
+     * - 800 (main class) -> 800.1, 800.12, etc. (direct decimals allowed)
+     * - 810 (division) -> 811, 812, etc. (sections)
+     * - 810 (division) -> 810.1, 811.5, etc. (any decimal in range)
+     * - 811 (section) -> 811.1, 811.12, etc. (decimals)
+     * - 811.1 (decimal) -> 811.12, 811.123, etc. (deeper decimals)
      */
     private function isValidChild(string $parentCode, string $childCode): bool
     {
-        // Integer parent (e.g., 599) -> child can be 599.X
-        if (preg_match(self::PATTERN_INTEGER_CODE, $parentCode)) {
-            // Child must start with parent or be a decimal of parent
-            if (strpos($childCode, $parentCode) === 0) {
-                return true;
-            }
-            // Also allow same prefix for divisions (e.g., 500 -> 510, 520, etc.)
-            $parentPrefix = substr($parentCode, 0, 1);
-            $childPrefix = substr($childCode, 0, 1);
-            if ($parentPrefix === $childPrefix && strlen($childCode) === 3) {
-                return true;
-            }
-            // Allow decimal codes in same division range (e.g., 490 -> 491.7)
-            // Division codes end in 0 (X10, X20, etc.) and can contain any code X10-X19.999
-            if (preg_match('/^([0-9])[0-9]0$/', $parentCode, $matches)) {
-                $divisionPrefix = $matches[1];
-                // Child decimal code (e.g., 491.7) is valid if first digit matches division
-                if (preg_match(self::PATTERN_DECIMAL_CODE, $childCode)) {
-                    $childFirstDigit = substr($childCode, 0, 1);
-                    if ($childFirstDigit === $divisionPrefix) {
-                        return true;
-                    }
+        // Rule 1: Child code must start with parent code prefix
+        // This handles: 800 -> 800.1, 810 -> 810.5, 599.9 -> 599.91
+        if (strpos($childCode, $parentCode) === 0) {
+            // For decimal children of integer parents, require a dot after parent
+            // e.g., 800 -> 800.1 (valid), 800 -> 8001 (invalid format anyway)
+            if (preg_match(self::PATTERN_INTEGER_CODE, $parentCode)) {
+                $suffix = substr($childCode, strlen($parentCode));
+                // Must have decimal point or be another integer in same range
+                if (empty($suffix) || $suffix[0] === '.' || preg_match('/^[0-9]$/', $suffix)) {
+                    return true;
                 }
+            } else {
+                // Decimal parent -> any extension is valid (599.9 -> 599.91)
+                return strlen($childCode) > strlen($parentCode);
             }
         }
 
-        // Decimal parent (e.g., 599.9) -> child can be 599.9X (e.g., 599.91)
-        if (preg_match(self::PATTERN_DECIMAL_CODE, $parentCode)) {
-            return strpos($childCode, $parentCode) === 0 && strlen($childCode) > strlen($parentCode);
+        // Rule 2: Divisions can have any code in their range
+        // Main class 800 -> 810, 820, ..., 890
+        // Division 810 -> 811, 812, ..., 819
+        if (preg_match(self::PATTERN_INTEGER_CODE, $parentCode) &&
+            preg_match(self::PATTERN_INTEGER_CODE, $childCode)) {
+            // Main class (X00) can have divisions (X10-X90) and sections (X01-X99)
+            if (preg_match('/^([0-9])00$/', $parentCode, $m)) {
+                return substr($childCode, 0, 1) === $m[1];
+            }
+            // Division (XX0) can have sections (XX1-XX9)
+            if (preg_match('/^([0-9]{2})0$/', $parentCode, $m)) {
+                return substr($childCode, 0, 2) === $m[1];
+            }
+        }
+
+        // Rule 3: Any integer parent can have decimal children in same first digit range
+        // 810 -> 811.5 is valid, 810 -> 891.5 is NOT valid
+        if (preg_match(self::PATTERN_INTEGER_CODE, $parentCode) &&
+            preg_match(self::PATTERN_DECIMAL_CODE, $childCode)) {
+            // Get the integer part of child
+            $childInt = explode('.', $childCode)[0];
+            // Main class allows any decimal starting with same first digit
+            if (preg_match('/^([0-9])00$/', $parentCode, $m)) {
+                return substr($childInt, 0, 1) === $m[1];
+            }
+            // Division allows decimals in its range (810 allows 810.x-819.x)
+            if (preg_match('/^([0-9]{2})0$/', $parentCode, $m)) {
+                return substr($childInt, 0, 2) === $m[1];
+            }
+            // Section allows its own decimals (815 allows 815.x)
+            return $childInt === $parentCode;
         }
 
         return false;
