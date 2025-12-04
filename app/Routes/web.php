@@ -940,7 +940,8 @@ return function (App $app): void {
         if (!$data) {
             $data = json_decode((string) $request->getBody(), true) ?? [];
         }
-        $ids = array_map('intval', $data['ids'] ?? []);
+        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
+        $ids = array_values(array_unique(array_map('intval', $data['ids'] ?? [])));
         $requestedPrimaryId = isset($data['primary_id']) ? (int)$data['primary_id'] : null;
         $newName = isset($data['new_name']) ? trim($data['new_name']) : '';
 
@@ -1578,7 +1579,8 @@ return function (App $app): void {
         if (!$data) {
             $data = json_decode((string) $request->getBody(), true) ?? [];
         }
-        $ids = array_map('intval', $data['ids'] ?? []);
+        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
+        $ids = array_values(array_unique(array_map('intval', $data['ids'] ?? [])));
         $requestedPrimaryId = isset($data['primary_id']) ? (int)$data['primary_id'] : null;
         $newName = isset($data['new_name']) ? trim($data['new_name']) : '';
 

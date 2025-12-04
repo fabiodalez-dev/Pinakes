@@ -314,24 +314,34 @@ class AuthorRepository
      */
     public function mergeAuthors(array $authorIds, ?int $primaryId = null): ?int
     {
+        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
+        $authorIds = array_values(array_unique($authorIds));
+
         if (count($authorIds) < 2) {
             return null;
         }
 
         // Use specified primary ID or default to lowest ID
         if ($primaryId !== null && in_array($primaryId, $authorIds, true)) {
-            $authorIds = array_values(array_filter($authorIds, fn($id) => $id !== $primaryId));
+            // Create separate array of IDs to delete (excluding primary)
+            $duplicateIds = array_values(array_filter($authorIds, fn($id) => $id !== $primaryId));
         } else {
             // Sort to get the lowest ID as primary
             sort($authorIds);
             $primaryId = array_shift($authorIds);
+            $duplicateIds = $authorIds;
+        }
+
+        // Ensure we have duplicates to process
+        if (empty($duplicateIds)) {
+            return null;
         }
 
         // Start transaction
         $this->db->begin_transaction();
 
         try {
-            foreach ($authorIds as $duplicateId) {
+            foreach ($duplicateIds as $duplicateId) {
                 // Update book-author relationships to point to primary author
                 // Use IGNORE to handle unique constraint violations (book already linked to primary)
                 $stmt = $this->db->prepare(

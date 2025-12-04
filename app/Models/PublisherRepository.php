@@ -197,24 +197,34 @@ class PublisherRepository
      */
     public function mergePublishers(array $publisherIds, ?int $primaryId = null): ?int
     {
+        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
+        $publisherIds = array_values(array_unique($publisherIds));
+
         if (count($publisherIds) < 2) {
             return null;
         }
 
         // Use specified primary ID or default to lowest ID
         if ($primaryId !== null && \in_array($primaryId, $publisherIds, true)) {
-            $publisherIds = array_values(array_filter($publisherIds, fn($id) => $id !== $primaryId));
+            // Create separate array of IDs to delete (excluding primary)
+            $duplicateIds = array_values(array_filter($publisherIds, fn($id) => $id !== $primaryId));
         } else {
             // Sort to get the lowest ID as primary
             sort($publisherIds);
             $primaryId = array_shift($publisherIds);
+            $duplicateIds = $publisherIds;
+        }
+
+        // Ensure we have duplicates to process
+        if (empty($duplicateIds)) {
+            return null;
         }
 
         // Start transaction
         $this->db->begin_transaction();
 
         try {
-            foreach ($publisherIds as $duplicateId) {
+            foreach ($duplicateIds as $duplicateId) {
                 // Update books to point to primary publisher
                 $stmt = $this->db->prepare("UPDATE libri SET editore_id = ? WHERE editore_id = ?");
                 $stmt->bind_param('ii', $primaryId, $duplicateId);
