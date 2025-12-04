@@ -475,22 +475,28 @@ class LibriController
             $repo = new \App\Models\BookRepository($db);
             $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
 
-            // Gestione autori nuovi da creare
+            // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
                 $authRepo = new \App\Models\AuthorRepository($db);
                 foreach ((array) $data['autori_new'] as $nomeCompleto) {
                     $nomeCompleto = trim((string) $nomeCompleto);
                     if ($nomeCompleto !== '') {
-                        $authorId = $authRepo->create([
-                            'nome' => $nomeCompleto,
-                            'pseudonimo' => '',
-                            'data_nascita' => null,
-                            'data_morte' => null,
-                            'nazionalita' => '',
-                            'biografia' => '',
-                            'sito_web' => ''
-                        ]);
-                        $fields['autori_ids'][] = $authorId;
+                        // Check if author already exists (handles "Levi, Primo" vs "Primo Levi")
+                        $existingId = $authRepo->findByName($nomeCompleto);
+                        if ($existingId) {
+                            $fields['autori_ids'][] = $existingId;
+                        } else {
+                            $authorId = $authRepo->create([
+                                'nome' => $nomeCompleto,
+                                'pseudonimo' => '',
+                                'data_nascita' => null,
+                                'data_morte' => null,
+                                'nazionalita' => '',
+                                'biografia' => '',
+                                'sito_web' => ''
+                            ]);
+                            $fields['autori_ids'][] = $authorId;
+                        }
                     }
                 }
             }
@@ -965,22 +971,28 @@ class LibriController
                 $fields['collocazione'] = '';
             }
 
-            // Gestione autori nuovi da creare
+            // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
                 $authRepo = new \App\Models\AuthorRepository($db);
                 foreach ((array) $data['autori_new'] as $nomeCompleto) {
                     $nomeCompleto = trim((string) $nomeCompleto);
                     if ($nomeCompleto !== '') {
-                        $authorId = $authRepo->create([
-                            'nome' => $nomeCompleto,
-                            'pseudonimo' => '',
-                            'data_nascita' => null,
-                            'data_morte' => null,
-                            'nazionalita' => '',
-                            'biografia' => '',
-                            'sito_web' => ''
-                        ]);
-                        $fields['autori_ids'][] = $authorId;
+                        // Check if author already exists (handles "Levi, Primo" vs "Primo Levi")
+                        $existingId = $authRepo->findByName($nomeCompleto);
+                        if ($existingId) {
+                            $fields['autori_ids'][] = $existingId;
+                        } else {
+                            $authorId = $authRepo->create([
+                                'nome' => $nomeCompleto,
+                                'pseudonimo' => '',
+                                'data_nascita' => null,
+                                'data_morte' => null,
+                                'nazionalita' => '',
+                                'biografia' => '',
+                                'sito_web' => ''
+                            ]);
+                            $fields['autori_ids'][] = $authorId;
+                        }
                     }
                 }
             }

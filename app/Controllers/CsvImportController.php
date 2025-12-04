@@ -568,23 +568,32 @@ class CsvImportController
     }
 
     /**
-     * Ottieni o crea autore
+     * Ottieni o crea autore (con normalizzazione per evitare duplicati)
+     * Handles "Levi, Primo" vs "Primo Levi" as same author
+     * Returns 'created' string when new author created (caller uses $db->insert_id)
      */
     private function getOrCreateAuthor(\mysqli $db, string $name): int|string
     {
-        $stmt = $db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $authRepo = new \App\Models\AuthorRepository($db);
 
-        if ($row = $result->fetch_assoc()) {
-            return (int) $row['id'];
+        // findByName normalizes and handles different formats
+        $existingId = $authRepo->findByName($name);
+        if ($existingId) {
+            return $existingId;
         }
 
-        // Crea nuovo autore
-        $stmt = $db->prepare("INSERT INTO autori (nome, created_at) VALUES (?, NOW())");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
+        // create() also normalizes the name before inserting
+        // Returns new ID, but we return 'created' to match original API
+        // (caller increments counter and uses $db->insert_id)
+        $authRepo->create([
+            'nome' => $name,
+            'pseudonimo' => '',
+            'data_nascita' => null,
+            'data_morte' => null,
+            'nazionalita' => '',
+            'biografia' => '',
+            'sito_web' => ''
+        ]);
 
         return 'created';
     }
