@@ -936,75 +936,7 @@ return function (App $app): void {
 
     $app->post('/api/autori/merge', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
-        $data = $request->getParsedBody();
-        if (!$data) {
-            $rawBody = (string) $request->getBody();
-            if ($rawBody !== '') {
-                $data = json_decode($rawBody, true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    $response->getBody()->write(json_encode([
-                        'success' => false,
-                        'error' => __('Formato JSON non valido')
-                    ]));
-                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-                }
-            } else {
-                $data = [];
-            }
-        }
-        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
-        $ids = array_values(array_unique(array_map('intval', $data['ids'] ?? [])));
-        $requestedPrimaryId = isset($data['primary_id']) ? (int)$data['primary_id'] : null;
-        $newName = isset($data['new_name']) ? trim($data['new_name']) : '';
-
-        if (count($ids) < 2) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Seleziona almeno 2 autori da unire')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        // Validate primary_id is in the ids array
-        if ($requestedPrimaryId !== null && !in_array($requestedPrimaryId, $ids, true)) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('L\'ID primario deve essere presente nella lista degli autori da unire')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        try {
-            $repo = new \App\Models\AuthorRepository($db);
-            $primaryId = $repo->mergeAuthors($ids, $requestedPrimaryId);
-
-            if ($primaryId) {
-                // Rename if requested
-                if ($newName !== '') {
-                    $current = $repo->getById($primaryId);
-                    $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
-                }
-
-                $response->getBody()->write(json_encode([
-                    'success' => true,
-                    'message' => __('Autori uniti con successo'),
-                    'primary_id' => $primaryId
-                ]));
-            } else {
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'error' => __('Errore durante l\'unione degli autori')
-                ]));
-            }
-        } catch (\Throwable $e) {
-            error_log('[API] Author merge error: ' . $e->getMessage());
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Errore imprevisto durante l\'unione degli autori')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
-        return $response->withHeader('Content-Type', 'application/json');
+        return \App\Support\MergeHelper::handleMergeRequest($request, $response, $db, 'autori');
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Prestiti (protected admin) - Disabled in catalogue mode
@@ -1532,7 +1464,7 @@ return function (App $app): void {
     $app->get('/api/dewey/children', [DeweyApiController::class, 'getChildren'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/search', [DeweyApiController::class, 'search'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
-    $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
+    $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/api/cover/download', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CoverController();
         return $controller->download($request, $response);
@@ -1587,75 +1519,7 @@ return function (App $app): void {
     // API Editori - Merge
     $app->post('/api/editori/merge', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
-        $data = $request->getParsedBody();
-        if (!$data) {
-            $rawBody = (string) $request->getBody();
-            if ($rawBody !== '') {
-                $data = json_decode($rawBody, true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    $response->getBody()->write(json_encode([
-                        'success' => false,
-                        'error' => __('Formato JSON non valido')
-                    ]));
-                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-                }
-            } else {
-                $data = [];
-            }
-        }
-        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
-        $ids = array_values(array_unique(array_map('intval', $data['ids'] ?? [])));
-        $requestedPrimaryId = isset($data['primary_id']) ? (int)$data['primary_id'] : null;
-        $newName = isset($data['new_name']) ? trim($data['new_name']) : '';
-
-        if (count($ids) < 2) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Seleziona almeno 2 editori da unire')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        // Validate primary_id is in the ids array
-        if ($requestedPrimaryId !== null && !in_array($requestedPrimaryId, $ids, true)) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('L\'ID primario deve essere presente nella lista degli editori da unire')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        try {
-            $repo = new \App\Models\PublisherRepository($db);
-            $primaryId = $repo->mergePublishers($ids, $requestedPrimaryId);
-
-            if ($primaryId) {
-                // Rename if requested
-                if ($newName !== '') {
-                    $current = $repo->getById($primaryId);
-                    $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
-                }
-
-                $response->getBody()->write(json_encode([
-                    'success' => true,
-                    'message' => __('Editori uniti con successo'),
-                    'primary_id' => $primaryId
-                ]));
-            } else {
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'error' => __('Errore durante l\'unione degli editori')
-                ]));
-            }
-        } catch (\Throwable $e) {
-            error_log('[API] Publisher merge error: ' . $e->getMessage());
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Errore imprevisto durante l\'unione degli editori')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
-        return $response->withHeader('Content-Type', 'application/json');
+        return \App\Support\MergeHelper::handleMergeRequest($request, $response, $db, 'editori');
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/api/search/autori', function ($request, $response) use ($app) {

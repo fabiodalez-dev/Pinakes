@@ -197,8 +197,9 @@ class PublisherRepository
      */
     public function mergePublishers(array $publisherIds, ?int $primaryId = null): ?int
     {
-        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
-        $publisherIds = array_values(array_unique($publisherIds));
+        // Normalize to integers and deduplicate to prevent type-safety issues
+        // and deleting primary when duplicate IDs are passed
+        $publisherIds = array_values(array_unique(array_map('intval', $publisherIds)));
 
         if (count($publisherIds) < 2) {
             return null;

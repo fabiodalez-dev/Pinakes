@@ -314,8 +314,9 @@ class AuthorRepository
      */
     public function mergeAuthors(array $authorIds, ?int $primaryId = null): ?int
     {
-        // Deduplicate IDs to prevent deleting primary when duplicate IDs are passed
-        $authorIds = array_values(array_unique($authorIds));
+        // Normalize to integers and deduplicate to prevent type-safety issues
+        // and deleting primary when duplicate IDs are passed
+        $authorIds = array_values(array_unique(array_map('intval', $authorIds)));
 
         if (count($authorIds) < 2) {
             return null;
