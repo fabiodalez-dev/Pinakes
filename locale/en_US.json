@@ -3313,5 +3313,6 @@
   "Errore nella lettura del file.": "Error reading file.",
   "Errore nella lettura del file Dewey esistente.": "Error reading existing Dewey file.",
   "File Dewey esistente non è un JSON valido o è corrotto.": "Existing Dewey file is not valid JSON or is corrupted.",
-  "Errore nella codifica JSON.": "JSON encoding error."
+  "Errore nella codifica JSON.": "JSON encoding error.",
+  "Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).": "Enable this option only if your server supports HTTPS. If your hosting already forces HTTPS automatically, you don't need to enable it (may cause redirect loop)."
 }
