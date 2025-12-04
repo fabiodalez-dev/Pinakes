@@ -761,8 +761,8 @@ $pageTitle = __('Editor Classificazione Dewey');
 
         // Show "no results" message if nothing found - replace tree content
         if (matchCount === 0) {
-            treeContainer.innerHTML = `<div class="dewey-no-results text-center text-gray-500 py-8">
-                <i class="fas fa-search text-2xl mb-2 block"></i>
+            treeContainer.innerHTML = `<div class="dewey-no-results flex flex-col items-center justify-center text-gray-500 py-8">
+                <i class="fas fa-search text-2xl mb-2"></i>
                 <p><?= __('Nessun risultato trovato per la ricerca.') ?></p>
             </div>`;
         }
