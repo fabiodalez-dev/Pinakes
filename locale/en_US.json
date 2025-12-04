@@ -3378,5 +3378,13 @@
   "Il codice %s ha un formato non valido.": "Code %s has an invalid format.",
   "Il codice %s è duplicato.": "Code %s is duplicated.",
   "Il codice %s non è un figlio valido di %s.": "Code %s is not a valid child of %s.",
-  "Classe principale mancante: %s.": "Missing main class: %s."
+  "Classe principale mancante: %s.": "Missing main class: %s.",
+  "Importato": "Imported",
+  "Modifiche non salvate": "Unsaved changes",
+  "Nome della classificazione": "Classification name",
+  "Formato codice non valido. Usa: XXX.Y (es. 599.1)": "Invalid code format. Use: XXX.Y (e.g. 599.1)",
+  "Errore nel caricamento dei backup.": "Error loading backups.",
+  "I dati attuali verranno sostituiti.": "Current data will be replaced.",
+  "Ripristinare questo backup?": "Restore this backup?",
+  "Questo codice esiste già.": "This code already exists."
 }
