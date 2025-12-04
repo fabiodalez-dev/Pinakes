@@ -13,6 +13,51 @@ use App\Support\I18n;
 
 class EmailService {
     private const RAW_HTML_VARIABLES = ['verify_section'];
+
+    /**
+     * Placeholder aliases: English -> Italian
+     * This allows English-speaking operators to use English placeholder names
+     * in email templates, which are mapped to the internal Italian names.
+     */
+    private const PLACEHOLDER_ALIASES = [
+        // User fields
+        'first_name' => 'nome',
+        'last_name' => 'cognome',
+        'user_name' => 'utente_nome',
+        'user_email' => 'utente_email',
+        'card_code' => 'codice_tessera',
+
+        // Book fields
+        'book_title' => 'libro_titolo',
+        'book_author' => 'libro_autore',
+        'book_isbn' => 'libro_isbn',
+
+        // Date fields
+        'due_date' => 'data_scadenza',
+        'start_date' => 'data_inizio',
+        'end_date' => 'data_fine',
+        'loan_date' => 'data_prestito',
+        'request_date' => 'data_richiesta',
+        'registration_date' => 'data_registrazione',
+        'availability_date' => 'data_disponibilita',
+
+        // Numeric fields
+        'days_remaining' => 'giorni_rimasti',
+        'days_overdue' => 'giorni_ritardo',
+        'loan_days' => 'giorni_prestito',
+        'loan_id' => 'prestito_id',
+        'stars' => 'stelle',
+
+        // Review fields
+        'review_date' => 'data_recensione',
+        'review_title' => 'titolo_recensione',
+        'review_description' => 'descrizione_recensione',
+        'approval_link' => 'link_approvazione',
+
+        // Other fields
+        'rejection_reason' => 'motivo_rifiuto',
+    ];
+
     private PHPMailer $mailer;
     private mysqli $db;
 
@@ -398,6 +443,9 @@ class EmailService {
 
     /**
      * Replace template variables
+     *
+     * Supports both Italian placeholder names (e.g., {{libro_titolo}})
+     * and English aliases (e.g., {{book_title}}) for international operators.
      */
     private function replaceVariables(string $content, array $variables): string {
         foreach ($variables as $key => $value) {
@@ -405,7 +453,14 @@ class EmailService {
                 ? (string)$value
                 : htmlspecialchars((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
+            // Replace the Italian placeholder
             $content = str_replace('{{' . $key . '}}', $replacement, $content);
+
+            // Also replace the English alias if one exists
+            $englishAlias = array_search($key, self::PLACEHOLDER_ALIASES, true);
+            if ($englishAlias !== false) {
+                $content = str_replace('{{' . $englishAlias . '}}', $replacement, $content);
+            }
         }
         return $content;
     }
