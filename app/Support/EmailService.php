@@ -453,6 +453,12 @@ class EmailService {
      * and English aliases (e.g., {{book_title}}) for international operators.
      */
     private function replaceVariables(string $content, array $variables): string {
+        // Cache the inverted map (Italian → English) for O(1) lookups
+        static $italianToEnglish = null;
+        if ($italianToEnglish === null) {
+            $italianToEnglish = array_flip(self::PLACEHOLDER_ALIASES);
+        }
+
         foreach ($variables as $key => $value) {
             $replacement = in_array($key, self::RAW_HTML_VARIABLES, true)
                 ? (string)$value
@@ -462,9 +468,8 @@ class EmailService {
             $content = str_replace('{{' . $key . '}}', $replacement, $content);
 
             // Also replace the English alias if one exists
-            $englishAlias = array_search($key, self::PLACEHOLDER_ALIASES, true);
-            if ($englishAlias !== false) {
-                $content = str_replace('{{' . $englishAlias . '}}', $replacement, $content);
+            if (isset($italianToEnglish[$key])) {
+                $content = str_replace('{{' . $italianToEnglish[$key] . '}}', $replacement, $content);
             }
         }
         return $content;
