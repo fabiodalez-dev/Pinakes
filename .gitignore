@@ -81,6 +81,10 @@ storage/uploads/plugins/*
 storage/backups/*
 !storage/backups/.gitkeep
 !storage/backups/.htaccess
+!storage/calendar/
+storage/calendar/*
+!storage/calendar/.gitkeep
+!storage/calendar/.htaccess
 !storage/plugins/
 storage/plugins/*
 !storage/plugins/open-library/

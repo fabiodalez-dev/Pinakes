@@ -1,0 +1,25 @@
+# Allow public access to calendar files (.ics)
+# This overrides the parent storage/.htaccess deny rule
+
+# Apache 2.4
+<IfModule mod_authz_core.c>
+    <FilesMatch "\.ics$">
+        Require all granted
+    </FilesMatch>
+</IfModule>
+
+# Apache 2.2 (fallback)
+<IfModule !mod_authz_core.c>
+    <FilesMatch "\.ics$">
+        Order Allow,Deny
+        Allow from all
+    </FilesMatch>
+</IfModule>
+
+# Set correct MIME type for iCalendar files
+<IfModule mod_mime.c>
+    AddType text/calendar .ics
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
