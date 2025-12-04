@@ -177,7 +177,7 @@ class DeweyAutoPopulator
             return false;
         }
 
-        $result = file_put_contents($path, $json);
+        $result = file_put_contents($path, $json, LOCK_EX);
         if ($result === false) {
             error_log("[DeweyAutoPopulator] Failed to write: $path");
             return false;

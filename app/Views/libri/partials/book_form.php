@@ -1126,19 +1126,23 @@ async function initializeDewey() {
     const code = manualInput.value.trim();
 
     if (!code) {
-      Toast.fire({
-        icon: 'warning',
-        title: __('<?= __("Inserisci un codice Dewey") ?>')
-      });
+      if (window.Toast) {
+        window.Toast.fire({
+          icon: 'warning',
+          title: __('<?= __("Inserisci un codice Dewey") ?>')
+        });
+      }
       return;
     }
 
     if (!validateDeweyCode(code)) {
-      Toast.fire({
-        icon: 'error',
-        title: __('<?= __("Formato codice non valido") ?>'),
-        text: __('<?= __("Usa formato: 599 oppure 599.9 oppure 599.93") ?>')
-      });
+      if (window.Toast) {
+        window.Toast.fire({
+          icon: 'error',
+          title: __('<?= __("Formato codice non valido") ?>'),
+          text: __('<?= __("Usa formato: 599 oppure 599.9 oppure 599.93") ?>')
+        });
+      }
       return;
     }
 
@@ -1215,8 +1219,12 @@ async function initializeDewey() {
         const name = selectedOption.dataset.name;
         const hasChildren = selectedOption.dataset.hasChildren === 'true';
 
-        // Aggiorna breadcrumb
-        breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span class="text-gray-500">${code}</span>`;
+        // Aggiorna breadcrumb in modo sicuro (XSS prevention)
+        breadcrumb.innerHTML = '<i class="fas fa-home"></i> ';
+        const breadcrumbSpan = document.createElement('span');
+        breadcrumbSpan.className = 'text-gray-500';
+        breadcrumbSpan.textContent = code;
+        breadcrumb.appendChild(breadcrumbSpan);
 
         // Se ha figli, carica il livello successivo
         if (hasChildren) {
@@ -1778,10 +1786,10 @@ function initializeSuggestCollocazione() {
           }, 100);
         }
         info.textContent = data.collocazione ? `Suggerito: ${data.collocazione}` : `Suggerito scaffale #${data.scaffale_id}`;
-        if (window.Toast) Toast.fire({icon: 'success', title: __('Collocazione suggerita') });
+        if (window.Toast) window.Toast.fire({icon: 'success', title: __('Collocazione suggerita') });
       } else {
         info.textContent = '<?= __("Nessun suggerimento disponibile") ?>';
-        if (window.Toast) Toast.fire({icon: 'info', title: __('Nessun suggerimento') });
+        if (window.Toast) window.Toast.fire({icon: 'info', title: __('Nessun suggerimento') });
       }
     } catch (e) {
       info.textContent = '<?= __("Errore suggerimento") ?>';
@@ -2730,10 +2738,12 @@ function initializeIsbnImport() {
                         scrapedPrice.value = priceValue;
                     }
 
-                    Toast.fire({
-                        icon: 'success',
-                        title: bookFormMessages.priceImported.replace('%s', data.price)
-                    });
+                    if (window.Toast) {
+                        window.Toast.fire({
+                            icon: 'success',
+                            title: bookFormMessages.priceImported.replace('%s', data.price)
+                        });
+                    }
                 }
             } catch (err) {
             }
@@ -2927,20 +2937,24 @@ function initializeIsbnImport() {
 
 
             // Show success toast (small notification)
-            Toast.fire({
-                icon: 'success',
-                title: __('Importazione completata con successo!')
-            });
+            if (window.Toast) {
+                window.Toast.fire({
+                    icon: 'success',
+                    title: __('Importazione completata con successo!')
+                });
+            }
 
         } catch (error) {
             const fallbackMessage = __("Errore durante l'importazione dati");
             const message = error && typeof error.message === 'string' && error.message.trim() !== ''
                 ? error.message
                 : fallbackMessage;
-            Toast.fire({
-                icon: 'error',
-                title: message
-            });
+            if (window.Toast) {
+                window.Toast.fire({
+                    icon: 'error',
+                    title: message
+                });
+            }
         } finally {
             btn.disabled = false;
             btn.innerHTML = `<i class="fas fa-download mr-2"></i>${defaultBtnLabel}`;

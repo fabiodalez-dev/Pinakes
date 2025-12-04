@@ -203,7 +203,8 @@ class CsvImportController
             'collana',
             'numero_serie',
             'traduttore',
-            'parole_chiave'
+            'parole_chiave',
+            'classificazione_dewey'
         ];
 
         $examples = [
@@ -228,7 +229,8 @@ class CsvImportController
                 'Oscar Bestsellers',
                 '1',
                 '',
-                'medioevo, giallo, monastero'
+                'medioevo, giallo, monastero',
+                '853'  // Dewey: Narrativa italiana
             ],
             [
                 '',  // id vuoto per nuovo libro
@@ -251,7 +253,8 @@ class CsvImportController
                 '',
                 '',
                 'Gabriele Baldini',
-                'distopia, controllo, totalitarismo'
+                'distopia, controllo, totalitarismo',
+                ''  // Dewey vuoto - verrà popolato dallo scraping se abilitato
             ],
             [
                 '',  // id vuoto per nuovo libro
@@ -274,7 +277,8 @@ class CsvImportController
                 'BUR Classici',
                 '',
                 '',
-                'dante, medioevo, poesia, inferno, paradiso'
+                'dante, medioevo, poesia, inferno, paradiso',
+                '851.1'  // Dewey: Poesia italiana - Dante
             ]
         ];
 
@@ -683,6 +687,7 @@ class CsvImportController
                 numero_serie = ?,
                 traduttore = ?,
                 parole_chiave = ?,
+                classificazione_dewey = ?,
                 updated_at = NOW()
             WHERE id = ?
         ");
@@ -703,9 +708,10 @@ class CsvImportController
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
         $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
+        $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssississdisssssi',
+            'sssssississdissssssi',
             $isbn10,
             $isbn13,
             $ean,
@@ -724,6 +730,7 @@ class CsvImportController
             $numeroSerie,
             $traduttore,
             $paroleChiave,
+            $dewey,
             $bookId
         );
 
@@ -762,13 +769,13 @@ class CsvImportController
                 lingua, edizione, numero_pagine, genere_id,
                 descrizione, formato, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, parole_chiave,
-                stato, created_at
+                classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
-                'disponibile', NOW()
+                ?, 'disponibile', NOW()
             )
         ");
 
@@ -795,9 +802,10 @@ class CsvImportController
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
         $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
+        $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssississdiiisssss',
+            'sssssississdiiissssss',
             $isbn10,
             $isbn13,
             $ean,
@@ -817,7 +825,8 @@ class CsvImportController
             $collana,
             $numeroSerie,
             $traduttore,
-            $paroleChiave
+            $paroleChiave,
+            $dewey
         );
 
         $stmt->execute();
@@ -971,6 +980,42 @@ class CsvImportController
                 $params[] = (int) $pagesClean;
                 $types .= 'i';
             }
+        }
+
+        // Classificazione Dewey
+        if (empty($csvData['classificazione_dewey']) && !empty($scrapedData['classificazione_dewey'])) {
+            // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
+            $deweyCode = $scrapedData['classificazione_dewey'];
+            if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
+                error_log("[CSV Import] Adding Dewey classification for book $bookId: $deweyCode");
+                $updates[] = 'classificazione_dewey = ?';
+                $params[] = $deweyCode;
+                $types .= 's';
+            }
+        }
+
+        // Anno pubblicazione
+        if (empty($csvData['anno_pubblicazione']) && !empty($scrapedData['year'])) {
+            $yearClean = preg_replace('/[^0-9]/', '', $scrapedData['year']);
+            if (is_numeric($yearClean) && strlen($yearClean) === 4) {
+                $updates[] = 'anno_pubblicazione = ?';
+                $params[] = (int) $yearClean;
+                $types .= 'i';
+            }
+        }
+
+        // Lingua
+        if (empty($csvData['lingua']) && !empty($scrapedData['language'])) {
+            $updates[] = 'lingua = ?';
+            $params[] = $scrapedData['language'];
+            $types .= 's';
+        }
+
+        // Parole chiave
+        if (empty($csvData['parole_chiave']) && !empty($scrapedData['keywords'])) {
+            $updates[] = 'parole_chiave = ?';
+            $params[] = $scrapedData['keywords'];
+            $types .= 's';
         }
 
         // Update libro if we have data
