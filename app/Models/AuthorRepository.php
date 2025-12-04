@@ -319,7 +319,7 @@ class AuthorRepository
         }
 
         // Use specified primary ID or default to lowest ID
-        if ($primaryId !== null && in_array($primaryId, $authorIds)) {
+        if ($primaryId !== null && in_array($primaryId, $authorIds, true)) {
             $authorIds = array_values(array_filter($authorIds, fn($id) => $id !== $primaryId));
         } else {
             // Sort to get the lowest ID as primary

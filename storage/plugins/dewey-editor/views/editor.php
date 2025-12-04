@@ -375,7 +375,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                     <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" onclick="DeweyEditor.closeModal()">
                         <?= __('Annulla') ?>
                     </button>
-                    <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onclick="DeweyEditor.saveEdit('${node.code}')">
+                    <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onclick="DeweyEditor.saveEdit('${escapeHtml(node.code).replace(/'/g, "\\'")}')">
                         <?= __('Salva') ?>
                     </button>
                 </div>
@@ -410,7 +410,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                     <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" onclick="DeweyEditor.closeModal()">
                         <?= __('Annulla') ?>
                     </button>
-                    <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" onclick="DeweyEditor.saveAdd('${parentCode}')">
+                    <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" onclick="DeweyEditor.saveAdd('${escapeHtml(parentCode).replace(/'/g, "\\'")}')">
                         <?= __('Aggiungi') ?>
                     </button>
                 </div>

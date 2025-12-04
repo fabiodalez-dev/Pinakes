@@ -952,26 +952,44 @@ return function (App $app): void {
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        $repo = new \App\Models\AuthorRepository($db);
-        $primaryId = $repo->mergeAuthors($ids, $requestedPrimaryId);
-
-        if ($primaryId) {
-            // Rename if requested
-            if ($newName !== '') {
-                $current = $repo->getById($primaryId);
-                $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
-            }
-
-            $response->getBody()->write(json_encode([
-                'success' => true,
-                'message' => __('Autori uniti con successo'),
-                'primary_id' => $primaryId
-            ]));
-        } else {
+        // Validate primary_id is in the ids array
+        if ($requestedPrimaryId !== null && !in_array($requestedPrimaryId, $ids, true)) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'error' => __('Errore durante l\'unione degli autori')
+                'error' => __('L\'ID primario deve essere presente nella lista degli autori da unire')
             ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        try {
+            $repo = new \App\Models\AuthorRepository($db);
+            $primaryId = $repo->mergeAuthors($ids, $requestedPrimaryId);
+
+            if ($primaryId) {
+                // Rename if requested
+                if ($newName !== '') {
+                    $current = $repo->getById($primaryId);
+                    $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
+                }
+
+                $response->getBody()->write(json_encode([
+                    'success' => true,
+                    'message' => __('Autori uniti con successo'),
+                    'primary_id' => $primaryId
+                ]));
+            } else {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => __('Errore durante l\'unione degli autori')
+                ]));
+            }
+        } catch (\Throwable $e) {
+            error_log('[API] Author merge error: ' . $e->getMessage());
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore imprevisto durante l\'unione degli autori')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
         return $response->withHeader('Content-Type', 'application/json');
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
@@ -1572,26 +1590,44 @@ return function (App $app): void {
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        $repo = new \App\Models\PublisherRepository($db);
-        $primaryId = $repo->mergePublishers($ids, $requestedPrimaryId);
-
-        if ($primaryId) {
-            // Rename if requested
-            if ($newName !== '') {
-                $current = $repo->getById($primaryId);
-                $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
-            }
-
-            $response->getBody()->write(json_encode([
-                'success' => true,
-                'message' => __('Editori uniti con successo'),
-                'primary_id' => $primaryId
-            ]));
-        } else {
+        // Validate primary_id is in the ids array
+        if ($requestedPrimaryId !== null && !in_array($requestedPrimaryId, $ids, true)) {
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'error' => __('Errore durante l\'unione degli editori')
+                'error' => __('L\'ID primario deve essere presente nella lista degli editori da unire')
             ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        try {
+            $repo = new \App\Models\PublisherRepository($db);
+            $primaryId = $repo->mergePublishers($ids, $requestedPrimaryId);
+
+            if ($primaryId) {
+                // Rename if requested
+                if ($newName !== '') {
+                    $current = $repo->getById($primaryId);
+                    $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
+                }
+
+                $response->getBody()->write(json_encode([
+                    'success' => true,
+                    'message' => __('Editori uniti con successo'),
+                    'primary_id' => $primaryId
+                ]));
+            } else {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => __('Errore durante l\'unione degli editori')
+                ]));
+            }
+        } catch (\Throwable $e) {
+            error_log('[API] Publisher merge error: ' . $e->getMessage());
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore imprevisto durante l\'unione degli editori')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
         return $response->withHeader('Content-Type', 'application/json');
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
