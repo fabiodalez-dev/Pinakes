@@ -219,10 +219,15 @@ class EmailService {
                 return $row;
             }
 
-            // Fallback to Italian if requested locale not found
-            if ($locale !== 'it_IT') {
-                $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = 'it_IT' AND active = 1");
-                $stmt->bind_param('s', $templateName);
+            // Fallback logic:
+            // - Italian locales (it_IT, it_CH, etc.) → fallback to it_IT
+            // - All other locales → fallback to en_US (international standard)
+            if ($locale !== 'it_IT' && $locale !== 'en_US') {
+                $isItalianVariant = str_starts_with($locale, 'it_');
+                $fallbackLocale = $isItalianVariant ? 'it_IT' : 'en_US';
+
+                $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = ? AND active = 1");
+                $stmt->bind_param('ss', $templateName, $fallbackLocale);
                 $stmt->execute();
                 $result = $stmt->get_result();
 
