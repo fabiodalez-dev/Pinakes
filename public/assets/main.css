@@ -5321,6 +5321,18 @@ table {
   padding: 12px 24px !important;
 }
 
+/* Force light mode for SweetAlert2 - disable dark theme */
+@media (prefers-color-scheme: dark) {
+  [data-swal2-theme=auto] {
+    --swal2-background: #fff;
+    --swal2-color: #545454;
+    --swal2-footer-border-color: #eee;
+    --swal2-input-background: #fff;
+    --swal2-validation-message-background: #f0f0f0;
+    --swal2-validation-message-color: #666;
+  }
+}
+
 /* Utility Classes */
 
 /* Animations */
@@ -6109,9 +6121,6 @@ table.dataTable thead td {
   --tw-text-opacity: 1;
   color: rgb(250 204 21 / var(--tw-text-opacity, 1));
 }
-.dark\:ring-offset-gray-800:is(.dark *) {
-  --tw-ring-offset-color: #1f2937;
-}
 .dark\:hover\:bg-blue-900\/20:hover:is(.dark *) {
   background-color: rgb(30 58 138 / 0.2);
 }
@@ -6132,10 +6141,6 @@ table.dataTable thead td {
 .dark\:hover\:text-gray-300:hover:is(.dark *) {
   --tw-text-opacity: 1;
   color: rgb(209 213 219 / var(--tw-text-opacity, 1));
-}
-.dark\:focus\:ring-gray-400:focus:is(.dark *) {
-  --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(156 163 175 / var(--tw-ring-opacity, 1));
 }
 @media (min-width: 640px) {
 

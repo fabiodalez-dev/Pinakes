@@ -496,6 +496,18 @@ table {
   padding: 12px 24px !important;
 }
 
+/* Force light mode for SweetAlert2 - disable dark theme */
+@media (prefers-color-scheme: dark) {
+  [data-swal2-theme=auto] {
+    --swal2-background: #fff;
+    --swal2-color: #545454;
+    --swal2-footer-border-color: #eee;
+    --swal2-input-background: #fff;
+    --swal2-validation-message-background: #f0f0f0;
+    --swal2-validation-message-color: #666;
+  }
+}
+
 /* Utility Classes */
 @layer utilities {
   .text-primary {

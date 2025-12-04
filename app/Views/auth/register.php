@@ -20,9 +20,9 @@ $registerRoute = route_path('register');
         body { font-family: system-ui, -apple-system, sans-serif; }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900">
+<body class="bg-gray-50">
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
   <div class="max-w-md lg:max-w-2xl w-full mx-auto">
     <!-- Logo and Branding -->
     <div class="text-center mb-10">
@@ -33,24 +33,24 @@ $registerRoute = route_path('register');
                class="h-20 w-auto object-contain">
         </div>
       <?php else: ?>
-        <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+        <div class="w-20 h-20 bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
           <i class="fas fa-book-open text-white text-3xl"></i>
         </div>
       <?php endif; ?>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
-      <p class="text-gray-600 dark:text-gray-400"><?= __('Crea un nuovo account') ?></p>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
+      <p class="text-gray-600"><?= __('Crea un nuovo account') ?></p>
     </div>
 
     <!-- Registration Form -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
+    <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
       <form method="post" action="<?= $registerRoute ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
         
         <?php if (isset($_GET['error'])): ?>
-          <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4" role="alert">
+          <div class="bg-red-50 border border-red-200 rounded-xl p-4" role="alert">
             <div class="flex items-center">
-              <i class="fas fa-exclamation-circle text-red-500 dark:text-red-400 mr-3"></i>
-              <div class="text-red-700 dark:text-red-300 text-sm">
+              <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
+              <div class="text-red-700 text-sm">
                 <?php if ($_GET['error'] === 'session_expired'): ?>
                   <?= __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina e riprova') ?>
                 <?php elseif ($_GET['error'] === '1'): ?>
@@ -82,10 +82,10 @@ $registerRoute = route_path('register');
         <?php endif; ?>
 
         <?php if (isset($_GET['success'])): ?>
-          <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4" role="alert">
+          <div class="bg-green-50 border border-green-200 rounded-xl p-4" role="alert">
             <div class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 dark:text-green-400 mr-3"></i>
-              <div class="text-green-700 dark:text-green-300 text-sm">
+              <i class="fas fa-check-circle text-green-500 mr-3"></i>
+              <div class="text-green-700 text-sm">
                 <?php if ($_GET['success'] === 'registered'): ?>
                   <?= __('Account creato con successo! Verifica la tua email.') ?>
                 <?php elseif ($_GET['success'] === 'pending_approval'): ?>
@@ -98,7 +98,7 @@ $registerRoute = route_path('register');
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="nome" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="nome" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __('Nome') ?>
             </label>
             <input
@@ -107,15 +107,15 @@ $registerRoute = route_path('register');
               name="nome"
               required aria-required="true"
               aria-describedby="nome-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="<?= __('Mario') ?>"
               value="<?php echo htmlspecialchars($_GET['nome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
-            <span id="nome-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="nome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>
 
           <div>
-            <label for="cognome" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="cognome" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __('Cognome') ?>
             </label>
             <input
@@ -124,16 +124,16 @@ $registerRoute = route_path('register');
               name="cognome"
               required aria-required="true"
               aria-describedby="cognome-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="<?= __('Rossi') ?>"
               value="<?php echo htmlspecialchars($_GET['cognome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
-            <span id="cognome-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="cognome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>
         </div>
 
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __('Email *') ?>
           </label>
           <input
@@ -142,15 +142,15 @@ $registerRoute = route_path('register');
             name="email"
             required aria-required="true"
             aria-describedby="email-error"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             placeholder="<?= __('mario.rossi@email.it') ?>"
             value="<?php echo htmlspecialchars($_GET['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <span id="email-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+          <span id="email-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
 
         <div>
-          <label for="telefono" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label for="telefono" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __('Telefono *') ?>
           </label>
           <input
@@ -159,15 +159,15 @@ $registerRoute = route_path('register');
             name="telefono"
             required aria-required="true"
             aria-describedby="telefono-error"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             placeholder="<?= __('+39 123 456 7890') ?>"
             value="<?php echo htmlspecialchars($_GET['telefono'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <span id="telefono-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+          <span id="telefono-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
 
         <div>
-          <label for="indirizzo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label for="indirizzo" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __('Indirizzo completo *') ?>
           </label>
           <textarea
@@ -176,34 +176,34 @@ $registerRoute = route_path('register');
             required aria-required="true"
             aria-describedby="indirizzo-error"
             rows="3"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             placeholder="<?= __('Via, numero civico, città, CAP') ?>"
           ><?php echo htmlspecialchars($_GET['indirizzo'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
-          <span id="indirizzo-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+          <span id="indirizzo-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="data_nascita" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="data_nascita" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __('Data di nascita') ?>
             </label>
             <input
               type="date"
               id="data_nascita"
               name="data_nascita"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               value="<?php echo htmlspecialchars($_GET['data_nascita'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
           </div>
 
           <div>
-            <label for="sesso" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="sesso" class="block text-sm font-medium text-gray-700 mb-2">
               <?= __('Sesso') ?>
             </label>
             <select
               id="sesso"
               name="sesso"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             >
               <option value=""><?= __("-- Seleziona --") ?></option>
               <option value="M"><?= __('Maschio') ?></option>
@@ -214,7 +214,7 @@ $registerRoute = route_path('register');
         </div>
 
         <div>
-          <label for="cod_fiscale" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label for="cod_fiscale" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __('Codice Fiscale') ?>
           </label>
           <input
@@ -222,17 +222,17 @@ $registerRoute = route_path('register');
             id="cod_fiscale"
             name="cod_fiscale"
             maxlength="16"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             placeholder="<?= __('es. RSSMRA80A01H501U') ?>"
             style="text-transform: uppercase;"
             value="<?php echo htmlspecialchars($_GET['cod_fiscale'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400"><?= __("Opzionale") ?></p>
+          <p class="mt-1 text-xs text-gray-500"><?= __("Opzionale") ?></p>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
               Password
             </label>
             <input
@@ -242,14 +242,14 @@ $registerRoute = route_path('register');
               required aria-required="true"
               autocomplete="new-password"
               aria-describedby="password-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="<?= __('••••••••') ?>"
             />
-            <span id="password-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>
 
           <div>
-            <label for="password_confirm" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="password_confirm" class="block text-sm font-medium text-gray-700 mb-2">
               Conferma Password
             </label>
             <input
@@ -259,10 +259,10 @@ $registerRoute = route_path('register');
               required aria-required="true"
               autocomplete="new-password"
               aria-describedby="password_confirm-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="<?= __('••••••••') ?>"
             />
-            <span id="password_confirm-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="password_confirm-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>
         </div>
 
@@ -272,23 +272,23 @@ $registerRoute = route_path('register');
               id="privacy_acceptance"
               name="privacy_acceptance"
               type="checkbox"
-              class="w-4 h-4 text-gray-600 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 dark:focus:ring-gray-400 dark:ring-offset-gray-800"
+              class="w-4 h-4 text-gray-600 bg-gray-100 border-gray-300 rounded focus:ring-gray-500"
               required aria-required="true"
               aria-describedby="privacy_acceptance-error"
             />
           </div>
           <div class="ml-2">
-            <label for="privacy_acceptance" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              <?= __('Accetto la') ?> <a href="/privacy-policy" class="text-gray-600 hover:underline dark:text-gray-400">Privacy Policy</a>.
+            <label for="privacy_acceptance" class="text-sm font-medium text-gray-700">
+              <?= __('Accetto la') ?> <a href="/privacy-policy" class="text-gray-600 hover:underline">Privacy Policy</a>.
             </label>
-            <span id="privacy_acceptance-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden block" role="alert" aria-live="polite"></span>
+            <span id="privacy_acceptance-error" class="text-sm text-red-600 mt-1 hidden block" role="alert" aria-live="polite"></span>
           </div>
         </div>
 
         <div>
           <button
             type="submit"
-            class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+            class="w-full bg-gray-800 hover:bg-gray-900 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
           >
             <?= __('Registrati') ?>
           </button>
@@ -296,9 +296,9 @@ $registerRoute = route_path('register');
       </form>
 
       <div class="mt-6 text-center">
-        <p class="text-gray-600 dark:text-gray-400 text-sm">
+        <p class="text-gray-600 text-sm">
           <?= __('Hai già un account?') ?> 
-          <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+          <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 hover:text-gray-800 transition-colors">
             <?= __('Accedi') ?>
           </a>
         </p>
@@ -308,14 +308,14 @@ $registerRoute = route_path('register');
     <!-- Footer Links -->
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
-        <a href="/privacy-policy" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="/privacy-policy" class="text-gray-500 hover:text-gray-700 transition-colors">
           Privacy Policy
         </a>
-                <a href="/contatti" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                <a href="/contatti" class="text-gray-500 hover:text-gray-700 transition-colors">
           <?= __('Contatti') ?>
         </a>
       </div>
-      <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+      <p class="mt-4 text-xs text-gray-500">
         &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>
