@@ -25,14 +25,23 @@ final class Branding
 
     /**
      * High resolution logo (used by installer / hero sections).
+     * Respects user-configured logo, falls back to default full logo.
      */
     public static function fullLogo(): string
     {
+        // First check for user-configured logo
+        $configured = (string)ConfigStore::get('app.logo', '');
+        if ($configured !== '' && self::assetExists($configured)) {
+            return $configured;
+        }
+
+        // Fall back to default full logo
         if (self::assetExists(self::DEFAULT_FULL_LOGO)) {
             return self::DEFAULT_FULL_LOGO;
         }
 
-        return self::logo();
+        // Final fallback to small logo
+        return self::assetExists(self::DEFAULT_LOGO) ? self::DEFAULT_LOGO : '';
     }
 
     /**

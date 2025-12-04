@@ -726,6 +726,19 @@ $htmlLang = substr($currentLocale, 0, 2);
             gap: 1.5rem;
         }
 
+        /* Header left wrapper - groups brand + nav on large screens */
+        .header-left {
+            display: contents; /* Invisible wrapper on small/medium screens */
+        }
+
+        @media (min-width: 1200px) {
+            .header-left {
+                display: flex;
+                align-items: center;
+                gap: 3rem;
+            }
+        }
+
         /* Elegant Hero Section */
         .hero {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
@@ -1293,25 +1306,28 @@ $htmlLang = substr($currentLocale, 0, 2);
         <div class="header-main">
             <div class="container">
                 <div class="header-content">
-                    <a class="header-brand" href="<?= absoluteUrl('/') ?>">
-                        <?php if ($appLogo !== ''): ?>
-                            <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>"
-                                class="logo-image">
-                        <?php else: ?>
-                            <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
-                        <?php endif; ?>
-                    </a>
+                    <!-- Wrapper for brand + nav on large screens -->
+                    <div class="header-left">
+                        <a class="header-brand" href="<?= absoluteUrl('/') ?>">
+                            <?php if ($appLogo !== ''): ?>
+                                <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>"
+                                    class="logo-image">
+                            <?php else: ?>
+                                <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
+                            <?php endif; ?>
+                        </a>
 
-                    <ul class="nav-links d-none d-md-flex">
-                        <li><a href="<?= absoluteUrl($catalogRoute) ?>"
-                                class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a>
-                        </li>
-                        <?php if ($eventsEnabled): ?>
-                            <li><a href="<?= absoluteUrl('/events') ?>"
-                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __('Eventi') ?></a>
+                        <ul class="nav-links d-none d-md-flex">
+                            <li><a href="<?= absoluteUrl($catalogRoute) ?>"
+                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a>
                             </li>
-                        <?php endif; ?>
-                    </ul>
+                            <?php if ($eventsEnabled): ?>
+                                <li><a href="<?= absoluteUrl('/events') ?>"
+                                        class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __('Eventi') ?></a>
+                                </li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
 
                     <!-- Mobile Search Toggle -->
                     <button class="mobile-search-toggle d-md-none" id="mobileSearchToggle"
