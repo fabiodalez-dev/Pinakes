@@ -1,6 +1,47 @@
 <?php
 declare(strict_types=1);
 
+// ============================================================
+// PROCESS LOCK - Prevent concurrent cron executions
+// ============================================================
+$lockFile = __DIR__ . '/../storage/cache/maintenance.lock';
+
+// Ensure lock directory exists
+$lockDir = dirname($lockFile);
+if (!is_dir($lockDir)) {
+    mkdir($lockDir, 0755, true);
+}
+
+$lockHandle = fopen($lockFile, 'c');
+if (!$lockHandle) {
+    fwrite(STDERR, "ERROR: Could not create lock file: $lockFile\n");
+    exit(1);
+}
+
+// Try to acquire exclusive lock (non-blocking)
+if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    fwrite(STDERR, "INFO: Another maintenance process is already running. Exiting.\n");
+    fclose($lockHandle);
+    exit(0);
+}
+
+// Write PID to lock file for debugging
+ftruncate($lockHandle, 0);
+fwrite($lockHandle, (string)getmypid());
+fflush($lockHandle);
+
+// Register shutdown function to release lock
+register_shutdown_function(function () use ($lockHandle, $lockFile) {
+    flock($lockHandle, LOCK_UN);
+    fclose($lockHandle);
+    // Optionally remove lock file (commented out to avoid race with next execution)
+    // @unlink($lockFile);
+});
+
+// ============================================================
+// END PROCESS LOCK
+// ============================================================
+
 // Load environment variables from .env file
 $envFile = __DIR__ . '/../.env';
 if (file_exists($envFile)) {

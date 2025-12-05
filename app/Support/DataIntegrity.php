@@ -120,9 +120,19 @@ class DataIntegrity {
 
     /**
      * Ricalcola le copie disponibili per un singolo libro
+     * Supports being called inside or outside a transaction
      */
     public function recalculateBookAvailability(int $bookId): bool {
+        // Check if we're already in a transaction by querying autocommit status
+        $result = $this->db->query("SELECT @@autocommit as ac");
+        $wasInTransaction = $result && ($result->fetch_assoc()['ac'] ?? 1) == 0;
+
         try {
+            // Start transaction only if not already in one
+            if (!$wasInTransaction) {
+                $this->db->begin_transaction();
+            }
+
             // Aggiorna stato copie del libro basandosi sui prestiti attivi OGGI
             // - 'in_corso' e 'in_ritardo' → sempre prestato
             // - 'prenotato' → prestato SOLO se data_prestito <= OGGI (il prestito è iniziato)
@@ -212,9 +222,18 @@ class DataIntegrity {
             $result = $stmt->execute();
             $stmt->close();
 
+            // Commit only if we started the transaction
+            if (!$wasInTransaction) {
+                $this->db->commit();
+            }
+
             return $result;
         } catch (Exception $e) {
-            error_log("Errore ricalcolo disponibilità libro {$bookId}: " . $e->getMessage());
+            // Rollback only if we started the transaction
+            if (!$wasInTransaction) {
+                $this->db->rollback();
+            }
+            error_log("[DataIntegrity] recalculateBookAvailability({$bookId}) error: " . $e->getMessage());
             return false;
         }
     }

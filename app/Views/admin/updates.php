@@ -3,15 +3,15 @@ use App\Support\HtmlHelper;
 use App\Support\Csrf;
 
 $pageTitle = __('Aggiornamenti');
-$updateInfo = $updateInfo ?? [
+$updateInfo ??= [
     'available' => false,
     'current' => '0.0.0',
     'latest' => '0.0.0',
     'error' => null,
 ];
-$requirements = $requirements ?? ['met' => false, 'requirements' => []];
-$history = $history ?? [];
-$changelog = $changelog ?? [];
+$requirements ??= ['met' => false, 'requirements' => []];
+$history ??= [];
+$changelog ??= [];
 ?>
 
 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -484,10 +484,7 @@ async function createBackup() {
 async function startUpdate(version) {
     const result = await Swal.fire({
         title: '<?= __("Conferma aggiornamento") ?>',
-        html: `
-            <p><?= __("Stai per aggiornare Pinakes alla versione") ?> <strong>v${version}</strong></p>
-            <p class="text-sm text-gray-500 mt-2"><?= __("Verrà creato automaticamente un backup prima dell'aggiornamento.") ?></p>
-        `,
+        text: `<?= __("Stai per aggiornare Pinakes alla versione") ?> v${version}. <?= __("Verrà creato automaticamente un backup prima dell'aggiornamento.") ?>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: '<?= __("Aggiorna") ?>',
