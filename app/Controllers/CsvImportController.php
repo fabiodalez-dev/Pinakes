@@ -815,7 +815,7 @@ class CsvImportController
         $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssissiissdiiissssss',
+            'sssssissiissdiiisssss',
             $isbn10,
             $isbn13,
             $ean,

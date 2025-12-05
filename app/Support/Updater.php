@@ -15,7 +15,7 @@ class Updater
 {
     private mysqli $db;
     private string $repoOwner = 'fabiodalez-dev';
-    private string $repoName = 'biblioteca';
+    private string $repoName = 'Pinakes';
     private string $rootPath;
     private string $backupPath;
     private string $tempPath;
@@ -557,14 +557,40 @@ class Updater
     }
 
     /**
+     * Check if migrations table exists
+     */
+    private function migrationsTableExists(): bool
+    {
+        $result = $this->db->query("SHOW TABLES LIKE 'migrations'");
+        if ($result === false) {
+            return false;
+        }
+        $exists = $result->num_rows > 0;
+        $result->free();
+        return $exists;
+    }
+
+    /**
      * Check if migration was already executed
      */
     private function isMigrationExecuted(string $version): bool
     {
+        // If migrations table doesn't exist yet, no migrations have been executed
+        if (!$this->migrationsTableExists()) {
+            return false;
+        }
+
         $stmt = $this->db->prepare("SELECT id FROM migrations WHERE version = ?");
+        if ($stmt === false) {
+            throw new Exception(__('Errore preparazione query migrazioni') . ': ' . $this->db->error);
+        }
         $stmt->bind_param('s', $version);
         $stmt->execute();
         $result = $stmt->get_result();
+        if ($result === false) {
+            $stmt->close();
+            throw new Exception(__('Errore recupero risultati migrazioni') . ': ' . $this->db->error);
+        }
         $exists = $result->num_rows > 0;
         $stmt->close();
         return $exists;
@@ -575,15 +601,48 @@ class Updater
      */
     private function recordMigration(string $version, string $filename): void
     {
+        // Ensure migrations table exists
+        if (!$this->migrationsTableExists()) {
+            $this->createMigrationsTable();
+        }
+
         // Get current batch number
         $result = $this->db->query("SELECT MAX(batch) as max_batch FROM migrations");
+        if ($result === false) {
+            throw new Exception(__('Errore recupero batch migrazioni') . ': ' . $this->db->error);
+        }
         $row = $result->fetch_assoc();
         $batch = ($row['max_batch'] ?? 0) + 1;
+        $result->free();
 
         $stmt = $this->db->prepare("INSERT INTO migrations (version, filename, batch) VALUES (?, ?, ?)");
+        if ($stmt === false) {
+            throw new Exception(__('Errore preparazione insert migrazione') . ': ' . $this->db->error);
+        }
         $stmt->bind_param('ssi', $version, $filename, $batch);
         $stmt->execute();
         $stmt->close();
+    }
+
+    /**
+     * Create migrations table if it doesn't exist
+     */
+    private function createMigrationsTable(): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS `migrations` (
+            `id` int NOT NULL AUTO_INCREMENT,
+            `version` varchar(20) NOT NULL,
+            `filename` varchar(255) NOT NULL,
+            `batch` int NOT NULL DEFAULT '1',
+            `executed_at` datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `unique_version` (`version`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+        $result = $this->db->query($sql);
+        if ($result === false) {
+            throw new Exception(__('Errore creazione tabella migrazioni') . ': ' . $this->db->error);
+        }
     }
 
     /**
@@ -792,6 +851,8 @@ class Updater
      */
     public function performUpdate(string $targetVersion): array
     {
+        $backupResult = ['path' => null, 'success' => false, 'error' => null];
+
         try {
             // Step 1: Create backup
             $backupResult = $this->createBackup();
