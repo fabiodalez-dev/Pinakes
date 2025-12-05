@@ -9,7 +9,6 @@ class Installer {
         'admin_notifications',
         'api_keys',
         'autori',
-        'classificazione',
         'cms_pages',
         'contact_messages',
         'copie',
@@ -27,6 +26,7 @@ class Installer {
         'libri_tag',
         'log_modifiche',
         'mensole',
+        'migrations',
         'plugin_data',
         'plugin_hooks',
         'plugin_logs',
@@ -42,6 +42,7 @@ class Installer {
         'system_settings',
         'tag',
         'themes',
+        'update_logs',
         'utenti',
         'wishlist',
         'z39_access_logs',
@@ -687,12 +688,7 @@ class Installer {
         }
 
         // Check essential data
-        $stmt = $pdo->query("SELECT COUNT(*) as count FROM classificazione");
-        $result = $stmt->fetch();
-        if ($result['count'] == 0) {
-            throw new Exception(__("Dati di classificazione mancanti"));
-        }
-
+        // Note: classificazione table no longer exists - Dewey data is now in JSON files (data/dewey/)
         $stmt = $pdo->query("SELECT COUNT(*) as count FROM generi");
         $result = $stmt->fetch();
         if ($result['count'] == 0) {
@@ -1172,7 +1168,7 @@ HTACCESS;
 
     /**
      * Register and activate default plugins
-     * Plugins: open-library, z39-server, api-book-scraper, digital-library
+     * Plugins: open-library, z39-server, api-book-scraper, digital-library, dewey-editor
      * Excluded: scraping-pro (commercial/proprietary)
      */
     public function installPluginsFromZip() {
@@ -1286,6 +1282,9 @@ HTACCESS;
         $installPlugin('digital-library', [
             ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
         ]);
+        $installPlugin('dewey-editor', [
+            ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
+        ]);
 
         // Configure Z39 Server with SBN (Servizio Bibliotecario Nazionale) as default
         $this->configureZ39DefaultSettings($pdo);
@@ -1294,8 +1293,14 @@ HTACCESS;
     }
 
     /**
-     * Configure Z39 Server plugin with Italian SBN as default server
-     * SBN (Servizio Bibliotecario Nazionale) is the Italian national library network
+     * Configure Z39 Server plugin with locale-appropriate default servers
+     *
+     * For Italian installations: Only SBN (JSON API) is enabled by default
+     * For English installations: SBN + European SRU servers (K10plus, SUDOC, DNB)
+     *
+     * This prevents author name format inconsistencies when scraping from multiple
+     * sources. SBN returns consistent "Surname, Name" format which gets normalized.
+     * Foreign servers may return different formats that could cause duplicates.
      *
      * @param PDO $pdo Database connection
      */
@@ -1311,44 +1316,58 @@ HTACCESS;
                 return; // Plugin not installed
             }
 
+            // Check installation locale from session
+            // Session value can be 'it' or 'en_US' (from step0.php form)
+            // Use str_starts_with for robustness in case locale format changes
+            $locale = $_SESSION['app_locale'] ?? 'it';
+            $isItalian = str_starts_with($locale, 'it');
+
             // Default Z39.50/SRU servers configuration
-            // K10plus (Germany) is the most reliable European SRU server
-            // SUDOC (France) is good for European books
-            // Italian SBN is accessed via JSON API (enable_sbn setting) - no YAZ required
-            $defaultServers = json_encode([
-                [
-                    'name' => 'K10plus (GBV Germany)',
-                    'url' => 'https://sru.k10plus.de/opac-de-627',
-                    'database' => 'opac-de-627',
-                    'syntax' => 'marcxml',
-                    'enabled' => true,
-                    'timeout' => 15,
-                    'indexes' => ['isbn' => 'pica.isb']
-                ],
-                [
-                    'name' => 'SUDOC (France)',
-                    'url' => 'https://www.sudoc.abes.fr/cbs/sru/',
-                    'database' => '',
-                    'syntax' => 'unimarc',
-                    'enabled' => true,
-                    'timeout' => 15,
-                    'indexes' => ['isbn' => 'isb']
-                ],
-                [
-                    'name' => 'DNB - Deutsche Nationalbibliothek',
-                    'url' => 'https://services.dnb.de/sru/dnb',
-                    'database' => 'dnb',
-                    'syntax' => 'marcxml',
-                    'enabled' => true,
-                    'timeout' => 15,
-                    'indexes' => ['isbn' => 'num']
-                ]
-            ]);
+            // Italian installations: Empty array - only SBN (JSON API) will be used
+            // English installations: Include European SRU servers for broader coverage
+            if ($isItalian) {
+                // Italian: Only SBN (prevents author name format inconsistencies)
+                $defaultServers = json_encode([]);
+            } else {
+                // English: Include European SRU servers
+                // K10plus (Germany) is the most reliable European SRU server
+                // SUDOC (France) is good for European books
+                // DNB (Germany) has comprehensive German-language coverage
+                $defaultServers = json_encode([
+                    [
+                        'name' => 'K10plus (GBV Germany)',
+                        'url' => 'https://sru.k10plus.de/opac-de-627',
+                        'database' => 'opac-de-627',
+                        'syntax' => 'marcxml',
+                        'enabled' => true,
+                        'timeout' => 15,
+                        'indexes' => ['isbn' => 'pica.isb']
+                    ],
+                    [
+                        'name' => 'SUDOC (France)',
+                        'url' => 'https://www.sudoc.abes.fr/cbs/sru/',
+                        'database' => '',
+                        'syntax' => 'unimarc',
+                        'enabled' => true,
+                        'timeout' => 15,
+                        'indexes' => ['isbn' => 'isb']
+                    ],
+                    [
+                        'name' => 'DNB - Deutsche Nationalbibliothek',
+                        'url' => 'https://services.dnb.de/sru/dnb',
+                        'database' => 'dnb',
+                        'syntax' => 'marcxml',
+                        'enabled' => true,
+                        'timeout' => 15,
+                        'indexes' => ['isbn' => 'num']
+                    ]
+                ]);
+            }
 
             // Default settings for Z39 Server
             $defaultSettings = [
                 'enable_client' => '1',           // Enable Z39.50 client for scraping
-                'servers' => $defaultServers,     // K10plus + DNB (reliable European servers)
+                'servers' => $defaultServers,     // Empty for IT, K10plus+SUDOC+DNB for EN
                 'server_enabled' => '1',          // Enable SRU server mode
                 'enable_server' => '1',
                 'max_records' => '100',
@@ -1361,7 +1380,8 @@ HTACCESS;
                 'enable_logging' => '1',
                 'cql_version' => '1.2',
                 'sru_version' => '1.2',
-                // SBN (Italian National Library) - enabled by default
+                // SBN (Italian National Library) - enabled by default for ALL locales
+                // SBN provides excellent coverage for Italian books and many international titles
                 'enable_sbn' => '1',              // Enable SBN JSON API client
                 'sbn_timeout' => '15'             // SBN request timeout in seconds
             ];

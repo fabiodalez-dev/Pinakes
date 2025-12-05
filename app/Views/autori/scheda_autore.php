@@ -273,7 +273,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
                     <?php endif; ?>
                   </div>
                   <div class="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">
-                    <span><?= sprintf(__("ISBN13: %s"), HtmlHelper::e($libro['isbn13'] ?? 'N/D')) ?></span>
+                    <span><?= sprintf(__("ISBN13: %s"), HtmlHelper::e($libro['isbn13'] ?? $libro['ean'] ?? 'N/D')) ?></span>
                     <span><?php echo HtmlHelper::e($libro['stato'] ?? ''); ?></span>
                   </div>
                   <div class="flex gap-2 pt-3 items-center">

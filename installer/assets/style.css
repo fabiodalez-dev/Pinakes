@@ -420,6 +420,14 @@ body {
     cursor: pointer;
 }
 
+/* Force emoji font rendering for flag icons */
+.flag-emoji {
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', 'Twemoji Mozilla', 'EmojiOne Color', sans-serif;
+    font-style: normal;
+    font-weight: normal;
+    line-height: 1;
+}
+
 .file-upload-wrapper input[type="file"] {
     position: absolute;
     width: 0.1px;

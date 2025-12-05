@@ -40,7 +40,7 @@ class PublisherRepository
 
     public function getBooksByPublisherId(int $publisherId): array
     {
-        $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, l.copertina_url,
+        $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.data_acquisizione, l.stato, l.copertina_url,
                        e.nome AS editore_nome,
                        (
                          SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
@@ -183,5 +183,66 @@ class PublisherRepository
         $stmt->bind_result($id);
         if ($stmt->fetch()) { return (int)$id; }
         return null;
+    }
+
+    /**
+     * Merge duplicate publishers into one
+     *
+     * Keeps the specified primary publisher (or the one with lowest ID if not specified)
+     * and reassigns all books from other publishers to the primary one.
+     *
+     * @param array $publisherIds Array of publisher IDs to merge
+     * @param int|null $primaryId Optional specific ID to use as primary (must be in $publisherIds)
+     * @return int|null The ID of the merged publisher, or null on error
+     */
+    public function mergePublishers(array $publisherIds, ?int $primaryId = null): ?int
+    {
+        // Normalize to integers and deduplicate to prevent type-safety issues
+        // and deleting primary when duplicate IDs are passed
+        $publisherIds = array_values(array_unique(array_map('intval', $publisherIds)));
+
+        if (count($publisherIds) < 2) {
+            return null;
+        }
+
+        // Use specified primary ID or default to lowest ID
+        if ($primaryId !== null && \in_array($primaryId, $publisherIds, true)) {
+            // Create separate array of IDs to delete (excluding primary)
+            $duplicateIds = array_values(array_filter($publisherIds, fn($id) => $id !== $primaryId));
+        } else {
+            // Sort to get the lowest ID as primary
+            sort($publisherIds);
+            $primaryId = array_shift($publisherIds);
+            $duplicateIds = $publisherIds;
+        }
+
+        // Ensure we have duplicates to process
+        if (empty($duplicateIds)) {
+            return null;
+        }
+
+        // Start transaction
+        $this->db->begin_transaction();
+
+        try {
+            foreach ($duplicateIds as $duplicateId) {
+                // Update books to point to primary publisher
+                $stmt = $this->db->prepare("UPDATE libri SET editore_id = ? WHERE editore_id = ?");
+                $stmt->bind_param('ii', $primaryId, $duplicateId);
+                $stmt->execute();
+
+                // Delete the duplicate publisher
+                $stmt = $this->db->prepare("DELETE FROM editori WHERE id = ?");
+                $stmt->bind_param('i', $duplicateId);
+                $stmt->execute();
+            }
+
+            $this->db->commit();
+            return $primaryId;
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            error_log("[PublisherRepository] Merge failed: " . $e->getMessage());
+            return null;
+        }
     }
 }

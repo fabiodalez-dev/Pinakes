@@ -4,13 +4,13 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
-    'disponibile' => 'inline-flex items-center gap-2 rounded-full border border-green-400/40 bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-200',
-    'prestato'    => 'inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200',
-    'in_ritardo'  => 'inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200',
-    'danneggiato' => 'inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200',
-    'perso'       => 'inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200',
+    'disponibile' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-green-500 text-white',
+    'prestato'    => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-red-500 text-white',
+    'in_ritardo'  => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-amber-500 text-white',
+    'danneggiato' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-orange-500 text-white',
+    'perso'       => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-gray-700 text-white',
 ];
-$statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/60 px-3 py-1 text-xs font-semibold text-slate-200';
+$statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-slate-500 text-white';
 
 $btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700';
 $btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
@@ -395,7 +395,57 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <div class="sm:col-span-2">
               <dt class="text-xs uppercase text-gray-500"><?= __("Classificazione Dewey") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dowey'] ?? ''); ?></dd>
+              <dd class="text-gray-900 font-medium">
+                <span class="font-mono"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dewey'] ?? ''); ?></span>
+                <span id="dewey_name_display" class="text-sm text-gray-600 italic ml-2"></span>
+                <script>
+                (async function() {
+                  const displayEl = document.getElementById('dewey_name_display');
+                  const code = <?php echo json_encode($libro['classificazione_dewey'] ?? ''); ?>;
+                  if (!displayEl || !code) return;
+
+                  // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
+                  const parts = code.split('-');
+                  const finalCode = parts.length > 1 ? parts[parts.length - 1] : code;
+
+                  // Funzione per ottenere il parent code
+                  const getParentCode = (c) => {
+                    if (!c.includes('.')) return null;
+                    const p = c.split('.');
+                    const intPart = p[0];
+                    const decPart = p[1];
+                    if (decPart.length === 1) return intPart;
+                    return `${intPart}.${decPart.substring(0, decPart.length - 1)}`;
+                  };
+
+                  try {
+                    const response = await fetch(`/api/dewey/search?code=${encodeURIComponent(finalCode)}`, {
+                      credentials: 'same-origin'
+                    });
+                    const result = response.ok ? await response.json() : null;
+
+                    if (result && result.name) {
+                      displayEl.textContent = `— ${result.name}`;
+                    } else {
+                      // Non trovato o 404, cerca parent
+                      const parentCode = getParentCode(finalCode);
+                      if (parentCode) {
+                        const parentResponse = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
+                          credentials: 'same-origin'
+                        });
+                        const parentResult = parentResponse.ok ? await parentResponse.json() : null;
+
+                        if (parentResult && parentResult.name) {
+                          displayEl.textContent = `— ${parentResult.name} > ${finalCode}`;
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Dewey name fetch error:', e);
+                  }
+                })();
+                </script>
+              </dd>
             </div>
             <?php 
               $scCod = (string)($libro['scaffale_codice'] ?? '');

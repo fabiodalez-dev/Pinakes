@@ -60,7 +60,11 @@ renderHeader(0, 'Selezione Lingua');
                         <?= $currentLanguage === 'it' ? 'checked' : '' ?>
                         class="language-radio"
                     >
-                    <div style="font-size: 32px;">🇮🇹</div>
+                    <svg width="48" height="24" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">
+                        <rect width="20" height="30" fill="#009246"/>
+                        <rect x="20" width="20" height="30" fill="#fff"/>
+                        <rect x="40" width="20" height="30" fill="#ce2b37"/>
+                    </svg>
                     <div style="text-align: left; flex: 1;">
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
                             Italiano
@@ -82,7 +86,16 @@ renderHeader(0, 'Selezione Lingua');
                         <?= $currentLanguage === 'en' ? 'checked' : '' ?>
                         class="language-radio"
                     >
-                    <div style="font-size: 32px;">🇬🇧</div>
+                    <svg width="48" height="24" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">
+                        <clipPath id="clip-flag-en"><rect width="60" height="30"/></clipPath>
+                        <g clip-path="url(#clip-flag-en)">
+                            <path d="M0,0 v30 h60 v-30 z" fill="#00247d"/>
+                            <path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/>
+                            <path d="M0,0 L60,30 M60,0 L0,30" stroke="#cf142b" stroke-width="4"/>
+                            <path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/>
+                            <path d="M30,0 v30 M0,15 h60" stroke="#cf142b" stroke-width="6"/>
+                        </g>
+                    </svg>
                     <div style="text-align: left; flex: 1;">
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
                             English

@@ -313,6 +313,19 @@ class SbnClient
                 $books[$index]['language'] = $lang;
                 $books[$index]['lingua'] = $this->mapLanguageToCode($lang);
             }
+
+            // Dewey classification
+            // Note: Use explicit check instead of empty() to allow valid codes like '000'
+            $hasDewey = isset($books[$index]['classificazione_dewey']) && $books[$index]['classificazione_dewey'] !== '';
+            if (!$hasDewey && !empty($fullRecord['classificazioneDewey'])) {
+                $deweyData = $this->extractDeweyData($fullRecord['classificazioneDewey']);
+                if ($deweyData && $deweyData['code']) {
+                    $books[$index]['classificazione_dewey'] = $deweyData['code'];
+                    if (!empty($deweyData['name'])) {
+                        $books[$index]['_dewey_name_sbn'] = $deweyData['name'];
+                    }
+                }
+            }
         }
 
         return $books;
@@ -401,9 +414,24 @@ class SbnClient
             $book['copertina_url'] = $coverUrl;
         }
 
+        // Dewey Classification
+        $deweyData = $this->extractDeweyData($record['classificazioneDewey'] ?? '');
+        if ($deweyData && $deweyData['code']) {
+            $book['classificazione_dewey'] = $deweyData['code'];
+            // Pass raw name for auto-population (prefixed with _ to indicate internal use)
+            if (!empty($deweyData['name'])) {
+                $book['_dewey_name_sbn'] = $deweyData['name'];
+            }
+        }
+
         // Source identification
         $book['_source'] = 'sbn';
         $book['_sbn_bid'] = $record['codiceIdentificativo'] ?? '';
+
+        // Map BID to numero_inventario for form auto-fill
+        if (!empty($book['_sbn_bid'])) {
+            $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
+        }
 
         return $book;
     }
@@ -469,6 +497,11 @@ class SbnClient
         $book['_source'] = 'sbn';
         $book['_sbn_bid'] = $record['codiceIdentificativo'] ?? '';
 
+        // Map BID to numero_inventario for form auto-fill
+        if (!empty($book['_sbn_bid'])) {
+            $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
+        }
+
         return $book;
     }
 
@@ -529,16 +562,34 @@ class SbnClient
     }
 
     /**
-     * Clean author name (remove dates, etc.)
+     * Clean and normalize author name
      *
-     * @param string $name Raw author name
-     * @return string Cleaned name
+     * Removes date ranges and normalizes format from "Surname, Name" to "Name Surname"
+     * to ensure consistency with other sources (Google Books, Open Library)
+     *
+     * @param string $name Raw author name (typically "Surname, Name" from SBN)
+     * @return string Normalized name in "Name Surname" format
      */
     private function cleanAuthorName(string $name): string
     {
         // Remove date ranges like <1818-1883>
         $name = preg_replace('/<[^>]+>/', '', $name);
-        return trim($name);
+        $name = trim($name);
+
+        // Normalize name format: "Surname, Name" → "Name Surname"
+        // This ensures consistency with other scraping sources (Google Books, Open Library)
+        if (str_contains($name, ',')) {
+            $parts = explode(',', $name, 2);
+            if (count($parts) === 2) {
+                $surname = trim($parts[0]);
+                $firstName = trim($parts[1]);
+                if ($surname !== '' && $firstName !== '') {
+                    $name = $firstName . ' ' . $surname;
+                }
+            }
+        }
+
+        return $name;
     }
 
     /**
@@ -577,6 +628,45 @@ class SbnClient
         }
 
         return empty($result) ? null : $result;
+    }
+
+    /**
+     * Extract Dewey classification code and name from SBN format
+     *
+     * @param string $deweyStr Format: "808.81 (12.) RACCOLTE DI PIU LETTERATURE. POESIA"
+     * @return array{code: string, name: string|null}|null Dewey data or null
+     */
+    private function extractDeweyData(string $deweyStr): ?array
+    {
+        $deweyStr = trim($deweyStr);
+
+        if ($deweyStr === '') {
+            return null;
+        }
+
+        // Extract code, optional edition, and name
+        // Format: "808.81 (12.) RACCOLTE DI PIU LETTERATURE. POESIA"
+        // Or: "808.81 RACCOLTE DI PIU LETTERATURE. POESIA"
+        if (preg_match('/^(\d{3}(?:\.\d+)?)\s*(?:\([^)]+\)\s*)?(.+)?$/u', $deweyStr, $match)) {
+            $code = $match[1];
+            $name = isset($match[2]) ? trim($match[2]) : null;
+
+            // Clean up the name - remove trailing dots, normalize case
+            if ($name) {
+                $name = rtrim($name, '. ');
+                // Convert from ALL CAPS to Title Case if needed
+                if ($name === mb_strtoupper($name, 'UTF-8')) {
+                    $name = mb_convert_case(mb_strtolower($name, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
+                }
+            }
+
+            return [
+                'code' => $code,
+                'name' => $name
+            ];
+        }
+
+        return null;
     }
 
     /**

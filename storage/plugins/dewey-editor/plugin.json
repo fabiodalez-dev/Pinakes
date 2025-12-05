@@ -1,0 +1,35 @@
+{
+  "name": "dewey-editor",
+  "display_name": "Dewey Classification Editor",
+  "description": "Editor visuale per gestire le classificazioni Dewey. Permette di aggiungere, modificare ed eliminare codici decimali, importare/esportare file JSON con validazione automatica.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "",
+  "main_file": "DeweyEditorPlugin.php",
+  "requires_php": "7.4",
+  "requires_app": "1.0.0",
+  "settings": false,
+  "metadata": {
+    "category": "admin",
+    "tags": [
+      "dewey",
+      "classification",
+      "editor",
+      "json",
+      "admin"
+    ],
+    "priority": 10,
+    "features": [
+      "Editor visuale classificazioni Dewey",
+      "Supporto codici decimali (es. 599.93)",
+      "Validazione unicità codici",
+      "Import/Export JSON",
+      "Backup automatico",
+      "Supporto multilingua (IT/EN)"
+    ],
+    "endpoints": [
+      "/admin/dewey-editor - Pagina editor"
+    ]
+  }
+}

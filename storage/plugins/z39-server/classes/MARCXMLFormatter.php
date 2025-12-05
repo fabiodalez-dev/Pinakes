@@ -64,9 +64,9 @@ class MARCXMLFormatter extends RecordFormatter
         }
 
         // Dewey Classification - 082
-        if (!empty($record['classificazione_dowey'])) {
+        if (!empty($record['classificazione_dewey'])) {
             $recordEl->appendChild($this->createDataField('082', '0', '4', [
-                ['a', $record['classificazione_dowey']]
+                ['a', $record['classificazione_dewey']]
             ]));
         }
 

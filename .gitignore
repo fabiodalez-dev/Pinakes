@@ -12,6 +12,7 @@
 config.local.php
 config.local.sample.php
 CLAUDE.md
+.claude/
 
 # ========================================
 # CRITICAL: Database Backups & Archives
@@ -80,6 +81,10 @@ storage/uploads/plugins/*
 storage/backups/*
 !storage/backups/.gitkeep
 !storage/backups/.htaccess
+!storage/calendar/
+storage/calendar/*
+!storage/calendar/.gitkeep
+!storage/calendar/.htaccess
 !storage/plugins/
 storage/plugins/*
 !storage/plugins/open-library/
@@ -114,6 +119,15 @@ storage/plugins/digital-library/*
 !storage/plugins/digital-library/migrations/
 !storage/plugins/digital-library/migrations/*.php
 !storage/plugins/digital-library/migrations/*.sql
+!storage/plugins/dewey-editor/
+storage/plugins/dewey-editor/*
+!storage/plugins/dewey-editor/*.php
+!storage/plugins/dewey-editor/*.json
+!storage/plugins/dewey-editor/*.md
+!storage/plugins/dewey-editor/classes/
+!storage/plugins/dewey-editor/classes/*.php
+!storage/plugins/dewey-editor/views/
+!storage/plugins/dewey-editor/views/*.php
 
 # Cache & Temp
 cache/*
@@ -215,7 +229,9 @@ dist/
 build/
 frontend/dist/
 frontend/build/
+frontend/storage/
 public/assets/*.map
+public/assets/*.LICENSE.txt
 
 # ========================================
 # PHPUnit & Tests
@@ -335,8 +351,29 @@ claude.md
 FEATURES_IT.md
 .gemini/settings.json
 UPDATER.md
+updater.md
 
 # Changelog files
 changelog-*.md
 PLAN-catalogue-mode.md
 
+hackernews.md
+docs/reference/bug-gemini.md
+docs/reference/analisi-sicurezza.md
+scripts/generate_dewey_json.py
+docs/reference/start-server.md
+docs/reference/security-audit-report.md
+docs/reference/routes-to-add.md
+docs/reference/recensioni-sistema.md
+docs/reference/README.md
+docs/reference/guida.md
+docs/reference/gemini.md
+docs/reference/dewey.md
+docs/reference/development.md
+docs/reference/database-config.md
+docs/reference/data-consistency-fix.md
+docs/reference/build.md
+docs/reference/backup-instructions.md
+docs/reference/app-documentation.md
+docs/reference/agents.md
+CHANGELOG.md

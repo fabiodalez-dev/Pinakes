@@ -13,6 +13,51 @@ use App\Support\I18n;
 
 class EmailService {
     private const RAW_HTML_VARIABLES = ['verify_section'];
+
+    /**
+     * Placeholder aliases: English -> Italian
+     * This allows English-speaking operators to use English placeholder names
+     * in email templates, which are mapped to the internal Italian names.
+     */
+    private const PLACEHOLDER_ALIASES = [
+        // User fields
+        'first_name' => 'nome',
+        'last_name' => 'cognome',
+        'user_name' => 'utente_nome',
+        'user_email' => 'utente_email',
+        'card_code' => 'codice_tessera',
+
+        // Book fields
+        'book_title' => 'libro_titolo',
+        'book_author' => 'libro_autore',
+        'book_isbn' => 'libro_isbn',
+
+        // Date fields
+        'due_date' => 'data_scadenza',
+        'start_date' => 'data_inizio',
+        'end_date' => 'data_fine',
+        'loan_date' => 'data_prestito',
+        'request_date' => 'data_richiesta',
+        'registration_date' => 'data_registrazione',
+        'availability_date' => 'data_disponibilita',
+
+        // Numeric fields
+        'days_remaining' => 'giorni_rimasti',
+        'days_overdue' => 'giorni_ritardo',
+        'loan_days' => 'giorni_prestito',
+        'loan_id' => 'prestito_id',
+        'stars' => 'stelle',
+
+        // Review fields
+        'review_date' => 'data_recensione',
+        'review_title' => 'titolo_recensione',
+        'review_description' => 'descrizione_recensione',
+        'approval_link' => 'link_approvazione',
+
+        // Other fields
+        'rejection_reason' => 'motivo_rifiuto',
+    ];
+
     private PHPMailer $mailer;
     private mysqli $db;
 
@@ -174,10 +219,15 @@ class EmailService {
                 return $row;
             }
 
-            // Fallback to Italian if requested locale not found
-            if ($locale !== 'it_IT') {
-                $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = 'it_IT' AND active = 1");
-                $stmt->bind_param('s', $templateName);
+            // Fallback logic:
+            // - Italian locales (it_IT, it_CH, etc.) → fallback to it_IT
+            // - All other locales → fallback to en_US (international standard)
+            if ($locale !== 'it_IT' && $locale !== 'en_US') {
+                $isItalianVariant = str_starts_with($locale, 'it_');
+                $fallbackLocale = $isItalianVariant ? 'it_IT' : 'en_US';
+
+                $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = ? AND active = 1");
+                $stmt->bind_param('ss', $templateName, $fallbackLocale);
                 $stmt->execute();
                 $result = $stmt->get_result();
 
@@ -398,14 +448,29 @@ class EmailService {
 
     /**
      * Replace template variables
+     *
+     * Supports both Italian placeholder names (e.g., {{libro_titolo}})
+     * and English aliases (e.g., {{book_title}}) for international operators.
      */
     private function replaceVariables(string $content, array $variables): string {
+        // Cache the inverted map (Italian → English) for O(1) lookups
+        static $italianToEnglish = null;
+        if ($italianToEnglish === null) {
+            $italianToEnglish = array_flip(self::PLACEHOLDER_ALIASES);
+        }
+
         foreach ($variables as $key => $value) {
             $replacement = in_array($key, self::RAW_HTML_VARIABLES, true)
                 ? (string)$value
                 : htmlspecialchars((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
+            // Replace the Italian placeholder
             $content = str_replace('{{' . $key . '}}', $replacement, $content);
+
+            // Also replace the English alias if one exists
+            if (isset($italianToEnglish[$key])) {
+                $content = str_replace('{{' . $italianToEnglish[$key] . '}}', $replacement, $content);
+            }
         }
         return $content;
     }

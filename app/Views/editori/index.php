@@ -156,6 +156,9 @@ $editori = $data['editori'];
           </button>
         </div>
         <div class="flex items-center gap-2">
+          <button id="bulk-merge" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors text-sm">
+            <i class="fas fa-compress-arrows-alt mr-2"></i><?= __("Unisci") ?>
+          </button>
           <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-download mr-2"></i><?= __("Esporta") ?>
           </button>
@@ -478,6 +481,105 @@ document.addEventListener('DOMContentLoaded', function() {
         table.ajax.reload();
       } else {
         Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: data.error });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Errore di connessione") ?>' });
+    }
+  });
+
+  // Bulk merge
+  document.getElementById('bulk-merge').addEventListener('click', async function() {
+    if (selectedPublishers.size < 2) {
+      Swal.fire({
+        icon: 'warning',
+        title: '<?= __("Seleziona almeno 2 editori") ?>',
+        text: '<?= __("Per unire gli editori devi selezionarne almeno 2.") ?>'
+      });
+      return;
+    }
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const ids = Array.from(selectedPublishers);
+
+    // First get the names of selected publishers
+    try {
+      const response = await fetch('/api/editori/bulk-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ ids })
+      });
+      const result = await response.json();
+
+      if (!result.success || !result.data) {
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Impossibile recuperare i dati degli editori") ?>' });
+        return;
+      }
+
+      // Build options for the select
+      let optionsHtml = result.data.map(p =>
+        `<option value="${p.id}">${escapeHtml(p.nome)}${p.libri_count ? ` (${p.libri_count} <?= __("libri") ?>)` : ''}</option>`
+      ).join('');
+
+      const { value: formValues } = await Swal.fire({
+        title: '<?= __("Unisci editori") ?>',
+        html: `
+          <div class="text-left">
+            <p class="text-sm text-gray-600 mb-4"><?= __("Stai per unire") ?> ${ids.length} <?= __("editori. Tutti i libri verranno assegnati all'editore risultante.") ?></p>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1"><?= __("Editore principale") ?></label>
+              <select id="swal-primary-publisher" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                ${optionsHtml}
+              </select>
+              <p class="text-xs text-gray-500 mt-1"><?= __("I libri degli altri editori verranno assegnati a questo") ?></p>
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1"><?= __("Nuovo nome (opzionale)") ?></label>
+              <input id="swal-new-name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="<?= __("Lascia vuoto per mantenere il nome attuale") ?>">
+              <p class="text-xs text-gray-500 mt-1"><?= __("Se compilato, l'editore principale verrà rinominato") ?></p>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonColor: '#3b82f6',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: '<?= __("Unisci") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>',
+        preConfirm: () => {
+          return {
+            primaryId: parseInt(document.getElementById('swal-primary-publisher').value),
+            newName: document.getElementById('swal-new-name').value.trim()
+          };
+        }
+      });
+
+      if (!formValues) return;
+
+      // Perform the merge
+      const mergeResponse = await fetch('/api/editori/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({
+          ids: ids,
+          primary_id: formValues.primaryId,
+          new_name: formValues.newName
+        })
+      });
+      const mergeResult = await mergeResponse.json();
+
+      if (mergeResult.success) {
+        Swal.fire({
+          icon: 'success',
+          title: '<?= __("Editori uniti") ?>',
+          text: mergeResult.message,
+          timer: 2000,
+          showConfirmButton: false
+        });
+        selectedPublishers.clear();
+        updateBulkActionsBar();
+        table.ajax.reload();
+      } else {
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: mergeResult.error });
       }
     } catch (err) {
       console.error(err);
