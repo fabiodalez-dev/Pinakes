@@ -56,7 +56,9 @@ class Updater
 
         // Ensure backup directory exists
         if (!is_dir($this->backupPath)) {
-            mkdir($this->backupPath, 0755, true);
+            if (!mkdir($this->backupPath, 0755, true) && !is_dir($this->backupPath)) {
+                throw new \RuntimeException(sprintf(__('Impossibile creare directory di backup: %s'), $this->backupPath));
+            }
         }
     }
 
@@ -246,7 +248,9 @@ class Updater
                 throw new Exception(__('Download fallito'));
             }
 
-            file_put_contents($zipPath, $fileContent);
+            if (file_put_contents($zipPath, $fileContent) === false) {
+                throw new Exception(__('Impossibile salvare il file di aggiornamento'));
+            }
 
             // Verify it's a valid zip
             $zip = new ZipArchive();
@@ -256,7 +260,15 @@ class Updater
 
             // Extract to temp directory
             $extractPath = $this->tempPath . '/extracted';
-            $zip->extractTo($extractPath);
+            if (!$zip->extractTo($extractPath)) {
+                $zip->close();
+                // Clean up partial extraction and downloaded zip
+                if (is_dir($extractPath)) {
+                    $this->deleteDirectory($extractPath);
+                }
+                @unlink($zipPath);
+                throw new Exception(__('Estrazione del pacchetto fallita'));
+            }
             $zip->close();
 
             // Find the actual content directory (GitHub adds a prefix)
@@ -319,7 +331,7 @@ class Updater
             $timestamp = date('Y-m-d_His');
             $backupDir = $this->backupPath . '/update_' . $timestamp;
 
-            if (!mkdir($backupDir, 0755, true)) {
+            if (!mkdir($backupDir, 0755, true) && !is_dir($backupDir)) {
                 throw new Exception(__('Impossibile creare directory di backup'));
             }
 
@@ -627,7 +639,7 @@ class Updater
         $timestamp = date('Y-m-d_His');
         $backupPath = sys_get_temp_dir() . '/pinakes_app_backup_' . $timestamp;
 
-        if (!mkdir($backupPath, 0755, true)) {
+        if (!mkdir($backupPath, 0755, true) && !is_dir($backupPath)) {
             throw new Exception(__('Impossibile creare directory di backup applicazione'));
         }
 
@@ -1135,14 +1147,23 @@ class Updater
             return;
         }
 
-        $files = array_diff(scandir($dir), ['.', '..']);
+        $files = @scandir($dir);
+        if ($files === false) {
+            error_log("[Updater] Impossibile leggere directory per pulizia: {$dir}");
+            return;
+        }
+        $files = array_diff($files, ['.', '..']);
 
         foreach ($files as $file) {
             $path = $dir . '/' . $file;
-            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
+            if (is_dir($path)) {
+                $this->deleteDirectory($path);
+            } else {
+                @unlink($path);
+            }
         }
 
-        rmdir($dir);
+        @rmdir($dir);
     }
 
     /**
