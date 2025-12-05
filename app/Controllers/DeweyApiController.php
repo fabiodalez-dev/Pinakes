@@ -17,13 +17,19 @@ class DeweyApiController
         $locale = $this->getActiveLocale();
 
         if (!isset(self::$deweyDataCache[$locale])) {
-            // Determina il file JSON in base alla lingua
-            $jsonFile = ($locale === 'en_US') ? 'dewey_en.json' : 'dewey.json';
+            // Prima prova a caricare il nuovo formato completo (con decimali)
+            $jsonFile = ($locale === 'en_US') ? 'dewey_completo_en.json' : 'dewey_completo_it.json';
             $jsonPath = __DIR__ . '/../../data/dewey/' . $jsonFile;
 
-            // Fallback al file italiano se quello inglese non esiste
+            // Fallback al vecchio formato se il completo non esiste
             if (!file_exists($jsonPath)) {
-                $jsonPath = __DIR__ . '/../../data/dewey/dewey.json';
+                $jsonFile = ($locale === 'en_US') ? 'dewey_en.json' : 'dewey.json';
+                $jsonPath = __DIR__ . '/../../data/dewey/' . $jsonFile;
+            }
+
+            // Fallback finale al file italiano
+            if (!file_exists($jsonPath)) {
+                $jsonPath = __DIR__ . '/../../data/dewey/dewey_completo_it.json';
             }
 
             if (!file_exists($jsonPath)) {
@@ -46,25 +52,47 @@ class DeweyApiController
         return self::$deweyDataCache[$locale];
     }
 
+    /**
+     * Determina se i dati caricati sono nel nuovo formato (code, name, level, children)
+     */
+    private function isNewFormat(array $data): bool
+    {
+        // Il nuovo formato è un array diretto, non un oggetto con chiave
+        return !empty($data) && isset($data[0]['code']) && isset($data[0]['level']) && isset($data[0]['children']);
+    }
+
     public function getCategories(Request $request, Response $response): Response
     {
         try {
             $data = $this->loadDeweyData();
             $categories = [];
 
-            // Supporta sia la chiave italiana che quella inglese
-            $deweyKey = isset($data['classificazione_dewey']) ? 'classificazione_dewey' : 'dewey_classification';
-            $typeKey = isset($data[$deweyKey][0]['type']) && $data[$deweyKey][0]['type'] === 'classe_principale' ? 'classe_principale' : 'main_class';
-            $descKey = isset($data[$deweyKey][0]['descrizione']) ? 'descrizione' : 'description';
-            $codeKey = isset($data[$deweyKey][0]['codice']) ? 'codice' : 'code';
+            if ($this->isNewFormat($data)) {
+                // Nuovo formato: estrai tutti i nodi con level = 1 (classi principali)
+                foreach ($data as $item) {
+                    if ($item['level'] === 1) {
+                        $categories[] = [
+                            'id' => $item['code'],
+                            'codice' => $item['code'],
+                            'nome' => $item['name']
+                        ];
+                    }
+                }
+            } else {
+                // Vecchio formato: mantieni la logica esistente
+                $deweyKey = isset($data['classificazione_dewey']) ? 'classificazione_dewey' : 'dewey_classification';
+                $typeKey = isset($data[$deweyKey][0]['type']) && $data[$deweyKey][0]['type'] === 'classe_principale' ? 'classe_principale' : 'main_class';
+                $descKey = isset($data[$deweyKey][0]['descrizione']) ? 'descrizione' : 'description';
+                $codeKey = isset($data[$deweyKey][0]['codice']) ? 'codice' : 'code';
 
-            foreach ($data[$deweyKey] as $class) {
-                if ($class['type'] === $typeKey) {
-                    $categories[] = [
-                        'id' => $class[$codeKey],
-                        'codice' => $class[$codeKey],
-                        'nome' => $class[$descKey]
-                    ];
+                foreach ($data[$deweyKey] as $class) {
+                    if ($class['type'] === $typeKey) {
+                        $categories[] = [
+                            'id' => $class[$codeKey],
+                            'codice' => $class[$codeKey],
+                            'nome' => $class[$descKey]
+                        ];
+                    }
                 }
             }
 
@@ -90,6 +118,15 @@ class DeweyApiController
             }
 
             $data = $this->loadDeweyData();
+
+            // Il nuovo formato non supporta questo endpoint legacy
+            if ($this->isNewFormat($data)) {
+                $response->getBody()->write(json_encode([
+                    'error' => __('Questo endpoint è supportato solo per il formato Dewey legacy. Usa /api/dewey/children.')
+                ], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $divisions = [];
 
             // Supporta sia la chiave italiana che quella inglese
@@ -138,6 +175,15 @@ class DeweyApiController
             }
 
             $data = $this->loadDeweyData();
+
+            // Il nuovo formato non supporta questo endpoint legacy
+            if ($this->isNewFormat($data)) {
+                $response->getBody()->write(json_encode([
+                    'error' => __('Questo endpoint è supportato solo per il formato Dewey legacy. Usa /api/dewey/children.')
+                ], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $specifics = [];
 
             // Supporta sia la chiave italiana che quella inglese
@@ -176,6 +222,134 @@ class DeweyApiController
             // Log detailed error internally but don't expose to client
             error_log("Dewey API specifics error: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore nel recupero delle specifiche.')], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Nuovo endpoint universale: ottieni i figli di un nodo Dewey (supporta livelli infiniti)
+     * GET /api/dewey/children?parent_code=599
+     * Risposta: [{"code": "599.2", "name": "Marsupiali", "level": 4, "has_children": false}, ...]
+     */
+    public function getChildren(Request $request, Response $response): Response
+    {
+        try {
+            $params = $request->getQueryParams();
+            $parentCode = $params['parent_code'] ?? null;
+
+            $data = $this->loadDeweyData();
+            $children = [];
+
+            if ($this->isNewFormat($data)) {
+                if ($parentCode === null) {
+                    // Se non c'è parent_code, ritorna le classi principali (level 1)
+                    foreach ($data as $item) {
+                        if ($item['level'] === 1) {
+                            $children[] = [
+                                'code' => $item['code'],
+                                'name' => $item['name'],
+                                'level' => $item['level'],
+                                'has_children' => !empty($item['children'])
+                            ];
+                        }
+                    }
+                } else {
+                    // Cerca il nodo parent e ritorna i suoi figli
+                    $parent = $this->findNodeByCode($data, $parentCode);
+                    if ($parent === null) {
+                        $response->getBody()->write(json_encode(['error' => __('Codice parent non trovato.')], JSON_UNESCAPED_UNICODE));
+                        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+                    }
+                    if (isset($parent['children'])) {
+                        foreach ($parent['children'] as $child) {
+                            $children[] = [
+                                'code' => $child['code'],
+                                'name' => $child['name'],
+                                'level' => $child['level'],
+                                'has_children' => !empty($child['children'])
+                            ];
+                        }
+                    }
+                }
+            } else {
+                // Per il vecchio formato, fai fallback ai vecchi endpoint
+                $response->getBody()->write(json_encode(['error' => __('Usa gli endpoint specifici per il formato legacy.')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $response->getBody()->write(json_encode($children, JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            error_log("Dewey API children error: " . $e->getMessage());
+            $response->getBody()->write(json_encode(['error' => __('Errore nel recupero dei figli.')], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Ricerca ricorsiva di un nodo per codice
+     */
+    private function findNodeByCode(array $data, string $code): ?array
+    {
+        foreach ($data as $item) {
+            if ($item['code'] === $code) {
+                return $item;
+            }
+            if (!empty($item['children'])) {
+                $found = $this->findNodeByCode($item['children'], $code);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Cerca e ritorna un nodo Dewey con tutte le sue informazioni
+     * GET /api/dewey/search?code=599.9
+     */
+    public function search(Request $request, Response $response): Response
+    {
+        try {
+            $params = $request->getQueryParams();
+            $code = $params['code'] ?? '';
+
+            if (empty($code)) {
+                $response->getBody()->write(json_encode(['error' => __('Parametro code obbligatorio.')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $data = $this->loadDeweyData();
+            $result = null;
+
+            if ($this->isNewFormat($data)) {
+                $node = $this->findNodeByCode($data, $code);
+                if ($node) {
+                    $result = [
+                        'code' => $node['code'],
+                        'name' => $node['name'],
+                        'level' => $node['level'],
+                        'has_children' => !empty($node['children'])
+                    ];
+                }
+            } else {
+                // Per il vecchio formato, fai fallback ai vecchi endpoint
+                $response->getBody()->write(json_encode(['error' => __('Usa gli endpoint specifici per il formato legacy.')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            if ($result) {
+                $response->getBody()->write(json_encode($result, JSON_UNESCAPED_UNICODE));
+            } else {
+                $response->getBody()->write(json_encode(['error' => __('Codice Dewey non trovato.')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            error_log("Dewey API search error: " . $e->getMessage());
+            $response->getBody()->write(json_encode(['error' => __('Errore nella ricerca.')], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }

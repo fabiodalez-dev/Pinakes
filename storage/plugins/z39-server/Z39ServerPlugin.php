@@ -144,7 +144,7 @@ class Z39ServerPlugin
 
         // Log activation
         $this->log('info', 'Z39.50/SRU Server Plugin activated', [
-            'server_enabled' => $this->getSetting('server_enabled') === 'true',
+            'server_enabled' => $this->isSettingEnabled('enable_server') || $this->isSettingEnabled('server_enabled'),
             'supported_formats' => $this->getSetting('supported_formats')
         ]);
     }
@@ -485,15 +485,14 @@ class Z39ServerPlugin
         unset($sources);
 
         // Check if client is enabled
-        $enabled = $this->getSetting('enable_client', '0') === '1';
-        if (!$enabled) {
+        if (!$this->isSettingEnabled('enable_client')) {
             return $existing; // Pass through existing data unchanged
         }
 
         $result = $existing;
 
         // Try SBN first (Italian National Library)
-        $sbnEnabled = $this->getSetting('enable_sbn', '1') === '1';
+        $sbnEnabled = $this->isSettingEnabled('enable_sbn', true);
         if ($sbnEnabled) {
             $sbnData = $this->fetchFromSbn($isbn);
             if ($sbnData) {
@@ -649,6 +648,8 @@ class Z39ServerPlugin
     /**
      * Get plugin setting
      *
+     * Handles decryption of values encrypted by PluginManager.
+     *
      * @param string $key Setting key
      * @param string $default Default value
      * @return string
@@ -671,7 +672,85 @@ class Z39ServerPlugin
         $row = $result->fetch_assoc();
         $stmt->close();
 
-        return $row ? $row['setting_value'] : $default;
+        if (!$row) {
+            return $default;
+        }
+
+        $value = $row['setting_value'];
+
+        // Handle encrypted values (ENC: prefix from PluginManager)
+        if (str_starts_with($value, 'ENC:')) {
+            $value = $this->decryptSettingValue($value);
+        }
+
+        return $value ?? $default;
+    }
+
+    /**
+     * Check if a boolean setting is enabled
+     * Accepts '1', 'true' as enabled values
+     *
+     * @param string $key Setting key
+     * @param bool $default Default value if setting not found
+     * @return bool
+     */
+    private function isSettingEnabled(string $key, bool $default = false): bool
+    {
+        $value = $this->getSetting($key, $default ? '1' : '0');
+        return in_array($value, ['1', 'true'], true);
+    }
+
+    /**
+     * Decrypt a setting value encrypted by PluginManager
+     *
+     * @param string $encrypted Encrypted value with ENC: prefix
+     * @return string|null Decrypted value or null on failure
+     */
+    private function decryptSettingValue(string $encrypted): ?string
+    {
+        // Validate ENC: prefix
+        if (!str_starts_with($encrypted, 'ENC:')) {
+            error_log('[Z39 Server Plugin] Invalid encrypted value: missing ENC: prefix');
+            return null;
+        }
+
+        // Remove ENC: prefix
+        $payload = substr($encrypted, 4);
+        $decoded = base64_decode($payload);
+
+        if ($decoded === false || strlen($decoded) < 28) {
+            error_log('[Z39 Server Plugin] Invalid encrypted payload: decode failed or too short');
+            return null;
+        }
+
+        // Get encryption key from environment (same order as PluginManager)
+        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
+            ?? getenv('PLUGIN_ENCRYPTION_KEY')
+            ?? $_ENV['APP_KEY']
+            ?? getenv('APP_KEY')
+            ?? null;
+        if ($rawKey === null || $rawKey === '') {
+            // No key available, cannot decrypt
+            error_log('[Z39 Server Plugin] Cannot decrypt setting: PLUGIN_ENCRYPTION_KEY not available');
+            return null;
+        }
+
+        // Hash key exactly like PluginManager does
+        $key = hash('sha256', (string)$rawKey, true);
+
+        try {
+            // Extract IV (12 bytes), tag (16 bytes), and ciphertext
+            $iv = substr($decoded, 0, 12);
+            $tag = substr($decoded, 12, 16);
+            $ciphertext = substr($decoded, 28);
+
+            $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+            return $decrypted !== false ? $decrypted : null;
+        } catch (\Throwable $e) {
+            error_log('[Z39 Server Plugin] Decryption error: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**

@@ -36,6 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $installer->updateEnvVariable('APP_CANONICAL_URL', rtrim($canonicalUrl, '/'));
             }
 
+            // Handle FORCE_HTTPS option
+            $forceHttps = isset($_POST['force_https']) && $_POST['force_https'] === '1' ? 'true' : 'false';
+            $installer->updateEnvVariable('FORCE_HTTPS', $forceHttps);
+
             // Handle logo upload (optional)
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['error'] !== UPLOAD_ERR_NO_FILE) {
                 if ($validator->validateFileUpload($_FILES['logo_file'])) {
@@ -102,6 +106,24 @@ renderHeader(5, __('Impostazioni Applicazione'));
         <small style="color: #718096;">
             <?= __("URL completo del sito (es: https://biblioteca.example.com). Usato per link nelle email (verifica account, reset password). Se lasciato vuoto, verrà auto-rilevato.") ?>
         </small>
+    </div>
+
+    <div class="form-group" style="margin-top: 20px;">
+        <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 1px solid #0ea5e9; border-radius: 12px; padding: 20px;">
+            <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+                <input type="checkbox" name="force_https" value="1" style="width: 20px; height: 20px; margin-top: 2px; accent-color: #0369a1;">
+                <div>
+                    <span style="font-weight: 600; color: #0369a1; display: block;"><?= __("Forza HTTPS") ?></span>
+                    <small style="color: #075985; display: block; margin-top: 4px;">
+                        <?= __("Reindirizza automaticamente tutte le richieste HTTP a HTTPS") ?>
+                    </small>
+                </div>
+            </label>
+        </div>
+        <div class="alert alert-warning" style="margin-top: 12px; padding: 12px; font-size: 13px;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong><?= __("Attenzione:") ?></strong> <?= __("Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).") ?>
+        </div>
     </div>
 
     <div class="form-group" style="margin-top: 30px;">

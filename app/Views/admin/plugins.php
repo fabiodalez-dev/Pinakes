@@ -264,6 +264,13 @@ $pluginSettings = $pluginSettings ?? [];
                                         <?php endif; ?>
                                     </button>
                                 <?php endif; ?>
+                                <?php if ($plugin['name'] === 'dewey-editor' && $plugin['is_active']): ?>
+                                    <a href="/admin/dewey-editor"
+                                        class="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
+                                        <i class="fas fa-edit mr-1"></i>
+                                        <?= __("Apri Editor") ?>
+                                    </a>
+                                <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= $plugin['id'] ?>)"
                                         class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">

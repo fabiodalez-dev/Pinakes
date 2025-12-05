@@ -25,7 +25,7 @@ $forgotPasswordRoute = route_path('forgot_password');
 <body class="bg-gray-50">
 
 <div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-md w-full mx-auto">
+  <div class="max-w-md lg:max-w-2xl w-full mx-auto">
     <!-- Logo and Branding -->
     <div class="text-center mb-10">
       <?php if ($appLogo): ?>

@@ -139,8 +139,8 @@ class MODSFormatter extends RecordFormatter
         }
 
         // Classification (Dewey)
-        if (!empty($record['classificazione_dowey'])) {
-            $classification = $this->doc->createElement('classification', $this->escapeXml($record['classificazione_dowey']));
+        if (!empty($record['classificazione_dewey'])) {
+            $classification = $this->doc->createElement('classification', $this->escapeXml($record['classificazione_dewey']));
             $classification->setAttribute('authority', 'ddc');
             $mods->appendChild($classification);
         }

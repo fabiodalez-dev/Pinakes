@@ -105,8 +105,8 @@ class DublinCoreFormatter extends RecordFormatter
         }
 
         // Coverage - dc:coverage (Dewey classification)
-        if (!empty($record['classificazione_dowey'])) {
-            $dcRecord->appendChild($this->createElement('coverage', 'Dewey:' . $record['classificazione_dowey']));
+        if (!empty($record['classificazione_dewey'])) {
+            $dcRecord->appendChild($this->createElement('coverage', 'Dewey:' . $record['classificazione_dewey']));
         }
 
         // Relation - dc:relation (series)

@@ -18,6 +18,10 @@ Options -Indexes
 RewriteCond %{REQUEST_URI} ^/installer/ [NC]
 RewriteRule ^ - [L]
 
+# Allow direct access to calendar files (.ics) for subscription URLs
+RewriteCond %{REQUEST_URI} ^/storage/calendar/.*\.ics$ [NC]
+RewriteRule ^ - [L]
+
 # Redirect everything else to /public/
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ public/$1 [L,QSA]

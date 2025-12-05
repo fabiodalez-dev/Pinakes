@@ -305,7 +305,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
                       <?php endif; ?>
                     </div>
                     <div class="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">
-                      <span>ISBN13: <?php echo HtmlHelper::e($libro['isbn13'] ?? 'N/D'); ?></span>
+                      <span>ISBN13: <?php echo HtmlHelper::e($libro['isbn13'] ?? $libro['ean'] ?? 'N/D'); ?></span>
                       <span><?php echo HtmlHelper::e($libro['stato'] ?? ''); ?></span>
                     </div>
                     <div class="flex gap-2 pt-3">

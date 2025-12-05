@@ -203,7 +203,8 @@ class CsvImportController
             'collana',
             'numero_serie',
             'traduttore',
-            'parole_chiave'
+            'parole_chiave',
+            'classificazione_dewey'
         ];
 
         $examples = [
@@ -228,7 +229,8 @@ class CsvImportController
                 'Oscar Bestsellers',
                 '1',
                 '',
-                'medioevo, giallo, monastero'
+                'medioevo, giallo, monastero',
+                '853'  // Dewey: Narrativa italiana
             ],
             [
                 '',  // id vuoto per nuovo libro
@@ -251,7 +253,8 @@ class CsvImportController
                 '',
                 '',
                 'Gabriele Baldini',
-                'distopia, controllo, totalitarismo'
+                'distopia, controllo, totalitarismo',
+                ''  // Dewey vuoto - verrà popolato dallo scraping se abilitato
             ],
             [
                 '',  // id vuoto per nuovo libro
@@ -274,7 +277,8 @@ class CsvImportController
                 'BUR Classici',
                 '',
                 '',
-                'dante, medioevo, poesia, inferno, paradiso'
+                'dante, medioevo, poesia, inferno, paradiso',
+                '851.1'  // Dewey: Poesia italiana - Dante
             ]
         ];
 
@@ -465,10 +469,10 @@ class CsvImportController
                         if (empty($authorName))
                             continue;
 
-                        $authorId = $this->getOrCreateAuthor($db, $authorName);
-                        if ($authorId === 'created') {
+                        $authorResult = $this->getOrCreateAuthor($db, $authorName);
+                        $authorId = $authorResult['id'];
+                        if ($authorResult['created']) {
                             $authorsCreated++;
-                            $authorId = $db->insert_id;
                         }
 
                         // Collega autore al libro
@@ -564,25 +568,35 @@ class CsvImportController
     }
 
     /**
-     * Ottieni o crea autore
+     * Ottieni o crea autore (con normalizzazione per evitare duplicati)
+     * Handles "Levi, Primo" vs "Primo Levi" as same author
+     *
+     * @return array{id: int, created: bool} Author ID and whether it was newly created
      */
-    private function getOrCreateAuthor(\mysqli $db, string $name): int|string
+    private function getOrCreateAuthor(\mysqli $db, string $name): array
     {
-        $stmt = $db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $authRepo = new \App\Models\AuthorRepository($db);
 
-        if ($row = $result->fetch_assoc()) {
-            return (int) $row['id'];
+        // findByName normalizes and handles different formats
+        $existingId = $authRepo->findByName($name);
+        if ($existingId) {
+            return ['id' => $existingId, 'created' => false];
         }
 
-        // Crea nuovo autore
-        $stmt = $db->prepare("INSERT INTO autori (nome, created_at) VALUES (?, NOW())");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
+        // create() normalizes the name and returns the new ID directly
+        // This is safer than relying on $db->insert_id which could be affected
+        // by other insert operations between create() and reading insert_id
+        $newId = $authRepo->create([
+            'nome' => $name,
+            'pseudonimo' => '',
+            'data_nascita' => null,
+            'data_morte' => null,
+            'nazionalita' => '',
+            'biografia' => '',
+            'sito_web' => ''
+        ]);
 
-        return 'created';
+        return ['id' => $newId, 'created' => true];
     }
 
     /**
@@ -683,6 +697,7 @@ class CsvImportController
                 numero_serie = ?,
                 traduttore = ?,
                 parole_chiave = ?,
+                classificazione_dewey = ?,
                 updated_at = NOW()
             WHERE id = ?
         ");
@@ -702,10 +717,11 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
+        $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
+        $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssississdisssssi',
+            'sssssissiissdisssssi',
             $isbn10,
             $isbn13,
             $ean,
@@ -724,6 +740,7 @@ class CsvImportController
             $numeroSerie,
             $traduttore,
             $paroleChiave,
+            $dewey,
             $bookId
         );
 
@@ -762,13 +779,13 @@ class CsvImportController
                 lingua, edizione, numero_pagine, genere_id,
                 descrizione, formato, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, parole_chiave,
-                stato, created_at
+                classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
-                'disponibile', NOW()
+                ?, 'disponibile', NOW()
             )
         ");
 
@@ -794,10 +811,11 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
+        $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
+        $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssississdiiisssss',
+            'sssssissiissdiiisssss',
             $isbn10,
             $isbn13,
             $ean,
@@ -817,7 +835,8 @@ class CsvImportController
             $collana,
             $numeroSerie,
             $traduttore,
-            $paroleChiave
+            $paroleChiave,
+            $dewey
         );
 
         $stmt->execute();
@@ -973,6 +992,44 @@ class CsvImportController
             }
         }
 
+        // Classificazione Dewey
+        if (empty($csvData['classificazione_dewey'] ?? null) && !empty($scrapedData['classificazione_dewey'] ?? null)) {
+            // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
+            $deweyCode = trim((string) $scrapedData['classificazione_dewey']);
+            if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
+                error_log("[CSV Import] Adding Dewey classification for book $bookId: $deweyCode");
+                $updates[] = 'classificazione_dewey = ?';
+                $params[] = $deweyCode;
+                $types .= 's';
+            }
+        }
+
+        // Anno pubblicazione
+        if (empty($csvData['anno_pubblicazione'] ?? null) && !empty($scrapedData['year'] ?? null)) {
+            $yearClean = preg_replace('/[^0-9]/', '', (string) $scrapedData['year']);
+            if (is_numeric($yearClean) && strlen($yearClean) === 4) {
+                $updates[] = 'anno_pubblicazione = ?';
+                $params[] = (int) $yearClean;
+                $types .= 'i';
+            }
+        }
+
+        // Lingua
+        if (empty($csvData['lingua'] ?? null) && !empty($scrapedData['language'] ?? null)) {
+            $updates[] = 'lingua = ?';
+            $params[] = $scrapedData['language'];
+            $types .= 's';
+        }
+
+        // Parole chiave
+        if (empty($csvData['parole_chiave'] ?? null) && !empty($scrapedData['keywords'] ?? null)) {
+            $updates[] = 'parole_chiave = ?';
+            // Normalize keywords: handle both string and array formats
+            $keywords = $scrapedData['keywords'];
+            $params[] = is_array($keywords) ? implode(', ', $keywords) : $keywords;
+            $types .= 's';
+        }
+
         // Update libro if we have data
         if (!empty($updates)) {
             error_log("[CSV Import] Enriching book $bookId with " . count($updates) . " fields: " . implode(', ', $updates));
@@ -996,10 +1053,8 @@ class CsvImportController
                 if (empty($authorName))
                     continue;
 
-                $authorId = $this->getOrCreateAuthor($db, $authorName);
-                if ($authorId === 'created') {
-                    $authorId = $db->insert_id;
-                }
+                $authorResult = $this->getOrCreateAuthor($db, $authorName);
+                $authorId = $authorResult['id'];
 
                 // Check if already linked
                 $checkStmt = $db->prepare("SELECT id FROM libri_autori WHERE libro_id = ? AND autore_id = ?");

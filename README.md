@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.2.2-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.3.0-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 [![CodeRabbit](https://img.shields.io/coderabbit/prs/reviewed/github/fabiodalez-dev/Pinakes?style=for-the-badge&logo=coderabbit&logoColor=white&label=PRs%20Reviewed)](https://coderabbit.ai)
@@ -22,7 +22,82 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## ⚡ Quick Start
+## What's New in v0.3.0
+
+### Completely Redesigned Dewey Classification System
+
+The Dewey Decimal Classification system has been completely rewritten. Data is no longer stored in the database but loaded from JSON files, enabling more flexible and collaborative management.
+
+**Key features:**
+- **Automatic import from SBN**: When querying books via the SBN API (Italian National Library Service), if the record contains a Dewey classification it is automatically imported. If the code already exists in the JSON file it is applied to the book; if not, it is permanently added to the JSON with its Italian description.
+- **Dewey Editor Plugin**: A dedicated plugin for visual classification management — tree view, manual code addition per language (IT/EN), inline name editing, search, and delete functionality.
+- **JSON Import/Export**: Classification files can be exported and imported, enabling collaborative sharing between Pinakes installations. Merge mode allows adding data from other sources without losing customizations.
+- **Multi-language support**: Separate JSON files for Italian and English with automatic locale detection.
+
+### Built-in Auto-Updater
+
+Starting from this version, Pinakes includes an integrated update system. Administrators can check, download, and install new versions directly from the control panel.
+
+**Note**: Since this is the first version with the updater, v0.3.0 must be installed manually. Future releases can be updated automatically from the admin interface.
+
+**Update process**: Requirements check, automatic database backup, secure download from GitHub Releases, application file backup for rollback, file installation respecting protected paths (.env, uploads, storage), orphan file cleanup, automatic database migrations, OpCache reset.
+
+**Security**: Atomic rollback on error, path traversal protection, CSRF validation, admin-only access.
+
+### Database Backup System
+
+New comprehensive backup management:
+- **Automatic pre-update backup**: Full database dump before every update
+- **Manual on-demand backup**: Create backups anytime from the admin panel
+- **Backup list**: View all backups with creation date and size
+- **Download**: Save backups externally for disaster recovery
+- **Delete**: Remove old backups to free disk space
+- **Location**: Backups saved in `storage/backups/` in SQL format
+
+### Author Normalization
+
+Intelligent system to prevent duplicate authors:
+- **Automatic format conversion**: "Levi, Primo" and "Primo Levi" are recognized as the same author
+- **Source normalization**: Names are normalized during SBN import
+- **Fuzzy matching**: Finds existing authors regardless of name format
+
+### Author/Publisher Merge
+
+New feature to unify duplicate records:
+- Bulk selection of authors or publishers to merge
+- Automatic reassignment of all books to the primary record
+- Deletion of duplicate records
+
+### IMPORTANT: Breaking Changes for Existing Installations
+
+**v0.3.0 is NOT compatible with previous versions without manual migration.**
+
+If you are upgrading from v0.2.x or earlier, you MUST run the migration script before updating the application files:
+
+```bash
+# 1. BACKUP YOUR DATABASE FIRST!
+mysqldump -u USER -p DATABASE > backup_before_0.3.0.sql
+
+# 2. Run the migration
+mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.3.0.sql
+
+# 3. Then replace the application files
+```
+
+**What changes:**
+- **Database column renamed**: `classificazione_dowey` → `classificazione_dewey` (typo fix)
+- **Table removed**: `classificazione` (Dewey data now loaded from JSON files)
+- **Database reduced**: from 40 to 39 tables
+
+**If you skip the migration**, the application will fail with database errors because it expects the new column name.
+
+**For new installations**: No action needed — the installer handles everything automatically.
+
+**Future updates**: Starting from v0.3.0, updates can be performed automatically from Admin → Updates. The auto-updater handles migrations, backups, and file updates safely.
+
+---
+
+## ⚡ Quick Start (New Installations)
 
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
@@ -78,8 +153,8 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 ### Cataloging
 - **Multi-copy support** with independent barcodes and statuses for each physical copy
 - **Unified records** for physical books, eBooks, and audiobooks
-- **Dewey Decimal Classification** preloaded (1,369 categories) with hierarchical browsing
-- **CSV bulk import** with field mapping, validation, and automatic ISBN enrichment
+- **Dewey Decimal Classification** with 1,200+ preset categories (IT/EN), hierarchical browsing, manual entry for custom codes, and auto-population from SBN scraping
+- **CSV bulk import** with field mapping, validation, automatic ISBN enrichment, and Dewey classification from scraping
 - **Automatic duplicate detection** by ID, ISBN13, or EAN (updates existing records without modifying physical copies)
 - **Author and publisher management** with dedicated profiles and bibliography views
 - **Genre/category system** with custom taxonomies and multi-category assignment
@@ -157,11 +232,12 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (4 included):
+**Pre-installed plugins** (5 included):
 - **Open Library** — Metadata scraping from Open Library + Google Books API
-- **Z39 Server** — SRU 1.2 API for catalog interoperability (MARCXML, Dublin Core, MODS)
+- **Z39 Server** — SRU 1.2 API + SBN client for Italian library metadata with Dewey extraction
 - **API Book Scraper** — External ISBN enrichment via custom APIs
 - **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
+- **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
 
 **Available as separate download**:
 - **Scraping Pro** — Advanced metadata scraping with configurable sources
@@ -265,7 +341,12 @@ Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based succes
 - **Trusted proxy support** for deployments behind load balancers (CIDR notation)
 
 **Client Mode** (import from external catalogs):
-- **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, national libraries)
+- **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, K10plus, SUDOC, national libraries)
+- **SBN Italia client** — Automatic metadata retrieval from Italian national library catalog
+- **Dewey classification extraction**:
+  - SBN: Parses Dewey codes from `classificazioneDewey` field (format: `335.4092 (19.) SISTEMI MARXIANI`)
+  - SRU/MARCXML: Extracts from MARC field 082 (Dewey Decimal Classification Number)
+  - Dublin Core: Parses from `dc:subject` (DDC scheme) and `dc:coverage` fields
 - **Federated search** across multiple configured servers
 - **Automatic retry** with exponential backoff (100ms, 200ms, 400ms)
 - **TLS certificate validation** for secure connections
@@ -283,7 +364,7 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=dc.creator=marx
 curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=9788842058946&recordSchema=dc"
 ```
 
-**Use cases**: Union catalogs, interlibrary loan systems, OPAC federation, copy cataloging workflows.
+**Use cases**: Union catalogs, interlibrary loan systems, OPAC federation, copy cataloging workflows, automatic Dewey classification.
 
 ### 3. API Book Scraper (`api-book-scraper-v1.0.0.zip`)
 - **External API integration** for ISBN enrichment
@@ -299,7 +380,47 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 - **Access control** (public, logged-in users only, specific roles)
 - **Usage statistics** and download history
 
-### 5. Scraping Pro (`scraping-pro-v1.0.0.zip`)
+### 5. Dewey Editor (`dewey-editor-v1.0.0.zip`)
+
+Complete Dewey Decimal Classification management system with multilingual support, automatic population, and data exchange capabilities.
+
+**Core Features**:
+- **Tree-based visual editor** — Navigate and edit the complete Dewey hierarchy (1,200+ preset entries)
+- **Multi-language support** — Separate JSON files for Italian (`dewey_completo_it.json`) and English (`dewey_completo_en.json`) with full translations
+- **Inline editing** — Add, modify, or delete categories with instant validation
+- **Validation engine** — Checks code format (XXX.XXXX), hierarchy consistency, and duplicate detection
+
+**Data Exchange**:
+- **JSON import/export** — Backup and restore classification data for manual editing or exchange with other Pinakes installations
+- **Cross-installation sharing** — Export your customized Dewey database and import it into another Pinakes instance
+- **Merge capability** — Import external classifications while preserving existing entries
+
+**Automatic Dewey Scraping**:
+- **SBN integration** — When scraping book metadata from SBN (Italian National Library), Dewey codes are automatically extracted from the `classificazioneDewey` field
+- **SRU/Z39.50 servers** — Dewey codes extracted from MARC field 082 when querying external catalogs (K10plus, SUDOC, Library of Congress, etc.)
+- **Auto-population** — New Dewey codes discovered during scraping are automatically added to your JSON database (language-aware: only updates when source language matches app locale)
+- **CSV import enrichment** — Books imported via CSV are automatically enriched with Dewey classification through ISBN scraping
+
+**Dewey Code Format**:
+- Main classes: `000`-`999` (3 digits)
+- Subdivisions: `000.1` to `999.9999` (up to 4 decimal places)
+- Examples: `599.9` (Mammiferi/Mammals), `004.6782` (Cloud computing), `641.5945` (Cucina italiana/Italian cuisine)
+
+**Book Form Integration**:
+- **Chip-based selection** — Selected Dewey code displays as removable chip with code + name
+- **Manual entry** — Accept any valid Dewey code (not limited to predefined list)
+- **Hierarchical navigation** — Optional collapsible "Browse categories" for discovering codes
+- **Breadcrumb display** — Shows full classification path (e.g., "500 → 590 → 599 → 599.9")
+- **Frontend validation** — Real-time format validation before submission
+
+---
+
+## Optional Plugin (Separate Download)
+
+### Scraping Pro (`scraping-pro-v1.0.0.zip`)
+
+> **Not pre-installed** — Available as a separate download for advanced users.
+
 - **Advanced metadata scraping** with configurable sources
 - **Custom field mapping** for proprietary databases
 - **Bulk enrichment** for existing catalog
