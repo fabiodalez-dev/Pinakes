@@ -721,7 +721,7 @@ class CsvImportController
         $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssississdissssssi',
+            'sssssissiissdisssssi',
             $isbn10,
             $isbn13,
             $ean,
@@ -815,7 +815,7 @@ class CsvImportController
         $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssississdiiissssss',
+            'sssssissiissdiiissssss',
             $isbn10,
             $isbn13,
             $ean,
@@ -1051,10 +1051,8 @@ class CsvImportController
                 if (empty($authorName))
                     continue;
 
-                $authorId = $this->getOrCreateAuthor($db, $authorName);
-                if ($authorId === 'created') {
-                    $authorId = $db->insert_id;
-                }
+                $authorResult = $this->getOrCreateAuthor($db, $authorName);
+                $authorId = $authorResult['id'];
 
                 // Check if already linked
                 $checkStmt = $db->prepare("SELECT id FROM libri_autori WHERE libro_id = ? AND autore_id = ?");

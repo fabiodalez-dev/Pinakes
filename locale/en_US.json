@@ -109,6 +109,7 @@
   "Aggiorna Ora": "Update Now",
   "Aggiornamento alla versione %s completato": "Update to version %s completed",
   "Aggiornamento completato!": "Update completed!",
+  "Errore SQL durante migrazione %s: %s": "SQL error during migration %s: %s",
   "Aggiornamento disponibile!": "Update available!",
   "Aggiornamento fallito": "Update failed",
   "Aggiornamento in corso...": "Updating...",

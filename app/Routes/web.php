@@ -2564,13 +2564,13 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->performUpdate($request, $response, $db);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/updates/backup', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->createBackup($request, $response, $db);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/updates/history', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');

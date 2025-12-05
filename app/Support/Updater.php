@@ -43,7 +43,7 @@ class Updater
         $this->db = $db;
         $this->rootPath = dirname(__DIR__, 2);
         $this->backupPath = $this->rootPath . '/storage/backups';
-        $this->tempPath = sys_get_temp_dir() . '/pinakes_update_' . uniqid();
+        $this->tempPath = sys_get_temp_dir() . '/pinakes_update_' . uniqid('', true);
 
         // Ensure backup directory exists
         if (!is_dir($this->backupPath)) {
@@ -524,7 +524,12 @@ class Updater
 
                             foreach ($statements as $statement) {
                                 if (!empty(trim($statement))) {
-                                    $this->db->query($statement);
+                                    $result = $this->db->query($statement);
+                                    if ($result === false) {
+                                        throw new Exception(
+                                            sprintf(__('Errore SQL durante migrazione %s: %s'), $filename, $this->db->error)
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -586,7 +591,9 @@ class Updater
      */
     private function logUpdateStart(string $fromVersion, string $toVersion, ?string $backupPath): int
     {
-        $userId = $_SESSION['user']['id'] ?? null;
+        $userId = (isset($_SESSION) && isset($_SESSION['user']['id']))
+            ? (int) $_SESSION['user']['id']
+            : null;
 
         $stmt = $this->db->prepare("
             INSERT INTO update_logs (from_version, to_version, status, backup_path, executed_by)

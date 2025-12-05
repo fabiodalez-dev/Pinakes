@@ -82,7 +82,9 @@ class MergeHelper
                 // Rename if requested
                 if ($newName !== '') {
                     $current = $repo->getById($primaryId);
-                    $repo->update($primaryId, array_merge($current ?? [], ['nome' => $newName]));
+                    if ($current !== null) {
+                        $repo->update($primaryId, array_merge($current, ['nome' => $newName]));
+                    }
                 }
 
                 $response->getBody()->write(json_encode([
