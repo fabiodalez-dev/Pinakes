@@ -385,12 +385,12 @@ class Updater
                 'path' => $dir,
                 'size' => $size,
                 'date' => $dateStr,
-                'timestamp' => filemtime($dir)
+                'created_at' => filemtime($dir)
             ];
         }
 
-        // Sort by timestamp descending (newest first)
-        usort($backups, fn($a, $b) => $b['timestamp'] - $a['timestamp']);
+        // Sort by created_at descending (newest first)
+        usort($backups, fn($a, $b) => $b['created_at'] - $a['created_at']);
 
         return $backups;
     }
