@@ -22,6 +22,64 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.3.0
+
+### Completely Redesigned Dewey Classification System
+
+The Dewey Decimal Classification system has been completely rewritten. Data is no longer stored in the database but loaded from JSON files, enabling more flexible and collaborative management.
+
+**Key features:**
+- **Automatic import from SBN**: When querying books via the SBN API (Italian National Library Service), if the record contains a Dewey classification it is automatically imported. If the code already exists in the JSON file it is applied to the book; if not, it is permanently added to the JSON with its Italian description.
+- **Dewey Editor Plugin**: A dedicated plugin for visual classification management — tree view, manual code addition per language (IT/EN), inline name editing, search, and delete functionality.
+- **JSON Import/Export**: Classification files can be exported and imported, enabling collaborative sharing between Pinakes installations. Merge mode allows adding data from other sources without losing customizations.
+- **Multi-language support**: Separate JSON files for Italian and English with automatic locale detection.
+
+### Built-in Auto-Updater
+
+Starting from this version, Pinakes includes an integrated update system. Administrators can check, download, and install new versions directly from the control panel.
+
+**Note**: Since this is the first version with the updater, v0.3.0 must be installed manually. Future releases can be updated automatically from the admin interface.
+
+**Update process**: Requirements check, automatic database backup, secure download from GitHub Releases, application file backup for rollback, file installation respecting protected paths (.env, uploads, storage), orphan file cleanup, automatic database migrations, OpCache reset.
+
+**Security**: Atomic rollback on error, path traversal protection, CSRF validation, admin-only access.
+
+### Database Backup System
+
+New comprehensive backup management:
+- **Automatic pre-update backup**: Full database dump before every update
+- **Manual on-demand backup**: Create backups anytime from the admin panel
+- **Backup list**: View all backups with creation date and size
+- **Download**: Save backups externally for disaster recovery
+- **Delete**: Remove old backups to free disk space
+- **Location**: Backups saved in `storage/backups/` in SQL format
+
+### Author Normalization
+
+Intelligent system to prevent duplicate authors:
+- **Automatic format conversion**: "Levi, Primo" and "Primo Levi" are recognized as the same author
+- **Source normalization**: Names are normalized during SBN import
+- **Fuzzy matching**: Finds existing authors regardless of name format
+
+### Author/Publisher Merge
+
+New feature to unify duplicate records:
+- Bulk selection of authors or publishers to merge
+- Automatic reassignment of all books to the primary record
+- Deletion of duplicate records
+
+### Breaking Changes
+
+- **Database column renamed**: `classificazione_dowey` → `classificazione_dewey`
+- **Table removed**: `classificazione` (data now in JSON files, database reduced from 40 to 39 tables)
+
+Migration is automatic for future updates. For v0.3.0 installation:
+```bash
+mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.3.0.sql
+```
+
+---
+
 ## ⚡ Quick Start
 
 1. **Clone or download** this repository and upload all files to the root directory of your server.

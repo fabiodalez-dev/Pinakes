@@ -68,7 +68,7 @@ $changelog = $changelog ?? [];
                 <!-- Update Button -->
                 <?php if ($updateInfo['available'] && $requirements['met']): ?>
                 <div>
-                    <button onclick="startUpdate('<?= HtmlHelper::e($updateInfo['latest']) ?>')"
+                    <button onclick="startUpdate(this.dataset.version)" data-version="<?= HtmlHelper::e($updateInfo['latest']) ?>"
                         class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg">
                         <i class="fas fa-download mr-2"></i>
                         <?= __("Aggiorna Ora") ?>
@@ -401,7 +401,7 @@ async function checkForUpdatesManual() {
             Swal.fire({
                 icon: 'info',
                 title: '<?= __("Aggiornamento disponibile!") ?>',
-                html: `<?= __("Versione") ?> <strong>${data.latest}</strong> <?= __("disponibile") ?>.`,
+                text: `<?= __("Versione") ?> ${data.latest} <?= __("disponibile") ?>.`,
                 confirmButtonText: '<?= __("OK") ?>'
             }).then(() => location.reload());
         } else if (data.error) {
@@ -630,7 +630,7 @@ async function loadBackups() {
 
         data.backups.forEach(backup => {
             const date = new Date(backup.created_at * 1000);
-            const formattedDate = date.toLocaleDateString('<?= $_SESSION['user']['locale'] ?? 'it-IT' ?>', {
+            const formattedDate = date.toLocaleDateString(<?= json_encode($_SESSION['user']['locale'] ?? 'it-IT') ?>, {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric',
