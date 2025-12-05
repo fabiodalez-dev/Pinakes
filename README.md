@@ -68,19 +68,36 @@ New feature to unify duplicate records:
 - Automatic reassignment of all books to the primary record
 - Deletion of duplicate records
 
-### Breaking Changes
+### IMPORTANT: Breaking Changes for Existing Installations
 
-- **Database column renamed**: `classificazione_dowey` → `classificazione_dewey`
-- **Table removed**: `classificazione` (data now in JSON files, database reduced from 40 to 39 tables)
+**v0.3.0 is NOT compatible with previous versions without manual migration.**
 
-Migration is automatic for future updates. For v0.3.0 installation:
+If you are upgrading from v0.2.x or earlier, you MUST run the migration script before updating the application files:
+
 ```bash
+# 1. BACKUP YOUR DATABASE FIRST!
+mysqldump -u USER -p DATABASE > backup_before_0.3.0.sql
+
+# 2. Run the migration
 mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.3.0.sql
+
+# 3. Then replace the application files
 ```
+
+**What changes:**
+- **Database column renamed**: `classificazione_dowey` → `classificazione_dewey` (typo fix)
+- **Table removed**: `classificazione` (Dewey data now loaded from JSON files)
+- **Database reduced**: from 40 to 39 tables
+
+**If you skip the migration**, the application will fail with database errors because it expects the new column name.
+
+**For new installations**: No action needed — the installer handles everything automatically.
+
+**Future updates**: Starting from v0.3.0, updates can be performed automatically from Admin → Updates. The auto-updater handles migrations, backups, and file updates safely.
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Quick Start (New Installations)
 
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
