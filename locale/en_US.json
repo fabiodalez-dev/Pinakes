@@ -121,6 +121,7 @@
   "Pacchetto di aggiornamento non valido: manca %s": "Invalid update package: missing %s",
   "Errore preparazione log aggiornamento": "Error preparing update log",
   "Errore preparazione completamento log": "Error preparing log completion",
+  "Errore aggiornamento log": "Error updating log",
   "Impossibile recuperare informazioni sulla release": "Unable to retrieve release information",
   "Impossibile connettersi a GitHub": "Unable to connect to GitHub",
   "Percorso non valido nel pacchetto: %s": "Invalid path in package: %s",

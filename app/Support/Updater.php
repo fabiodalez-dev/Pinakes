@@ -755,7 +755,11 @@ class Updater
             throw new Exception(__('Errore preparazione completamento log') . ': ' . $this->db->error);
         }
         $stmt->bind_param('ssi', $status, $error, $logId);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $stmtError = $stmt->error;
+            $stmt->close();
+            throw new Exception(__('Errore aggiornamento log') . ': ' . $stmtError);
+        }
         $stmt->close();
     }
 
