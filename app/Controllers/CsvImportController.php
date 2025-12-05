@@ -717,8 +717,8 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
-        $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
+        $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
+        $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
             'sssssissiissdisssssi',
@@ -811,8 +811,8 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
-        $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
+        $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
+        $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
             'sssssissiissdiiisssss',
@@ -993,9 +993,9 @@ class CsvImportController
         }
 
         // Classificazione Dewey
-        if (empty($csvData['classificazione_dewey']) && !empty($scrapedData['classificazione_dewey'])) {
+        if (empty($csvData['classificazione_dewey'] ?? null) && !empty($scrapedData['classificazione_dewey'] ?? null)) {
             // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
-            $deweyCode = $scrapedData['classificazione_dewey'];
+            $deweyCode = trim((string) $scrapedData['classificazione_dewey']);
             if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
                 error_log("[CSV Import] Adding Dewey classification for book $bookId: $deweyCode");
                 $updates[] = 'classificazione_dewey = ?';
@@ -1005,8 +1005,8 @@ class CsvImportController
         }
 
         // Anno pubblicazione
-        if (empty($csvData['anno_pubblicazione']) && !empty($scrapedData['year'])) {
-            $yearClean = preg_replace('/[^0-9]/', '', $scrapedData['year']);
+        if (empty($csvData['anno_pubblicazione'] ?? null) && !empty($scrapedData['year'] ?? null)) {
+            $yearClean = preg_replace('/[^0-9]/', '', (string) $scrapedData['year']);
             if (is_numeric($yearClean) && strlen($yearClean) === 4) {
                 $updates[] = 'anno_pubblicazione = ?';
                 $params[] = (int) $yearClean;
@@ -1015,16 +1015,18 @@ class CsvImportController
         }
 
         // Lingua
-        if (empty($csvData['lingua']) && !empty($scrapedData['language'])) {
+        if (empty($csvData['lingua'] ?? null) && !empty($scrapedData['language'] ?? null)) {
             $updates[] = 'lingua = ?';
             $params[] = $scrapedData['language'];
             $types .= 's';
         }
 
         // Parole chiave
-        if (empty($csvData['parole_chiave']) && !empty($scrapedData['keywords'])) {
+        if (empty($csvData['parole_chiave'] ?? null) && !empty($scrapedData['keywords'] ?? null)) {
             $updates[] = 'parole_chiave = ?';
-            $params[] = $scrapedData['keywords'];
+            // Normalize keywords: handle both string and array formats
+            $keywords = $scrapedData['keywords'];
+            $params[] = is_array($keywords) ? implode(', ', $keywords) : $keywords;
             $types .= 's';
         }
 

@@ -62,8 +62,19 @@ class Updater
             return '0.0.0';
         }
 
-        $data = json_decode(file_get_contents($versionFile), true);
-        return $data['version'] ?? '0.0.0';
+        $content = file_get_contents($versionFile);
+        if ($content === false) {
+            error_log("[Updater] Impossibile leggere version.json");
+            return '0.0.0';
+        }
+
+        $data = json_decode($content, true);
+        if (!is_array($data) || !isset($data['version'])) {
+            error_log("[Updater] version.json non valido o corrotto");
+            return '0.0.0';
+        }
+
+        return $data['version'];
     }
 
     /**
@@ -335,10 +346,14 @@ class Updater
         try {
             $tables = [];
             $result = $this->db->query("SHOW TABLES");
+            if ($result === false) {
+                throw new Exception(__('Errore nel recupero delle tabelle') . ': ' . $this->db->error);
+            }
 
             while ($row = $result->fetch_row()) {
                 $tables[] = $row[0];
             }
+            $result->free();
 
             $sql = "-- Pinakes Database Backup\n";
             $sql .= "-- Generated: " . date('Y-m-d H:i:s') . "\n";
@@ -348,12 +363,19 @@ class Updater
             foreach ($tables as $table) {
                 // Get create table statement
                 $createResult = $this->db->query("SHOW CREATE TABLE `{$table}`");
+                if ($createResult === false) {
+                    throw new Exception(sprintf(__('Errore nel recupero struttura tabella %s'), $table) . ': ' . $this->db->error);
+                }
                 $createRow = $createResult->fetch_row();
+                $createResult->free();
                 $sql .= "DROP TABLE IF EXISTS `{$table}`;\n";
                 $sql .= $createRow[1] . ";\n\n";
 
                 // Get data
                 $dataResult = $this->db->query("SELECT * FROM `{$table}`");
+                if ($dataResult === false) {
+                    throw new Exception(sprintf(__('Errore nel recupero dati tabella %s'), $table) . ': ' . $this->db->error);
+                }
 
                 while ($row = $dataResult->fetch_assoc()) {
                     $values = array_map(function ($value) {
@@ -365,6 +387,7 @@ class Updater
 
                     $sql .= "INSERT INTO `{$table}` VALUES (" . implode(', ', $values) . ");\n";
                 }
+                $dataResult->free();
 
                 $sql .= "\n";
             }
@@ -394,6 +417,14 @@ class Updater
             // Verify source exists
             if (!is_dir($sourcePath)) {
                 throw new Exception(__('Directory sorgente non trovata'));
+            }
+
+            // Verify it's a valid Pinakes package
+            $requiredPaths = ['version.json', 'app', 'public', 'installer'];
+            foreach ($requiredPaths as $required) {
+                if (!file_exists($sourcePath . '/' . $required)) {
+                    throw new Exception(sprintf(__('Pacchetto di aggiornamento non valido: manca %s'), $required));
+                }
             }
 
             // Log update start
@@ -658,6 +689,9 @@ class Updater
             INSERT INTO update_logs (from_version, to_version, status, backup_path, executed_by)
             VALUES (?, ?, 'started', ?, ?)
         ");
+        if ($stmt === false) {
+            throw new Exception(__('Errore preparazione log aggiornamento') . ': ' . $this->db->error);
+        }
         $stmt->bind_param('sssi', $fromVersion, $toVersion, $backupPath, $userId);
         $stmt->execute();
         $id = $this->db->insert_id;
@@ -678,6 +712,9 @@ class Updater
             SET status = ?, error_message = ?, completed_at = NOW()
             WHERE id = ?
         ");
+        if ($stmt === false) {
+            throw new Exception(__('Errore preparazione completamento log') . ': ' . $this->db->error);
+        }
         $stmt->bind_param('ssi', $status, $error, $logId);
         $stmt->execute();
         $stmt->close();
@@ -696,13 +733,19 @@ class Updater
             ORDER BY ul.started_at DESC
             LIMIT ?
         ");
+        if ($stmt === false) {
+            error_log("[Updater] Errore preparazione query storico: " . $this->db->error);
+            return [];
+        }
         $stmt->bind_param('i', $limit);
         $stmt->execute();
         $result = $stmt->get_result();
 
         $history = [];
-        while ($row = $result->fetch_assoc()) {
-            $history[] = $row;
+        if ($result !== false) {
+            while ($row = $result->fetch_assoc()) {
+                $history[] = $row;
+            }
         }
 
         $stmt->close();
@@ -788,12 +831,15 @@ class Updater
 
         // Disk space (need at least 100MB free)
         $freeSpace = disk_free_space($this->rootPath);
+        if ($freeSpace === false) {
+            $freeSpace = 0; // Assume no space if check fails
+        }
         $minSpace = 100 * 1024 * 1024; // 100MB
         $spaceMet = $freeSpace >= $minSpace;
         $requirements[] = [
             'name' => __('Spazio libero'),
             'required' => '100MB',
-            'current' => $this->formatBytes($freeSpace),
+            'current' => $freeSpace > 0 ? $this->formatBytes($freeSpace) : __('Non disponibile'),
             'met' => $spaceMet
         ];
         if (!$spaceMet) $allMet = false;
