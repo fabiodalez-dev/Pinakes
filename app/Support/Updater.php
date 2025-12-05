@@ -304,6 +304,8 @@ class Updater
      */
     public function createBackup(): array
     {
+        $logId = null;
+
         try {
             $timestamp = date('Y-m-d_His');
             $backupDir = $this->backupPath . '/update_' . $timestamp;
@@ -312,14 +314,17 @@ class Updater
                 throw new Exception(__('Impossibile creare directory di backup'));
             }
 
+            // Log the backup start
+            $logId = $this->logUpdateStart($this->getCurrentVersion(), 'backup', $backupDir);
+
             // Backup database
             $dbBackupResult = $this->backupDatabase($backupDir . '/database.sql');
             if (!$dbBackupResult['success']) {
                 throw new Exception($dbBackupResult['error']);
             }
 
-            // Log the backup
-            $this->logUpdateStart($this->getCurrentVersion(), 'backup', $backupDir);
+            // Mark backup as complete
+            $this->logUpdateComplete($logId, true);
 
             return [
                 'success' => true,
@@ -329,6 +334,12 @@ class Updater
 
         } catch (Exception $e) {
             error_log("[Updater] Backup error: " . $e->getMessage());
+
+            // Mark backup as failed if log was started
+            if ($logId !== null) {
+                $this->logUpdateComplete($logId, false, $e->getMessage());
+            }
+
             return [
                 'success' => false,
                 'path' => null,
@@ -477,7 +488,25 @@ class Updater
 
         foreach ($iterator as $item) {
             $relativePath = str_replace($source . '/', '', $item->getPathname());
+
+            // Path traversal protection - reject paths with .. or null bytes
+            if (str_contains($relativePath, '..') || str_contains($relativePath, "\0")) {
+                throw new Exception(sprintf(__('Percorso non valido nel pacchetto: %s'), $relativePath));
+            }
+
+            // Skip symlinks for security
+            if ($item->isLink()) {
+                continue;
+            }
+
             $targetPath = $dest . '/' . $relativePath;
+
+            // Verify target path is still within destination (double-check)
+            $realDest = realpath($dest);
+            $parentTarget = realpath(dirname($targetPath));
+            if ($parentTarget !== false && $realDest !== false && strpos($parentTarget, $realDest) !== 0) {
+                throw new Exception(sprintf(__('Percorso non valido nel pacchetto: %s'), $relativePath));
+            }
 
             // Check if path should be skipped
             foreach ($this->skipPaths as $skipPath) {
@@ -495,15 +524,21 @@ class Updater
 
             if ($item->isDir()) {
                 if (!is_dir($targetPath)) {
-                    mkdir($targetPath, 0755, true);
+                    if (!mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
+                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), $relativePath));
+                    }
                 }
             } else {
                 // Ensure parent directory exists
                 $parentDir = dirname($targetPath);
                 if (!is_dir($parentDir)) {
-                    mkdir($parentDir, 0755, true);
+                    if (!mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
+                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), dirname($relativePath)));
+                    }
                 }
-                copy($item->getPathname(), $targetPath);
+                if (!copy($item->getPathname(), $targetPath)) {
+                    throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
+                }
             }
         }
     }
@@ -548,6 +583,10 @@ class Updater
 
                         if ($sql !== false && trim($sql) !== '') {
                             // Split into individual statements
+                            // NOTE: Migration files must contain simple SQL statements only.
+                            // Not supported: stored procedures, triggers, strings containing ';',
+                            // or multi-line comments containing ';'. For complex migrations,
+                            // use multiple simple statements.
                             $statements = array_filter(
                                 array_map('trim', explode(';', $sql)),
                                 fn($s) => !empty($s) && !preg_match('/^--/', $s)
@@ -898,6 +937,7 @@ class Updater
     public function performUpdate(string $targetVersion): array
     {
         $backupResult = ['path' => null, 'success' => false, 'error' => null];
+        $result = null;
 
         try {
             // Step 1: Create backup
@@ -918,7 +958,7 @@ class Updater
                 throw new Exception(__('Installazione fallita') . ': ' . $installResult['error']);
             }
 
-            return [
+            $result = [
                 'success' => true,
                 'error' => null,
                 'backup_path' => $backupResult['path']
@@ -926,11 +966,16 @@ class Updater
 
         } catch (Exception $e) {
             error_log("[Updater] Update failed: " . $e->getMessage());
-            return [
+            $result = [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'backup_path' => $backupResult['path'] ?? null
             ];
+        } finally {
+            // Always cleanup temporary files, regardless of success or failure
+            $this->cleanup();
         }
+
+        return $result;
     }
 }
