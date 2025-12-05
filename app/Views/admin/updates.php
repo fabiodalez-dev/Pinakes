@@ -22,7 +22,7 @@ $changelog = $changelog ?? [];
                 <h1 class="text-3xl font-bold text-gray-900"><?= __("Aggiornamenti") ?></h1>
                 <p class="mt-2 text-sm text-gray-600"><?= __("Gestisci gli aggiornamenti dell'applicazione") ?></p>
             </div>
-            <button onclick="checkForUpdates()"
+            <button onclick="checkForUpdatesManual()"
                 class="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 shadow-sm hover:shadow-md">
                 <i class="fas fa-sync-alt mr-2"></i>
                 <?= __("Controlla Aggiornamenti") ?>
@@ -85,7 +85,7 @@ $changelog = $changelog ?? [];
                     <div>
                         <p class="font-medium text-green-800"><?= __("Nuovo aggiornamento disponibile!") ?></p>
                         <p class="text-sm text-green-700 mt-1">
-                            <?= sprintf(__("La versione %s è disponibile. Prima di aggiornare, verrà creato un backup automatico del database."), $updateInfo['latest']) ?>
+                            <?= sprintf(__("La versione %s è disponibile. Prima di aggiornare, verrà creato un backup automatico del database."), HtmlHelper::e($updateInfo['latest'])) ?>
                         </p>
                     </div>
                 </div>
@@ -134,7 +134,7 @@ $changelog = $changelog ?? [];
             </div>
             <div class="p-6">
                 <div class="space-y-4">
-                    <?php foreach ($requirements['requirements'] as $req): ?>
+                    <?php foreach ($requirements['requirements'] ?? [] as $req): ?>
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 <?= $req['met'] ? 'bg-green-100' : 'bg-red-100' ?> rounded-lg flex items-center justify-center">
@@ -226,12 +226,12 @@ $changelog = $changelog ?? [];
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
                             <h3 class="font-semibold text-gray-900">v<?= HtmlHelper::e($release['version']) ?></h3>
-                            <?php if ($release['prerelease']): ?>
+                            <?php if (!empty($release['prerelease'])): ?>
                             <span class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-lg">
                                 Pre-release
                             </span>
                             <?php endif; ?>
-                            <?php if ($release['published_at']): ?>
+                            <?php if (!empty($release['published_at'])): ?>
                             <span class="text-xs text-gray-500">
                                 <?= date('d/m/Y', strtotime($release['published_at'])) ?>
                             </span>
@@ -384,7 +384,7 @@ $changelog = $changelog ?? [];
 <script>
 const csrfToken = '<?= Csrf::ensureToken() ?>';
 
-async function checkForUpdates() {
+async function checkForUpdatesManual() {
     try {
         Swal.fire({
             title: '<?= __("Controllo aggiornamenti") ?>',
@@ -396,8 +396,6 @@ async function checkForUpdates() {
 
         const response = await fetch('/admin/updates/check');
         const data = await response.json();
-
-        Swal.close();
 
         if (data.available) {
             Swal.fire({
@@ -415,12 +413,11 @@ async function checkForUpdates() {
         } else {
             Swal.fire({
                 icon: 'success',
-                title: '<?= __("Tutto aggiornato!") ?>',
-                text: '<?= __("Stai utilizzando l\'ultima versione.") ?>'
+                title: '<?= __("Nessun aggiornamento") ?>',
+                text: '<?= __("Non è stato trovato alcun aggiornamento") ?>'
             });
         }
     } catch (error) {
-        Swal.close();
         Swal.fire({
             icon: 'error',
             title: '<?= __("Errore") ?>',
@@ -463,8 +460,11 @@ async function createBackup() {
             Swal.fire({
                 icon: 'success',
                 title: '<?= __("Backup creato!") ?>',
-                text: data.message
+                text: data.message,
+                timer: 1500,
+                showConfirmButton: false
             });
+            loadBackups(); // Aggiorna la lista dei backup
         } else {
             Swal.fire({
                 icon: 'error',
@@ -595,7 +595,7 @@ async function loadBackups() {
         if (data.error) {
             container.innerHTML = `
                 <div class="p-6 text-center text-red-600">
-                    <i class="fas fa-exclamation-triangle mr-2"></i>${data.error}
+                    <i class="fas fa-exclamation-triangle mr-2"></i>${escapeHtml(data.error)}
                 </div>
             `;
             return;
@@ -679,7 +679,7 @@ async function loadBackups() {
     } catch (error) {
         container.innerHTML = `
             <div class="p-6 text-center text-red-600">
-                <i class="fas fa-exclamation-triangle mr-2"></i>${error.message}
+                <i class="fas fa-exclamation-triangle mr-2"></i>${escapeHtml(error.message)}
             </div>
         `;
     }
@@ -717,14 +717,14 @@ async function deleteBackup(backupName) {
         const data = await response.json();
 
         if (data.success) {
-            await Swal.fire({
+            Swal.fire({
                 icon: 'success',
                 title: '<?= __("Backup eliminato") ?>',
                 text: data.message,
-                timer: 2000,
+                timer: 1500,
                 showConfirmButton: false
             });
-            loadBackups();
+            loadBackups(); // Aggiorna subito, non aspetta il timer
         } else {
             Swal.fire({
                 icon: 'error',

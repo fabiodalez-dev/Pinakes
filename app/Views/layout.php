@@ -676,6 +676,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     }
     ?>
     window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+    window.userIsAdminOrStaff = <?= json_encode($isAdminOrStaff) ?>;
 
     // Override translation helper function to use i18nTranslations (overrides head fallback)
     window.__ = function (key, ...args) {
@@ -940,8 +941,10 @@ $htmlLang = substr($currentLocale, 0, 2);
         });
       }
 
-      // Load notification count on page load
-      loadNotificationCount();
+      // Load notification count on page load (only for admin/staff)
+      if (window.userIsAdminOrStaff) {
+        loadNotificationCount();
+      }
 
       // User menu dropdown
       const userMenuButton = document.getElementById('user-menu-button');
