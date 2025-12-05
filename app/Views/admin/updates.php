@@ -3,7 +3,12 @@ use App\Support\HtmlHelper;
 use App\Support\Csrf;
 
 $pageTitle = __('Aggiornamenti');
-$updateInfo = $updateInfo ?? ['available' => false, 'current' => '0.0.0', 'latest' => '0.0.0'];
+$updateInfo = $updateInfo ?? [
+    'available' => false,
+    'current' => '0.0.0',
+    'latest' => '0.0.0',
+    'error' => null,
+];
 $requirements = $requirements ?? ['met' => false, 'requirements' => []];
 $history = $history ?? [];
 $changelog = $changelog ?? [];
@@ -85,13 +90,13 @@ $changelog = $changelog ?? [];
                     </div>
                 </div>
             </div>
-            <?php elseif ($updateInfo['error']): ?>
+            <?php elseif (!empty($updateInfo['error'])): ?>
             <div class="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
                 <div class="flex items-start gap-3">
                     <i class="fas fa-exclamation-triangle text-red-600 mt-0.5"></i>
                     <div>
                         <p class="font-medium text-red-800"><?= __("Errore durante il controllo") ?></p>
-                        <p class="text-sm text-red-700 mt-1"><?= HtmlHelper::e($updateInfo['error']) ?></p>
+                        <p class="text-sm text-red-700 mt-1"><?= HtmlHelper::e($updateInfo['error'] ?? '') ?></p>
                     </div>
                 </div>
             </div>
@@ -648,13 +653,13 @@ async function loadBackups() {
                         ${formatBytes(backup.size)}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
-                        <button onclick="downloadBackup('${escapeHtml(backup.name)}')"
-                            class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
+                        <button data-backup="${escapeHtml(backup.name)}" data-action="download"
+                            class="btn-backup-download inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
                             <i class="fas fa-download mr-1"></i>
                             <?= __("Scarica") ?>
                         </button>
-                        <button onclick="deleteBackup('${escapeHtml(backup.name)}')"
-                            class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
+                        <button data-backup="${escapeHtml(backup.name)}" data-action="delete"
+                            class="btn-backup-delete inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
                             <i class="fas fa-trash mr-1"></i>
                             <?= __("Elimina") ?>
                         </button>
@@ -756,4 +761,21 @@ function escapeHtml(text) {
 
 // Load backups on page load
 document.addEventListener('DOMContentLoaded', loadBackups);
+
+// Event delegation for backup buttons (safer than inline onclick)
+document.addEventListener('click', (e) => {
+    const downloadBtn = e.target.closest('.btn-backup-download');
+    if (downloadBtn) {
+        const backupName = downloadBtn.getAttribute('data-backup');
+        if (backupName) downloadBackup(backupName);
+        return;
+    }
+
+    const deleteBtn = e.target.closest('.btn-backup-delete');
+    if (deleteBtn) {
+        const backupName = deleteBtn.getAttribute('data-backup');
+        if (backupName) deleteBackup(backupName);
+        return;
+    }
+});
 </script>
