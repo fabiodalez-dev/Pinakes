@@ -538,6 +538,9 @@ class Updater
      */
     public function installUpdate(string $sourcePath, string $targetVersion): array
     {
+        $appBackupPath = null;
+        $logId = null;
+
         try {
             $currentVersion = $this->getCurrentVersion();
 
@@ -557,8 +560,14 @@ class Updater
             // Log update start
             $logId = $this->logUpdateStart($currentVersion, $targetVersion, null);
 
+            // Backup current app files for atomic rollback
+            $appBackupPath = $this->backupAppFiles();
+
             // Copy files, preserving protected paths
             $this->copyDirectory($sourcePath, $this->rootPath);
+
+            // Clean up orphan files (files in old version but not in new)
+            $this->cleanupOrphanFiles($sourcePath);
 
             // Run database migrations
             $migrationResult = $this->runMigrations($currentVersion, $targetVersion);
@@ -573,8 +582,11 @@ class Updater
             // Mark update as complete
             $this->logUpdateComplete($logId, true);
 
-            // Cleanup temp files
+            // Cleanup temp files and app backup (success, no rollback needed)
             $this->cleanup();
+            if ($appBackupPath !== null && is_dir($appBackupPath)) {
+                $this->deleteDirectory($appBackupPath);
+            }
 
             return [
                 'success' => true,
@@ -584,7 +596,18 @@ class Updater
         } catch (Exception $e) {
             error_log("[Updater] Install error: " . $e->getMessage());
 
-            if (isset($logId)) {
+            // Attempt to restore from backup if available
+            if ($appBackupPath !== null && is_dir($appBackupPath)) {
+                try {
+                    error_log("[Updater] Attempting rollback from: " . $appBackupPath);
+                    $this->restoreAppFiles($appBackupPath);
+                    error_log("[Updater] Rollback completed successfully");
+                } catch (Exception $rollbackError) {
+                    error_log("[Updater] Rollback failed: " . $rollbackError->getMessage());
+                }
+            }
+
+            if ($logId !== null) {
                 $this->logUpdateComplete($logId, false, $e->getMessage());
             }
 
@@ -592,6 +615,154 @@ class Updater
                 'success' => false,
                 'error' => $e->getMessage()
             ];
+        }
+    }
+
+    /**
+     * Backup application files for atomic rollback
+     * @return string Path to backup directory
+     */
+    private function backupAppFiles(): string
+    {
+        $timestamp = date('Y-m-d_His');
+        $backupPath = sys_get_temp_dir() . '/pinakes_app_backup_' . $timestamp;
+
+        if (!mkdir($backupPath, 0755, true)) {
+            throw new Exception(__('Impossibile creare directory di backup applicazione'));
+        }
+
+        // Directories to backup for rollback
+        $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer'];
+
+        foreach ($dirsToBackup as $dir) {
+            $sourcePath = $this->rootPath . '/' . $dir;
+            $destPath = $backupPath . '/' . $dir;
+
+            if (is_dir($sourcePath)) {
+                $this->copyDirectoryRecursive($sourcePath, $destPath);
+            }
+        }
+
+        // Also backup version.json
+        $versionFile = $this->rootPath . '/version.json';
+        if (file_exists($versionFile)) {
+            copy($versionFile, $backupPath . '/version.json');
+        }
+
+        return $backupPath;
+    }
+
+    /**
+     * Restore application files from backup
+     */
+    private function restoreAppFiles(string $backupPath): void
+    {
+        $dirsToRestore = ['app', 'config', 'locale', 'public/assets', 'installer'];
+
+        foreach ($dirsToRestore as $dir) {
+            $sourcePath = $backupPath . '/' . $dir;
+            $destPath = $this->rootPath . '/' . $dir;
+
+            if (is_dir($sourcePath)) {
+                // Delete current and restore from backup
+                if (is_dir($destPath)) {
+                    $this->deleteDirectory($destPath);
+                }
+                $this->copyDirectoryRecursive($sourcePath, $destPath);
+            }
+        }
+
+        // Restore version.json
+        $backupVersion = $backupPath . '/version.json';
+        if (file_exists($backupVersion)) {
+            copy($backupVersion, $this->rootPath . '/version.json');
+        }
+    }
+
+    /**
+     * Copy directory recursively (simple copy without preserve/skip logic)
+     */
+    private function copyDirectoryRecursive(string $source, string $dest): void
+    {
+        if (!is_dir($dest)) {
+            mkdir($dest, 0755, true);
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $relativePath = str_replace($source . '/', '', $item->getPathname());
+            $targetPath = $dest . '/' . $relativePath;
+
+            if ($item->isDir()) {
+                if (!is_dir($targetPath)) {
+                    mkdir($targetPath, 0755, true);
+                }
+            } else {
+                $parentDir = dirname($targetPath);
+                if (!is_dir($parentDir)) {
+                    mkdir($parentDir, 0755, true);
+                }
+                copy($item->getPathname(), $targetPath);
+            }
+        }
+    }
+
+    /**
+     * Clean up orphan files that exist in old version but not in new
+     */
+    private function cleanupOrphanFiles(string $newSourcePath): void
+    {
+        // Directories to check for orphan files
+        $dirsToCheck = ['app', 'config', 'locale', 'installer'];
+
+        foreach ($dirsToCheck as $dir) {
+            $currentDir = $this->rootPath . '/' . $dir;
+            $newDir = $newSourcePath . '/' . $dir;
+
+            if (!is_dir($currentDir) || !is_dir($newDir)) {
+                continue;
+            }
+
+            $this->removeOrphansInDirectory($currentDir, $newDir, $dir);
+        }
+    }
+
+    /**
+     * Remove files in current directory that don't exist in new directory
+     */
+    private function removeOrphansInDirectory(string $currentDir, string $newDir, string $basePath): void
+    {
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($currentDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $relativePath = str_replace($currentDir . '/', '', $item->getPathname());
+            $newPath = $newDir . '/' . $relativePath;
+            $fullRelativePath = $basePath . '/' . $relativePath;
+
+            // Skip preserved paths
+            foreach ($this->preservePaths as $preservePath) {
+                if (strpos($fullRelativePath, $preservePath) === 0) {
+                    continue 2;
+                }
+            }
+
+            // If file/dir doesn't exist in new version, remove it
+            if (!file_exists($newPath)) {
+                if ($item->isDir()) {
+                    // Only remove empty directories
+                    @rmdir($item->getPathname());
+                } else {
+                    @unlink($item->getPathname());
+                    error_log("[Updater] Removed orphan file: " . $fullRelativePath);
+                }
+            }
         }
     }
 

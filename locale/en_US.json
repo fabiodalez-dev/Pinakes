@@ -126,6 +126,7 @@
   "URL di download non trovato": "Download URL not found",
   "File di aggiornamento non valido": "Invalid update file",
   "Impossibile creare directory di backup": "Unable to create backup directory",
+  "Impossibile creare directory di backup applicazione": "Unable to create application backup directory",
   "Impossibile scrivere file di backup": "Unable to write backup file",
   "Directory sorgente non trovata": "Source directory not found",
   "Impossibile recuperare informazioni sulla release": "Unable to retrieve release information",
