@@ -185,6 +185,26 @@ $changelog = $changelog ?? [];
         </div>
     </div>
 
+    <!-- Backup List -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900"><?= __("Backup Salvati") ?></h2>
+                <button onclick="loadBackups()" class="text-sm text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-sync-alt mr-1"></i><?= __("Aggiorna") ?>
+                </button>
+            </div>
+        </div>
+        <div id="backupListContainer">
+            <div class="p-12 text-center">
+                <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-spinner fa-spin text-gray-400 text-xl"></i>
+                </div>
+                <p class="text-gray-600"><?= __("Caricamento backup...") ?></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Changelog -->
     <?php if (!empty($changelog)): ?>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
@@ -550,4 +570,190 @@ function closeUpdateModal() {
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+// Backup Management
+async function loadBackups() {
+    const container = document.getElementById('backupListContainer');
+    container.innerHTML = `
+        <div class="p-12 text-center">
+            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-spinner fa-spin text-gray-400 text-xl"></i>
+            </div>
+            <p class="text-gray-600"><?= __("Caricamento backup...") ?></p>
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/admin/updates/backups');
+        const data = await response.json();
+
+        if (data.error) {
+            container.innerHTML = `
+                <div class="p-6 text-center text-red-600">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>${data.error}
+                </div>
+            `;
+            return;
+        }
+
+        if (!data.backups || data.backups.length === 0) {
+            container.innerHTML = `
+                <div class="p-12 text-center">
+                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-database text-gray-400 text-2xl"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2"><?= __("Nessun backup disponibile") ?></h3>
+                    <p class="text-gray-600"><?= __("Crea un backup manuale o attendi il prossimo aggiornamento.") ?></p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = `
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Nome File") ?></th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Data") ?></th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Dimensione") ?></th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+        `;
+
+        data.backups.forEach(backup => {
+            const date = new Date(backup.created_at * 1000);
+            const formattedDate = date.toLocaleDateString('<?= $_SESSION['user']['locale'] ?? 'it-IT' ?>', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            html += `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-file-code text-gray-400"></i>
+                            <span class="font-mono text-gray-900">${escapeHtml(backup.name)}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        ${formattedDate}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        ${formatBytes(backup.size)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
+                        <button onclick="downloadBackup('${escapeHtml(backup.name)}')"
+                            class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
+                            <i class="fas fa-download mr-1"></i>
+                            <?= __("Scarica") ?>
+                        </button>
+                        <button onclick="deleteBackup('${escapeHtml(backup.name)}')"
+                            class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
+                            <i class="fas fa-trash mr-1"></i>
+                            <?= __("Elimina") ?>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        container.innerHTML = `
+            <div class="p-6 text-center text-red-600">
+                <i class="fas fa-exclamation-triangle mr-2"></i>${error.message}
+            </div>
+        `;
+    }
+}
+
+async function deleteBackup(backupName) {
+    const result = await Swal.fire({
+        title: '<?= __("Eliminare questo backup?") ?>',
+        text: backupName,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<?= __("Elimina") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>',
+        confirmButtonColor: '#dc2626'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        Swal.fire({
+            title: '<?= __("Eliminazione in corso...") ?>',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const response = await fetch('/admin/updates/backup/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&backup=${encodeURIComponent(backupName)}`
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            await Swal.fire({
+                icon: 'success',
+                title: '<?= __("Backup eliminato") ?>',
+                text: data.message,
+                timer: 2000,
+                showConfirmButton: false
+            });
+            loadBackups();
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: '<?= __("Errore") ?>',
+                text: data.error
+            });
+        }
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: '<?= __("Errore") ?>',
+            text: error.message
+        });
+    }
+}
+
+function downloadBackup(backupName) {
+    window.location.href = `/admin/updates/backup/download?backup=${encodeURIComponent(backupName)}`;
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Load backups on page load
+document.addEventListener('DOMContentLoaded', loadBackups);
 </script>

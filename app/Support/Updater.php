@@ -354,6 +354,113 @@ class Updater
     }
 
     /**
+     * Get list of available backups
+     * @return array<array{name: string, path: string, size: int, date: string}>
+     */
+    public function getBackupList(): array
+    {
+        $backups = [];
+
+        if (!is_dir($this->backupPath)) {
+            return $backups;
+        }
+
+        $dirs = glob($this->backupPath . '/update_*', GLOB_ONLYDIR);
+
+        foreach ($dirs as $dir) {
+            $name = basename($dir);
+            $dbFile = $dir . '/database.sql';
+            $size = file_exists($dbFile) ? filesize($dbFile) : 0;
+
+            // Extract date from directory name (update_2025-12-05_143000)
+            $dateStr = str_replace('update_', '', $name);
+            $dateStr = str_replace('_', ' ', $dateStr);
+
+            $backups[] = [
+                'name' => $name,
+                'path' => $dir,
+                'size' => $size,
+                'date' => $dateStr,
+                'timestamp' => filemtime($dir)
+            ];
+        }
+
+        // Sort by timestamp descending (newest first)
+        usort($backups, fn($a, $b) => $b['timestamp'] - $a['timestamp']);
+
+        return $backups;
+    }
+
+    /**
+     * Delete a backup
+     * @return array{success: bool, error: string|null}
+     */
+    public function deleteBackup(string $backupName): array
+    {
+        // Validate backup name to prevent directory traversal
+        if (preg_match('/[\/\\\\]|\.\./', $backupName)) {
+            return ['success' => false, 'error' => __('Nome backup non valido')];
+        }
+
+        $backupPath = $this->backupPath . '/' . $backupName;
+
+        // Verify it exists and is within backup directory
+        if (!is_dir($backupPath)) {
+            return ['success' => false, 'error' => __('Backup non trovato')];
+        }
+
+        $realBackupPath = realpath($backupPath);
+        $realBackupDir = realpath($this->backupPath);
+
+        if ($realBackupPath === false || $realBackupDir === false ||
+            strpos($realBackupPath, $realBackupDir) !== 0) {
+            return ['success' => false, 'error' => __('Percorso backup non valido')];
+        }
+
+        try {
+            $this->deleteDirectory($backupPath);
+            return ['success' => true, 'error' => null];
+        } catch (Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get backup file path for download
+     * @return array{success: bool, path: string|null, filename: string|null, error: string|null}
+     */
+    public function getBackupDownloadPath(string $backupName): array
+    {
+        // Validate backup name
+        if (preg_match('/[\/\\\\]|\.\./', $backupName)) {
+            return ['success' => false, 'path' => null, 'filename' => null, 'error' => __('Nome backup non valido')];
+        }
+
+        $backupPath = $this->backupPath . '/' . $backupName;
+        $dbFile = $backupPath . '/database.sql';
+
+        if (!file_exists($dbFile)) {
+            return ['success' => false, 'path' => null, 'filename' => null, 'error' => __('File backup non trovato')];
+        }
+
+        // Verify path is within backup directory
+        $realDbFile = realpath($dbFile);
+        $realBackupDir = realpath($this->backupPath);
+
+        if ($realDbFile === false || $realBackupDir === false ||
+            strpos($realDbFile, $realBackupDir) !== 0) {
+            return ['success' => false, 'path' => null, 'filename' => null, 'error' => __('Percorso backup non valido')];
+        }
+
+        return [
+            'success' => true,
+            'path' => $realDbFile,
+            'filename' => $backupName . '.sql',
+            'error' => null
+        ];
+    }
+
+    /**
      * Backup database to file
      * @return array{success: bool, error: string|null}
      */
@@ -455,6 +562,9 @@ class Updater
             if (!$migrationResult['success']) {
                 throw new Exception($migrationResult['error']);
             }
+
+            // Fix file permissions
+            $this->fixPermissions();
 
             // Mark update as complete
             $this->logUpdateComplete($logId, true);
@@ -827,6 +937,91 @@ class Updater
         }
 
         rmdir($dir);
+    }
+
+    /**
+     * Fix file and directory permissions after update
+     */
+    private function fixPermissions(): void
+    {
+        // Directories that need to be writable
+        $writableDirs = [
+            'storage',
+            'storage/backups',
+            'storage/cache',
+            'storage/logs',
+            'storage/plugins',
+            'storage/uploads',
+            'public/uploads',
+        ];
+
+        foreach ($writableDirs as $dir) {
+            $fullPath = $this->rootPath . '/' . $dir;
+            if (is_dir($fullPath)) {
+                // Set directory to 755
+                chmod($fullPath, 0755);
+
+                // Recursively fix permissions for contents
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($fullPath, \RecursiveDirectoryIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::SELF_FIRST
+                );
+
+                foreach ($iterator as $item) {
+                    if ($item->isDir()) {
+                        @chmod($item->getPathname(), 0755);
+                    } else {
+                        @chmod($item->getPathname(), 0644);
+                    }
+                }
+            }
+        }
+
+        // Ensure .env is not world-readable
+        $envFile = $this->rootPath . '/.env';
+        if (file_exists($envFile)) {
+            chmod($envFile, 0600);
+        }
+
+        // Ensure public/index.php is executable for some servers
+        $indexFile = $this->rootPath . '/public/index.php';
+        if (file_exists($indexFile)) {
+            chmod($indexFile, 0644);
+        }
+
+        // Fix app directory permissions (read-only for most)
+        $appDirs = ['app', 'config', 'installer', 'locale', 'vendor'];
+        foreach ($appDirs as $dir) {
+            $fullPath = $this->rootPath . '/' . $dir;
+            if (is_dir($fullPath)) {
+                $this->setReadOnlyPermissions($fullPath);
+            }
+        }
+    }
+
+    /**
+     * Set read-only permissions recursively
+     */
+    private function setReadOnlyPermissions(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        chmod($dir, 0755);
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if ($item->isDir()) {
+                @chmod($item->getPathname(), 0755);
+            } else {
+                @chmod($item->getPathname(), 0644);
+            }
+        }
     }
 
     /**

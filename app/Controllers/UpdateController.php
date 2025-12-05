@@ -189,6 +189,91 @@ class UpdateController
     }
 
     /**
+     * API: Get backup list
+     */
+    public function getBackups(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
+        }
+
+        $updater = new Updater($db);
+        $backups = $updater->getBackupList();
+
+        return $this->jsonResponse($response, ['backups' => $backups]);
+    }
+
+    /**
+     * API: Delete a backup
+     */
+    public function deleteBackup(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
+        }
+
+        $data = (array) $request->getParsedBody();
+        $csrfToken = $data['csrf_token'] ?? '';
+
+        if (!\App\Support\Csrf::validate($csrfToken)) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $backupName = $data['backup'] ?? '';
+        if (empty($backupName)) {
+            return $this->jsonResponse($response, ['error' => __('Nome backup non specificato')], 400);
+        }
+
+        $updater = new Updater($db);
+        $result = $updater->deleteBackup($backupName);
+
+        if ($result['success']) {
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => __('Backup eliminato con successo')
+            ]);
+        }
+
+        return $this->jsonResponse($response, [
+            'success' => false,
+            'error' => $result['error']
+        ], 500);
+    }
+
+    /**
+     * Download a backup file
+     */
+    public function downloadBackup(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
+        }
+
+        $backupName = $request->getQueryParams()['backup'] ?? '';
+        if (empty($backupName)) {
+            return $this->jsonResponse($response, ['error' => __('Nome backup non specificato')], 400);
+        }
+
+        $updater = new Updater($db);
+        $result = $updater->getBackupDownloadPath($backupName);
+
+        if (!$result['success']) {
+            return $this->jsonResponse($response, ['error' => $result['error']], 404);
+        }
+
+        $content = file_get_contents($result['path']);
+        if ($content === false) {
+            return $this->jsonResponse($response, ['error' => __('Impossibile leggere il file di backup')], 500);
+        }
+
+        $response->getBody()->write($content);
+        return $response
+            ->withHeader('Content-Type', 'application/sql')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $result['filename'] . '"')
+            ->withHeader('Content-Length', (string) strlen($content));
+    }
+
+    /**
      * Helper: Send JSON response
      */
     private function jsonResponse(Response $response, array $data, int $status = 200): Response

@@ -2578,4 +2578,22 @@ return function (App $app): void {
         return $controller->getHistory($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
 
+    $app->get('/admin/updates/backups', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->getBackups($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/updates/backup/delete', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->deleteBackup($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/updates/backup/download', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->downloadBackup($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
 };
