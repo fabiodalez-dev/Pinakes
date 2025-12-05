@@ -6,6 +6,16 @@
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
+/**
+ * Validate path is safe (within allowed directory, no traversal)
+ */
+function isPathSafe(string $path, string $allowedBase): bool
+{
+    $realPath = realpath($path);
+    $realBase = realpath($allowedBase);
+    return $realPath !== false && $realBase !== false && strpos($realPath, $realBase) === 0;
+}
+
 // Serve uploads from either project root or public directory
 if (strpos($uri, '/uploads/') === 0) {
     $candidatePaths = [
@@ -14,7 +24,7 @@ if (strpos($uri, '/uploads/') === 0) {
     ];
 
     foreach ($candidatePaths as $candidatePath) {
-        if (!is_file($candidatePath)) {
+        if (!is_file($candidatePath) || !isPathSafe($candidatePath, __DIR__)) {
             continue;
         }
 
@@ -31,7 +41,7 @@ if (strpos($uri, '/uploads/') === 0) {
 // Serve static files from public/ directory
 if (preg_match('/\.(?:png|jpg|jpeg|gif|ico|css|js|svg|woff|woff2|ttf|eot)$/', $uri)) {
     $publicFile = __DIR__ . '/public' . $uri;
-    if (is_file($publicFile)) {
+    if (is_file($publicFile) && isPathSafe($publicFile, __DIR__ . '/public')) {
         // Serve the file with correct MIME type
         $extension = pathinfo($publicFile, PATHINFO_EXTENSION);
         $mimeTypes = [
@@ -66,7 +76,7 @@ if (strpos($uri, '/installer') === 0) {
         return true;
     }
     $file = __DIR__ . $uri;
-    if (is_file($file)) {
+    if (is_file($file) && isPathSafe($file, __DIR__ . '/installer')) {
         return false;
     }
     $_SERVER['SCRIPT_FILENAME'] = __DIR__ . '/installer/index.php';
@@ -77,7 +87,7 @@ if (strpos($uri, '/installer') === 0) {
 // Handle /public/ requests
 if (strpos($uri, '/public/') === 0) {
     $publicFile = __DIR__ . $uri;
-    if (is_file($publicFile)) {
+    if (is_file($publicFile) && isPathSafe($publicFile, __DIR__ . '/public')) {
         return false;
     }
     $_SERVER['SCRIPT_FILENAME'] = __DIR__ . '/public/index.php';

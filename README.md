@@ -87,7 +87,8 @@ mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.3.0.sql
 **What changes:**
 - **Database column renamed**: `classificazione_dowey` → `classificazione_dewey` (typo fix)
 - **Table removed**: `classificazione` (Dewey data now loaded from JSON files)
-- **Database reduced**: from 40 to 39 tables
+- **Tables added**: `migrations`, `update_logs`, `z39_access_logs`, `z39_rate_limits`
+- **Database total**: 41 tables (was 38 + classificazione = 39 in v0.2.x)
 
 **If you skip the migration**, the application will fail with database errors because it expects the new column name.
 
@@ -212,6 +213,26 @@ Automatic emails for:
 - **Built-in SEO tooling**: sitemap, clean URLs, Schema.org metadata tags
 - **Cookie-consent banner** and privacy tools (GDPR-compliant)
 
+### Dewey Decimal Classification
+- **1,200+ preset categories** in Italian and English loaded from JSON files
+- **Hierarchical browsing** — Navigate from main classes (000-999) to subdivisions (e.g., 599.9 Mammals)
+- **Manual entry** — Accept any valid Dewey code, not limited to preset list
+- **Format validation** — Real-time validation of code format (XXX.XXXX)
+- **Automatic population from SBN** — Dewey codes extracted during ISBN scraping are auto-added to the database
+- **Multi-language** — Separate JSON files for IT/EN with full translations
+- **Dewey Editor plugin** — Visual tree editor for managing classifications with import/export
+- **No database table** — Data loaded from `data/dewey/` JSON files at runtime
+
+### Auto-Updater
+- **Built-in update system** — Check, download, and install updates from Admin → Updates
+- **Automatic database backup** — Full MySQL dump before every update
+- **Safe file updates** — Protected paths (.env, uploads, storage) are never overwritten
+- **Database migrations** — Automatic execution of SQL migrations for version jumps
+- **Atomic rollback** — Automatic restore on error with pre-update backup
+- **Orphan cleanup** — Files removed in new versions are deleted from installation
+- **OpCache reset** — Automatic cache invalidation after file updates
+- **Security** — CSRF validation, admin-only access, path traversal protection
+
 ### Physical Inventory
 - **Hierarchical location model**: shelf, aisle, position
 - **Automatic position assignment** for new copies
@@ -232,15 +253,13 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (5 included):
+**Pre-installed plugins** (6 included):
 - **Open Library** — Metadata scraping from Open Library + Google Books API
 - **Z39 Server** — SRU 1.2 API + SBN client for Italian library metadata with Dewey extraction
 - **API Book Scraper** — External ISBN enrichment via custom APIs
 - **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
 - **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
-
-**Available as separate download**:
-- **Scraping Pro** — Advanced metadata scraping with configurable sources
+- **Scraping Pro** — Advanced metadata scraping with configurable sources and priority ordering
 
 ### CMS and Customization
 - **Homepage editor** with drag-and-drop blocks (hero banner, featured shelves, events, testimonials)
@@ -413,19 +432,16 @@ Complete Dewey Decimal Classification management system with multilingual suppor
 - **Breadcrumb display** — Shows full classification path (e.g., "500 → 590 → 599 → 599.9")
 - **Frontend validation** — Real-time format validation before submission
 
----
+### 6. Scraping Pro (`scraping-pro-v1.0.0.zip`)
 
-## Optional Plugin (Separate Download)
+Advanced metadata scraping plugin with configurable sources and intelligent enrichment.
 
-### Scraping Pro (`scraping-pro-v1.0.0.zip`)
-
-> **Not pre-installed** — Available as a separate download for advanced users.
-
-- **Advanced metadata scraping** with configurable sources
-- **Custom field mapping** for proprietary databases
-- **Bulk enrichment** for existing catalog
-- **Priority ordering** for multiple sources
-- **Cache management** to reduce API calls
+- **Multi-source scraping** — Configure multiple metadata sources with priority ordering
+- **Custom field mapping** — Map external API fields to Pinakes schema
+- **Bulk enrichment** — Enrich existing catalog entries in batch mode
+- **Priority ordering** — Define source priority for fallback behavior
+- **Cache management** — Reduce API calls with intelligent caching
+- **Error handling** — Detailed logging and retry logic for failed requests
 
 ---
 

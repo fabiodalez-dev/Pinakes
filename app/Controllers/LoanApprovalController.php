@@ -69,8 +69,8 @@ class LoanApprovalController
         try {
             $db->begin_transaction();
 
-            // Verifica che il prestito sia ancora pendente e ottieni le date richieste
-            $stmt = $db->prepare("SELECT libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id = ? AND stato = 'pendente'");
+            // Lock and verify loan is still pending (FOR UPDATE prevents concurrent approval)
+            $stmt = $db->prepare("SELECT libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id = ? AND stato = 'pendente' FOR UPDATE");
             $stmt->bind_param('i', $loanId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -192,6 +192,7 @@ class LoanApprovalController
                 AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
+                FOR UPDATE
             ");
             $overlapCopyStmt->bind_param('iiss', $selectedCopy['id'], $loanId, $dataScadenza, $dataPrestito);
             $overlapCopyStmt->execute();
@@ -280,48 +281,68 @@ class LoanApprovalController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Get book ID before deleting the loan
-        $stmt = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
-        $stmt->bind_param('i', $loanId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $loan = $result->fetch_assoc();
-        $stmt->close();
+        // Start transaction for atomic delete + availability update
+        $db->begin_transaction();
 
-        if (!$loan) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'message' => __('Prestito non trovato o già processato')
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        $bookId = (int) $loan['libro_id'];
-
-        // Send rejection notification BEFORE deleting (need loan data)
         try {
-            $notificationService = new \App\Support\NotificationService($db);
-            $notificationService->sendLoanRejectedNotification($loanId, $reason);
-        } catch (Exception $notifError) {
-            error_log("Error sending rejection notification for loan {$loanId}: " . $notifError->getMessage());
-            // Don't fail the rejection if notification fails
-        }
+            // Lock and verify loan is still pending
+            $stmt = $db->prepare("SELECT libro_id, utente_id FROM prestiti WHERE id = ? AND stato = 'pendente' FOR UPDATE");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $loan = $result->fetch_assoc();
+            $stmt->close();
 
-        // Reject the loan (delete it)
-        $stmt = $db->prepare("DELETE FROM prestiti WHERE id = ? AND stato = 'pendente'");
-        $stmt->bind_param('i', $loanId);
+            if (!$loan) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o già processato')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
 
-        if ($stmt->execute() && $db->affected_rows > 0) {
-            // Update book availability after loan rejection
+            $bookId = (int) $loan['libro_id'];
+
+            // Delete the loan
+            $stmt = $db->prepare("DELETE FROM prestiti WHERE id = ? AND stato = 'pendente'");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+
+            if ($db->affected_rows === 0) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito già processato da un altro utente')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+            $stmt->close();
+
+            // Update book availability (inside transaction)
             $integrity = new DataIntegrity($db);
             $integrity->recalculateBookAvailability($bookId);
+
+            $db->commit();
+
+            // Send notification AFTER successful commit (outside transaction)
+            try {
+                $notificationService = new \App\Support\NotificationService($db);
+                $notificationService->sendLoanRejectedNotification($loanId, $reason);
+            } catch (\Exception $notifError) {
+                error_log("[rejectLoan] Notification error for loan {$loanId}: " . $notifError->getMessage());
+                // Don't fail - deletion already committed
+            }
 
             $response->getBody()->write(json_encode([
                 'success' => true,
                 'message' => __('Richiesta rifiutata')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
-        } else {
+
+        } catch (\Exception $e) {
+            $db->rollback();
+            error_log("[rejectLoan] Error: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore nel rifiuto della richiesta')
