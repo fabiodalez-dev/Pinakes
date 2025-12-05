@@ -135,6 +135,7 @@
   "Errore nella copia del file: %s": "Error copying file: %s",
   "Errore durante il controllo": "Error during check",
   "Aggiornamento in corso...": "Updating...",
+  "Aggiornamento in corso. Riprova tra qualche minuto.": "Update in progress. Please try again in a few minutes.",
   "Aggiornamento...": "Updating...",
   "Aggiornamenti": "Updates",
   "Aggiornata in base a scaffale, mensola e posizione.": "Updated based on shelf, rack and position.",

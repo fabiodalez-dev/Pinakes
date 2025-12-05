@@ -36,11 +36,15 @@ class Updater
         'CLAUDE.md',
     ];
 
-    /** @var array<string> Directories to skip completely */
+    /**
+     * Directories to skip completely during update.
+     * NOTE: 'vendor' is NOT in this list - release packages MUST include
+     * a production-ready vendor folder with all Composer dependencies.
+     * @var array<string>
+     */
     private array $skipPaths = [
         '.git',
         'node_modules',
-        'vendor',
     ];
 
     public function __construct(mysqli $db)
@@ -911,12 +915,43 @@ class Updater
     }
 
     /**
-     * Cleanup temporary files
+     * Cleanup temporary files and reset caches
      */
     public function cleanup(): void
     {
         if (is_dir($this->tempPath)) {
             $this->deleteDirectory($this->tempPath);
+        }
+
+        // Disable maintenance mode
+        $this->disableMaintenanceMode();
+
+        // Reset OpCache to prevent serving stale compiled PHP
+        if (function_exists('opcache_reset')) {
+            opcache_reset();
+        }
+    }
+
+    /**
+     * Enable maintenance mode to prevent user access during update
+     */
+    private function enableMaintenanceMode(): void
+    {
+        $maintenanceFile = $this->rootPath . '/storage/.maintenance';
+        file_put_contents($maintenanceFile, json_encode([
+            'time' => time(),
+            'message' => __('Aggiornamento in corso. Riprova tra qualche minuto.')
+        ]));
+    }
+
+    /**
+     * Disable maintenance mode after update
+     */
+    private function disableMaintenanceMode(): void
+    {
+        $maintenanceFile = $this->rootPath . '/storage/.maintenance';
+        if (file_exists($maintenanceFile)) {
+            unlink($maintenanceFile);
         }
     }
 
@@ -1140,6 +1175,12 @@ class Updater
      */
     public function performUpdate(string $targetVersion): array
     {
+        // Prevent timeout on slow connections or large updates
+        set_time_limit(0);
+
+        // Enable maintenance mode to prevent user access during update
+        $this->enableMaintenanceMode();
+
         $backupResult = ['path' => null, 'success' => false, 'error' => null];
         $result = null;
 

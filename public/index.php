@@ -75,6 +75,67 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
 
 require $vendorAutoload;
 
+// Check for maintenance mode (created during updates)
+$maintenanceFile = __DIR__ . '/../storage/.maintenance';
+if (file_exists($maintenanceFile)) {
+    $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+    // Allow update endpoints and static assets during maintenance
+    $allowedPaths = ['/admin/updates', '/assets/', '/favicon.ico'];
+    $isAllowed = false;
+    foreach ($allowedPaths as $path) {
+        if (strpos($requestUri, $path) === 0) {
+            $isAllowed = true;
+            break;
+        }
+    }
+
+    if (!$isAllowed) {
+        $maintenanceData = json_decode(file_get_contents($maintenanceFile), true);
+        $message = $maintenanceData['message'] ?? 'Il sito è in manutenzione. Riprova tra qualche minuto.';
+
+        // Check if maintenance is stale (older than 30 minutes - safety net)
+        $maintenanceTime = $maintenanceData['time'] ?? 0;
+        if (time() - $maintenanceTime > 1800) {
+            // Stale maintenance file, remove it and continue
+            unlink($maintenanceFile);
+        } else {
+            http_response_code(503);
+            header('Content-Type: text/html; charset=UTF-8');
+            header('Retry-After: 300');
+            echo '<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manutenzione in corso</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; padding: 20px; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .container { background: white; border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.25); max-width: 500px; padding: 50px; text-align: center; }
+        .icon { font-size: 64px; margin-bottom: 20px; }
+        h1 { color: #1f2937; margin: 0 0 15px 0; font-size: 28px; }
+        p { color: #6b7280; line-height: 1.6; margin: 0; font-size: 16px; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status { margin-top: 30px; padding: 15px; background: #f3f4f6; border-radius: 8px; font-size: 14px; color: #4b5563; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🔧</div>
+        <h1>Manutenzione in corso</h1>
+        <p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>
+        <div class="status">
+            <span class="spinner"></span>
+            Aggiornamento del sistema in corso...
+        </div>
+    </div>
+</body>
+</html>';
+            exit;
+        }
+    }
+}
+
 use DI\ContainerBuilder;
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
