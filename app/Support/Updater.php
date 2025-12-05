@@ -27,7 +27,12 @@ class Updater
         'storage/plugins',
         'storage/backups',
         'storage/cache',
+        'storage/logs',
         'public/uploads',
+        'public/.htaccess',
+        'public/robots.txt',
+        'public/favicon.ico',
+        'public/sitemap.xml',
         'CLAUDE.md',
     ];
 
