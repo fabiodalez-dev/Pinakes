@@ -311,7 +311,7 @@ $changelog = $changelog ?? [];
                             ?>
                             <span class="px-2 py-1 text-xs font-medium <?= $statusClass ?> rounded-lg">
                                 <i class="fas <?= $statusIcon ?> mr-1"></i>
-                                <?= $statusText ?>
+                                <?= HtmlHelper::e($statusText) ?>
                             </span>
                             <?php if (!empty($log['error_message'])): ?>
                             <p class="text-xs text-red-600 mt-1"><?= HtmlHelper::e($log['error_message']) ?></p>
