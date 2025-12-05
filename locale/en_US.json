@@ -127,6 +127,7 @@
   "Impossibile creare directory di backup": "Unable to create backup directory",
   "Impossibile creare directory di backup applicazione": "Unable to create application backup directory",
   "Impossibile creare directory di backup: %s": "Unable to create backup directory: %s",
+  "Impossibile creare directory temporanea": "Unable to create temporary directory",
   "Impossibile salvare il file di aggiornamento": "Unable to save update file",
   "Estrazione del pacchetto fallita": "Package extraction failed",
   "Impossibile scrivere file di backup": "Unable to write backup file",

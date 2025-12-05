@@ -224,7 +224,9 @@ class Updater
 
             // Create temp directory
             if (!is_dir($this->tempPath)) {
-                mkdir($this->tempPath, 0755, true);
+                if (!mkdir($this->tempPath, 0755, true) && !is_dir($this->tempPath)) {
+                    throw new Exception(__('Impossibile creare directory temporanea'));
+                }
             }
 
             $zipPath = $this->tempPath . '/update.zip';
@@ -316,7 +318,13 @@ class Updater
             return null;
         }
 
-        return json_decode($response, true);
+        $data = json_decode($response, true);
+
+        if (!is_array($data) || !isset($data['tag_name'])) {
+            return null;
+        }
+
+        return $data;
     }
 
     /**
