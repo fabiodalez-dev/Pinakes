@@ -193,6 +193,7 @@ docs/*.txt
 docs/*.html
 security.md
 fix.md
+todo.md
 PRESTITI.md
 PRESTITI_CODEX.md
 changelog-*.md
