@@ -14,7 +14,12 @@ class DataIntegrity {
     }
 
     /**
-     * Ricalcola le copie disponibili per tutti i libri
+     * Recalculates available copies and updates book availability for all books.
+     *
+     * Updates copy statuses based on active loans and reservations, then recalculates each book's
+     * copie_disponibili, copie_totali, and stato inside a single database transaction.
+     *
+     * @return array{updated:int, errors:string[]} 'updated' is the number of libro rows affected; 'errors' contains encountered error messages.
      */
     public function recalculateAllBookAvailability(): array {
         $results = ['updated' => 0, 'errors' => []];
@@ -119,13 +124,17 @@ class DataIntegrity {
     }
 
     /**
-     * Ricalcola le copie disponibili per tutti i libri in batch
-     * Più efficiente per cataloghi grandi (> 10k libri), evita lock lunghi
-     *
-     * @param int $chunkSize Numero di libri per batch (default 500)
-     * @param callable|null $progressCallback Callback per progress reporting: fn(int $processed, int $total)
-     * @return array ['updated' => int, 'errors' => array, 'total' => int]
-     */
+         * Recalculate available copies for all books in batches to avoid long locks on large catalogs.
+         *
+         * Processes books in chunks, updating copy statuses quickly and then recalculating per-book availability.
+         *
+         * @param int $chunkSize Number of books to process per batch (default 500).
+         * @param callable|null $progressCallback Optional progress callback invoked as fn(int $processed, int $total).
+         * @return array Associative array with keys:
+         *               - `updated` (int): number of books successfully recalculated,
+         *               - `errors` (array): list of error messages encountered,
+         *               - `total` (int): total number of books found in the catalog.
+         */
     public function recalculateAllBookAvailabilityBatched(int $chunkSize = 500, ?callable $progressCallback = null): array {
         $results = ['updated' => 0, 'errors' => [], 'total' => 0];
 
