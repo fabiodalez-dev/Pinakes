@@ -22,7 +22,11 @@ $lockFile = __DIR__ . '/../storage/cache/notifications.lock';
 // Ensure lock directory exists
 $lockDir = dirname($lockFile);
 if (!is_dir($lockDir)) {
-    mkdir($lockDir, 0755, true);
+    @mkdir($lockDir, 0755, true);
+    if (!is_dir($lockDir)) {
+        fwrite(STDERR, "ERROR: Could not create lock directory: $lockDir\n");
+        exit(1);
+    }
 }
 
 $lockHandle = fopen($lockFile, 'c');
