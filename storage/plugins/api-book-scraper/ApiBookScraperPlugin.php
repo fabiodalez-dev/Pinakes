@@ -30,6 +30,39 @@ class ApiBookScraperPlugin
     {
         $this->db = $db;
         $this->hookManager = $hookManager;
+
+        // Auto-load plugin ID from database if not set
+        // This handles the case when HookManager instantiates the plugin
+        if ($this->db && !$this->pluginId) {
+            $this->autoLoadPluginId();
+        }
+    }
+
+    /**
+     * Auto-load plugin ID from database by plugin name
+     */
+    private function autoLoadPluginId(): void
+    {
+        if (!$this->db) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? AND is_active = 1 LIMIT 1");
+        if (!$stmt) {
+            return;
+        }
+
+        $pluginName = 'api-book-scraper';
+        $stmt->bind_param('s', $pluginName);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($row = $result->fetch_assoc()) {
+            $this->pluginId = (int)$row['id'];
+            $this->loadSettings();
+        }
+
+        $stmt->close();
     }
 
     /**
