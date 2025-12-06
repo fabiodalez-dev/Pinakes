@@ -14,6 +14,45 @@
 
 declare(strict_types=1);
 
+// ============================================================
+// PROCESS LOCK - Prevent concurrent cron executions
+// ============================================================
+$lockFile = __DIR__ . '/../storage/cache/notifications.lock';
+
+// Ensure lock directory exists
+$lockDir = dirname($lockFile);
+if (!is_dir($lockDir)) {
+    mkdir($lockDir, 0755, true);
+}
+
+$lockHandle = fopen($lockFile, 'c');
+if (!$lockHandle) {
+    fwrite(STDERR, "ERROR: Could not create lock file: $lockFile\n");
+    exit(1);
+}
+
+// Try to acquire exclusive lock (non-blocking)
+if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    fwrite(STDERR, "INFO: Another notifications process is already running. Exiting.\n");
+    fclose($lockHandle);
+    exit(0);
+}
+
+// Write PID to lock file for debugging
+ftruncate($lockHandle, 0);
+fwrite($lockHandle, (string)getmypid());
+fflush($lockHandle);
+
+// Register shutdown function to release lock
+register_shutdown_function(function () use ($lockHandle, $lockFile) {
+    flock($lockHandle, LOCK_UN);
+    fclose($lockHandle);
+});
+
+// ============================================================
+// END PROCESS LOCK
+// ============================================================
+
 // Include autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
 
