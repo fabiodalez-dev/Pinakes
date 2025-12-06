@@ -2642,10 +2642,12 @@ function showAlternativesPanel(alternatives) {
                 <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativePublisher('${escapeAttr(sourceData.publisher)}')"><?= __("Usa") ?></button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
-        if (sourceData.image && !sourceData.image.includes('librarything.com/devkey')) {
+        // Also sanitize URL to prevent javascript: and other unsafe protocols
+        const safeImage = sanitizeUrl(sourceData.image);
+        if (safeImage && !safeImage.includes('librarything.com/devkey')) {
             html += `<div><span class="font-medium"><?= __("Copertina:") ?></span>
-                <a href="${escapeAttr(sourceData.image)}" target="_blank" class="text-blue-600 hover:underline"><?= __("Vedi") ?></a>
-                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeCover('${escapeAttr(sourceData.image)}')"><?= __("Usa") ?></button></div>`;
+                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline"><?= __("Vedi") ?></a>
+                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeCover('${escapeAttr(safeImage)}')"><?= __("Usa") ?></button></div>`;
         }
         if (sourceData.description) {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
@@ -2672,7 +2674,20 @@ function escapeHtml(str) {
 }
 
 function escapeAttr(str) {
-    return (str || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    return (str || '')
+        .replace(/\\/g, '\\\\')        // escape backslashes first
+        .replace(/\r?\n/g, ' ')        // normalize newlines to space
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"');
+}
+
+// Sanitize URL to only allow safe protocols (http, https, relative paths)
+function sanitizeUrl(url) {
+    const value = (url || '').trim();
+    if (!value) return '';
+    if (value.startsWith('/')) return value;
+    if (/^https?:\/\//i.test(value)) return value;
+    return ''; // reject javascript:, data:, etc.
 }
 
 function applyAlternativeValue(fieldName, value) {
@@ -2695,11 +2710,13 @@ function applyAlternativePublisher(name) {
 }
 
 function applyAlternativeCover(url) {
+    const safeUrl = sanitizeUrl(url);
+    if (!safeUrl) return; // reject unsafe URLs
     const coverHidden = document.getElementById('copertina_url');
     const scrapedCoverInput = document.getElementById('scraped_cover_url');
-    if (coverHidden) coverHidden.value = url;
-    if (scrapedCoverInput) scrapedCoverInput.value = url;
-    displayScrapedCover(url);
+    if (coverHidden) coverHidden.value = safeUrl;
+    if (scrapedCoverInput) scrapedCoverInput.value = safeUrl;
+    displayScrapedCover(safeUrl);
     if (window.Toast) {
         window.Toast.fire({ icon: 'success', title: __('Copertina applicata') });
     }
