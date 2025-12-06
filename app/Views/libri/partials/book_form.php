@@ -2539,7 +2539,7 @@ function displayScrapeSourceInfo(data) {
     if (!sourceInfoPanel) return;
 
     // Get source information from response
-    const primarySource = data._primary_source || data.source || '<?= __("Sconosciuto") ?>';
+    const primarySource = data._primary_source || data.source || <?= json_encode(__("Sconosciuto")) ?>;
     const sources = data._sources || (data.source ? [data.source] : []);
     const alternatives = data._alternatives || null;
 
@@ -2634,14 +2634,14 @@ function showAlternativesPanel(alternatives) {
             <div class="font-medium text-blue-800 mb-2">${formatSourceName(source)}</div>
             <div class="space-y-1 text-xs text-gray-600">`;
 
-        // Show key fields from this source
-        if (sourceData.title) {
+        // Show key fields from this source (using data-* attributes for event delegation)
+        if (sourceData.title && typeof sourceData.title === 'string') {
             html += `<div><span class="font-medium"><?= __("Titolo:") ?></span> ${escapeHtml(sourceData.title)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeValue('titolo', '${escapeAttr(sourceData.title)}')"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}"><?= __("Usa") ?></button></div>`;
         }
-        if (sourceData.publisher) {
+        if (sourceData.publisher && typeof sourceData.publisher === 'string') {
             html += `<div><span class="font-medium"><?= __("Editore:") ?></span> ${escapeHtml(sourceData.publisher)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativePublisher('${escapeAttr(sourceData.publisher)}')"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}"><?= __("Usa") ?></button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
         // Also sanitize URL to prevent javascript: and other unsafe protocols
@@ -2649,12 +2649,12 @@ function showAlternativesPanel(alternatives) {
         if (safeImage && !safeImage.includes('librarything.com/devkey')) {
             html += `<div><span class="font-medium"><?= __("Copertina:") ?></span>
                 <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline"><?= __("Vedi") ?></a>
-                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeCover('${escapeAttr(safeImage)}')"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}"><?= __("Usa") ?></button></div>`;
         }
-        if (sourceData.description) {
+        if (sourceData.description && typeof sourceData.description === 'string') {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
             html += `<div><span class="font-medium"><?= __("Descrizione:") ?></span> ${escapeHtml(shortDesc)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeValue('descrizione', '${escapeAttr(sourceData.description)}')"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}"><?= __("Usa") ?></button></div>`;
         }
 
         html += `</div></div>`;
@@ -2665,6 +2665,28 @@ function showAlternativesPanel(alternatives) {
     }
 
     content.innerHTML = html;
+
+    // Setup delegated event handlers for alternative buttons (only once per content element)
+    if (!content.dataset.delegated) {
+        content.dataset.delegated = 'true';
+        content.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+
+            if (btn.classList.contains('apply-alt-value')) {
+                const field = btn.dataset.field;
+                const value = btn.dataset.value;
+                if (field && value) applyAlternativeValue(field, value);
+            } else if (btn.classList.contains('apply-alt-publisher')) {
+                const publisher = btn.dataset.publisher;
+                if (publisher) applyAlternativePublisher(publisher);
+            } else if (btn.classList.contains('apply-alt-cover')) {
+                const cover = btn.dataset.cover;
+                if (cover) applyAlternativeCover(cover);
+            }
+        });
+    }
+
     panel.classList.remove('hidden');
 }
 
