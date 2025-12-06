@@ -2594,6 +2594,12 @@ function displayScrapeSourceInfo(data) {
         }
     } else {
         btnShowAlternatives.classList.add('hidden');
+        // Hide panel and reset state when no alternatives (e.g., new import without alternatives)
+        if (alternativesPanel) {
+            alternativesPanel.classList.add('hidden');
+        }
+        window._scrapeAlternatives = null;
+        btnShowAlternatives.setAttribute('aria-expanded', 'false');
     }
 
     // Setup close alternatives button (only once)
