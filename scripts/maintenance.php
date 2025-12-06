@@ -160,6 +160,86 @@ $stmt->execute();
 $cleanedUp = $db->affected_rows;
 echo "✓ Cleaned up $cleanedUp old reservations\n\n";
 
+// ============================================================
+// DATABASE OPTIMIZATION - Index check (weekly)
+// ============================================================
+use App\Support\DataIntegrity;
+
+$dataIntegrity = new DataIntegrity($db);
+
+// Check for missing indexes once a week (using marker file)
+$indexCheckMarker = __DIR__ . '/../storage/cache/last_index_check.txt';
+$lastIndexCheck = file_exists($indexCheckMarker) ? (int)file_get_contents($indexCheckMarker) : 0;
+$oneWeekAgo = time() - 7 * 24 * 60 * 60;
+
+if ($lastIndexCheck < $oneWeekAgo) {
+    echo "Checking database indexes (weekly)...\n";
+
+    $missingIndexes = $dataIntegrity->checkMissingIndexes();
+
+    if (!empty($missingIndexes)) {
+        echo "Found " . count($missingIndexes) . " missing indexes, creating...\n";
+        $indexResult = $dataIntegrity->createMissingIndexes();
+
+        if ($indexResult['created'] > 0) {
+            echo "✓ Created {$indexResult['created']} indexes\n";
+        }
+        if (!empty($indexResult['errors'])) {
+            foreach ($indexResult['errors'] as $error) {
+                echo "✗ $error\n";
+            }
+        }
+    } else {
+        echo "✓ All indexes present\n";
+    }
+
+    // Update marker
+    file_put_contents($indexCheckMarker, (string)time());
+    echo "\n";
+}
+
+// ============================================================
+// BOOK AVAILABILITY - Batch recalculation (daily, if needed)
+// ============================================================
+$availabilityMarker = __DIR__ . '/../storage/cache/last_availability_check.txt';
+$lastAvailabilityCheck = file_exists($availabilityMarker) ? (int)file_get_contents($availabilityMarker) : 0;
+$oneDayAgo = time() - 24 * 60 * 60;
+
+if ($lastAvailabilityCheck < $oneDayAgo) {
+    echo "Recalculating book availability (daily)...\n";
+
+    // Count books to decide method
+    $countResult = $db->query("SELECT COUNT(*) as total FROM libri");
+    $totalBooks = $countResult ? (int)$countResult->fetch_assoc()['total'] : 0;
+
+    if ($totalBooks > 5000) {
+        // Use batched version for large catalogs
+        echo "Using batched method for $totalBooks books...\n";
+        $availResult = $dataIntegrity->recalculateAllBookAvailabilityBatched(500, function($processed, $total) {
+            if ($processed % 1000 === 0 || $processed === $total) {
+                echo "  Progress: $processed / $total\n";
+            }
+        });
+    } else {
+        // Use standard method for smaller catalogs
+        $availResult = $dataIntegrity->recalculateAllBookAvailability();
+        $availResult['total'] = $totalBooks;
+    }
+
+    echo "✓ Updated {$availResult['updated']} / {$availResult['total']} books\n";
+
+    if (!empty($availResult['errors'])) {
+        echo "✗ Errors: " . count($availResult['errors']) . "\n";
+        foreach (array_slice($availResult['errors'], 0, 5) as $error) {
+            echo "  - $error\n";
+        }
+    }
+
+    // Update marker
+    file_put_contents($availabilityMarker, (string)time());
+    echo "\n";
+}
+
 echo "=== MAINTENANCE COMPLETED ===\n";
 echo "Time: " . date('Y-m-d H:i:s') . "\n";
 
