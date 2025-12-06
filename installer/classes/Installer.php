@@ -603,59 +603,95 @@ class Installer {
     }
 
     /**
-     * Import optimization indexes from indexes_optimization.sql
+     * Import optimization indexes
      * These indexes improve query performance but are not critical for basic functionality
+     * Compatible with both MySQL and MariaDB
      *
      * @return bool
      */
     public function importOptimizationIndexes(): bool
     {
-        $installerDir = dirname(__DIR__);
-        $indexesFile = $installerDir . '/database/indexes_optimization.sql';
-
-        if (!file_exists($indexesFile)) {
-            // File opzionale - non è un errore se manca
-            return true;
-        }
-
-        $sql = file_get_contents($indexesFile);
-        if (!is_string($sql) || trim($sql) === '') {
-            return true;
-        }
-
         $pdo = $this->getDatabaseConnection();
 
-        // Rimuovi commenti e dividi in statement
-        $lines = explode("\n", $sql);
-        $statements = [];
-        $currentStatement = '';
+        // Define indexes to create (table => [index_name => columns])
+        $indexes = [
+            'libri' => [
+                'idx_created_at' => 'created_at',
+                'idx_isbn10' => 'isbn10',
+                'idx_genere_scaffale' => 'genere_id, scaffale_id',
+                'idx_sottogenere_scaffale' => 'sottogenere_id, scaffale_id',
+            ],
+            'libri_autori' => [
+                'idx_libro_autore' => 'libro_id, autore_id',
+                'idx_autore_libro' => 'autore_id, libro_id',
+                'idx_ordine_credito' => 'ordine_credito',
+                'idx_ruolo' => 'ruolo',
+            ],
+            'autori' => [
+                'idx_nome' => 'nome(100)',
+            ],
+            'editori' => [
+                'idx_nome' => 'nome(100)',
+            ],
+            'prestiti' => [
+                'idx_stato_attivo' => 'stato, attivo',
+                'idx_data_prestito' => 'data_prestito',
+            ],
+            'utenti' => [
+                'idx_nome' => 'nome(50)',
+                'idx_cognome' => 'cognome(50)',
+                'idx_nome_cognome' => 'nome(50), cognome(50)',
+                'idx_ruolo' => 'ruolo',
+            ],
+            'generi' => [
+                'idx_nome' => 'nome(50)',
+            ],
+            'posizioni' => [
+                'idx_scaffale_mensola' => 'scaffale_id, mensola_id',
+            ],
+            'copie' => [
+                'idx_numero_inventario' => 'numero_inventario',
+            ],
+            'prenotazioni' => [
+                'idx_libro_id' => 'libro_id',
+                'idx_utente_id' => 'utente_id',
+                'idx_stato' => 'stato',
+            ],
+        ];
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-            // Salta commenti e linee vuote
-            if (empty($line) || strpos($line, '--') === 0 || strpos($line, '#') === 0) {
-                continue;
-            }
-            $currentStatement .= ' ' . $line;
-            if (substr($line, -1) === ';') {
-                $statements[] = trim($currentStatement);
-                $currentStatement = '';
-            }
-        }
-
-        foreach ($statements as $statement) {
-            if (empty($statement)) {
-                continue;
-            }
+        foreach ($indexes as $table => $tableIndexes) {
+            // Check if table exists
             try {
-                $pdo->exec($statement);
+                $stmt = $pdo->query("SHOW TABLES LIKE " . $pdo->quote($table));
+                if ($stmt->rowCount() === 0) {
+                    continue; // Table doesn't exist, skip
+                }
             } catch (\PDOException $e) {
-                // Ignora errori su indici duplicati (già esistenti)
-                // Error code 1061 = Duplicate key name
-                if (strpos($e->getMessage(), '1061') === false &&
-                    strpos($e->getMessage(), 'Duplicate') === false) {
-                    // Log altri errori ma continua
-                    error_log("Index optimization warning: " . $e->getMessage());
+                continue;
+            }
+
+            // Get existing indexes for this table
+            $existingIndexes = [];
+            try {
+                $stmt = $pdo->query("SHOW INDEX FROM `{$table}`");
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    $existingIndexes[$row['Key_name']] = true;
+                }
+            } catch (\PDOException $e) {
+                continue;
+            }
+
+            // Create missing indexes
+            foreach ($tableIndexes as $indexName => $columns) {
+                if (isset($existingIndexes[$indexName])) {
+                    continue; // Index already exists
+                }
+
+                try {
+                    $pdo->exec("ALTER TABLE `{$table}` ADD INDEX `{$indexName}` ({$columns})");
+                } catch (\PDOException $e) {
+                    // Log error but continue
+                    error_log("Index optimization warning ({$table}.{$indexName}): " . $e->getMessage());
                 }
             }
         }
