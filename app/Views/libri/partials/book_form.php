@@ -110,7 +110,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 <span class="text-gray-600"><?= __("Fonte dati:") ?></span>
                 <span id="scrapeSourceName" class="font-medium text-gray-900"></span>
               </div>
-              <button type="button" id="btnShowAlternatives" class="text-xs text-primary hover:text-primary-dark hover:underline hidden">
+              <button type="button" id="btnShowAlternatives" class="text-xs text-primary hover:text-primary-dark hover:underline hidden" aria-expanded="false" aria-controls="scrapeAlternativesPanel">
                 <i class="fas fa-exchange-alt mr-1"></i>
                 <?= __("Vedi alternative") ?>
               </button>
@@ -2589,6 +2589,7 @@ function displayScrapeSourceInfo(data) {
             btnShowAlternatives.dataset.initialized = 'true';
             btnShowAlternatives.addEventListener('click', () => {
                 showAlternativesPanel(window._scrapeAlternatives);
+                btnShowAlternatives.setAttribute('aria-expanded', 'true');
             });
         }
     } else {
@@ -2600,6 +2601,7 @@ function displayScrapeSourceInfo(data) {
         btnCloseAlternatives.dataset.initialized = 'true';
         btnCloseAlternatives.addEventListener('click', () => {
             alternativesPanel.classList.add('hidden');
+            btnShowAlternatives.setAttribute('aria-expanded', 'false');
         });
     }
 

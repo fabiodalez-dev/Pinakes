@@ -127,6 +127,11 @@ class DataIntegrity {
      * @return array ['updated' => int, 'errors' => array, 'total' => int]
      */
     public function recalculateAllBookAvailabilityBatched(int $chunkSize = 500, ?callable $progressCallback = null): array {
+        // Validate chunkSize to prevent infinite loops
+        if ($chunkSize <= 0) {
+            throw new \InvalidArgumentException('chunkSize must be greater than 0');
+        }
+
         $results = ['updated' => 0, 'errors' => [], 'total' => 0];
 
         // Prima aggiorna tutte le copie (operazione veloce)
