@@ -977,7 +977,7 @@ class NotificationService {
                     return true;
                 }
                 $lastError = 'sendTemplate returned false';
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 $lastError = $e->getMessage();
                 error_log("Email attempt {$attempt}/{$maxRetries} to {$email} failed: {$lastError}");
             }
