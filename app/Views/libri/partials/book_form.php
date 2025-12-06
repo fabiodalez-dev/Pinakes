@@ -102,6 +102,39 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               </button>
             </div>
           </div>
+          <!-- Source info panel (shown after successful import) -->
+          <div id="scrapeSourceInfo" class="hidden mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-sm">
+                <i class="fas fa-database text-primary"></i>
+                <span class="text-gray-600"><?= __("Fonte dati:") ?></span>
+                <span id="scrapeSourceName" class="font-medium text-gray-900"></span>
+              </div>
+              <button type="button" id="btnShowAlternatives" class="text-xs text-primary hover:text-primary-dark hover:underline hidden">
+                <i class="fas fa-exchange-alt mr-1"></i>
+                <?= __("Vedi alternative") ?>
+              </button>
+            </div>
+            <div id="scrapeSourcesList" class="mt-2 text-xs text-gray-500 hidden">
+              <span><?= __("Fonti consultate:") ?></span>
+              <span id="scrapeSourcesListItems"></span>
+            </div>
+          </div>
+          <!-- Alternatives panel (shown when clicking "Vedi alternative") -->
+          <div id="scrapeAlternativesPanel" class="hidden mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                <i class="fas fa-layer-group"></i>
+                <?= __("Dati alternativi disponibili") ?>
+              </h4>
+              <button type="button" id="btnCloseAlternatives" class="text-blue-600 hover:text-blue-800">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div id="alternativesContent" class="space-y-2 text-sm">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
         </div>
       </div>
       <?php endif; ?>
@@ -2493,12 +2526,191 @@ function initializeFormValidation() {
 
 // Sistema Dewey unificato - la funzione initializeDewey() gestisce tutto
 
+// Display scrape source information after successful import
+function displayScrapeSourceInfo(data) {
+    const sourceInfoPanel = document.getElementById('scrapeSourceInfo');
+    const sourceNameEl = document.getElementById('scrapeSourceName');
+    const sourcesListEl = document.getElementById('scrapeSourcesList');
+    const sourcesListItemsEl = document.getElementById('scrapeSourcesListItems');
+    const btnShowAlternatives = document.getElementById('btnShowAlternatives');
+    const alternativesPanel = document.getElementById('scrapeAlternativesPanel');
+    const btnCloseAlternatives = document.getElementById('btnCloseAlternatives');
+
+    if (!sourceInfoPanel) return;
+
+    // Get source information from response
+    const primarySource = data._primary_source || data.source || '<?= __("Sconosciuto") ?>';
+    const sources = data._sources || (data.source ? [data.source] : []);
+    const alternatives = data._alternatives || null;
+
+    // Format source name for display
+    const formatSourceName = (source) => {
+        const sourceNames = {
+            'google-books': 'Google Books',
+            'googlebooks': 'Google Books',
+            'google': 'Google Books',
+            'open-library': 'Open Library',
+            'openlibrary': 'Open Library',
+            'scraping-pro': 'Scraping Pro',
+            'scrapingpro': 'Scraping Pro',
+            'api-book-scraper': 'API Book Scraper',
+            'custom-api': 'Custom API',
+            'z39': 'Z39.50/SRU',
+            'sru': 'Z39.50/SRU',
+            'sbn': 'SBN Italia',
+            'amazon': 'Amazon',
+            'goodreads': 'Goodreads',
+            'libreria-universitaria': 'Libreria Universitaria'
+        };
+        const normalized = (source || '').toLowerCase().replace(/[_\s]/g, '-');
+        return sourceNames[normalized] || source;
+    };
+
+    // Update source name
+    sourceNameEl.textContent = formatSourceName(primarySource);
+
+    // Show sources list if multiple sources were consulted
+    if (sources.length > 1) {
+        sourcesListItemsEl.textContent = sources.map(formatSourceName).join(', ');
+        sourcesListEl.classList.remove('hidden');
+    } else {
+        sourcesListEl.classList.add('hidden');
+    }
+
+    // Show alternatives button if alternatives are available
+    if (alternatives && Object.keys(alternatives).length > 0) {
+        btnShowAlternatives.classList.remove('hidden');
+
+        // Store alternatives for later use
+        window._scrapeAlternatives = alternatives;
+
+        // Setup alternatives button click handler (only once)
+        if (!btnShowAlternatives.dataset.initialized) {
+            btnShowAlternatives.dataset.initialized = 'true';
+            btnShowAlternatives.addEventListener('click', () => {
+                showAlternativesPanel(window._scrapeAlternatives);
+            });
+        }
+    } else {
+        btnShowAlternatives.classList.add('hidden');
+    }
+
+    // Setup close alternatives button (only once)
+    if (btnCloseAlternatives && !btnCloseAlternatives.dataset.initialized) {
+        btnCloseAlternatives.dataset.initialized = 'true';
+        btnCloseAlternatives.addEventListener('click', () => {
+            alternativesPanel.classList.add('hidden');
+        });
+    }
+
+    // Show the source info panel
+    sourceInfoPanel.classList.remove('hidden');
+}
+
+// Show alternatives panel with data from different sources
+function showAlternativesPanel(alternatives) {
+    const panel = document.getElementById('scrapeAlternativesPanel');
+    const content = document.getElementById('alternativesContent');
+
+    if (!panel || !content || !alternatives) return;
+
+    // Build alternatives content
+    let html = '';
+
+    for (const [source, sourceData] of Object.entries(alternatives)) {
+        const formatSourceName = (s) => {
+            const names = {
+                'google-books': 'Google Books',
+                'open-library': 'Open Library',
+                'scraping-pro': 'Scraping Pro',
+                'api-book-scraper': 'API Book Scraper'
+            };
+            return names[s] || s;
+        };
+
+        html += `<div class="p-3 bg-white rounded border border-blue-100">
+            <div class="font-medium text-blue-800 mb-2">${formatSourceName(source)}</div>
+            <div class="space-y-1 text-xs text-gray-600">`;
+
+        // Show key fields from this source
+        if (sourceData.title) {
+            html += `<div><span class="font-medium"><?= __("Titolo:") ?></span> ${escapeHtml(sourceData.title)}
+                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeValue('titolo', '${escapeAttr(sourceData.title)}')"><?= __("Usa") ?></button></div>`;
+        }
+        if (sourceData.publisher) {
+            html += `<div><span class="font-medium"><?= __("Editore:") ?></span> ${escapeHtml(sourceData.publisher)}
+                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativePublisher('${escapeAttr(sourceData.publisher)}')"><?= __("Usa") ?></button></div>`;
+        }
+        // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
+        if (sourceData.image && !sourceData.image.includes('librarything.com/devkey')) {
+            html += `<div><span class="font-medium"><?= __("Copertina:") ?></span>
+                <a href="${escapeAttr(sourceData.image)}" target="_blank" class="text-blue-600 hover:underline"><?= __("Vedi") ?></a>
+                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeCover('${escapeAttr(sourceData.image)}')"><?= __("Usa") ?></button></div>`;
+        }
+        if (sourceData.description) {
+            const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
+            html += `<div><span class="font-medium"><?= __("Descrizione:") ?></span> ${escapeHtml(shortDesc)}
+                <button type="button" class="ml-2 text-blue-600 hover:underline" onclick="applyAlternativeValue('descrizione', '${escapeAttr(sourceData.description)}')"><?= __("Usa") ?></button></div>`;
+        }
+
+        html += `</div></div>`;
+    }
+
+    if (html === '') {
+        html = `<p class="text-gray-500"><?= __("Nessuna alternativa disponibile") ?></p>`;
+    }
+
+    content.innerHTML = html;
+    panel.classList.remove('hidden');
+}
+
+// Helper functions for alternatives
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function escapeAttr(str) {
+    return (str || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function applyAlternativeValue(fieldName, value) {
+    const input = document.querySelector(`[name="${fieldName}"]`);
+    if (input) {
+        input.value = value;
+        if (window.Toast) {
+            window.Toast.fire({ icon: 'success', title: __('Valore applicato') });
+        }
+    }
+}
+
+function applyAlternativePublisher(name) {
+    if (window.__renderEditorePreview) {
+        window.__renderEditorePreview(name, { isNew: true });
+        if (window.Toast) {
+            window.Toast.fire({ icon: 'success', title: __('Editore applicato') });
+        }
+    }
+}
+
+function applyAlternativeCover(url) {
+    const coverHidden = document.getElementById('copertina_url');
+    const scrapedCoverInput = document.getElementById('scraped_cover_url');
+    if (coverHidden) coverHidden.value = url;
+    if (scrapedCoverInput) scrapedCoverInput.value = url;
+    displayScrapedCover(url);
+    if (window.Toast) {
+        window.Toast.fire({ icon: 'success', title: __('Copertina applicata') });
+    }
+}
+
 // Initialize ISBN Import functionality
 function initializeIsbnImport() {
-    
+
     const btn = document.getElementById('btnImportIsbn');
     const input = document.getElementById('importIsbn');
-    
+
     if (!btn || !input) return;
     const defaultBtnLabel = FORM_MODE === 'edit' ? __('Aggiorna Dati') : __('Importa Dati');
     
@@ -2939,6 +3151,8 @@ function initializeIsbnImport() {
             if (data.language) fieldsPopulated.push('language');
             if (data.keywords) fieldsPopulated.push('keywords');
 
+            // Show source information panel
+            displayScrapeSourceInfo(data);
 
             // Show success toast (small notification)
             if (window.Toast) {
