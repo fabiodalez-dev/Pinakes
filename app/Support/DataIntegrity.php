@@ -119,6 +119,96 @@ class DataIntegrity {
     }
 
     /**
+     * Ricalcola le copie disponibili per tutti i libri in batch
+     * Più efficiente per cataloghi grandi (> 10k libri), evita lock lunghi
+     *
+     * @param int $chunkSize Numero di libri per batch (default 500)
+     * @param callable|null $progressCallback Callback per progress reporting: fn(int $processed, int $total)
+     * @return array ['updated' => int, 'errors' => array, 'total' => int]
+     */
+    public function recalculateAllBookAvailabilityBatched(int $chunkSize = 500, ?callable $progressCallback = null): array {
+        $results = ['updated' => 0, 'errors' => [], 'total' => 0];
+
+        // Prima aggiorna tutte le copie (operazione veloce)
+        try {
+            $stmt = $this->db->prepare("
+                UPDATE copie c
+                LEFT JOIN prestiti p ON c.id = p.copia_id
+                    AND p.attivo = 1
+                    AND (
+                        p.stato IN ('in_corso', 'in_ritardo')
+                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                    )
+                SET c.stato = CASE
+                    WHEN p.id IS NOT NULL THEN 'prestato'
+                    ELSE 'disponibile'
+                END
+                WHERE c.stato IN ('disponibile', 'prestato')
+            ");
+            $stmt->execute();
+            $stmt->close();
+        } catch (Exception $e) {
+            $results['errors'][] = "Errore aggiornamento copie: " . $e->getMessage();
+            return $results;
+        }
+
+        // Conta totale libri
+        $countResult = $this->db->query("SELECT COUNT(*) as total FROM libri");
+        $results['total'] = $countResult ? (int)$countResult->fetch_assoc()['total'] : 0;
+
+        if ($results['total'] === 0) {
+            return $results;
+        }
+
+        // Processa libri in batch
+        $offset = 0;
+        $processed = 0;
+
+        do {
+            $stmt = $this->db->prepare("
+                SELECT id FROM libri
+                ORDER BY id
+                LIMIT ? OFFSET ?
+            ");
+            $stmt->bind_param('ii', $chunkSize, $offset);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $ids = [];
+            while ($row = $result->fetch_assoc()) {
+                $ids[] = (int)$row['id'];
+            }
+            $stmt->close();
+
+            if (empty($ids)) {
+                break;
+            }
+
+            // Processa ogni libro nel batch
+            foreach ($ids as $bookId) {
+                try {
+                    if ($this->recalculateBookAvailability($bookId)) {
+                        $results['updated']++;
+                    }
+                } catch (Exception $e) {
+                    $results['errors'][] = "Libro #$bookId: " . $e->getMessage();
+                }
+                $processed++;
+            }
+
+            // Report progress
+            if ($progressCallback !== null) {
+                $progressCallback($processed, $results['total']);
+            }
+
+            $offset += $chunkSize;
+
+        } while (\count($ids) === $chunkSize);
+
+        return $results;
+    }
+
+    /**
      * Ricalcola le copie disponibili per un singolo libro
      * Supports being called inside or outside a transaction
      */
