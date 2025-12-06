@@ -325,8 +325,12 @@ class NotificationService {
     }
 
     /**
-     * Invia avvisi di scadenza prestiti (3 giorni prima)
-     * Uses atomic mark-then-send pattern to prevent duplicate notifications
+     * Send loan expiration warnings for loans reaching the configured warning lead time.
+     *
+     * Marks each loan atomically as warned to avoid duplicate notifications, attempts to send the warning email with retries,
+     * creates an in-app notification on success, and reverts the claimed flag if email delivery fails.
+     *
+     * @return int The number of loans for which expiration warning emails were successfully sent.
      */
     public function sendLoanExpirationWarnings(): int {
         $sentCount = 0;
@@ -409,8 +413,12 @@ class NotificationService {
     }
 
     /**
-     * Invia notifiche per prestiti scaduti
-     * Uses atomic mark-then-send pattern to prevent duplicate notifications
+     * Send overdue loan notifications for loans past their due date.
+     *
+     * Uses an atomic mark-then-send pattern to claim each loan before attempting delivery,
+     * creates admin and in-app notifications on success, and reverts the claim if email sending fails.
+     *
+     * @return int The number of overdue loan email notifications successfully sent.
      */
     public function sendOverdueLoanNotifications(): int {
         $sentCount = 0;
@@ -534,8 +542,13 @@ class NotificationService {
     }
 
     /**
-     * Notifica utenti quando libri nella loro wishlist diventano disponibili
-     * Uses atomic mark-then-send pattern to prevent duplicate notifications
+     * Notify active users who have a specific book on their wishlist that the book is available.
+     *
+     * Each wishlist entry is claimed atomically to avoid duplicate emails across concurrent runs.
+     * If sending fails after retries, the entry's notified flag is reverted so it can be retried later.
+     *
+     * @param int $bookId The ID of the book whose availability should trigger wishlist notifications.
+     * @return int The number of wishlist notifications that were successfully sent.
      */
     public function notifyWishlistBookAvailability(int $bookId): int {
         $sentCount = 0;
@@ -947,21 +960,34 @@ class NotificationService {
     }
 
     /**
-     * Send reservation book available notification
+     * Send a "book available" reservation email to a specified recipient.
+     *
+     * The provided $variables array should contain the template variables used by
+     * the `reservation_book_available` template (commonly: `user`, `book`, `author`,
+     * `isbn`, `available_date`, `book_url`, and `library_url`), but additional
+     * keys accepted by the template are allowed.
+     *
+     * @param string $email Recipient email address.
+     * @param array $variables Template variables for the email.
+     * @return bool `true` if the email was accepted for sending, `false` otherwise.
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {
         return $this->emailService->sendTemplate($email, 'reservation_book_available', $variables);
     }
 
     /**
-     * Send email with retry mechanism for transient SMTP errors
-     * @param string $email Recipient email
-     * @param string $template Template name
-     * @param array $variables Template variables
-     * @param int $maxRetries Maximum retry attempts (default: 3)
-     * @param int $retryDelayMs Delay between retries in milliseconds (default: 1000)
-     * @return bool True if email was sent successfully
-     */
+         * Retry sending a templated email until it succeeds or the retry limit is reached.
+         *
+         * Attempts to send the specified template to the given recipient up to `maxRetries` times,
+         * waiting `retryDelayMs` milliseconds between attempts. Each attempt and any failures are logged.
+         *
+         * @param string $email Recipient email address.
+         * @param string $template Template identifier to render and send.
+         * @param array $variables Variables to be used when rendering the template.
+         * @param int $maxRetries Maximum number of attempts (default 3).
+         * @param int $retryDelayMs Delay between attempts in milliseconds (default 1000).
+         * @return bool `true` if the email was sent successfully, `false` otherwise.
+         */
     private function sendWithRetry(string $email, string $template, array $variables, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
         $attempt = 0;
         $lastError = '';

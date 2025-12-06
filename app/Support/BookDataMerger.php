@@ -59,12 +59,17 @@ class BookDataMerger
     private const ALTERNATIVE_FIELDS = ['title', 'publisher', 'description', 'image', 'cover', 'copertina_url', 'year', 'pages', 'price'];
 
     /**
-     * Merge book data from a new source into existing data
+     * Merge book data from a new scraping source into existing accumulated book data.
+     *
+     * Merges fields from $new into $existing while preserving non-empty existing values, filling gaps,
+     * merging and deduplicating array fields, respecting priority flags for protected array fields,
+     * selecting the best cover/image based on source quality scores, tracking contributing sources
+     * in `_sources`, and recording source-specific alternative display fields in `_alternatives`.
      *
      * @param array|null $existing Existing accumulated data (null if none)
-     * @param array|null $new New data from current source
-     * @param string $source Source identifier for quality scoring (e.g., 'scraping-pro', 'z39')
-     * @return array|null Merged data or null if both are null
+     * @param array|null $new New data from the current source
+     * @param string $source Source identifier used for cover quality scoring (e.g., 'scraping-pro', 'z39')
+     * @return array|null The merged data, or null if both inputs are null
      */
     public static function merge(?array $existing, ?array $new, string $source = 'default'): ?array
     {
@@ -156,11 +161,11 @@ class BookDataMerger
     }
 
     /**
-     * Extract fields relevant for alternatives display
-     *
-     * @param array $data Source data
-     * @return array Filtered data with only alternative-worthy fields
-     */
+         * Extract alternative-worthy, non-empty fields from the provided source data.
+         *
+         * @param array $data Source book data to inspect.
+         * @return array Associative array of alternative fields present in `$data` (keyed by field name) containing only values that are not empty. 
+         */
     private static function extractAlternativeFields(array $data): array
     {
         $result = [];
@@ -173,11 +178,14 @@ class BookDataMerger
     }
 
     /**
-     * Filter alternatives to only keep entries with different values than merged
+     * Retain only alternative source entries that contain field values different from the merged record.
      *
-     * @param array $alternatives All alternatives by source
-     * @param array $merged Merged result
-     * @return array Filtered alternatives with only differing values
+     * Filters the provided alternatives map so each source keeps only non-empty fields whose values
+     * do not match the corresponding value in the merged result.
+     *
+     * @param array $alternatives Map of source identifiers to their alternative field values (source => [field => value]).
+     * @param array $merged The merged record used for equality comparison.
+     * @return array Filtered alternatives where each source includes only fields that differ from `$merged`.
      */
     private static function filterAlternatives(array $alternatives, array $merged): array
     {

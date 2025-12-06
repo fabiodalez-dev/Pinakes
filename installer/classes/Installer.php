@@ -603,11 +603,12 @@ class Installer {
     }
 
     /**
-     * Import optimization indexes
-     * These indexes improve query performance but are not critical for basic functionality
-     * Compatible with both MySQL and MariaDB
+     * Create missing optimization indexes on known tables to improve query performance.
      *
-     * @return bool
+     * Skips tables that do not exist, creates only indexes that are not already present,
+     * and continues processing other tables if an index creation fails. Compatible with MySQL and MariaDB.
+     *
+     * @return bool `true` on completion.
      */
     public function importOptimizationIndexes(): bool
     {
