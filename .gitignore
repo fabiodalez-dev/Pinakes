@@ -39,7 +39,6 @@ export-*.php
 fix-*.php
 debug_*.php
 test_*.php
-!scripts/test_migration.php
 
 # ========================================
 # CRITICAL: Archives
