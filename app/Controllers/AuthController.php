@@ -6,6 +6,7 @@ namespace App\Controllers;
 use mysqli;
 use App\Support\Csrf;
 use App\Support\Log;
+use App\Support\RememberMeService;
 use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -101,21 +102,10 @@ class AuthController
                     'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
                 ];
 
-                // Handle "Remember Me" functionality
+                // Handle "Remember Me" functionality with database-backed tokens
                 if ($remember) {
-                    // Set session cookie to last 30 days
-                    $cookieParams = session_get_cookie_params();
-                    session_set_cookie_params([
-                        'lifetime' => 30 * 24 * 60 * 60, // 30 days
-                        'path' => $cookieParams['path'],
-                        'domain' => $cookieParams['domain'],
-                        'secure' => $cookieParams['secure'],
-                        'httponly' => $cookieParams['httponly'],
-                        'samesite' => $cookieParams['samesite'] ?? 'Lax'
-                    ]);
-
-                    // Set a longer-lasting session
-                    ini_set('session.gc_maxlifetime', 30 * 24 * 60 * 60);
+                    $rememberMeService = new RememberMeService($db);
+                    $rememberMeService->createToken((int) $row['id']);
                 }
 
                 // Log successful login
@@ -159,8 +149,12 @@ class AuthController
         return $response->withHeader('Location', RouteTranslator::route('login') . '?error=invalid_credentials')->withStatus(302);
     }
 
-    public function logout(Request $request, Response $response): Response
+    public function logout(Request $request, Response $response, mysqli $db): Response
     {
+        // Revoke database-backed remember token if present
+        $rememberMeService = new RememberMeService($db);
+        $rememberMeService->revokeCurrentToken();
+
         // Regenerate CSRF before destroying session
         Csrf::regenerate();
 

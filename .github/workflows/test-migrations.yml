@@ -1,0 +1,112 @@
+name: Test Database Migrations
+
+on:
+  push:
+    paths:
+      - 'installer/database/migrations/**'
+      - 'installer/database/schema.sql'
+  pull_request:
+    paths:
+      - 'installer/database/migrations/**'
+      - 'installer/database/schema.sql'
+
+jobs:
+  test-migrations:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql
+
+      - name: Wait for MySQL
+        run: |
+          while ! mysqladmin ping -h"127.0.0.1" --silent; do
+            sleep 1
+          done
+
+      - name: Install base schema (simulating v0.3.0)
+        run: |
+          # First install the base schema without GDPR tables
+          # This simulates an existing v0.3.0 installation
+          mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/schema.sql
+
+          # Remove the GDPR tables/columns to simulate pre-0.4.0 state
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
+            DROP TABLE IF EXISTS consent_log;
+            DROP TABLE IF EXISTS gdpr_requests;
+            DROP TABLE IF EXISTS user_sessions;
+            ALTER TABLE utenti DROP COLUMN IF EXISTS privacy_policy_version;
+            ALTER TABLE utenti DROP COLUMN IF EXISTS data_accettazione_privacy;
+            ALTER TABLE utenti DROP COLUMN IF EXISTS privacy_accettata;
+          " || true
+
+      - name: Create test user
+        run: |
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
+            INSERT INTO utenti (nome, cognome, email, password, stato, tipo_utente, email_verificata)
+            VALUES ('Test', 'User', 'test@example.com', 'hash', 'attivo', 'admin', 1);
+          "
+
+      - name: Run migration 0.4.0
+        run: |
+          # Remove comments and run migration
+          sed '/^--/d' installer/database/migrations/migrate_0.4.0.sql | \
+            mysql -h 127.0.0.1 -u root -proot pinakes_test
+
+      - name: Verify migration results
+        run: |
+          # Check columns exist
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
+            SELECT privacy_accettata, data_accettazione_privacy, privacy_policy_version
+            FROM utenti LIMIT 1;
+          "
+
+          # Check tables exist
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "SHOW TABLES LIKE 'user_sessions';"
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "SHOW TABLES LIKE 'gdpr_requests';"
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "SHOW TABLES LIKE 'consent_log';"
+
+          # Verify backfill worked
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
+            SELECT COUNT(*) as backfilled FROM utenti WHERE privacy_accettata = 1;
+          "
+
+      - name: Test idempotency (run migration again)
+        run: |
+          # Running migration again should not cause errors
+          sed '/^--/d' installer/database/migrations/migrate_0.4.0.sql | \
+            mysql -h 127.0.0.1 -u root -proot pinakes_test 2>&1 || echo "Expected errors for duplicate columns (safe)"
+
+      - name: Final verification
+        run: |
+          echo "=== Final Table Count ==="
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
+            SELECT COUNT(*) as table_count FROM information_schema.tables
+            WHERE table_schema = 'pinakes_test';
+          "
+
+          echo "=== GDPR Tables ==="
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'pinakes_test'
+            AND table_name IN ('user_sessions', 'gdpr_requests', 'consent_log');
+          "

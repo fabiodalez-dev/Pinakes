@@ -113,10 +113,14 @@ class RegistrationController
         $data_scadenza_tessera = gmdate('Y-m-d', strtotime('+5 years')); // Scadenza tessera tra 5 anni in UTC
         $data_scadenza_token = gmdate('Y-m-d H:i:s', time() + 24 * 60 * 60); // Token scade tra 24 ore in UTC
 
+        // GDPR: Record privacy acceptance timestamp
+        $data_accettazione_privacy = gmdate('Y-m-d H:i:s');
+        $privacy_policy_version = '1.0';
+
         // Build dynamic INSERT to handle NULL values properly for ENUM fields
-        $columns = 'nome, cognome, email, password, telefono, indirizzo, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera';
-        $placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?';
-        $types = 'ssssssssssss';
+        $columns = 'nome, cognome, email, password, telefono, indirizzo, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
+        $placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
+        $types = 'ssssssssssssss';
         $values = [
             $nome,
             $cognome,
@@ -129,7 +133,9 @@ class RegistrationController
             $ruolo,
             $token,
             $data_scadenza_token,
-            $data_scadenza_tessera
+            $data_scadenza_tessera,
+            $data_accettazione_privacy,
+            $privacy_policy_version
         ];
 
         // Add optional fields only if they have values (to avoid ENUM truncation errors)
@@ -164,6 +170,9 @@ class RegistrationController
         }
         $userId = (int) $stmt->insert_id;
         $stmt->close();
+
+        // GDPR: Log consent in audit trail (Article 7 compliance)
+        $this->logConsent($db, $userId, 'privacy_policy', true, $privacy_policy_version, $request);
 
         // Send notification emails using new service
         $notificationService = new NotificationService($db);
@@ -251,6 +260,36 @@ class RegistrationController
         } catch (\Exception $e) {
             // Log but don't fail - column might already exist or this is a new installation
             error_log("Migration check for data_token_verifica: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Log consent to audit trail (GDPR Article 7 compliance)
+     */
+    private function logConsent(mysqli $db, int $userId, string $consentType, bool $consentGiven, ?string $version, Request $request): void
+    {
+        try {
+            // Check if consent_log table exists (graceful degradation for upgrades)
+            $result = $db->query("SHOW TABLES LIKE 'consent_log'");
+            if (!$result || $result->num_rows === 0) {
+                return;
+            }
+
+            $serverParams = $request->getServerParams();
+            $ipAddress = $serverParams['REMOTE_ADDR'] ?? null;
+            $userAgent = $serverParams['HTTP_USER_AGENT'] ?? null;
+            $consentGivenInt = $consentGiven ? 1 : 0;
+
+            $stmt = $db->prepare("
+                INSERT INTO consent_log (utente_id, consent_type, consent_given, consent_version, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->bind_param('isisss', $userId, $consentType, $consentGivenInt, $version, $ipAddress, $userAgent);
+            $stmt->execute();
+            $stmt->close();
+        } catch (\Exception $e) {
+            // Log but don't fail registration if consent logging fails
+            error_log("Failed to log consent: " . $e->getMessage());
         }
     }
 }

@@ -22,6 +22,7 @@ backups/*
 !backups/.htaccess
 *.sql
 !installer/database/*.sql
+!installer/database/migrations/*.sql
 *.backup
 *.backup*
 !/backups/.htaccess
@@ -38,6 +39,7 @@ export-*.php
 fix-*.php
 debug_*.php
 test_*.php
+!scripts/test_migration.php
 
 # ========================================
 # CRITICAL: Archives
@@ -210,7 +212,9 @@ traduzione_stringhe.md
 # ========================================
 # Git Service Files
 # ========================================
-.github/
+.github/*
+!.github/workflows/
+vendor/**/.github/
 **/.gitkeep
 
 # ========================================
