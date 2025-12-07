@@ -236,6 +236,25 @@ return function (App $app): void {
         }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
     }
 
+    // Session management API endpoints (GDPR compliant - user can manage their sessions)
+    $registerRouteIfUnique('GET', '/api/profile/sessions', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new ProfileController();
+        return $controller->getSessions($request, $response, $db);
+    }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+
+    $registerRouteIfUnique('POST', '/api/profile/sessions/revoke', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new ProfileController();
+        return $controller->revokeSession($request, $response, $db);
+    }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+
+    $registerRouteIfUnique('POST', '/api/profile/sessions/revoke-all', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new ProfileController();
+        return $controller->revokeAllSessions($request, $response, $db);
+    }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+
     // User wishlist (multi-language variants)
     foreach ($supportedLocales as $locale) {
         $wishlistRoute = RouteTranslator::getRouteForLocale('wishlist', $locale);
