@@ -54,7 +54,10 @@ class ScrapeController
         // Hook: scrape.fetch.custom - Allow plugins to completely replace scraping logic
         $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $cleanIsbn]);
 
-        if ($customResult !== null) {
+        // Check if plugin result has a title (complete data) or only partial data (e.g., cover only)
+        $hasCompleteData = $customResult !== null && !empty($customResult['title']);
+
+        if ($hasCompleteData) {
             error_log("[ScrapeController] ISBN $cleanIsbn found via plugins");
 
             // Plugin handled scraping completely, use its result
@@ -78,8 +81,8 @@ class ScrapeController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        // Plugins are active but no data found for this ISBN
-        error_log("[ScrapeController] ISBN $cleanIsbn not found in any source, trying built-in fallbacks");
+        // Plugins returned no data or only partial data (e.g., cover only) - try built-in fallbacks
+        error_log("[ScrapeController] ISBN $cleanIsbn incomplete or not found, trying built-in fallbacks");
 
         // Built-in fallback: try Google Books (no key or env GOOGLE_BOOKS_API_KEY) then Open Library
         $fallbackData = $this->fallbackFromGoogleBooks($cleanIsbn);
@@ -88,6 +91,17 @@ class ScrapeController
         }
 
         if ($fallbackData !== null) {
+            // Merge partial plugin data (e.g., cover from Goodreads) into fallback data
+            if ($customResult !== null) {
+                // Fallback data is the base, plugin data fills gaps (like cover)
+                foreach ($customResult as $key => $value) {
+                    if ($value !== '' && $value !== null && (!isset($fallbackData[$key]) || $fallbackData[$key] === '' || $fallbackData[$key] === null)) {
+                        $fallbackData[$key] = $value;
+                    }
+                }
+                error_log("[ScrapeController] Merged plugin partial data into fallback for ISBN $cleanIsbn");
+            }
+
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);
 
