@@ -136,6 +136,7 @@ class DataIntegrity {
 
         // Prima aggiorna tutte le copie (operazione veloce)
         try {
+            $this->db->begin_transaction();
             $stmt = $this->db->prepare("
                 UPDATE copie c
                 LEFT JOIN prestiti p ON c.id = p.copia_id
@@ -152,7 +153,9 @@ class DataIntegrity {
             ");
             $stmt->execute();
             $stmt->close();
+            $this->db->commit();
         } catch (Exception $e) {
+            $this->db->rollback();
             $results['errors'][] = "Errore aggiornamento copie: " . $e->getMessage();
             return $results;
         }
@@ -165,17 +168,18 @@ class DataIntegrity {
             return $results;
         }
 
-        // Processa libri in batch
-        $offset = 0;
+        // Processa libri in batch (keyset pagination per prestazioni O(1))
+        $lastId = 0;
         $processed = 0;
 
         do {
             $stmt = $this->db->prepare("
                 SELECT id FROM libri
+                WHERE id > ?
                 ORDER BY id
-                LIMIT ? OFFSET ?
+                LIMIT ?
             ");
-            $stmt->bind_param('ii', $chunkSize, $offset);
+            $stmt->bind_param('ii', $lastId, $chunkSize);
             $stmt->execute();
             $result = $stmt->get_result();
 
@@ -188,6 +192,9 @@ class DataIntegrity {
             if (empty($ids)) {
                 break;
             }
+
+            // Aggiorna lastId per il prossimo batch
+            $lastId = end($ids);
 
             // Processa ogni libro nel batch
             foreach ($ids as $bookId) {
@@ -205,8 +212,6 @@ class DataIntegrity {
             if ($progressCallback !== null) {
                 $progressCallback($processed, $results['total']);
             }
-
-            $offset += $chunkSize;
 
         } while (\count($ids) === $chunkSize);
 

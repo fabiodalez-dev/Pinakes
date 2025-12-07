@@ -214,34 +214,39 @@ if ($lastAvailabilityCheck < $oneDayAgo) {
 
     // Count books to decide method
     $countResult = $db->query("SELECT COUNT(*) as total FROM libri");
-    $totalBooks = $countResult ? (int)$countResult->fetch_assoc()['total'] : 0;
-
-    if ($totalBooks > 5000) {
-        // Use batched version for large catalogs
-        echo "Using batched method for $totalBooks books...\n";
-        $availResult = $dataIntegrity->recalculateAllBookAvailabilityBatched(500, function($processed, $total) {
-            if ($processed % 1000 === 0 || $processed === $total) {
-                echo "  Progress: $processed / $total\n";
-            }
-        });
+    if (!$countResult) {
+        error_log("Maintenance: Failed to count books: " . $db->error);
+        echo "✗ Could not retrieve book count, skipping availability recalculation\n\n";
     } else {
-        // Use standard method for smaller catalogs
-        $availResult = $dataIntegrity->recalculateAllBookAvailability();
-        $availResult['total'] = $totalBooks;
-    }
+        $totalBooks = (int)$countResult->fetch_assoc()['total'];
 
-    echo "✓ Updated {$availResult['updated']} / {$availResult['total']} books\n";
-
-    if (!empty($availResult['errors'])) {
-        echo "✗ Errors: " . count($availResult['errors']) . "\n";
-        foreach (array_slice($availResult['errors'], 0, 5) as $error) {
-            echo "  - $error\n";
+        if ($totalBooks > 5000) {
+            // Use batched version for large catalogs
+            echo "Using batched method for $totalBooks books...\n";
+            $availResult = $dataIntegrity->recalculateAllBookAvailabilityBatched(500, function($processed, $total) {
+                if ($processed % 1000 === 0 || $processed === $total) {
+                    echo "  Progress: $processed / $total\n";
+                }
+            });
+        } else {
+            // Use standard method for smaller catalogs
+            $availResult = $dataIntegrity->recalculateAllBookAvailability();
+            $availResult['total'] = $totalBooks;
         }
-    }
 
-    // Update marker
-    file_put_contents($availabilityMarker, (string)time());
-    echo "\n";
+        echo "✓ Updated {$availResult['updated']} / {$availResult['total']} books\n";
+
+        if (!empty($availResult['errors'])) {
+            echo "✗ Errors: " . count($availResult['errors']) . "\n";
+            foreach (array_slice($availResult['errors'], 0, 5) as $error) {
+                echo "  - $error\n";
+            }
+        }
+
+        // Update marker
+        file_put_contents($availabilityMarker, (string)time());
+        echo "\n";
+    }
 }
 
 echo "=== MAINTENANCE COMPLETED ===\n";

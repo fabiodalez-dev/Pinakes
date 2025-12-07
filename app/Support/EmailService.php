@@ -12,7 +12,7 @@ use App\Support\ConfigStore;
 use App\Support\I18n;
 
 class EmailService {
-    private const RAW_HTML_VARIABLES = ['verify_section'];
+    private const RAW_HTML_VARIABLES = ['sezione_verifica'];
 
     /**
      * Placeholder aliases: English -> Italian
@@ -56,6 +56,7 @@ class EmailService {
 
         // Other fields
         'rejection_reason' => 'motivo_rifiuto',
+        'verify_section' => 'sezione_verifica',
     ];
 
     private PHPMailer $mailer;
@@ -451,15 +452,24 @@ class EmailService {
      *
      * Supports both Italian placeholder names (e.g., {{libro_titolo}})
      * and English aliases (e.g., {{book_title}}) for international operators.
+     * Variables can be passed with either Italian or English keys.
      */
-    private function replaceVariables(string $content, array $variables): string {
+    public function replaceVariables(string $content, array $variables): string {
+        // Normalize English variable keys to Italian names for consistent processing
+        // This ensures RAW_HTML_VARIABLES check works regardless of input key language
+        $normalizedVariables = [];
+        foreach ($variables as $key => $value) {
+            $italianKey = self::PLACEHOLDER_ALIASES[$key] ?? $key;
+            $normalizedVariables[$italianKey] = $value;
+        }
+
         // Cache the inverted map (Italian → English) for O(1) lookups
         static $italianToEnglish = null;
         if ($italianToEnglish === null) {
             $italianToEnglish = array_flip(self::PLACEHOLDER_ALIASES);
         }
 
-        foreach ($variables as $key => $value) {
+        foreach ($normalizedVariables as $key => $value) {
             $replacement = in_array($key, self::RAW_HTML_VARIABLES, true)
                 ? (string)$value
                 : htmlspecialchars((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
