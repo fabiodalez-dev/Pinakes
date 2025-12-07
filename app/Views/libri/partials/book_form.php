@@ -2705,10 +2705,12 @@ function escapeHtml(str) {
 
 function escapeAttr(str) {
     return (str || '')
-        .replace(/\\/g, '\\\\')        // escape backslashes first
-        .replace(/\r?\n/g, ' ')        // normalize newlines to space
-        .replace(/'/g, "\\'")
-        .replace(/"/g, '\\"');
+        .replace(/&/g, '&amp;')         // escape ampersand first
+        .replace(/</g, '&lt;')          // escape less than
+        .replace(/>/g, '&gt;')          // escape greater than
+        .replace(/\r?\n/g, ' ')         // normalize newlines to space
+        .replace(/"/g, '&quot;')        // escape double quote
+        .replace(/'/g, '&#39;');        // escape single quote
 }
 
 // Sanitize URL to only allow safe protocols (http, https, relative paths)
