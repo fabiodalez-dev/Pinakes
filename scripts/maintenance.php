@@ -249,6 +249,21 @@ if ($lastAvailabilityCheck < $oneDayAgo) {
     }
 }
 
+// ============================================================
+// USER SESSIONS - Clean up expired remember tokens (daily)
+// ============================================================
+use App\Support\RememberMeService;
+
+echo "Cleaning up expired user sessions...\n";
+try {
+    $rememberMeService = new RememberMeService($db);
+    $cleanedSessions = $rememberMeService->cleanupExpiredSessions();
+    echo "✓ Cleaned up $cleanedSessions expired sessions\n\n";
+} catch (\Throwable $e) {
+    // Table might not exist yet (pre-0.4.0 installations)
+    echo "✓ Session cleanup skipped (table may not exist yet)\n\n";
+}
+
 echo "=== MAINTENANCE COMPLETED ===\n";
 echo "Time: " . date('Y-m-d H:i:s') . "\n";
 

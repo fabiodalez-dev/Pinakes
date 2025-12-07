@@ -439,6 +439,10 @@ if (!$displayErrorDetails) {
 
 // CSRF: for now use simple session token (see App\Support\Csrf)
 
+// Remember Me middleware (auto-login via persistent token)
+// Must run before AuthMiddleware to populate $_SESSION['user']
+$app->add(new \App\Middleware\RememberMeMiddleware($container->get('db')));
+
 // Load plugins
 // Note: Plugins can be loaded via PluginManager (database) or directly
 // Plugins installed via PluginManager are loaded automatically from database

@@ -1,0 +1,157 @@
+name: Create Release Package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-release:
+    name: Build and Package Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo, mbstring, json, openssl, curl
+          tools: composer
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq rsync zip
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Install NPM dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend assets
+        working-directory: frontend
+        run: npm run build
+
+      - name: Verify version.json matches tag
+        run: |
+          VERSION_JSON=$(jq -r '.version' version.json)
+          if [ "$VERSION_JSON" != "${{ steps.version.outputs.VERSION }}" ]; then
+            echo "❌ Version mismatch: version.json ($VERSION_JSON) != tag (${{ steps.version.outputs.VERSION }})"
+            exit 1
+          fi
+          echo "✅ Version verified: $VERSION_JSON"
+
+      - name: Make build script executable
+        run: chmod +x bin/build-release.sh
+
+      - name: Create release package
+        run: ./bin/build-release.sh
+
+      - name: Verify package files exist
+        run: |
+          if [ ! -f "releases/pinakes-v${{ steps.version.outputs.VERSION }}.zip" ]; then
+            echo "❌ Release ZIP not found"
+            exit 1
+          fi
+          if [ ! -f "releases/pinakes-v${{ steps.version.outputs.VERSION }}.zip.sha256" ]; then
+            echo "❌ Checksum file not found"
+            exit 1
+          fi
+          if [ ! -f "releases/RELEASE_NOTES-v${{ steps.version.outputs.VERSION }}.md" ]; then
+            echo "❌ Release notes not found"
+            exit 1
+          fi
+          echo "✅ All package files verified"
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract changelog section for this version
+            VERSION_SECTION=$(awk "/## \[${VERSION}\]/{flag=1;next}/## \[/{flag=0}flag" CHANGELOG.md || echo "See CHANGELOG.md for details")
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "$VERSION_SECTION" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGELOG=See release notes for details" >> $GITHUB_OUTPUT
+          fi
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Pinakes v${{ steps.version.outputs.VERSION }}
+          body: |
+            # Pinakes v${{ steps.version.outputs.VERSION }}
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ---
+
+            ## 📦 Download
+
+            Download `pinakes-v${{ steps.version.outputs.VERSION }}.zip` and verify checksum:
+
+            ```bash
+            shasum -a 256 -c pinakes-v${{ steps.version.outputs.VERSION }}.zip.sha256
+            ```
+
+            ## 📋 Installation
+
+            1. Extract archive:
+               ```bash
+               unzip pinakes-v${{ steps.version.outputs.VERSION }}.zip
+               cd pinakes-v${{ steps.version.outputs.VERSION }}
+               ```
+
+            2. Install dependencies:
+               ```bash
+               composer install --no-dev --optimize-autoloader
+               ```
+
+            3. Configure environment:
+               ```bash
+               cp .env.example .env
+               # Edit .env with your settings
+               ```
+
+            4. Run web installer at: http://yourdomain.com
+
+            See README.md in the package for complete documentation.
+          files: |
+            releases/pinakes-v${{ steps.version.outputs.VERSION }}.zip
+            releases/pinakes-v${{ steps.version.outputs.VERSION }}.zip.sha256
+            releases/RELEASE_NOTES-v${{ steps.version.outputs.VERSION }}.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package-v${{ steps.version.outputs.VERSION }}
+          path: |
+            releases/pinakes-v${{ steps.version.outputs.VERSION }}.zip
+            releases/pinakes-v${{ steps.version.outputs.VERSION }}.zip.sha256
+            releases/RELEASE_NOTES-v${{ steps.version.outputs.VERSION }}.md
+          retention-days: 90

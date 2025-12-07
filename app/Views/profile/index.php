@@ -188,6 +188,107 @@
     background: #fef3c7;
     color: #92400e;
   }
+
+  /* Session management styles */
+  .session-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .session-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .session-item.current {
+    background: #eff6ff;
+    border-color: #3b82f6;
+  }
+
+  .session-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .session-device {
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .session-meta {
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .session-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    background: #3b82f6;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-left: 0.5rem;
+  }
+
+  .btn-danger {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .btn-danger:hover {
+    background: #b91c1c;
+  }
+
+  .btn-danger:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: #6b7280;
+    color: white;
+    border: none;
+  }
+
+  .btn-secondary:hover {
+    background: #4b5563;
+  }
+
+  .sessions-loading {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+  }
+
+  .sessions-empty {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  .sessions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
 </style>
 
 <div class="profile-container">
@@ -369,4 +470,153 @@
       </div>
     </form>
   </div>
+
+  <!-- Sessioni attive (Remember Me) -->
+  <div class="card">
+    <h2 class="card-title">
+      <i class="fas fa-desktop"></i>
+      <?= __("Sessioni attive") ?>
+    </h2>
+    <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1rem;">
+      <?= __("Gestisci i dispositivi su cui hai effettuato l'accesso con 'Ricordami'. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.") ?>
+    </p>
+
+    <div id="sessions-container">
+      <div class="sessions-loading">
+        <i class="fas fa-spinner fa-spin"></i> <?= __("Caricamento sessioni...") ?>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+(function() {
+  const csrfToken = <?= json_encode(App\Support\Csrf::ensureToken()) ?>;
+  const translations = {
+    loading: <?= json_encode(__("Caricamento sessioni...")) ?>,
+    noSessions: <?= json_encode(__("Nessuna sessione attiva. Le sessioni vengono create quando accedi con 'Ricordami' selezionato.")) ?>,
+    currentSession: <?= json_encode(__("Sessione corrente")) ?>,
+    lastUsed: <?= json_encode(__("Ultimo utilizzo")) ?>,
+    created: <?= json_encode(__("Creata")) ?>,
+    expires: <?= json_encode(__("Scade")) ?>,
+    revoke: <?= json_encode(__("Disconnetti")) ?>,
+    revokeAll: <?= json_encode(__("Disconnetti tutti")) ?>,
+    confirmRevoke: <?= json_encode(__("Vuoi disconnettere questo dispositivo?")) ?>,
+    confirmRevokeAll: <?= json_encode(__("Vuoi disconnettere tutti i dispositivi? Dovrai effettuare nuovamente l'accesso su ogni dispositivo.")) ?>,
+    error: <?= json_encode(__("Si è verificato un errore. Riprova.")) ?>,
+    unknown: <?= json_encode(__("Dispositivo sconosciuto")) ?>
+  };
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr + 'Z'); // Assume UTC
+    return date.toLocaleString();
+  }
+
+  function loadSessions() {
+    const container = document.getElementById('sessions-container');
+    container.innerHTML = '<div class="sessions-loading"><i class="fas fa-spinner fa-spin"></i> ' + translations.loading + '</div>';
+
+    fetch('/api/profile/sessions')
+      .then(response => response.json())
+      .then(data => {
+        if (!data.sessions || data.sessions.length === 0) {
+          container.innerHTML = '<div class="sessions-empty">' + translations.noSessions + '</div>';
+          return;
+        }
+
+        let html = '<div class="sessions-header">';
+        html += '<span style="font-size: 0.875rem; color: #6b7280;">' + data.sessions.length + ' <?= __("sessioni attive") ?></span>';
+        if (data.sessions.length > 1) {
+          html += '<button type="button" class="btn btn-danger btn-secondary" onclick="revokeAllSessions()">';
+          html += '<i class="fas fa-sign-out-alt"></i> ' + translations.revokeAll + '</button>';
+        }
+        html += '</div>';
+
+        html += '<div class="session-list">';
+        data.sessions.forEach(function(session) {
+          const isCurrent = session.is_current;
+          html += '<div class="session-item' + (isCurrent ? ' current' : '') + '">';
+          html += '<div class="session-info">';
+          html += '<span class="session-device">';
+          html += '<i class="fas fa-' + (session.device_info && session.device_info.includes('Mobile') ? 'mobile-alt' : 'desktop') + '"></i> ';
+          html += (session.device_info || translations.unknown);
+          if (isCurrent) {
+            html += '<span class="session-badge">' + translations.currentSession + '</span>';
+          }
+          html += '</span>';
+          html += '<span class="session-meta">';
+          html += '<i class="fas fa-map-marker-alt"></i> ' + (session.ip_address || '-');
+          html += ' &bull; ' + translations.lastUsed + ': ' + formatDate(session.last_used_at || session.created_at);
+          html += '</span>';
+          html += '</div>';
+          if (!isCurrent) {
+            html += '<button type="button" class="btn-danger" onclick="revokeSession(' + session.id + ')">';
+            html += '<i class="fas fa-times"></i> ' + translations.revoke + '</button>';
+          }
+          html += '</div>';
+        });
+        html += '</div>';
+
+        container.innerHTML = html;
+      })
+      .catch(function(error) {
+        console.error('Error loading sessions:', error);
+        container.innerHTML = '<div class="sessions-empty">' + translations.noSessions + '</div>';
+      });
+  }
+
+  window.revokeSession = function(sessionId) {
+    if (!confirm(translations.confirmRevoke)) return;
+
+    fetch('/api/profile/sessions/revoke', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'csrf_token=' + encodeURIComponent(csrfToken) + '&session_id=' + sessionId
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        loadSessions();
+      } else {
+        alert(data.error || translations.error);
+      }
+    })
+    .catch(function() {
+      alert(translations.error);
+    });
+  };
+
+  window.revokeAllSessions = function() {
+    if (!confirm(translations.confirmRevokeAll)) return;
+
+    fetch('/api/profile/sessions/revoke-all', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'csrf_token=' + encodeURIComponent(csrfToken)
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        loadSessions();
+      } else {
+        alert(data.error || translations.error);
+      }
+    })
+    .catch(function() {
+      alert(translations.error);
+    });
+  };
+
+  // Load sessions on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadSessions);
+  } else {
+    loadSessions();
+  }
+})();
+</script>
