@@ -187,35 +187,97 @@ INSERT INTO `generi` VALUES (180,'Music drama',NULL,'2025-10-20 16:20:00','2025-
 INSERT INTO `generi` VALUES (181,'Oratorio',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
-('cookie_banner', 'enabled', '1', 'Enable cookie consent banner'),
-('cookie_banner', 'position', 'bottom', 'Position of the cookie banner'),
-('cookie_banner', 'layout', 'bar', 'Layout of the cookie banner'),
-('cookie_banner', 'theme', 'light', 'Color theme for the cookie banner'),
-('cookie_banner', 'primary_color', '#2563eb', 'Primary color for buttons and highlights'),
-('cookie_banner', 'text_color', '#111827', 'Color of the main text in the banner'),
-('cookie_banner', 'background_color', '#ffffff', 'Background color of the banner'),
-('cookie_banner', 'backdrop', '1', 'Show a subtle page backdrop behind the banner'),
-('cookie_banner', 'message', 'We use technical and analytical cookies to ensure the correct functioning of the site and improve your browsing experience. You can accept all cookies or customize your preferences.', 'Main message shown in the cookie banner'),
-('cookie_banner', 'accept_text', 'Accept all', 'Label for the full acceptance button'),
-('cookie_banner', 'reject_text', 'Reject non-essential', 'Label for the button that rejects non-essential cookies'),
-('cookie_banner', 'settings_text', 'Customize', 'Label for the button that opens the cookie preferences panel'),
-('cookie_banner', 'details_title', 'Cookie Preferences', 'Title of the preferences modal/panel'),
-('cookie_banner', 'details_description', 'Select the categories of cookies you want to enable. You can change your preferences at any time from the site footer.', 'Description shown in the preferences panel'),
-('cookie_banner', 'necessary_title', 'Strictly necessary cookies', 'Title for strictly necessary cookies section'),
-('cookie_banner', 'necessary_description', 'These cookies are essential for the correct functioning of the site and cannot be disabled.', 'Description for strictly necessary cookies'),
-('cookie_banner', 'analytics_title', 'Analytics cookies', 'Title for analytics cookies section'),
-('cookie_banner', 'analytics_description', 'These cookies help us understand how the site is used, in order to improve navigation and the quality of our services.', 'Description for analytics cookies'),
-('cookie_banner', 'thirdparty_title', 'Third-party cookies', 'Title for third-party cookies section'),
-('cookie_banner', 'thirdparty_description', 'These cookies may be set by external services integrated into the site (for example, videos, maps, social widgets).', 'Description for third-party cookies'),
-('cookie_banner', 'save_preferences_text', 'Save preferences', 'Label for the button that saves cookie preferences'),
-('cookie_banner', 'learn_more_text', 'Learn more', 'Label for the link/button that opens more information (e.g. Privacy Policy)'),
-('cookie_banner', 'policy_link', '/privacy-policy', 'URL of the Privacy Policy page linked from the banner');
-INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
-('privacy', 'cookie_policy_content', '<p>This page explains how we use cookies on our website.</p>', 'Content displayed on /cookies');
-INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('cms', 'events_page_enabled', '1', 'Enable or disable the events page on the frontend');
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Catalogue-only mode - disables loans, reservations and wishlist');
+
+-- ============================================================================
+-- System Settings - Complete default configuration
+-- These replace the old storage/settings.json file
+-- ============================================================================
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`, `updated_at`) VALUES
+-- App settings
+('app', 'name', 'Pinakes', 'Application name', NOW()),
+('app', 'logo_path', '', 'Path to application logo', NOW()),
+('app', 'footer_description', 'Your Pinakes system to catalog, manage, and share your book collection.', 'Footer description', NOW()),
+('app', 'locale', 'en_US', 'Default application locale', NOW()),
+('app', 'social_facebook', '', 'Facebook profile URL', NOW()),
+('app', 'social_twitter', '', 'Twitter profile URL', NOW()),
+('app', 'social_instagram', '', 'Instagram profile URL', NOW()),
+('app', 'social_linkedin', '', 'LinkedIn profile URL', NOW()),
+('app', 'social_bluesky', '', 'Bluesky profile URL', NOW()),
+
+-- Email settings are configured by user in installer step 6
+-- No default values here to avoid overwriting user choices
+
+-- Registration settings
+('registration', 'require_admin_approval', '1', 'Require admin approval for new registrations', NOW()),
+
+-- Contacts page settings
+('contacts', 'page_title', 'Contact Us', 'Contacts page title', NOW()),
+('contacts', 'page_content', '<p>Contact us for any information.</p>', 'Contacts page content', NOW()),
+('contacts', 'contact_email', '', 'Contact email address', NOW()),
+('contacts', 'contact_phone', '', 'Contact phone number', NOW()),
+('contacts', 'google_maps_embed', '', 'Google Maps embed code', NOW()),
+('contacts', 'privacy_text', 'Your data is protected according to our privacy policy.', 'Privacy disclaimer text', NOW()),
+('contacts', 'recaptcha_site_key', '', 'reCAPTCHA site key', NOW()),
+('contacts', 'recaptcha_secret_key', '', 'reCAPTCHA secret key', NOW()),
+('contacts', 'notification_email', '', 'Email where contact form submissions are sent', NOW()),
+
+-- Privacy page settings
+('privacy', 'page_title', 'Privacy Policy', 'Privacy policy page title', NOW()),
+('privacy', 'page_content', '<p>Your privacy is important to us.</p>', 'Privacy policy content', NOW()),
+('privacy', 'cookie_banner_enabled', '1', 'Enable cookie consent banner', NOW()),
+('privacy', 'cookie_banner_language', 'en', 'Cookie banner language', NOW()),
+('privacy', 'cookie_banner_country', 'us', 'Cookie banner country', NOW()),
+('privacy', 'cookie_statement_link', '', 'Link to cookie statement', NOW()),
+('privacy', 'cookie_technologies_link', '', 'Link to cookie technologies page', NOW()),
+('privacy', 'cookie_policy_content', '', 'Cookie policy page content', NOW()),
+
+-- Cookie banner settings
+('cookie_banner', 'banner_description', '<p>We use cookies to improve your experience. By continuing to visit this site, you accept our use of cookies.</p>', 'Cookie banner description', NOW()),
+('cookie_banner', 'accept_all_text', 'Accept all', 'Accept all button text', NOW()),
+('cookie_banner', 'reject_non_essential_text', 'Reject non-essential', 'Reject non-essential button text', NOW()),
+('cookie_banner', 'preferences_button_text', 'Preferences', 'Preferences button text', NOW()),
+('cookie_banner', 'save_selected_text', 'Accept selected', 'Save selected button text', NOW()),
+('cookie_banner', 'preferences_title', 'Customize your cookie preferences', 'Preferences modal title', NOW()),
+('cookie_banner', 'preferences_description', '<p>We respect your right to privacy. You can choose not to allow some types of cookies. Your preferences will apply to the entire website.</p>', 'Preferences modal description', NOW()),
+('cookie_banner', 'cookie_essential_name', 'Essential Cookies', 'Essential cookies name', NOW()),
+('cookie_banner', 'cookie_essential_description', 'These cookies are necessary for the site to function and cannot be disabled.', 'Essential cookies description', NOW()),
+('cookie_banner', 'show_analytics', '1', 'Show analytics cookies option', NOW()),
+('cookie_banner', 'cookie_analytics_name', 'Analytics Cookies', 'Analytics cookies name', NOW()),
+('cookie_banner', 'cookie_analytics_description', 'These cookies help us understand how visitors interact with the website.', 'Analytics cookies description', NOW()),
+('cookie_banner', 'show_marketing', '1', 'Show marketing cookies option', NOW()),
+('cookie_banner', 'cookie_marketing_name', 'Marketing Cookies', 'Marketing cookies name', NOW()),
+('cookie_banner', 'cookie_marketing_description', 'These cookies are used to deliver personalized advertisements.', 'Marketing cookies description', NOW()),
+
+-- Advanced settings
+('advanced', 'custom_js_essential', '', 'Custom JavaScript for essential cookies', NOW()),
+('advanced', 'custom_js_analytics', '', 'Custom JavaScript for analytics cookies', NOW()),
+('advanced', 'custom_js_marketing', '', 'Custom JavaScript for marketing cookies', NOW()),
+('advanced', 'custom_header_css', '', 'Custom CSS for header', NOW()),
+('advanced', 'custom_header_js', '', 'Custom JavaScript for header', NOW()),
+('advanced', 'days_before_expiry_warning', '3', 'Days before card expiry warning', NOW()),
+('advanced', 'sitemap_last_generated_at', '', 'Last sitemap generation timestamp', NOW()),
+('advanced', 'sitemap_last_generated_total', '0', 'Total URLs in last generated sitemap', NOW()),
+('advanced', 'api_enabled', '0', 'Enable API access', NOW()),
+
+-- Label printing settings
+('label', 'width', '25', 'Label width in mm', NOW()),
+('label', 'height', '38', 'Label height in mm', NOW()),
+('label', 'format_name', '25x38mm (Standard)', 'Label format name', NOW()),
+
+-- API settings
+('api', 'enabled', '0', 'Enable API globally', NOW()),
+
+-- CMS settings (already exists, but adding for completeness)
+('cms', 'events_page_enabled', '1', 'Enable events page in frontend', NOW())
+ON DUPLICATE KEY UPDATE
+    setting_value = VALUES(setting_value),
+    description = VALUES(description),
+    updated_at = NOW();
 
 -- CMS Pages - English only
 INSERT INTO `cms_pages` VALUES (1,'about-us','en_US','About Us','<h2>Welcome to Pinakes</h2>\n<p>Pinakes is a modern, intuitive, and completely free library management system. Built to simplify book cataloging, loan management, and library administration of any size.</p>\n\n<h3>🎯 Our Mission</h3>\n<p>To make library management accessible to everyone, without license fees or restrictions. Pinakes is 100% open source, free and libre for everyone.</p>\n\n<h3>✨ Key Features</h3>\n<ul>\n    <li><strong>Smart Cataloging:</strong> Automatically import data from ISBN, organize by categories, authors and custom classifications</li>\n    <li><strong>Loan Management:</strong> Complete system for managing loans, due dates, renewals and returns</li>\n    <li><strong>Automatic Notifications:</strong> Email reminders for loan due dates and user communications</li>\n    <li><strong>Modern Interface:</strong> Responsive design optimized for desktop, tablet and smartphone</li>\n    <li><strong>100% Open Source:</strong> Free code, customizable and no hidden costs</li>\n</ul>\n\n<h3>🚀 Why Choose Pinakes?</h3>\n<p>Pinakes was born from the need to provide a professional, reliable and free tool for managing school libraries, associations and private collections. You don''t need to be an IT expert: the intuitive interface allows anyone to start immediately.</p>\n\n<h3>📖 Get Started Today</h3>\n<p>Customize this page with information about your library, your team and your services. Access the <a href=\"/admin/cms/about-us\">admin panel</a> to edit this content and make it unique.</p>\n\n<p><em>This is sample content. Customize it to tell the story of your library!</em></p>',NULL,NULL,1,'2025-10-01 10:35:27','2025-10-01 10:35:27');
@@ -237,5 +299,37 @@ INSERT INTO `email_templates` VALUES (12,'wishlist_book_available','en_US','📖
 INSERT INTO `email_templates` VALUES (13,'reservation_book_available','en_US','📚 Reserved Book Ready for Pickup!','<h2>Your book is ready for pickup!</h2>\n<p>Hello {{user_name}},</p>\n<p>We are pleased to inform you that the book you reserved is now available and ready for pickup:</p>\n<div style=\"background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;\">\n    <h3 style=\"color: #1e40af; margin: 0 0 10px 0;\">{{book_title}}</h3>\n    <p style=\"margin: 5px 0;\"><strong>Author:</strong> {{book_author}}</p>\n    <p style=\"margin: 5px 0;\"><strong>ISBN:</strong> {{book_isbn}}</p>\n    <p style=\"margin: 5px 0;\"><strong>Loan Period:</strong> {{start_date}} - {{end_date}}</p>\n</div>\n<div style=\"background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;\">\n    <p><strong>📦 Next Steps</strong></p>\n    <p>Visit the library to pick up the book. Please bring an ID with you.</p>\n</div>\n<p style=\"text-align: center;\">\n    <a href=\"{{book_url}}\" style=\"background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;\">📖 View Book</a>\n    <a href=\"{{profile_url}}\" style=\"background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;\">👤 My Loans</a>\n</p>\n<p><em>Your reservation has been converted to a loan pending pickup confirmation.</em></p>','Email sent when a reserved book becomes available and is converted to a loan.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (14,'user_password_setup','en_US','🔐 Set Up Your Password','<h2>Set Up Your Password</h2>\n<p>Hello {{first_name}} {{last_name}},</p>\n<p>Your account on <strong>{{app_name}}</strong> has been created. To start using the system, you need to set up your password.</p>\n<div style=\"background-color: #f0f9ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #3b82f6;\">\n    <p><strong>🔑 Configure Your Account</strong></p>\n    <p>Click the button below to set your password:</p>\n</div>\n<p style=\"text-align: center; margin: 30px 0;\">\n    <a href=\"{{reset_url}}\" style=\"background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;\">🔐 Set Password</a>\n</p>\n<div style=\"background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>⏰ Important</strong></p>\n    <p>This link is valid for 24 hours. If it expires, contact an administrator to receive a new one.</p>\n</div>\n<p>If you did not request this email, you can ignore it.</p>','Email sent to new users to set up their account password.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (15,'admin_invitation','en_US','🎉 Administrator Invitation','<h2>Welcome to the Team!</h2>\n<p>Hello {{first_name}} {{last_name}},</p>\n<p>You have been invited as an administrator on <strong>{{app_name}}</strong>.</p>\n<div style=\"background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;\">\n    <h3 style=\"color: #1e40af; margin: 0 0 10px 0;\">Your Access</h3>\n    <p>As an administrator, you will have access to:</p>\n    <ul>\n        <li>Book catalog management</li>\n        <li>User and loan management</li>\n        <li>System settings</li>\n        <li>Reports and statistics</li>\n    </ul>\n</div>\n<p><strong>To get started:</strong></p>\n<ol>\n    <li>Set your password by clicking the button below</li>\n    <li>Access the admin dashboard</li>\n</ol>\n<p style=\"text-align: center; margin: 30px 0;\">\n    <a href=\"{{reset_url}}\" style=\"background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block; margin: 10px;\">🔐 Set Password</a>\n    <a href=\"{{dashboard_url}}\" style=\"background-color: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block; margin: 10px;\">📊 Admin Dashboard</a>\n</p>\n<div style=\"background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>⏰ Important</strong></p>\n    <p>The password setup link is valid for 24 hours.</p>\n</div>\n<p>Welcome to the team!</p>','Email sent when a user is invited as an administrator.',1,NULL,NULL);
+
+-- Languages (English as default)
+INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
+(1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 2015, 2015, 100.00),
+(2, 'en_US', 'English', 'English', '🇬🇧', 1, 1, 'locale/en_US.json', 2015, 1988, 98.66);
+
+-- Home Content (English)
+INSERT INTO `home_content` (section_key, title, subtitle, content, button_text, button_link, is_active, display_order, created_at, updated_at) VALUES
+('hero', 'Your Digital Library', 'Explore, book and manage your book collection', NULL, 'Explore the Catalog', '/catalog', 1, -2, NOW(), NOW()),
+('features_title', 'Why Choose Pinakes', 'A modern, intuitive library management experience always at your fingertips', NULL, NULL, NULL, 1, 0, NOW(), NOW()),
+('feature_1', 'Simplified Management', 'Catalog your books, manage loans and returns with an intuitive and fast interface', 'fas fa-tasks', NULL, NULL, 1, 1, NOW(), NOW()),
+('feature_2', 'Complete Cataloging', 'Import data from ISBN, organize by categories, generate labels and track every physical copy', 'fas fa-book', NULL, NULL, 1, 2, NOW(), NOW()),
+('feature_3', 'Loan Management System', 'Manage loans, due dates, renewals and automatic email notifications for users and staff', 'fas fa-exchange-alt', NULL, NULL, 1, 3, NOW(), NOW()),
+('feature_4', 'Open Source & Free', '100% free software, no license costs. Customize and contribute to the Pinakes project', 'fas fa-code-branch', NULL, NULL, 1, 4, NOW(), NOW()),
+('text_content', 'Πίνακες (Pinakes) - "The Tablets"', NULL, '<p>The name <strong>Pinakes</strong> comes from ancient Greek <em>πίνακες</em> (pinakes), meaning "tablets" or "tables". It honors <strong>Callimachus of Cyrene</strong> (305-240 BC) who around 245 BC created the first systematic library catalog in history for the Library of Alexandria: the <em>Πίνακες τῶν ἐν πάσῃ παιδείᾳ διαλαμψάντων καὶ ὧν συνέγραψαν</em> ("Tablets of those who distinguished themselves in every field of knowledge and their works").</p><p>This monumental work, composed of 120 scrolls, systematically organized over 120,000 papyrus scrolls in the library. Although the original <em>Pinakes</em> have been lost, their cataloging method has profoundly influenced modern library science.</p><p>This project continues that millenary tradition of <strong>2,268 years</strong> bringing the same principles of organization and accessibility of knowledge into the digital age.</p>', NULL, NULL, 1, 4, NOW(), NOW()),
+('latest_books_title', 'Latest Arrivals', 'Discover the latest additions to the catalog', NULL, NULL, NULL, 1, 5, NOW(), NOW()),
+('genre_carousel', 'Explore the main genres', 'Discover our thematic roots and get inspired by the available titles.', NULL, NULL, NULL, 1, 6, NOW(), NOW()),
+('events', 'Upcoming Events', 'Join our next meetings', NULL, NULL, NULL, 1, 7, NOW(), NOW()),
+('cta', 'Ready to get started?', 'Register now and start exploring our catalog', NULL, 'Register Now', '/register', 1, 8, NOW(), NOW());
+
+-- Themes (English descriptions)
+INSERT INTO `themes` (`name`, `slug`, `version`, `author`, `description`, `active`, `settings`) VALUES
+('Pinakes Classic', 'default', '1.0.0', 'Pinakes Team', 'Default theme with original Pinakes magenta colors', 1, '{"colors": {"primary": "#d70161", "secondary": "#111827", "button": "#d70262", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Minimal', 'minimal-bw', '1.0.0', 'Pinakes Team', 'Minimalist design with black, gray, and white for a clean and elegant look', 0, '{"colors": {"primary": "#404040", "secondary": "#000000", "button": "#808080", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Ocean Blue', 'ocean-blue', '1.0.0', 'Pinakes Team', 'Modern and professional ocean blue tones for a fresh interface', 0, '{"colors": {"primary": "#0284c7", "secondary": "#0c4a6e", "button": "#0ea5e9", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Forest Green', 'forest-green', '1.0.0', 'Pinakes Team', 'Natural emerald green that recalls the tranquility of nature', 0, '{"colors": {"primary": "#059669", "secondary": "#064e3b", "button": "#10b981", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Sunset Orange', 'sunset-orange', '1.0.0', 'Pinakes Team', 'Warm and welcoming orange inspired by Mediterranean sunsets', 0, '{"colors": {"primary": "#ea580c", "secondary": "#7c2d12", "button": "#f97316", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Burgundy', 'burgundy-red', '1.0.0', 'Pinakes Team', 'Elegant and refined burgundy red for a sophisticated look', 0, '{"colors": {"primary": "#be123c", "secondary": "#881337", "button": "#e11d48", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Teal Professional', 'teal-professional', '1.0.0', 'Pinakes Team', 'Professional teal perfect for corporate environments', 0, '{"colors": {"primary": "#0d9488", "secondary": "#134e4a", "button": "#14b8a6", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Slate Gray', 'slate-gray', '1.0.0', 'Pinakes Team', 'Modern slate gray for a neutral and contemporary design', 0, '{"colors": {"primary": "#475569", "secondary": "#1e293b", "button": "#64748b", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Coral Warm', 'coral-warm', '1.0.0', 'Pinakes Team', 'Warm and inviting coral tones for a welcoming atmosphere', 0, '{"colors": {"primary": "#f43f5e", "secondary": "#9f1239", "button": "#fb7185", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Navy Classic', 'navy-classic', '1.0.0', 'Pinakes Team', 'Classic and timeless navy blue for an institutional look', 0, '{"colors": {"primary": "#1e40af", "secondary": "#1e3a8a", "button": "#3b82f6", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}');
 
 SET FOREIGN_KEY_CHECKS=1;
