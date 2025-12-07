@@ -52,6 +52,9 @@ class RememberMeService
             INSERT INTO user_sessions (utente_id, token_hash, device_info, ip_address, user_agent, expires_at)
             VALUES (?, ?, ?, ?, ?, ?)
         ");
+        if ($stmt === false) {
+            return false;
+        }
         $stmt->bind_param('isssss', $userId, $tokenHash, $deviceInfo, $ipAddress, $userAgent, $expiresAt);
         $success = $stmt->execute();
         $stmt->close();
@@ -93,6 +96,9 @@ class RememberMeService
               AND expires_at > NOW()
             LIMIT 1
         ");
+        if ($stmt === false) {
+            return null;
+        }
         $stmt->bind_param('s', $tokenHash);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -130,9 +136,11 @@ class RememberMeService
                 SET is_revoked = 1
                 WHERE token_hash = ?
             ");
-            $stmt->bind_param('s', $tokenHash);
-            $stmt->execute();
-            $stmt->close();
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $tokenHash);
+                $stmt->execute();
+                $stmt->close();
+            }
         }
 
         $this->clearCookie();
@@ -152,6 +160,9 @@ class RememberMeService
             SET is_revoked = 1
             WHERE utente_id = ? AND is_revoked = 0
         ");
+        if ($stmt === false) {
+            return 0;
+        }
         $stmt->bind_param('i', $userId);
         $stmt->execute();
         $affected = $this->db->affected_rows;
@@ -174,6 +185,9 @@ class RememberMeService
             SET is_revoked = 1
             WHERE id = ? AND utente_id = ?
         ");
+        if ($stmt === false) {
+            return false;
+        }
         $stmt->bind_param('ii', $sessionId, $userId);
         $stmt->execute();
         $success = $this->db->affected_rows > 0;
@@ -193,31 +207,32 @@ class RememberMeService
 
         $this->db->query("SET SESSION time_zone = '+00:00'");
 
+        // Pre-compute current token hash to avoid N+1 queries
+        $currentTokenHash = null;
+        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        if ($token !== null) {
+            $currentTokenHash = hash('sha256', $token);
+        }
+
         $stmt = $this->db->prepare("
-            SELECT id, device_info, ip_address, created_at, expires_at, last_used_at
+            SELECT id, device_info, ip_address, created_at, expires_at, last_used_at, token_hash
             FROM user_sessions
             WHERE utente_id = ?
               AND is_revoked = 0
               AND expires_at > NOW()
             ORDER BY last_used_at DESC, created_at DESC
         ");
+        if ($stmt === false) {
+            return [];
+        }
         $stmt->bind_param('i', $userId);
         $stmt->execute();
         $result = $stmt->get_result();
 
         $sessions = [];
         while ($row = $result->fetch_assoc()) {
-            // Determine if this is the current session
-            $token = $_COOKIE[self::COOKIE_NAME] ?? null;
-            $isCurrent = false;
-            if ($token !== null) {
-                $tokenHash = hash('sha256', $token);
-                $checkStmt = $this->db->prepare("SELECT id FROM user_sessions WHERE id = ? AND token_hash = ?");
-                $checkStmt->bind_param('is', $row['id'], $tokenHash);
-                $checkStmt->execute();
-                $isCurrent = $checkStmt->get_result()->num_rows > 0;
-                $checkStmt->close();
-            }
+            // Timing-safe comparison to prevent timing attacks
+            $isCurrent = $currentTokenHash !== null && hash_equals($currentTokenHash, $row['token_hash']);
 
             $sessions[] = [
                 'id' => (int) $row['id'],
@@ -251,6 +266,9 @@ class RememberMeService
             WHERE expires_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
                OR (is_revoked = 1 AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY))
         ");
+        if ($stmt === false) {
+            return 0;
+        }
         $stmt->execute();
         $deleted = $this->db->affected_rows;
         $stmt->close();
@@ -268,6 +286,9 @@ class RememberMeService
             SET last_used_at = NOW()
             WHERE id = ?
         ");
+        if ($stmt === false) {
+            return;
+        }
         $stmt->bind_param('i', $sessionId);
         $stmt->execute();
         $stmt->close();
