@@ -517,7 +517,7 @@
     const container = document.getElementById('sessions-container');
     container.innerHTML = '<div class="sessions-loading"><i class="fas fa-spinner fa-spin"></i> ' + translations.loading + '</div>';
 
-    fetch('/api/profile/sessions')
+    fetch('/api/profile/sessions', { credentials: 'same-origin' })
       .then(response => response.json())
       .then(data => {
         if (!data.sessions || data.sessions.length === 0) {
@@ -578,6 +578,7 @@
 
     fetch('/api/profile/sessions/revoke', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
@@ -601,6 +602,7 @@
 
     fetch('/api/profile/sessions/revoke-all', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },

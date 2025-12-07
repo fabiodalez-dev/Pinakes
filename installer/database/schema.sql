@@ -952,6 +952,7 @@ CREATE TABLE `consent_log` (
   KEY `idx_consent_log_utente_id` (`utente_id`),
   KEY `idx_consent_log_type` (`consent_type`),
   KEY `idx_consent_log_created_at` (`created_at`),
+  KEY `idx_consent_log_utente_type` (`utente_id`, `consent_type`, `created_at`),
   CONSTRAINT `fk_consent_log_utente` FOREIGN KEY (`utente_id`)
       REFERENCES `utenti` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='GDPR Article 7 consent audit trail';

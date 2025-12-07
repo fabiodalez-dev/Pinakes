@@ -47,10 +47,11 @@ ftruncate($lockHandle, 0);
 fwrite($lockHandle, (string)getmypid());
 fflush($lockHandle);
 
-// Register shutdown function to release lock
+// Register shutdown function to release lock and clean up
 register_shutdown_function(function () use ($lockHandle, $lockFile) {
     flock($lockHandle, LOCK_UN);
     fclose($lockHandle);
+    @unlink($lockFile);
 });
 
 // ============================================================

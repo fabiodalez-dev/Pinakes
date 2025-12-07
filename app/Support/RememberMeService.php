@@ -21,6 +21,9 @@ class RememberMeService
     private const TOKEN_LIFETIME_DAYS = 30;
     private const TOKEN_LENGTH = 64; // 64 bytes = 512 bits
 
+    /** @var bool|null Static cache for table existence check */
+    private static ?bool $tableExistsCache = null;
+
     public function __construct(mysqli $db)
     {
         $this->db = $db;
@@ -395,18 +398,26 @@ class RememberMeService
      */
     private function tableExists(): bool
     {
-        static $exists = null;
-        if ($exists !== null) {
-            return $exists;
+        if (self::$tableExistsCache !== null) {
+            return self::$tableExistsCache;
         }
 
         try {
             $result = $this->db->query("SHOW TABLES LIKE 'user_sessions'");
-            $exists = $result && $result->num_rows > 0;
+            self::$tableExistsCache = $result && $result->num_rows > 0;
         } catch (\Exception $e) {
-            $exists = false;
+            self::$tableExistsCache = false;
         }
 
-        return $exists;
+        return self::$tableExistsCache;
+    }
+
+    /**
+     * Reset the table existence cache.
+     * Useful during migrations or testing when the table may be created mid-request.
+     */
+    public static function resetTableExistsCache(): void
+    {
+        self::$tableExistsCache = null;
     }
 }

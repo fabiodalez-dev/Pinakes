@@ -224,7 +224,7 @@ class SbnClient
         do {
             $status = curl_multi_exec($multiHandle, $running);
             if ($status > CURLM_OK) {
-                error_log("[SBN Client] curl_multi_exec error: " . curl_multi_strerror($status));
+                \App\Support\SecureLogger::error('[SBN] curl_multi_exec error', ['error' => curl_multi_strerror($status)]);
                 break;
             }
             // Wait for activity (avoids busy-waiting)
@@ -240,14 +240,14 @@ class SbnClient
             $response = curl_multi_getcontent($ch);
 
             if ($error || $httpCode !== 200 || empty($response)) {
-                error_log("[SBN Client] Parallel request failed for BID=$bid: HTTP=$httpCode, Error=$error");
+                \App\Support\SecureLogger::debug('[SBN] Parallel request failed', ['bid' => $bid, 'http_code' => $httpCode, 'error' => $error]);
                 $results[$bid] = null;
             } else {
                 $data = json_decode($response, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $results[$bid] = $data;
                 } else {
-                    error_log("[SBN Client] JSON parse error for BID=$bid: " . json_last_error_msg());
+                    \App\Support\SecureLogger::debug('[SBN] JSON parse error', ['bid' => $bid, 'json_error' => json_last_error_msg()]);
                     $results[$bid] = null;
                 }
             }
@@ -340,6 +340,11 @@ class SbnClient
                     }
                 }
             }
+        }
+
+        // Sanitize all books for JSON safety (remove MARC control chars, ensure UTF-8)
+        foreach ($books as $i => $book) {
+            $books[$i] = $this->sanitizeForJson($book);
         }
 
         return $books;

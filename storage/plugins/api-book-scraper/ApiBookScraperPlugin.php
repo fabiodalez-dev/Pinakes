@@ -51,7 +51,7 @@ class ApiBookScraperPlugin
 
         $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? AND is_active = 1 LIMIT 1");
         if (!$stmt) {
-            error_log('[ApiBookScraperPlugin] Failed to prepare statement for autoLoadPluginId');
+            error_log('[ApiBookScraperPlugin] Failed to prepare statement for autoLoadPluginId: ' . $this->db->error);
             return;
         }
 
@@ -59,14 +59,14 @@ class ApiBookScraperPlugin
         $stmt->bind_param('s', $pluginName);
 
         if (!$stmt->execute()) {
-            error_log('[ApiBookScraperPlugin] Failed to execute autoLoadPluginId query');
+            error_log('[ApiBookScraperPlugin] Failed to execute autoLoadPluginId query: ' . $stmt->error);
             $stmt->close();
             return;
         }
 
         $result = $stmt->get_result();
         if (!$result) {
-            error_log('[ApiBookScraperPlugin] Failed to get result in autoLoadPluginId');
+            error_log('[ApiBookScraperPlugin] Failed to get result in autoLoadPluginId: ' . $stmt->error);
             $stmt->close();
             return;
         }

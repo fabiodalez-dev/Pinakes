@@ -6,6 +6,7 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DeweyAutoPopulator;
+use App\Support\SecureLogger;
 
 class ScrapeController
 {
@@ -55,7 +56,7 @@ class ScrapeController
         $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $cleanIsbn]);
 
         // Check if plugin result has a title (complete data) or only partial data (e.g., cover only)
-        $hasCompleteData = $customResult !== null && !empty($customResult['title']);
+        $hasCompleteData = is_array($customResult) && !empty($customResult['title']);
 
         if ($hasCompleteData) {
             error_log("[ScrapeController] ISBN $cleanIsbn found via plugins");
@@ -82,7 +83,7 @@ class ScrapeController
         }
 
         // Plugins returned no data or only partial data (e.g., cover only) - try built-in fallbacks
-        error_log("[ScrapeController] ISBN $cleanIsbn incomplete or not found, trying built-in fallbacks");
+        SecureLogger::debug('[ScrapeController] Trying built-in fallbacks', ['isbn' => $cleanIsbn]);
 
         // Built-in fallback: try Google Books (no key or env GOOGLE_BOOKS_API_KEY) then Open Library
         $fallbackData = $this->fallbackFromGoogleBooks($cleanIsbn);
@@ -92,14 +93,14 @@ class ScrapeController
 
         if ($fallbackData !== null) {
             // Merge partial plugin data (e.g., cover from Goodreads) into fallback data
-            if ($customResult !== null) {
+            if (is_array($customResult)) {
                 // Fallback data is the base, plugin data fills gaps (like cover)
                 foreach ($customResult as $key => $value) {
                     if ($value !== '' && $value !== null && (!isset($fallbackData[$key]) || $fallbackData[$key] === '' || $fallbackData[$key] === null)) {
                         $fallbackData[$key] = $value;
                     }
                 }
-                error_log("[ScrapeController] Merged plugin partial data into fallback for ISBN $cleanIsbn");
+                SecureLogger::debug('[ScrapeController] Merged plugin partial data', ['isbn' => $cleanIsbn]);
             }
 
             // Ensure plugins can still modify/log the final payload just like regular results

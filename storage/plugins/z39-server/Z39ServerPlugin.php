@@ -571,7 +571,7 @@ class Z39ServerPlugin
     {
         $clientFile = __DIR__ . '/classes/SruClient.php';
         if (!file_exists($clientFile)) {
-            $this->log('error', 'SRU client file not found', ['path' => $clientFile]);
+            \App\Support\SecureLogger::error('[Z39] SRU client file not found', ['path' => $clientFile]);
             return null;
         }
 
@@ -584,7 +584,7 @@ class Z39ServerPlugin
             $client->setOptions(['timeout' => $timeout]);
             return $client->searchByIsbn($isbn);
         } catch (\Throwable $e) {
-            $this->log('error', 'Error in SRU client', ['error' => $e->getMessage()]);
+            \App\Support\SecureLogger::error('[Z39] Error in SRU client', ['error' => $e->getMessage()]);
             return null;
         }
     }

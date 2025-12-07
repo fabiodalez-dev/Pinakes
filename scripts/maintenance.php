@@ -198,7 +198,9 @@ if ($lastIndexCheck < $oneWeekAgo) {
     }
 
     // Update marker
-    file_put_contents($indexCheckMarker, (string)time());
+    if (file_put_contents($indexCheckMarker, (string)time()) === false) {
+        error_log("Maintenance: Could not update index check marker");
+    }
     echo "\n";
 }
 
@@ -244,7 +246,9 @@ if ($lastAvailabilityCheck < $oneDayAgo) {
         }
 
         // Update marker
-        file_put_contents($availabilityMarker, (string)time());
+        if (file_put_contents($availabilityMarker, (string)time()) === false) {
+            error_log("Maintenance: Could not update availability check marker");
+        }
         echo "\n";
     }
 }
@@ -261,6 +265,7 @@ try {
     echo "✓ Cleaned up $cleanedSessions expired sessions\n\n";
 } catch (\Throwable $e) {
     // Table might not exist yet (pre-0.4.0 installations)
+    error_log("Maintenance: Session cleanup skipped: " . $e->getMessage());
     echo "✓ Session cleanup skipped (table may not exist yet)\n\n";
 }
 
