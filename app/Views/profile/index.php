@@ -536,17 +536,23 @@
         html += '<div class="session-list">';
         data.sessions.forEach(function(session) {
           const isCurrent = session.is_current;
+          // Escape HTML to prevent XSS from user-controlled data (User-Agent, IP via proxy)
+          const escapeHtml = function(str) {
+            const div = document.createElement('div');
+            div.textContent = str || '';
+            return div.innerHTML;
+          };
           html += '<div class="session-item' + (isCurrent ? ' current' : '') + '">';
           html += '<div class="session-info">';
           html += '<span class="session-device">';
           html += '<i class="fas fa-' + (session.device_info && session.device_info.includes('Mobile') ? 'mobile-alt' : 'desktop') + '"></i> ';
-          html += (session.device_info || translations.unknown);
+          html += escapeHtml(session.device_info || translations.unknown);
           if (isCurrent) {
             html += '<span class="session-badge">' + translations.currentSession + '</span>';
           }
           html += '</span>';
           html += '<span class="session-meta">';
-          html += '<i class="fas fa-map-marker-alt"></i> ' + (session.ip_address || '-');
+          html += '<i class="fas fa-map-marker-alt"></i> ' + escapeHtml(session.ip_address || '-');
           html += ' &bull; ' + translations.lastUsed + ': ' + formatDate(session.last_used_at || session.created_at);
           html += '</span>';
           html += '</div>';
@@ -562,7 +568,8 @@
       })
       .catch(function(error) {
         console.error('Error loading sessions:', error);
-        container.innerHTML = '<div class="sessions-empty">' + translations.noSessions + '</div>';
+        container.innerHTML = '<div class="sessions-empty" style="color: #dc2626;">' +
+          '<i class="fas fa-exclamation-triangle"></i> ' + translations.error + '</div>';
       });
   }
 
