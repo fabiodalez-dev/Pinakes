@@ -484,11 +484,11 @@ class Z39ServerPlugin
         // $sources is required by hook signature but not used here
         unset($sources);
 
-        $this->log('debug', 'fetchBookMetadata called', ['isbn' => $isbn, 'has_existing' => $existing !== null]);
+        \App\Support\SecureLogger::debug('[Z39] fetchBookMetadata called', ['isbn' => $isbn, 'has_existing' => $existing !== null]);
 
         // Check if client is enabled
         if (!$this->isSettingEnabled('enable_client')) {
-            $this->log('warning', 'SRU client is disabled', ['isbn' => $isbn]);
+            \App\Support\SecureLogger::warning('[Z39] SRU client is disabled', ['isbn' => $isbn]);
             return $existing; // Pass through existing data unchanged
         }
 
@@ -496,16 +496,15 @@ class Z39ServerPlugin
 
         // Try SBN first (Italian National Library)
         $sbnEnabled = $this->isSettingEnabled('enable_sbn', true);
-        $this->log('debug', 'SBN status check', ['isbn' => $isbn, 'sbn_enabled' => $sbnEnabled]);
+        \App\Support\SecureLogger::debug('[Z39] SBN status', ['isbn' => $isbn, 'sbn_enabled' => $sbnEnabled]);
 
         if ($sbnEnabled) {
-            $this->log('info', 'Attempting SBN fetch', ['isbn' => $isbn]);
             $sbnData = $this->fetchFromSbn($isbn);
             if ($sbnData) {
-                $this->log('info', 'Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '', 'fields' => array_keys($sbnData)]);
+                \App\Support\SecureLogger::info('[Z39] Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '']);
                 $result = $this->mergeBookData($result, $sbnData, 'sbn');
             } else {
-                $this->log('warning', 'SBN returned no data', ['isbn' => $isbn]);
+                \App\Support\SecureLogger::warning('[Z39] SBN returned no data', ['isbn' => $isbn]);
             }
         }
 
@@ -515,16 +514,14 @@ class Z39ServerPlugin
 
         // Validate JSON decode result
         if ($servers === null && $serversJson !== 'null' && $serversJson !== '[]') {
-            $this->log('error', 'Invalid servers JSON configuration', [
-                'json_error' => json_last_error_msg()
-            ]);
+            \App\Support\SecureLogger::error('[Z39] Invalid servers JSON', ['json_error' => json_last_error_msg()]);
             return $result;
         }
 
         if (!empty($servers) && is_array($servers)) {
             $z39Data = $this->fetchFromSru($isbn, $servers);
             if ($z39Data) {
-                $this->log('info', 'Book found via SRU', ['isbn' => $isbn, 'title' => $z39Data['title'] ?? '']);
+                \App\Support\SecureLogger::info('[Z39] Book found via SRU', ['isbn' => $isbn, 'title' => $z39Data['title'] ?? '']);
                 $result = $this->mergeBookData($result, $z39Data, 'z39');
             }
         }
@@ -542,7 +539,7 @@ class Z39ServerPlugin
     {
         $clientFile = __DIR__ . '/classes/SbnClient.php';
         if (!file_exists($clientFile)) {
-            $this->log('error', 'SBN client file not found', ['path' => $clientFile]);
+            \App\Support\SecureLogger::error('[Z39] SBN client file not found', ['path' => $clientFile]);
             return null;
         }
 
@@ -550,20 +547,10 @@ class Z39ServerPlugin
 
         try {
             $timeout = (int)$this->getSetting('sbn_timeout', '15');
-            $this->log('debug', 'Creating SBN client', ['isbn' => $isbn, 'timeout' => $timeout]);
-
             $client = new \Plugins\Z39Server\Classes\SbnClient($timeout, true);
-            $result = $client->searchByIsbn($isbn);
-
-            if ($result === null) {
-                $this->log('warning', 'SBN client returned null', ['isbn' => $isbn]);
-            } else {
-                $this->log('info', 'SBN client success', ['isbn' => $isbn, 'title' => $result['title'] ?? 'N/A']);
-            }
-
-            return $result;
+            return $client->searchByIsbn($isbn);
         } catch (\Throwable $e) {
-            $this->log('error', 'Error in SBN client', [
+            \App\Support\SecureLogger::error('[Z39] SBN client error', [
                 'isbn' => $isbn,
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),

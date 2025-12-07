@@ -53,38 +53,37 @@ class SbnClient
         }
 
         $url = self::BASE_URL . self::SEARCH_ENDPOINT . '?isbn=' . urlencode($isbn) . '&rows=1';
-        error_log("[SBN Client] Searching ISBN: $isbn, URL: $url");
+        \App\Support\SecureLogger::info('[SBN] Searching', ['isbn' => $isbn, 'url' => $url]);
 
         $searchResult = $this->makeRequest($url);
 
         if ($searchResult === null) {
-            error_log("[SBN Client] Search returned null for ISBN: $isbn");
+            \App\Support\SecureLogger::warning('[SBN] Search returned null', ['isbn' => $isbn]);
             return null;
         }
 
         if (!isset($searchResult['briefRecords']) || empty($searchResult['briefRecords'])) {
-            error_log("[SBN Client] No briefRecords found for ISBN: $isbn, numFound: " . ($searchResult['numFound'] ?? 'N/A'));
+            \App\Support\SecureLogger::warning('[SBN] No records found', ['isbn' => $isbn, 'numFound' => $searchResult['numFound'] ?? 0]);
             return null;
         }
 
         $record = $searchResult['briefRecords'][0];
-        error_log("[SBN Client] Found record for ISBN: $isbn, title: " . ($record['titolo'] ?? 'N/A'));
+        \App\Support\SecureLogger::info('[SBN] Found record', ['isbn' => $isbn, 'title' => $record['titolo'] ?? 'N/A']);
 
         // Get full record for complete metadata
         $bid = $record['codiceIdentificativo'] ?? null;
         if ($bid) {
-            error_log("[SBN Client] Fetching full record for BID: $bid");
+            \App\Support\SecureLogger::debug('[SBN] Fetching full record', ['bid' => $bid]);
             $fullRecord = $this->getFullRecord($bid);
             if ($fullRecord) {
-                error_log("[SBN Client] Full record retrieved successfully for ISBN: $isbn");
+                \App\Support\SecureLogger::info('[SBN] Full record OK', ['isbn' => $isbn]);
                 return $this->parseFullRecord($fullRecord);
             } else {
-                error_log("[SBN Client] Full record fetch failed for BID: $bid, using brief record");
+                \App\Support\SecureLogger::warning('[SBN] Full record failed, using brief', ['bid' => $bid]);
             }
         }
 
         // Fallback to brief record
-        error_log("[SBN Client] Using brief record fallback for ISBN: $isbn");
         return $this->parseBriefRecord($record);
     }
 
@@ -783,27 +782,31 @@ class SbnClient
 
         curl_close($ch);
 
-        error_log("[SBN Client] Request completed: HTTP=$httpCode, Time={$totalTime}s, Size=" . strlen($response ?: '') . " bytes");
+        \App\Support\SecureLogger::debug('[SBN] HTTP Request', [
+            'http_code' => $httpCode,
+            'time' => round($totalTime, 3),
+            'size' => strlen($response ?: '')
+        ]);
 
         if ($error) {
-            error_log("[SBN Client] CURL error: $error");
+            \App\Support\SecureLogger::error('[SBN] CURL error', ['error' => $error, 'url' => $url]);
             return null;
         }
 
         if ($httpCode !== 200) {
-            error_log("[SBN Client] HTTP error: $httpCode, Response: " . substr($response ?: '', 0, 500));
+            \App\Support\SecureLogger::error('[SBN] HTTP error', ['http_code' => $httpCode, 'response' => substr($response ?: '', 0, 200)]);
             return null;
         }
 
         if (empty($response)) {
-            error_log("[SBN Client] Empty response");
+            \App\Support\SecureLogger::error('[SBN] Empty response', ['url' => $url]);
             return null;
         }
 
         $data = json_decode($response, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("[SBN Client] JSON parse error: " . json_last_error_msg());
+            \App\Support\SecureLogger::error('[SBN] JSON parse error', ['error' => json_last_error_msg()]);
             return null;
         }
 
