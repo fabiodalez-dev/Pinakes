@@ -62,8 +62,8 @@ jobs:
       - name: Create test user
         run: |
           mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
-            INSERT INTO utenti (nome, cognome, email, password, stato, tipo_utente, email_verificata)
-            VALUES ('Test', 'User', 'test@example.com', 'hash', 'attivo', 'admin', 1);
+            INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata, data_registrazione)
+            VALUES ('TEST001', 'Test', 'User', 'test@example.com', 'hash', 'attivo', 'admin', 1, NOW());
           "
 
       - name: Run migration 0.4.0
