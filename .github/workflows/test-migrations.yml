@@ -5,10 +5,12 @@ on:
     paths:
       - 'installer/database/migrations/**'
       - 'installer/database/schema.sql'
+      - '.github/workflows/test-migrations.yml'
   pull_request:
     paths:
       - 'installer/database/migrations/**'
       - 'installer/database/schema.sql'
+  workflow_dispatch:
 
 jobs:
   test-migrations:
