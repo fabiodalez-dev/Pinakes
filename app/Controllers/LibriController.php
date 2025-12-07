@@ -599,7 +599,11 @@ class LibriController
             // Plugin hook: Before book save
             \App\Support\Hooks::do('book.save.before', [$fields, null]);
 
+            \App\Support\SecureLogger::debug('[LibriController] Creating book', ['titolo' => $fields['titolo'] ?? 'N/A']);
+
             $id = $repo->createBasic($fields);
+
+            \App\Support\SecureLogger::debug('[LibriController] Book created', ['id' => $id]);
 
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
@@ -619,22 +623,34 @@ class LibriController
                 $note = $copieTotali > 1 ? "Copia {$i} di {$copieTotali}" : null;
                 $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
             }
+            \App\Support\SecureLogger::debug('[LibriController] Copies created', ['count' => $copieTotali]);
 
             // Handle simple cover upload
             if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
                 $this->handleCoverUpload($db, $id, $_FILES['copertina']);
+                \App\Support\SecureLogger::debug('[LibriController] Cover uploaded');
             }
             if (!empty($data['scraped_cover_url'])) {
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
+                \App\Support\SecureLogger::debug('[LibriController] Cover from URL', ['url' => substr($data['scraped_cover_url'], 0, 100)]);
             }
             // Optionals (numero_pagine, ean, data_pubblicazione, traduttore)
             (new \App\Models\BookRepository($db))->updateOptionals($id, $data);
+            \App\Support\SecureLogger::debug('[LibriController] Optionals updated');
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
 
+            \App\Support\SecureLogger::info('[LibriController] Book save complete', ['id' => $id]);
             return $response->withHeader('Location', '/admin/libri/' . $id)->withStatus(302);
 
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[LibriController] Exception during save', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            throw $e;
         } finally {
             // Release advisory lock
             if ($lockKey) {
