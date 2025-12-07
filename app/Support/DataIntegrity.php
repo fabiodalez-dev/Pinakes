@@ -163,6 +163,9 @@ class DataIntegrity {
         // Conta totale libri (prepared statement for consistency)
         $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM libri");
         if ($stmt === false) {
+            $error = "Failed to count books: " . $this->db->error;
+            error_log("[DataIntegrity] " . $error);
+            $results['errors'][] = $error;
             return $results;
         }
         $stmt->execute();

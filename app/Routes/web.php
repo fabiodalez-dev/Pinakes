@@ -195,7 +195,7 @@ return function (App $app): void {
     // Logout - support both English and localized routes
     $logoutHandler = function ($request, $response) use ($app) {
         $controller = new AuthController();
-        return $controller->logout($request, $response);
+        return $controller->logout($request, $response, $app->getContainer()->get('db'));
     };
     $registerRouteIfUnique('GET', '/logout', $logoutHandler); // English fallback
     $registerRouteIfUnique('GET', RouteTranslator::route('logout'), $logoutHandler); // Localized route (e.g. /esci for Italian)

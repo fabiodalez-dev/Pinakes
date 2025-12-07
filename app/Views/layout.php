@@ -97,7 +97,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               <span class="text-gray-700 font-semibold text-lg"><?php echo HtmlHelper::e($appInitial); ?></span>
             <?php endif; ?>
           </div>
-          <div style="line-height: 1;">
+          <div class="leading-none">
             <span class="font-bold text-lg text-gray-900 block"><?php echo HtmlHelper::e($appName); ?></span>
             <div class="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
               <?= __("Library Management System") ?>
@@ -433,7 +433,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <span class="text-gray-800 font-semibold"><?php echo HtmlHelper::e($appInitial); ?></span>
                   <?php endif; ?>
                 </div>
-                <div class="hidden sm:block" style="line-height: 1;">
+                <div class="hidden sm:block leading-none">
                   <span class="font-bold text-base text-gray-900 block"><?php echo HtmlHelper::e($appName); ?></span>
                   <div class="text-[11px] font-semibold uppercase tracking-wide" style="color:#d70161;">
                     <?= __("Library Management System") ?>

@@ -99,9 +99,25 @@ jobs:
 
       - name: Test idempotency (run migration again)
         run: |
-          # Running migration again should not cause errors
-          sed '/^--/d' installer/database/migrations/migrate_0.4.0.sql | \
-            mysql -h 127.0.0.1 -u root -proot pinakes_test 2>&1 || echo "Expected errors for duplicate columns (safe)"
+          # Running migration again should only produce expected errors (duplicate column/table already exists)
+          set +e
+          OUTPUT=$(sed '/^--/d' installer/database/migrations/migrate_0.4.0.sql | \
+            mysql -h 127.0.0.1 -u root -proot pinakes_test 2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "$OUTPUT"
+            # Check if errors are only the expected idempotent ones
+            if echo "$OUTPUT" | grep -qiE 'duplicate|already exists'; then
+              echo "✓ Migration is idempotent (expected duplicate/exists errors only)"
+            else
+              echo "✗ Unexpected error during idempotency test"
+              exit 1
+            fi
+          else
+            echo "✓ Migration re-ran without errors"
+          fi
 
       - name: Final verification
         run: |
