@@ -47,19 +47,24 @@ jobs:
 
       - name: Install base schema (simulating v0.3.0)
         run: |
-          # First install the base schema without GDPR tables
-          # This simulates an existing v0.3.0 installation
+          # First install the base schema
           mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/schema.sql
 
           # Remove the GDPR tables/columns to simulate pre-0.4.0 state
+          # MySQL 8.0 doesn't support "DROP COLUMN IF EXISTS", so we use a workaround
           mysql -h 127.0.0.1 -u root -proot pinakes_test -e "
             DROP TABLE IF EXISTS consent_log;
             DROP TABLE IF EXISTS gdpr_requests;
             DROP TABLE IF EXISTS user_sessions;
-            ALTER TABLE utenti DROP COLUMN IF EXISTS privacy_policy_version;
-            ALTER TABLE utenti DROP COLUMN IF EXISTS data_accettazione_privacy;
-            ALTER TABLE utenti DROP COLUMN IF EXISTS privacy_accettata;
-          " || true
+          "
+
+          # Drop columns with error suppression (MySQL 8.0 compatibility)
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "ALTER TABLE utenti DROP COLUMN privacy_policy_version;" 2>/dev/null || true
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "ALTER TABLE utenti DROP COLUMN data_accettazione_privacy;" 2>/dev/null || true
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "ALTER TABLE utenti DROP COLUMN privacy_accettata;" 2>/dev/null || true
+
+          echo "=== Simulated v0.3.0 state ==="
+          mysql -h 127.0.0.1 -u root -proot pinakes_test -e "SHOW COLUMNS FROM utenti;" | grep -E "privacy|consent" || echo "No GDPR columns found (expected)"
 
       - name: Create test user
         run: |
