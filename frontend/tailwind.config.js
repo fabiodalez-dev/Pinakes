@@ -12,8 +12,10 @@ module.exports = {
       screens: {
         ...defaultTheme.screens,
       },
+      lineHeight: {
+        tight: '1',
+      },
     },
   },
   plugins: [require('@tailwindcss/forms'), require('autoprefixer')],
 };
-

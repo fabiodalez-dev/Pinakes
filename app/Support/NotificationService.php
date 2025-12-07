@@ -74,12 +74,23 @@ class NotificationService {
             }
             $stmt->close();
 
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+
+            // Temporarily switch locale for button translation
+            $currentLocale = \App\Support\I18n::getLocale();
+            \App\Support\I18n::setLocale($locale);
+
             $verifySection = '';
             if (!empty($user['token_verifica_email'])) {
                 // Use /verify-email (English route) as it's supported in all languages
                 $verifyUrl = $this->getBaseUrl() . '/verify-email?token=' . urlencode((string)$user['token_verifica_email']);
-                $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">Conferma la tua email</a></p>';
+                $buttonText = __('Conferma la tua email');
+                $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
             }
+
+            // Restore original locale
+            \App\Support\I18n::setLocale($currentLocale);
 
             $variables = [
                 'nome' => $user['nome'],
@@ -87,12 +98,9 @@ class NotificationService {
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
                 'data_registrazione' => date('d-m-Y H:i', strtotime($user['created_at'])),
-                'verify_section' => $verifySection,
+                'sezione_verifica' => $verifySection,
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
-
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
             return $this->emailService->sendTemplate($user['email'], 'user_registration_pending', $variables, $locale);
 
         } catch (Exception $e) {
@@ -963,12 +971,9 @@ class NotificationService {
      * @return bool True if email was sent successfully
      */
     private function sendWithRetry(string $email, string $template, array $variables, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
-        $attempt = 0;
         $lastError = '';
 
-        while ($attempt < $maxRetries) {
-            $attempt++;
-
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             try {
                 if ($this->emailService->sendTemplate($email, $template, $variables)) {
                     if ($attempt > 1) {
