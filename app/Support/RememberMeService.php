@@ -147,7 +147,7 @@ class RememberMeService
     }
 
     /**
-     * Revoke all sessions for a user (logout from all devices).
+     * Revoke all sessions for a user except the current one (logout from all other devices).
      */
     public function revokeAllTokens(int $userId): int
     {
@@ -155,15 +155,37 @@ class RememberMeService
             return 0;
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE user_sessions
-            SET is_revoked = 1
-            WHERE utente_id = ? AND is_revoked = 0
-        ");
-        if ($stmt === false) {
-            return 0;
+        // Get current token hash to preserve current session
+        $currentTokenHash = null;
+        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        if ($token !== null) {
+            $currentTokenHash = hash('sha256', $token);
         }
-        $stmt->bind_param('i', $userId);
+
+        if ($currentTokenHash !== null) {
+            // Preserve current session
+            $stmt = $this->db->prepare("
+                UPDATE user_sessions
+                SET is_revoked = 1
+                WHERE utente_id = ? AND is_revoked = 0 AND token_hash != ?
+            ");
+            if ($stmt === false) {
+                return 0;
+            }
+            $stmt->bind_param('is', $userId, $currentTokenHash);
+        } else {
+            // No current session, revoke all
+            $stmt = $this->db->prepare("
+                UPDATE user_sessions
+                SET is_revoked = 1
+                WHERE utente_id = ? AND is_revoked = 0
+            ");
+            if ($stmt === false) {
+                return 0;
+            }
+            $stmt->bind_param('i', $userId);
+        }
+
         $stmt->execute();
         $affected = $this->db->affected_rows;
         $stmt->close();
