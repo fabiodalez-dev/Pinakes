@@ -766,13 +766,13 @@ class SbnClient
             if (is_array($value)) {
                 $data[$key] = $this->sanitizeForJson($value);
             } elseif (is_string($value)) {
-                // Strip MARC-8 control characters
-                $value = preg_replace('/[\x88\x89\x98\x9C]/', '', $value);
-                // Remove all other control characters except newline/tab
+                // Strip ALL C1 control characters (0x80-0x9F) which includes MARC-8 controls
+                $value = preg_replace('/[\x80-\x9F]/', '', $value);
+                // Remove C0 control characters except newline/tab/carriage return
                 $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
-                // Ensure valid UTF-8
-                $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
-                $data[$key] = $value;
+                // Remove invalid UTF-8 sequences (iconv with //IGNORE strips them)
+                $converted = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+                $data[$key] = $converted !== false ? $converted : $value;
             }
         }
         return $data;
