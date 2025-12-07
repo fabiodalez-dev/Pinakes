@@ -349,6 +349,8 @@ class SbnClient
         } else {
             $book['title'] = trim($fullTitle);
         }
+        // Strip MARC-8 control characters (NSB/NSE non-sorting markers)
+        $book['title'] = $this->stripMarcControlChars($book['title']);
 
         if (empty($book['title'])) {
             return null;
@@ -395,8 +397,9 @@ class SbnClient
 
         // Collection/Series
         if (!empty($record['collezione'])) {
-            $book['series'] = $record['collezione'];
-            $book['collana'] = $record['collezione'];
+            $series = $this->stripMarcControlChars($record['collezione']);
+            $book['series'] = $series;
+            $book['collana'] = $series;
         }
 
         // Language
@@ -454,6 +457,8 @@ class SbnClient
         } else {
             $book['title'] = trim($fullTitle);
         }
+        // Strip MARC-8 control characters (NSB/NSE non-sorting markers)
+        $book['title'] = $this->stripMarcControlChars($book['title']);
 
         if (empty($book['title'])) {
             return null;
@@ -716,6 +721,22 @@ class SbnClient
         ];
 
         return $map[$lang] ?? $lang;
+    }
+
+    /**
+     * Strip MARC-8 control characters from text
+     *
+     * @param string $text Text that may contain MARC control characters
+     * @return string Cleaned text
+     */
+    private function stripMarcControlChars(string $text): string
+    {
+        // MARC-8 control characters:
+        // \x88 = NSB (Non-Sorting Begin) - marks start of non-filing chars like "Il", "La", "The"
+        // \x89 = NSE (Non-Sorting End) - marks end of non-filing characters
+        // \x98 = Joiner
+        // \x9C = Superscript markers
+        return preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
     }
 
     /**
