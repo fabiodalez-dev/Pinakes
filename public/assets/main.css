@@ -4659,7 +4659,7 @@ select {
   line-height: 1.625;
 }
 .leading-tight {
-  line-height: 1;
+  line-height: 1.25;
 }
 .tracking-\[0\.3em\] {
   letter-spacing: 0.3em;
