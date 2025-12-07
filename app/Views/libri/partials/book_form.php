@@ -127,7 +127,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 <i class="fas fa-layer-group"></i>
                 <?= __("Dati alternativi disponibili") ?>
               </h4>
-              <button type="button" id="btnCloseAlternatives" class="text-blue-600 hover:text-blue-800">
+              <button type="button" id="btnCloseAlternatives" class="text-blue-600 hover:text-blue-800" aria-label="<?= __('Chiudi alternative') ?>">
                 <i class="fas fa-times"></i>
               </button>
             </div>

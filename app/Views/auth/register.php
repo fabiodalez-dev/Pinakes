@@ -14,6 +14,8 @@ $registerRoute = route_path('register');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= __('Registrazione') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    
     <link href="/assets/vendor.css" rel="stylesheet">
     <link href="/assets/main.css" rel="stylesheet">
     <style>
@@ -61,6 +63,8 @@ $registerRoute = route_path('register');
                   <?= __('Email già registrata') ?>
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
                   <?= __('Compila tutti i campi richiesti') ?>
+                <?php elseif ($_GET['error'] === 'privacy_required'): ?>
+                  <?= __('Devi accettare la Privacy Policy per procedere') ?>
                 <?php elseif ($_GET['error'] === 'name_too_long'): ?>
                   <?= __('Nome o cognome troppo lungo (massimo 100 caratteri)') ?>
                 <?php elseif ($_GET['error'] === 'email_too_long'): ?>

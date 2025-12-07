@@ -53,8 +53,15 @@ class RegistrationController
             $sesso = null;
         }
 
+        $privacyAccepted = !empty($data['privacy_acceptance']);
+
         $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;
+
+        // Require privacy acceptance server-side (in addition to client-side required)
+        if (!$privacyAccepted) {
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=privacy_required')->withStatus(302);
+        }
 
         // Validate required fields
         if ($nome === '' || $cognome === '' || $email === '' || $telefono === '' || $indirizzo === '' || $password === '' || $password !== $password2) {
