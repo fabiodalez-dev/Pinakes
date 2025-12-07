@@ -501,7 +501,7 @@ class Z39ServerPlugin
         if ($sbnEnabled) {
             $sbnData = $this->fetchFromSbn($isbn);
             if ($sbnData) {
-                \App\Support\SecureLogger::info('[Z39] Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '']);
+                \App\Support\SecureLogger::debug('[Z39] Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '']);
                 $result = $this->mergeBookData($result, $sbnData, 'sbn');
             } else {
                 \App\Support\SecureLogger::warning('[Z39] SBN returned no data', ['isbn' => $isbn]);
@@ -521,7 +521,7 @@ class Z39ServerPlugin
         if (!empty($servers) && is_array($servers)) {
             $z39Data = $this->fetchFromSru($isbn, $servers);
             if ($z39Data) {
-                \App\Support\SecureLogger::info('[Z39] Book found via SRU', ['isbn' => $isbn, 'title' => $z39Data['title'] ?? '']);
+                \App\Support\SecureLogger::debug('[Z39] Book found via SRU', ['isbn' => $isbn, 'title' => $z39Data['title'] ?? '']);
                 $result = $this->mergeBookData($result, $z39Data, 'z39');
             }
         }
