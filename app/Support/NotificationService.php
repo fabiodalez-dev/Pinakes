@@ -77,20 +77,20 @@ class NotificationService {
             // Use installation locale for email template
             $locale = \App\Support\I18n::getInstallationLocale();
 
-            // Temporarily switch locale for button translation
-            $currentLocale = \App\Support\I18n::getLocale();
-            \App\Support\I18n::setLocale($locale);
-
             $verifySection = '';
             if (!empty($user['token_verifica_email'])) {
+                // Temporarily switch locale for button translation
+                $currentLocale = \App\Support\I18n::getLocale();
+                \App\Support\I18n::setLocale($locale);
+
                 // Use /verify-email (English route) as it's supported in all languages
                 $verifyUrl = $this->getBaseUrl() . '/verify-email?token=' . urlencode((string)$user['token_verifica_email']);
                 $buttonText = __('Conferma la tua email');
                 $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
-            }
 
-            // Restore original locale
-            \App\Support\I18n::setLocale($currentLocale);
+                // Restore original locale
+                \App\Support\I18n::setLocale($currentLocale);
+            }
 
             $variables = [
                 'nome' => $user['nome'],
@@ -481,12 +481,12 @@ class NotificationService {
                     );
                     $sentCount++;
                 } else {
-                    // Email failed after retries, revert the flag so it can be retried next run
-                    $revertStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 0 WHERE id = ?");
+                    // Email failed after retries, revert both flag and stato so it can be retried next run
+                    $revertStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 0, stato = 'in_corso' WHERE id = ?");
                     $revertStmt->bind_param('i', $loan['id']);
                     $revertStmt->execute();
                     $revertStmt->close();
-                    error_log("Failed to send overdue notification for loan {$loan['id']} after retries, flag reverted");
+                    error_log("Failed to send overdue notification for loan {$loan['id']} after retries, flags reverted");
                 }
             }
 
