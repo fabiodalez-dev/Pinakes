@@ -1,4 +1,4 @@
-9788858155530<?php
+<?php
 declare(strict_types=1);
 
 namespace Plugins\Z39Server\Classes;
