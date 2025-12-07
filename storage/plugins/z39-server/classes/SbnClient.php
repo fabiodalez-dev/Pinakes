@@ -77,14 +77,16 @@ class SbnClient
             $fullRecord = $this->getFullRecord($bid);
             if ($fullRecord) {
                 \App\Support\SecureLogger::info('[SBN] Full record OK', ['isbn' => $isbn]);
-                return $this->parseFullRecord($fullRecord);
+                $result = $this->parseFullRecord($fullRecord);
+                return $result ? $this->sanitizeForJson($result) : null;
             } else {
                 \App\Support\SecureLogger::warning('[SBN] Full record failed, using brief', ['bid' => $bid]);
             }
         }
 
         // Fallback to brief record
-        return $this->parseBriefRecord($record);
+        $result = $this->parseBriefRecord($record);
+        return $result ? $this->sanitizeForJson($result) : null;
     }
 
     /**
@@ -113,7 +115,7 @@ class SbnClient
         foreach ($searchResult['briefRecords'] as $record) {
             $parsed = $this->parseBriefRecord($record);
             if ($parsed) {
-                $results[] = $parsed;
+                $results[] = $this->sanitizeForJson($parsed);
             }
         }
 
@@ -145,7 +147,7 @@ class SbnClient
         foreach ($searchResult['briefRecords'] as $record) {
             $parsed = $this->parseBriefRecord($record);
             if ($parsed) {
-                $results[] = $parsed;
+                $results[] = $this->sanitizeForJson($parsed);
             }
         }
 
@@ -749,6 +751,31 @@ class SbnClient
         // \x98 = Joiner
         // \x9C = Superscript markers
         return preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
+    }
+
+    /**
+     * Recursively sanitize all strings in an array to ensure valid UTF-8 for JSON encoding
+     * Removes MARC control chars and all other non-printable characters
+     *
+     * @param array $data Data to sanitize
+     * @return array Sanitized data safe for json_encode
+     */
+    private function sanitizeForJson(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $data[$key] = $this->sanitizeForJson($value);
+            } elseif (is_string($value)) {
+                // Strip MARC-8 control characters
+                $value = preg_replace('/[\x88\x89\x98\x9C]/', '', $value);
+                // Remove all other control characters except newline/tab
+                $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
+                // Ensure valid UTF-8
+                $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+                $data[$key] = $value;
+            }
+        }
+        return $data;
     }
 
     /**
