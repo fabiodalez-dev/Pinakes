@@ -898,7 +898,10 @@ class Updater
                             // or multi-line comments containing ';'. For complex migrations,
                             // use multiple simple statements.
 
-                            // First, remove SQL comments (lines starting with --)
+                            // Remove SQL comments (full-line only, starting with --)
+                            // NOTE: This only removes full-line comments, not inline comments
+                            // (e.g., "SELECT * -- comment") or multi-line comments (/* ... */).
+                            // Migration files should avoid inline comments for compatibility.
                             $sqlLines = explode("\n", $sql);
                             $sqlLines = array_filter($sqlLines, fn($line) => !preg_match('/^\s*--/', $line));
                             $sql = implode("\n", $sqlLines);
@@ -913,18 +916,18 @@ class Updater
                                     $result = $this->db->query($statement);
                                     if ($result === false) {
                                         // Ignore idempotent errors (safe to retry migrations)
-                                        // 1060: Duplicate column name
-                                        // 1061: Duplicate key name
-                                        // 1050: Table already exists (should not happen with IF NOT EXISTS)
-                                        // 1068: Multiple primary key defined
-                                        $ignorableErrors = [1060, 1061, 1050, 1068];
+                                        // 1060: Duplicate column name (column already added)
+                                        // 1061: Duplicate key name (index already exists)
+                                        // 1050: Table already exists (use IF NOT EXISTS in migrations)
+                                        // Note: 1068 (Multiple primary key) is NOT ignored - it's a schema error
+                                        $ignorableErrors = [1060, 1061, 1050];
                                         if (!in_array($this->db->errno, $ignorableErrors, true)) {
                                             throw new Exception(
                                                 sprintf(__('Errore SQL durante migrazione %s: %s'), $filename, $this->db->error)
                                             );
                                         }
-                                        // Log ignorable error but continue
-                                        error_log("[Updater] Ignorable migration error in {$filename}: " . $this->db->error);
+                                        // Log ignorable error but continue (expected on re-run)
+                                        error_log("[Updater] Ignorable migration error in {$filename} (errno {$this->db->errno}): " . $this->db->error);
                                     }
                                 }
                             }
