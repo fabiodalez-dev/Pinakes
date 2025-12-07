@@ -53,25 +53,38 @@ class SbnClient
         }
 
         $url = self::BASE_URL . self::SEARCH_ENDPOINT . '?isbn=' . urlencode($isbn) . '&rows=1';
+        error_log("[SBN Client] Searching ISBN: $isbn, URL: $url");
 
         $searchResult = $this->makeRequest($url);
 
-        if ($searchResult === null || !isset($searchResult['briefRecords']) || empty($searchResult['briefRecords'])) {
+        if ($searchResult === null) {
+            error_log("[SBN Client] Search returned null for ISBN: $isbn");
+            return null;
+        }
+
+        if (!isset($searchResult['briefRecords']) || empty($searchResult['briefRecords'])) {
+            error_log("[SBN Client] No briefRecords found for ISBN: $isbn, numFound: " . ($searchResult['numFound'] ?? 'N/A'));
             return null;
         }
 
         $record = $searchResult['briefRecords'][0];
+        error_log("[SBN Client] Found record for ISBN: $isbn, title: " . ($record['titolo'] ?? 'N/A'));
 
         // Get full record for complete metadata
         $bid = $record['codiceIdentificativo'] ?? null;
         if ($bid) {
+            error_log("[SBN Client] Fetching full record for BID: $bid");
             $fullRecord = $this->getFullRecord($bid);
             if ($fullRecord) {
+                error_log("[SBN Client] Full record retrieved successfully for ISBN: $isbn");
                 return $this->parseFullRecord($fullRecord);
+            } else {
+                error_log("[SBN Client] Full record fetch failed for BID: $bid, using brief record");
             }
         }
 
         // Fallback to brief record
+        error_log("[SBN Client] Using brief record fallback for ISBN: $isbn");
         return $this->parseBriefRecord($record);
     }
 
@@ -766,11 +779,24 @@ class SbnClient
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
+        $totalTime = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
 
         curl_close($ch);
 
-        if ($error || $httpCode !== 200 || empty($response)) {
-            error_log("[SBN Client] Request failed: URL=$url, HTTP=$httpCode, Error=$error");
+        error_log("[SBN Client] Request completed: HTTP=$httpCode, Time={$totalTime}s, Size=" . strlen($response ?: '') . " bytes");
+
+        if ($error) {
+            error_log("[SBN Client] CURL error: $error");
+            return null;
+        }
+
+        if ($httpCode !== 200) {
+            error_log("[SBN Client] HTTP error: $httpCode, Response: " . substr($response ?: '', 0, 500));
+            return null;
+        }
+
+        if (empty($response)) {
+            error_log("[SBN Client] Empty response");
             return null;
         }
 

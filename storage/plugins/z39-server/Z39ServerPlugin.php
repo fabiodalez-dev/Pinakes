@@ -484,8 +484,11 @@ class Z39ServerPlugin
         // $sources is required by hook signature but not used here
         unset($sources);
 
+        $this->log('debug', 'fetchBookMetadata called', ['isbn' => $isbn, 'has_existing' => $existing !== null]);
+
         // Check if client is enabled
         if (!$this->isSettingEnabled('enable_client')) {
+            $this->log('warning', 'SRU client is disabled', ['isbn' => $isbn]);
             return $existing; // Pass through existing data unchanged
         }
 
@@ -493,11 +496,16 @@ class Z39ServerPlugin
 
         // Try SBN first (Italian National Library)
         $sbnEnabled = $this->isSettingEnabled('enable_sbn', true);
+        $this->log('debug', 'SBN status check', ['isbn' => $isbn, 'sbn_enabled' => $sbnEnabled]);
+
         if ($sbnEnabled) {
+            $this->log('info', 'Attempting SBN fetch', ['isbn' => $isbn]);
             $sbnData = $this->fetchFromSbn($isbn);
             if ($sbnData) {
-                $this->log('info', 'Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '']);
+                $this->log('info', 'Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '', 'fields' => array_keys($sbnData)]);
                 $result = $this->mergeBookData($result, $sbnData, 'sbn');
+            } else {
+                $this->log('warning', 'SBN returned no data', ['isbn' => $isbn]);
             }
         }
 
@@ -542,10 +550,25 @@ class Z39ServerPlugin
 
         try {
             $timeout = (int)$this->getSetting('sbn_timeout', '15');
+            $this->log('debug', 'Creating SBN client', ['isbn' => $isbn, 'timeout' => $timeout]);
+
             $client = new \Plugins\Z39Server\Classes\SbnClient($timeout, true);
-            return $client->searchByIsbn($isbn);
+            $result = $client->searchByIsbn($isbn);
+
+            if ($result === null) {
+                $this->log('warning', 'SBN client returned null', ['isbn' => $isbn]);
+            } else {
+                $this->log('info', 'SBN client success', ['isbn' => $isbn, 'title' => $result['title'] ?? 'N/A']);
+            }
+
+            return $result;
         } catch (\Throwable $e) {
-            $this->log('error', 'Error in SBN client', ['error' => $e->getMessage()]);
+            $this->log('error', 'Error in SBN client', [
+                'isbn' => $isbn,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
             return null;
         }
     }
