@@ -53,7 +53,7 @@ class SbnClient
         }
 
         $url = self::BASE_URL . self::SEARCH_ENDPOINT . '?isbn=' . urlencode($isbn) . '&rows=1';
-        \App\Support\SecureLogger::info('[SBN] Searching', ['isbn' => $isbn, 'url' => $url]);
+        \App\Support\SecureLogger::debug('[SBN] Searching', ['isbn' => $isbn, 'url' => $url]);
 
         $searchResult = $this->makeRequest($url);
 
@@ -68,7 +68,7 @@ class SbnClient
         }
 
         $record = $searchResult['briefRecords'][0];
-        \App\Support\SecureLogger::info('[SBN] Found record', ['isbn' => $isbn, 'title' => $record['titolo'] ?? 'N/A']);
+        \App\Support\SecureLogger::debug('[SBN] Found record', ['isbn' => $isbn, 'title' => $record['titolo'] ?? 'N/A']);
 
         // Get full record for complete metadata
         $bid = $record['codiceIdentificativo'] ?? null;
@@ -76,7 +76,7 @@ class SbnClient
             \App\Support\SecureLogger::debug('[SBN] Fetching full record', ['bid' => $bid]);
             $fullRecord = $this->getFullRecord($bid);
             if ($fullRecord) {
-                \App\Support\SecureLogger::info('[SBN] Full record OK', ['isbn' => $isbn]);
+                \App\Support\SecureLogger::debug('[SBN] Full record OK', ['isbn' => $isbn]);
                 $result = $this->parseFullRecord($fullRecord);
                 return $result ? $this->sanitizeForJson($result) : null;
             } else {
