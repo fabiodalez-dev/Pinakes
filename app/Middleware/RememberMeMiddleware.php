@@ -54,8 +54,14 @@ class RememberMeMiddleware implements MiddlewareInterface
             FROM utenti
             WHERE id = ? LIMIT 1
         ");
+        if ($stmt === false) {
+            return;
+        }
         $stmt->bind_param('i', $userId);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return;
+        }
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
         $stmt->close();
@@ -85,10 +91,9 @@ class RememberMeMiddleware implements MiddlewareInterface
             'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
         ];
 
-        // Log auto-login for security auditing
+        // Log auto-login for security auditing (no PII logged per GDPR)
         \App\Support\Log::security('login.remember_me', [
             'user_id' => $row['id'],
-            'email' => $row['email'],
             'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
         ]);
     }
