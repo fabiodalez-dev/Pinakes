@@ -26,7 +26,11 @@ class ApiBookScraperPlugin
     private bool $enabled = false;
 
     /**
-     * Costruttore del plugin
+     * Initialize the plugin with optional database and hook manager.
+     *
+     * Assigns the provided mysqli connection and hook manager to the instance.
+     * If a database connection is provided and the plugin ID is not set, automatically
+     * loads the plugin ID and associated settings from the database.
      */
     public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
@@ -41,7 +45,11 @@ class ApiBookScraperPlugin
     }
 
     /**
-     * Auto-load plugin ID from database by plugin name
+     * Load and set this plugin's ID from the database when an active plugin row exists.
+     *
+     * Queries the `plugins` table for a row where `name` is `api-book-scraper` and `is_active` = 1.
+     * If a matching row is found, assigns its `id` to `$this->pluginId` and calls `loadSettings()`.
+     * The method exits silently if no database connection is available or the prepared statement cannot be created.
      */
     private function autoLoadPluginId(): void
     {
