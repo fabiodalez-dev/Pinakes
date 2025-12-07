@@ -76,8 +76,13 @@ class BookDataMerger
         // If no existing data, return new data with source marker
         if ($existing === null || empty($existing)) {
             $new['_primary_source'] = $source;
-            // Initialize alternatives with this source's data
-            $new['_alternatives'] = [$source => self::extractAlternativeFields($new)];
+            // Initialize sources list with the primary source
+            $new['_sources'] = [$source];
+            // Initialize alternatives (for a single source, alternatives will be empty after filtering)
+            $sourceAlternative = self::extractAlternativeFields($new);
+            $new['_alternatives'] = !empty($sourceAlternative)
+                ? self::filterAlternatives([$source => $sourceAlternative], $new)
+                : [];
             return $new;
         }
 
@@ -142,8 +147,14 @@ class BookDataMerger
             }
         }
 
-        // Track all sources that contributed
+        // Track all sources that contributed (always include primary source)
         $sources = $merged['_sources'] ?? [];
+        $primarySource = $merged['_primary_source'] ?? null;
+        // Ensure primary source is in the list (fix for legacy records)
+        if ($primarySource !== null && !in_array($primarySource, $sources, true)) {
+            $sources[] = $primarySource;
+        }
+        // Add current source if not already present
         if (!in_array($source, $sources, true)) {
             $sources[] = $source;
         }

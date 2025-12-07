@@ -160,9 +160,15 @@ class DataIntegrity {
             return $results;
         }
 
-        // Conta totale libri
-        $countResult = $this->db->query("SELECT COUNT(*) as total FROM libri");
+        // Conta totale libri (prepared statement for consistency)
+        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM libri");
+        if ($stmt === false) {
+            return $results;
+        }
+        $stmt->execute();
+        $countResult = $stmt->get_result();
         $results['total'] = $countResult ? (int)$countResult->fetch_assoc()['total'] : 0;
+        $stmt->close();
 
         if ($results['total'] === 0) {
             return $results;
