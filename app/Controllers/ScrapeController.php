@@ -32,20 +32,42 @@ class ScrapeController
 
     /**
      * Normalize all text fields in scraped data
+     * Removes MARC-8 control characters and normalizes whitespace for ALL text fields
      */
     private function normalizeScrapedData(array $data): array
     {
-        // Normalize text fields
-        $textFields = ['title', 'subtitle', 'publisher', 'description'];
+        // Normalize ALL text fields that could come from any scraping source
+        // This includes Z39.50/SRU (MARC), SBN, Open Library, Google Books, etc.
+        $textFields = [
+            'title', 'subtitle', 'publisher', 'description',
+            'series', 'collana',  // Series/collection name
+            'keywords', 'language',
+            'author',  // Single author string
+            'source', 'notes',
+            'edition', 'format',
+            'place', 'country',  // Publication place
+        ];
         foreach ($textFields as $field) {
-            if (isset($data[$field])) {
-                $data[$field] = $this->normalizeText((string)$data[$field]);
+            if (isset($data[$field]) && is_string($data[$field])) {
+                $data[$field] = $this->normalizeText($data[$field]);
             }
         }
 
         // Normalize authors array
         if (isset($data['authors']) && is_array($data['authors'])) {
             $data['authors'] = array_map(fn($a) => $this->normalizeText((string)$a), $data['authors']);
+        }
+
+        // Normalize any other string fields we might have missed
+        // This is a safety net for plugin-provided data
+        $skipFields = ['isbn', 'isbn10', 'isbn13', 'ean', 'image', 'pubDate', 'year', 'pages', 'price', 'classificazione_dewey', 'classificazione_dowey'];
+        foreach ($data as $key => $value) {
+            if (is_string($value) && !in_array($key, $textFields) && !in_array($key, $skipFields)) {
+                // Skip URLs and date-like values
+                if (!preg_match('/^https?:\/\//i', $value) && !preg_match('/^\d{4}(-\d{2})?(-\d{2})?$/', $value)) {
+                    $data[$key] = $this->normalizeText($value);
+                }
+            }
         }
 
         return $data;
