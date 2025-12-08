@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
+    "@fortawesome/fontawesome-free": "^7.1.0",
     "@uppy/core": "^4.5.3",
     "@uppy/dashboard": "^4.4.3",
     "@uppy/drag-drop": "^4.2.2",
