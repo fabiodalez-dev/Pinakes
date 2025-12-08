@@ -450,8 +450,9 @@ class RememberMeService
                 $ips = explode(',', $_SERVER[$header]);
                 $ip = trim($ips[0]);
 
-                // Validate IP format
-                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                // Validate IP format and exclude private/reserved ranges to prevent spoofing
+                // Note: This assumes the app is behind a trusted proxy that sets these headers
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                     return $ip;
                 }
             }

@@ -196,7 +196,7 @@ class ScrapeController
     {
         // Rate limiting to prevent API bans
         if (!$this->checkRateLimit('google_books', 10)) {
-            error_log("[ScrapeController] Google Books API rate limit exceeded for ISBN: $isbn");
+            SecureLogger::debug('[ScrapeController] Google Books API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
 
@@ -334,7 +334,7 @@ class ScrapeController
     {
         // Rate limiting to prevent API bans
         if (!$this->checkRateLimit('openlibrary', 10)) {
-            error_log("[ScrapeController] Open Library API rate limit exceeded for ISBN: $isbn");
+            SecureLogger::debug('[ScrapeController] Open Library API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
 
@@ -425,21 +425,29 @@ class ScrapeController
     {
         $storageDir = __DIR__ . '/../../storage/rate_limits';
         if (!is_dir($storageDir)) {
-            mkdir($storageDir, 0755, true);
+            if (!@mkdir($storageDir, 0755, true) && !is_dir($storageDir)) {
+                return true; // Fail open: allow call if storage unavailable
+            }
         }
 
         $rateLimitFile = $storageDir . '/' . $apiName . '.json';
+
+        // Use flock for atomic read-modify-write to prevent TOCTOU race condition
+        $fp = fopen($rateLimitFile, 'c+');
+        if (!$fp) {
+            return true; // Fail open if file can't be opened
+        }
+
+        flock($fp, LOCK_EX);
         $now = time();
 
         // Load existing rate limit data
         $data = ['calls' => [], 'last_cleanup' => $now];
-        if (file_exists($rateLimitFile)) {
-            $json = file_get_contents($rateLimitFile);
-            if ($json !== false) {
-                $decoded = json_decode($json, true);
-                if (is_array($decoded)) {
-                    $data = $decoded;
-                }
+        $json = stream_get_contents($fp);
+        if ($json !== false && $json !== '') {
+            $decoded = json_decode($json, true);
+            if (is_array($decoded)) {
+                $data = $decoded;
             }
         }
 
@@ -447,8 +455,14 @@ class ScrapeController
         $data['calls'] = array_filter($data['calls'], fn($timestamp) => ($now - $timestamp) < 60);
 
         // Check if rate limit exceeded
-        if (count($data['calls']) >= $maxCallsPerMinute) {
-            error_log("[ScrapeController] Rate limit exceeded for $apiName: " . count($data['calls']) . " calls in last minute");
+        if (\count($data['calls']) >= $maxCallsPerMinute) {
+            SecureLogger::debug('[ScrapeController] Rate limit exceeded', [
+                'api' => $apiName,
+                'calls' => \count($data['calls']),
+                'limit' => $maxCallsPerMinute
+            ]);
+            flock($fp, LOCK_UN);
+            fclose($fp);
             return false;
         }
 
@@ -456,8 +470,12 @@ class ScrapeController
         $data['calls'][] = $now;
         $data['last_cleanup'] = $now;
 
-        // Save with lock
-        file_put_contents($rateLimitFile, json_encode($data), LOCK_EX);
+        // Write back atomically
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, json_encode($data));
+        flock($fp, LOCK_UN);
+        fclose($fp);
 
         return true;
     }

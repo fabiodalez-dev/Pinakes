@@ -173,6 +173,11 @@ $dataIntegrity = new DataIntegrity($db);
 
 // Check for missing indexes once a week (using marker file)
 $indexCheckMarker = __DIR__ . '/../storage/cache/last_index_check.txt';
+// Ensure marker directory exists
+$markerDir = dirname($indexCheckMarker);
+if (!is_dir($markerDir)) {
+    @mkdir($markerDir, 0755, true);
+}
 $lastIndexCheck = file_exists($indexCheckMarker) ? (int)file_get_contents($indexCheckMarker) : 0;
 $oneWeekAgo = time() - 7 * 24 * 60 * 60;
 
