@@ -43,14 +43,14 @@ class ScrapeController
 
         // Check if any sources are available
         if (empty($sources)) {
-            error_log("[ScrapeController] No scraping sources available");
+            SecureLogger::debug('[ScrapeController] No scraping sources available');
             $response->getBody()->write(json_encode([
                 'error' => __('Nessuna fonte di scraping disponibile. Installa almeno un plugin di scraping (es. Open Library o Scraping Pro).'),
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
         }
 
-        error_log("[ScrapeController] Available sources: " . implode(', ', array_keys($sources)));
+        SecureLogger::debug('[ScrapeController] Available sources', ['sources' => array_keys($sources)]);
 
         // Hook: scrape.fetch.custom - Allow plugins to completely replace scraping logic
         $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $cleanIsbn]);
@@ -59,7 +59,7 @@ class ScrapeController
         $hasCompleteData = is_array($customResult) && !empty($customResult['title']);
 
         if ($hasCompleteData) {
-            error_log("[ScrapeController] ISBN $cleanIsbn found via plugins");
+            SecureLogger::debug('[ScrapeController] ISBN found via plugins', ['isbn' => $cleanIsbn]);
 
             // Plugin handled scraping completely, use its result
             $payload = $customResult;

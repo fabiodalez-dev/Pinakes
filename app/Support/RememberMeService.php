@@ -355,9 +355,18 @@ class RememberMeService
     /**
      * Detect if the connection is secure (HTTPS).
      * Handles reverse proxy/load balancer scenarios via X-Forwarded-Proto header.
+     * Also respects the application's force_https configuration setting.
      */
     private function isSecureConnection(): bool
     {
+        // Check if app is configured to force HTTPS (always set secure cookie)
+        if (class_exists('\App\Support\ConfigStore')) {
+            $forceHttps = \App\Support\ConfigStore::get('advanced.force_https', false);
+            if ($forceHttps) {
+                return true;
+            }
+        }
+
         // Direct HTTPS
         if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
             return true;
