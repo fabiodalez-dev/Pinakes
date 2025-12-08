@@ -28,6 +28,8 @@ class Updater
         'storage/backups',
         'storage/cache',
         'storage/logs',
+        'storage/calendar',
+        'storage/tmp',
         'public/uploads',
         'public/.htaccess',
         'public/robots.txt',

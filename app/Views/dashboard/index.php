@@ -140,7 +140,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
           <?= __("Calendario Prestiti e Prenotazioni") ?>
         </h2>
         <div class="flex items-center gap-3">
-          <a href="<?= htmlspecialchars($icsUrl ?? '/storage/calendar/library-calendar.ics') ?>" class="px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-500 rounded-lg transition-colors duration-200 whitespace-nowrap">
+          <a href="<?= htmlspecialchars($icsUrl ?? '/calendar/events.ics') ?>" class="px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-500 rounded-lg transition-colors duration-200 whitespace-nowrap">
             <i class="fas fa-calendar-plus mr-1"></i>
             <?= __("Sincronizza (ICS)") ?>
           </a>
@@ -754,7 +754,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const copyBtn = document.getElementById('copy-ics-url');
     if (copyBtn) {
         copyBtn.addEventListener('click', function() {
-            const rawUrl = <?= json_encode($icsUrl ?? '/storage/calendar/library-calendar.ics') ?>;
+            const rawUrl = <?= json_encode($icsUrl ?? '/calendar/events.ics') ?>;
             const icsUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
                 ? rawUrl
                 : window.location.origin + rawUrl;

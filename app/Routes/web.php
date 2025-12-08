@@ -2432,39 +2432,31 @@ return function (App $app): void {
             ->withHeader('Cache-Control', 'public, max-age=3600');
     });
 
-    // Serve ICS calendar file for external calendar sync
-    $app->get('/storage/calendar/library-calendar.ics', function ($request, $response) use ($app) {
-        $icsPath = __DIR__ . '/../../storage/calendar/library-calendar.ics';
+    // Serve ICS calendar file for external calendar sync (dynamic generation)
+    // Supports both legacy path and new clean URL
+    $calendarHandler = function ($request, $response) use ($app) {
+        try {
+            $db = $app->getContainer()->get('db');
+            $generator = new \App\Support\IcsGenerator($db);
+            $content = $generator->generate();
 
-        // Generate ICS if it doesn't exist
-        if (!file_exists($icsPath)) {
-            try {
-                $db = $app->getContainer()->get('db');
-                $maintenanceService = new \App\Support\MaintenanceService($db);
-                $maintenanceService->generateIcsCalendar();
-            } catch (\Throwable $e) {
-                error_log('ICS generation error: ' . $e->getMessage());
-            }
-        }
-
-        // Check if file exists now
-        if (!file_exists($icsPath) || !is_file($icsPath)) {
-            $response->getBody()->write(__('Calendario non disponibile'));
-            return $response->withStatus(404);
-        }
-
-        $content = file_get_contents($icsPath);
-        if ($content === false) {
-            $response->getBody()->write(__('Errore lettura calendario'));
+            $response->getBody()->write($content);
+            return $response
+                ->withHeader('Content-Type', 'text/calendar; charset=utf-8')
+                ->withHeader('Content-Disposition', 'inline; filename="library-calendar.ics"')
+                ->withHeader('Cache-Control', 'public, max-age=300'); // Cache 5 min
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('ICS generation error', ['error' => $e->getMessage()]);
+            $response->getBody()->write(__('Errore generazione calendario'));
             return $response->withStatus(500);
         }
+    };
 
-        $response->getBody()->write($content);
-        return $response
-            ->withHeader('Content-Type', 'text/calendar; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="library-calendar.ics"')
-            ->withHeader('Cache-Control', 'no-cache, must-revalidate');
-    });
+    // New clean URL (preferred)
+    $app->get('/calendar/events.ics', $calendarHandler);
+
+    // Legacy URL for backward compatibility
+    $app->get('/storage/calendar/library-calendar.ics', $calendarHandler);
 
     // Public API endpoint for book search (protected by API key)
     $app->get('/api/public/books/search', function ($request, $response) use ($app) {

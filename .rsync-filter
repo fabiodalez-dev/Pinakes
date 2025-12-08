@@ -1,0 +1,222 @@
+# ========================================
+# Pinakes - rsync Filter Rules
+# Used by build-release.sh to create distribution packages
+# CRITICAL: In rsync, INCLUDES must come BEFORE EXCLUDES
+# Format: + (include), - (exclude), processed in order
+# ========================================
+
+# ========================================
+# EXPLICIT INCLUDES (must come first!)
+# ========================================
+
+# Keep .env.example
++ .env.example
+
+# Keep README and LICENSE
++ README.md
++ LICENSE.md
+
+# Keep installer SQL files
++ installer/
++ installer/database/
++ installer/database/*.sql
++ installer/database/migrations/
++ installer/database/migrations/*.sql
+
+# Keep storage directory structure and htaccess files
++ storage/
++ storage/.htaccess
++ storage/logs/
++ storage/logs/.gitkeep
++ storage/cache/
++ storage/cache/.gitkeep
++ storage/backups/
++ storage/backups/.gitkeep
++ storage/backups/.htaccess
++ storage/uploads/
++ storage/uploads/.gitkeep
++ storage/uploads/.htaccess
++ storage/uploads/plugins/
++ storage/uploads/plugins/.gitkeep
++ storage/tmp/
++ storage/tmp/.gitkeep
++ storage/calendar/
++ storage/calendar/.gitkeep
++ storage/calendar/.htaccess
+
+# Keep bundled plugins (CRITICAL!)
++ storage/plugins/
++ storage/plugins/.gitkeep
++ storage/plugins/open-library/
++ storage/plugins/open-library/**
++ storage/plugins/z39-server/
++ storage/plugins/z39-server/**
++ storage/plugins/api-book-scraper/
++ storage/plugins/api-book-scraper/**
++ storage/plugins/digital-library/
++ storage/plugins/digital-library/**
++ storage/plugins/dewey-editor/
++ storage/plugins/dewey-editor/**
+
+# Keep public uploads structure
++ public/uploads/
++ public/uploads/.gitkeep
++ public/uploads/copertine/
++ public/uploads/copertine/**
+
+# Keep backups structure
++ backups/
++ backups/.gitkeep
++ backups/.htaccess
+
+# ========================================
+# EXCLUDES (come after includes)
+# ========================================
+
+# Version control
+- .git/
+- .gitignore
+- .gitattributes
+- .gitmodules
+
+# IDE and AI assistant folders
+- .gemini/
+- .qoder/
+- .claude/
+- .vscode/
+- .idea/
+- .cursor/
+- CLAUDE.md
+- claude.md
+- .project
+- .buildpath
+- .settings/
+- *.sublime-*
+- *.swp
+- *.swo
+- *~
+
+# Server & development directories (root level)
+- /server/
+- /sito/
+- /internal/
+- /documents/
+
+# Scripts - exclude dev-only files, keep maintenance.php
+- scripts/clean-git-history.sh
+- scripts/copy-vendor-assets.js
+- scripts/export-email-templates-to-installer.php
+
+# Development dependencies
+- node_modules/
+- /frontend/
+- .phpunit.result.cache
+- .phpunit.cache/
+- tests/
+- test/
+- coverage/
+- .nyc_output/
+- .coverage
+- htmlcov/
+- .playwright-mcp/
+
+# Development files
+- *.log
+- *.tmp
+- *.temp
+- *.cache
+- .DS_Store
+- .DS_Store?
+- ._*
+- .Spotlight-V100
+- .Trashes
+- ehthumbs.db
+- Thumbs.db
+- desktop.ini
+- .env
+- .env.local
+- .env.production
+- .installed
+- config.local.php
+- config.local.sample.php
+- internal/
+- todo.md
+- updater.md
+- .distignore
+- .rsync-filter
+- error_log
+- npm-debug.log*
+- yarn-debug.log*
+- yarn-error.log*
+
+# Temporary scripts
+- clean-*.sh
+- convert-*.php
+- export-*.php
+- fix-*.php
+- debug_*.php
+- test_*.php
+- migration-*.php
+
+# Release artifacts
+- /releases/
+- /build/
+- build-tmp/
+- /migrations/
+
+# CI/CD & documentation (except README/LICENSE already included)
+- .github/
+- docs/
+- *.md
+- .travis.yml
+- .circleci/
+- azure-pipelines.yml
+- .gitlab-ci.yml
+
+# Backup & archive files
+- *.bak
+- *.backup
+- *.old
+- *backup*
+- backup_*.sql
+- old.sql
+- *.zip
+- *.tar
+- *.tar.gz
+- *.rar
+- *.7z
+- Archive.zip
+
+# SQL files (except installer already included)
+- *.sql
+
+# Security files
+- .htpasswd
+- *.pem
+- *.key
+- *.cert
+- *.crt
+- *.p12
+
+# Root level directories to exclude
+- /backups/*
+- /cache/
+- /tmp/
+- /temp/
+
+# Storage user data (structure already included above)
+- storage/logs/*
+- storage/cache/*
+- storage/backups/*
+- storage/tmp/*
+- storage/calendar/*
+- storage/uploads/*
+- storage/settings.json
+- storage/*.log
+
+# Exclude non-bundled plugins
+- storage/plugins/*
+
+# Public uploads user content
+- public/uploads/settings/
+- public/uploads/*

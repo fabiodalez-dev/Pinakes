@@ -132,12 +132,15 @@ get_version() {
     echo "$version"
 }
 
-verify_distignore() {
-    if [ ! -f ".distignore" ]; then
-        log_warning ".distignore not found - all files will be included"
+verify_filter_file() {
+    if [ -f ".rsync-filter" ]; then
+        return 0
+    elif [ -f ".distignore" ]; then
+        log_warning "Using legacy .distignore (consider migrating to .rsync-filter)"
         return 1
     fi
-    return 0
+    log_warning "No filter file found - all files will be included"
+    return 2
 }
 
 build_frontend() {
@@ -183,13 +186,20 @@ create_release_package() {
     rm -rf "$temp_dir"
     mkdir -p "$package_dir"
 
-    # Copy files excluding patterns from .distignore
+    # Copy files using filter rules
     log_info "Copying project files..."
 
-    if verify_distignore; then
+    verify_filter_file
+    local filter_result=$?
+
+    if [ $filter_result -eq 0 ]; then
+        # Use new rsync-filter with proper include/exclude syntax
+        rsync -a --filter="merge .rsync-filter" . "$package_dir/"
+    elif [ $filter_result -eq 1 ]; then
+        # Legacy: use .distignore (may have issues with negations)
         rsync -a --exclude-from=.distignore . "$package_dir/"
     else
-        log_warning "Copying ALL files (no .distignore found)"
+        log_warning "Copying ALL files (no filter file found)"
         rsync -a . "$package_dir/"
     fi
 
