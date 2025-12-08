@@ -54,6 +54,11 @@ class BookDataMerger
     private const PRIORITY_PROTECTED_FIELDS = ['keywords'];
 
     /**
+     * Fields to track for alternatives (user-visible fields)
+     */
+    private const ALTERNATIVE_FIELDS = ['title', 'publisher', 'description', 'image', 'cover', 'copertina_url', 'year', 'pages', 'price'];
+
+    /**
      * Merge book data from a new source into existing data
      *
      * @param array|null $existing Existing accumulated data (null if none)
@@ -71,12 +76,26 @@ class BookDataMerger
         // If no existing data, return new data with source marker
         if ($existing === null || empty($existing)) {
             $new['_primary_source'] = $source;
+            $new['_sources'] = [$source];
+            // Single source has no alternatives by definition
+            $new['_alternatives'] = [];
             return $new;
         }
 
         // Both have data - merge intelligently
         $merged = $existing;
         $existingSource = $existing['_primary_source'] ?? 'default';
+
+        // Initialize alternatives array if not exists
+        if (!isset($merged['_alternatives'])) {
+            $merged['_alternatives'] = [];
+        }
+
+        // Store this source's data as an alternative (before merging)
+        $sourceAlternative = self::extractAlternativeFields($new);
+        if (!empty($sourceAlternative)) {
+            $merged['_alternatives'][$source] = $sourceAlternative;
+        }
 
         foreach ($new as $key => $newValue) {
             // Skip internal metadata fields
@@ -124,14 +143,72 @@ class BookDataMerger
             }
         }
 
-        // Track all sources that contributed
+        // Track all sources that contributed (always include primary source)
         $sources = $merged['_sources'] ?? [];
+        $primarySource = $merged['_primary_source'] ?? null;
+        // Ensure primary source is in the list (fix for legacy records)
+        if ($primarySource !== null && !in_array($primarySource, $sources, true)) {
+            $sources[] = $primarySource;
+        }
+        // Add current source if not already present
         if (!in_array($source, $sources, true)) {
             $sources[] = $source;
         }
         $merged['_sources'] = $sources;
 
+        // Clean up alternatives: remove entries that are identical to merged values
+        $merged['_alternatives'] = self::filterAlternatives($merged['_alternatives'], $merged);
+
         return $merged;
+    }
+
+    /**
+     * Extract fields relevant for alternatives display
+     *
+     * @param array $data Source data
+     * @return array Filtered data with only alternative-worthy fields
+     */
+    private static function extractAlternativeFields(array $data): array
+    {
+        $result = [];
+        foreach (self::ALTERNATIVE_FIELDS as $field) {
+            if (isset($data[$field]) && !self::isEmpty($data[$field])) {
+                $result[$field] = $data[$field];
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Filter alternatives to only keep entries with different values than merged
+     *
+     * @param array $alternatives All alternatives by source
+     * @param array $merged Merged result
+     * @return array Filtered alternatives with only differing values
+     */
+    private static function filterAlternatives(array $alternatives, array $merged): array
+    {
+        $filtered = [];
+
+        foreach ($alternatives as $source => $sourceData) {
+            $diffFields = [];
+
+            foreach ($sourceData as $field => $value) {
+                $mergedValue = $merged[$field] ?? null;
+
+                // Keep if value is different from merged (and not empty)
+                if (!self::isEmpty($value) && $value !== $mergedValue) {
+                    $diffFields[$field] = $value;
+                }
+            }
+
+            // Only include source if it has differing values
+            if (!empty($diffFields)) {
+                $filtered[$source] = $diffFields;
+            }
+        }
+
+        return $filtered;
     }
 
     /**

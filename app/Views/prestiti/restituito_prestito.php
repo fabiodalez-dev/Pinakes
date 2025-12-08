@@ -143,15 +143,20 @@ $csrfToken = Csrf::ensureToken();
                     >
                         <?php
                         $options = [
-                            'restituito'   => __('Restituito'),
-                            'in_ritardo'   => __('In ritardo'),
+                            'restituito'   => __('Restituito regolarmente'),
+                            'in_ritardo'   => __('Restituito in ritardo'),
                             'perso'        => __('Perso'),
                             'danneggiato'  => __('Danneggiato'),
                         ];
-                        $currentStatus = (string)($prestito['stato'] ?? 'restituito');
+                        // Use POST value if form resubmitted, otherwise default to 'restituito'
+                        $defaultStatus = $_POST['stato'] ?? 'restituito';
+                        // Validate against allowed options
+                        if (!array_key_exists($defaultStatus, $options)) {
+                            $defaultStatus = 'restituito';
+                        }
                         foreach ($options as $value => $label):
                         ?>
-                            <option value="<?= $value; ?>" <?= $currentStatus === $value ? 'selected' : ''; ?>>
+                            <option value="<?= $value; ?>" <?= $defaultStatus === $value ? 'selected' : ''; ?>>
                                 <?= $label; ?>
                             </option>
                         <?php endforeach; ?>

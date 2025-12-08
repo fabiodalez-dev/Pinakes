@@ -17,7 +17,7 @@ final class SettingsMailTemplates
                 'label' => __('Registrazione ricevuta'),
                 'description' => __("Inviata all'utente al termine della registrazione per confermare la ricezione e l'attesa di approvazione."),
                 'subject' => 'Registrazione ricevuta - In attesa di approvazione',
-                'placeholders' => ['nome', 'cognome', 'email', 'codice_tessera', 'data_registrazione'],
+                'placeholders' => ['nome', 'cognome', 'email', 'codice_tessera', 'data_registrazione', 'sezione_verifica'],
                 'body' => <<<'HTML'
 <h2>Benvenuto {{nome}} {{cognome}}!</h2>
 <p>La tua richiesta di registrazione è stata ricevuta con successo.</p>
@@ -27,6 +27,7 @@ final class SettingsMailTemplates
     <li>Codice tessera: {{codice_tessera}}</li>
     <li>Data registrazione: {{data_registrazione}}</li>
 </ul>
+{{sezione_verifica}}
 <div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;">
     <p><strong>⏳ Account in attesa di approvazione</strong></p>
     <p>Il tuo account è in attesa di approvazione da parte di un amministratore.

@@ -53,26 +53,40 @@ class SbnClient
         }
 
         $url = self::BASE_URL . self::SEARCH_ENDPOINT . '?isbn=' . urlencode($isbn) . '&rows=1';
+        \App\Support\SecureLogger::debug('[SBN] Searching', ['isbn' => $isbn, 'url' => $url]);
 
         $searchResult = $this->makeRequest($url);
 
-        if ($searchResult === null || !isset($searchResult['briefRecords']) || empty($searchResult['briefRecords'])) {
+        if ($searchResult === null) {
+            \App\Support\SecureLogger::warning('[SBN] Search returned null', ['isbn' => $isbn]);
+            return null;
+        }
+
+        if (!isset($searchResult['briefRecords']) || empty($searchResult['briefRecords'])) {
+            \App\Support\SecureLogger::warning('[SBN] No records found', ['isbn' => $isbn, 'numFound' => $searchResult['numFound'] ?? 0]);
             return null;
         }
 
         $record = $searchResult['briefRecords'][0];
+        \App\Support\SecureLogger::debug('[SBN] Found record', ['isbn' => $isbn, 'title' => $record['titolo'] ?? 'N/A']);
 
         // Get full record for complete metadata
         $bid = $record['codiceIdentificativo'] ?? null;
         if ($bid) {
+            \App\Support\SecureLogger::debug('[SBN] Fetching full record', ['bid' => $bid]);
             $fullRecord = $this->getFullRecord($bid);
             if ($fullRecord) {
-                return $this->parseFullRecord($fullRecord);
+                \App\Support\SecureLogger::debug('[SBN] Full record OK', ['isbn' => $isbn]);
+                $result = $this->parseFullRecord($fullRecord);
+                return $result ? $this->sanitizeForJson($result) : null;
+            } else {
+                \App\Support\SecureLogger::warning('[SBN] Full record failed, using brief', ['bid' => $bid]);
             }
         }
 
         // Fallback to brief record
-        return $this->parseBriefRecord($record);
+        $result = $this->parseBriefRecord($record);
+        return $result ? $this->sanitizeForJson($result) : null;
     }
 
     /**
@@ -101,7 +115,7 @@ class SbnClient
         foreach ($searchResult['briefRecords'] as $record) {
             $parsed = $this->parseBriefRecord($record);
             if ($parsed) {
-                $results[] = $parsed;
+                $results[] = $this->sanitizeForJson($parsed);
             }
         }
 
@@ -133,7 +147,7 @@ class SbnClient
         foreach ($searchResult['briefRecords'] as $record) {
             $parsed = $this->parseBriefRecord($record);
             if ($parsed) {
-                $results[] = $parsed;
+                $results[] = $this->sanitizeForJson($parsed);
             }
         }
 
@@ -210,7 +224,7 @@ class SbnClient
         do {
             $status = curl_multi_exec($multiHandle, $running);
             if ($status > CURLM_OK) {
-                error_log("[SBN Client] curl_multi_exec error: " . curl_multi_strerror($status));
+                \App\Support\SecureLogger::error('[SBN] curl_multi_exec error', ['error' => curl_multi_strerror($status)]);
                 break;
             }
             // Wait for activity (avoids busy-waiting)
@@ -226,14 +240,14 @@ class SbnClient
             $response = curl_multi_getcontent($ch);
 
             if ($error || $httpCode !== 200 || empty($response)) {
-                error_log("[SBN Client] Parallel request failed for BID=$bid: HTTP=$httpCode, Error=$error");
+                \App\Support\SecureLogger::debug('[SBN] Parallel request failed', ['bid' => $bid, 'http_code' => $httpCode, 'error' => $error]);
                 $results[$bid] = null;
             } else {
                 $data = json_decode($response, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $results[$bid] = $data;
                 } else {
-                    error_log("[SBN Client] JSON parse error for BID=$bid: " . json_last_error_msg());
+                    \App\Support\SecureLogger::debug('[SBN] JSON parse error', ['bid' => $bid, 'json_error' => json_last_error_msg()]);
                     $results[$bid] = null;
                 }
             }
@@ -328,6 +342,11 @@ class SbnClient
             }
         }
 
+        // Sanitize all books for JSON safety (remove MARC control chars, ensure UTF-8)
+        foreach ($books as $i => $book) {
+            $books[$i] = $this->sanitizeForJson($book);
+        }
+
         return $books;
     }
 
@@ -349,6 +368,8 @@ class SbnClient
         } else {
             $book['title'] = trim($fullTitle);
         }
+        // Strip MARC-8 control characters (NSB/NSE non-sorting markers)
+        $book['title'] = $this->stripMarcControlChars($book['title']);
 
         if (empty($book['title'])) {
             return null;
@@ -395,8 +416,9 @@ class SbnClient
 
         // Collection/Series
         if (!empty($record['collezione'])) {
-            $book['series'] = $record['collezione'];
-            $book['collana'] = $record['collezione'];
+            $series = $this->stripMarcControlChars($record['collezione']);
+            $book['series'] = $series;
+            $book['collana'] = $series;
         }
 
         // Language
@@ -454,6 +476,8 @@ class SbnClient
         } else {
             $book['title'] = trim($fullTitle);
         }
+        // Strip MARC-8 control characters (NSB/NSE non-sorting markers)
+        $book['title'] = $this->stripMarcControlChars($book['title']);
 
         if (empty($book['title'])) {
             return null;
@@ -719,6 +743,47 @@ class SbnClient
     }
 
     /**
+     * Strip MARC-8 control characters from text
+     *
+     * @param string $text Text that may contain MARC control characters
+     * @return string Cleaned text
+     */
+    private function stripMarcControlChars(string $text): string
+    {
+        // MARC-8 control characters:
+        // \x88 = NSB (Non-Sorting Begin) - marks start of non-filing chars like "Il", "La", "The"
+        // \x89 = NSE (Non-Sorting End) - marks end of non-filing characters
+        // \x98 = Joiner
+        // \x9C = Superscript markers
+        return preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
+    }
+
+    /**
+     * Recursively sanitize all strings in an array to ensure valid UTF-8 for JSON encoding
+     * Removes MARC control chars and all other non-printable characters
+     *
+     * @param array $data Data to sanitize
+     * @return array Sanitized data safe for json_encode
+     */
+    private function sanitizeForJson(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $data[$key] = $this->sanitizeForJson($value);
+            } elseif (is_string($value)) {
+                // Strip ALL C1 control characters (0x80-0x9F) which includes MARC-8 controls
+                $value = preg_replace('/[\x80-\x9F]/', '', $value);
+                // Remove C0 control characters except newline/tab/carriage return
+                $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
+                // Remove invalid UTF-8 sequences (iconv with //IGNORE strips them)
+                $converted = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+                $data[$key] = $converted !== false ? $converted : $value;
+            }
+        }
+        return $data;
+    }
+
+    /**
      * Make HTTP request to SBN API
      *
      * @param string $url Full URL
@@ -745,18 +810,35 @@ class SbnClient
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
+        $totalTime = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
 
         curl_close($ch);
 
-        if ($error || $httpCode !== 200 || empty($response)) {
-            error_log("[SBN Client] Request failed: URL=$url, HTTP=$httpCode, Error=$error");
+        \App\Support\SecureLogger::debug('[SBN] HTTP Request', [
+            'http_code' => $httpCode,
+            'time' => round($totalTime, 3),
+            'size' => strlen($response ?: '')
+        ]);
+
+        if ($error) {
+            \App\Support\SecureLogger::error('[SBN] CURL error', ['error' => $error, 'url' => $url]);
+            return null;
+        }
+
+        if ($httpCode !== 200) {
+            \App\Support\SecureLogger::error('[SBN] HTTP error', ['http_code' => $httpCode, 'response' => substr($response ?: '', 0, 200)]);
+            return null;
+        }
+
+        if (empty($response)) {
+            \App\Support\SecureLogger::error('[SBN] Empty response', ['url' => $url]);
             return null;
         }
 
         $data = json_decode($response, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("[SBN Client] JSON parse error: " . json_last_error_msg());
+            \App\Support\SecureLogger::error('[SBN] JSON parse error', ['error' => json_last_error_msg()]);
             return null;
         }
 

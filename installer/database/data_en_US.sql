@@ -3,36 +3,281 @@
 
 SET FOREIGN_KEY_CHECKS=0;
 
-INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
-('cookie_banner', 'enabled', '1', 'Enable cookie consent banner'),
-('cookie_banner', 'position', 'bottom', 'Position of the cookie banner'),
-('cookie_banner', 'layout', 'bar', 'Layout of the cookie banner'),
-('cookie_banner', 'theme', 'light', 'Color theme for the cookie banner'),
-('cookie_banner', 'primary_color', '#2563eb', 'Primary color for buttons and highlights'),
-('cookie_banner', 'text_color', '#111827', 'Color of the main text in the banner'),
-('cookie_banner', 'background_color', '#ffffff', 'Background color of the banner'),
-('cookie_banner', 'backdrop', '1', 'Show a subtle page backdrop behind the banner'),
-('cookie_banner', 'message', 'We use technical and analytical cookies to ensure the correct functioning of the site and improve your browsing experience. You can accept all cookies or customize your preferences.', 'Main message shown in the cookie banner'),
-('cookie_banner', 'accept_text', 'Accept all', 'Label for the full acceptance button'),
-('cookie_banner', 'reject_text', 'Reject non-essential', 'Label for the button that rejects non-essential cookies'),
-('cookie_banner', 'settings_text', 'Customize', 'Label for the button that opens the cookie preferences panel'),
-('cookie_banner', 'details_title', 'Cookie Preferences', 'Title of the preferences modal/panel'),
-('cookie_banner', 'details_description', 'Select the categories of cookies you want to enable. You can change your preferences at any time from the site footer.', 'Description shown in the preferences panel'),
-('cookie_banner', 'necessary_title', 'Strictly necessary cookies', 'Title for strictly necessary cookies section'),
-('cookie_banner', 'necessary_description', 'These cookies are essential for the correct functioning of the site and cannot be disabled.', 'Description for strictly necessary cookies'),
-('cookie_banner', 'analytics_title', 'Analytics cookies', 'Title for analytics cookies section'),
-('cookie_banner', 'analytics_description', 'These cookies help us understand how the site is used, in order to improve navigation and the quality of our services.', 'Description for analytics cookies'),
-('cookie_banner', 'thirdparty_title', 'Third-party cookies', 'Title for third-party cookies section'),
-('cookie_banner', 'thirdparty_description', 'These cookies may be set by external services integrated into the site (for example, videos, maps, social widgets).', 'Description for third-party cookies'),
-('cookie_banner', 'save_preferences_text', 'Save preferences', 'Label for the button that saves cookie preferences'),
-('cookie_banner', 'learn_more_text', 'Learn more', 'Label for the link/button that opens more information (e.g. Privacy Policy)'),
-('cookie_banner', 'policy_link', '/privacy-policy', 'URL of the Privacy Policy page linked from the banner');
-INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
-('privacy', 'cookie_policy_content', '<p>This page explains how we use cookies on our website.</p>', 'Content displayed on /cookies');
+-- Genres (English translations)
+INSERT INTO `generi` VALUES (1,'Prose',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
+INSERT INTO `generi` VALUES (2,'Poetry',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
+INSERT INTO `generi` VALUES (3,'Theatre',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
+INSERT INTO `generi` VALUES (4,'Narrative',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',1);
+INSERT INTO `generi` VALUES (5,'Non-fiction',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',1);
+INSERT INTO `generi` VALUES (6,'Eloquence',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',1);
+INSERT INTO `generi` VALUES (7,'Epic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',2);
+INSERT INTO `generi` VALUES (8,'Didactic Poetry',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',2);
+INSERT INTO `generi` VALUES (9,'Lyric',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',2);
+INSERT INTO `generi` VALUES (10,'Drama Theatre',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',3);
+INSERT INTO `generi` VALUES (11,'Musical Theatre',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',3);
+INSERT INTO `generi` VALUES (12,'Novel - fragment',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (13,'Novel - historical - alternate history',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (14,'Novel - historical - uchronia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (15,'Novel - historical - cloak and dagger or wuxia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (16,'Novel - historical - Peplum or Sword and sandal',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (17,'Novel - science fiction - technological SF - Singularity Fiction',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (18,'Novel - science fiction - technological SF - cyberpunk - postcyberpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (19,'Novel - science fiction - technological SF - cyberpunk - biopunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (20,'Novel - science fiction - technological SF - cyberpunk - nanopunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (21,'Novel - science fiction - technological SF - cyberpunk - dieselpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (22,'Novel - science fiction - technological SF - cyberpunk - decopunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (23,'Novel - science fiction - technological SF - cyberpunk - Swordpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (24,'Novel - science fiction - technological SF - cyberpunk - sandalpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (25,'Novel - science fiction - technological SF - cyberpunk - Rococopunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (26,'Novel - science fiction - technological SF - cyberpunk - nowpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (27,'Novel - science fiction - technological SF - cyberpunk - steelpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (28,'Novel - science fiction - technological SF - cyberpunk - raypunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (29,'Novel - science fiction - technological SF - cyberpunk - Dreampunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (30,'Novel - science fiction - technological SF - cyberpunk - Elfpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (31,'Novel - science fiction - technological SF - cyberpunk - Ecopunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (32,'Novel - science fiction - technological SF - cyberpunk - clockpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (33,'Novel - science fiction - technological SF - cyberpunk - atompunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (34,'Novel - science fiction - technological SF - cyberpunk - mythpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (35,'Novel - science fiction - technological SF - cyberpunk - stonepunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (36,'Novel - science fiction - technological SF - cyberpunk - steampunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (37,'Novel - science fiction - technological SF - cyberpunk - solarpunk',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (38,'Novel - science fiction - technological SF - space opera - military space opera',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (39,'Novel - science fiction - technological SF - space opera - space western',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (40,'Novel - science fiction - technological SF - space opera - xenofiction',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (41,'Novel - science fiction - technological SF - apocalyptic and post-apocalyptic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (42,'Novel - science fiction - technological SF - planetary romance and sword and planet',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (43,'Novel - science fiction - technological SF - time travel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (44,'Novel - science fiction - technological SF - new wave',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (45,'Novel - science fiction - technological SF - edisonade',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (46,'Novel - science fiction - political SF - utopia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (47,'Novel - science fiction - political SF - dystopia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (48,'Novel - fantasy - high fantasy or epic fantasy - sword and sorcery',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (49,'Novel - fantasy - high fantasy or epic fantasy - dark fantasy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (50,'Novel - fantasy - low fantasy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (51,'Novel - fantasy - Magical realism',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (52,'Novel - fantasy - contemporary fantasy - urban fantasy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (53,'Novel - fantasy - contemporary fantasy - bangsian fantasy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (54,'Novel - adventure novel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (55,'Novel - bildungsroman',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (56,'Novel - serialized novel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (57,'Novel - young adult novel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (58,'Novel - horror - gothic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (59,'Novel - action novel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (60,'Novel - Spy story',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (61,'Novel - thriller - Mystery Thriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (62,'Novel - thriller - Psychological Thriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (63,'Novel - thriller - Spy Thriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (64,'Novel - thriller - Noir Thriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (65,'Novel - thriller - Action Thriller - Pulp - Crime Thriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (66,'Novel - thriller - Technothriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (67,'Novel - thriller - legal thriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (68,'Novel - thriller - Political thriller - Conspiracy thriller',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (69,'Novel - mystery - legal mystery',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (70,'Novel - mystery - medical mystery',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (71,'Novel - mystery - Locked room mystery',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (72,'Novel - noir - urban noir',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (73,'Novel - hard boiled',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (74,'Novel - soft boiled',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (75,'Novel - detective - Police procedural',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (76,'Novel - romance',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (77,'Novel - erotic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (78,'Novel - psychological',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (79,'Novel - humorous - black humor',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (80,'Novel - humorous - satire',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (81,'Novel - humorous - parody',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (82,'Novel - social',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (83,'Novel - epistolary',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (84,'Short story - same subgenres as novel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (85,'Fairy tale',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (86,'Prose fable',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (87,'Historiography - monograph',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (88,'Historiography - annals',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (89,'Historiography - chronicle',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (90,'Historiography - universal history',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (91,'Biography - autobiography',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (92,'Biography - memoirs',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (93,'Diary',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',4);
+INSERT INTO `generi` VALUES (94,'Dialogue',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (95,'Treatise',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (96,'Essay',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (97,'Pamphlet - Libel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (98,'Aphorism',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (99,'Apology',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (100,'Parable',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (101,'Manifesto',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (102,'Emblematics',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (103,'Prose epistle - private',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (104,'Prose epistle - public',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (105,'aretalogy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (106,'hagiography',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (107,'kerygmatic biography',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (108,'philosophical novel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (109,'investigative novel',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',5);
+INSERT INTO `generi` VALUES (110,'Oratory - Epideictic oratory',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',6);
+INSERT INTO `generi` VALUES (111,'Oratory - Forensic oratory',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',6);
+INSERT INTO `generi` VALUES (112,'Oratory - Deliberative oratory',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',6);
+INSERT INTO `generi` VALUES (113,'Epic poem - historical',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',7);
+INSERT INTO `generi` VALUES (114,'Epic poem - mythological',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',7);
+INSERT INTO `generi` VALUES (115,'Epic poem - collective',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',7);
+INSERT INTO `generi` VALUES (116,'Epic poem - chivalric epic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',7);
+INSERT INTO `generi` VALUES (117,'Epic poem - short epic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',7);
+INSERT INTO `generi` VALUES (118,'Epyllion',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',7);
+INSERT INTO `generi` VALUES (119,'Mock-heroic poem - short mock-heroic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',7);
+INSERT INTO `generi` VALUES (120,'Didactic-allegorical poem - short didactic-allegorical',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',8);
+INSERT INTO `generi` VALUES (121,'Didactic poem - short didactic',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',8);
+INSERT INTO `generi` VALUES (122,'Wisdom poem - short wisdom',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',8);
+INSERT INTO `generi` VALUES (123,'Prophecy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',8);
+INSERT INTO `generi` VALUES (124,'verse fable',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',8);
+INSERT INTO `generi` VALUES (125,'philosophical verse epistle',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',8);
+INSERT INTO `generi` VALUES (126,'monodic lyric - Elegy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (127,'monodic lyric - Iamb - Cinedion',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (128,'monodic lyric - Iamb - Meliamb',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (129,'choral lyric - Dithyramb',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (130,'choral lyric - Encomium',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (131,'choral lyric - Epicede',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (132,'choral lyric - Epinicion',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (133,'choral lyric - Epithalamium',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (134,'choral lyric - Hymenaeus',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (135,'choral lyric - Hymn',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (136,'choral lyric - Hyporchema',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (137,'choral lyric - Nomos',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (138,'choral lyric - Partheneia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (139,'choral lyric - Paean',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (140,'choral lyric - Prosodion',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (141,'choral lyric - Skolion',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (142,'choral lyric - Threnos',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (143,'Prayer',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (144,'Lauda',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (145,'Bucolic poetry',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (146,'Satire',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (147,'Sonnet',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (148,'Canzone - Petrarchan',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (149,'Canzone - free form',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (150,'Capitolo (poetic chapter)',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (151,'Lyric poem (Carme)',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (152,'Ode',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (153,'Madrigal',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (154,'Ballad',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (155,'Short lyric poem',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (156,'Cento',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (157,'Free verse',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (158,'Calligram',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (159,'Lyric epistle',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',9);
+INSERT INTO `generi` VALUES (160,'Tragedy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (161,'Comedy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (162,'Drama',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (163,'Melodrama',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (164,'Commedia dell''arte',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (165,'Farce',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (166,'Sketch',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (167,'Prosaic mime',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',10);
+INSERT INTO `generi` VALUES (168,'Opera - opera seria',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (169,'Opera - opera buffa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (170,'Opera - operetta',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (171,'Opera - farce',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (172,'Opera - Zarzuela',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (173,'Opera - Intermezzi',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (174,'Ballet',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (175,'Pantomime',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (176,'Lyric mime - mimiamb',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (177,'Lyric mime - hilarotragedy',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (178,'Lyric mime - magodia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (179,'Lyric mime - Musical',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (180,'Music drama',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+INSERT INTO `generi` VALUES (181,'Oratorio',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',11);
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('cms', 'events_page_enabled', '1', 'Enable or disable the events page on the frontend');
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Catalogue-only mode - disables loans, reservations and wishlist');
+
+-- ============================================================================
+-- System Settings - Complete default configuration
+-- These replace the old storage/settings.json file
+-- ============================================================================
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`, `updated_at`) VALUES
+-- App settings
+('app', 'name', 'Pinakes', 'Application name', NOW()),
+('app', 'logo_path', '', 'Path to application logo', NOW()),
+('app', 'footer_description', 'Your Pinakes system to catalog, manage, and share your book collection.', 'Footer description', NOW()),
+('app', 'locale', 'en_US', 'Default application locale', NOW()),
+('app', 'social_facebook', '', 'Facebook profile URL', NOW()),
+('app', 'social_twitter', '', 'Twitter profile URL', NOW()),
+('app', 'social_instagram', '', 'Instagram profile URL', NOW()),
+('app', 'social_linkedin', '', 'LinkedIn profile URL', NOW()),
+('app', 'social_bluesky', '', 'Bluesky profile URL', NOW()),
+
+-- Email settings are configured by user in installer step 6
+-- No default values here to avoid overwriting user choices
+
+-- Registration settings
+('registration', 'require_admin_approval', '1', 'Require admin approval for new registrations', NOW()),
+
+-- Contacts page settings
+('contacts', 'page_title', 'Contact Us', 'Contacts page title', NOW()),
+('contacts', 'page_content', '<p>Contact us for any information.</p>', 'Contacts page content', NOW()),
+('contacts', 'contact_email', '', 'Contact email address', NOW()),
+('contacts', 'contact_phone', '', 'Contact phone number', NOW()),
+('contacts', 'google_maps_embed', '', 'Google Maps embed code', NOW()),
+('contacts', 'privacy_text', 'Your data is protected according to our privacy policy.', 'Privacy disclaimer text', NOW()),
+('contacts', 'recaptcha_site_key', '', 'reCAPTCHA site key', NOW()),
+('contacts', 'recaptcha_secret_key', '', 'reCAPTCHA secret key', NOW()),
+('contacts', 'notification_email', '', 'Email where contact form submissions are sent', NOW()),
+
+-- Privacy page settings
+('privacy', 'page_title', 'Privacy Policy', 'Privacy policy page title', NOW()),
+('privacy', 'page_content', '<p>Your privacy is important to us.</p>', 'Privacy policy content', NOW()),
+('privacy', 'cookie_banner_enabled', '1', 'Enable cookie consent banner', NOW()),
+('privacy', 'cookie_banner_language', 'en', 'Cookie banner language', NOW()),
+('privacy', 'cookie_banner_country', 'us', 'Cookie banner country', NOW()),
+('privacy', 'cookie_statement_link', '', 'Link to cookie statement', NOW()),
+('privacy', 'cookie_technologies_link', '', 'Link to cookie technologies page', NOW()),
+('privacy', 'cookie_policy_content', '', 'Cookie policy page content', NOW()),
+
+-- Cookie banner settings
+('cookie_banner', 'banner_description', '<p>We use cookies to improve your experience. By continuing to visit this site, you accept our use of cookies.</p>', 'Cookie banner description', NOW()),
+('cookie_banner', 'accept_all_text', 'Accept all', 'Accept all button text', NOW()),
+('cookie_banner', 'reject_non_essential_text', 'Reject non-essential', 'Reject non-essential button text', NOW()),
+('cookie_banner', 'preferences_button_text', 'Preferences', 'Preferences button text', NOW()),
+('cookie_banner', 'save_selected_text', 'Accept selected', 'Save selected button text', NOW()),
+('cookie_banner', 'preferences_title', 'Customize your cookie preferences', 'Preferences modal title', NOW()),
+('cookie_banner', 'preferences_description', '<p>We respect your right to privacy. You can choose not to allow some types of cookies. Your preferences will apply to the entire website.</p>', 'Preferences modal description', NOW()),
+('cookie_banner', 'cookie_essential_name', 'Essential Cookies', 'Essential cookies name', NOW()),
+('cookie_banner', 'cookie_essential_description', 'These cookies are necessary for the site to function and cannot be disabled.', 'Essential cookies description', NOW()),
+('cookie_banner', 'show_analytics', '1', 'Show analytics cookies option', NOW()),
+('cookie_banner', 'cookie_analytics_name', 'Analytics Cookies', 'Analytics cookies name', NOW()),
+('cookie_banner', 'cookie_analytics_description', 'These cookies help us understand how visitors interact with the website.', 'Analytics cookies description', NOW()),
+('cookie_banner', 'show_marketing', '1', 'Show marketing cookies option', NOW()),
+('cookie_banner', 'cookie_marketing_name', 'Marketing Cookies', 'Marketing cookies name', NOW()),
+('cookie_banner', 'cookie_marketing_description', 'These cookies are used to deliver personalized advertisements.', 'Marketing cookies description', NOW()),
+
+-- Advanced settings
+('advanced', 'custom_js_essential', '', 'Custom JavaScript for essential cookies', NOW()),
+('advanced', 'custom_js_analytics', '', 'Custom JavaScript for analytics cookies', NOW()),
+('advanced', 'custom_js_marketing', '', 'Custom JavaScript for marketing cookies', NOW()),
+('advanced', 'custom_header_css', '', 'Custom CSS for header', NOW()),
+('advanced', 'custom_header_js', '', 'Custom JavaScript for header', NOW()),
+('advanced', 'days_before_expiry_warning', '3', 'Days before card expiry warning', NOW()),
+('advanced', 'sitemap_last_generated_at', '', 'Last sitemap generation timestamp', NOW()),
+('advanced', 'sitemap_last_generated_total', '0', 'Total URLs in last generated sitemap', NOW()),
+('advanced', 'api_enabled', '0', 'Enable API access', NOW()),
+
+-- Label printing settings
+('label', 'width', '25', 'Label width in mm', NOW()),
+('label', 'height', '38', 'Label height in mm', NOW()),
+('label', 'format_name', '25x38mm (Standard)', 'Label format name', NOW()),
+
+-- API settings
+('api', 'enabled', '0', 'Enable API globally', NOW()),
+
+-- CMS settings (already exists, but adding for completeness)
+('cms', 'events_page_enabled', '1', 'Enable events page in frontend', NOW())
+ON DUPLICATE KEY UPDATE
+    setting_value = VALUES(setting_value),
+    description = VALUES(description),
+    updated_at = NOW();
 
 -- CMS Pages - English only
 INSERT INTO `cms_pages` VALUES (1,'about-us','en_US','About Us','<h2>Welcome to Pinakes</h2>\n<p>Pinakes is a modern, intuitive, and completely free library management system. Built to simplify book cataloging, loan management, and library administration of any size.</p>\n\n<h3>🎯 Our Mission</h3>\n<p>To make library management accessible to everyone, without license fees or restrictions. Pinakes is 100% open source, free and libre for everyone.</p>\n\n<h3>✨ Key Features</h3>\n<ul>\n    <li><strong>Smart Cataloging:</strong> Automatically import data from ISBN, organize by categories, authors and custom classifications</li>\n    <li><strong>Loan Management:</strong> Complete system for managing loans, due dates, renewals and returns</li>\n    <li><strong>Automatic Notifications:</strong> Email reminders for loan due dates and user communications</li>\n    <li><strong>Modern Interface:</strong> Responsive design optimized for desktop, tablet and smartphone</li>\n    <li><strong>100% Open Source:</strong> Free code, customizable and no hidden costs</li>\n</ul>\n\n<h3>🚀 Why Choose Pinakes?</h3>\n<p>Pinakes was born from the need to provide a professional, reliable and free tool for managing school libraries, associations and private collections. You don''t need to be an IT expert: the intuitive interface allows anyone to start immediately.</p>\n\n<h3>📖 Get Started Today</h3>\n<p>Customize this page with information about your library, your team and your services. Access the <a href=\"/admin/cms/about-us\">admin panel</a> to edit this content and make it unique.</p>\n\n<p><em>This is sample content. Customize it to tell the story of your library!</em></p>',NULL,NULL,1,'2025-10-01 10:35:27','2025-10-01 10:35:27');
@@ -49,10 +294,42 @@ INSERT INTO `email_templates` VALUES (7,'loan_overdue_notification','en_US','�
 INSERT INTO `email_templates` VALUES (8,'loan_request_notification','en_US','📚 New Loan Request','<h2>New Loan Request</h2>\n<p>A new loan request has been received:</p>\n<p><strong>Details:</strong></p>\n<ul>\n    <li>Book: {{book_title}}</li>\n    <li>User: {{user_name}} ({{user_email}})</li>\n    <li>Requested start date: {{start_date}}</li>\n    <li>Requested end date: {{end_date}}</li>\n    <li>Request date: {{request_date}}</li>\n</ul>\n<p><a href=\"{{approve_url}}\" style=\"background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;\">Manage Request</a></p>','Email sent to admins when a user requests a loan.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (9,'user_account_approved','en_US','Account Approved - Welcome to the Library!','<h2>Your account has been approved!</h2>\n<p>Hello {{first_name}} {{last_name}},</p>\n<p>We are pleased to inform you that your account has been approved by an administrator.</p>\n<p>You can now access the system and start booking books!</p>\n<p><strong>Your account details:</strong></p>\n<ul>\n    <li>Email: {{email}}</li>\n    <li>Card code: {{card_code}}</li>\n</ul>\n<p><a href=\"{{login_url}}\" style=\"background-color: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;\">Login Now</a></p>\n<p>Welcome to our digital library!</p>','Email sent when an admin approves the account directly without requiring email verification.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (10,'user_activation_with_verification','en_US','Activate Your Account - Verify Email','<h2>Your account has been approved!</h2>\n<p>Hello {{first_name}} {{last_name}},</p>\n<p>We are pleased to inform you that your account has been approved by an administrator.</p>\n<p>📧 <strong>Verify your email</strong></p>\n<p>To complete activation, click the button below to verify your email address:</p>\n<p style=\"text-align: center; margin: 30px 0;\">\n    <a href=\"{{verification_url}}\" style=\"background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;\">✅ Verify Email</a>\n</p>\n<p><strong>Your account details:</strong></p>\n<ul>\n    <li>Email: {{email}}</li>\n    <li>Card code: {{card_code}}</li>\n</ul>\n<div style=\"background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>⏰ Important</strong></p>\n    <p>The verification link is valid for 7 days. After verification you will be able to access the system and book books.</p>\n</div>\n<p>If you did not request this registration, you can ignore this email.</p>','Email sent when an admin approves the account requiring email verification.',1,NULL,NULL);
-INSERT INTO `email_templates` VALUES (11,'user_registration_pending','en_US','Registration Received - Pending Approval','<h2>Welcome {{first_name}} {{last_name}}!</h2>\n<p>Your registration request has been received successfully.</p>\n<p><strong>Account details:</strong></p>\n<ul>\n    <li>Email: {{email}}</li>\n    <li>Card code: {{card_code}}</li>\n    <li>Registration date: {{registration_date}}</li>\n</ul>\n<div style=\"background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>⏳ Account pending approval</strong></p>\n    <p>Your account is pending approval by an administrator. You will receive a confirmation email once your account has been activated.</p>\n</div>\n<p>Thank you for choosing our library system!</p>','Email sent to the user after registration, when the account is pending approval.',1,NULL,NULL);
+INSERT INTO `email_templates` VALUES (11,'user_registration_pending','en_US','Registration Received - Pending Approval','<h2>Welcome {{first_name}} {{last_name}}!</h2>\n<p>Your registration request has been received successfully.</p>\n<p><strong>Account details:</strong></p>\n<ul>\n    <li>Email: {{email}}</li>\n    <li>Card code: {{card_code}}</li>\n    <li>Registration date: {{registration_date}}</li>\n</ul>\n{{verify_section}}\n<div style=\"background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>⏳ Account pending approval</strong></p>\n    <p>Your account is pending approval by an administrator. You will receive a confirmation email once your account has been activated.</p>\n</div>\n<p>Thank you for choosing our library system!</p>','Email sent to the user after registration, when the account is pending approval.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (12,'wishlist_book_available','en_US','📖 Book from Your Wishlist Now Available!','<h2>Good News!</h2>\n<p>Hello {{user_name}},</p>\n<p>The book you added to your wishlist is now available for loan:</p>\n<div style=\"background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;\">\n    <h3 style=\"color: #1e40af; margin: 0 0 10px 0;\">{{book_title}}</h3>\n    <p style=\"margin: 5px 0;\"><strong>Author:</strong> {{book_author}}</p>\n    <p style=\"margin: 5px 0;\"><strong>ISBN:</strong> {{book_isbn}}</p>\n    <p style=\"margin: 5px 0;\"><strong>Available from:</strong> {{availability_date}}</p>\n</div>\n<div style=\"background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>✨ Book Now!</strong></p>\n    <p>The book is now available for booking. Hurry before someone else books it!</p>\n</div>\n<p style=\"text-align: center;\">\n    <a href=\"{{book_url}}\" style=\"background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;\">📚 Book Now</a>\n    <a href=\"{{wishlist_url}}\" style=\"background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;\">❤️ Manage Wishlist</a>\n</p>\n<p><em>This book has been automatically removed from your wishlist.</em></p>','Email sent when a wishlist book becomes available.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (13,'reservation_book_available','en_US','📚 Reserved Book Ready for Pickup!','<h2>Your book is ready for pickup!</h2>\n<p>Hello {{user_name}},</p>\n<p>We are pleased to inform you that the book you reserved is now available and ready for pickup:</p>\n<div style=\"background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;\">\n    <h3 style=\"color: #1e40af; margin: 0 0 10px 0;\">{{book_title}}</h3>\n    <p style=\"margin: 5px 0;\"><strong>Author:</strong> {{book_author}}</p>\n    <p style=\"margin: 5px 0;\"><strong>ISBN:</strong> {{book_isbn}}</p>\n    <p style=\"margin: 5px 0;\"><strong>Loan Period:</strong> {{start_date}} - {{end_date}}</p>\n</div>\n<div style=\"background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;\">\n    <p><strong>📦 Next Steps</strong></p>\n    <p>Visit the library to pick up the book. Please bring an ID with you.</p>\n</div>\n<p style=\"text-align: center;\">\n    <a href=\"{{book_url}}\" style=\"background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;\">📖 View Book</a>\n    <a href=\"{{profile_url}}\" style=\"background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;\">👤 My Loans</a>\n</p>\n<p><em>Your reservation has been converted to a loan pending pickup confirmation.</em></p>','Email sent when a reserved book becomes available and is converted to a loan.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (14,'user_password_setup','en_US','🔐 Set Up Your Password','<h2>Set Up Your Password</h2>\n<p>Hello {{first_name}} {{last_name}},</p>\n<p>Your account on <strong>{{app_name}}</strong> has been created. To start using the system, you need to set up your password.</p>\n<div style=\"background-color: #f0f9ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #3b82f6;\">\n    <p><strong>🔑 Configure Your Account</strong></p>\n    <p>Click the button below to set your password:</p>\n</div>\n<p style=\"text-align: center; margin: 30px 0;\">\n    <a href=\"{{reset_url}}\" style=\"background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;\">🔐 Set Password</a>\n</p>\n<div style=\"background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>⏰ Important</strong></p>\n    <p>This link is valid for 24 hours. If it expires, contact an administrator to receive a new one.</p>\n</div>\n<p>If you did not request this email, you can ignore it.</p>','Email sent to new users to set up their account password.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (15,'admin_invitation','en_US','🎉 Administrator Invitation','<h2>Welcome to the Team!</h2>\n<p>Hello {{first_name}} {{last_name}},</p>\n<p>You have been invited as an administrator on <strong>{{app_name}}</strong>.</p>\n<div style=\"background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;\">\n    <h3 style=\"color: #1e40af; margin: 0 0 10px 0;\">Your Access</h3>\n    <p>As an administrator, you will have access to:</p>\n    <ul>\n        <li>Book catalog management</li>\n        <li>User and loan management</li>\n        <li>System settings</li>\n        <li>Reports and statistics</li>\n    </ul>\n</div>\n<p><strong>To get started:</strong></p>\n<ol>\n    <li>Set your password by clicking the button below</li>\n    <li>Access the admin dashboard</li>\n</ol>\n<p style=\"text-align: center; margin: 30px 0;\">\n    <a href=\"{{reset_url}}\" style=\"background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block; margin: 10px;\">🔐 Set Password</a>\n    <a href=\"{{dashboard_url}}\" style=\"background-color: #3b82f6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block; margin: 10px;\">📊 Admin Dashboard</a>\n</p>\n<div style=\"background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0;\">\n    <p><strong>⏰ Important</strong></p>\n    <p>The password setup link is valid for 24 hours.</p>\n</div>\n<p>Welcome to the team!</p>','Email sent when a user is invited as an administrator.',1,NULL,NULL);
+
+-- Languages (English as default)
+INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
+(1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 2015, 2015, 100.00),
+(2, 'en_US', 'English', 'English', '🇬🇧', 1, 1, 'locale/en_US.json', 2015, 1988, 98.66);
+
+-- Home Content (English)
+INSERT INTO `home_content` (section_key, title, subtitle, content, button_text, button_link, is_active, display_order, created_at, updated_at) VALUES
+('hero', 'Your Digital Library', 'Explore, book and manage your book collection', NULL, 'Explore the Catalog', '/catalog', 1, -2, NOW(), NOW()),
+('features_title', 'Why Choose Pinakes', 'A modern, intuitive library management experience always at your fingertips', NULL, NULL, NULL, 1, 0, NOW(), NOW()),
+('feature_1', 'Simplified Management', 'Catalog your books, manage loans and returns with an intuitive and fast interface', 'fas fa-tasks', NULL, NULL, 1, 1, NOW(), NOW()),
+('feature_2', 'Complete Cataloging', 'Import data from ISBN, organize by categories, generate labels and track every physical copy', 'fas fa-book', NULL, NULL, 1, 2, NOW(), NOW()),
+('feature_3', 'Loan Management System', 'Manage loans, due dates, renewals and automatic email notifications for users and staff', 'fas fa-exchange-alt', NULL, NULL, 1, 3, NOW(), NOW()),
+('feature_4', 'Open Source & Free', '100% free software, no license costs. Customize and contribute to the Pinakes project', 'fas fa-code-branch', NULL, NULL, 1, 4, NOW(), NOW()),
+('text_content', 'Πίνακες (Pinakes) - "The Tablets"', NULL, '<p>The name <strong>Pinakes</strong> comes from ancient Greek <em>πίνακες</em> (pinakes), meaning "tablets" or "tables". It honors <strong>Callimachus of Cyrene</strong> (305-240 BC) who around 245 BC created the first systematic library catalog in history for the Library of Alexandria: the <em>Πίνακες τῶν ἐν πάσῃ παιδείᾳ διαλαμψάντων καὶ ὧν συνέγραψαν</em> ("Tablets of those who distinguished themselves in every field of knowledge and their works").</p><p>This monumental work, composed of 120 scrolls, systematically organized over 120,000 papyrus scrolls in the library. Although the original <em>Pinakes</em> have been lost, their cataloging method has profoundly influenced modern library science.</p><p>This project continues that millenary tradition of <strong>2,268 years</strong> bringing the same principles of organization and accessibility of knowledge into the digital age.</p>', NULL, NULL, 1, 4, NOW(), NOW()),
+('latest_books_title', 'Latest Arrivals', 'Discover the latest additions to the catalog', NULL, NULL, NULL, 1, 5, NOW(), NOW()),
+('genre_carousel', 'Explore the main genres', 'Discover our thematic roots and get inspired by the available titles.', NULL, NULL, NULL, 1, 6, NOW(), NOW()),
+('events', 'Upcoming Events', 'Join our next meetings', NULL, NULL, NULL, 1, 7, NOW(), NOW()),
+('cta', 'Ready to get started?', 'Register now and start exploring our catalog', NULL, 'Register Now', '/register', 1, 8, NOW(), NOW());
+
+-- Themes (English descriptions)
+INSERT INTO `themes` (`name`, `slug`, `version`, `author`, `description`, `active`, `settings`) VALUES
+('Pinakes Classic', 'default', '1.0.0', 'Pinakes Team', 'Default theme with original Pinakes magenta colors', 1, '{"colors": {"primary": "#d70161", "secondary": "#111827", "button": "#d70262", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Minimal', 'minimal-bw', '1.0.0', 'Pinakes Team', 'Minimalist design with black, gray, and white for a clean and elegant look', 0, '{"colors": {"primary": "#404040", "secondary": "#000000", "button": "#808080", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Ocean Blue', 'ocean-blue', '1.0.0', 'Pinakes Team', 'Modern and professional ocean blue tones for a fresh interface', 0, '{"colors": {"primary": "#0284c7", "secondary": "#0c4a6e", "button": "#0ea5e9", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Forest Green', 'forest-green', '1.0.0', 'Pinakes Team', 'Natural emerald green that recalls the tranquility of nature', 0, '{"colors": {"primary": "#059669", "secondary": "#064e3b", "button": "#10b981", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Sunset Orange', 'sunset-orange', '1.0.0', 'Pinakes Team', 'Warm and welcoming orange inspired by Mediterranean sunsets', 0, '{"colors": {"primary": "#ea580c", "secondary": "#7c2d12", "button": "#f97316", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Burgundy', 'burgundy-red', '1.0.0', 'Pinakes Team', 'Elegant and refined burgundy red for a sophisticated look', 0, '{"colors": {"primary": "#be123c", "secondary": "#881337", "button": "#e11d48", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Teal Professional', 'teal-professional', '1.0.0', 'Pinakes Team', 'Professional teal perfect for corporate environments', 0, '{"colors": {"primary": "#0d9488", "secondary": "#134e4a", "button": "#14b8a6", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Slate Gray', 'slate-gray', '1.0.0', 'Pinakes Team', 'Modern slate gray for a neutral and contemporary design', 0, '{"colors": {"primary": "#475569", "secondary": "#1e293b", "button": "#64748b", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Coral Warm', 'coral-warm', '1.0.0', 'Pinakes Team', 'Warm and inviting coral tones for a welcoming atmosphere', 0, '{"colors": {"primary": "#f43f5e", "secondary": "#9f1239", "button": "#fb7185", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
+('Navy Classic', 'navy-classic', '1.0.0', 'Pinakes Team', 'Classic and timeless navy blue for an institutional look', 0, '{"colors": {"primary": "#1e40af", "secondary": "#1e3a8a", "button": "#3b82f6", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}');
 
 SET FOREIGN_KEY_CHECKS=1;

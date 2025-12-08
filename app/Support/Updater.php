@@ -651,8 +651,8 @@ class Updater
             throw new Exception(__('Impossibile creare directory di backup applicazione'));
         }
 
-        // Directories to backup for rollback
-        $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer'];
+        // Directories to backup for rollback (vendor included - critical for dependencies)
+        $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
 
         foreach ($dirsToBackup as $dir) {
             $sourcePath = $this->rootPath . '/' . $dir;
@@ -677,7 +677,7 @@ class Updater
      */
     private function restoreAppFiles(string $backupPath): void
     {
-        $dirsToRestore = ['app', 'config', 'locale', 'public/assets', 'installer'];
+        $dirsToRestore = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
 
         foreach ($dirsToRestore as $dir) {
             $sourcePath = $backupPath . '/' . $dir;
@@ -737,7 +737,8 @@ class Updater
     private function cleanupOrphanFiles(string $newSourcePath): void
     {
         // Directories to check for orphan files
-        $dirsToCheck = ['app', 'config', 'locale', 'installer'];
+        // NOTE: vendor/ is NOT included - it's fully replaced from the release package
+        $dirsToCheck = ['app', 'config', 'locale', 'installer', 'public/assets'];
 
         foreach ($dirsToCheck as $dir) {
             $currentDir = $this->rootPath . '/' . $dir;
@@ -897,18 +898,37 @@ class Updater
                             // Not supported: stored procedures, triggers, strings containing ';',
                             // or multi-line comments containing ';'. For complex migrations,
                             // use multiple simple statements.
+
+                            // Remove SQL comments (full-line only, starting with --)
+                            // NOTE: This only removes full-line comments, not inline comments
+                            // (e.g., "SELECT * -- comment") or multi-line comments (/* ... */).
+                            // Migration files should avoid inline comments for compatibility.
+                            $sqlLines = explode("\n", $sql);
+                            $sqlLines = array_filter($sqlLines, fn($line) => !preg_match('/^\s*--/', $line));
+                            $sql = implode("\n", $sqlLines);
+
                             $statements = array_filter(
                                 array_map('trim', explode(';', $sql)),
-                                fn($s) => !empty($s) && !preg_match('/^--/', $s)
+                                fn($s) => !empty($s)
                             );
 
                             foreach ($statements as $statement) {
                                 if (!empty(trim($statement))) {
                                     $result = $this->db->query($statement);
                                     if ($result === false) {
-                                        throw new Exception(
-                                            sprintf(__('Errore SQL durante migrazione %s: %s'), $filename, $this->db->error)
-                                        );
+                                        // Ignore idempotent errors (safe to retry migrations)
+                                        // 1060: Duplicate column name (column already added)
+                                        // 1061: Duplicate key name (index already exists)
+                                        // 1050: Table already exists (use IF NOT EXISTS in migrations)
+                                        // Note: 1068 (Multiple primary key) is NOT ignored - it's a schema error
+                                        $ignorableErrors = [1060, 1061, 1050];
+                                        if (!in_array($this->db->errno, $ignorableErrors, true)) {
+                                            throw new Exception(
+                                                sprintf(__('Errore SQL durante migrazione %s: %s'), $filename, $this->db->error)
+                                            );
+                                        }
+                                        // Log ignorable error but continue (expected on re-run)
+                                        error_log("[Updater] Ignorable migration error in {$filename} (errno {$this->db->errno}): " . $this->db->error);
                                     }
                                 }
                             }
@@ -1026,51 +1046,72 @@ class Updater
     }
 
     /**
-     * Log update start
+     * Log update start (fails silently if table missing)
      */
     private function logUpdateStart(string $fromVersion, string $toVersion, ?string $backupPath): int
     {
-        $userId = (isset($_SESSION) && isset($_SESSION['user']['id']))
-            ? (int) $_SESSION['user']['id']
-            : null;
+        try {
+            // Try to create table if missing
+            $this->db->query("CREATE TABLE IF NOT EXISTS `update_logs` (
+                `id` int NOT NULL AUTO_INCREMENT,
+                `from_version` varchar(20) NOT NULL,
+                `to_version` varchar(20) NOT NULL,
+                `status` enum('started','completed','failed','rolled_back') NOT NULL DEFAULT 'started',
+                `backup_path` varchar(500) DEFAULT NULL,
+                `error_message` text,
+                `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
+                `completed_at` datetime DEFAULT NULL,
+                `executed_by` int DEFAULT NULL,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-        $stmt = $this->db->prepare("
-            INSERT INTO update_logs (from_version, to_version, status, backup_path, executed_by)
-            VALUES (?, ?, 'started', ?, ?)
-        ");
-        if ($stmt === false) {
-            throw new Exception(__('Errore preparazione log aggiornamento') . ': ' . $this->db->error);
+            $userId = (isset($_SESSION) && isset($_SESSION['user']['id']))
+                ? (int) $_SESSION['user']['id']
+                : null;
+
+            $stmt = $this->db->prepare("
+                INSERT INTO update_logs (from_version, to_version, status, backup_path, executed_by)
+                VALUES (?, ?, 'started', ?, ?)
+            ");
+            if ($stmt === false) {
+                return 0;
+            }
+            $stmt->bind_param('sssi', $fromVersion, $toVersion, $backupPath, $userId);
+            $stmt->execute();
+            $id = $this->db->insert_id;
+            $stmt->close();
+
+            return $id;
+        } catch (\Throwable $e) {
+            error_log("[Updater] Log skipped: " . $e->getMessage());
+            return 0;
         }
-        $stmt->bind_param('sssi', $fromVersion, $toVersion, $backupPath, $userId);
-        $stmt->execute();
-        $id = $this->db->insert_id;
-        $stmt->close();
-
-        return $id;
     }
 
     /**
-     * Log update completion
+     * Log update completion (fails silently)
      */
     private function logUpdateComplete(int $logId, bool $success, ?string $error = null): void
     {
-        $status = $success ? 'completed' : 'failed';
+        if ($logId <= 0) {
+            return; // No log to update
+        }
 
-        $stmt = $this->db->prepare("
-            UPDATE update_logs
-            SET status = ?, error_message = ?, completed_at = NOW()
-            WHERE id = ?
-        ");
-        if ($stmt === false) {
-            throw new Exception(__('Errore preparazione completamento log') . ': ' . $this->db->error);
+        try {
+            $status = $success ? 'completed' : 'failed';
+            $stmt = $this->db->prepare("
+                UPDATE update_logs
+                SET status = ?, error_message = ?, completed_at = NOW()
+                WHERE id = ?
+            ");
+            if ($stmt) {
+                $stmt->bind_param('ssi', $status, $error, $logId);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            error_log("[Updater] Log completion skipped: " . $e->getMessage());
         }
-        $stmt->bind_param('ssi', $status, $error, $logId);
-        if (!$stmt->execute()) {
-            $stmtError = $stmt->error;
-            $stmt->close();
-            throw new Exception(__('Errore aggiornamento log') . ': ' . $stmtError);
-        }
-        $stmt->close();
     }
 
     /**
@@ -1378,6 +1419,37 @@ class Updater
         // Prevent timeout on slow connections or large updates
         set_time_limit(0);
 
+        // Acquire exclusive lock to prevent concurrent updates
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        $lockDir = dirname($lockFile);
+        if (!is_dir($lockDir)) {
+            @mkdir($lockDir, 0755, true);
+        }
+
+        $lockHandle = @fopen($lockFile, 'c');
+        if (!$lockHandle) {
+            return [
+                'success' => false,
+                'error' => __('Impossibile creare il file di lock per l\'aggiornamento'),
+                'backup_path' => null
+            ];
+        }
+
+        // Try to acquire exclusive lock (non-blocking)
+        if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            fclose($lockHandle);
+            return [
+                'success' => false,
+                'error' => __('Un altro aggiornamento è già in corso. Riprova più tardi.'),
+                'backup_path' => null
+            ];
+        }
+
+        // Write PID to lock file for debugging
+        ftruncate($lockHandle, 0);
+        fwrite($lockHandle, (string)getmypid());
+        fflush($lockHandle);
+
         // Enable maintenance mode to prevent user access during update
         $this->enableMaintenanceMode();
 
@@ -1419,6 +1491,12 @@ class Updater
         } finally {
             // Always cleanup temporary files, regardless of success or failure
             $this->cleanup();
+
+            // Release update lock
+            if (isset($lockHandle) && is_resource($lockHandle)) {
+                flock($lockHandle, LOCK_UN);
+                fclose($lockHandle);
+            }
         }
 
         return $result;

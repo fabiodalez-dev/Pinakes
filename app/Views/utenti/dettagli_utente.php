@@ -5,6 +5,10 @@ use App\Support\HtmlHelper;
 function getLoanStatusBadge($status) {
     $baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
     switch ($status) {
+        case 'pendente':
+            return "<span class='$baseClasses bg-amber-100 text-amber-800'><i class='fas fa-hourglass-half mr-2'></i>" . __("In attesa") . "</span>";
+        case 'prenotato':
+            return "<span class='$baseClasses bg-purple-100 text-purple-800'><i class='fas fa-bookmark mr-2'></i>" . __("Prenotato") . "</span>";
         case 'in_corso':
             return "<span class='$baseClasses bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>" . __("In Corso") . "</span>";
         case 'in_ritardo':

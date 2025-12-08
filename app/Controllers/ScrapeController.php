@@ -6,6 +6,7 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DeweyAutoPopulator;
+use App\Support\SecureLogger;
 
 class ScrapeController
 {
@@ -42,20 +43,23 @@ class ScrapeController
 
         // Check if any sources are available
         if (empty($sources)) {
-            error_log("[ScrapeController] No scraping sources available");
+            SecureLogger::debug('[ScrapeController] No scraping sources available');
             $response->getBody()->write(json_encode([
                 'error' => __('Nessuna fonte di scraping disponibile. Installa almeno un plugin di scraping (es. Open Library o Scraping Pro).'),
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
         }
 
-        error_log("[ScrapeController] Available sources: " . implode(', ', array_keys($sources)));
+        SecureLogger::debug('[ScrapeController] Available sources', ['sources' => array_keys($sources)]);
 
         // Hook: scrape.fetch.custom - Allow plugins to completely replace scraping logic
         $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $cleanIsbn]);
 
-        if ($customResult !== null) {
-            error_log("[ScrapeController] ISBN $cleanIsbn found via plugins");
+        // Check if plugin result has a title (complete data) or only partial data (e.g., cover only)
+        $hasCompleteData = is_array($customResult) && !empty($customResult['title']);
+
+        if ($hasCompleteData) {
+            SecureLogger::debug('[ScrapeController] ISBN found via plugins', ['isbn' => $cleanIsbn]);
 
             // Plugin handled scraping completely, use its result
             $payload = $customResult;
@@ -78,8 +82,8 @@ class ScrapeController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        // Plugins are active but no data found for this ISBN
-        error_log("[ScrapeController] ISBN $cleanIsbn not found in any source, trying built-in fallbacks");
+        // Plugins returned no data or only partial data (e.g., cover only) - try built-in fallbacks
+        SecureLogger::debug('[ScrapeController] Trying built-in fallbacks', ['isbn' => $cleanIsbn]);
 
         // Built-in fallback: try Google Books (no key or env GOOGLE_BOOKS_API_KEY) then Open Library
         $fallbackData = $this->fallbackFromGoogleBooks($cleanIsbn);
@@ -88,6 +92,24 @@ class ScrapeController
         }
 
         if ($fallbackData !== null) {
+            // Merge partial plugin data (e.g., cover from Goodreads) into fallback data
+            if (is_array($customResult)) {
+                // Fallback data is the base, plugin data fills gaps (like cover)
+                foreach ($customResult as $key => $value) {
+                    // Check if value from plugin is not empty (handles strings, arrays, null)
+                    $valueNotEmpty = $value !== '' && $value !== null && $value !== [];
+                    // Check if fallback value is empty or missing
+                    $fallbackEmpty = !isset($fallbackData[$key])
+                        || $fallbackData[$key] === ''
+                        || $fallbackData[$key] === null
+                        || $fallbackData[$key] === [];
+                    if ($valueNotEmpty && $fallbackEmpty) {
+                        $fallbackData[$key] = $value;
+                    }
+                }
+                SecureLogger::debug('[ScrapeController] Merged plugin partial data', ['isbn' => $cleanIsbn]);
+            }
+
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);
 
@@ -174,7 +196,7 @@ class ScrapeController
     {
         // Rate limiting to prevent API bans
         if (!$this->checkRateLimit('google_books', 10)) {
-            error_log("[ScrapeController] Google Books API rate limit exceeded for ISBN: $isbn");
+            SecureLogger::debug('[ScrapeController] Google Books API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
 
@@ -312,7 +334,7 @@ class ScrapeController
     {
         // Rate limiting to prevent API bans
         if (!$this->checkRateLimit('openlibrary', 10)) {
-            error_log("[ScrapeController] Open Library API rate limit exceeded for ISBN: $isbn");
+            SecureLogger::debug('[ScrapeController] Open Library API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
 
@@ -403,21 +425,29 @@ class ScrapeController
     {
         $storageDir = __DIR__ . '/../../storage/rate_limits';
         if (!is_dir($storageDir)) {
-            mkdir($storageDir, 0755, true);
+            if (!@mkdir($storageDir, 0755, true) && !is_dir($storageDir)) {
+                return true; // Fail open: allow call if storage unavailable
+            }
         }
 
         $rateLimitFile = $storageDir . '/' . $apiName . '.json';
+
+        // Use flock for atomic read-modify-write to prevent TOCTOU race condition
+        $fp = fopen($rateLimitFile, 'c+');
+        if (!$fp) {
+            return true; // Fail open if file can't be opened
+        }
+
+        flock($fp, LOCK_EX);
         $now = time();
 
         // Load existing rate limit data
         $data = ['calls' => [], 'last_cleanup' => $now];
-        if (file_exists($rateLimitFile)) {
-            $json = file_get_contents($rateLimitFile);
-            if ($json !== false) {
-                $decoded = json_decode($json, true);
-                if (is_array($decoded)) {
-                    $data = $decoded;
-                }
+        $json = stream_get_contents($fp);
+        if ($json !== false && $json !== '') {
+            $decoded = json_decode($json, true);
+            if (is_array($decoded)) {
+                $data = $decoded;
             }
         }
 
@@ -425,8 +455,14 @@ class ScrapeController
         $data['calls'] = array_filter($data['calls'], fn($timestamp) => ($now - $timestamp) < 60);
 
         // Check if rate limit exceeded
-        if (count($data['calls']) >= $maxCallsPerMinute) {
-            error_log("[ScrapeController] Rate limit exceeded for $apiName: " . count($data['calls']) . " calls in last minute");
+        if (\count($data['calls']) >= $maxCallsPerMinute) {
+            SecureLogger::debug('[ScrapeController] Rate limit exceeded', [
+                'api' => $apiName,
+                'calls' => \count($data['calls']),
+                'limit' => $maxCallsPerMinute
+            ]);
+            flock($fp, LOCK_UN);
+            fclose($fp);
             return false;
         }
 
@@ -434,8 +470,12 @@ class ScrapeController
         $data['calls'][] = $now;
         $data['last_cleanup'] = $now;
 
-        // Save with lock
-        file_put_contents($rateLimitFile, json_encode($data), LOCK_EX);
+        // Write back atomically
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, json_encode($data));
+        flock($fp, LOCK_UN);
+        fclose($fp);
 
         return true;
     }

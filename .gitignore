@@ -22,6 +22,7 @@ backups/*
 !backups/.htaccess
 *.sql
 !installer/database/*.sql
+!installer/database/migrations/*.sql
 *.backup
 *.backup*
 !/backups/.htaccess
@@ -193,6 +194,7 @@ docs/*.txt
 docs/*.html
 security.md
 fix.md
+todo.md
 PRESTITI.md
 PRESTITI_CODEX.md
 changelog-*.md
@@ -209,7 +211,9 @@ traduzione_stringhe.md
 # ========================================
 # Git Service Files
 # ========================================
-.github/
+.github/*
+!.github/workflows/
+vendor/**/.github/
 **/.gitkeep
 
 # ========================================
@@ -350,8 +354,6 @@ claude.md
 # Internal documentation
 FEATURES_IT.md
 .gemini/settings.json
-UPDATER.md
-updater.md
 
 # Changelog files
 changelog-*.md
@@ -377,3 +379,7 @@ docs/reference/backup-instructions.md
 docs/reference/app-documentation.md
 docs/reference/agents.md
 CHANGELOG.md
+updater.md
+
+# Internal development folder (completely untracked)
+internal/

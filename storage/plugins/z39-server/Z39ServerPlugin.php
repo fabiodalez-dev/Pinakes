@@ -484,8 +484,11 @@ class Z39ServerPlugin
         // $sources is required by hook signature but not used here
         unset($sources);
 
+        \App\Support\SecureLogger::debug('[Z39] fetchBookMetadata called', ['isbn' => $isbn, 'has_existing' => $existing !== null]);
+
         // Check if client is enabled
         if (!$this->isSettingEnabled('enable_client')) {
+            \App\Support\SecureLogger::warning('[Z39] SRU client is disabled', ['isbn' => $isbn]);
             return $existing; // Pass through existing data unchanged
         }
 
@@ -493,11 +496,15 @@ class Z39ServerPlugin
 
         // Try SBN first (Italian National Library)
         $sbnEnabled = $this->isSettingEnabled('enable_sbn', true);
+        \App\Support\SecureLogger::debug('[Z39] SBN status', ['isbn' => $isbn, 'sbn_enabled' => $sbnEnabled]);
+
         if ($sbnEnabled) {
             $sbnData = $this->fetchFromSbn($isbn);
             if ($sbnData) {
-                $this->log('info', 'Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '']);
+                \App\Support\SecureLogger::debug('[Z39] Book found via SBN', ['isbn' => $isbn, 'title' => $sbnData['title'] ?? '']);
                 $result = $this->mergeBookData($result, $sbnData, 'sbn');
+            } else {
+                \App\Support\SecureLogger::warning('[Z39] SBN returned no data', ['isbn' => $isbn]);
             }
         }
 
@@ -507,16 +514,14 @@ class Z39ServerPlugin
 
         // Validate JSON decode result
         if ($servers === null && $serversJson !== 'null' && $serversJson !== '[]') {
-            $this->log('error', 'Invalid servers JSON configuration', [
-                'json_error' => json_last_error_msg()
-            ]);
+            \App\Support\SecureLogger::error('[Z39] Invalid servers JSON', ['json_error' => json_last_error_msg()]);
             return $result;
         }
 
         if (!empty($servers) && is_array($servers)) {
             $z39Data = $this->fetchFromSru($isbn, $servers);
             if ($z39Data) {
-                $this->log('info', 'Book found via SRU', ['isbn' => $isbn, 'title' => $z39Data['title'] ?? '']);
+                \App\Support\SecureLogger::debug('[Z39] Book found via SRU', ['isbn' => $isbn, 'title' => $z39Data['title'] ?? '']);
                 $result = $this->mergeBookData($result, $z39Data, 'z39');
             }
         }
@@ -534,7 +539,7 @@ class Z39ServerPlugin
     {
         $clientFile = __DIR__ . '/classes/SbnClient.php';
         if (!file_exists($clientFile)) {
-            $this->log('error', 'SBN client file not found', ['path' => $clientFile]);
+            \App\Support\SecureLogger::error('[Z39] SBN client file not found', ['path' => $clientFile]);
             return null;
         }
 
@@ -545,7 +550,12 @@ class Z39ServerPlugin
             $client = new \Plugins\Z39Server\Classes\SbnClient($timeout, true);
             return $client->searchByIsbn($isbn);
         } catch (\Throwable $e) {
-            $this->log('error', 'Error in SBN client', ['error' => $e->getMessage()]);
+            \App\Support\SecureLogger::error('[Z39] SBN client error', [
+                'isbn' => $isbn,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
             return null;
         }
     }
@@ -561,7 +571,7 @@ class Z39ServerPlugin
     {
         $clientFile = __DIR__ . '/classes/SruClient.php';
         if (!file_exists($clientFile)) {
-            $this->log('error', 'SRU client file not found', ['path' => $clientFile]);
+            \App\Support\SecureLogger::error('[Z39] SRU client file not found', ['path' => $clientFile]);
             return null;
         }
 
@@ -574,7 +584,7 @@ class Z39ServerPlugin
             $client->setOptions(['timeout' => $timeout]);
             return $client->searchByIsbn($isbn);
         } catch (\Throwable $e) {
-            $this->log('error', 'Error in SRU client', ['error' => $e->getMessage()]);
+            \App\Support\SecureLogger::error('[Z39] Error in SRU client', ['error' => $e->getMessage()]);
             return null;
         }
     }
