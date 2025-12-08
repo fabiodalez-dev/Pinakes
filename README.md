@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.3.0-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.0-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 [![CodeRabbit](https://img.shields.io/coderabbit/prs/reviewed/github/fabiodalez-dev/Pinakes?style=for-the-badge&logo=coderabbit&logoColor=white&label=PRs%20Reviewed)](https://coderabbit.ai)
@@ -22,79 +22,63 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.3.0
+## What's New in v0.4.0
 
-### Completely Redesigned Dewey Classification System
+### GDPR Privacy Consent Tracking
 
-The Dewey Decimal Classification system has been completely rewritten. Data is no longer stored in the database but loaded from JSON files, enabling more flexible and collaborative management.
+Full GDPR compliance with privacy policy acceptance tracking:
+- **Privacy consent tracking** — Users must accept privacy policy; acceptance date and policy version recorded
+- **New user fields** — `privacy_accettata`, `data_accettazione_privacy`, `privacy_policy_version`
+- **Automatic backfill** — Existing active users marked as accepted with registration date
+- **Privacy dashboard** — Administrators can view consent status per user
 
-**Key features:**
-- **Automatic import from SBN**: When querying books via the SBN API (Italian National Library Service), if the record contains a Dewey classification it is automatically imported. If the code already exists in the JSON file it is applied to the book; if not, it is permanently added to the JSON with its Italian description.
-- **Dewey Editor Plugin**: A dedicated plugin for visual classification management — tree view, manual code addition per language (IT/EN), inline name editing, search, and delete functionality.
-- **JSON Import/Export**: Classification files can be exported and imported, enabling collaborative sharing between Pinakes installations. Merge mode allows adding data from other sources without losing customizations.
-- **Multi-language support**: Separate JSON files for Italian and English with automatic locale detection.
+### Persistent "Remember Me" Sessions
 
-### Built-in Auto-Updater
+Secure persistent login sessions:
+- **30-day sessions** — Secure tokens stored with SHA256 hashing
+- **Multi-device support** — Users can be logged in on multiple devices
+- **Automatic cleanup** — Expired tokens removed by maintenance cron
+- **New table** — `user_remember_tokens` for token storage
 
-Starting from this version, Pinakes includes an integrated update system. Administrators can check, download, and install new versions directly from the control panel.
+### Improved Maintenance System
 
-**Note**: Since this is the first version with the updater, v0.3.0 must be installed manually. Future releases can be updated automatically from the admin interface.
+Enhanced reliability for background maintenance tasks:
+- **Process locking** — Prevents concurrent cron executions
+- **Error handling** — Index check wrapped in try/catch for robustness
+- **Marker-based throttling** — Weekly index checks, daily availability recalculation
+- **Session cleanup** — Automatic removal of expired remember tokens
 
-**Update process**: Requirements check, automatic database backup, secure download from GitHub Releases, application file backup for rollback, file installation respecting protected paths (.env, uploads, storage), orphan file cleanup, automatic database migrations, OpCache reset.
+### Loan Return UX Improvements
 
-**Security**: Atomic rollback on error, path traversal protection, CSRF validation, admin-only access.
+Better user experience for book returns:
+- **Smart default status** — Return form defaults to "Returned on time"
+- **Clear labels** — Distinguishes "Returned on time" vs "Returned late"
+- **Form persistence** — Preserves selection on validation errors
 
-### Database Backup System
+---
 
-New comprehensive backup management:
-- **Automatic pre-update backup**: Full database dump before every update
-- **Manual on-demand backup**: Create backups anytime from the admin panel
-- **Backup list**: View all backups with creation date and size
-- **Download**: Save backups externally for disaster recovery
-- **Delete**: Remove old backups to free disk space
-- **Location**: Backups saved in `storage/backups/` in SQL format
+## Previous Release: v0.3.0
 
-### Author Normalization
+### Updating from v0.3.0
 
-Intelligent system to prevent duplicate authors:
-- **Automatic format conversion**: "Levi, Primo" and "Primo Levi" are recognized as the same author
-- **Source normalization**: Names are normalized during SBN import
-- **Fuzzy matching**: Finds existing authors regardless of name format
+If you're already on v0.3.0, update directly from **Admin → Updates**. The auto-updater handles everything automatically.
 
-### Author/Publisher Merge
+### Updating from v0.2.x or Earlier
 
-New feature to unify duplicate records:
-- Bulk selection of authors or publishers to merge
-- Automatic reassignment of all books to the primary record
-- Deletion of duplicate records
-
-### IMPORTANT: Breaking Changes for Existing Installations
-
-**v0.3.0 is NOT compatible with previous versions without manual migration.**
-
-If you are upgrading from v0.2.x or earlier, you MUST run the migration script before updating the application files:
+**Manual migration required.** Run the migration script before updating:
 
 ```bash
 # 1. BACKUP YOUR DATABASE FIRST!
-mysqldump -u USER -p DATABASE > backup_before_0.3.0.sql
+mysqldump -u USER -p DATABASE > backup_before_upgrade.sql
 
-# 2. Run the migration
+# 2. Run migrations in order
 mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.3.0.sql
+mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.4.0.sql
 
 # 3. Then replace the application files
 ```
 
-**What changes:**
-- **Database column renamed**: `classificazione_dowey` → `classificazione_dewey` (typo fix)
-- **Table removed**: `classificazione` (Dewey data now loaded from JSON files)
-- **Tables added**: `migrations`, `update_logs`, `z39_access_logs`, `z39_rate_limits`
-- **Database total**: 41 tables (was 38 + classificazione = 39 in v0.2.x)
-
-**If you skip the migration**, the application will fail with database errors because it expects the new column name.
-
-**For new installations**: No action needed — the installer handles everything automatically.
-
-**Future updates**: Starting from v0.3.0, updates can be performed automatically from Admin → Updates. The auto-updater handles migrations, backups, and file updates safely.
+**Key v0.3.0 features**: Dewey Classification system (JSON-based), Built-in Auto-Updater, Database Backup System, Author Normalization, Author/Publisher Merge
 
 ---
 
