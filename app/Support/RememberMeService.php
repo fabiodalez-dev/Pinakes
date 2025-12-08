@@ -325,7 +325,7 @@ class RememberMeService
     private function setCookie(string $token): void
     {
         $expires = time() + (self::TOKEN_LIFETIME_DAYS * 24 * 60 * 60);
-        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $secure = $this->isSecureConnection();
 
         setcookie(self::COOKIE_NAME, $token, [
             'expires' => $expires,
@@ -346,10 +346,37 @@ class RememberMeService
             'expires' => time() - 3600,
             'path' => '/',
             'domain' => '',
-            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+            'secure' => $this->isSecureConnection(),
             'httponly' => true,
             'samesite' => 'Lax'
         ]);
+    }
+
+    /**
+     * Detect if the connection is secure (HTTPS).
+     * Handles reverse proxy/load balancer scenarios via X-Forwarded-Proto header.
+     */
+    private function isSecureConnection(): bool
+    {
+        // Direct HTTPS
+        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            return true;
+        }
+
+        // Behind reverse proxy/load balancer (Nginx, Apache, Cloudflare, etc.)
+        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+            return true;
+        }
+
+        // Cloudflare specific header
+        if (isset($_SERVER['HTTP_CF_VISITOR'])) {
+            $visitor = json_decode($_SERVER['HTTP_CF_VISITOR'], true);
+            if (isset($visitor['scheme']) && $visitor['scheme'] === 'https') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -439,8 +466,14 @@ class RememberMeService
 
         try {
             $result = $this->db->query("SHOW TABLES LIKE 'user_sessions'");
-            self::$tableExistsCache = $result && $result->num_rows > 0;
+            if ($result === false) {
+                error_log("[RememberMeService] tableExists query failed: " . $this->db->error);
+                self::$tableExistsCache = false;
+            } else {
+                self::$tableExistsCache = $result->num_rows > 0;
+            }
         } catch (\Exception $e) {
+            error_log("[RememberMeService] tableExists exception: " . $e->getMessage());
             self::$tableExistsCache = false;
         }
 
