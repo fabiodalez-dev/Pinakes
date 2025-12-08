@@ -49,7 +49,7 @@ class MaintenanceController
                 'report' => $report
             ];
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $result = [
                 'success' => false,
                 'message' => __("Errore durante la correzione:") . ' ' . $e->getMessage(),
@@ -76,7 +76,7 @@ class MaintenanceController
                 'details' => $result
             ]));
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante il ricalcolo:") . ' ' . $e->getMessage()
@@ -120,7 +120,7 @@ class MaintenanceController
                 'results' => $results
             ]));
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante la manutenzione:") . ' ' . $e->getMessage(),
