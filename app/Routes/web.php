@@ -1325,6 +1325,13 @@ return function (App $app): void {
         return $controller->generateIndexesSQL($request, $response, $db);
     })->add(new AuthMiddleware(['admin']));
 
+    // System tables creation route
+    $app->post('/admin/maintenance/create-system-tables', function ($request, $response) use ($app) {
+        $controller = new MaintenanceController();
+        $db = $app->getContainer()->get('db');
+        return $controller->createMissingSystemTables($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
+
     $app->get('/admin/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');

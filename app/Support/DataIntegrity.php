@@ -775,6 +775,18 @@ class DataIntegrity {
             $results['errors'][] = "Errore creazione indici: " . $e->getMessage();
         }
 
+        // 9. Crea tabelle di sistema mancanti (update_logs, migrations)
+        try {
+            $tableResult = $this->createMissingSystemTables();
+            $results['fixed'] += $tableResult['created'];
+            $results['system_tables_created'] = $tableResult['created'];
+            if (!empty($tableResult['errors'])) {
+                $results['errors'] = array_merge($results['errors'], $tableResult['errors']);
+            }
+        } catch (Exception $e) {
+            $results['errors'][] = "Errore creazione tabelle di sistema: " . $e->getMessage();
+        }
+
         return $results;
     }
 
@@ -889,7 +901,105 @@ class DataIntegrity {
         // Add missing indexes check
         $report['missing_indexes'] = $this->checkMissingIndexes();
 
+        // Add missing system tables check
+        $report['missing_system_tables'] = $this->checkMissingSystemTables();
+
         return $report;
+    }
+
+    /**
+     * Definisce le tabelle di sistema richieste per l'updater
+     */
+    private function getExpectedSystemTables(): array {
+        return [
+            'update_logs' => "CREATE TABLE IF NOT EXISTS `update_logs` (
+                `id` INT NOT NULL AUTO_INCREMENT,
+                `from_version` VARCHAR(20) NOT NULL,
+                `to_version` VARCHAR(20) NOT NULL,
+                `status` ENUM('started', 'completed', 'failed', 'rolled_back') NOT NULL DEFAULT 'started',
+                `backup_path` VARCHAR(500) DEFAULT NULL COMMENT 'Path to backup file',
+                `error_message` TEXT,
+                `started_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `completed_at` DATETIME DEFAULT NULL,
+                `executed_by` INT DEFAULT NULL COMMENT 'User ID who initiated update',
+                PRIMARY KEY (`id`),
+                KEY `idx_status` (`status`),
+                KEY `idx_started` (`started_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Logs all update attempts'",
+            'migrations' => "CREATE TABLE IF NOT EXISTS `migrations` (
+                `id` INT NOT NULL AUTO_INCREMENT,
+                `version` VARCHAR(20) NOT NULL COMMENT 'Version number (e.g., 0.3.0)',
+                `filename` VARCHAR(255) NOT NULL COMMENT 'Migration filename',
+                `batch` INT NOT NULL DEFAULT 1 COMMENT 'Batch number for rollback',
+                `executed_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'When migration was executed',
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `unique_version` (`version`),
+                KEY `idx_batch` (`batch`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tracks executed database migrations'",
+        ];
+    }
+
+    /**
+     * Verifica quali tabelle di sistema sono mancanti
+     */
+    public function checkMissingSystemTables(): array {
+        $expected = $this->getExpectedSystemTables();
+        $missing = [];
+
+        foreach ($expected as $tableName => $createSql) {
+            $result = $this->db->query("SHOW TABLES LIKE '$tableName'");
+            if (!$result || $result->num_rows === 0) {
+                $missing[] = [
+                    'table' => $tableName,
+                    'create_sql' => $createSql,
+                ];
+            }
+            if ($result instanceof \mysqli_result) {
+                $result->free();
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Crea le tabelle di sistema mancanti
+     */
+    public function createMissingSystemTables(): array {
+        $missing = $this->checkMissingSystemTables();
+        $results = ['created' => 0, 'errors' => [], 'details' => []];
+
+        foreach ($missing as $table) {
+            $tableName = $table['table'];
+            $createSql = $table['create_sql'];
+
+            try {
+                if ($this->db->query($createSql)) {
+                    $results['created']++;
+                    $results['details'][] = [
+                        'success' => true,
+                        'table' => $tableName,
+                        'message' => \sprintf(__("Tabella %s creata"), $tableName)
+                    ];
+                } else {
+                    $results['errors'][] = \sprintf(__("Errore creazione tabella %s:"), $tableName) . ' ' . $this->db->error;
+                    $results['details'][] = [
+                        'success' => false,
+                        'table' => $tableName,
+                        'message' => $this->db->error
+                    ];
+                }
+            } catch (Exception $e) {
+                $results['errors'][] = \sprintf(__("Eccezione creazione tabella %s:"), $tableName) . ' ' . $e->getMessage();
+                $results['details'][] = [
+                    'success' => false,
+                    'table' => $tableName,
+                    'message' => $e->getMessage()
+                ];
+            }
+        }
+
+        return $results;
     }
 
     /**

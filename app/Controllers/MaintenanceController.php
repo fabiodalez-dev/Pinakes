@@ -174,6 +174,36 @@ class MaintenanceController
     }
 
     /**
+     * Crea le tabelle di sistema mancanti (update_logs, migrations)
+     */
+    public function createMissingSystemTables(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
+
+        $integrity = new DataIntegrity($db);
+
+        try {
+            $result = $integrity->createMissingSystemTables();
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => sprintf(__("%d tabelle create con successo"), $result['created']),
+                'created' => $result['created'],
+                'details' => $result['details'] ?? [],
+                'errors' => $result['errors'] ?? []
+            ]));
+
+        } catch (\Exception $e) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("Errore durante la creazione delle tabelle:") . ' ' . $e->getMessage()
+            ]));
+        }
+
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
      * Applica un fix specifico alla configurazione .env
      */
     public function applyConfigFix(Request $request, Response $response): Response
