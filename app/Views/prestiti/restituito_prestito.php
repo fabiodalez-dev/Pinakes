@@ -148,8 +148,12 @@ $csrfToken = Csrf::ensureToken();
                             'perso'        => __('Perso'),
                             'danneggiato'  => __('Danneggiato'),
                         ];
-                        // Default sempre a 'restituito' - questa è la pagina di restituzione
-                        $defaultStatus = 'restituito';
+                        // Use POST value if form resubmitted, otherwise default to 'restituito'
+                        $defaultStatus = $_POST['stato'] ?? 'restituito';
+                        // Validate against allowed options
+                        if (!array_key_exists($defaultStatus, $options)) {
+                            $defaultStatus = 'restituito';
+                        }
                         foreach ($options as $value => $label):
                         ?>
                             <option value="<?= $value; ?>" <?= $defaultStatus === $value ? 'selected' : ''; ?>>
