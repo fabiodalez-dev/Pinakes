@@ -39,14 +39,145 @@ class PluginManager
     }
 
     /**
+     * Bundled plugins that ship with Pinakes
+     * These are auto-registered and activated if their folders exist
+     */
+    private const BUNDLED_PLUGINS = [
+        'open-library',
+        'z39-server',
+        'api-book-scraper',
+        'digital-library',
+        'dewey-editor',
+    ];
+
+    /**
+     * Auto-register bundled plugins that exist on disk but not in database
+     * This ensures bundled plugins survive updates even if DB entries were lost
+     *
+     * @return int Number of plugins auto-registered
+     */
+    public function autoRegisterBundledPlugins(): int
+    {
+        $registered = 0;
+
+        foreach (self::BUNDLED_PLUGINS as $pluginName) {
+            $pluginPath = $this->pluginsDir . '/' . $pluginName;
+            $jsonPath = $pluginPath . '/plugin.json';
+
+            // Skip if folder doesn't exist
+            if (!is_dir($pluginPath) || !file_exists($jsonPath)) {
+                continue;
+            }
+
+            // Check if already registered
+            $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ?");
+            $stmt->bind_param('s', $pluginName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $exists = $result->num_rows > 0;
+            $stmt->close();
+
+            if ($exists) {
+                continue; // Already registered
+            }
+
+            // Read plugin.json
+            $json = file_get_contents($jsonPath);
+            $pluginMeta = json_decode($json, true);
+
+            if (!$pluginMeta || empty($pluginMeta['name'])) {
+                error_log("[PluginManager] Invalid plugin.json for bundled plugin: $pluginName");
+                continue;
+            }
+
+            // Insert into database
+            $stmt = $this->db->prepare("
+                INSERT INTO plugins (
+                    name, display_name, description, version, author, author_url, plugin_url,
+                    is_active, path, main_file, requires_php, requires_app, metadata, installed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NOW())
+            ");
+
+            $metadata = json_encode($pluginMeta['metadata'] ?? []);
+            $name = $pluginMeta['name'];
+            $displayName = $pluginMeta['display_name'] ?? $pluginName;
+            $description = $pluginMeta['description'] ?? '';
+            $version = $pluginMeta['version'] ?? '1.0.0';
+            $author = $pluginMeta['author'] ?? '';
+            $authorUrl = $pluginMeta['author_url'] ?? '';
+            $pluginUrl = $pluginMeta['plugin_url'] ?? '';
+            $path = $pluginMeta['name'];
+            $mainFile = $pluginMeta['main_file'] ?? 'wrapper.php';
+            $requiresPhp = $pluginMeta['requires_php'] ?? '';
+            $requiresApp = $pluginMeta['requires_app'] ?? '';
+
+            $stmt->bind_param(
+                'ssssssssssss',
+                $name,
+                $displayName,
+                $description,
+                $version,
+                $author,
+                $authorUrl,
+                $pluginUrl,
+                $path,
+                $mainFile,
+                $requiresPhp,
+                $requiresApp,
+                $metadata
+            );
+
+            if ($stmt->execute()) {
+                $pluginId = $this->db->insert_id;
+                $registered++;
+                error_log("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, active)");
+
+                // Run onInstall if exists
+                try {
+                    $this->runPluginMethod($pluginName, 'setPluginId', [$pluginId]);
+                } catch (\Throwable $e) {
+                    // Optional method
+                }
+
+                try {
+                    $this->runPluginMethod($pluginName, 'onInstall');
+                } catch (\Throwable $e) {
+                    error_log("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
+                }
+
+                // Register hooks for active plugin
+                try {
+                    $this->runPluginMethod($pluginName, 'onActivate');
+                } catch (\Throwable $e) {
+                    error_log("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                }
+            } else {
+                error_log("[PluginManager] Failed to auto-register $pluginName: " . $this->db->error);
+            }
+
+            $stmt->close();
+        }
+
+        if ($registered > 0) {
+            error_log("[PluginManager] Auto-registered $registered bundled plugin(s)");
+        }
+
+        return $registered;
+    }
+
+    /**
      * Get all installed plugins
      * Automatically cleans up orphan plugins (missing folders)
+     * and auto-registers bundled plugins if needed
      *
      * @return array
      */
     public function getAllPlugins(): array
     {
-        // First, clean up any orphan plugins
+        // First, auto-register bundled plugins that exist on disk but not in DB
+        $this->autoRegisterBundledPlugins();
+
+        // Then clean up any orphan plugins (non-bundled)
         $this->cleanupOrphanPlugins();
 
         $query = "SELECT * FROM plugins ORDER BY display_name ASC";
