@@ -225,8 +225,7 @@ if ($lastAvailabilityCheck < $oneDayAgo) {
     if (!$countResult) {
         error_log("Maintenance: Failed to count books: " . $db->error);
         echo "✗ Could not retrieve book count, skipping availability recalculation\n\n";
-        // Update marker to avoid repeated failures on each run
-        file_put_contents($availabilityMarker, (string)time());
+        // Do NOT update marker on error - allow retry on next run to detect persistent issues
     } else {
         $totalBooks = (int)$countResult->fetch_assoc()['total'];
 
