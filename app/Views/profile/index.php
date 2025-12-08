@@ -504,7 +504,9 @@
     confirmRevoke: <?= json_encode(__("Vuoi disconnettere questo dispositivo?")) ?>,
     confirmRevokeAll: <?= json_encode(__("Vuoi disconnettere tutti i dispositivi? Dovrai effettuare nuovamente l'accesso su ogni dispositivo.")) ?>,
     error: <?= json_encode(__("Si è verificato un errore. Riprova.")) ?>,
-    unknown: <?= json_encode(__("Dispositivo sconosciuto")) ?>
+    unknown: <?= json_encode(__("Dispositivo sconosciuto")) ?>,
+    activeSessions: <?= json_encode(__("sessioni attive")) ?>,
+    timeout: <?= json_encode(__("La richiesta ha impiegato troppo tempo. Riprova.")) ?>
   };
 
   function formatDate(dateStr) {
@@ -517,16 +519,21 @@
     const container = document.getElementById('sessions-container');
     container.innerHTML = '<div class="sessions-loading"><i class="fas fa-spinner fa-spin"></i> ' + translations.loading + '</div>';
 
-    fetch('/api/profile/sessions', { credentials: 'same-origin' })
+    // Add timeout support for network issues
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    fetch('/api/profile/sessions', { credentials: 'same-origin', signal: controller.signal })
       .then(response => response.json())
       .then(data => {
+        clearTimeout(timeoutId);
         if (!data.sessions || data.sessions.length === 0) {
           container.innerHTML = '<div class="sessions-empty">' + translations.noSessions + '</div>';
           return;
         }
 
         let html = '<div class="sessions-header">';
-        html += '<span style="font-size: 0.875rem; color: #6b7280;">' + data.sessions.length + ' <?= __("sessioni attive") ?></span>';
+        html += '<span style="font-size: 0.875rem; color: #6b7280;">' + data.sessions.length + ' ' + translations.activeSessions + '</span>';
         if (data.sessions.length > 1) {
           html += '<button type="button" class="btn btn-danger btn-secondary" onclick="revokeAllSessions()">';
           html += '<i class="fas fa-sign-out-alt"></i> ' + translations.revokeAll + '</button>';
@@ -557,8 +564,12 @@
           html += '</span>';
           html += '</div>';
           if (!isCurrent) {
-            html += '<button type="button" class="btn-danger" onclick="revokeSession(' + session.id + ')">';
-            html += '<i class="fas fa-times"></i> ' + translations.revoke + '</button>';
+            // Validate session.id is a positive integer before using in onclick
+            const sessionId = parseInt(session.id, 10);
+            if (!isNaN(sessionId) && sessionId > 0) {
+              html += '<button type="button" class="btn-danger" onclick="revokeSession(' + sessionId + ')">';
+              html += '<i class="fas fa-times"></i> ' + translations.revoke + '</button>';
+            }
           }
           html += '</div>';
         });
@@ -567,9 +578,12 @@
         container.innerHTML = html;
       })
       .catch(function(error) {
+        clearTimeout(timeoutId);
         console.error('Error loading sessions:', error);
+        // Check if it was a timeout (AbortError)
+        const message = error.name === 'AbortError' ? translations.timeout : translations.error;
         container.innerHTML = '<div class="sessions-empty" style="color: #dc2626;">' +
-          '<i class="fas fa-exclamation-triangle"></i> ' + translations.error + '</div>';
+          '<i class="fas fa-exclamation-triangle"></i> ' + message + '</div>';
       });
   }
 
