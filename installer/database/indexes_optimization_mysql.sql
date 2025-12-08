@@ -69,6 +69,9 @@ CALL add_index_if_not_exists('editori', 'idx_nome', 'nome(100)');
 -- =====================================================
 CALL add_index_if_not_exists('prestiti', 'idx_stato_attivo', 'stato, attivo');
 CALL add_index_if_not_exists('prestiti', 'idx_data_prestito', 'data_prestito');
+CALL add_index_if_not_exists('prestiti', 'idx_copia_id', 'copia_id');
+CALL add_index_if_not_exists('prestiti', 'idx_origine', 'origine');
+CALL add_index_if_not_exists('prestiti', 'idx_libro_utente', 'libro_id, utente_id');
 
 -- =====================================================
 -- TABELLA: utenti
@@ -99,6 +102,9 @@ CALL add_index_if_not_exists('copie', 'idx_numero_inventario', 'numero_inventari
 CALL add_index_if_not_exists('prenotazioni', 'idx_libro_id', 'libro_id');
 CALL add_index_if_not_exists('prenotazioni', 'idx_utente_id', 'utente_id');
 CALL add_index_if_not_exists('prenotazioni', 'idx_stato', 'stato');
+CALL add_index_if_not_exists('prenotazioni', 'idx_stato_libro', 'stato, libro_id');
+CALL add_index_if_not_exists('prenotazioni', 'idx_queue_position', 'queue_position');
+CALL add_index_if_not_exists('prenotazioni', 'idx_data_scadenza', 'data_scadenza_prenotazione');
 
 -- Pulizia: rimuovi la procedura helper
 DROP PROCEDURE IF EXISTS add_index_if_not_exists;
