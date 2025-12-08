@@ -20,9 +20,14 @@ class ScrapeController
             return '';
         }
         // Remove MARC-8 control characters (NSB/NSE non-sorting markers)
-        $text = preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
+        // These are single-byte characters in MARC-8 encoding: 0x88, 0x89, 0x98, 0x9C
+        $text = preg_replace('/[\x{0088}\x{0089}\x{0098}\x{009C}]/u', '', $text);
+        // Also remove any other C1 control characters (0x80-0x9F) that might cause issues
+        $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text);
+        // Ensure valid UTF-8 (replace invalid sequences)
+        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         // Collapse multiple whitespace into single space and trim
-        return trim(preg_replace('/\s+/', ' ', $text));
+        return trim(preg_replace('/\s+/u', ' ', $text));
     }
 
     /**
@@ -109,8 +114,12 @@ class ScrapeController
             // Auto-populate Dewey JSON if classification found (language-aware)
             DeweyAutoPopulator::processBookData($payload);
 
-            $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
             if ($json === false) {
+                SecureLogger::error('[ScrapeController] JSON encode failed', [
+                    'isbn' => $cleanIsbn,
+                    'json_error' => json_last_error_msg()
+                ]);
                 $response->getBody()->write(json_encode([
                     'error' => __('Impossibile generare la risposta JSON.'),
                 ], JSON_UNESCAPED_UNICODE));
@@ -158,8 +167,12 @@ class ScrapeController
             // Auto-populate Dewey JSON if classification found (language-aware)
             DeweyAutoPopulator::processBookData($fallbackData);
 
-            $json = json_encode($fallbackData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $json = json_encode($fallbackData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
             if ($json === false) {
+                SecureLogger::error('[ScrapeController] JSON encode failed (fallback)', [
+                    'isbn' => $cleanIsbn,
+                    'json_error' => json_last_error_msg()
+                ]);
                 $response->getBody()->write(json_encode([
                     'error' => __('Impossibile generare la risposta JSON.'),
                 ], JSON_UNESCAPED_UNICODE));
