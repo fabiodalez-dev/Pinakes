@@ -651,8 +651,8 @@ class Updater
             throw new Exception(__('Impossibile creare directory di backup applicazione'));
         }
 
-        // Directories to backup for rollback
-        $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer'];
+        // Directories to backup for rollback (vendor included - critical for dependencies)
+        $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
 
         foreach ($dirsToBackup as $dir) {
             $sourcePath = $this->rootPath . '/' . $dir;
@@ -677,7 +677,7 @@ class Updater
      */
     private function restoreAppFiles(string $backupPath): void
     {
-        $dirsToRestore = ['app', 'config', 'locale', 'public/assets', 'installer'];
+        $dirsToRestore = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
 
         foreach ($dirsToRestore as $dir) {
             $sourcePath = $backupPath . '/' . $dir;
@@ -737,7 +737,8 @@ class Updater
     private function cleanupOrphanFiles(string $newSourcePath): void
     {
         // Directories to check for orphan files
-        $dirsToCheck = ['app', 'config', 'locale', 'installer'];
+        // NOTE: vendor/ is NOT included - it's fully replaced from the release package
+        $dirsToCheck = ['app', 'config', 'locale', 'installer', 'public/assets'];
 
         foreach ($dirsToCheck as $dir) {
             $currentDir = $this->rootPath . '/' . $dir;
@@ -1045,10 +1046,55 @@ class Updater
     }
 
     /**
+     * Check if update_logs table exists
+     */
+    private function updateLogsTableExists(): bool
+    {
+        $result = $this->db->query("SHOW TABLES LIKE 'update_logs'");
+        if ($result === false) {
+            return false;
+        }
+        $exists = $result->num_rows > 0;
+        $result->free();
+        return $exists;
+    }
+
+    /**
+     * Create update_logs table if it doesn't exist
+     */
+    private function createUpdateLogsTable(): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS `update_logs` (
+            `id` int NOT NULL AUTO_INCREMENT,
+            `from_version` varchar(20) NOT NULL,
+            `to_version` varchar(20) NOT NULL,
+            `status` enum('started','completed','failed','rolled_back') NOT NULL DEFAULT 'started',
+            `backup_path` varchar(500) DEFAULT NULL,
+            `error_message` text,
+            `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
+            `completed_at` datetime DEFAULT NULL,
+            `executed_by` int DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `idx_status` (`status`),
+            KEY `idx_started` (`started_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+        $result = $this->db->query($sql);
+        if ($result === false) {
+            throw new Exception(__('Errore creazione tabella update_logs') . ': ' . $this->db->error);
+        }
+    }
+
+    /**
      * Log update start
      */
     private function logUpdateStart(string $fromVersion, string $toVersion, ?string $backupPath): int
     {
+        // Ensure update_logs table exists before trying to write
+        if (!$this->updateLogsTableExists()) {
+            $this->createUpdateLogsTable();
+        }
+
         $userId = (isset($_SESSION) && isset($_SESSION['user']['id']))
             ? (int) $_SESSION['user']['id']
             : null;
@@ -1397,6 +1443,37 @@ class Updater
         // Prevent timeout on slow connections or large updates
         set_time_limit(0);
 
+        // Acquire exclusive lock to prevent concurrent updates
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        $lockDir = dirname($lockFile);
+        if (!is_dir($lockDir)) {
+            @mkdir($lockDir, 0755, true);
+        }
+
+        $lockHandle = @fopen($lockFile, 'c');
+        if (!$lockHandle) {
+            return [
+                'success' => false,
+                'error' => __('Impossibile creare il file di lock per l\'aggiornamento'),
+                'backup_path' => null
+            ];
+        }
+
+        // Try to acquire exclusive lock (non-blocking)
+        if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            fclose($lockHandle);
+            return [
+                'success' => false,
+                'error' => __('Un altro aggiornamento è già in corso. Riprova più tardi.'),
+                'backup_path' => null
+            ];
+        }
+
+        // Write PID to lock file for debugging
+        ftruncate($lockHandle, 0);
+        fwrite($lockHandle, (string)getmypid());
+        fflush($lockHandle);
+
         // Enable maintenance mode to prevent user access during update
         $this->enableMaintenanceMode();
 
@@ -1438,6 +1515,12 @@ class Updater
         } finally {
             // Always cleanup temporary files, regardless of success or failure
             $this->cleanup();
+
+            // Release update lock
+            if (isset($lockHandle) && is_resource($lockHandle)) {
+                flock($lockHandle, LOCK_UN);
+                fclose($lockHandle);
+            }
         }
 
         return $result;

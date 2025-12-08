@@ -8,10 +8,11 @@
 .gitignore
 .gitattributes
 
-# Development dependencies
+# Development dependencies (node_modules excluded, vendor INCLUDED for production)
 node_modules/
-vendor/
 frontend/node_modules/
+# NOTE: vendor/ is NOT excluded - it MUST be included in releases
+# The release package includes optimized vendor/ from: composer install --no-dev --optimize-autoloader
 
 # Development files
 *.log
@@ -37,6 +38,9 @@ CLAUDE.md
 # CI/CD
 .github/
 
+# Release artifacts (don't package previous releases)
+releases/
+
 # Temporary files
 *.bak
 *.backup
@@ -47,11 +51,37 @@ clean-*.sh
 export-*.php
 fix-*.php
 
-# Storage/uploads (user data)
-uploads/*
-storage/*
+# Storage/uploads (exclude user data, keep directory structure)
+storage/logs/*
+storage/cache/*
+storage/backups/*
+storage/uploads/*
+storage/tmp/*
+storage/calendar/*
+storage/plugins/*
+public/uploads/*
 backups/*
 cache/*
 
-# Keep only essentials for uploads
-!uploads/copertine/placeholder.jpg
+# Keep essential files and directory structure
+!storage/logs/.gitkeep
+!storage/cache/.gitkeep
+!storage/backups/.gitkeep
+!storage/backups/.htaccess
+!storage/uploads/.gitkeep
+!storage/uploads/.htaccess
+!storage/tmp/.gitkeep
+!storage/calendar/.gitkeep
+!storage/calendar/.htaccess
+!storage/plugins/.gitkeep
+!storage/.htaccess
+!public/uploads/.gitkeep
+!public/uploads/copertine/
+!public/uploads/copertine/placeholder.jpg
+
+# Include bundled plugins (they're part of the distribution)
+!storage/plugins/open-library/
+!storage/plugins/z39-server/
+!storage/plugins/api-book-scraper/
+!storage/plugins/digital-library/
+!storage/plugins/dewey-editor/
