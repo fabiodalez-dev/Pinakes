@@ -184,28 +184,33 @@ $oneWeekAgo = time() - 7 * 24 * 60 * 60;
 if ($lastIndexCheck < $oneWeekAgo) {
     echo "Checking database indexes (weekly)...\n";
 
-    $missingIndexes = $dataIntegrity->checkMissingIndexes();
+    try {
+        $missingIndexes = $dataIntegrity->checkMissingIndexes();
 
-    if (!empty($missingIndexes)) {
-        echo "Found " . count($missingIndexes) . " missing indexes, creating...\n";
-        $indexResult = $dataIntegrity->createMissingIndexes();
+        if (!empty($missingIndexes)) {
+            echo "Found " . count($missingIndexes) . " missing indexes, creating...\n";
+            $indexResult = $dataIntegrity->createMissingIndexes();
 
-        if ($indexResult['created'] > 0) {
-            echo "✓ Created {$indexResult['created']} indexes\n";
-        }
-        if (!empty($indexResult['errors'])) {
-            foreach ($indexResult['errors'] as $error) {
-                error_log("Maintenance: Index error: $error");
-                echo "✗ $error\n";
+            if ($indexResult['created'] > 0) {
+                echo "✓ Created {$indexResult['created']} indexes\n";
             }
+            if (!empty($indexResult['errors'])) {
+                foreach ($indexResult['errors'] as $error) {
+                    error_log("Maintenance: Index error: $error");
+                    echo "✗ $error\n";
+                }
+            }
+        } else {
+            echo "✓ All indexes present\n";
         }
-    } else {
-        echo "✓ All indexes present\n";
-    }
 
-    // Update marker
-    if (file_put_contents($indexCheckMarker, (string)time()) === false) {
-        error_log("Maintenance: Could not update index check marker");
+        // Update marker only on success
+        if (file_put_contents($indexCheckMarker, (string)time()) === false) {
+            error_log("Maintenance: Could not update index check marker");
+        }
+    } catch (\Throwable $e) {
+        error_log("Maintenance: Index check failed: " . $e->getMessage());
+        echo "✗ Index check failed, see error log\n";
     }
     echo "\n";
 }
