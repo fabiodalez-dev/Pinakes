@@ -8,6 +8,14 @@
 .gitignore
 .gitattributes
 
+# IDE and AI assistant folders
+.gemini/
+.qoder/
+.claude/
+.vscode/
+.idea/
+.cursor/
+
 # Development dependencies (node_modules excluded, vendor INCLUDED for production)
 node_modules/
 frontend/node_modules/
@@ -40,6 +48,17 @@ CLAUDE.md
 
 # Release artifacts (don't package previous releases)
 releases/
+*.zip
+!storage/plugins/*.zip
+
+# Build script outputs
+build-tmp/
+migrations/
+
+# Development documentation
+updater.md
+todo.md
+.distignore
 
 # Temporary files
 *.bak

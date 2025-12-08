@@ -300,6 +300,9 @@ class SruClient
         // These are used in library cataloging but shouldn't display to users
         $book['title'] = preg_replace('/[\x88\x89\x98\x9C]/', '', $book['title']);
         $book['subtitle'] = preg_replace('/[\x88\x89\x98\x9C]/', '', $book['subtitle']);
+        // Normalize whitespace (collapse multiple spaces into one)
+        $book['title'] = trim(preg_replace('/\s+/', ' ', $book['title']));
+        $book['subtitle'] = trim(preg_replace('/\s+/', ' ', $book['subtitle']));
 
         // Author (100 $a) and additional authors (700 $a)
         $author = $getSubfield('100', 'a');
@@ -450,6 +453,8 @@ class SruClient
         $book['title'] = $getDcElement('title') ?? '';
         // Remove MARC-8 control characters (NSB/NSE non-sorting markers, etc.)
         $book['title'] = preg_replace('/[\x88\x89\x98\x9C]/', '', $book['title']);
+        // Normalize whitespace (collapse multiple spaces into one)
+        $book['title'] = trim(preg_replace('/\s+/', ' ', $book['title']));
 
         // Creators/Authors
         $creators = $getAllDcElements('creator');
