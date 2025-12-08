@@ -1026,36 +1026,10 @@ class Updater
     }
 
     /**
-     * Ensure update_logs table exists (creates if missing)
-     */
-    private function ensureUpdateLogsTable(): void
-    {
-        $sql = "CREATE TABLE IF NOT EXISTS `update_logs` (
-            `id` int NOT NULL AUTO_INCREMENT,
-            `from_version` varchar(20) NOT NULL,
-            `to_version` varchar(20) NOT NULL,
-            `status` enum('started','completed','failed','rolled_back') NOT NULL DEFAULT 'started',
-            `backup_path` varchar(500) DEFAULT NULL,
-            `error_message` text,
-            `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
-            `completed_at` datetime DEFAULT NULL,
-            `executed_by` int DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            KEY `idx_status` (`status`),
-            KEY `idx_started` (`started_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-
-        $this->db->query($sql);
-    }
-
-    /**
      * Log update start
      */
     private function logUpdateStart(string $fromVersion, string $toVersion, ?string $backupPath): int
     {
-        // Ensure table exists before logging (fixes upgrades from pre-0.3.0)
-        $this->ensureUpdateLogsTable();
-
         $userId = (isset($_SESSION) && isset($_SESSION['user']['id']))
             ? (int) $_SESSION['user']['id']
             : null;
