@@ -143,15 +143,16 @@ $csrfToken = Csrf::ensureToken();
                     >
                         <?php
                         $options = [
-                            'restituito'   => __('Restituito'),
-                            'in_ritardo'   => __('In ritardo'),
+                            'restituito'   => __('Restituito regolarmente'),
+                            'in_ritardo'   => __('Restituito in ritardo'),
                             'perso'        => __('Perso'),
                             'danneggiato'  => __('Danneggiato'),
                         ];
-                        $currentStatus = (string)($prestito['stato'] ?? 'restituito');
+                        // Default sempre a 'restituito' - questa è la pagina di restituzione
+                        $defaultStatus = 'restituito';
                         foreach ($options as $value => $label):
                         ?>
-                            <option value="<?= $value; ?>" <?= $currentStatus === $value ? 'selected' : ''; ?>>
+                            <option value="<?= $value; ?>" <?= $defaultStatus === $value ? 'selected' : ''; ?>>
                                 <?= $label; ?>
                             </option>
                         <?php endforeach; ?>
