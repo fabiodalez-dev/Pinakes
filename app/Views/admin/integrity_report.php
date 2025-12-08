@@ -292,6 +292,83 @@
             </div>
         </div>
 
+        <!-- Missing System Tables Section -->
+        <?php $missingTables = $report['missing_system_tables'] ?? []; ?>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        <i class="fas fa-table mr-2 text-amber-500"></i><?= __("Tabelle di Sistema") ?>
+                    </h2>
+                    <?php if (empty($missingTables)): ?>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                            <i class="fas fa-check-circle mr-2"></i><?= __("Complete") ?>
+                        </span>
+                    <?php else: ?>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                            <i class="fas fa-exclamation-triangle mr-2"></i><?= sprintf(__("%d Tabelle Mancanti"), count($missingTables)) ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <?php if (empty($missingTables)): ?>
+                    <div class="text-center py-8">
+                        <i class="fas fa-check-circle text-4xl text-green-500 mb-4"></i>
+                        <p class="text-gray-600 dark:text-gray-400 text-lg"><?= __("Tutte le tabelle di sistema sono presenti!") ?></p>
+                        <p class="text-sm text-gray-500 dark:text-gray-500 mt-2"><?= __("Il sistema di aggiornamento è pronto.") ?></p>
+                    </div>
+                <?php else: ?>
+                    <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <div class="flex items-start">
+                            <i class="fas fa-info-circle text-amber-500 mt-1 mr-3"></i>
+                            <div>
+                                <p class="text-amber-800 dark:text-amber-200 font-medium"><?= __("Tabelle richieste per l'aggiornamento") ?></p>
+                                <p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                                    <?= __("Queste tabelle sono necessarie per tracciare gli aggiornamenti e le migrazioni del database.") ?>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-900/50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Tabella") ?></th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Descrizione") ?></th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                <?php
+                                $tableDescriptions = [
+                                    'update_logs' => __("Cronologia degli aggiornamenti eseguiti"),
+                                    'migrations' => __("Registro delle migrazioni database applicate"),
+                                ];
+                                foreach ($missingTables as $table): ?>
+                                <tr>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                        <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded"><?= htmlspecialchars($table['table'], ENT_QUOTES, 'UTF-8') ?></code>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                                        <?= htmlspecialchars($tableDescriptions[$table['table']] ?? '', ENT_QUOTES, 'UTF-8') ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-6">
+                        <button onclick="createMissingSystemTables()" class="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors">
+                            <i class="fas fa-plus-circle mr-2"></i><?= __("Crea Tabelle Mancanti") ?>
+                        </button>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
         <!-- Actions -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4"><?= __("Azioni di Manutenzione") ?></h3>
@@ -529,10 +606,61 @@ async function createMissingIndexes() {
     }
 }
 
+async function createMissingSystemTables() {
+    const processingTitle = <?= json_encode(__("Creazione tabelle...")) ?>;
+    const doneTitle = <?= json_encode(__("Operazione completata")) ?>;
+    const failTitle = <?= json_encode(__("Operazione fallita")) ?>;
+    const commErr = <?= json_encode(__("Errore di comunicazione con il server")) ?>;
+
+    const confirmTitle = <?= json_encode(__("Confermi?")) ?>;
+    const confirmText = <?= json_encode(__("Vuoi creare le tabelle di sistema mancanti? Queste sono necessarie per il sistema di aggiornamento.")) ?>;
+    const confirmResult = await Swal.fire({
+        title: confirmTitle,
+        text: confirmText,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: <?= json_encode(__("Sì, crea tabelle")) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla")) ?>
+    });
+    if (!confirmResult.isConfirmed) return;
+
+    Swal.fire({
+        title: processingTitle,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const response = await csrfFetch('/admin/maintenance/create-system-tables', { method: 'POST' });
+        const result = await response.json();
+        Swal.close();
+
+        let message = result.message || '';
+        if (result.success && result.created && result.created > 0) {
+            message += '\n\n' + <?= json_encode(__("Tabelle create:")) ?> + ' ' + result.created;
+        }
+        if (result.errors && result.errors.length > 0) {
+            message += '\n\n' + <?= json_encode(__("Errori:")) ?> + ' ' + result.errors.length;
+        }
+
+        Swal.fire({
+            icon: result.success ? 'success' : 'error',
+            title: result.success ? doneTitle : failTitle,
+            text: message
+        }).then(() => {
+            if (result.success) location.reload();
+        });
+    } catch (error) {
+        Swal.close();
+        Swal.fire({ icon: 'error', title: failTitle, text: commErr });
+    }
+}
+
 // Expose functions to global scope for inline handlers
 window.recalculateAvailability = recalculateAvailability;
 window.fixIssues = fixIssues;
 window.performMaintenance = performMaintenance;
 window.applyConfigFix = applyConfigFix;
 window.createMissingIndexes = createMissingIndexes;
+window.createMissingSystemTables = createMissingSystemTables;
 </script>
