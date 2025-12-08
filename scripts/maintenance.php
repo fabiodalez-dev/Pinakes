@@ -190,6 +190,7 @@ if ($lastIndexCheck < $oneWeekAgo) {
         }
         if (!empty($indexResult['errors'])) {
             foreach ($indexResult['errors'] as $error) {
+                error_log("Maintenance: Index error: $error");
                 echo "✗ $error\n";
             }
         }
@@ -254,7 +255,7 @@ if ($lastAvailabilityCheck < $oneDayAgo) {
 }
 
 // ============================================================
-// USER SESSIONS - Clean up expired remember tokens (daily)
+// USER SESSIONS - Clean up expired remember tokens (every run)
 // ============================================================
 echo "Cleaning up expired user sessions...\n";
 try {
