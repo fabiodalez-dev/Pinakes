@@ -36,6 +36,23 @@ class LibriController
     }
 
     /**
+     * Normalize text fields by removing MARC-8 control characters and collapsing whitespace
+     * MARC-8 uses characters like NSB (0x88, 0x98) and NSE (0x89, 0x9C) for non-sorting blocks
+     * These appear as invisible characters or ? when stored in MySQL with UTF-8
+     */
+    private function normalizeText(?string $text): string
+    {
+        if ($text === null || $text === '') {
+            return '';
+        }
+        // Remove MARC-8 control characters (NSB/NSE non-sorting markers)
+        $text = preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
+        // Collapse multiple whitespace into single space and trim
+        $text = trim(preg_replace('/\s+/', ' ', $text));
+        return $text;
+    }
+
+    /**
      * Rotate log files to prevent unlimited growth
      * Keeps only last 7 days of logs, max 10MB per file
      */
@@ -278,10 +295,14 @@ class LibriController
                 $fields[$k] = $data[$k];
         }
 
+        // Normalize text fields to remove MARC-8 control characters and collapse whitespace
+        $fields['titolo'] = $this->normalizeText($fields['titolo']);
+        $fields['sottotitolo'] = $this->normalizeText($fields['sottotitolo']);
+
         // Merge scraped subtitle and notes if present
         $subtitleFromScrape = trim((string) ($data['subtitle'] ?? ''));
         if ($subtitleFromScrape !== '') {
-            $fields['sottotitolo'] = $subtitleFromScrape;
+            $fields['sottotitolo'] = $this->normalizeText($subtitleFromScrape);
         }
 
         $notesParts = [];
@@ -725,6 +746,10 @@ class LibriController
                 $fields[$k] = $data[$k];
         }
 
+        // Normalize text fields to remove MARC-8 control characters and collapse whitespace
+        $fields['titolo'] = $this->normalizeText($fields['titolo']);
+        $fields['sottotitolo'] = $this->normalizeText($fields['sottotitolo']);
+
         // Sanitize ISBN/EAN on update as well
         foreach (['isbn10', 'isbn13', 'ean'] as $codeKey) {
             if (isset($fields[$codeKey])) {
@@ -744,7 +769,7 @@ class LibriController
         // Merge scraped subtitle and notes if present
         $subtitleFromScrape = trim((string) ($data['subtitle'] ?? ''));
         if ($subtitleFromScrape !== '' && trim((string) ($fields['sottotitolo'] ?? '')) === '') {
-            $fields['sottotitolo'] = $subtitleFromScrape;
+            $fields['sottotitolo'] = $this->normalizeText($subtitleFromScrape);
         }
 
         $notesParts = [];

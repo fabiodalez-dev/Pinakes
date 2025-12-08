@@ -10,6 +10,42 @@ use App\Support\SecureLogger;
 
 class ScrapeController
 {
+    /**
+     * Normalize text by removing MARC-8 control characters and collapsing whitespace
+     * MARC-8 uses NSB (0x88, 0x98) and NSE (0x89, 0x9C) for non-sorting blocks
+     */
+    private function normalizeText(?string $text): string
+    {
+        if ($text === null || $text === '') {
+            return '';
+        }
+        // Remove MARC-8 control characters (NSB/NSE non-sorting markers)
+        $text = preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
+        // Collapse multiple whitespace into single space and trim
+        return trim(preg_replace('/\s+/', ' ', $text));
+    }
+
+    /**
+     * Normalize all text fields in scraped data
+     */
+    private function normalizeScrapedData(array $data): array
+    {
+        // Normalize text fields
+        $textFields = ['title', 'subtitle', 'publisher', 'description'];
+        foreach ($textFields as $field) {
+            if (isset($data[$field])) {
+                $data[$field] = $this->normalizeText((string)$data[$field]);
+            }
+        }
+
+        // Normalize authors array
+        if (isset($data['authors']) && is_array($data['authors'])) {
+            $data['authors'] = array_map(fn($a) => $this->normalizeText((string)$a), $data['authors']);
+        }
+
+        return $data;
+    }
+
     public function byIsbn(Request $request, Response $response): Response
     {
         $isbn = trim((string)($request->getQueryParams()['isbn'] ?? ''));
@@ -64,6 +100,9 @@ class ScrapeController
             // Plugin handled scraping completely, use its result
             $payload = $customResult;
 
+            // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
+            $payload = $this->normalizeScrapedData($payload);
+
             // Hook: scrape.response - Modify final JSON response
             $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$cleanIsbn, $sources, ['timestamp' => time()]]);
 
@@ -109,6 +148,9 @@ class ScrapeController
                 }
                 SecureLogger::debug('[ScrapeController] Merged plugin partial data', ['isbn' => $cleanIsbn]);
             }
+
+            // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
+            $fallbackData = $this->normalizeScrapedData($fallbackData);
 
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);

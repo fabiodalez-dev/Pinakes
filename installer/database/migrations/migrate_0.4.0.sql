@@ -40,11 +40,11 @@ CREATE TABLE IF NOT EXISTS `update_logs` (
 -- Add columns to track privacy policy acceptance
 -- ============================================================
 
-ALTER TABLE `utenti` ADD COLUMN `privacy_accettata` TINYINT(1) NOT NULL DEFAULT 0 AFTER `email_verificata`;
+ALTER TABLE `utenti` ADD COLUMN `privacy_accettata` TINYINT(1) NOT NULL DEFAULT 0;
 
-ALTER TABLE `utenti` ADD COLUMN `data_accettazione_privacy` DATETIME DEFAULT NULL AFTER `privacy_accettata`;
+ALTER TABLE `utenti` ADD COLUMN `data_accettazione_privacy` DATETIME DEFAULT NULL;
 
-ALTER TABLE `utenti` ADD COLUMN `privacy_policy_version` VARCHAR(20) DEFAULT NULL AFTER `data_accettazione_privacy`;
+ALTER TABLE `utenti` ADD COLUMN `privacy_policy_version` VARCHAR(20) DEFAULT NULL;
 
 -- ============================================================
 -- 2. PERSISTENT SESSIONS TABLE (Database-backed "Remember Me")
