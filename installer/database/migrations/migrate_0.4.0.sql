@@ -5,6 +5,37 @@
 -- Note: ALTER TABLE statements may produce "Duplicate column" warnings on re-run - this is safe
 
 -- ============================================================
+-- 0. UPDATE SYSTEM TABLES (required for updater to function)
+-- These tables MUST be created first before any logging can happen
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `migrations` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `version` VARCHAR(20) NOT NULL COMMENT 'Version number (e.g., 0.3.0)',
+    `filename` VARCHAR(255) NOT NULL COMMENT 'Migration filename',
+    `batch` INT NOT NULL DEFAULT 1 COMMENT 'Batch number for rollback',
+    `executed_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'When migration was executed',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unique_version` (`version`),
+    KEY `idx_batch` (`batch`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tracks executed database migrations';
+
+CREATE TABLE IF NOT EXISTS `update_logs` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `from_version` VARCHAR(20) NOT NULL,
+    `to_version` VARCHAR(20) NOT NULL,
+    `status` ENUM('started', 'completed', 'failed', 'rolled_back') NOT NULL DEFAULT 'started',
+    `backup_path` VARCHAR(500) DEFAULT NULL COMMENT 'Path to backup file',
+    `error_message` TEXT,
+    `started_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `completed_at` DATETIME DEFAULT NULL,
+    `executed_by` INT DEFAULT NULL COMMENT 'User ID who initiated update',
+    PRIMARY KEY (`id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_started` (`started_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Logs all update attempts';
+
+-- ============================================================
 -- 1. GDPR PRIVACY CONSENT TRACKING
 -- Add columns to track privacy policy acceptance
 -- ============================================================
