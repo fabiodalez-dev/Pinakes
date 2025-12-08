@@ -750,12 +750,16 @@ class SbnClient
      */
     private function stripMarcControlChars(string $text): string
     {
-        // MARC-8 control characters:
-        // \x88 = NSB (Non-Sorting Begin) - marks start of non-filing chars like "Il", "La", "The"
-        // \x89 = NSE (Non-Sorting End) - marks end of non-filing characters
-        // \x98 = Joiner
-        // \x9C = Superscript markers
-        return preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
+        // MARC-8 control characters (using Unicode code points with /u flag for UTF-8):
+        // U+0088 = NSB (Non-Sorting Begin) - marks start of non-filing chars like "Il", "La", "The"
+        // U+0089 = NSE (Non-Sorting End) - marks end of non-filing characters
+        // U+0098 = Joiner
+        // U+009C = Superscript markers
+        // Also remove all other C1 control characters (U+0080-U+009F)
+        $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text);
+        // Normalize whitespace (collapse multiple spaces into one)
+        $text = trim(preg_replace('/\s+/u', ' ', $text));
+        return $text;
     }
 
     /**
@@ -771,10 +775,13 @@ class SbnClient
             if (is_array($value)) {
                 $data[$key] = $this->sanitizeForJson($value);
             } elseif (is_string($value)) {
-                // Strip ALL C1 control characters (0x80-0x9F) which includes MARC-8 controls
-                $value = preg_replace('/[\x80-\x9F]/', '', $value);
+                // Strip ALL C1 control characters (U+0080-U+009F) which includes MARC-8 controls
+                // Using Unicode code points with /u flag for proper UTF-8 handling
+                $value = preg_replace('/[\x{0080}-\x{009F}]/u', '', $value);
                 // Remove C0 control characters except newline/tab/carriage return
-                $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
+                $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value);
+                // Normalize whitespace (collapse multiple spaces into one)
+                $value = trim(preg_replace('/\s+/u', ' ', $value));
                 // Remove invalid UTF-8 sequences (iconv with //IGNORE strips them)
                 $converted = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
                 $data[$key] = $converted !== false ? $converted : $value;

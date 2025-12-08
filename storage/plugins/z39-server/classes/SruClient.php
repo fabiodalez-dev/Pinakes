@@ -294,15 +294,19 @@ class SruClient
         $book['title'] = trim(preg_replace('/[\/\s:;]+$/', '', $book['title']));
         $book['subtitle'] = trim(preg_replace('/[\/\s:;]+$/', '', $book['subtitle']));
 
-        // Remove MARC-8 control characters (NSB/NSE non-sorting markers, etc.)
-        // \x88 = NSB (Non-Sorting Begin), \x89 = NSE (Non-Sorting End)
-        // \x98 = Joiner, \x9C = Superscript markers
-        // These are used in library cataloging but shouldn't display to users
-        $book['title'] = preg_replace('/[\x88\x89\x98\x9C]/', '', $book['title']);
-        $book['subtitle'] = preg_replace('/[\x88\x89\x98\x9C]/', '', $book['subtitle']);
+        // Remove MARC-8 control characters using Unicode code points with /u flag
+        // U+0088 = NSB (Non-Sorting Begin), U+0089 = NSE (Non-Sorting End)
+        // U+0098 = Joiner, U+009C = Superscript markers
+        // Remove all C1 control characters (U+0080-U+009F)
+        $book['title'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['title']);
+        $book['subtitle'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['subtitle']);
+        $book['publisher'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['publisher']);
+        $book['description'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['description']);
         // Normalize whitespace (collapse multiple spaces into one)
-        $book['title'] = trim(preg_replace('/\s+/', ' ', $book['title']));
-        $book['subtitle'] = trim(preg_replace('/\s+/', ' ', $book['subtitle']));
+        $book['title'] = trim(preg_replace('/\s+/u', ' ', $book['title']));
+        $book['subtitle'] = trim(preg_replace('/\s+/u', ' ', $book['subtitle']));
+        $book['publisher'] = trim(preg_replace('/\s+/u', ' ', $book['publisher']));
+        $book['description'] = trim(preg_replace('/\s+/u', ' ', $book['description']));
 
         // Author (100 $a) and additional authors (700 $a)
         $author = $getSubfield('100', 'a');
@@ -451,17 +455,23 @@ class SruClient
 
         // Title
         $book['title'] = $getDcElement('title') ?? '';
-        // Remove MARC-8 control characters (NSB/NSE non-sorting markers, etc.)
-        $book['title'] = preg_replace('/[\x88\x89\x98\x9C]/', '', $book['title']);
+        // Remove MARC-8 control characters using Unicode code points with /u flag
+        $book['title'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['title']);
         // Normalize whitespace (collapse multiple spaces into one)
-        $book['title'] = trim(preg_replace('/\s+/', ' ', $book['title']));
+        $book['title'] = trim(preg_replace('/\s+/u', ' ', $book['title']));
 
         // Creators/Authors
         $creators = $getAllDcElements('creator');
-        $book['authors'] = $creators;
+        // Normalize authors too
+        $book['authors'] = array_map(function($author) {
+            $author = preg_replace('/[\x{0080}-\x{009F}]/u', '', $author);
+            return trim(preg_replace('/\s+/u', ' ', $author));
+        }, $creators);
 
         // Publisher
         $book['publisher'] = $getDcElement('publisher') ?? '';
+        $book['publisher'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['publisher']);
+        $book['publisher'] = trim(preg_replace('/\s+/u', ' ', $book['publisher']));
 
         // Date
         $date = $getDcElement('date');
@@ -495,6 +505,8 @@ class SruClient
 
         // Description
         $book['description'] = $getDcElement('description') ?? '';
+        $book['description'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['description']);
+        $book['description'] = trim(preg_replace('/\s+/u', ' ', $book['description']));
 
         // Subject (as keywords)
         $subjects = $getAllDcElements('subject');
