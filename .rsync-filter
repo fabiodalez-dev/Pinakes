@@ -133,6 +133,11 @@
 - ehthumbs.db
 - Thumbs.db
 - desktop.ini
+
+# AI/ML models and database files (from .gitignore)
+- vectors.db
+- models/
+- *.onnx
 - .env
 - .env.local
 - .env.production

@@ -116,6 +116,147 @@ check_requirements() {
     log_success "All requirements met"
 }
 
+# Verify package doesn't contain unwanted files
+verify_package_contents() {
+    local package_dir=$1
+    local has_errors=false
+
+    log_info "Verifying package contents..."
+
+    # ===========================================
+    # FORBIDDEN DIRECTORIES (should not exist at all)
+    # ===========================================
+    local forbidden_dirs=(
+        ".git"
+        ".gemini"
+        ".qoder"
+        ".claude"
+        ".vscode"
+        ".idea"
+        ".cursor"
+        ".github"
+        "node_modules"
+        "frontend"          # Source only - compiled assets are in public/assets/
+        "internal"          # Internal dev docs
+        "tests"             # PHPUnit tests
+        "test"              # Test folder
+        "docs"              # Documentation (dev only)
+        "server"            # Local server config
+        "sito"              # Old site folder
+        "releases"          # Build output
+        "build"
+        "dist"
+        "models"            # AI/ML models
+    )
+
+    for dir in "${forbidden_dirs[@]}"; do
+        if find "$package_dir" -type d -name "$dir" 2>/dev/null | grep -q .; then
+            log_error "Package contains forbidden directory: $dir/"
+            has_errors=true
+        fi
+    done
+
+    # ===========================================
+    # FORBIDDEN FILES (exact names)
+    # ===========================================
+    local forbidden_files=(
+        ".env"
+        ".gitignore"
+        ".gitattributes"
+        ".installed"
+        "config.local.php"
+        "CLAUDE.md"
+        "claude.md"
+        "updater.md"
+        "todo.md"
+        "CHANGELOG.md"
+        "FEATURES_IT.md"
+        "SERVER_CONFIG.md"
+        "NGINX_SETUP.md"
+        ".distignore"
+        ".rsync-filter"
+        "vectors.db"
+    )
+
+    for file in "${forbidden_files[@]}"; do
+        if find "$package_dir" -type f -name "$file" 2>/dev/null | grep -q .; then
+            log_error "Package contains forbidden file: $file"
+            has_errors=true
+        fi
+    done
+
+    # ===========================================
+    # FORBIDDEN PATTERNS (glob matching)
+    # ===========================================
+    local forbidden_globs=(
+        "*.log"
+        "*.tmp"
+        "*.cache"
+        "*.bak"
+        "*.backup"
+        "*.zip"
+        "*.tar.gz"
+        "*.onnx"
+        "clean-*.sh"
+        "fix-*.php"
+        "debug_*.php"
+        "test_*.php"
+        "export-*.php"
+        "convert-*.php"
+        "migration-*.php"
+    )
+
+    for glob in "${forbidden_globs[@]}"; do
+        if find "$package_dir" -type f -name "$glob" 2>/dev/null | grep -q .; then
+            log_error "Package contains forbidden file pattern: $glob"
+            has_errors=true
+        fi
+    done
+
+    # Files that MUST be in the package
+    local required_files=(
+        "public/index.php"
+        "composer.json"
+        "version.json"
+        ".env.example"
+        "README.md"
+        "vendor/autoload.php"
+        "app/Support/Updater.php"
+        "installer/database/schema.sql"
+    )
+
+    for file in "${required_files[@]}"; do
+        if [ ! -f "${package_dir}/${file}" ]; then
+            log_error "Package missing required file: $file"
+            has_errors=true
+        fi
+    done
+
+    # Bundled plugins that MUST be included
+    local bundled_plugins=(
+        "storage/plugins/open-library"
+        "storage/plugins/z39-server"
+        "storage/plugins/api-book-scraper"
+        "storage/plugins/digital-library"
+        "storage/plugins/dewey-editor"
+    )
+
+    for plugin in "${bundled_plugins[@]}"; do
+        if [ ! -d "${package_dir}/${plugin}" ]; then
+            log_warning "Bundled plugin missing: $plugin"
+            # Not a fatal error, but warn
+        fi
+    done
+
+    if [ "$has_errors" = true ]; then
+        log_error "Package verification failed!"
+        return 1
+    fi
+
+    log_success "Package contents verified"
+    return 0
+}
+
 get_version() {
     if [ ! -f "version.json" ]; then
         log_error "version.json not found"
@@ -203,26 +344,12 @@ create_release_package() {
         rsync -a . "$package_dir/"
     fi
 
-    # Verify critical files exist
-    log_info "Verifying package integrity..."
-
-    local critical_files=(
-        "public/index.php"
-        "composer.json"
-        "version.json"
-        ".env.example"
-        "README.md"
-    )
-
-    for file in "${critical_files[@]}"; do
-        if [ ! -f "${package_dir}/${file}" ]; then
-            log_error "Critical file missing: $file"
-            rm -rf "$temp_dir"
-            exit 1
-        fi
-    done
-
-    log_success "Package integrity verified"
+    # Verify package contents (no forbidden files, all required files present)
+    if ! verify_package_contents "$package_dir"; then
+        log_error "Package verification failed - aborting"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
 
     # Create releases directory
     mkdir -p "$OUTPUT_DIR"
