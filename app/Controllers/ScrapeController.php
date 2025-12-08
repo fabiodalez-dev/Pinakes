@@ -96,7 +96,14 @@ class ScrapeController
             if (is_array($customResult)) {
                 // Fallback data is the base, plugin data fills gaps (like cover)
                 foreach ($customResult as $key => $value) {
-                    if ($value !== '' && $value !== null && (!isset($fallbackData[$key]) || $fallbackData[$key] === '' || $fallbackData[$key] === null)) {
+                    // Check if value from plugin is not empty (handles strings, arrays, null)
+                    $valueNotEmpty = $value !== '' && $value !== null && $value !== [];
+                    // Check if fallback value is empty or missing
+                    $fallbackEmpty = !isset($fallbackData[$key])
+                        || $fallbackData[$key] === ''
+                        || $fallbackData[$key] === null
+                        || $fallbackData[$key] === [];
+                    if ($valueNotEmpty && $fallbackEmpty) {
                         $fallbackData[$key] = $value;
                     }
                 }

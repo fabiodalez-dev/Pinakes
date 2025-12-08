@@ -62,6 +62,8 @@ if (file_exists($envFile)) {
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use App\Controllers\ReservationManager;
+use App\Support\DataIntegrity;
+use App\Support\RememberMeService;
 
 // Database configuration
 $settings = require __DIR__ . '/../config/settings.php';
@@ -167,8 +169,6 @@ echo "✓ Cleaned up $cleanedUp old reservations\n\n";
 // ============================================================
 // DATABASE OPTIMIZATION - Index check (weekly)
 // ============================================================
-use App\Support\DataIntegrity;
-
 $dataIntegrity = new DataIntegrity($db);
 
 // Check for missing indexes once a week (using marker file)
@@ -256,8 +256,6 @@ if ($lastAvailabilityCheck < $oneDayAgo) {
 // ============================================================
 // USER SESSIONS - Clean up expired remember tokens (daily)
 // ============================================================
-use App\Support\RememberMeService;
-
 echo "Cleaning up expired user sessions...\n";
 try {
     $rememberMeService = new RememberMeService($db);

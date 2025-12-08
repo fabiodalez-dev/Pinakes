@@ -42,8 +42,8 @@ class RememberMeService
         $token = bin2hex(random_bytes(self::TOKEN_LENGTH));
         $tokenHash = hash('sha256', $token);
 
-        // Get device info
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+        // Get device info (with proxy-aware IP detection)
+        $ipAddress = $this->getClientIP();
         $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
         $deviceInfo = $this->parseDeviceInfo($userAgent);
 
@@ -394,7 +394,42 @@ class RememberMeService
     }
 
     /**
+     * Get client IP address with proxy support.
+     * Checks trusted proxy headers for reverse proxy/load balancer deployments.
+     */
+    private function getClientIP(): ?string
+    {
+        // Check various headers that might contain the real IP (behind proxy/load balancer)
+        $headers = [
+            'HTTP_X_FORWARDED_FOR',
+            'HTTP_X_REAL_IP',
+            'HTTP_X_CLIENT_IP',
+            'HTTP_CF_CONNECTING_IP',  // Cloudflare
+            'HTTP_TRUE_CLIENT_IP'
+        ];
+
+        foreach ($headers as $header) {
+            if (!empty($_SERVER[$header])) {
+                // X-Forwarded-For can contain multiple IPs, take the first one
+                $ips = explode(',', $_SERVER[$header]);
+                $ip = trim($ips[0]);
+
+                // Validate IP format
+                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                    return $ip;
+                }
+            }
+        }
+
+        // Fallback to REMOTE_ADDR
+        return $_SERVER['REMOTE_ADDR'] ?? null;
+    }
+
+    /**
      * Check if user_sessions table exists (graceful degradation).
+     *
+     * Result is cached statically for the duration of the request/process.
+     * Call resetTableExistsCache() if the table may be created mid-execution.
      */
     private function tableExists(): bool
     {

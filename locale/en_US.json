@@ -3512,6 +3512,7 @@
   "Vuoi disconnettere tutti i dispositivi? Dovrai effettuare nuovamente l'accesso su ogni dispositivo.": "Do you want to sign out all devices? You will need to log in again on each device.",
   "Dispositivo sconosciuto": "Unknown device",
   "sessioni attive": "active sessions",
+  "La richiesta ha impiegato troppo tempo. Riprova.": "The request took too long. Please try again.",
   "Sessione revocata": "Session revoked",
   "Impossibile revocare la sessione": "Unable to revoke session",
   "Revocate %d sessioni": "Revoked %d sessions",
