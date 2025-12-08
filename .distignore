@@ -32,7 +32,9 @@ config.local.php
 internal/
 
 # Build artifacts (source only, not compiled)
-frontend/
+# NOTE: Use /frontend/ to only match root-level frontend directory
+# Do NOT use frontend/ alone - it would also match app/Views/frontend/!
+/frontend/
 
 # Tests
 tests/
