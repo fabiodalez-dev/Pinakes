@@ -222,7 +222,7 @@ vendor/**/.github/
 node_modules/
 frontend/node_modules/
 # composer.lock - MUST be in git for applications (ensures consistent dependency versions)
-package-lock.json
+# package-lock.json - MUST be in git for reproducible builds (npm ci requires it)
 yarn.lock
 
 # ========================================
