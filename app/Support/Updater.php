@@ -1046,96 +1046,72 @@ class Updater
     }
 
     /**
-     * Check if update_logs table exists
-     */
-    private function updateLogsTableExists(): bool
-    {
-        $result = $this->db->query("SHOW TABLES LIKE 'update_logs'");
-        if ($result === false) {
-            return false;
-        }
-        $exists = $result->num_rows > 0;
-        $result->free();
-        return $exists;
-    }
-
-    /**
-     * Create update_logs table if it doesn't exist
-     */
-    private function createUpdateLogsTable(): void
-    {
-        $sql = "CREATE TABLE IF NOT EXISTS `update_logs` (
-            `id` int NOT NULL AUTO_INCREMENT,
-            `from_version` varchar(20) NOT NULL,
-            `to_version` varchar(20) NOT NULL,
-            `status` enum('started','completed','failed','rolled_back') NOT NULL DEFAULT 'started',
-            `backup_path` varchar(500) DEFAULT NULL,
-            `error_message` text,
-            `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
-            `completed_at` datetime DEFAULT NULL,
-            `executed_by` int DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            KEY `idx_status` (`status`),
-            KEY `idx_started` (`started_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-
-        $result = $this->db->query($sql);
-        if ($result === false) {
-            throw new Exception(__('Errore creazione tabella update_logs') . ': ' . $this->db->error);
-        }
-    }
-
-    /**
-     * Log update start
+     * Log update start (fails silently if table missing)
      */
     private function logUpdateStart(string $fromVersion, string $toVersion, ?string $backupPath): int
     {
-        // Ensure update_logs table exists before trying to write
-        if (!$this->updateLogsTableExists()) {
-            $this->createUpdateLogsTable();
+        try {
+            // Try to create table if missing
+            $this->db->query("CREATE TABLE IF NOT EXISTS `update_logs` (
+                `id` int NOT NULL AUTO_INCREMENT,
+                `from_version` varchar(20) NOT NULL,
+                `to_version` varchar(20) NOT NULL,
+                `status` enum('started','completed','failed','rolled_back') NOT NULL DEFAULT 'started',
+                `backup_path` varchar(500) DEFAULT NULL,
+                `error_message` text,
+                `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
+                `completed_at` datetime DEFAULT NULL,
+                `executed_by` int DEFAULT NULL,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+            $userId = (isset($_SESSION) && isset($_SESSION['user']['id']))
+                ? (int) $_SESSION['user']['id']
+                : null;
+
+            $stmt = $this->db->prepare("
+                INSERT INTO update_logs (from_version, to_version, status, backup_path, executed_by)
+                VALUES (?, ?, 'started', ?, ?)
+            ");
+            if ($stmt === false) {
+                return 0;
+            }
+            $stmt->bind_param('sssi', $fromVersion, $toVersion, $backupPath, $userId);
+            $stmt->execute();
+            $id = $this->db->insert_id;
+            $stmt->close();
+
+            return $id;
+        } catch (\Throwable $e) {
+            error_log("[Updater] Log skipped: " . $e->getMessage());
+            return 0;
         }
-
-        $userId = (isset($_SESSION) && isset($_SESSION['user']['id']))
-            ? (int) $_SESSION['user']['id']
-            : null;
-
-        $stmt = $this->db->prepare("
-            INSERT INTO update_logs (from_version, to_version, status, backup_path, executed_by)
-            VALUES (?, ?, 'started', ?, ?)
-        ");
-        if ($stmt === false) {
-            throw new Exception(__('Errore preparazione log aggiornamento') . ': ' . $this->db->error);
-        }
-        $stmt->bind_param('sssi', $fromVersion, $toVersion, $backupPath, $userId);
-        $stmt->execute();
-        $id = $this->db->insert_id;
-        $stmt->close();
-
-        return $id;
     }
 
     /**
-     * Log update completion
+     * Log update completion (fails silently)
      */
     private function logUpdateComplete(int $logId, bool $success, ?string $error = null): void
     {
-        $status = $success ? 'completed' : 'failed';
+        if ($logId <= 0) {
+            return; // No log to update
+        }
 
-        $stmt = $this->db->prepare("
-            UPDATE update_logs
-            SET status = ?, error_message = ?, completed_at = NOW()
-            WHERE id = ?
-        ");
-        if ($stmt === false) {
-            throw new Exception(__('Errore preparazione completamento log') . ': ' . $this->db->error);
+        try {
+            $status = $success ? 'completed' : 'failed';
+            $stmt = $this->db->prepare("
+                UPDATE update_logs
+                SET status = ?, error_message = ?, completed_at = NOW()
+                WHERE id = ?
+            ");
+            if ($stmt) {
+                $stmt->bind_param('ssi', $status, $error, $logId);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            error_log("[Updater] Log completion skipped: " . $e->getMessage());
         }
-        $stmt->bind_param('ssi', $status, $error, $logId);
-        if (!$stmt->execute()) {
-            $stmtError = $stmt->error;
-            $stmt->close();
-            throw new Exception(__('Errore aggiornamento log') . ': ' . $stmtError);
-        }
-        $stmt->close();
     }
 
     /**
