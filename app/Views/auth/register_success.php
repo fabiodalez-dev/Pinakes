@@ -13,6 +13,8 @@ $appLogo = Branding::fullLogo();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= __('Registrazione Completata') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    
     <link href="/assets/vendor.css" rel="stylesheet">
     <link href="/assets/main.css" rel="stylesheet">
     <style>

@@ -69,6 +69,15 @@ ALTER TABLE prestiti ADD INDEX IF NOT EXISTS idx_stato_attivo (stato, attivo);
 -- Indice per data prestito (storico)
 ALTER TABLE prestiti ADD INDEX IF NOT EXISTS idx_data_prestito (data_prestito);
 
+-- Indice per copia_id (JOIN con copie)
+ALTER TABLE prestiti ADD INDEX IF NOT EXISTS idx_copia_id (copia_id);
+
+-- Indice per origine (filtro prestiti da prenotazione vs diretti)
+ALTER TABLE prestiti ADD INDEX IF NOT EXISTS idx_origine (origine);
+
+-- Indice composto per query libro+utente
+ALTER TABLE prestiti ADD INDEX IF NOT EXISTS idx_libro_utente (libro_id, utente_id);
+
 -- =====================================================
 -- TABELLA: utenti (mancano indici per ricerca nome)
 -- Già presenti: email, codice_tessera, cod_fiscale
@@ -108,6 +117,15 @@ ALTER TABLE copie ADD INDEX IF NOT EXISTS idx_numero_inventario (numero_inventar
 ALTER TABLE prenotazioni ADD INDEX IF NOT EXISTS idx_libro_id (libro_id);
 ALTER TABLE prenotazioni ADD INDEX IF NOT EXISTS idx_utente_id (utente_id);
 ALTER TABLE prenotazioni ADD INDEX IF NOT EXISTS idx_stato (stato);
+
+-- Indice composto per query stato+libro (molto usato)
+ALTER TABLE prenotazioni ADD INDEX IF NOT EXISTS idx_stato_libro (stato, libro_id);
+
+-- Indice per queue_position (ordinamento coda prenotazioni)
+ALTER TABLE prenotazioni ADD INDEX IF NOT EXISTS idx_queue_position (queue_position);
+
+-- Indice per data scadenza (pulizia prenotazioni scadute)
+ALTER TABLE prenotazioni ADD INDEX IF NOT EXISTS idx_data_scadenza (data_scadenza_prenotazione);
 
 -- =====================================================
 -- ANALISI E VERIFICA

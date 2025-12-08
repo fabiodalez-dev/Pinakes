@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use mysqli;
+use App\Support\RememberMeService;
 use App\Support\RouteTranslator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -131,6 +132,114 @@ class ProfileController
 
         $stmt->close();
         return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
+    }
+
+    /**
+     * Get active sessions for the current user (API endpoint).
+     */
+    public function getSessions(Request $request, Response $response, mysqli $db): Response
+    {
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($uid <= 0) {
+            $response->getBody()->write(json_encode(['error' => __('Non autorizzato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+        }
+
+        try {
+            $rememberMeService = new RememberMeService($db);
+            $sessions = $rememberMeService->getActiveSessions($uid);
+
+            $json = json_encode(['sessions' => $sessions]);
+            if ($json === false) {
+                throw new \RuntimeException('JSON encoding failed: ' . json_last_error_msg());
+            }
+            $response->getBody()->write($json);
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            error_log("getSessions error for user $uid: " . $e->getMessage());
+            $response->getBody()->write(json_encode(['error' => __('Errore durante il recupero delle sessioni')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Revoke a specific session (API endpoint).
+     */
+    public function revokeSession(Request $request, Response $response, mysqli $db): Response
+    {
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($uid <= 0) {
+            $response->getBody()->write(json_encode(['error' => __('Non autorizzato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+        }
+
+        $data = (array) ($request->getParsedBody() ?? []);
+
+        // CSRF validated by CsrfMiddleware
+
+        $sessionId = (int) ($data['session_id'] ?? 0);
+
+        if ($sessionId <= 0) {
+            $response->getBody()->write(json_encode(['error' => __('ID sessione non valido')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        try {
+            $rememberMeService = new RememberMeService($db);
+            $success = $rememberMeService->revokeSession($sessionId, $uid);
+
+            if ($success) {
+                $json = json_encode(['success' => true, 'message' => __('Sessione revocata')]);
+                if ($json === false) {
+                    throw new \RuntimeException('JSON encoding failed: ' . json_last_error_msg());
+                }
+                $response->getBody()->write($json);
+            } else {
+                $response->getBody()->write(json_encode(['error' => __('Impossibile revocare la sessione')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            error_log("revokeSession error for user $uid: " . $e->getMessage());
+            $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca della sessione')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Revoke all sessions except the current one (API endpoint).
+     */
+    public function revokeAllSessions(Request $request, Response $response, mysqli $db): Response
+    {
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($uid <= 0) {
+            $response->getBody()->write(json_encode(['error' => __('Non autorizzato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+        }
+
+        // CSRF validated by CsrfMiddleware
+
+        try {
+            $rememberMeService = new RememberMeService($db);
+            // Note: revokeAllTokens() preserves the current session if possible
+            $revoked = $rememberMeService->revokeAllTokens($uid);
+
+            $json = json_encode([
+                'success' => true,
+                'message' => \sprintf(__('Revocate %d sessioni'), $revoked),
+                'revoked' => $revoked
+            ]);
+            if ($json === false) {
+                throw new \RuntimeException('JSON encoding failed: ' . json_last_error_msg());
+            }
+            $response->getBody()->write($json);
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            error_log("revokeAllSessions error for user $uid: " . $e->getMessage());
+            $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca delle sessioni')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
     }
 }
 

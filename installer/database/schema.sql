@@ -725,6 +725,9 @@ CREATE TABLE `utenti` (
   `cod_fiscale` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `note_utente` text COLLATE utf8mb4_unicode_ci,
   `email_verificata` tinyint(1) DEFAULT '0',
+  `privacy_accettata` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'GDPR privacy policy acceptance flag',
+  `data_accettazione_privacy` datetime DEFAULT NULL COMMENT 'UTC timestamp of privacy acceptance',
+  `privacy_policy_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Version of accepted privacy policy',
   `locale` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT 'it_IT',
   `token_verifica_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `data_token_verifica` datetime DEFAULT NULL,
@@ -871,6 +874,88 @@ CREATE TABLE `update_logs` (
   KEY `idx_status` (`status`),
   KEY `idx_started` (`started_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Logs all update attempts';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `user_sessions`
+-- GDPR: Database-backed persistent sessions ("Remember Me")
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user_sessions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int NOT NULL,
+  `token_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'SHA-256 hash of the token',
+  `device_info` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Browser/device identifier',
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'IPv4 or IPv6',
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL,
+  `last_used_at` datetime DEFAULT NULL,
+  `is_revoked` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_sessions_utente_id` (`utente_id`),
+  KEY `idx_user_sessions_token_hash` (`token_hash`),
+  KEY `idx_user_sessions_expires_at` (`expires_at`),
+  KEY `idx_user_sessions_is_revoked` (`is_revoked`),
+  CONSTRAINT `fk_user_sessions_utente` FOREIGN KEY (`utente_id`)
+      REFERENCES `utenti` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Database-backed persistent sessions for Remember Me';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `gdpr_requests`
+-- GDPR: Track data export/delete/rectification requests
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `gdpr_requests` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int DEFAULT NULL COMMENT 'NULL if user deleted',
+  `utente_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Preserved for audit',
+  `request_type` enum('export','delete','rectification') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('pending','processing','completed','rejected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `requested_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `processed_at` datetime DEFAULT NULL,
+  `processed_by` int DEFAULT NULL COMMENT 'Admin user ID',
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`id`),
+  KEY `idx_gdpr_requests_utente_id` (`utente_id`),
+  KEY `idx_gdpr_requests_status` (`status`),
+  KEY `idx_gdpr_requests_type` (`request_type`),
+  CONSTRAINT `fk_gdpr_requests_utente` FOREIGN KEY (`utente_id`)
+      REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_gdpr_requests_admin` FOREIGN KEY (`processed_by`)
+      REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='GDPR data subject request tracking';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `consent_log`
+-- GDPR Article 7: Audit trail for consent changes
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `consent_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int DEFAULT NULL,
+  `consent_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'privacy_policy, marketing, analytics, etc.',
+  `consent_given` tinyint(1) NOT NULL,
+  `consent_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_consent_log_utente_id` (`utente_id`),
+  KEY `idx_consent_log_type` (`consent_type`),
+  KEY `idx_consent_log_created_at` (`created_at`),
+  KEY `idx_consent_log_utente_type` (`utente_id`, `consent_type`, `created_at`),
+  CONSTRAINT `fk_consent_log_utente` FOREIGN KEY (`utente_id`)
+      REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='GDPR Article 7 consent audit trail';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 

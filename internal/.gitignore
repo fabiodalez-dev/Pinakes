@@ -1,6 +1,0 @@
-# Ignore everything in this directory by default
-*
-
-# Keep documentation about the folder itself
-!.gitignore
-!README.md

@@ -9,7 +9,11 @@ $lockFile = __DIR__ . '/../storage/cache/maintenance.lock';
 // Ensure lock directory exists
 $lockDir = dirname($lockFile);
 if (!is_dir($lockDir)) {
-    mkdir($lockDir, 0755, true);
+    @mkdir($lockDir, 0755, true);
+    if (!is_dir($lockDir)) {
+        fwrite(STDERR, "ERROR: Could not create lock directory: $lockDir\n");
+        exit(1);
+    }
 }
 
 $lockHandle = fopen($lockFile, 'c');
@@ -58,6 +62,8 @@ if (file_exists($envFile)) {
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use App\Controllers\ReservationManager;
+use App\Support\DataIntegrity;
+use App\Support\RememberMeService;
 
 // Database configuration
 $settings = require __DIR__ . '/../config/settings.php';
@@ -159,6 +165,119 @@ $stmt = $db->prepare("
 $stmt->execute();
 $cleanedUp = $db->affected_rows;
 echo "✓ Cleaned up $cleanedUp old reservations\n\n";
+
+// ============================================================
+// DATABASE OPTIMIZATION - Index check (weekly)
+// ============================================================
+$dataIntegrity = new DataIntegrity($db);
+
+// Check for missing indexes once a week (using marker file)
+$indexCheckMarker = __DIR__ . '/../storage/cache/last_index_check.txt';
+// Ensure marker directory exists
+$markerDir = dirname($indexCheckMarker);
+if (!is_dir($markerDir)) {
+    @mkdir($markerDir, 0755, true);
+}
+$lastIndexCheck = file_exists($indexCheckMarker) ? (int)file_get_contents($indexCheckMarker) : 0;
+$oneWeekAgo = time() - 7 * 24 * 60 * 60;
+
+if ($lastIndexCheck < $oneWeekAgo) {
+    echo "Checking database indexes (weekly)...\n";
+
+    try {
+        $missingIndexes = $dataIntegrity->checkMissingIndexes();
+
+        if (!empty($missingIndexes)) {
+            echo "Found " . count($missingIndexes) . " missing indexes, creating...\n";
+            $indexResult = $dataIntegrity->createMissingIndexes();
+
+            if ($indexResult['created'] > 0) {
+                echo "✓ Created {$indexResult['created']} indexes\n";
+            }
+            if (!empty($indexResult['errors'])) {
+                foreach ($indexResult['errors'] as $error) {
+                    error_log("Maintenance: Index error: $error");
+                    echo "✗ $error\n";
+                }
+            }
+        } else {
+            echo "✓ All indexes present\n";
+        }
+
+        // Update marker only on success
+        if (file_put_contents($indexCheckMarker, (string)time()) === false) {
+            error_log("Maintenance: Could not update index check marker");
+        }
+    } catch (\Throwable $e) {
+        error_log("Maintenance: Index check failed: " . $e->getMessage());
+        echo "✗ Index check failed, see error log\n";
+    }
+    echo "\n";
+}
+
+// ============================================================
+// BOOK AVAILABILITY - Batch recalculation (daily, if needed)
+// ============================================================
+$availabilityMarker = __DIR__ . '/../storage/cache/last_availability_check.txt';
+$lastAvailabilityCheck = file_exists($availabilityMarker) ? (int)file_get_contents($availabilityMarker) : 0;
+$oneDayAgo = time() - 24 * 60 * 60;
+
+if ($lastAvailabilityCheck < $oneDayAgo) {
+    echo "Recalculating book availability (daily)...\n";
+
+    // Count books to decide method
+    $countResult = $db->query("SELECT COUNT(*) as total FROM libri");
+    if (!$countResult) {
+        error_log("Maintenance: Failed to count books: " . $db->error);
+        echo "✗ Could not retrieve book count, skipping availability recalculation\n\n";
+        // Do NOT update marker on error - allow retry on next run to detect persistent issues
+    } else {
+        $totalBooks = (int)$countResult->fetch_assoc()['total'];
+
+        if ($totalBooks > 5000) {
+            // Use batched version for large catalogs
+            echo "Using batched method for $totalBooks books...\n";
+            $availResult = $dataIntegrity->recalculateAllBookAvailabilityBatched(500, function($processed, $total) {
+                if ($processed % 1000 === 0 || $processed === $total) {
+                    echo "  Progress: $processed / $total\n";
+                }
+            });
+        } else {
+            // Use standard method for smaller catalogs
+            $availResult = $dataIntegrity->recalculateAllBookAvailability();
+            $availResult['total'] = $totalBooks;
+        }
+
+        echo "✓ Updated {$availResult['updated']} / {$availResult['total']} books\n";
+
+        if (!empty($availResult['errors'])) {
+            echo "✗ Errors: " . count($availResult['errors']) . "\n";
+            foreach (array_slice($availResult['errors'], 0, 5) as $error) {
+                echo "  - $error\n";
+            }
+        }
+
+        // Update marker
+        if (file_put_contents($availabilityMarker, (string)time()) === false) {
+            error_log("Maintenance: Could not update availability check marker");
+        }
+        echo "\n";
+    }
+}
+
+// ============================================================
+// USER SESSIONS - Clean up expired remember tokens (every run)
+// ============================================================
+echo "Cleaning up expired user sessions...\n";
+try {
+    $rememberMeService = new RememberMeService($db);
+    $cleanedSessions = $rememberMeService->cleanupExpiredSessions();
+    echo "✓ Cleaned up $cleanedSessions expired sessions\n\n";
+} catch (\Throwable $e) {
+    // Table might not exist yet (pre-0.4.0 installations)
+    error_log("Maintenance: Session cleanup skipped: " . $e->getMessage());
+    echo "✓ Session cleanup skipped (table may not exist yet)\n\n";
+}
 
 echo "=== MAINTENANCE COMPLETED ===\n";
 echo "Time: " . date('Y-m-d H:i:s') . "\n";

@@ -195,7 +195,7 @@ return function (App $app): void {
     // Logout - support both English and localized routes
     $logoutHandler = function ($request, $response) use ($app) {
         $controller = new AuthController();
-        return $controller->logout($request, $response);
+        return $controller->logout($request, $response, $app->getContainer()->get('db'));
     };
     $registerRouteIfUnique('GET', '/logout', $logoutHandler); // English fallback
     $registerRouteIfUnique('GET', RouteTranslator::route('logout'), $logoutHandler); // Localized route (e.g. /esci for Italian)
@@ -235,6 +235,25 @@ return function (App $app): void {
             return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
         }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
     }
+
+    // Session management API endpoints (GDPR compliant - user can manage their sessions)
+    $registerRouteIfUnique('GET', '/api/profile/sessions', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new ProfileController();
+        return $controller->getSessions($request, $response, $db);
+    }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+
+    $registerRouteIfUnique('POST', '/api/profile/sessions/revoke', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new ProfileController();
+        return $controller->revokeSession($request, $response, $db);
+    }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+
+    $registerRouteIfUnique('POST', '/api/profile/sessions/revoke-all', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new ProfileController();
+        return $controller->revokeAllSessions($request, $response, $db);
+    }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
     // User wishlist (multi-language variants)
     foreach ($supportedLocales as $locale) {
@@ -1305,6 +1324,13 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->generateIndexesSQL($request, $response, $db);
     })->add(new AuthMiddleware(['admin']));
+
+    // System tables creation route
+    $app->post('/admin/maintenance/create-system-tables', function ($request, $response) use ($app) {
+        $controller = new MaintenanceController();
+        $db = $app->getContainer()->get('db');
+        return $controller->createMissingSystemTables($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
     $app->get('/admin/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();

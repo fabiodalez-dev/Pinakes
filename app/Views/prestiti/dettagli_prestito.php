@@ -110,15 +110,6 @@ function formatLoanStatus($status) {
         </div>
       </div>
 
-      <div>
-        <h3 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2"><?= __("Gestito da") ?></h3>
-        <div class="space-y-3">
-            <div>
-                <span class="font-semibold text-gray-600"><?= __("Staff:") ?></span>
-                <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['processed_by_name'] ?? 'N/D'); ?></span>
-            </div>
-        </div>
-      </div>
     </div>
 
     <?php if (!empty($prestito['note'])): ?>

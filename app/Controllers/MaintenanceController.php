@@ -49,7 +49,7 @@ class MaintenanceController
                 'report' => $report
             ];
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $result = [
                 'success' => false,
                 'message' => __("Errore durante la correzione:") . ' ' . $e->getMessage(),
@@ -76,7 +76,7 @@ class MaintenanceController
                 'details' => $result
             ]));
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante il ricalcolo:") . ' ' . $e->getMessage()
@@ -120,7 +120,7 @@ class MaintenanceController
                 'results' => $results
             ]));
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante la manutenzione:") . ' ' . $e->getMessage(),
@@ -171,6 +171,36 @@ class MaintenanceController
         return $response
             ->withHeader('Content-Type', 'text/plain; charset=utf-8')
             ->withHeader('Content-Disposition', 'attachment; filename="missing_indexes_' . date('Y-m-d') . '.sql"');
+    }
+
+    /**
+     * Crea le tabelle di sistema mancanti (update_logs, migrations)
+     */
+    public function createMissingSystemTables(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
+
+        $integrity = new DataIntegrity($db);
+
+        try {
+            $result = $integrity->createMissingSystemTables();
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => sprintf(__("%d tabelle create con successo"), $result['created']),
+                'created' => $result['created'],
+                'details' => $result['details'] ?? [],
+                'errors' => $result['errors'] ?? []
+            ]));
+
+        } catch (\Exception $e) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __("Errore durante la creazione delle tabelle:") . ' ' . $e->getMessage()
+            ]));
+        }
+
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**

@@ -119,6 +119,115 @@ class DataIntegrity {
     }
 
     /**
+     * Ricalcola le copie disponibili per tutti i libri in batch
+     * Più efficiente per cataloghi grandi (> 10k libri), evita lock lunghi
+     *
+     * @param int $chunkSize Numero di libri per batch (default 500)
+     * @param callable|null $progressCallback Callback per progress reporting: fn(int $processed, int $total)
+     * @return array ['updated' => int, 'errors' => array, 'total' => int]
+     */
+    public function recalculateAllBookAvailabilityBatched(int $chunkSize = 500, ?callable $progressCallback = null): array {
+        // Validate chunkSize to prevent infinite loops
+        if ($chunkSize <= 0) {
+            throw new \InvalidArgumentException('chunkSize must be greater than 0');
+        }
+
+        $results = ['updated' => 0, 'errors' => [], 'total' => 0];
+
+        // Prima aggiorna tutte le copie (operazione veloce)
+        try {
+            $this->db->begin_transaction();
+            $stmt = $this->db->prepare("
+                UPDATE copie c
+                LEFT JOIN prestiti p ON c.id = p.copia_id
+                    AND p.attivo = 1
+                    AND (
+                        p.stato IN ('in_corso', 'in_ritardo')
+                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                    )
+                SET c.stato = CASE
+                    WHEN p.id IS NOT NULL THEN 'prestato'
+                    ELSE 'disponibile'
+                END
+                WHERE c.stato IN ('disponibile', 'prestato')
+            ");
+            $stmt->execute();
+            $stmt->close();
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollback();
+            $results['errors'][] = "Errore aggiornamento copie: " . $e->getMessage();
+            return $results;
+        }
+
+        // Conta totale libri (prepared statement for consistency)
+        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM libri");
+        if ($stmt === false) {
+            $error = "Failed to count books: " . $this->db->error;
+            error_log("[DataIntegrity] " . $error);
+            $results['errors'][] = $error;
+            return $results;
+        }
+        $stmt->execute();
+        $countResult = $stmt->get_result();
+        $results['total'] = $countResult ? (int)$countResult->fetch_assoc()['total'] : 0;
+        $stmt->close();
+
+        if ($results['total'] === 0) {
+            return $results;
+        }
+
+        // Processa libri in batch (keyset pagination per prestazioni O(1))
+        $lastId = 0;
+        $processed = 0;
+
+        do {
+            $stmt = $this->db->prepare("
+                SELECT id FROM libri
+                WHERE id > ?
+                ORDER BY id
+                LIMIT ?
+            ");
+            $stmt->bind_param('ii', $lastId, $chunkSize);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $ids = [];
+            while ($row = $result->fetch_assoc()) {
+                $ids[] = (int)$row['id'];
+            }
+            $stmt->close();
+
+            if (empty($ids)) {
+                break;
+            }
+
+            // Aggiorna lastId per il prossimo batch
+            $lastId = end($ids);
+
+            // Processa ogni libro nel batch
+            foreach ($ids as $bookId) {
+                try {
+                    if ($this->recalculateBookAvailability($bookId)) {
+                        $results['updated']++;
+                    }
+                } catch (Exception $e) {
+                    $results['errors'][] = "Libro #$bookId: " . $e->getMessage();
+                }
+                $processed++;
+            }
+
+            // Report progress
+            if ($progressCallback !== null) {
+                $progressCallback($processed, $results['total']);
+            }
+
+        } while (\count($ids) === $chunkSize);
+
+        return $results;
+    }
+
+    /**
      * Ricalcola le copie disponibili per un singolo libro
      * Supports being called inside or outside a transaction
      */
@@ -666,6 +775,18 @@ class DataIntegrity {
             $results['errors'][] = "Errore creazione indici: " . $e->getMessage();
         }
 
+        // 9. Crea tabelle di sistema mancanti (update_logs, migrations)
+        try {
+            $tableResult = $this->createMissingSystemTables();
+            $results['fixed'] += $tableResult['created'];
+            $results['system_tables_created'] = $tableResult['created'];
+            if (!empty($tableResult['errors'])) {
+                $results['errors'] = array_merge($results['errors'], $tableResult['errors']);
+            }
+        } catch (Exception $e) {
+            $results['errors'][] = "Errore creazione tabelle di sistema: " . $e->getMessage();
+        }
+
         return $results;
     }
 
@@ -780,7 +901,105 @@ class DataIntegrity {
         // Add missing indexes check
         $report['missing_indexes'] = $this->checkMissingIndexes();
 
+        // Add missing system tables check
+        $report['missing_system_tables'] = $this->checkMissingSystemTables();
+
         return $report;
+    }
+
+    /**
+     * Definisce le tabelle di sistema richieste per l'updater
+     */
+    private function getExpectedSystemTables(): array {
+        return [
+            'update_logs' => "CREATE TABLE IF NOT EXISTS `update_logs` (
+                `id` INT NOT NULL AUTO_INCREMENT,
+                `from_version` VARCHAR(20) NOT NULL,
+                `to_version` VARCHAR(20) NOT NULL,
+                `status` ENUM('started', 'completed', 'failed', 'rolled_back') NOT NULL DEFAULT 'started',
+                `backup_path` VARCHAR(500) DEFAULT NULL COMMENT 'Path to backup file',
+                `error_message` TEXT,
+                `started_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `completed_at` DATETIME DEFAULT NULL,
+                `executed_by` INT DEFAULT NULL COMMENT 'User ID who initiated update',
+                PRIMARY KEY (`id`),
+                KEY `idx_status` (`status`),
+                KEY `idx_started` (`started_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Logs all update attempts'",
+            'migrations' => "CREATE TABLE IF NOT EXISTS `migrations` (
+                `id` INT NOT NULL AUTO_INCREMENT,
+                `version` VARCHAR(20) NOT NULL COMMENT 'Version number (e.g., 0.3.0)',
+                `filename` VARCHAR(255) NOT NULL COMMENT 'Migration filename',
+                `batch` INT NOT NULL DEFAULT 1 COMMENT 'Batch number for rollback',
+                `executed_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'When migration was executed',
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `unique_version` (`version`),
+                KEY `idx_batch` (`batch`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tracks executed database migrations'",
+        ];
+    }
+
+    /**
+     * Verifica quali tabelle di sistema sono mancanti
+     */
+    public function checkMissingSystemTables(): array {
+        $expected = $this->getExpectedSystemTables();
+        $missing = [];
+
+        foreach ($expected as $tableName => $createSql) {
+            $result = $this->db->query("SHOW TABLES LIKE '$tableName'");
+            if (!$result || $result->num_rows === 0) {
+                $missing[] = [
+                    'table' => $tableName,
+                    'create_sql' => $createSql,
+                ];
+            }
+            if ($result instanceof \mysqli_result) {
+                $result->free();
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Crea le tabelle di sistema mancanti
+     */
+    public function createMissingSystemTables(): array {
+        $missing = $this->checkMissingSystemTables();
+        $results = ['created' => 0, 'errors' => [], 'details' => []];
+
+        foreach ($missing as $table) {
+            $tableName = $table['table'];
+            $createSql = $table['create_sql'];
+
+            try {
+                if ($this->db->query($createSql)) {
+                    $results['created']++;
+                    $results['details'][] = [
+                        'success' => true,
+                        'table' => $tableName,
+                        'message' => \sprintf(__("Tabella %s creata"), $tableName)
+                    ];
+                } else {
+                    $results['errors'][] = \sprintf(__("Errore creazione tabella %s:"), $tableName) . ' ' . $this->db->error;
+                    $results['details'][] = [
+                        'success' => false,
+                        'table' => $tableName,
+                        'message' => $this->db->error
+                    ];
+                }
+            } catch (Exception $e) {
+                $results['errors'][] = \sprintf(__("Eccezione creazione tabella %s:"), $tableName) . ' ' . $e->getMessage();
+                $results['details'][] = [
+                    'success' => false,
+                    'table' => $tableName,
+                    'message' => $e->getMessage()
+                ];
+            }
+        }
+
+        return $results;
     }
 
     /**

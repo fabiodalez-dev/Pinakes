@@ -74,11 +74,22 @@ class NotificationService {
             }
             $stmt->close();
 
+            // Use installation locale for email template
+            $locale = \App\Support\I18n::getInstallationLocale();
+
             $verifySection = '';
             if (!empty($user['token_verifica_email'])) {
+                // Temporarily switch locale for button translation
+                $currentLocale = \App\Support\I18n::getLocale();
+                \App\Support\I18n::setLocale($locale);
+
                 // Use /verify-email (English route) as it's supported in all languages
                 $verifyUrl = $this->getBaseUrl() . '/verify-email?token=' . urlencode((string)$user['token_verifica_email']);
-                $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">Conferma la tua email</a></p>';
+                $buttonText = __('Conferma la tua email');
+                $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
+
+                // Restore original locale
+                \App\Support\I18n::setLocale($currentLocale);
             }
 
             $variables = [
@@ -87,12 +98,9 @@ class NotificationService {
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
                 'data_registrazione' => date('d-m-Y H:i', strtotime($user['created_at'])),
-                'verify_section' => $verifySection,
+                'sezione_verifica' => $verifySection,
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
-
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
             return $this->emailService->sendTemplate($user['email'], 'user_registration_pending', $variables, $locale);
 
         } catch (Exception $e) {
@@ -326,6 +334,7 @@ class NotificationService {
 
     /**
      * Invia avvisi di scadenza prestiti (3 giorni prima)
+     * Uses atomic mark-then-send pattern to prevent duplicate notifications
      */
     public function sendLoanExpirationWarnings(): int {
         $sentCount = 0;
@@ -336,7 +345,7 @@ class NotificationService {
 
             // Get loans expiring in X days
             $stmt = $this->db->prepare("
-                SELECT p.*, l.titolo as libro_titolo,
+                SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(p.data_scadenza, CURDATE()) as giorni_rimasti
                 FROM prestiti p
@@ -350,7 +359,27 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
+            // Collect all loans first to avoid result set issues
+            $loans = [];
             while ($loan = $result->fetch_assoc()) {
+                $loans[] = $loan;
+            }
+            $stmt->close();
+
+            foreach ($loans as $loan) {
+                // ATOMIC: Mark warning as sent BEFORE sending email
+                // Only proceed if we successfully claimed this loan (affected_rows == 1)
+                $updateStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 1 WHERE id = ? AND (warning_sent IS NULL OR warning_sent = 0)");
+                $updateStmt->bind_param('i', $loan['id']);
+                $updateStmt->execute();
+                $claimed = $updateStmt->affected_rows === 1;
+                $updateStmt->close();
+
+                if (!$claimed) {
+                    // Another process already claimed this loan, skip
+                    continue;
+                }
+
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
@@ -358,13 +387,9 @@ class NotificationService {
                     'giorni_rimasti' => $loan['giorni_rimasti']
                 ];
 
-                if ($this->emailService->sendTemplate($loan['utente_email'], 'loan_expiring_warning', $variables)) {
-                    // Mark warning as sent
-                    $updateStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 1 WHERE id = ?");
-                    $updateStmt->bind_param('i', $loan['id']);
-                    $updateStmt->execute();
-                    $updateStmt->close();
+                $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_expiring_warning', $variables);
 
+                if ($emailSent) {
                     // Create in-app notification for expiring loan
                     $this->createNotification(
                         'general',
@@ -373,11 +398,16 @@ class NotificationService {
                         '/admin/prestiti',
                         (int)$loan['id']
                     );
-
                     $sentCount++;
+                } else {
+                    // Email failed after retries, revert the flag so it can be retried next run
+                    $revertStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 0 WHERE id = ?");
+                    $revertStmt->bind_param('i', $loan['id']);
+                    $revertStmt->execute();
+                    $revertStmt->close();
+                    error_log("Failed to send expiration warning for loan {$loan['id']} after retries, flag reverted");
                 }
             }
-            $stmt->close();
 
         } catch (Exception $e) {
             error_log("Failed to send loan expiration warnings: " . $e->getMessage());
@@ -388,6 +418,7 @@ class NotificationService {
 
     /**
      * Invia notifiche per prestiti scaduti
+     * Uses atomic mark-then-send pattern to prevent duplicate notifications
      */
     public function sendOverdueLoanNotifications(): int {
         $sentCount = 0;
@@ -395,7 +426,7 @@ class NotificationService {
         try {
             // Get overdue loans
             $stmt = $this->db->prepare("
-                SELECT p.*, l.titolo as libro_titolo,
+                SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(CURDATE(), p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
@@ -408,7 +439,27 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
+            // Collect all loans first to avoid result set issues
+            $loans = [];
             while ($loan = $result->fetch_assoc()) {
+                $loans[] = $loan;
+            }
+            $stmt->close();
+
+            foreach ($loans as $loan) {
+                // ATOMIC: Mark notification as sent BEFORE sending email
+                // Only proceed if we successfully claimed this loan (affected_rows == 1)
+                $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ? AND (overdue_notification_sent IS NULL OR overdue_notification_sent = 0)");
+                $updateStmt->bind_param('i', $loan['id']);
+                $updateStmt->execute();
+                $claimed = $updateStmt->affected_rows === 1;
+                $updateStmt->close();
+
+                if (!$claimed) {
+                    // Another process already claimed this loan, skip
+                    continue;
+                }
+
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
@@ -416,13 +467,9 @@ class NotificationService {
                     'giorni_ritardo' => $loan['giorni_ritardo']
                 ];
 
-                if ($this->emailService->sendTemplate($loan['utente_email'], 'loan_overdue_notification', $variables)) {
-                    // Mark overdue notification as sent and update status
-                    $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ?");
-                    $updateStmt->bind_param('i', $loan['id']);
-                    $updateStmt->execute();
-                    $updateStmt->close();
+                $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_overdue_notification', $variables);
 
+                if ($emailSent) {
                     $this->notifyAdminsOverdue((int)$loan['id']);
 
                     // Create in-app notification for overdue loan
@@ -432,11 +479,16 @@ class NotificationService {
                         $loan['libro_titolo'],
                         (int)$loan['giorni_ritardo']
                     );
-
                     $sentCount++;
+                } else {
+                    // Email failed after retries, revert both flag and stato so it can be retried next run
+                    $revertStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 0, stato = 'in_corso' WHERE id = ?");
+                    $revertStmt->bind_param('i', $loan['id']);
+                    $revertStmt->execute();
+                    $revertStmt->close();
+                    error_log("Failed to send overdue notification for loan {$loan['id']} after retries, flags reverted");
                 }
             }
-            $stmt->close();
 
         } catch (Exception $e) {
             error_log("Failed to send overdue loan notifications: " . $e->getMessage());
@@ -491,6 +543,7 @@ class NotificationService {
 
     /**
      * Notifica utenti quando libri nella loro wishlist diventano disponibili
+     * Uses atomic mark-then-send pattern to prevent duplicate notifications
      */
     public function notifyWishlistBookAvailability(int $bookId): int {
         $sentCount = 0;
@@ -516,7 +569,27 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
+            // Collect all wishlist entries first to avoid result set issues
+            $wishlistEntries = [];
             while ($wishlist = $result->fetch_assoc()) {
+                $wishlistEntries[] = $wishlist;
+            }
+            $stmt->close();
+
+            foreach ($wishlistEntries as $wishlist) {
+                // ATOMIC: Mark as notified BEFORE sending email
+                // Only proceed if we successfully claimed this entry (affected_rows == 1)
+                $updateStmt = $this->db->prepare("UPDATE wishlist SET notified = 1 WHERE id = ? AND notified = 0");
+                $updateStmt->bind_param('i', $wishlist['wishlist_id']);
+                $updateStmt->execute();
+                $claimed = $updateStmt->affected_rows === 1;
+                $updateStmt->close();
+
+                if (!$claimed) {
+                    // Another process already claimed this entry, skip
+                    continue;
+                }
+
                 $bookLink = book_url([
                     'id' => $bookId,
                     'titolo' => $wishlist['titolo'] ?? '',
@@ -533,17 +606,19 @@ class NotificationService {
                     'wishlist_url' => $this->getBaseUrl() . '/profile/wishlist'
                 ];
 
-                if ($this->emailService->sendTemplate($wishlist['email'], 'wishlist_book_available', $variables)) {
-                    // Mark as notified (keep in wishlist for user reference)
-                    $updateStmt = $this->db->prepare("UPDATE wishlist SET notified = 1 WHERE id = ?");
-                    $updateStmt->bind_param('i', $wishlist['wishlist_id']);
-                    $updateStmt->execute();
-                    $updateStmt->close();
+                $emailSent = $this->sendWithRetry($wishlist['email'], 'wishlist_book_available', $variables);
 
+                if ($emailSent) {
                     $sentCount++;
+                } else {
+                    // Email failed after retries, revert the flag so it can be retried next run
+                    $revertStmt = $this->db->prepare("UPDATE wishlist SET notified = 0 WHERE id = ?");
+                    $revertStmt->bind_param('i', $wishlist['wishlist_id']);
+                    $revertStmt->execute();
+                    $revertStmt->close();
+                    error_log("Failed to send wishlist notification for entry {$wishlist['wishlist_id']} after retries, flag reverted");
                 }
             }
-            $stmt->close();
 
         } catch (Exception $e) {
             error_log("Failed to notify wishlist book availability: " . $e->getMessage());
@@ -884,6 +959,42 @@ class NotificationService {
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {
         return $this->emailService->sendTemplate($email, 'reservation_book_available', $variables);
+    }
+
+    /**
+     * Send email with retry mechanism for transient SMTP errors
+     * @param string $email Recipient email
+     * @param string $template Template name
+     * @param array $variables Template variables
+     * @param int $maxRetries Maximum retry attempts (default: 3)
+     * @param int $retryDelayMs Delay between retries in milliseconds (default: 1000)
+     * @return bool True if email was sent successfully
+     */
+    private function sendWithRetry(string $email, string $template, array $variables, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
+        $lastError = '';
+
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            try {
+                if ($this->emailService->sendTemplate($email, $template, $variables)) {
+                    if ($attempt > 1) {
+                        error_log("Email to {$email} succeeded on attempt {$attempt}");
+                    }
+                    return true;
+                }
+                $lastError = 'sendTemplate returned false';
+            } catch (\Throwable $e) {
+                $lastError = $e->getMessage();
+                error_log("Email attempt {$attempt}/{$maxRetries} to {$email} failed: {$lastError}");
+            }
+
+            // Don't delay after the last attempt
+            if ($attempt < $maxRetries) {
+                usleep($retryDelayMs * 1000); // Convert ms to microseconds
+            }
+        }
+
+        error_log("Email to {$email} failed after {$maxRetries} attempts. Last error: {$lastError}");
+        return false;
     }
 
     /**

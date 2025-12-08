@@ -161,7 +161,7 @@ build_frontend() {
     fi
 
     log_info "Installing NPM dependencies..."
-    npm install --silent
+    npm ci --silent
 
     log_info "Running webpack build..."
     npm run build
