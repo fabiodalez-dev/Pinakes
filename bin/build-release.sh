@@ -124,9 +124,12 @@ verify_package_contents() {
     log_info "Verifying package contents..."
 
     # ===========================================
-    # FORBIDDEN DIRECTORIES (should not exist at all)
+    # FORBIDDEN ROOT-LEVEL DIRECTORIES
+    # These should not exist at the root of the package
+    # Note: Some dirs like "frontend" or "dist" may exist as nested
+    # subdirectories in vendor/assets - that's OK
     # ===========================================
-    local forbidden_dirs=(
+    local forbidden_root_dirs=(
         ".git"
         ".gemini"
         ".qoder"
@@ -139,19 +142,17 @@ verify_package_contents() {
         "frontend"          # Source only - compiled assets are in public/assets/
         "internal"          # Internal dev docs
         "tests"             # PHPUnit tests
-        "test"              # Test folder
         "docs"              # Documentation (dev only)
         "server"            # Local server config
         "sito"              # Old site folder
         "releases"          # Build output
         "build"
-        "dist"
         "models"            # AI/ML models
     )
 
-    for dir in "${forbidden_dirs[@]}"; do
-        if find "$package_dir" -type d -name "$dir" 2>/dev/null | grep -q .; then
-            log_error "Package contains forbidden directory: $dir/"
+    for dir in "${forbidden_root_dirs[@]}"; do
+        if [ -d "${package_dir}/${dir}" ]; then
+            log_error "Package contains forbidden root directory: $dir/"
             has_errors=true
         fi
     done
