@@ -2536,38 +2536,22 @@ class LibriController
             return;
         }
 
-        // Check if author has empty bio
-        $stmt = $db->prepare("SELECT biografia FROM autori WHERE id = ?");
-        if (!$stmt) {
-            return;
-        }
+        // Decode HTML entities for consistency with AuthorRepository::create()
+        $bio = \App\Support\HtmlHelper::decode($bio);
 
-        $stmt->bind_param('i', $authorId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!$row) {
-            return;
-        }
-
-        // Only update if bio is empty
-        $currentBio = trim((string)($row['biografia'] ?? ''));
-        if ($currentBio !== '') {
-            return;
-        }
-
-        // Update biography
-        $stmt = $db->prepare("UPDATE autori SET biografia = ? WHERE id = ?");
+        // Atomic update: only set bio if currently empty (prevents TOCTOU race condition)
+        $stmt = $db->prepare("UPDATE autori SET biografia = ? WHERE id = ? AND (biografia IS NULL OR biografia = '')");
         if (!$stmt) {
             return;
         }
 
         $stmt->bind_param('si', $bio, $authorId);
         $stmt->execute();
+        $affectedRows = $stmt->affected_rows;
         $stmt->close();
 
-        error_log("[LibriController] Updated author bio for ID $authorId from scraping");
+        if ($affectedRows > 0) {
+            error_log("[LibriController] Updated author bio for ID $authorId from scraping");
+        }
     }
 }
