@@ -499,6 +499,9 @@ class LibriController
             $repo = new \App\Models\BookRepository($db);
             $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
 
+            // Get scraped author bio if available
+            $scrapedAuthorBio = trim((string)($data['scraped_author_bio'] ?? ''));
+
             // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
                 $authRepo = new \App\Models\AuthorRepository($db);
@@ -509,6 +512,10 @@ class LibriController
                         $existingId = $authRepo->findByName($nomeCompleto);
                         if ($existingId) {
                             $fields['autori_ids'][] = $existingId;
+                            // Update bio if existing author has no bio and we have scraped one
+                            if ($scrapedAuthorBio !== '') {
+                                $this->updateAuthorBioIfEmpty($db, $existingId, $scrapedAuthorBio);
+                            }
                         } else {
                             $authorId = $authRepo->create([
                                 'nome' => $nomeCompleto,
@@ -516,7 +523,7 @@ class LibriController
                                 'data_nascita' => null,
                                 'data_morte' => null,
                                 'nazionalita' => '',
-                                'biografia' => '',
+                                'biografia' => $scrapedAuthorBio,
                                 'sito_web' => ''
                             ]);
                             $fields['autori_ids'][] = $authorId;
@@ -533,6 +540,10 @@ class LibriController
                     $found = $authRepo->findByName($scrapedAuthor);
                     if ($found) {
                         $fields['autori_ids'][] = $found;
+                        // Update bio if existing author has no bio and we have scraped one
+                        if ($scrapedAuthorBio !== '') {
+                            $this->updateAuthorBioIfEmpty($db, $found, $scrapedAuthorBio);
+                        }
                     } else {
                         $authorId = $authRepo->create([
                             'nome' => $scrapedAuthor,
@@ -540,7 +551,7 @@ class LibriController
                             'data_nascita' => null,
                             'data_morte' => null,
                             'nazionalita' => '',
-                            'biografia' => '',
+                            'biografia' => $scrapedAuthorBio,
                             'sito_web' => ''
                         ]);
                         $fields['autori_ids'][] = $authorId;
@@ -1001,6 +1012,9 @@ class LibriController
                 $fields['collocazione'] = '';
             }
 
+            // Get scraped author bio if available (for update method)
+            $scrapedAuthorBioUpdate = trim((string)($data['scraped_author_bio'] ?? ''));
+
             // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
                 $authRepo = new \App\Models\AuthorRepository($db);
@@ -1011,6 +1025,10 @@ class LibriController
                         $existingId = $authRepo->findByName($nomeCompleto);
                         if ($existingId) {
                             $fields['autori_ids'][] = $existingId;
+                            // Update bio if existing author has no bio and we have scraped one
+                            if ($scrapedAuthorBioUpdate !== '') {
+                                $this->updateAuthorBioIfEmpty($db, $existingId, $scrapedAuthorBioUpdate);
+                            }
                         } else {
                             $authorId = $authRepo->create([
                                 'nome' => $nomeCompleto,
@@ -1018,7 +1036,7 @@ class LibriController
                                 'data_nascita' => null,
                                 'data_morte' => null,
                                 'nazionalita' => '',
-                                'biografia' => '',
+                                'biografia' => $scrapedAuthorBioUpdate,
                                 'sito_web' => ''
                             ]);
                             $fields['autori_ids'][] = $authorId;
@@ -1035,6 +1053,10 @@ class LibriController
                     $found = $authRepo->findByName($scrapedAuthor);
                     if ($found) {
                         $fields['autori_ids'][] = $found;
+                        // Update bio if existing author has no bio and we have scraped one
+                        if ($scrapedAuthorBioUpdate !== '') {
+                            $this->updateAuthorBioIfEmpty($db, $found, $scrapedAuthorBioUpdate);
+                        }
                     } else {
                         $authorId = $authRepo->create([
                             'nome' => $scrapedAuthor,
@@ -1042,7 +1064,7 @@ class LibriController
                             'data_nascita' => null,
                             'data_morte' => null,
                             'nazionalita' => '',
-                            'biografia' => '',
+                            'biografia' => $scrapedAuthorBioUpdate,
                             'sito_web' => ''
                         ]);
                         $fields['autori_ids'][] = $authorId;
@@ -2484,5 +2506,50 @@ class LibriController
         }
 
         return [];
+    }
+
+    /**
+     * Update author biography if currently empty
+     * Used to populate bio from scraped data without overwriting existing content
+     */
+    private function updateAuthorBioIfEmpty(\mysqli $db, int $authorId, string $bio): void
+    {
+        if ($bio === '' || $authorId <= 0) {
+            return;
+        }
+
+        // Check if author has empty bio
+        $stmt = $db->prepare("SELECT biografia FROM autori WHERE id = ?");
+        if (!$stmt) {
+            return;
+        }
+
+        $stmt->bind_param('i', $authorId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            return;
+        }
+
+        // Only update if bio is empty
+        $currentBio = trim((string)($row['biografia'] ?? ''));
+        if ($currentBio !== '') {
+            return;
+        }
+
+        // Update biography
+        $stmt = $db->prepare("UPDATE autori SET biografia = ? WHERE id = ?");
+        if (!$stmt) {
+            return;
+        }
+
+        $stmt->bind_param('si', $bio, $authorId);
+        $stmt->execute();
+        $stmt->close();
+
+        error_log("[LibriController] Updated author bio for ID $authorId from scraping");
     }
 }

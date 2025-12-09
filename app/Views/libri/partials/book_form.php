@@ -79,6 +79,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       <input type="hidden" id="copertina_url" name="copertina_url" value="<?php echo HtmlHelper::e($currentCover); ?>">
       <input type="hidden" id="remove_cover" name="remove_cover" value="0">
       <input type="hidden" id="scraped_tipologia" name="scraped_tipologia" value="">
+      <input type="hidden" id="scraped_author_bio" name="scraped_author_bio" value="">
 
       <?php if ($scrapingAvailable): ?>
       <div class="card mb-8">
@@ -3085,6 +3086,17 @@ function initializeIsbnImport() {
                         scrapedPages.value = data.pages;
                     }
                 } else {
+                }
+            } catch (err) {
+            }
+
+            // Handle author bio - store for backend to update author record
+            try {
+                if (data.author_bio) {
+                    const scrapedAuthorBio = document.getElementById('scraped_author_bio');
+                    if (scrapedAuthorBio) {
+                        scrapedAuthorBio.value = data.author_bio;
+                    }
                 }
             } catch (err) {
             }
