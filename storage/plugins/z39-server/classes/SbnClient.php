@@ -428,15 +428,14 @@ class SbnClient
             $book['lingua'] = $this->mapLanguageToCode($lang);
         }
 
-        // Cover image (from LibraryThing)
-        if (!empty($record['copertina'])) {
-            // Request larger image (change small to medium)
-            $coverUrl = str_replace('/small/', '/medium/', $record['copertina']);
-            // Convert HTTP to HTTPS for proxy compatibility
-            $coverUrl = preg_replace('/^http:\/\//i', 'https://', $coverUrl);
-            $book['image'] = $coverUrl;
-            $book['copertina_url'] = $coverUrl;
-        }
+        // Cover image: DISABLED - LibraryThing URLs don't work server-side (403)
+        // Use Open Library or other sources for covers instead
+        // if (!empty($record['copertina'])) {
+        //     $coverUrl = str_replace('/small/', '/medium/', $record['copertina']);
+        //     $coverUrl = preg_replace('/^http:\/\//i', 'https://', $coverUrl);
+        //     $book['image'] = $coverUrl;
+        //     $book['copertina_url'] = $coverUrl;
+        // }
 
         // Dewey Classification
         $deweyData = $this->extractDeweyData($record['classificazioneDewey'] ?? '');
