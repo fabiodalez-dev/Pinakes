@@ -432,6 +432,8 @@ class SbnClient
         if (!empty($record['copertina'])) {
             // Request larger image (change small to medium)
             $coverUrl = str_replace('/small/', '/medium/', $record['copertina']);
+            // Convert HTTP to HTTPS for proxy compatibility
+            $coverUrl = preg_replace('/^http:\/\//i', 'https://', $coverUrl);
             $book['image'] = $coverUrl;
             $book['copertina_url'] = $coverUrl;
         }
