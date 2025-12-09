@@ -443,21 +443,24 @@ class LibriController
 
         try {
             // Perform duplicate check within the lock
+            // IMPORTANT: Check ALL values against ALL identifier fields (isbn10, isbn13, ean)
+            // because EAN-13 and ISBN-13 are identical for books
             if (!empty($codes)) {
-                $clauses = [];
-                $types = '';
-                $params = [];
-                foreach ($codes as $k => $v) {
-                    $clauses[] = "l.$k = ?";
-                    $types .= 's';
-                    $params[] = $v;
-                }
+                // Get unique values from all identifier fields
+                $allValues = array_unique(array_values($codes));
+                $placeholders = implode(',', array_fill(0, count($allValues), '?'));
+                $types = str_repeat('s', count($allValues) * 3); // 3 fields to check
+                $params = array_merge($allValues, $allValues, $allValues); // Same values for each field
+
                 $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
                         s.codice as scaffale_codice, m.numero_livello as mensola_livello
                         FROM libri l
                         LEFT JOIN scaffali s ON l.scaffale_id = s.id
                         LEFT JOIN mensole m ON l.mensola_id = m.id
-                        WHERE ' . implode(' OR ', $clauses) . ' LIMIT 1';
+                        WHERE l.isbn10 IN (' . $placeholders . ')
+                           OR l.isbn13 IN (' . $placeholders . ')
+                           OR l.ean IN (' . $placeholders . ')
+                        LIMIT 1';
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
                 $stmt->execute();
@@ -928,23 +931,25 @@ class LibriController
 
         try {
             // Perform duplicate check within the lock
+            // IMPORTANT: Check ALL values against ALL identifier fields (isbn10, isbn13, ean)
+            // because EAN-13 and ISBN-13 are identical for books
             if (!empty($codes)) {
-                $clauses = [];
-                $types = '';
-                $params = [];
-                foreach ($codes as $k => $v) {
-                    $clauses[] = "l.$k = ?";
-                    $types .= 's';
-                    $params[] = $v;
-                }
+                // Get unique values from all identifier fields
+                $allValues = array_unique(array_values($codes));
+                $placeholders = implode(',', array_fill(0, count($allValues), '?'));
+                $types = str_repeat('s', count($allValues) * 3) . 'i'; // 3 fields + book id
+                $params = array_merge($allValues, $allValues, $allValues, [$id]);
+
                 $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione,
                                s.codice AS scaffale_codice, m.numero_livello AS mensola_livello, l.posizione_progressiva
                         FROM libri l
                         LEFT JOIN scaffali s ON l.scaffale_id = s.id
                         LEFT JOIN mensole m ON l.mensola_id = m.id
-                        WHERE (' . implode(' OR ', $clauses) . ') AND l.id <> ? LIMIT 1';
-                $types .= 'i';
-                $params[] = $id;
+                        WHERE (l.isbn10 IN (' . $placeholders . ')
+                           OR l.isbn13 IN (' . $placeholders . ')
+                           OR l.ean IN (' . $placeholders . '))
+                          AND l.id <> ?
+                        LIMIT 1';
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
                 $stmt->execute();
