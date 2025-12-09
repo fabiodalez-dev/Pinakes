@@ -138,8 +138,7 @@ verify_package_contents() {
         ".idea"
         ".cursor"
         ".github"
-        "node_modules"
-        "frontend"          # Source only - compiled assets are in public/assets/
+        # node_modules and frontend ARE INCLUDED for customization
         "internal"          # Internal dev docs
         "tests"             # PHPUnit tests
         "docs"              # Documentation (dev only)
