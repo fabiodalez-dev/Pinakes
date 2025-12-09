@@ -2614,4 +2614,10 @@ return function (App $app): void {
         return $controller->downloadBackup($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    // Emergency maintenance mode clear (for recovery after failed updates)
+    $app->post('/admin/updates/maintenance/clear', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->clearMaintenance($request, $response);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
 };
