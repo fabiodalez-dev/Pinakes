@@ -513,6 +513,19 @@ async function startUpdate(version) {
             body: `csrf_token=${encodeURIComponent(csrfToken)}&version=${encodeURIComponent(version)}`
         });
 
+        // Check response before parsing JSON
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            // Server returned HTML (error page or maintenance page)
+            const text = await response.text();
+            console.error('Server returned non-JSON response:', text.substring(0, 500));
+            throw new Error('<?= __("Il server ha restituito una risposta non valida. Controlla i log per dettagli.") ?>');
+        }
+
+        if (!response.ok && response.status === 503) {
+            throw new Error('<?= __("Server in manutenzione. Attendi il completamento dell\\'aggiornamento.") ?>');
+        }
+
         const data = await response.json();
 
         setStepComplete('download');
@@ -541,7 +554,9 @@ async function startUpdate(version) {
         document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
         document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
         document.getElementById('updateTitle').textContent = '<?= __("Errore") ?>';
-        document.getElementById('updateMessage').textContent = error.message;
+        document.getElementById('updateMessage').innerHTML = escapeHtml(error.message) +
+            '<br><br><button onclick="clearMaintenanceMode()" class="mt-2 px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">' +
+            '<i class="fas fa-unlock mr-1"></i><?= __("Disattiva modalità manutenzione") ?></button>';
         document.getElementById('updateActions').classList.remove('hidden');
     }
 }
@@ -567,6 +582,42 @@ function setStepComplete(step) {
 function closeUpdateModal() {
     document.getElementById('updateModal').classList.add('hidden');
     location.reload();
+}
+
+async function clearMaintenanceMode() {
+    try {
+        const response = await fetch('/admin/updates/maintenance/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}`
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: '<?= __("Manutenzione disattivata") ?>',
+                text: data.message,
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => location.reload());
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: '<?= __("Errore") ?>',
+                text: data.error
+            });
+        }
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: '<?= __("Errore") ?>',
+            text: error.message
+        });
+    }
 }
 
 function sleep(ms) {

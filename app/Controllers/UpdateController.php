@@ -274,6 +274,47 @@ class UpdateController
     }
 
     /**
+     * API: Clear maintenance mode (emergency recovery)
+     */
+    public function clearMaintenance(Request $request, Response $response): Response
+    {
+        // Admin-only access
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
+        }
+
+        // Verify CSRF token
+        $data = (array) $request->getParsedBody();
+        $csrfToken = $data['csrf_token'] ?? '';
+
+        if (!Csrf::validate($csrfToken)) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $maintenanceFile = dirname(__DIR__, 2) . '/storage/.maintenance';
+
+        if (file_exists($maintenanceFile)) {
+            if (@unlink($maintenanceFile)) {
+                error_log("[Updater] Maintenance mode cleared manually by admin user " . ($_SESSION['user']['id'] ?? 'unknown'));
+                return $this->jsonResponse($response, [
+                    'success' => true,
+                    'message' => __('Modalità manutenzione disattivata')
+                ]);
+            } else {
+                return $this->jsonResponse($response, [
+                    'success' => false,
+                    'error' => __('Impossibile eliminare il file di manutenzione')
+                ], 500);
+            }
+        }
+
+        return $this->jsonResponse($response, [
+            'success' => true,
+            'message' => __('La modalità manutenzione non era attiva')
+        ]);
+    }
+
+    /**
      * Helper: Send JSON response
      */
     private function jsonResponse(Response $response, array $data, int $status = 200): Response
