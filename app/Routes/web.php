@@ -2268,12 +2268,25 @@ return function (App $app): void {
             return $response->withStatus(400);
         }
 
+        // Auto-upgrade HTTP to HTTPS for known safe book cover domains
+        // These domains support HTTPS and are commonly used for book covers
+        $httpUpgradeDomains = [
+            'covers.librarything.com',
+            'covers.openlibrary.org',
+            'images.amazon.com',
+            'books.google.com',
+        ];
+
+        $host = strtolower($parts['host']);
+        if (strtolower($parts['scheme']) === 'http' && in_array($host, $httpUpgradeDomains, true)) {
+            $url = preg_replace('/^http:/i', 'https:', $url);
+            $parts['scheme'] = 'https';
+        }
+
         // Enforce HTTPS only (no HTTP, file://, ftp://, etc.)
         if (strtolower($parts['scheme']) !== 'https') {
             return $response->withStatus(403);
         }
-
-        $host = strtolower($parts['host']);
 
         // Block localhost and loopback addresses
         $blockedHosts = ['localhost', '127.0.0.1', '::1', '0.0.0.0'];
