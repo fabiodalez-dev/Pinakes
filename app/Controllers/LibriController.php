@@ -559,6 +559,15 @@ class LibriController
                 }
             }
 
+            // Update bio for the FIRST selected author if they have no bio
+            // Scraped bio is from the book's primary author, don't apply to all authors
+            if ($scrapedAuthorBio !== '' && !empty($fields['autori_ids'])) {
+                $firstAuthorId = (int) reset($fields['autori_ids']);
+                if ($firstAuthorId > 0) {
+                    $this->updateAuthorBioIfEmpty($db, $firstAuthorId, $scrapedAuthorBio);
+                }
+            }
+
             // Handle publisher auto-creation from manual entry or scraped data
             if ((int) $fields['editore_id'] === 0) {
                 $pubRepo = new \App\Models\PublisherRepository($db);
@@ -1069,6 +1078,15 @@ class LibriController
                         ]);
                         $fields['autori_ids'][] = $authorId;
                     }
+                }
+            }
+
+            // Update bio for the FIRST selected author if they have no bio
+            // Scraped bio is from the book's primary author, don't apply to all authors
+            if ($scrapedAuthorBioUpdate !== '' && !empty($fields['autori_ids'])) {
+                $firstAuthorIdUpdate = (int) reset($fields['autori_ids']);
+                if ($firstAuthorIdUpdate > 0) {
+                    $this->updateAuthorBioIfEmpty($db, $firstAuthorIdUpdate, $scrapedAuthorBioUpdate);
                 }
             }
 

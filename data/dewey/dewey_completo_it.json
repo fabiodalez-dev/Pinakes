@@ -7145,7 +7145,28 @@
                         "code": "892",
                         "name": "Afroasiatiche; Semitiche",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "892.7",
+                                "name": "",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "892.73",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "892.736",
+                                                "name": "Narrativa Araba. 1945-1999",
+                                                "level": 6,
+                                                "children": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "893",
