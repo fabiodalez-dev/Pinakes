@@ -395,7 +395,10 @@ use App\Support\HtmlHelper;
         try {
             $dt = new DateTimeImmutable($lastGeneratedRaw);
             $tz = new DateTimeZone(date_default_timezone_get());
-            $lastGeneratedDisplay = $dt->setTimezone($tz)->format('d/m/Y H:i:s T');
+            $locale = \App\Support\I18n::getLocale();
+            $isItalian = str_starts_with($locale, 'it');
+            $dateFormat = $isItalian ? 'd/m/Y H:i:s' : 'Y-m-d H:i:s';
+            $lastGeneratedDisplay = $dt->setTimezone($tz)->format($dateFormat) . ' ' . $tz->getName();
         } catch (\Throwable $exception) {
             $lastGeneratedDisplay = $lastGeneratedRaw;
         }
@@ -453,7 +456,7 @@ use App\Support\HtmlHelper;
                 <span class="ml-2 text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-700"><?php echo $totalUrls; ?> URL</span>
               <?php endif; ?>
             <?php elseif ($sitemapExists && $sitemapFileModified): ?>
-              <span class="text-gray-900 ml-2"><?php echo date('d/m/Y H:i:s', $sitemapFileModified); ?></span>
+              <span class="text-gray-900 ml-2"><?php echo format_date(date('Y-m-d H:i:s', $sitemapFileModified), true, '/'); ?></span>
               <span class="ml-2 text-xs bg-yellow-100 px-2 py-1 rounded-full text-yellow-800">
                 <i class="fas fa-info-circle"></i> File esistente (data modifica)
               </span>
@@ -640,9 +643,9 @@ use App\Support\HtmlHelper;
                     <p class="text-xs text-gray-600 mt-1"><?php echo HtmlHelper::e($key['description']); ?></p>
                   <?php endif; ?>
                   <div class="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                    <span><i class="fas fa-clock mr-1"></i><?= __("Creata:") ?> <?php echo date('d/m/Y H:i', strtotime($key['created_at'])); ?></span>
+                    <span><i class="fas fa-clock mr-1"></i><?= __("Creata:") ?> <?= format_date($key['created_at'], true, '/') ?></span>
                     <?php if ($key['last_used_at']): ?>
-                      <span><i class="fas fa-history mr-1"></i><?= __("Ultimo uso:") ?> <?php echo date('d/m/Y H:i', strtotime($key['last_used_at'])); ?></span>
+                      <span><i class="fas fa-history mr-1"></i><?= __("Ultimo uso:") ?> <?= format_date($key['last_used_at'], true, '/') ?></span>
                     <?php else: ?>
                       <span class="text-yellow-600"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("Mai utilizzata") ?></span>
                     <?php endif; ?>

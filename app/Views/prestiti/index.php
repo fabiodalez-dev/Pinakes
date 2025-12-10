@@ -109,11 +109,11 @@ function getStatusBadge($status) {
                 <div class="mt-3 grid grid-cols-1 gap-1 text-xs text-gray-500">
                   <span class="flex items-center">
                     <i class="fas fa-play mr-2 text-green-500"></i>
-                    <?= __("Inizio:") ?> <?= date('d-m-Y', strtotime($loan['data_prestito'])) ?>
+                    <?= __("Inizio:") ?> <?= format_date($loan['data_prestito']) ?>
                   </span>
                   <span class="flex items-center">
                     <i class="fas fa-stop mr-2 text-red-500"></i>
-                    <?= __("Fine:") ?> <?= date('d-m-Y', strtotime($loan['data_scadenza'])) ?>
+                    <?= __("Fine:") ?> <?= format_date($loan['data_scadenza']) ?>
                   </span>
                 </div>
               </div>
@@ -128,7 +128,7 @@ function getStatusBadge($status) {
             </div>
             <div class="mt-3 text-xs text-gray-400 flex items-center">
               <i class="fas fa-clock mr-2"></i>
-              <?= __("Richiesto il") ?> <?= date('d-m-Y H:i', strtotime($loan['created_at'])) ?>
+              <?= __("Richiesto il") ?> <?= format_date($loan['created_at'], true) ?>
             </div>
           </div>
           <?php endforeach; ?>
@@ -226,10 +226,10 @@ function getStatusBadge($status) {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-gray-700">
                                     <div>
-                                        <span class="font-semibold"><?= __("Prestito:") ?></span> <?php echo date("d/m/Y", strtotime($prestito['data_prestito'])); ?>
+                                        <span class="font-semibold"><?= __("Prestito:") ?></span> <?= format_date($prestito['data_prestito'], false, '/') ?>
                                     </div>
                                     <div>
-                                        <span class="font-semibold"><?= __("Scadenza:") ?></span> <?php echo date("d/m/Y", strtotime($prestito['data_scadenza'])); ?>
+                                        <span class="font-semibold"><?= __("Scadenza:") ?></span> <?= format_date($prestito['data_scadenza'], false, '/') ?>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
@@ -275,6 +275,7 @@ function getStatusBadge($status) {
 <script>
 // Set current locale for DataTables language selection
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
+// formatDateLocale and appLocale are defined globally in layout.php
 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof DataTable === 'undefined') {
@@ -316,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {
                 data: 'data_prestito',
                 render: function(data, type, row) {
-                    const dataPrestito = data ? new Date(data).toLocaleDateString('it-IT') : window.__('N/D');
+                    const dataPrestito = data ? formatDateLocale(data) : window.__('N/D');
                     return `<div class="text-gray-700">${dataPrestito}</div>`;
                 }
             },

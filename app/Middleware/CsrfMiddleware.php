@@ -26,6 +26,25 @@ class CsrfMiddleware implements MiddlewareInterface
 
             // Cerca token in diversi posti
             $parsedBody = $request->getParsedBody();
+
+            // Se il body non è parsato e il Content-Type è JSON, prova a parsarlo
+            // Importante: dopo la lettura, rewind dello stream e propagazione del parsed body
+            // per permettere ai downstream handler di accedere ai dati
+            if (empty($parsedBody)) {
+                $contentType = $request->getHeaderLine('Content-Type');
+                if (strpos($contentType, 'application/json') !== false) {
+                    $bodyRaw = (string) $request->getBody();
+                    $decoded = json_decode($bodyRaw, true);
+                    if (is_array($decoded)) {
+                        $parsedBody = $decoded;
+                        // Propaga il parsed body alla request per i downstream handlers
+                        $request = $request->withParsedBody($parsedBody);
+                    }
+                    // Rewind dello stream per permettere letture successive
+                    $request->getBody()->rewind();
+                }
+            }
+
             if (is_array($parsedBody) && isset($parsedBody['csrf_token'])) {
                 $token = $parsedBody['csrf_token'];
             } else {
@@ -62,6 +81,7 @@ class CsrfMiddleware implements MiddlewareInterface
             }
         }
 
+        // Passa la request (potenzialmente modificata con parsedBody) al handler
         return $handler->handle($request);
     }
 }

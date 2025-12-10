@@ -168,7 +168,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     <meta name="csrf-token"
         content="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
-    <link rel="icon" type="image/svg+xml" href="<?= absoluteUrl('/favicon.svg') ?>">
+    <link rel="icon" type="image/x-icon" href="<?= absoluteUrl('/favicon.ico') ?>">
 
     <!-- CSS moderno e minimale -->
     <link href="<?= assetUrl('/vendor.css') ?>?v=<?= time() ?>" rel="stylesheet">

@@ -487,12 +487,12 @@ function reservationBookUrl(array $item): string {
                 <?php if ($loanStart && $loanEnd): ?>
                   <div class="badge badge-date">
                     <i class="fas fa-calendar-plus" aria-hidden="true"></i>
-                    <span><?= __("Dal %s al %s", date('d/m/Y', strtotime($loanStart)), date('d/m/Y', strtotime($loanEnd))) ?></span>
+                    <span><?= __("Dal %s al %s", format_date($loanStart, false, '/'), format_date($loanEnd, false, '/')) ?></span>
                   </div>
                 <?php endif; ?>
                 <div class="badge badge-date" style="font-size: 0.75rem; color: #6b7280;">
                   <i class="fas fa-history" aria-hidden="true"></i>
-                  <span><?= __("Richiesto il %s", date('d/m/Y H:i', strtotime($request['created_at'] ?? 'now'))) ?></span>
+                  <span><?= __("Richiesto il %s", format_date($request['created_at'] ?? 'now', true, '/')) ?></span>
                 </div>
               </div>
             </div>
@@ -545,12 +545,12 @@ function reservationBookUrl(array $item): string {
               <div class="item-badges">
                 <div class="badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar" aria-hidden="true"></i>
-                  <span><?= $isOverdue ? __('In ritardo') : __('Scadenza'); ?>: <?= $scadenza ? date('d/m/Y', strtotime($scadenza)) : __('N/D'); ?></span>
+                  <span><?= $isOverdue ? __('In ritardo') : __('Scadenza'); ?>: <?= $scadenza ? format_date($scadenza, false, '/') : __('N/D'); ?></span>
                 </div>
                 <?php if ($startDate): ?>
                   <div class="badge badge-date">
                     <i class="fas fa-clock" aria-hidden="true"></i>
-                    <span><?= __('Dal') ?> <?= date('d/m/Y', strtotime($startDate)); ?></span>
+                    <span><?= __('Dal') ?> <?= format_date($startDate, false, '/'); ?></span>
                   </div>
                 <?php endif; ?>
               </div>
@@ -609,7 +609,7 @@ function reservationBookUrl(array $item): string {
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-calendar" aria-hidden="true"></i>
-                  <span><?= $deadline ? date('d/m/Y', strtotime($deadline)) : __('Non specificata') ?></span>
+                  <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
               <form method="post" action="/reservation/cancel" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
@@ -682,7 +682,7 @@ function reservationBookUrl(array $item): string {
                 <?php if ($returnDate): ?>
                   <div class="badge badge-date">
                     <i class="fas fa-calendar" aria-hidden="true"></i>
-                    <span><?= date('d/m/Y', strtotime($returnDate)); ?></span>
+                    <span><?= format_date($returnDate, false, '/'); ?></span>
                   </div>
                 <?php endif; ?>
               </div>
@@ -753,7 +753,7 @@ function reservationBookUrl(array $item): string {
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-calendar" aria-hidden="true"></i>
-                  <span><?= date('d/m/Y', strtotime($review['created_at'] ?? 'now')); ?></span>
+                  <span><?= format_date($review['created_at'] ?? '', false, '/'); ?></span>
                 </div>
               </div>
               <div class="review-stars" aria-label="Valutazione: <?= (int)$review['stelle']; ?> su 5 stelle">

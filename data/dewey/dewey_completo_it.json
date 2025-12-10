@@ -2764,7 +2764,28 @@
                         "code": "324",
                         "name": "Il processo politico",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "324.2",
+                                "name": "Partiti politici",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "324.21",
+                                        "name": "Partiti politici per orientamento ideologico",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "324.217",
+                                                "name": "Partiti politici di sinistra",
+                                                "level": 6,
+                                                "children": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "325",
@@ -7145,7 +7166,28 @@
                         "code": "892",
                         "name": "Afroasiatiche; Semitiche",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "892.7",
+                                "name": "Letteratura araba",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "892.73",
+                                        "name": "Narrativa araba",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "892.736",
+                                                "name": "Narrativa araba, 1945-1999",
+                                                "level": 6,
+                                                "children": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "893",

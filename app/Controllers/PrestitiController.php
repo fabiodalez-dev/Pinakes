@@ -738,7 +738,7 @@ class PrestitiController
             }
 
             $db->commit();
-            $_SESSION['success_message'] = 'Prestito rinnovato correttamente. Nuova scadenza: ' . date('d/m/Y', strtotime($newDueDate));
+            $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
 
             $successUrl = $redirectTo ?? '/admin/prestiti';
             $separator = strpos($successUrl, '?') === false ? '?' : '&';
@@ -914,9 +914,9 @@ class PrestitiController
                 $sanitizeCsv($loan['libro_titolo'] ?? ''),
                 $sanitizeCsv($loan['utente_nome'] ?? ''),
                 $sanitizeCsv($loan['utente_email'] ?? ''),
-                $loan['data_prestito'] ? date('d/m/Y', strtotime($loan['data_prestito'])) : '',
-                $loan['data_scadenza'] ? date('d/m/Y', strtotime($loan['data_scadenza'])) : '',
-                $loan['data_restituzione'] ? date('d/m/Y', strtotime($loan['data_restituzione'])) : '',
+                $loan['data_prestito'] ? format_date($loan['data_prestito'], false, '/') : '',
+                $loan['data_scadenza'] ? format_date($loan['data_scadenza'], false, '/') : '',
+                $loan['data_restituzione'] ? format_date($loan['data_restituzione'], false, '/') : '',
                 $stato,
                 $loan['renewals'] ?? 0,
                 $sanitizeCsv($loan['copia_inventario'] ?? ''),

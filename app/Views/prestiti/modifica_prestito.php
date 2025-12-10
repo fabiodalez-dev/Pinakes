@@ -61,8 +61,10 @@ $csrf = Csrf::ensureToken();
                         <i class="fas fa-book"></i>
                     </div>
                     <div>
-                        <p class="text-lg font-semibold text-gray-900 leading-tight">
-                            <?= HtmlHelper::e($prestito['libro'] ?? 'Libro non disponibile'); ?>
+                        <p class="text-lg font-semibold leading-tight">
+                            <a href="/admin/libri/modifica/<?= (int)($prestito['libro_id'] ?? 0); ?>" class="text-blue-600 underline hover:text-blue-800 transition-colors">
+                                <?= HtmlHelper::e($prestito['libro'] ?? 'Libro non disponibile'); ?>
+                            </a>
                         </p>
                         <p class="text-sm text-gray-600 mt-1">ID libro: #<?= (int)($prestito['libro_id'] ?? 0); ?></p>
                     </div>

@@ -324,13 +324,18 @@ class ReservationManager
                 'autore' => $book['autore'] ?? ''
             ]);
 
+            // Format dates according to installation locale for email templates
+            $locale = \App\Support\I18n::getInstallationLocale();
+            $isItalian = str_starts_with($locale, 'it');
+            $dateFormat = $isItalian ? 'd-m-Y' : 'Y-m-d';
+
             $variables = [
                 'utente_nome' => $reservation['nome'],
                 'libro_titolo' => $book['titolo'],
                 'libro_autore' => $book['autore'] ?: 'Autore non specificato',
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
-                'data_inizio' => date('d-m-Y', strtotime($reservation['data_inizio_richiesta'])),
-                'data_fine' => date('d-m-Y', strtotime($reservation['data_fine_richiesta'])),
+                'data_inizio' => date($dateFormat, strtotime($reservation['data_inizio_richiesta'])),
+                'data_fine' => date($dateFormat, strtotime($reservation['data_fine_richiesta'])),
                 'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
                 'profile_url' => $this->getBaseUrl() . '/profile/prestiti'
             ];

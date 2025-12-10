@@ -198,13 +198,13 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
           <?php if ($createdAt): ?>
             <div>
               <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Creato il") ?></dt>
-              <dd class="text-gray-900 font-medium mt-1"><?php echo date('d/m/Y H:i', strtotime($createdAt)); ?></dd>
+              <dd class="text-gray-900 font-medium mt-1"><?php echo format_date($createdAt, true, '/'); ?></dd>
             </div>
           <?php endif; ?>
           <?php if ($updatedAt): ?>
             <div>
               <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Ultimo aggiornamento") ?></dt>
-              <dd class="text-gray-900 font-medium mt-1"><?php echo date('d/m/Y H:i', strtotime($updatedAt)); ?></dd>
+              <dd class="text-gray-900 font-medium mt-1"><?php echo format_date($updatedAt, true, '/'); ?></dd>
             </div>
           <?php endif; ?>
         </div>

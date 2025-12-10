@@ -450,6 +450,7 @@ class ApiBookScraperPlugin
             'dimensions' => $data['dimensions'] ?? $data['dimensioni'] ?? null,
             'genres' => $data['genres'] ?? $data['generi'] ?? [],
             'subjects' => $data['subjects'] ?? $data['argomenti'] ?? [],
+            'author_bio' => $data['author_bio'] ?? $data['biografia_autore'] ?? $data['bio'] ?? null,
         ];
 
         $mappedData = array_filter($mappedData, function($value) {

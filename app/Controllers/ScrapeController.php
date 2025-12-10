@@ -6,6 +6,7 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DeweyAutoPopulator;
+use App\Support\IsbnFormatter;
 use App\Support\SecureLogger;
 
 class ScrapeController
@@ -130,6 +131,14 @@ class ScrapeController
             // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
             $payload = $this->normalizeScrapedData($payload);
 
+            // Try to enrich with SBN data if Dewey is missing
+            if (empty($payload['classificazione_dewey'])) {
+                $payload = $this->enrichWithSbnData($payload, $cleanIsbn);
+            }
+
+            // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
+            $payload = $this->normalizeIsbnFields($payload, $cleanIsbn);
+
             // Hook: scrape.response - Modify final JSON response
             $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$cleanIsbn, $sources, ['timestamp' => time()]]);
 
@@ -183,6 +192,14 @@ class ScrapeController
             // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
             $fallbackData = $this->normalizeScrapedData($fallbackData);
 
+            // Try to enrich with SBN data if Dewey is missing
+            if (empty($fallbackData['classificazione_dewey'])) {
+                $fallbackData = $this->enrichWithSbnData($fallbackData, $cleanIsbn);
+            }
+
+            // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
+            $fallbackData = $this->normalizeIsbnFields($fallbackData, $cleanIsbn);
+
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);
 
@@ -205,15 +222,26 @@ class ScrapeController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $sourceNames = array_map(fn($s) => $s['name'] ?? 'Unknown', $sources);
-        $response->getBody()->write(json_encode([
+        // Even for 404, provide normalized ISBN variants for form population
+        $errorData = [
             'error' => sprintf(
                 __('ISBN non trovato. Fonti consultate: %s'),
-                implode(', ', $sourceNames)
+                implode(', ', array_map(fn($s) => $s['name'] ?? 'Unknown', $sources))
             ),
             'isbn' => $cleanIsbn,
             'sources_checked' => array_keys($sources),
-        ], JSON_UNESCAPED_UNICODE));
+        ];
+
+        // Add calculated ISBN variants so form can populate isbn10/isbn13 fields
+        $variants = IsbnFormatter::getAllVariants($cleanIsbn);
+        if (!empty($variants['isbn10'])) {
+            $errorData['isbn10'] = $variants['isbn10'];
+        }
+        if (!empty($variants['isbn13'])) {
+            $errorData['isbn13'] = $variants['isbn13'];
+        }
+
+        $response->getBody()->write(json_encode($errorData, JSON_UNESCAPED_UNICODE));
 
         return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
     }
@@ -361,13 +389,7 @@ class ScrapeController
             }
 
             $year = substr($pubDate, 0, 4);
-            // Convert to Italian format if full date (YYYY-MM-DD)
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $pubDate)) {
-                $date = \DateTime::createFromFormat('Y-m-d', $pubDate);
-                if ($date) {
-                    $pubDate = $date->format('d/m/Y');
-                }
-            }
+            // Keep YYYY-MM-DD ISO format for API consistency; frontend will format for display
         }
 
         // Extract language
@@ -555,5 +577,134 @@ class ScrapeController
         fclose($fp);
 
         return true;
+    }
+
+    /**
+     * Try to enrich book data with SBN-specific fields (Dewey, etc.)
+     * by querying with alternate ISBN variants.
+     *
+     * This method gracefully handles the case where the SBN plugin is not installed.
+     *
+     * @param array $data Existing book data
+     * @param string $originalIsbn The ISBN that was originally searched
+     * @return array Enriched book data
+     */
+    private function enrichWithSbnData(array $data, string $originalIsbn): array
+    {
+        // Get all ISBN variants (including from scraped data)
+        $variants = IsbnFormatter::getAllVariants($originalIsbn);
+
+        if (!empty($data['isbn13'])) {
+            $variants['isbn13'] = IsbnFormatter::clean($data['isbn13']);
+        }
+        if (!empty($data['isbn10'])) {
+            $variants['isbn10'] = IsbnFormatter::clean($data['isbn10']);
+        }
+
+        // No variants to try
+        if (empty($variants)) {
+            return $data;
+        }
+
+        // Check if SBN plugin is installed
+        $sbnClientPath = dirname(__DIR__, 2) . '/storage/plugins/z39-server/classes/SbnClient.php';
+        if (!file_exists($sbnClientPath)) {
+            SecureLogger::debug('[ScrapeController] SBN plugin not installed, skipping enrichment');
+            return $data;
+        }
+
+        try {
+            require_once $sbnClientPath;
+            $sbnClient = new \Plugins\Z39Server\Classes\SbnClient(timeout: 10);
+
+            foreach ($variants as $format => $isbn) {
+                // Skip the original ISBN (already tried via hooks)
+                if ($isbn === $originalIsbn) {
+                    continue;
+                }
+
+                SecureLogger::debug('[ScrapeController] Trying SBN enrichment', ['isbn' => $isbn, 'format' => $format]);
+                $sbnResult = $sbnClient->searchByIsbn($isbn);
+
+                if ($sbnResult && !empty($sbnResult['classificazione_dewey'])) {
+                    $data['classificazione_dewey'] = $sbnResult['classificazione_dewey'];
+                    if (!empty($sbnResult['_dewey_name_sbn'])) {
+                        $data['_dewey_name_sbn'] = $sbnResult['_dewey_name_sbn'];
+                    }
+
+                    // Fill other missing SBN fields
+                    $sbnFields = ['collana', 'numero_pagine', 'lingua', 'isbn13', 'isbn10', 'series', 'pages'];
+                    foreach ($sbnFields as $field) {
+                        if (empty($data[$field]) && !empty($sbnResult[$field])) {
+                            $data[$field] = $sbnResult[$field];
+                        }
+                    }
+
+                    SecureLogger::debug('[ScrapeController] SBN enrichment successful', [
+                        'isbn' => $isbn,
+                        'dewey' => $data['classificazione_dewey']
+                    ]);
+                    break;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently fail if SBN client has issues - enrichment is optional
+            SecureLogger::debug('[ScrapeController] SBN enrichment failed', ['error' => $e->getMessage()]);
+        }
+
+        return $data;
+    }
+
+    /**
+     * Normalize ISBN fields in book data.
+     *
+     * Ensures both isbn10 and isbn13 fields are populated when possible,
+     * by calculating the missing variant from the available one.
+     *
+     * @param array $data Book data
+     * @param string $originalIsbn The ISBN that was originally searched
+     * @return array Data with normalized ISBN fields
+     */
+    private function normalizeIsbnFields(array $data, string $originalIsbn): array
+    {
+        // First, try to get variants from original search term
+        $variants = IsbnFormatter::getAllVariants($originalIsbn);
+
+        // Also check if data already has ISBNs we can use
+        if (!empty($data['isbn13']) && empty($variants['isbn13'])) {
+            $isbn13Variants = IsbnFormatter::getAllVariants($data['isbn13']);
+            $variants = array_merge($variants, $isbn13Variants);
+        }
+        if (!empty($data['isbn10']) && empty($variants['isbn10'])) {
+            $isbn10Variants = IsbnFormatter::getAllVariants($data['isbn10']);
+            $variants = array_merge($variants, $isbn10Variants);
+        }
+
+        // Also check generic 'isbn' field
+        if (!empty($data['isbn'])) {
+            $isbnVariants = IsbnFormatter::getAllVariants($data['isbn']);
+            $variants = array_merge($variants, $isbnVariants);
+        }
+
+        // Populate missing ISBN fields
+        if (!empty($variants['isbn13']) && empty($data['isbn13'])) {
+            $data['isbn13'] = $variants['isbn13'];
+            SecureLogger::debug('[ScrapeController] Auto-populated isbn13', ['isbn13' => $variants['isbn13']]);
+        }
+        if (!empty($variants['isbn10']) && empty($data['isbn10'])) {
+            $data['isbn10'] = $variants['isbn10'];
+            SecureLogger::debug('[ScrapeController] Auto-populated isbn10', ['isbn10' => $variants['isbn10']]);
+        }
+
+        // Also ensure generic 'isbn' field is set (prefer ISBN-13)
+        if (empty($data['isbn'])) {
+            if (!empty($data['isbn13'])) {
+                $data['isbn'] = $data['isbn13'];
+            } elseif (!empty($data['isbn10'])) {
+                $data['isbn'] = $data['isbn10'];
+            }
+        }
+
+        return $data;
     }
 }

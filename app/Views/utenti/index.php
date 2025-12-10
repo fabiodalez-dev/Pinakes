@@ -132,7 +132,7 @@
 
               <div class="mt-3 text-xs text-gray-400 flex items-center">
                 <i class="fas fa-clock mr-2"></i>
-                <?= __("Registrato il") ?> <?= !empty($user['created_at']) ? date('d-m-Y H:i', strtotime((string)$user['created_at'])) : 'N/D' ?>
+                <?= __("Registrato il") ?> <?= !empty($user['created_at']) ? format_date((string)$user['created_at'], true, '/') : 'N/D' ?>
               </div>
             </div>
           <?php endforeach; ?>
@@ -287,6 +287,7 @@ window.__ = function(key) {
 
 // Set current locale for DataTables language selection
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
+// formatDateLocale and appLocale are defined globally in layout.php
 
 document.addEventListener('DOMContentLoaded', function() {
   
@@ -696,7 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Date
       doc.setFontSize(11);
-      doc.text(`${__('Generato il:')} ${new Date().toLocaleDateString('it-IT')}`, 14, 30);
+      doc.text(`${__('Generato il:')} ${formatDateLocale(new Date())}`, 14, 30);
 
       // Total count
       doc.text(`${__('Totale utenti:')} ${data.length}`, 14, 38);

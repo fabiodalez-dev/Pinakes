@@ -161,7 +161,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
       <div>
         <dt class="text-sm text-gray-500"><?= __("Data di nascita") ?></dt>
         <dd class="text-sm text-gray-900 mt-1">
-          <?= !empty($dataNascita) ? date('d/m/Y', strtotime($dataNascita)) : '—'; ?>
+          <?= !empty($dataNascita) ? format_date($dataNascita, false, '/') : '—'; ?>
         </dd>
       </div>
       <div>
@@ -193,25 +193,25 @@ $display = static function (?string $value, string $placeholder = '—'): string
       <div>
         <dt class="text-sm text-gray-500"><?= __("Registrato il") ?></dt>
         <dd class="text-sm text-gray-900 mt-1">
-          <?= !empty($creatoIl) ? date('d/m/Y H:i', strtotime($creatoIl)) : '—'; ?>
+          <?= !empty($creatoIl) ? format_date($creatoIl, true, '/') : '—'; ?>
         </dd>
       </div>
       <div>
         <dt class="text-sm text-gray-500"><?= __("Ultimo aggiornamento") ?></dt>
         <dd class="text-sm text-gray-900 mt-1">
-          <?= !empty($aggiornatoIl) ? date('d/m/Y H:i', strtotime($aggiornatoIl)) : '—'; ?>
+          <?= !empty($aggiornatoIl) ? format_date($aggiornatoIl, true, '/') : '—'; ?>
         </dd>
       </div>
       <div>
         <dt class="text-sm text-gray-500"><?= __("Scadenza tessera") ?></dt>
         <dd class="text-sm text-gray-900 mt-1">
-          <?= !empty($dataScadenzaTessera) ? date('d/m/Y', strtotime($dataScadenzaTessera)) : '—'; ?>
+          <?= !empty($dataScadenzaTessera) ? format_date($dataScadenzaTessera, false, '/') : '—'; ?>
         </dd>
       </div>
       <div>
         <dt class="text-sm text-gray-500"><?= __("Ultimo accesso") ?></dt>
         <dd class="text-sm text-gray-900 mt-1">
-          <?= !empty($dataUltimoAccesso) ? date('d/m/Y H:i', strtotime($dataUltimoAccesso)) : '—'; ?>
+          <?= !empty($dataUltimoAccesso) ? format_date($dataUltimoAccesso, true, '/') : '—'; ?>
         </dd>
       </div>
     </dl>
@@ -290,10 +290,10 @@ $display = static function (?string $value, string $placeholder = '—'): string
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-gray-700">
                                 <div>
-                                    <span class="font-semibold"><?= __("Dal:") ?></span> <?= date("d/m/Y", strtotime($prestito['data_prestito'])); ?>
+                                    <span class="font-semibold"><?= __("Dal:") ?></span> <?= format_date($prestito['data_prestito'], false, '/') ?>
                                 </div>
                                 <div>
-                                    <span class="font-semibold"><?= __("Al:") ?></span> <?= !empty($prestito['data_restituzione']) ? date("d/m/Y", strtotime($prestito['data_restituzione'])) : date("d/m/Y", strtotime($prestito['data_scadenza'])); ?>
+                                    <span class="font-semibold"><?= __("Al:") ?></span> <?= format_date(!empty($prestito['data_restituzione']) ? $prestito['data_restituzione'] : $prestito['data_scadenza'], false, '/') ?>
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
