@@ -6,8 +6,8 @@
  * Uses a standalone layout (no header/footer dependencies to avoid auth issues).
  */
 
-$pageTitle = __('Sessione Scaduta');
-$loginUrl = '/login';
+$pageTitle = $pageTitle ?? __('Sessione Scaduta');
+$loginUrl = $loginUrl ?? '/login';
 ?>
 <!DOCTYPE html>
 <html lang="<?= \App\Support\I18n::getLocale() === 'en_US' ? 'en' : 'it' ?>">
@@ -16,7 +16,7 @@ $loginUrl = '/login';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?></title>
     <link rel="stylesheet" href="/assets/main.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/assets/vendor.css">
     <style>
         .session-expired-container {
             min-height: 100vh;

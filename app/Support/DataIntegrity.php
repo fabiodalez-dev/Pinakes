@@ -565,7 +565,27 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // 11. Verifica configurazione APP_CANONICAL_URL nel .env
+        // 11. Verifica prestiti annullati/scaduti che hanno ancora attivo = 1
+        $stmt = $this->db->prepare("
+            SELECT id, libro_id, utente_id, stato
+            FROM prestiti
+            WHERE stato IN ('annullato', 'scaduto')
+            AND attivo = 1
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $issues[] = [
+                    'type' => 'terminated_loan_active',
+                    'message' => \sprintf(__("Prestito ID %d con stato '%s' ha ancora attivo = 1"), $row['id'], $row['stato']),
+                    'severity' => 'error'
+                ];
+            }
+        }
+        $stmt->close();
+
+        // 12. Verifica configurazione APP_CANONICAL_URL nel .env
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         $currentUrl = $this->detectCurrentCanonicalUrl();
 
@@ -677,6 +697,16 @@ class DataIntegrity {
                 UPDATE prestiti SET stato = 'in_ritardo'
                 WHERE stato = 'in_corso'
                 AND data_scadenza < CURDATE()
+                AND attivo = 1
+            ");
+            $stmt->execute();
+            $results['fixed'] += $this->db->affected_rows;
+            $stmt->close();
+
+            // 3b. Correggi prestiti annullati/scaduti che hanno attivo = 1
+            $stmt = $this->db->prepare("
+                UPDATE prestiti SET attivo = 0
+                WHERE stato IN ('annullato', 'scaduto')
                 AND attivo = 1
             ");
             $stmt->execute();
@@ -1043,7 +1073,7 @@ class DataIntegrity {
                 'idx_nome' => ['columns' => ['nome'], 'prefix_length' => 50],
                 'idx_cognome' => ['columns' => ['cognome'], 'prefix_length' => 50],
                 'idx_nome_cognome' => ['columns' => ['nome', 'cognome'], 'prefix_length' => 50],
-                'idx_ruolo' => ['columns' => ['ruolo']],
+                'idx_tipo_utente' => ['columns' => ['tipo_utente']],
             ],
             // TABELLA: generi
             'generi' => [

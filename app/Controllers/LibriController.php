@@ -6,6 +6,7 @@ namespace App\Controllers;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\SecureLogger;
 
 class LibriController
 {
@@ -670,7 +671,7 @@ class LibriController
             $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
 
             // Get scraped author bio if available
-            $scrapedAuthorBio = trim((string)($data['scraped_author_bio'] ?? ''));
+            $scrapedAuthorBio = trim((string) ($data['scraped_author_bio'] ?? ''));
 
             // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
@@ -1195,7 +1196,7 @@ class LibriController
             }
 
             // Get scraped author bio if available (for update method)
-            $scrapedAuthorBioUpdate = trim((string)($data['scraped_author_bio'] ?? ''));
+            $scrapedAuthorBioUpdate = trim((string) ($data['scraped_author_bio'] ?? ''));
 
             // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
@@ -1348,7 +1349,29 @@ class LibriController
                         : $baseInventario;
 
                     $note = "Copia {$i} di {$newCopieCount}";
-                    $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
+                    $newCopyId = $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
+
+                    // Case 1: Reassign pending reservations to this new copy
+                    try {
+                        $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                        $reassignmentService->reassignOnNewCopy($id, $newCopyId);
+                    } catch (\Exception $e) {
+                        SecureLogger::error(__('Riassegnazione prenotazione nuova copia fallita'), [
+                            'copia_id' => $newCopyId,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+
+                    // Also process waitlist (prenotazioni -> prestiti) as we have more capacity now
+                    try {
+                        $reservationManager = new \App\Controllers\ReservationManager($db);
+                        $reservationManager->processBookAvailability($id);
+                    } catch (\Exception $e) {
+                        SecureLogger::error(__('Elaborazione lista attesa fallita'), [
+                            'libro_id' => $id,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
                 }
             } elseif ($newCopieCount < $currentCopieCount) {
                 // Rimuovi copie in eccesso (solo quelle disponibili, non in prestito)
@@ -1634,6 +1657,38 @@ class LibriController
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
         // CSRF validated by CsrfMiddleware
+
+        // Case 10: Prevent deletion if there are active loans/reservations
+        // Check prestiti table (loans with stato: in_corso, prenotato, pendente, in_ritardo)
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count
+            FROM prestiti
+            WHERE libro_id = ?
+            AND attivo = 1
+            AND stato IN ('in_corso', 'prenotato', 'pendente', 'in_ritardo')
+        ");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $prestitiCount = (int) $stmt->get_result()->fetch_assoc()['count'];
+        $stmt->close();
+
+        // Also check prenotazioni table (waitlist entries with stato='attiva')
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count
+            FROM prenotazioni
+            WHERE libro_id = ?
+            AND stato = 'attiva'
+        ");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $prenotazioniCount = (int) $stmt->get_result()->fetch_assoc()['count'];
+        $stmt->close();
+
+        if ($prestitiCount > 0 || $prenotazioniCount > 0) {
+            $_SESSION['error_message'] = __('Impossibile eliminare il libro: ci sono prestiti o prenotazioni attive. Termina prima i prestiti/prenotazioni.');
+            return $response->withHeader('Location', '/admin/libri/' . $id)->withStatus(302);
+        }
+
         $repo = new \App\Models\BookRepository($db);
         $repo->delete($id);
         return $response->withHeader('Location', '/admin/libri')->withStatus(302);

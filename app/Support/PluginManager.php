@@ -1136,19 +1136,23 @@ class PluginManager
      */
     private function loadPlugin(array $plugin): void
     {
-        $pluginName = $plugin['name'];
-        $pluginPath = $this->pluginsDir . '/' . $plugin['path'];
-        $mainFile = $pluginPath . '/' . $plugin['main_file'];
+        // Save plugin data to prefixed variables before require_once
+        // This prevents plugin files from overwriting $plugin variable (which some do)
+        $_pluginId = (int)$plugin['id'];
+        $_pluginName = $plugin['name'];
+        $_pluginPath = $this->pluginsDir . '/' . $plugin['path'];
+        $_mainFile = $_pluginPath . '/' . $plugin['main_file'];
 
-        if (!file_exists($mainFile)) {
-            throw new \Exception("Main file not found: {$mainFile}");
+        if (!file_exists($_mainFile)) {
+            throw new \Exception("Main file not found: {$_mainFile}");
         }
 
         // Load plugin main file
-        require_once $mainFile;
+        // NOTE: Plugin files may define variables that collide with local scope
+        require_once $_mainFile;
 
         // Get plugin class name
-        $className = $this->getPluginClassName($pluginName);
+        $className = $this->getPluginClassName($_pluginName);
 
         if (!class_exists($className)) {
             throw new \Exception("Plugin class not found: {$className}");
@@ -1160,14 +1164,16 @@ class PluginManager
         // Pass plugin ID to the instance when supported (needed for plugin settings)
         if (is_callable([$instance, 'setPluginId'])) {
             try {
-                $instance->setPluginId((int)$plugin['id']);
+                $instance->setPluginId($_pluginId);
             } catch (\Throwable $e) {
-                error_log("[PluginManager] setPluginId failed for {$pluginName}: " . $e->getMessage());
+                SecureLogger::warning("[PluginManager] setPluginId failed for {$_pluginName}", [
+                    'error' => $e->getMessage()
+                ]);
             }
         }
 
         // Load and register hooks for this plugin
-        $this->registerPluginHooks((int)$plugin['id'], $instance);
+        $this->registerPluginHooks($_pluginId, $instance);
     }
 
     /**
