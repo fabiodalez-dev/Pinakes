@@ -167,7 +167,7 @@
                                         </div>
                                         <?php endif; ?>
                                     </div>
-                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>">
+                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>" aria-label="<?= __("Elimina recensione") ?>">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </div>
@@ -234,7 +234,7 @@
                                         </div>
                                         <?php endif; ?>
                                     </div>
-                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>">
+                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>" aria-label="<?= __("Elimina recensione") ?>">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </div>

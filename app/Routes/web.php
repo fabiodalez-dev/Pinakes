@@ -225,6 +225,10 @@ return function (App $app): void {
         }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
         // Handle hybrid URLs for profile update (base in one language, action in another)
+        // This occurs when users switch languages mid-session: their browser may have
+        // cached the old form action URL in one language while the page base URL changed.
+        // Example: Italian install shows /profilo but form might POST to /profilo/update (hybrid)
+        // instead of the expected /profilo/aggiorna (fully Italian).
         if ($locale === 'it_IT') {
             $registerRouteIfUnique('POST', '/profilo/update', function ($request, $response) use ($app) {
                 $db = $app->getContainer()->get('db');
@@ -638,8 +642,9 @@ return function (App $app): void {
                 continue;
             }
 
+            // Use 301 (permanent) for legacy URLs that won't return
             $registerRouteIfUnique('GET', $legacyPath, function ($request, $response) use ($targetPath) {
-                return $response->withHeader('Location', $targetPath)->withStatus(302);
+                return $response->withHeader('Location', $targetPath)->withStatus(301);
             });
         }
     } elseif ($installationLocale === 'it_IT') {
@@ -688,8 +693,9 @@ return function (App $app): void {
                 continue;
             }
 
+            // Use 301 (permanent) for legacy URLs that won't return
             $registerRouteIfUnique('GET', $legacyPath, function ($request, $response) use ($targetPath) {
-                return $response->withHeader('Location', $targetPath)->withStatus(302);
+                return $response->withHeader('Location', $targetPath)->withStatus(301);
             });
         }
     }
@@ -2206,6 +2212,10 @@ return function (App $app): void {
         }, [new CsrfMiddleware()]);
 
         // Handle hybrid URLs for contact submit (Italian base + English action and vice versa)
+        // This occurs when users switch languages mid-session: their browser may have
+        // cached the old form action URL in one language while the page base URL changed.
+        // Example: Italian install shows /contatti but form might POST to /contatti/submit (hybrid)
+        // instead of the expected /contatti/invia (fully Italian).
         if ($locale === 'it_IT') {
             $registerRouteIfUnique('POST', '/contatti/submit', function ($request, $response) use ($app) {
                 $db = $app->getContainer()->get('db');

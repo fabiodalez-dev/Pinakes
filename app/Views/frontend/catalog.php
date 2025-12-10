@@ -1771,7 +1771,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
 
             genreDisplay.genres.forEach(gen => {
                 // Skip genres with 0 count
-                if (!gen.cnt || gen.cnt <= 0) return;
+                if ((gen.cnt ?? 0) <= 0) return;
 
                 const isActive = currentFilters.genere === gen.nome ? 'active' : '';
                 const escapedName = gen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
