@@ -45,8 +45,10 @@
 + storage/calendar/.htaccess
 
 # Keep bundled plugins (CRITICAL!)
+# Note: Exclude .DS_Store within plugins before ** patterns
 + storage/plugins/
 + storage/plugins/.gitkeep
+- storage/plugins/**/.DS_Store
 + storage/plugins/open-library/
 + storage/plugins/open-library/**
 + storage/plugins/z39-server/
@@ -57,6 +59,8 @@
 + storage/plugins/digital-library/**
 + storage/plugins/dewey-editor/
 + storage/plugins/dewey-editor/**
++ storage/plugins/scraping-pro/
++ storage/plugins/scraping-pro/**
 
 # Keep public uploads structure
 + public/uploads/
