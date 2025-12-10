@@ -40,18 +40,20 @@ class ReservationReassignmentService
 
     /**
      * Verifica se siamo già dentro una transazione.
+     * Compatible with both MySQL and MariaDB.
      */
     private function isInTransaction(): bool
     {
         if ($this->externalTransaction) {
             return true;
         }
-        // MySQL: controlla se c'è una transazione attiva
-        $result = $this->db->query("SELECT @@autocommit as ac, @@in_transaction as it");
+        // MySQL/MariaDB compatible: check autocommit status
+        // When in a transaction started with begin_transaction(), autocommit is 0
+        $result = $this->db->query("SELECT @@autocommit as ac");
         if ($result) {
             $row = $result->fetch_assoc();
-            // in_transaction = 1 significa che siamo in una transazione
-            return (int)($row['it'] ?? 0) === 1;
+            // autocommit = 0 typically means we're in a transaction
+            return (int)($row['ac'] ?? 1) === 0;
         }
         return false;
     }
@@ -190,10 +192,21 @@ class ReservationReassignmentService
             return;
         }
 
-        // Cerca un'altra copia disponibile per questo libro
-        $nextCopyId = $this->findAvailableCopy((int) $reservation['libro_id'], $copiaId);
+        $libroId = (int) $reservation['libro_id'];
+        $reservationId = (int) $reservation['id'];
+        $excludedCopies = [$copiaId]; // Copie da escludere dalla ricerca
+        $maxRetries = 5; // Limite tentativi per evitare loop infiniti
 
-        if ($nextCopyId) {
+        for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
+            // Cerca un'altra copia disponibile per questo libro
+            $nextCopyId = $this->findAvailableCopyExcluding($libroId, $excludedCopies);
+
+            if (!$nextCopyId) {
+                // Nessuna copia disponibile
+                $this->handleNoCopyAvailable($reservationId);
+                return;
+            }
+
             // Riassegna
             $ownTransaction = $this->beginTransactionIfNeeded();
             try {
@@ -207,18 +220,14 @@ class ReservationReassignmentService
                 // Verifica che la copia sia ancora disponibile (potrebbe essere cambiata)
                 if (!$copyStatus || $copyStatus['stato'] !== 'disponibile') {
                     $this->rollbackIfOwned($ownTransaction);
-                    // Prova a cercare un'altra copia
-                    $nextCopyId = $this->findAvailableCopy((int) $reservation['libro_id'], $copiaId);
-                    if (!$nextCopyId) {
-                        // Nessuna copia disponibile
-                        $this->handleNoCopyAvailable((int) $reservation['id']);
-                    }
-                    return;
+                    // Aggiungi questa copia alle escluse e riprova
+                    $excludedCopies[] = $nextCopyId;
+                    continue;
                 }
 
                 // Aggiorna prenotazione
                 $stmt = $this->db->prepare("UPDATE prestiti SET copia_id = ? WHERE id = ?");
-                $stmt->bind_param('ii', $nextCopyId, $reservation['id']);
+                $stmt->bind_param('ii', $nextCopyId, $reservationId);
                 $stmt->execute();
                 $stmt->close();
 
@@ -227,21 +236,29 @@ class ReservationReassignmentService
 
                 $this->commitIfOwned($ownTransaction);
 
-                // Notifica (opzionale, magari solo per dire "cambio copia")
-                // $this->notifyUserCopyChanged(...)
+                // Riassegnazione completata con successo
+                return;
 
             } catch (Exception $e) {
                 $this->rollbackIfOwned($ownTransaction);
                 SecureLogger::error(__('Errore riassegnazione copia persa'), [
                     'copia_id' => $copiaId,
-                    'reservation_id' => $reservation['id'],
+                    'reservation_id' => $reservationId,
+                    'attempt' => $attempt + 1,
                     'error' => $e->getMessage()
                 ]);
+                // Aggiungi questa copia alle escluse e riprova
+                $excludedCopies[] = $nextCopyId;
             }
-        } else {
-            // Nessuna copia disponibile
-            $this->handleNoCopyAvailable((int) $reservation['id']);
         }
+
+        // Esauriti i tentativi
+        SecureLogger::warning(__('Esauriti tentativi riassegnazione copia'), [
+            'copia_id' => $copiaId,
+            'reservation_id' => $reservationId,
+            'attempts' => $maxRetries
+        ]);
+        $this->handleNoCopyAvailable($reservationId);
     }
 
     /**
@@ -251,12 +268,25 @@ class ReservationReassignmentService
     {
         // Meglio impostare copia_id a NULL per indicare "in coda senza copia" o "in attesa"
         // E notificare l'utente che è tornato in lista d'attesa
-        $stmt = $this->db->prepare("UPDATE prestiti SET copia_id = NULL WHERE id = ?");
-        $stmt->bind_param('i', $reservationId);
-        $stmt->execute();
-        $stmt->close();
+        $ownTransaction = $this->beginTransactionIfNeeded();
+        try {
+            $stmt = $this->db->prepare("UPDATE prestiti SET copia_id = NULL WHERE id = ?");
+            $stmt->bind_param('i', $reservationId);
+            $stmt->execute();
+            $stmt->close();
 
-        $this->notifyUserCopyUnavailable($reservationId, 'lost_copy');
+            $this->commitIfOwned($ownTransaction);
+
+            // Notifica DOPO il commit (fuori dalla transazione)
+            $this->notifyUserCopyUnavailable($reservationId, 'lost_copy');
+
+        } catch (Exception $e) {
+            $this->rollbackIfOwned($ownTransaction);
+            SecureLogger::error(__('Errore gestione copia non disponibile'), [
+                'reservation_id' => $reservationId,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 
     /**
@@ -311,6 +341,42 @@ class ReservationReassignmentService
     }
 
     /**
+     * Trova una copia disponibile escludendo una lista di copie.
+     * @param int $libroId ID del libro
+     * @param array<int> $excludeCopiaIds Array di ID copie da escludere
+     */
+    private function findAvailableCopyExcluding(int $libroId, array $excludeCopiaIds): ?int
+    {
+        $sql = "
+            SELECT id
+            FROM copie
+            WHERE libro_id = ?
+            AND stato = 'disponibile'
+        ";
+        $params = [$libroId];
+        $types = "i";
+
+        if (!empty($excludeCopiaIds)) {
+            $placeholders = implode(',', array_fill(0, count($excludeCopiaIds), '?'));
+            $sql .= " AND id NOT IN ($placeholders)";
+            foreach ($excludeCopiaIds as $id) {
+                $params[] = $id;
+                $types .= "i";
+            }
+        }
+
+        $sql .= " LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return $res ? (int) $res['id'] : null;
+    }
+
+    /**
      * Notifica l'utente che la copia prenotata è disponibile per il ritiro.
      */
     private function notifyUserCopyAvailable(int $prestitoId): void
@@ -343,7 +409,7 @@ class ReservationReassignmentService
             FROM autori a
             JOIN libri_autori la ON a.id = la.autore_id
             WHERE la.libro_id = ?
-            ORDER BY la.ruolo = 'autore' DESC
+            ORDER BY la.ruolo = 'principale' DESC
             LIMIT 1
         ");
         $authorStmt->bind_param('i', $data['libro_id']);
