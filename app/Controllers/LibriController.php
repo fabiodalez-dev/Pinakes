@@ -36,6 +36,114 @@ class LibriController
     }
 
     /**
+     * Download external cover image and save locally
+     * Returns local URL path on success, null on failure
+     */
+    private function downloadExternalCover(?string $url): ?string
+    {
+        if ($url === null || $url === '' || !preg_match('#^https?://#i', $url)) {
+            return $url; // Not an external URL, return as-is
+        }
+
+        // Allowed domains for cover download (same as CoverController)
+        $allowedDomains = [
+            'images.google.com',
+            'books.google.com',
+            'covers.openlibrary.org',
+            'www.libreriauniversitaria.it',
+            'cdn.mondadoristore.it',
+            'www.lafeltrinelli.it',
+            'images-na.ssl-images-amazon.com',
+            'images-eu.ssl-images-amazon.com'
+        ];
+
+        $parsedUrl = parse_url($url);
+        $host = strtolower($parsedUrl['host'] ?? '');
+
+        if (!in_array($host, $allowedDomains, true)) {
+            \App\Support\SecureLogger::warning('Cover download from non-whitelisted domain', ['url' => $url, 'host' => $host]);
+            return $url; // Return original URL if domain not allowed
+        }
+
+        try {
+            // Download the image
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
+            ]);
+
+            $imageData = curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($imageData === false || $httpCode !== 200 || strlen($imageData) < 100) {
+                \App\Support\SecureLogger::warning('Cover download failed', ['url' => $url, 'http_code' => $httpCode]);
+                return $url; // Return original URL on download failure
+            }
+
+            // Validate image
+            $imageInfo = @getimagesizefromstring($imageData);
+            if ($imageInfo === false) {
+                \App\Support\SecureLogger::warning('Invalid image data', ['url' => $url]);
+                return $url;
+            }
+
+            $mimeType = $imageInfo['mime'] ?? '';
+            $extension = match ($mimeType) {
+                'image/jpeg', 'image/jpg' => 'jpg',
+                'image/png' => 'png',
+                default => null,
+            };
+
+            if ($extension === null) {
+                return $url; // Unsupported format
+            }
+
+            // Ensure upload directory exists
+            $uploadDir = $this->getCoversUploadPath();
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            // Generate unique filename and save
+            $filename = 'copertina_' . uniqid('', true) . '.' . $extension;
+            $filepath = $uploadDir . '/' . $filename;
+
+            // Create image resource and save
+            $image = imagecreatefromstring($imageData);
+            if ($image === false) {
+                return $url;
+            }
+
+            $saveResult = match ($extension) {
+                'png' => imagepng($image, $filepath, 9),
+                default => imagejpeg($image, $filepath, 85),
+            };
+            imagedestroy($image);
+
+            if (!$saveResult) {
+                return $url;
+            }
+
+            chmod($filepath, 0644);
+            \App\Support\SecureLogger::info('Cover downloaded successfully', ['url' => $url, 'local' => $filename]);
+
+            return $this->getCoversUrlPath() . '/' . $filename;
+
+        } catch (\Exception $e) {
+            \App\Support\SecureLogger::error('Cover download exception', ['url' => $url, 'error' => $e->getMessage()]);
+            return $url; // Return original URL on any error
+        }
+    }
+
+    /**
      * Normalize text fields by removing MARC-8 control characters and collapsing whitespace
      * MARC-8 uses characters like NSB (0x88, 0x98) and NSE (0x89, 0x9C) for non-sorting blocks
      * These appear as invisible characters or ? when stored in MySQL with UTF-8
@@ -375,6 +483,9 @@ class LibriController
         $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float) $fields['prezzo'] : null;
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
+        } else {
+            // Auto-download external cover URLs
+            $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
         }
 
         // Ensure hierarchical consistency between genere_id (parent) and sottogenere_id (child)
@@ -905,6 +1016,9 @@ class LibriController
             $fields['copertina_url'] = null;
         } elseif ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
+        } else {
+            // Auto-download external cover URLs
+            $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
         }
 
         // Ensure hierarchical consistency between genere_id and sottogenere_id also on update

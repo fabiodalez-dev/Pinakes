@@ -49,8 +49,10 @@ $cookieBannerTexts = [
 ?>
 <!-- Silktide Consent Manager -->
 <script>
-    if (typeof silktideCookieBannerManager !== 'undefined') {
-        silktideCookieBannerManager.updateCookieBannerConfig({
+    (function() {
+        function initCookieBannerConfig() {
+            if (typeof silktideCookieBannerManager !== 'undefined' && typeof silktideCookieBannerManager.updateCookieBannerConfig === 'function') {
+                silktideCookieBannerManager.updateCookieBannerConfig({
             cookieTypes: [
                 {
                     id: 'essential',
@@ -103,8 +105,30 @@ $cookieBannerTexts = [
                 banner: 'bottomRight',
                 cookieIcon: 'bottomLeft',
             },
-        });
-    } else {
-        console.warn('silktideCookieBannerManager non è stato caricato.');
-    }
+                });
+                return true;
+            }
+            return false;
+        }
+
+        // Try to initialize immediately
+        if (!initCookieBannerConfig()) {
+            // If not available, wait for DOMContentLoaded
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    if (!initCookieBannerConfig()) {
+                        // Retry after a short delay (script might still be loading)
+                        setTimeout(initCookieBannerConfig, 100);
+                    }
+                });
+            } else {
+                // DOM already loaded, retry after script loads
+                setTimeout(function retry() {
+                    if (!initCookieBannerConfig()) {
+                        setTimeout(retry, 100);
+                    }
+                }, 50);
+            }
+        }
+    })();
 </script>

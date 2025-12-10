@@ -63,8 +63,38 @@ class CmsAdminController
         $stmt->close();
 
         if (!$page) {
-            $response->getBody()->write(__('Pagina non trovata.'));
-            return $response->withStatus(404);
+            // Check if this is a known CMS page that should exist
+            $pageId = CmsHelper::getPageIdFromSlug($slug);
+            if ($pageId !== null) {
+                // Auto-create the missing page
+                $defaultTitle = ucfirst(str_replace('-', ' ', $slug));
+                $defaultContent = '<p>' . __('Contenuto della pagina') . ' "' . $defaultTitle . '"</p>';
+
+                $createStmt = $this->db->prepare("
+                    INSERT INTO cms_pages (slug, locale, title, content, meta_description, is_active)
+                    VALUES (?, ?, ?, ?, '', 1)
+                ");
+                $createStmt->bind_param('ssss', $slug, $currentLocale, $defaultTitle, $defaultContent);
+                $createStmt->execute();
+                $createStmt->close();
+
+                // Reload the page
+                $stmt = $this->db->prepare("
+                    SELECT id, slug, locale, title, content, image, meta_description, is_active
+                    FROM cms_pages
+                    WHERE slug = ? AND locale = ?
+                ");
+                $stmt->bind_param('ss', $slug, $currentLocale);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $page = $result->fetch_assoc();
+                $stmt->close();
+            }
+
+            if (!$page) {
+                $response->getBody()->write(__('Pagina non trovata.'));
+                return $response->withStatus(404);
+            }
         }
 
         // Passa i dati alla view

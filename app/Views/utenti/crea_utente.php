@@ -71,7 +71,7 @@ $errorKey = (string)($_GET['error'] ?? '');
           <div>
             <label for="sesso" class="block text-sm font-medium text-gray-700"><?= __("Sesso") ?></label>
             <select id="sesso" name="sesso" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
-              <option><?= __("-- Seleziona --") ?></option>
+              <option value="" selected><?= __("-- Seleziona --") ?></option>
               <option value="M"><?= __("Maschio") ?></option>
               <option value="F"><?= __("Femmina") ?></option>
               <option value="Altro"><?= __("Altro") ?></option>

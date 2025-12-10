@@ -1171,15 +1171,15 @@ ob_start();
                             <i class="fas fa-tags"></i>
                             <?= __("Generi") ?>
                         </div>
-                        <?php if($genre_display['level'] > 0): ?>
+                        <div class="filter-options" id="genres-filter">
+                            <?php if($genre_display['level'] > 0): ?>
                             <div class="filter-back-container">
                                 <a href="#" class="filter-back-btn" onclick="updateFilter('genere', '<?= $genre_display['level'] === 1 ? '' : addslashes($genre_display['parent']['nome'] ?? '') ?>'); return false;" title="<?= __("Torna alla categoria superiore") ?>">
                                     <i class="fas fa-arrow-left"></i>
                                     <span><?= __("Torna alla categoria superiore") ?></span>
                                 </a>
                             </div>
-                        <?php endif; ?>
-                        <div class="filter-options" id="genres-filter">
+                            <?php endif; ?>
                             <?php if($genre_display['level'] === 0): ?>
                                 <!-- Display Level 1 Genres (Radici) -->
                                 <?php foreach($genre_display['genres'] as $genere): ?>

@@ -25,6 +25,7 @@ use App\Controllers\UserDashboardController;
 use App\Controllers\MaintenanceController;
 use App\Controllers\SettingsController;
 use App\Controllers\LanguageController;
+use App\Controllers\ReservationsAdminController;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminAuthMiddleware;
 use App\Support\RouteTranslator;

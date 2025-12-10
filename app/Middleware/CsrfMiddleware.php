@@ -26,6 +26,16 @@ class CsrfMiddleware implements MiddlewareInterface
 
             // Cerca token in diversi posti
             $parsedBody = $request->getParsedBody();
+
+            // Se il body non è parsato e il Content-Type è JSON, prova a parsarlo
+            if (empty($parsedBody)) {
+                $contentType = $request->getHeaderLine('Content-Type');
+                if (strpos($contentType, 'application/json') !== false) {
+                    $bodyRaw = (string) $request->getBody();
+                    $parsedBody = json_decode($bodyRaw, true);
+                }
+            }
+
             if (is_array($parsedBody) && isset($parsedBody['csrf_token'])) {
                 $token = $parsedBody['csrf_token'];
             } else {

@@ -167,6 +167,9 @@
                                         </div>
                                         <?php endif; ?>
                                     </div>
+                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
                                 </div>
                             </div>
                             <?php endforeach; ?>
@@ -231,6 +234,9 @@
                                         </div>
                                         <?php endif; ?>
                                     </div>
+                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
                                 </div>
                             </div>
                             <?php endforeach; ?>
@@ -361,6 +367,48 @@ function toggleSection(section) {
                 confirmText: __('Vuoi rifiutare questa recensione? L\'utente verrà avvisato dell\'esito.'),
                 confirmButton: __('Rifiuta'),
                 errorPrefix: __('Impossibile rifiutare la recensione')
+            });
+        });
+
+        // Delete button handler
+        context.querySelectorAll('.delete-btn').forEach(btn => {
+            if (btn.dataset.bound === '1') return;
+            btn.dataset.bound = '1';
+
+            btn.addEventListener('click', async function() {
+                const reviewId = this.dataset.reviewId;
+                const confirmed = await confirmAction({
+                    title: __('Elimina recensione'),
+                    text: __('Vuoi eliminare definitivamente questa recensione? Questa azione non può essere annullata.'),
+                    confirmText: __('Elimina'),
+                    icon: 'warning'
+                });
+
+                if (!confirmed) return;
+
+                try {
+                    const response = await fetch(`/admin/recensioni/${reviewId}`, {
+                        method: 'DELETE',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': csrf
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        const card = this.closest('.bg-gray-50, [data-review-card]');
+                        if (card) card.remove();
+                        showFeedback('success', __('Recensione eliminata'), __('La recensione è stata eliminata definitivamente.'));
+                    } else {
+                        showFeedback('error', __('Errore'), result.message || __('Impossibile eliminare la recensione'));
+                    }
+                } catch (error) {
+                    console.error('Delete review error:', error);
+                    showFeedback('error', __('Errore'), __('Errore di comunicazione con il server'));
+                }
             });
         });
     };
