@@ -60,28 +60,68 @@ class CsrfMiddleware implements MiddlewareInterface
             if (!$csrfValidation['valid']) {
                 error_log('[CSRF] Validation failed. Reason: ' . $csrfValidation['reason'] . ' Token provided: ' . var_export($token, true) . ' Session token: ' . var_export($_SESSION['csrf_token'] ?? null, true));
 
-                $response = new SlimResponse(403);
+                // Determina se è una richiesta AJAX o form tradizionale
+                $isAjax = $this->isAjaxRequest($request);
 
-                // Messaggio user-friendly per sessione scaduta
-                if ($csrfValidation['reason'] === 'session_expired') {
-                    $response->getBody()->write(json_encode([
-                        'error' => __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso'),
-                        'code' => 'SESSION_EXPIRED',
-                        'redirect' => '/login?error=session_expired'
-                    ], JSON_UNESCAPED_UNICODE));
+                if ($isAjax) {
+                    // Richiesta AJAX: restituisce JSON
+                    $response = new SlimResponse(403);
+
+                    if ($csrfValidation['reason'] === 'session_expired') {
+                        $response->getBody()->write(json_encode([
+                            'error' => __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso'),
+                            'code' => 'SESSION_EXPIRED',
+                            'redirect' => '/login?error=session_expired'
+                        ], JSON_UNESCAPED_UNICODE));
+                    } else {
+                        $response->getBody()->write(json_encode([
+                            'error' => __('Errore di sicurezza. Ricarica la pagina e riprova'),
+                            'code' => 'CSRF_INVALID'
+                        ], JSON_UNESCAPED_UNICODE));
+                    }
+
+                    return $response->withHeader('Content-Type', 'application/json');
                 } else {
-                    // Altri errori CSRF
-                    $response->getBody()->write(json_encode([
-                        'error' => __('Errore di sicurezza. Ricarica la pagina e riprova'),
-                        'code' => 'CSRF_INVALID'
-                    ], JSON_UNESCAPED_UNICODE));
-                }
+                    // Richiesta form tradizionale: mostra pagina HTML stilizzata
+                    $response = new SlimResponse(403);
 
-                return $response->withHeader('Content-Type', 'application/json');
+                    ob_start();
+                    require __DIR__ . '/../Views/errors/session-expired.php';
+                    $html = ob_get_clean();
+
+                    $response->getBody()->write($html);
+                    return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+                }
             }
         }
 
         // Passa la request (potenzialmente modificata con parsedBody) al handler
         return $handler->handle($request);
+    }
+
+    /**
+     * Determina se la richiesta è AJAX
+     */
+    private function isAjaxRequest(Request $request): bool
+    {
+        // Header X-Requested-With (jQuery e molti framework)
+        $xRequestedWith = $request->getHeaderLine('X-Requested-With');
+        if (strtolower($xRequestedWith) === 'xmlhttprequest') {
+            return true;
+        }
+
+        // Accept header preferisce JSON
+        $accept = $request->getHeaderLine('Accept');
+        if (strpos($accept, 'application/json') !== false) {
+            return true;
+        }
+
+        // Content-Type è JSON (tipico di fetch API)
+        $contentType = $request->getHeaderLine('Content-Type');
+        if (strpos($contentType, 'application/json') !== false) {
+            return true;
+        }
+
+        return false;
     }
 }
