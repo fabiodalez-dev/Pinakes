@@ -132,7 +132,7 @@
 
               <div class="mt-3 text-xs text-gray-400 flex items-center">
                 <i class="fas fa-clock mr-2"></i>
-                <?= __("Registrato il") ?> <?= !empty($user['created_at']) ? format_date((string)$user['created_at'], true) : 'N/D' ?>
+                <?= __("Registrato il") ?> <?= !empty($user['created_at']) ? format_date((string)$user['created_at'], true, '/') : 'N/D' ?>
               </div>
             </div>
           <?php endforeach; ?>

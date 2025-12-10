@@ -339,6 +339,9 @@ function toggleSection(section) {
                 return;
             }
 
+            // Disable button during request to prevent double-clicks
+            this.disabled = true;
+
             try {
                 const url = endpoint
                     ? `/admin/recensioni/${reviewId}/${endpoint}`
@@ -366,9 +369,11 @@ function toggleSection(section) {
                         location.reload();
                     }
                 } else {
+                    this.disabled = false; // Re-enable on error so user can retry
                     showFeedback('error', i18n.errore, `${errorPrefix}: ${result.message || i18n.operazioneNonRiuscita}`);
                 }
             } catch (error) {
+                this.disabled = false; // Re-enable on error so user can retry
                 console.error('Review action error:', error);
                 showFeedback('error', i18n.errore, `${errorPrefix}: ${i18n.erroreComunicazione}`);
             }

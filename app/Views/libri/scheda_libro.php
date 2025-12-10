@@ -592,16 +592,16 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <?php echo $res['data_inizio_richiesta'] ? format_date($res['data_inizio_richiesta'], false, '/') : '—'; ?>
+                  <?php echo $res['data_inizio_richiesta'] ? App\Support\HtmlHelper::e(format_date($res['data_inizio_richiesta'], false, '/')) : '—'; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php
                     $endDate = $res['data_fine_richiesta'] ?: ($res['data_scadenza_prenotazione'] ? substr($res['data_scadenza_prenotazione'], 0, 10) : null);
-                    echo $endDate ? format_date($endDate, false, '/') : '—';
+                    echo $endDate ? App\Support\HtmlHelper::e(format_date($endDate, false, '/')) : '—';
                   ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <?php echo !empty($res['data_scadenza_prenotazione']) ? format_date($res['data_scadenza_prenotazione'], false, '/') : '—'; ?>
+                  <?php echo !empty($res['data_scadenza_prenotazione']) ? App\Support\HtmlHelper::e(format_date($res['data_scadenza_prenotazione'], false, '/')) : '—'; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php echo (int)($res['queue_position'] ?? 1); ?>
@@ -703,7 +703,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <?php if ($effectiveStatus === 'prenotato' && $loanStartDate): ?>
                   <div class="text-xs text-purple-600 mt-1">
                     <i class="fas fa-calendar-alt mr-1"></i>
-                    <?= __('Dal') ?> <?php echo format_date($loanStartDate, false, '/'); ?>
+                    <?= __('Dal') ?> <?php echo App\Support\HtmlHelper::e(format_date($loanStartDate, false, '/')); ?>
                   </div>
                   <?php endif; ?>
                 </td>
@@ -737,7 +737,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     $isScaduto = $scadenza < $oggi;
                     ?>
                     <span class="<?php echo $isScaduto ? 'text-red-600 font-semibold' : ''; ?>">
-                      <?= format_date($copia['data_scadenza'], false, '/') ?>
+                      <?= App\Support\HtmlHelper::e(format_date($copia['data_scadenza'], false, '/')) ?>
                       <?php if ($isScaduto): ?>
                         <i class="fas fa-exclamation-triangle ml-1"></i>
                       <?php endif; ?>

@@ -456,6 +456,13 @@ class SbnClient
             $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
         }
 
+        // Ensure generic 'isbn' field is set (prefer ISBN-13)
+        if (!empty($book['isbn13'])) {
+            $book['isbn'] = $book['isbn13'];
+        } elseif (!empty($book['isbn10'])) {
+            $book['isbn'] = $book['isbn10'];
+        }
+
         return $book;
     }
 
@@ -525,6 +532,13 @@ class SbnClient
         // Map BID to numero_inventario for form auto-fill
         if (!empty($book['_sbn_bid'])) {
             $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
+        }
+
+        // Ensure generic 'isbn' field is set (prefer ISBN-13)
+        if (!empty($book['isbn13'])) {
+            $book['isbn'] = $book['isbn13'];
+        } elseif (!empty($book['isbn10'])) {
+            $book['isbn'] = $book['isbn10'];
         }
 
         return $book;

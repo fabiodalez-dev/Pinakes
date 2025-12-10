@@ -714,7 +714,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     function formatDateLocale(date, includeTime = false, separator = '/') {
       if (!date) return '';
       const d = date instanceof Date ? date : new Date(date);
-      if (isNaN(d.getTime())) return '';
+      if (isNaN(d.getTime())) return String(date);
       const day = String(d.getDate()).padStart(2, '0');
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const year = d.getFullYear();

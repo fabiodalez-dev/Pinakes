@@ -2767,17 +2767,17 @@
                         "children": [
                             {
                                 "code": "324.2",
-                                "name": "",
+                                "name": "Partiti politici",
                                 "level": 4,
                                 "children": [
                                     {
                                         "code": "324.21",
-                                        "name": "",
+                                        "name": "Partiti politici per orientamento ideologico",
                                         "level": 5,
                                         "children": [
                                             {
                                                 "code": "324.217",
-                                                "name": "Partiti Politici Di Sinistra",
+                                                "name": "Partiti politici di sinistra",
                                                 "level": 6,
                                                 "children": []
                                             }

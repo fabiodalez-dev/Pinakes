@@ -193,8 +193,12 @@ if (!function_exists('format_date')) {
             return $dateString;
         }
 
-        $locale = App\Support\I18n::getLocale();
-        $isItalian = str_starts_with($locale, 'it');
+        // Cache locale detection to avoid repeated calls in loops
+        static $isItalian = null;
+        if ($isItalian === null) {
+            $locale = App\Support\I18n::getLocale();
+            $isItalian = str_starts_with($locale, 'it');
+        }
 
         if ($isItalian) {
             // Italian format: DD-MM-YYYY or DD/MM/YYYY
@@ -233,8 +237,12 @@ if (!function_exists('format_date_short')) {
             return $dateString;
         }
 
-        $locale = App\Support\I18n::getLocale();
-        $isItalian = str_starts_with($locale, 'it');
+        // Cache locale detection to avoid repeated calls in loops
+        static $isItalian = null;
+        if ($isItalian === null) {
+            $locale = App\Support\I18n::getLocale();
+            $isItalian = str_starts_with($locale, 'it');
+        }
 
         // Italian: DD/MM, English: MM/DD
         return $isItalian ? date('d/m', $timestamp) : date('m/d', $timestamp);
