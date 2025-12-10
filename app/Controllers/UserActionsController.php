@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\RouteTranslator;
+use App\Support\SecureLogger;
 use App\Controllers\ReservationManager;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -112,6 +113,81 @@ class UserActionsController
         return $response;
     }
 
+    public function cancelLoan(Request $request, Response $response, mysqli $db): Response
+    {
+        $user = $_SESSION['user'] ?? null;
+        if (!$user || empty($user['id'])) {
+            return $response->withStatus(401);
+        }
+        $data = (array) ($request->getParsedBody() ?? []);
+        // CSRF validated by CsrfMiddleware
+        $loanId = (int) ($data['loan_id'] ?? 0);
+        if ($loanId <= 0) {
+            return $response->withStatus(422);
+        }
+        $uid = (int) $user['id'];
+
+        $db->begin_transaction();
+
+        try {
+            // Get loan details and lock
+            $stmt = $db->prepare("
+                SELECT id, copia_id, stato, libro_id
+                FROM prestiti
+                WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('pendente', 'prenotato')
+                FOR UPDATE
+            ");
+            $stmt->bind_param('ii', $loanId, $uid);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $loan = $result->fetch_assoc();
+            $stmt->close();
+
+            if (!$loan) {
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+            }
+
+            // Mark as cancelled
+            $updateStmt = $db->prepare("
+                UPDATE prestiti
+                SET stato = 'annullato', attivo = 0, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), '\n[User] Annullato dall\'utente')
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->execute();
+            $updateStmt->close();
+
+            // If it had a reserved copy, free it and reassign
+            if ($loan['stato'] === 'prenotato' && $loan['copia_id']) {
+                $copiaId = (int) $loan['copia_id'];
+
+                // Update copy status to available (if it was 'prenotato')
+                $copyStmt = $db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ? AND stato = 'prenotato'");
+                $copyStmt->bind_param('i', $copiaId);
+                $copyStmt->execute();
+                $copyStmt->close();
+
+                // Trigger reassignment
+                $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                $reassignmentService->reassignOnReturn($copiaId);
+            }
+
+            // Recalculate book availability
+            $integrity = new \App\Support\DataIntegrity($db);
+            $integrity->recalculateBookAvailability((int) $loan['libro_id']);
+
+            $db->commit();
+
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
+
+        } catch (\Throwable $e) {
+            $db->rollback();
+            SecureLogger::error(__('Errore annullamento prestito'), ['error' => $e->getMessage()]);
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=db')->withStatus(302);
+        }
+    }
+
     public function cancelReservation(Request $request, Response $response, mysqli $db): Response
     {
         $user = $_SESSION['user'] ?? null;
@@ -138,6 +214,8 @@ class UserActionsController
             $getStmt->close();
 
             if (!$reservation) {
+                // Check if it's actually a loan/active reservation (prestiti table) request instead?
+                // Sometimes frontend might send reservation_id for prestiti items if confusingly named
                 $db->rollback();
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
@@ -180,7 +258,7 @@ class UserActionsController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("Cancel reservation error: " . $e->getMessage());
+            SecureLogger::error(__('Errore annullamento prenotazione'), ['error' => $e->getMessage()]);
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=db')->withStatus(302);
         }
     }
@@ -280,7 +358,7 @@ class UserActionsController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("Change reservation date error: " . $e->getMessage());
+            SecureLogger::error(__('Errore modifica data prenotazione'), ['error' => $e->getMessage()]);
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=db')->withStatus(302);
         }
     }
@@ -365,14 +443,14 @@ class UserActionsController
                 $notificationService = new \App\Support\NotificationService($db);
                 $notificationService->notifyLoanRequest($newLoanId);
             } catch (\Exception $e) {
-                error_log("Failed to send loan request notification: " . $e->getMessage());
+                SecureLogger::warning(__('Notifica richiesta prestito fallita'), ['error' => $e->getMessage()]);
             }
 
             return $this->back($response, ['loan_request_success' => 1]);
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("Loan request error: " . $e->getMessage());
+            SecureLogger::error(__('Errore richiesta prestito'), ['error' => $e->getMessage()]);
             return $this->back($response, ['loan_error' => 'db']);
         }
     }
@@ -483,7 +561,7 @@ class UserActionsController
             $db->rollback();
         } catch (\Exception $e) {
             $db->rollback();
-            error_log("Reservation error: " . $e->getMessage());
+            SecureLogger::error(__('Errore prenotazione'), ['error' => $e->getMessage()]);
         }
 
         return $this->back($response, ['reserve_error' => 'db']);

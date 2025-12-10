@@ -487,12 +487,23 @@ class Updater
     }
 
     /**
-     * Backup database to file
+     * Backup database to file using streaming to prevent memory exhaustion
      * @return array{success: bool, error: string|null}
      */
     private function backupDatabase(string $filepath): array
     {
+        $handle = null;
+
         try {
+            SecureLogger::info(__('Avvio backup database'), ['filepath' => $filepath]);
+
+            // Open file handle for streaming writes (prevents memory exhaustion)
+            $handle = fopen($filepath, 'w');
+            if ($handle === false) {
+                throw new Exception(__('Impossibile aprire file di backup per scrittura'));
+            }
+
+            // Get list of tables
             $tables = [];
             $result = $this->db->query("SHOW TABLES");
             if ($result === false) {
@@ -504,12 +515,18 @@ class Updater
             }
             $result->free();
 
-            $sql = "-- Pinakes Database Backup\n";
-            $sql .= "-- Generated: " . date('Y-m-d H:i:s') . "\n";
-            $sql .= "-- Version: " . $this->getCurrentVersion() . "\n\n";
-            $sql .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+            SecureLogger::debug(__('Trovate tabelle da backuppare'), ['count' => count($tables)]);
+
+            // Write header
+            fwrite($handle, "-- Pinakes Database Backup\n");
+            fwrite($handle, "-- Generated: " . date('Y-m-d H:i:s') . "\n");
+            fwrite($handle, "-- Version: " . $this->getCurrentVersion() . "\n");
+            fwrite($handle, "-- Tables: " . count($tables) . "\n\n");
+            fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n\n");
 
             foreach ($tables as $table) {
+                SecureLogger::debug(__('Backup tabella'), ['table' => $table]);
+
                 // Get create table statement
                 $createResult = $this->db->query("SHOW CREATE TABLE `{$table}`");
                 if ($createResult === false) {
@@ -517,15 +534,19 @@ class Updater
                 }
                 $createRow = $createResult->fetch_row();
                 $createResult->free();
-                $sql .= "DROP TABLE IF EXISTS `{$table}`;\n";
-                $sql .= $createRow[1] . ";\n\n";
 
-                // Get data
-                $dataResult = $this->db->query("SELECT * FROM `{$table}`");
+                fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
+                fwrite($handle, $createRow[1] . ";\n\n");
+
+                // Get data with unbuffered query to reduce memory usage
+                $this->db->real_query("SELECT * FROM `{$table}`");
+                $dataResult = $this->db->use_result();
+
                 if ($dataResult === false) {
                     throw new Exception(sprintf(__('Errore nel recupero dati tabella %s'), $table) . ': ' . $this->db->error);
                 }
 
+                $rowCount = 0;
                 while ($row = $dataResult->fetch_assoc()) {
                     $values = array_map(function ($value) {
                         if ($value === null) {
@@ -534,22 +555,40 @@ class Updater
                         return "'" . $this->db->real_escape_string($value) . "'";
                     }, $row);
 
-                    $sql .= "INSERT INTO `{$table}` VALUES (" . implode(', ', $values) . ");\n";
+                    fwrite($handle, "INSERT INTO `{$table}` VALUES (" . implode(', ', $values) . ");\n");
+                    $rowCount++;
                 }
                 $dataResult->free();
 
-                $sql .= "\n";
+                fwrite($handle, "\n");
             }
 
-            $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
+            fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
+            fclose($handle);
+            $handle = null;
 
-            if (file_put_contents($filepath, $sql) === false) {
-                throw new Exception(__('Impossibile scrivere file di backup'));
-            }
+            $fileSize = filesize($filepath);
+            SecureLogger::info(__('Backup database completato'), [
+                'filepath' => $filepath,
+                'size' => $this->formatBytes((float)$fileSize),
+                'tables' => count($tables)
+            ]);
 
             return ['success' => true, 'error' => null];
 
         } catch (Exception $e) {
+            SecureLogger::error(__('Errore backup database'), ['error' => $e->getMessage()]);
+
+            // Clean up file handle
+            if ($handle !== null && is_resource($handle)) {
+                fclose($handle);
+            }
+
+            // Remove partial backup file
+            if (file_exists($filepath)) {
+                @unlink($filepath);
+            }
+
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -1418,11 +1457,57 @@ class Updater
      */
     public function performUpdate(string $targetVersion): array
     {
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        $lockHandle = null;
+
+        // Register shutdown handler to ensure cleanup on fatal errors
+        $maintenanceFile = $this->rootPath . '/storage/.maintenance';
+        register_shutdown_function(function () use ($maintenanceFile, $lockFile) {
+            $error = error_get_last();
+            if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                // Fatal error occurred - cleanup maintenance mode
+                SecureLogger::error(__('Errore fatale durante aggiornamento'), [
+                    'type' => $error['type'],
+                    'message' => $error['message'],
+                    'file' => $error['file'],
+                    'line' => $error['line']
+                ]);
+
+                // Remove maintenance mode
+                if (file_exists($maintenanceFile)) {
+                    @unlink($maintenanceFile);
+                }
+
+                // Remove lock file
+                if (file_exists($lockFile)) {
+                    @unlink($lockFile);
+                }
+            }
+        });
+
         // Prevent timeout on slow connections or large updates
         set_time_limit(0);
 
+        // Increase memory limit for large databases
+        $currentMemory = ini_get('memory_limit');
+        if ($currentMemory !== '-1') {
+            $memoryBytes = $this->parseMemoryLimit($currentMemory);
+            $minMemory = 256 * 1024 * 1024; // 256MB minimum
+            if ($memoryBytes < $minMemory) {
+                @ini_set('memory_limit', '256M');
+                SecureLogger::info(__('Memory limit aumentato'), [
+                    'from' => $currentMemory,
+                    'to' => '256M'
+                ]);
+            }
+        }
+
+        SecureLogger::info(__('Avvio aggiornamento'), [
+            'from' => $this->getCurrentVersion(),
+            'to' => $targetVersion
+        ]);
+
         // Acquire exclusive lock to prevent concurrent updates
-        $lockFile = $this->rootPath . '/storage/cache/update.lock';
         $lockDir = dirname($lockFile);
         if (!is_dir($lockDir)) {
             @mkdir($lockDir, 0755, true);
@@ -1430,6 +1515,7 @@ class Updater
 
         $lockHandle = @fopen($lockFile, 'c');
         if (!$lockHandle) {
+            SecureLogger::error(__('Impossibile creare lock file'), ['path' => $lockFile]);
             return [
                 'success' => false,
                 'error' => __('Impossibile creare il file di lock per l\'aggiornamento'),
@@ -1440,6 +1526,7 @@ class Updater
         // Try to acquire exclusive lock (non-blocking)
         if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
             fclose($lockHandle);
+            SecureLogger::warning(__('Aggiornamento già in corso'));
             return [
                 'success' => false,
                 'error' => __('Un altro aggiornamento è già in corso. Riprova più tardi.'),
@@ -1460,22 +1547,28 @@ class Updater
 
         try {
             // Step 1: Create backup
+            SecureLogger::info(__('Step 1: Creazione backup'));
             $backupResult = $this->createBackup();
             if (!$backupResult['success']) {
                 throw new Exception(__('Backup fallito') . ': ' . $backupResult['error']);
             }
+            SecureLogger::info(__('Backup completato'), ['path' => $backupResult['path']]);
 
             // Step 2: Download update
+            SecureLogger::info(__('Step 2: Download aggiornamento'));
             $downloadResult = $this->downloadUpdate($targetVersion);
             if (!$downloadResult['success']) {
                 throw new Exception(__('Download fallito') . ': ' . $downloadResult['error']);
             }
+            SecureLogger::info(__('Download completato'), ['path' => $downloadResult['path']]);
 
             // Step 3: Install update
+            SecureLogger::info(__('Step 3: Installazione aggiornamento'));
             $installResult = $this->installUpdate($downloadResult['path'], $targetVersion);
             if (!$installResult['success']) {
                 throw new Exception(__('Installazione fallita') . ': ' . $installResult['error']);
             }
+            SecureLogger::info(__('Installazione completata'));
 
             $result = [
                 'success' => true,
@@ -1483,24 +1576,90 @@ class Updater
                 'backup_path' => $backupResult['path']
             ];
 
+            SecureLogger::info(__('Aggiornamento completato con successo'), [
+                'version' => $targetVersion
+            ]);
+
         } catch (Exception $e) {
-            error_log("[Updater] Update failed: " . $e->getMessage());
+            SecureLogger::error(__('Aggiornamento fallito'), ['error' => $e->getMessage()]);
             $result = [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'backup_path' => $backupResult['path'] ?? null
             ];
         } finally {
-            // Always cleanup temporary files, regardless of success or failure
+            // Always cleanup temporary files and disable maintenance mode
             $this->cleanup();
 
-            // Release update lock
-            if (isset($lockHandle) && is_resource($lockHandle)) {
+            // Release and remove update lock
+            if ($lockHandle !== null && \is_resource($lockHandle)) {
                 flock($lockHandle, LOCK_UN);
                 fclose($lockHandle);
+            }
+
+            // Remove lock file
+            if (file_exists($lockFile)) {
+                @unlink($lockFile);
             }
         }
 
         return $result;
+    }
+
+    /**
+     * Parse PHP memory limit string to bytes
+     */
+    private function parseMemoryLimit(string $limit): int
+    {
+        $limit = trim($limit);
+        $last = strtolower($limit[strlen($limit) - 1]);
+        $value = (int) $limit;
+
+        switch ($last) {
+            case 'g':
+                $value *= 1024 * 1024 * 1024;
+                break;
+            case 'm':
+                $value *= 1024 * 1024;
+                break;
+            case 'k':
+                $value *= 1024;
+                break;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Check and remove stale maintenance file (older than 30 minutes)
+     * Call this from admin routes to auto-recover from stuck maintenance
+     */
+    public static function checkStaleMaintenanceMode(): void
+    {
+        $maintenanceFile = dirname(__DIR__, 2) . '/storage/.maintenance';
+
+        if (!file_exists($maintenanceFile)) {
+            return;
+        }
+
+        $content = @file_get_contents($maintenanceFile);
+        if ($content === false) {
+            return;
+        }
+
+        $data = json_decode($content, true);
+        if (!is_array($data) || !isset($data['time'])) {
+            return;
+        }
+
+        // If maintenance mode is older than 30 minutes, it's probably stuck
+        $maxAge = 30 * 60; // 30 minutes
+        if ((time() - $data['time']) > $maxAge) {
+            @unlink($maintenanceFile);
+            SecureLogger::warning(__('Modalità manutenzione rimossa automaticamente (scaduta)'), [
+                'started' => date('Y-m-d H:i:s', $data['time']),
+                'age_minutes' => round((time() - $data['time']) / 60)
+            ]);
+        }
     }
 }
