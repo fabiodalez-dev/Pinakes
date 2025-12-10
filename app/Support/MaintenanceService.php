@@ -435,6 +435,9 @@ class MaintenanceService
                 $this->db->commit();
                 $expiredCount++;
 
+                // Invia notifiche differite DOPO il commit della transazione
+                $reassignmentService->flushDeferredNotifications();
+
                 SecureLogger::info(__('MaintenanceService prenotazione scaduta'), [
                     'prestito_id' => $id,
                     'libro_id' => $libroId,

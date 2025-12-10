@@ -3623,5 +3623,6 @@
   "Elaborazione lista attesa fallita": "Waitlist processing failed",
   "La tua prenotazione per \"%s\" è stata messa in attesa. %s. Verrai notificato quando sarà disponibile una nuova copia.": "Your reservation for \"%s\" has been put on hold. %s. You will be notified when a new copy becomes available.",
   "Esauriti tentativi riassegnazione copia": "Exhausted copy reassignment attempts",
-  "Errore gestione copia non disponibile": "Copy unavailable handling error"
+  "Errore gestione copia non disponibile": "Copy unavailable handling error",
+  "Errore invio notifica differita": "Deferred notification send error"
 }
