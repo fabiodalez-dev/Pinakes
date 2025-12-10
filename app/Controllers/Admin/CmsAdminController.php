@@ -68,7 +68,8 @@ class CmsAdminController
             if ($pageId !== null) {
                 // Auto-create the missing page
                 $defaultTitle = ucfirst(str_replace('-', ' ', $slug));
-                $defaultContent = '<p>' . __('Contenuto della pagina') . ' "' . $defaultTitle . '"</p>';
+                $escapedTitle = htmlspecialchars($defaultTitle, ENT_QUOTES, 'UTF-8');
+                $defaultContent = '<p>' . __('Contenuto della pagina') . ' "' . $escapedTitle . '"</p>';
 
                 $createStmt = $this->db->prepare("
                     INSERT INTO cms_pages (slug, locale, title, content, meta_description, is_active)

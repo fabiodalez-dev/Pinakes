@@ -1760,7 +1760,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             // Add back button if not at level 0
             if (genreDisplay.level > 0) {
                 const backValue = genreDisplay.level === 1 ? '' : (genreDisplay.parent?.nome || '');
-                const backEscaped = backValue.replace(/'/g, "\\'");
+                const backEscaped = backValue.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 html += '<div class="filter-back-container">';
                 html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere\', \'' + backEscaped + '\'); return false;" title="' + i18n.torna_categoria_superiore + '">';
                 html += '<i class="fas fa-arrow-left"></i>';
@@ -1774,7 +1774,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 if (!gen.cnt || gen.cnt <= 0) return;
 
                 const isActive = currentFilters.genere === gen.nome ? 'active' : '';
-                const escapedName = gen.nome.replace(/'/g, "\\'");
+                const escapedName = gen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 let displayName = gen.nome;
 
                 // Shorten display name for lower levels
@@ -1801,7 +1801,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             filterOptions.generi.forEach(gen => {
                 if (gen.cnt > 0) {
                     const isActive = currentFilters.genere === gen.nome ? 'active' : '';
-                    const escapedName = gen.nome.replace(/'/g, "\\'");
+                    const escapedName = gen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;">';
                     html += '<span>' + escapeHtml(gen.nome) + '</span>';
                     html += '<span class="count-badge">' + gen.cnt + '</span>';
