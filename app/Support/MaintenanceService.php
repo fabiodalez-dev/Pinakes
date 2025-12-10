@@ -380,6 +380,8 @@ class MaintenanceService
 
         $expiredCount = 0;
         $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
+        // Mark as external transaction so reassignmentService won't start nested transactions
+        $reassignmentService->setExternalTransaction(true);
         $integrity = new DataIntegrity($this->db);
 
         foreach ($expiredReservations as $reservation) {
@@ -390,16 +392,19 @@ class MaintenanceService
                 $copiaId = $reservation['copia_id'] ? (int) $reservation['copia_id'] : null;
                 $libroId = (int) $reservation['libro_id'];
 
+                // Build note suffix safely with bound parameter
+                $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . date('d/m/Y');
+
                 // Mark as expired
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
                     SET stato = 'scaduto',
                         attivo = 0,
                         updated_at = NOW(),
-                        note = CONCAT(COALESCE(note, ''), '\n[System] " . __('Scaduta il') . " " . date('d/m/Y') . "')
+                        note = CONCAT(COALESCE(note, ''), ?)
                     WHERE id = ?
                 ");
-                $updateStmt->bind_param('i', $id);
+                $updateStmt->bind_param('si', $noteSuffix, $id);
                 $updateStmt->execute();
                 $updateStmt->close();
 
@@ -419,7 +424,7 @@ class MaintenanceService
                         $updateCopy->execute();
                         $updateCopy->close();
 
-                        // Trigger reassignment logic for this copy
+                        // Trigger reassignment logic for this copy (inside same transaction)
                         $reassignmentService->reassignOnReturn($copiaId);
                     }
                 }

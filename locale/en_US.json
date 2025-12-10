@@ -3445,6 +3445,7 @@
   "Prenotazione ID %d scaduta il %s ma ancora attiva": "Reservation ID %d expired on %s but still active",
   "Libro ID %d ha posizioni coda non sequenziali: %s": "Book ID %d has non-sequential queue positions: %s",
   "Prestito ID %d da prenotazione in attesa da %d giorni (libro %d)": "Loan ID %d from reservation pending for %d days (book %d)",
+  "Prestito ID %d con stato '%s' ha ancora attivo = 1": "Loan ID %d with status '%s' still has active = 1",
   "APP_CANONICAL_URL non configurato nel file .env. Link nelle email potrebbero non funzionare correttamente. Valore suggerito: %s": "APP_CANONICAL_URL not configured in .env file. Email links may not work correctly. Suggested value: %s",
   "Aggiungi al file .env: APP_CANONICAL_URL=%s": "Add to .env file: APP_CANONICAL_URL=%s",
   "APP_CANONICAL_URL configurato ma vuoto nel file .env. Link nelle email useranno fallback a HTTP_HOST. Valore suggerito: %s": "APP_CANONICAL_URL configured but empty in .env file. Email links will use HTTP_HOST fallback. Suggested value: %s",

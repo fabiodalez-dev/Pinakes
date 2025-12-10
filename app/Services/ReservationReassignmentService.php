@@ -370,12 +370,12 @@ class ReservationReassignmentService
         if ($sent) {
             SecureLogger::info(__('Notifica prenotazione disponibile inviata'), [
                 'prestito_id' => $prestitoId,
-                'email' => $data['email']
+                'utente_id' => $data['utente_id']
             ]);
         } else {
             SecureLogger::warning(__('Invio notifica prenotazione fallito'), [
                 'prestito_id' => $prestitoId,
-                'email' => $data['email']
+                'utente_id' => $data['utente_id']
             ]);
         }
     }
