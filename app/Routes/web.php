@@ -682,7 +682,7 @@ return function (App $app): void {
             '/contatti/submit' => 'contact_submit',  // Hybrid
             '/privacy-policy' => 'privacy',
             '/cookie-policy' => 'cookies',
-            '/events' => 'events',
+            // Note: /events is already registered at the top of the file, no redirect needed
             // Language
             '/language' => 'language_switch',
         ];
