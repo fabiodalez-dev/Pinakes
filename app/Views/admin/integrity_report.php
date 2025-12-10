@@ -32,7 +32,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white"><?= __("Informazioni Report") ?></h2>
                 <span class="text-sm text-gray-500 dark:text-gray-400">
-                    <?= __("Generato il") ?> <?= date('d-m-Y H:i:s', strtotime($report['timestamp'])) ?>
+                    <?= __("Generato il") ?> <?= format_date($report['timestamp'], true) ?>
                 </span>
             </div>
 

@@ -35,7 +35,7 @@ $initialData = [
     'collocazione' => $initialCollocazione,
     'stato' => $book['stato'] ?? '',
     'tipo_acquisizione' => $book['tipo_acquisizione'] ?? '',
-    'data_acquisizione' => $book['data_acquisizione'] ?? '',
+    'data_acquisizione' => $book['data_acquisizione'] ?? date('Y-m-d'),
     'prezzo' => $book['prezzo'] ?? '',
     'peso' => $book['peso'] ?? '',
     'numero_pagine' => $book['numero_pagine'] ?? '',
@@ -79,6 +79,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       <input type="hidden" id="copertina_url" name="copertina_url" value="<?php echo HtmlHelper::e($currentCover); ?>">
       <input type="hidden" id="remove_cover" name="remove_cover" value="0">
       <input type="hidden" id="scraped_tipologia" name="scraped_tipologia" value="">
+      <input type="hidden" id="scraped_author_bio" name="scraped_author_bio" value="">
 
       <?php if ($scrapingAvailable): ?>
       <div class="card mb-8">
@@ -2792,6 +2793,32 @@ function initializeIsbnImport() {
             }
 
             if (!response.ok) {
+                // Even on error, try to populate ISBN fields from the response
+                // (the API now returns calculated isbn10/isbn13 variants even on 404)
+                if (data) {
+                    try {
+                        const isbn10Input = document.querySelector('input[name="isbn10"]');
+                        const isbn13Input = document.querySelector('input[name="isbn13"]');
+                        if (data.isbn13 && isbn13Input) {
+                            isbn13Input.value = data.isbn13.replace(/[-\s]/g, '');
+                        }
+                        if (data.isbn10 && isbn10Input) {
+                            isbn10Input.value = data.isbn10.replace(/[-\s]/g, '');
+                        }
+                        // Also try the generic isbn field
+                        if (data.isbn) {
+                            const cleanIsbn = data.isbn.replace(/[-\s]/g, '');
+                            if (cleanIsbn.length === 10 && isbn10Input && !isbn10Input.value) {
+                                isbn10Input.value = cleanIsbn;
+                            } else if (cleanIsbn.length === 13 && isbn13Input && !isbn13Input.value) {
+                                isbn13Input.value = cleanIsbn;
+                            }
+                        }
+                    } catch (isbnErr) {
+                        // Silent fail for ISBN population
+                    }
+                }
+
                 // Use API error message if available, otherwise use default message
                 let message = isbnImportMessages.genericError;
                 if (data && data.error) {
@@ -3089,6 +3116,17 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
+            // Handle author bio - store for backend to update author record
+            try {
+                if (data.author_bio) {
+                    const scrapedAuthorBio = document.getElementById('scraped_author_bio');
+                    if (scrapedAuthorBio) {
+                        scrapedAuthorBio.value = data.author_bio;
+                    }
+                }
+            } catch (err) {
+            }
+
             // Handle notes
             try {
                 const noteField = document.querySelector('textarea[name="note_varie"]');
@@ -3121,25 +3159,30 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
-            // Handle ISBN values
+            // Handle ISBN values - check all possible fields (isbn, isbn10, isbn13)
             try {
+                const isbn10Input = document.querySelector('input[name="isbn10"]');
+                const isbn13Input = document.querySelector('input[name="isbn13"]');
+
+                // Direct isbn13 field (from SBN, Open Library, etc.)
+                if (data.isbn13 && isbn13Input) {
+                    isbn13Input.value = data.isbn13.replace(/[-\s]/g, '');
+                }
+                // Direct isbn10 field
+                if (data.isbn10 && isbn10Input) {
+                    isbn10Input.value = data.isbn10.replace(/[-\s]/g, '');
+                }
+                // Generic isbn field (fallback, length-based routing)
                 if (data.isbn) {
                     const isbn = data.isbn.replace(/[-\s]/g, '');
-                    if (isbn.length === 10) {
-                        const isbn10Input = document.querySelector('input[name="isbn10"]');
-                        if (isbn10Input) {
-                            isbn10Input.value = isbn;
-                        }
-                    } else if (isbn.length === 13) {
-                        const isbn13Input = document.querySelector('input[name="isbn13"]');
-                        if (isbn13Input) {
-                            isbn13Input.value = isbn;
-                        }
-                    } else {
+                    if (isbn.length === 10 && isbn10Input && !isbn10Input.value) {
+                        isbn10Input.value = isbn;
+                    } else if (isbn.length === 13 && isbn13Input && !isbn13Input.value) {
+                        isbn13Input.value = isbn;
                     }
-                } else {
                 }
             } catch (err) {
+                // Silent fail
             }
 
             // Handle year (anno_pubblicazione) - numeric year for filtering/sorting

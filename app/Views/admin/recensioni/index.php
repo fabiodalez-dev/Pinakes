@@ -96,7 +96,7 @@
                     <div class="px-6 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
                         <p class="text-xs text-gray-500 dark:text-gray-400 flex items-center">
                             <i class="fas fa-clock mr-2"></i>
-                            <?= __("Recensione del") ?> <?php echo date('d-m-Y H:i', strtotime($review['created_at'])); ?>
+                            <?= __("Recensione del") ?> <?php echo format_date($review['created_at'], true); ?>
                         </p>
                     </div>
                 </div>
@@ -134,7 +134,7 @@
                         <?php else: ?>
                         <div class="space-y-3">
                             <?php foreach ($approvedReviews as $review): ?>
-                            <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+                            <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3" data-review-card>
                                 <div class="flex items-start gap-3">
                                     <div class="flex-shrink-0">
                                         <?php if (!empty($review['libro_copertina'])): ?>
@@ -159,7 +159,7 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                             <?php echo HtmlHelper::e($review['utente_nome']); ?>
                                             <span class="mx-1">•</span>
-                                            <?= __("Approvata il") ?> <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
+                                            <?= __("Approvata il") ?> <?php echo format_date($review['approved_at'], false, '/'); ?>
                                         </div>
                                         <?php if (!empty($review['titolo'])): ?>
                                         <div class="text-xs font-medium text-gray-800 dark:text-gray-200 mt-1">
@@ -167,6 +167,9 @@
                                         </div>
                                         <?php endif; ?>
                                     </div>
+                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>" aria-label="<?= __("Elimina recensione") ?>">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
                                 </div>
                             </div>
                             <?php endforeach; ?>
@@ -198,7 +201,7 @@
                         <?php else: ?>
                         <div class="space-y-3">
                             <?php foreach ($rejectedReviews as $review): ?>
-                            <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+                            <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3" data-review-card>
                                 <div class="flex items-start gap-3">
                                     <div class="flex-shrink-0">
                                         <?php if (!empty($review['libro_copertina'])): ?>
@@ -223,7 +226,7 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                             <?php echo HtmlHelper::e($review['utente_nome']); ?>
                                             <span class="mx-1">•</span>
-                                            <?= __("Rifiutata il") ?> <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
+                                            <?= __("Rifiutata il") ?> <?php echo format_date($review['approved_at'], false, '/'); ?>
                                         </div>
                                         <?php if (!empty($review['titolo'])): ?>
                                         <div class="text-xs font-medium text-gray-800 dark:text-gray-200 mt-1">
@@ -231,6 +234,9 @@
                                         </div>
                                         <?php endif; ?>
                                     </div>
+                                    <button type="button" class="delete-btn text-red-600 hover:text-red-800 p-1" data-review-id="<?php echo (int)$review['id']; ?>" title="<?= __("Elimina") ?>" aria-label="<?= __("Elimina recensione") ?>">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
                                 </div>
                             </div>
                             <?php endforeach; ?>
@@ -252,29 +258,60 @@ function toggleSection(section) {
 }
 
 (function() {
-    const withSwal = typeof Swal !== 'undefined';
+    // Pre-translated strings from PHP for proper i18n support
+    const i18n = {
+        conferma: <?= json_encode(__('Conferma')) ?>,
+        annulla: <?= json_encode(__('Annulla')) ?>,
+        confermiOperazione: <?= json_encode(__("Confermi l'operazione?")) ?>,
+        operazioneCompletata: <?= json_encode(__('Operazione completata')) ?>,
+        errore: <?= json_encode(__('Errore')) ?>,
+        operazioneNonRiuscita: <?= json_encode(__('Operazione non riuscita')) ?>,
+        erroreComunicazione: <?= json_encode(__('errore di comunicazione con il server')) ?>,
+        // Approve
+        recensioneApprovata: <?= json_encode(__('Recensione approvata')) ?>,
+        recensioneApprovataText: <?= json_encode(__('La recensione è stata approvata e pubblicata con successo.')) ?>,
+        approvaRecensione: <?= json_encode(__('Approva recensione')) ?>,
+        approvaRecensioneText: <?= json_encode(__('Vuoi approvare questa recensione e renderla visibile sul sito?')) ?>,
+        approva: <?= json_encode(__('Approva')) ?>,
+        impossibileApprovare: <?= json_encode(__('Impossibile approvare la recensione')) ?>,
+        // Reject
+        recensioneRifiutata: <?= json_encode(__('Recensione rifiutata')) ?>,
+        recensioneRifiutataText: <?= json_encode(__('La recensione è stata rifiutata e non sarà pubblicata.')) ?>,
+        rifiutaRecensione: <?= json_encode(__('Rifiuta recensione')) ?>,
+        rifiutaRecensioneText: <?= json_encode(__("Vuoi rifiutare questa recensione? L'utente verrà avvisato dell'esito.")) ?>,
+        rifiuta: <?= json_encode(__('Rifiuta')) ?>,
+        impossibileRifiutare: <?= json_encode(__('Impossibile rifiutare la recensione')) ?>,
+        // Delete
+        recensioneEliminata: <?= json_encode(__('Recensione eliminata')) ?>,
+        recensioneEliminataText: <?= json_encode(__('La recensione è stata eliminata definitivamente.')) ?>,
+        eliminaRecensione: <?= json_encode(__('Elimina recensione')) ?>,
+        eliminaRecensioneText: <?= json_encode(__('Vuoi eliminare definitivamente questa recensione? Questa azione non può essere annullata.')) ?>,
+        elimina: <?= json_encode(__('Elimina')) ?>,
+        impossibileEliminare: <?= json_encode(__('Impossibile eliminare la recensione')) ?>
+    };
+
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const confirmAction = async (options) => {
-        if (withSwal) {
+        if (typeof Swal !== 'undefined') {
             const result = await Swal.fire({
                 title: options.title,
                 text: options.text,
                 icon: options.icon || 'warning',
                 showCancelButton: true,
-                confirmButtonText: options.confirmText || __('Conferma'),
-                cancelButtonText: options.cancelText || __('Annulla'),
+                confirmButtonText: options.confirmText || i18n.conferma,
+                cancelButtonText: options.cancelText || i18n.annulla,
                 confirmButtonColor: '#111827',
                 cancelButtonColor: '#6b7280'
             });
             return result.isConfirmed;
         }
 
-        return window.confirm(options.text || options.title || __('Confermi l\'operazione?'));
+        return window.confirm(options.text || options.title || i18n.confermiOperazione);
     };
 
     const showFeedback = (icon, title, text) => {
-        if (withSwal) {
+        if (typeof Swal !== 'undefined') {
             Swal.fire({
                 icon,
                 title,
@@ -282,11 +319,11 @@ function toggleSection(section) {
                 confirmButtonColor: '#111827'
             });
         } else {
-            window.alert(text || title || __('Operazione completata'));
+            window.alert(text || title || i18n.operazioneCompletata);
         }
     };
 
-    const handleAction = (btn, { endpoint, successMessage, confirmTitle, confirmText, confirmButton, errorPrefix }) => {
+    const handleAction = (btn, { endpoint, method, successMessage, confirmTitle, confirmText, confirmButton, errorPrefix }) => {
         if (btn.dataset.bound === '1') return;
         btn.dataset.bound = '1';
 
@@ -302,9 +339,15 @@ function toggleSection(section) {
                 return;
             }
 
+            // Disable button during request to prevent double-clicks
+            this.disabled = true;
+
             try {
-                const response = await fetch(`/admin/recensioni/${reviewId}/${endpoint}`, {
-                    method: 'POST',
+                const url = endpoint
+                    ? `/admin/recensioni/${reviewId}/${endpoint}`
+                    : `/admin/recensioni/${reviewId}`;
+                const response = await fetch(url, {
+                    method: method || 'POST',
                     credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
@@ -326,11 +369,13 @@ function toggleSection(section) {
                         location.reload();
                     }
                 } else {
-                    showFeedback('error', __('Errore'), `${errorPrefix}: ${result.message || __('Operazione non riuscita')}`);
+                    this.disabled = false; // Re-enable on error so user can retry
+                    showFeedback('error', i18n.errore, `${errorPrefix}: ${result.message || i18n.operazioneNonRiuscita}`);
                 }
             } catch (error) {
+                this.disabled = false; // Re-enable on error so user can retry
                 console.error('Review action error:', error);
-                showFeedback('error', __('Errore'), `${errorPrefix}: ${__('errore di comunicazione con il server')}`);
+                showFeedback('error', i18n.errore, `${errorPrefix}: ${i18n.erroreComunicazione}`);
             }
         });
     };
@@ -340,13 +385,13 @@ function toggleSection(section) {
             handleAction(btn, {
                 endpoint: 'approve',
                 successMessage: {
-                    title: __('Recensione approvata'),
-                    text: __('La recensione è stata approvata e pubblicata con successo.')
+                    title: i18n.recensioneApprovata,
+                    text: i18n.recensioneApprovataText
                 },
-                confirmTitle: __('Approva recensione'),
-                confirmText: __('Vuoi approvare questa recensione e renderla visibile sul sito?'),
-                confirmButton: __('Approva'),
-                errorPrefix: __('Impossibile approvare la recensione')
+                confirmTitle: i18n.approvaRecensione,
+                confirmText: i18n.approvaRecensioneText,
+                confirmButton: i18n.approva,
+                errorPrefix: i18n.impossibileApprovare
             });
         });
 
@@ -354,13 +399,29 @@ function toggleSection(section) {
             handleAction(btn, {
                 endpoint: 'reject',
                 successMessage: {
-                    title: __('Recensione rifiutata'),
-                    text: __('La recensione è stata rifiutata e non sarà pubblicata.')
+                    title: i18n.recensioneRifiutata,
+                    text: i18n.recensioneRifiutataText
                 },
-                confirmTitle: __('Rifiuta recensione'),
-                confirmText: __('Vuoi rifiutare questa recensione? L\'utente verrà avvisato dell\'esito.'),
-                confirmButton: __('Rifiuta'),
-                errorPrefix: __('Impossibile rifiutare la recensione')
+                confirmTitle: i18n.rifiutaRecensione,
+                confirmText: i18n.rifiutaRecensioneText,
+                confirmButton: i18n.rifiuta,
+                errorPrefix: i18n.impossibileRifiutare
+            });
+        });
+
+        // Delete button handler - uses handleAction with DELETE method and no endpoint suffix
+        context.querySelectorAll('.delete-btn').forEach(btn => {
+            handleAction(btn, {
+                endpoint: '',
+                method: 'DELETE',
+                successMessage: {
+                    title: i18n.recensioneEliminata,
+                    text: i18n.recensioneEliminataText
+                },
+                confirmTitle: i18n.eliminaRecensione,
+                confirmText: i18n.eliminaRecensioneText,
+                confirmButton: i18n.elimina,
+                errorPrefix: i18n.impossibileEliminare
             });
         });
     };

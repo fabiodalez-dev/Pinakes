@@ -50,7 +50,9 @@ function formatLoanStatus($status) {
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Libro:") ?></span>
-            <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? __('Non disponibile')); ?></span>
+            <a href="/admin/libri/modifica/<?= (int)($prestito['libro_id'] ?? 0); ?>" class="text-blue-600 underline hover:text-blue-800 transition-colors">
+              <?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? __('Non disponibile')); ?>
+            </a>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Utente:") ?></span>
@@ -69,15 +71,15 @@ function formatLoanStatus($status) {
         <div class="space-y-3">
           <div>
             <span class="font-semibold text-gray-600"><?= __("Data Prestito:") ?></span>
-            <span class="text-gray-800"><?= date("d/m/Y", strtotime($prestito['data_prestito'])); ?></span>
+            <span class="text-gray-800"><?= format_date($prestito['data_prestito'], false, '/'); ?></span>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Data Scadenza:") ?></span>
-            <span class="text-gray-800"><?= date("d/m/Y", strtotime($prestito['data_scadenza'] ?? '')); ?></span>
+            <span class="text-gray-800"><?= format_date($prestito['data_scadenza'] ?? '', false, '/'); ?></span>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Data Restituzione:") ?></span>
-            <span class="text-gray-800"><?= !empty($prestito['data_restituzione']) ? date("d/m/Y", strtotime($prestito['data_restituzione'])) : __("Non ancora restituito") ?></span>
+            <span class="text-gray-800"><?= !empty($prestito['data_restituzione']) ? format_date($prestito['data_restituzione'], false, '/') : __("Non ancora restituito") ?></span>
           </div>
         </div>
       </div>

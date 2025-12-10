@@ -119,6 +119,9 @@ class UsersController
 
         $sesso = trim((string) ($data['sesso'] ?? ''));
         $sesso = $sesso !== '' ? $sesso : null;
+        if ($sesso !== null && !\in_array($sesso, ['M', 'F', 'Altro'], true)) {
+            $sesso = null; // Invalid value, set to null
+        }
 
         $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
@@ -309,6 +312,9 @@ class UsersController
 
         $sesso = trim((string) ($data['sesso'] ?? ''));
         $sesso = $sesso !== '' ? $sesso : null;
+        if ($sesso !== null && !\in_array($sesso, ['M', 'F', 'Altro'], true)) {
+            $sesso = null; // Invalid value, set to null
+        }
 
         $codiceTesseraInput = trim((string) ($data['codice_tessera'] ?? ''));
         $dataScadenzaInput = trim((string) ($data['data_scadenza_tessera'] ?? ''));
@@ -847,18 +853,18 @@ class UsersController
                 $utente['email'] ?? '',
                 $utente['telefono'] ?? '',
                 $utente['indirizzo'] ?? '',
-                isset($utente['data_nascita']) ? date('d/m/Y', strtotime($utente['data_nascita'])) : '',
+                isset($utente['data_nascita']) ? format_date($utente['data_nascita'], false, '/') : '',
                 $utente['sesso'] ?? '',
-                isset($utente['data_registrazione']) ? date('d/m/Y H:i:s', strtotime($utente['data_registrazione'])) : '',
-                isset($utente['data_scadenza_tessera']) ? date('d/m/Y', strtotime($utente['data_scadenza_tessera'])) : '',
+                isset($utente['data_registrazione']) ? format_date($utente['data_registrazione'], true, '/') : '',
+                isset($utente['data_scadenza_tessera']) ? format_date($utente['data_scadenza_tessera'], false, '/') : '',
                 $utente['stato'] ?? '',
                 $utente['tipo_utente'] ?? '',
                 $utente['cod_fiscale'] ?? '',
                 $utente['note_utente'] ?? '',
                 ($utente['email_verificata'] ?? 0) == 1 ? 'Sì' : 'No',
-                isset($utente['data_ultimo_accesso']) ? date('d/m/Y H:i:s', strtotime($utente['data_ultimo_accesso'])) : '',
-                isset($utente['created_at']) ? date('d/m/Y H:i:s', strtotime($utente['created_at'])) : '',
-                isset($utente['updated_at']) ? date('d/m/Y H:i:s', strtotime($utente['updated_at'])) : ''
+                isset($utente['data_ultimo_accesso']) ? format_date($utente['data_ultimo_accesso'], true, '/') : '',
+                isset($utente['created_at']) ? format_date($utente['created_at'], true, '/') : '',
+                isset($utente['updated_at']) ? format_date($utente['updated_at'], true, '/') : ''
             ];
 
             // Escape fields for CSV

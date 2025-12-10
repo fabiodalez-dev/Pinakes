@@ -74,12 +74,12 @@ $csrfToken = Csrf::ensureToken();
                     <div class="flex items-center gap-2 text-gray-600">
                         <i class="fas fa-calendar w-4"></i>
                         <span><?= __("Prestato il") ?></span>
-                        <strong class="text-gray-900"><?= HtmlHelper::e($prestito['data_prestito'] ?? '-'); ?></strong>
+                        <strong class="text-gray-900"><?= HtmlHelper::e(format_date($prestito['data_prestito'] ?? '', false, '/') ?: '-'); ?></strong>
                     </div>
                     <div class="flex items-center gap-2 text-gray-600">
                         <i class="fas fa-hourglass-end w-4"></i>
                         <span><?= __("Scadenza") ?></span>
-                        <strong class="text-gray-900"><?= HtmlHelper::e($prestito['data_scadenza'] ?? '-'); ?></strong>
+                        <strong class="text-gray-900"><?= HtmlHelper::e(format_date($prestito['data_scadenza'] ?? '', false, '/') ?: '-'); ?></strong>
                     </div>
                 </div>
             </div>

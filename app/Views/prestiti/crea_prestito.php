@@ -5,6 +5,28 @@ $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
 $currentLocale = $_SESSION['locale'] ?? 'it_IT';
 $isItalian = str_starts_with($currentLocale, 'it');
+
+// Check if user_id was passed via query param (from user detail page)
+$presetUserId = isset($_GET['utente_id']) ? (int)$_GET['utente_id'] : 0;
+$presetUserName = '';
+$presetUserLocked = false;
+
+// If utente_id is provided, fetch user info to pre-fill the form
+if ($presetUserId > 0) {
+    global $container;
+    $db = $container->get('db');
+    $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
+    $stmt->bind_param('i', $presetUserId);
+    $stmt->execute();
+    $presetUser = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($presetUser) {
+        $presetUserName = $presetUser['nome'] . ' ' . $presetUser['cognome'] . ' (' . $presetUser['codice_tessera'] . ')';
+        $presetUserLocked = true;
+    } else {
+        $presetUserId = 0;
+    }
+}
 ?>
 <section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
   <!-- Breadcrumb -->
@@ -67,9 +89,12 @@ $isItalian = str_starts_with($currentLocale, 'it');
     <!-- Ricerca Utente -->
     <div class="relative">
       <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Utente") ?> *</label>
-      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off">
+      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName) ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
       <div id="utente_suggest" class="suggestions-box"></div>
-      <input type="hidden" name="utente_id" id="utente_id" value="0" required />
+      <input type="hidden" name="utente_id" id="utente_id" value="<?= $presetUserId ?>" required />
+      <?php if ($presetUserLocked): ?>
+      <p class="mt-1 text-xs text-gray-500"><i class="fas fa-lock mr-1"></i><?= __("Utente preselezionato") ?></p>
+      <?php endif; ?>
     </div>
 
     <!-- Ricerca Libro -->
@@ -317,14 +342,15 @@ $isItalian = str_starts_with($currentLocale, 'it');
 
       fpPrestito = flatpickr(dataPrestitoEl, fpConfig);
 
-      // Initialize flatpickr for data_scadenza
+      // Initialize flatpickr for data_scadenza (with same date coloring)
       fpScadenza = flatpickr(dataScadenzaEl, {
         dateFormat: 'Y-m-d',
         altInput: true,
         altFormat: isItalian ? 'd/m/Y' : 'm/d/Y',
         allowInput: true,
         minDate: dataPrestitoEl.value || 'today',
-        locale: localeObj || undefined
+        locale: localeObj || undefined,
+        onDayCreate: colorCalendarDates
       });
 
       // Update hint text based on selected date
@@ -352,6 +378,7 @@ $isItalian = str_starts_with($currentLocale, 'it');
           if (calendarLegend) calendarLegend.classList.add('hidden');
           if (dataPrestitoHint) dataPrestitoHint.classList.add('hidden');
           if (fpPrestito) fpPrestito.redraw();
+          if (fpScadenza) fpScadenza.redraw();
           return;
         }
 
@@ -386,6 +413,7 @@ $isItalian = str_starts_with($currentLocale, 'it');
 
             // Redraw calendars with new colors
             if (fpPrestito) fpPrestito.redraw();
+            if (fpScadenza) fpScadenza.redraw();
 
             // Update hint if date is already selected
             if (dataPrestitoEl.value) {

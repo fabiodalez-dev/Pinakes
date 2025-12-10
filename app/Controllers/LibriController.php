@@ -10,6 +10,38 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class LibriController
 {
     /**
+     * Centralized whitelist of allowed domains for external cover image downloads
+     * Used by both downloadExternalCover() and isUrlAllowed()
+     */
+    private const COVER_ALLOWED_DOMAINS = [
+        // Google Books
+        'books.google.com',
+        'books.google.it',
+        'images.google.com',
+        // Open Library
+        'covers.openlibrary.org',
+        // Italian bookstores
+        'www.libreriauniversitaria.it',
+        'img.libreriauniversitaria.it',
+        'img2.libreriauniversitaria.it',
+        'img3.libreriauniversitaria.it',
+        'cdn.mondadoristore.it',
+        'www.lafeltrinelli.it',
+        // Amazon
+        'images.amazon.com',
+        'images-na.ssl-images-amazon.com',
+        'images-eu.ssl-images-amazon.com',
+        // Ubik Libri
+        'www.ubiklibri.it',
+        'ubiklibri.it',
+    ];
+
+    /**
+     * Maximum file size for cover downloads (5MB)
+     */
+    private const MAX_COVER_SIZE = 5 * 1024 * 1024;
+
+    /**
      * Get the storage directory path
      * Centralized configuration for storage location
      */
@@ -33,6 +65,141 @@ class LibriController
     private function getCoversUrlPath(): string
     {
         return '/uploads/copertine';
+    }
+
+    /**
+     * Download external cover image and save locally
+     *
+     * @param string|null $url External URL or local path
+     * @return string|null Local URL path on success, original URL on failure, null/empty passed through
+     */
+    private function downloadExternalCover(?string $url): ?string
+    {
+        if ($url === null || $url === '' || !preg_match('#^https?://#i', $url)) {
+            return $url; // Not an external URL, return as-is
+        }
+
+        $parsedUrl = parse_url($url);
+        $host = strtolower($parsedUrl['host'] ?? '');
+
+        // Use centralized whitelist
+        if (!\in_array($host, self::COVER_ALLOWED_DOMAINS, true)) {
+            \App\Support\SecureLogger::warning('Cover download from non-whitelisted domain', ['url' => $url, 'host' => $host]);
+            return $url; // Return original URL if domain not allowed
+        }
+
+        try {
+            // First, check file size via HEAD request to avoid downloading huge files
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_NOBODY => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
+            ]);
+            curl_exec($ch);
+            $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+            curl_close($ch);
+
+            // Check size limit before downloading (if Content-Length is provided)
+            if ($contentLength > self::MAX_COVER_SIZE) {
+                \App\Support\SecureLogger::warning('Cover too large (HEAD check)', [
+                    'url' => $url,
+                    'size' => $contentLength,
+                    'max' => self::MAX_COVER_SIZE
+                ]);
+                return $url;
+            }
+
+            // Download the image
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
+            ]);
+
+            $imageData = curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($imageData === false || $httpCode !== 200 || \strlen($imageData) < 100) {
+                \App\Support\SecureLogger::warning('Cover download failed', ['url' => $url, 'http_code' => $httpCode]);
+                return $url; // Return original URL on download failure
+            }
+
+            // Verify size after download (in case Content-Length was not provided or wrong)
+            if (\strlen($imageData) > self::MAX_COVER_SIZE) {
+                \App\Support\SecureLogger::warning('Cover too large (POST check)', [
+                    'url' => $url,
+                    'size' => \strlen($imageData),
+                    'max' => self::MAX_COVER_SIZE
+                ]);
+                return $url;
+            }
+
+            // Validate image
+            $imageInfo = @getimagesizefromstring($imageData);
+            if ($imageInfo === false) {
+                \App\Support\SecureLogger::warning('Invalid image data', ['url' => $url]);
+                return $url;
+            }
+
+            $mimeType = $imageInfo['mime'] ?? '';
+            $extension = match ($mimeType) {
+                'image/jpeg', 'image/jpg' => 'jpg',
+                'image/png' => 'png',
+                default => null,
+            };
+
+            if ($extension === null) {
+                return $url; // Unsupported format
+            }
+
+            // Ensure upload directory exists
+            $uploadDir = $this->getCoversUploadPath();
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            // Generate unique filename and save
+            $filename = 'copertina_' . uniqid('', true) . '.' . $extension;
+            $filepath = $uploadDir . '/' . $filename;
+
+            // Create image resource and save
+            $image = imagecreatefromstring($imageData);
+            if ($image === false) {
+                return $url;
+            }
+
+            $saveResult = match ($extension) {
+                'png' => imagepng($image, $filepath, 9),
+                default => imagejpeg($image, $filepath, 85),
+            };
+            imagedestroy($image);
+
+            if (!$saveResult) {
+                return $url;
+            }
+
+            chmod($filepath, 0644);
+            \App\Support\SecureLogger::info('Cover downloaded successfully', ['url' => $url, 'local' => $filename]);
+
+            return $this->getCoversUrlPath() . '/' . $filename;
+
+        } catch (\Exception $e) {
+            \App\Support\SecureLogger::error('Cover download exception', ['url' => $url, 'error' => $e->getMessage()]);
+            return $url; // Return original URL on any error
+        }
     }
 
     /**
@@ -375,6 +542,9 @@ class LibriController
         $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float) $fields['prezzo'] : null;
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
+        } else {
+            // Auto-download external cover URLs
+            $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
         }
 
         // Ensure hierarchical consistency between genere_id (parent) and sottogenere_id (child)
@@ -499,6 +669,9 @@ class LibriController
             $repo = new \App\Models\BookRepository($db);
             $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
 
+            // Get scraped author bio if available
+            $scrapedAuthorBio = trim((string)($data['scraped_author_bio'] ?? ''));
+
             // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
                 $authRepo = new \App\Models\AuthorRepository($db);
@@ -509,6 +682,10 @@ class LibriController
                         $existingId = $authRepo->findByName($nomeCompleto);
                         if ($existingId) {
                             $fields['autori_ids'][] = $existingId;
+                            // Update bio if existing author has no bio and we have scraped one
+                            if ($scrapedAuthorBio !== '') {
+                                $this->updateAuthorBioIfEmpty($db, $existingId, $scrapedAuthorBio);
+                            }
                         } else {
                             $authorId = $authRepo->create([
                                 'nome' => $nomeCompleto,
@@ -516,7 +693,7 @@ class LibriController
                                 'data_nascita' => null,
                                 'data_morte' => null,
                                 'nazionalita' => '',
-                                'biografia' => '',
+                                'biografia' => $scrapedAuthorBio,
                                 'sito_web' => ''
                             ]);
                             $fields['autori_ids'][] = $authorId;
@@ -533,6 +710,10 @@ class LibriController
                     $found = $authRepo->findByName($scrapedAuthor);
                     if ($found) {
                         $fields['autori_ids'][] = $found;
+                        // Update bio if existing author has no bio and we have scraped one
+                        if ($scrapedAuthorBio !== '') {
+                            $this->updateAuthorBioIfEmpty($db, $found, $scrapedAuthorBio);
+                        }
                     } else {
                         $authorId = $authRepo->create([
                             'nome' => $scrapedAuthor,
@@ -540,11 +721,20 @@ class LibriController
                             'data_nascita' => null,
                             'data_morte' => null,
                             'nazionalita' => '',
-                            'biografia' => '',
+                            'biografia' => $scrapedAuthorBio,
                             'sito_web' => ''
                         ]);
                         $fields['autori_ids'][] = $authorId;
                     }
+                }
+            }
+
+            // Update bio for the FIRST selected author if they have no bio
+            // Scraped bio is from the book's primary author, don't apply to all authors
+            if ($scrapedAuthorBio !== '' && !empty($fields['autori_ids'])) {
+                $firstAuthorId = (int) reset($fields['autori_ids']);
+                if ($firstAuthorId > 0) {
+                    $this->updateAuthorBioIfEmpty($db, $firstAuthorId, $scrapedAuthorBio);
                 }
             }
 
@@ -885,6 +1075,9 @@ class LibriController
             $fields['copertina_url'] = null;
         } elseif ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
+        } else {
+            // Auto-download external cover URLs
+            $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
         }
 
         // Ensure hierarchical consistency between genere_id and sottogenere_id also on update
@@ -1001,6 +1194,9 @@ class LibriController
                 $fields['collocazione'] = '';
             }
 
+            // Get scraped author bio if available (for update method)
+            $scrapedAuthorBioUpdate = trim((string)($data['scraped_author_bio'] ?? ''));
+
             // Gestione autori nuovi da creare (con controllo duplicati normalizzati)
             if (!empty($data['autori_new'])) {
                 $authRepo = new \App\Models\AuthorRepository($db);
@@ -1011,6 +1207,10 @@ class LibriController
                         $existingId = $authRepo->findByName($nomeCompleto);
                         if ($existingId) {
                             $fields['autori_ids'][] = $existingId;
+                            // Update bio if existing author has no bio and we have scraped one
+                            if ($scrapedAuthorBioUpdate !== '') {
+                                $this->updateAuthorBioIfEmpty($db, $existingId, $scrapedAuthorBioUpdate);
+                            }
                         } else {
                             $authorId = $authRepo->create([
                                 'nome' => $nomeCompleto,
@@ -1018,7 +1218,7 @@ class LibriController
                                 'data_nascita' => null,
                                 'data_morte' => null,
                                 'nazionalita' => '',
-                                'biografia' => '',
+                                'biografia' => $scrapedAuthorBioUpdate,
                                 'sito_web' => ''
                             ]);
                             $fields['autori_ids'][] = $authorId;
@@ -1035,6 +1235,10 @@ class LibriController
                     $found = $authRepo->findByName($scrapedAuthor);
                     if ($found) {
                         $fields['autori_ids'][] = $found;
+                        // Update bio if existing author has no bio and we have scraped one
+                        if ($scrapedAuthorBioUpdate !== '') {
+                            $this->updateAuthorBioIfEmpty($db, $found, $scrapedAuthorBioUpdate);
+                        }
                     } else {
                         $authorId = $authRepo->create([
                             'nome' => $scrapedAuthor,
@@ -1042,11 +1246,20 @@ class LibriController
                             'data_nascita' => null,
                             'data_morte' => null,
                             'nazionalita' => '',
-                            'biografia' => '',
+                            'biografia' => $scrapedAuthorBioUpdate,
                             'sito_web' => ''
                         ]);
                         $fields['autori_ids'][] = $authorId;
                     }
+                }
+            }
+
+            // Update bio for the FIRST selected author if they have no bio
+            // Scraped bio is from the book's primary author, don't apply to all authors
+            if ($scrapedAuthorBioUpdate !== '' && !empty($fields['autori_ids'])) {
+                $firstAuthorIdUpdate = (int) reset($fields['autori_ids']);
+                if ($firstAuthorIdUpdate > 0) {
+                    $this->updateAuthorBioIfEmpty($db, $firstAuthorIdUpdate, $scrapedAuthorBioUpdate);
                 }
             }
 
@@ -1428,6 +1641,7 @@ class LibriController
 
     /**
      * Security: Validate URL against whitelist for external image downloads
+     * Uses centralized COVER_ALLOWED_DOMAINS constant
      */
     private function isUrlAllowed(string $url): bool
     {
@@ -1441,18 +1655,6 @@ class LibriController
             return false;
         }
 
-        // Whitelist of allowed domains for cover image downloads
-        $allowedDomains = [
-            'img.libreriauniversitaria.it',
-            'img2.libreriauniversitaria.it',
-            'img3.libreriauniversitaria.it',
-            'covers.openlibrary.org',
-            'images.amazon.com',
-            'images-na.ssl-images-amazon.com',
-            'books.google.com',
-            'books.google.it'
-        ];
-
         $host = parse_url($url, PHP_URL_HOST);
         if (!$host) {
             return false;
@@ -1460,13 +1662,13 @@ class LibriController
 
         // Block localhost, private IPs, and internal networks
         if (
-            in_array($host, ['localhost', '127.0.0.1', '::1']) ||
+            \in_array($host, ['localhost', '127.0.0.1', '::1']) ||
             preg_match('/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)/', $host)
         ) {
             return false;
         }
 
-        return in_array($host, $allowedDomains, true);
+        return \in_array($host, self::COVER_ALLOWED_DOMAINS, true);
     }
 
     /**
@@ -2484,5 +2686,35 @@ class LibriController
         }
 
         return [];
+    }
+
+    /**
+     * Update author biography if currently empty
+     * Used to populate bio from scraped data without overwriting existing content
+     */
+    private function updateAuthorBioIfEmpty(\mysqli $db, int $authorId, string $bio): void
+    {
+        if ($bio === '' || $authorId <= 0) {
+            return;
+        }
+
+        // Decode HTML entities for consistency with AuthorRepository::create()
+        $bio = \App\Support\HtmlHelper::decode($bio);
+
+        // Atomic update: only set bio if currently empty (prevents TOCTOU race condition)
+        // Use TRIM to also catch biographies containing only whitespace
+        $stmt = $db->prepare("UPDATE autori SET biografia = ? WHERE id = ? AND (biografia IS NULL OR TRIM(biografia) = '')");
+        if (!$stmt) {
+            return;
+        }
+
+        $stmt->bind_param('si', $bio, $authorId);
+        $stmt->execute();
+        $affectedRows = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($affectedRows > 0) {
+            error_log("[LibriController] Updated author bio for ID $authorId from scraping");
+        }
     }
 }

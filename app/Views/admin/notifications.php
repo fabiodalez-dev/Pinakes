@@ -97,7 +97,7 @@
                     } elseif ($diff->days == 1) {
                         echo __('Ieri alle %s', $date->format('H:i'));
                     } else {
-                        echo $date->format('d/m/Y H:i');
+                        echo format_date($notification['created_at'], true, '/');
                     }
                     ?>
                   </span>

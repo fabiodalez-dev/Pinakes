@@ -1609,7 +1609,7 @@ ob_start();
                             <?php if (!empty($book['data_pubblicazione'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Data di Pubblicazione") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['data_pubblicazione']) ?></div>
+                                <div class="meta-value"><?= App\Support\HtmlHelper::e(format_date($book['data_pubblicazione'], false, '/')) ?></div>
                             </div>
                             <?php endif; ?>
 
@@ -1725,7 +1725,7 @@ ob_start();
                                             <div class="fw-bold"><?= htmlspecialchars($review['utente_nome']) ?></div>
                                             <div class="text-muted small">
                                                 <i class="fas fa-calendar me-1"></i>
-                                                <?= date('d/m/Y', strtotime($review['approved_at'])) ?>
+                                                <?= format_date($review['approved_at'], false, '/') ?>
                                             </div>
                                         </div>
                                     </div>
@@ -1793,7 +1793,7 @@ ob_start();
 
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Aggiunto il") ?></div>
-                            <div class="meta-value"><?= date('d/m/Y', strtotime($book['created_at'])) ?></div>
+                            <div class="meta-value"><?= format_date($book['created_at'], false, '/') ?></div>
                         </div>
                     </div>
                 </div>

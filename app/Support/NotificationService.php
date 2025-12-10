@@ -18,6 +18,36 @@ class NotificationService {
     }
 
     /**
+     * Format date for email templates using installation locale
+     *
+     * @param string $dateString Date string parseable by strtotime
+     * @param bool $includeTime Include time (H:i) in output
+     * @return string Formatted date
+     */
+    private function formatEmailDate(string $dateString, bool $includeTime = false): string
+    {
+        $timestamp = strtotime($dateString);
+        if ($timestamp === false) {
+            return $dateString;
+        }
+
+        $locale = I18n::getInstallationLocale();
+        $isItalian = str_starts_with($locale, 'it');
+
+        if ($isItalian) {
+            $format = 'd-m-Y';
+        } else {
+            $format = 'Y-m-d';
+        }
+
+        if ($includeTime) {
+            $format .= ' H:i';
+        }
+
+        return date($format, $timestamp);
+    }
+
+    /**
      * Invia notifica per nuova registrazione agli admin
      */
     public function notifyNewUserRegistration(int $userId): bool {
@@ -42,7 +72,7 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'data_registrazione' => date('d-m-Y H:i', strtotime($user['created_at'])),
+                'data_registrazione' => $this->formatEmailDate($user['created_at'], true),
                 'admin_users_url' => $this->getBaseUrl() . '/admin/utenti'
             ];
 
@@ -97,7 +127,7 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'data_registrazione' => date('d-m-Y H:i', strtotime($user['created_at'])),
+                'data_registrazione' => $this->formatEmailDate($user['created_at'], true),
                 'sezione_verifica' => $verifySection,
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
@@ -296,23 +326,23 @@ class NotificationService {
                 'libro_titolo' => $loan['libro_titolo'],
                 'utente_nome' => $loan['utente_nome'],
                 'utente_email' => $loan['utente_email'],
-                'data_inizio' => date('d-m-Y', strtotime($loan['data_prestito'])),
-                'data_fine' => date('d-m-Y', strtotime($loan['data_scadenza'])),
-                'data_richiesta' => date('d-m-Y H:i', strtotime($loan['created_at'])),
+                'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
+                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
+                'data_richiesta' => $this->formatEmailDate($loan['created_at'], true),
                 'approve_url' => $this->getBaseUrl() . '/admin/loans/pending'
             ];
 
             // Send email to admins
             $emailSent = $this->sendToAdmins('loan_request_notification', $variables);
 
-            // Create in-app notification
+            // Create in-app notification (uses session locale)
             $notificationTitle = __('Nuova richiesta di prestito');
             $notificationMessage = sprintf(
                 __("Richiesta di prestito per \"%s\" da %s dal %s al %s"),
                 $loan['libro_titolo'],
                 $loan['utente_nome'],
-                date('d/m/Y', strtotime($loan['data_prestito'])),
-                date('d/m/Y', strtotime($loan['data_scadenza']))
+                format_date($loan['data_prestito'], false, '/'),
+                format_date($loan['data_scadenza'], false, '/')
             );
             $notificationLink = '/admin/prestiti';
 
@@ -383,7 +413,7 @@ class NotificationService {
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
-                    'data_scadenza' => date('d-m-Y', strtotime($loan['data_scadenza'])),
+                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
                     'giorni_rimasti' => $loan['giorni_rimasti']
                 ];
 
@@ -463,7 +493,7 @@ class NotificationService {
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
-                    'data_scadenza' => date('d-m-Y', strtotime($loan['data_scadenza'])),
+                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
                     'giorni_ritardo' => $loan['giorni_ritardo']
                 ];
 
@@ -601,7 +631,7 @@ class NotificationService {
                     'libro_titolo' => $wishlist['titolo'],
                     'libro_autore' => $wishlist['autore'] ?: 'Autore non specificato',
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
-                    'data_disponibilita' => date('d-m-Y H:i'),
+                    'data_disponibilita' => $this->formatEmailDate('now', true),
                     'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
                     'wishlist_url' => $this->getBaseUrl() . '/profile/wishlist'
                 ];
@@ -904,8 +934,8 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_inizio' => date('d-m-Y', strtotime($loan['data_prestito'])),
-                'data_fine' => date('d-m-Y', strtotime($loan['data_scadenza'])),
+                'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
+                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
                 'giorni_prestito' => $days,
                 'pickup_instructions' => 'Recati in biblioteca durante gli orari di apertura per ritirare il libro.'
             ];
@@ -1162,8 +1192,8 @@ class NotificationService {
             return __('Ieri');
         }
 
-        // Fallback to formatted date
-        return $date->format('d/m/Y H:i');
+        // Fallback to formatted date (uses session locale)
+        return format_date($date->format('Y-m-d H:i:s'), true, '/');
     }
 
     /**
@@ -1296,7 +1326,7 @@ class NotificationService {
                 'stelle' => $review['stelle'],
                 'titolo_recensione' => $review['titolo'] ?? '',
                 'descrizione_recensione' => $review['descrizione'] ?? '',
-                'data_recensione' => date('d-m-Y H:i', strtotime($review['created_at'])),
+                'data_recensione' => $this->formatEmailDate($review['created_at'], true),
                 'link_approvazione' => $this->getBaseUrl() . '/admin/recensioni'
             ];
 

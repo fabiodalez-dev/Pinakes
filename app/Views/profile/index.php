@@ -361,7 +361,7 @@
       <div class="info-item">
         <dt><?= __("Scadenza tessera") ?></dt>
         <dd class="<?php echo empty($user['data_scadenza_tessera']) ? 'empty' : ''; ?>">
-          <?php echo !empty($user['data_scadenza_tessera']) ? date('d/m/Y', strtotime($user['data_scadenza_tessera'])) : __('Non specificata'); ?>
+          <?php echo !empty($user['data_scadenza_tessera']) ? format_date($user['data_scadenza_tessera'], false, '/') : __('Non specificata'); ?>
         </dd>
       </div>
     </div>
@@ -373,7 +373,7 @@
       <i class="fas fa-user-edit"></i>
       <?= __("Dati personali") ?>
     </h2>
-    <form method="post" action="/profilo/update">
+    <form method="post" action="<?= App\Support\RouteTranslator::route('profile_update') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
@@ -443,7 +443,7 @@
       <i class="fas fa-lock"></i>
       <?= __("Cambia password") ?>
     </h2>
-    <form method="post" action="/profilo/password">
+    <form method="post" action="<?= App\Support\RouteTranslator::route('profile_password') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">

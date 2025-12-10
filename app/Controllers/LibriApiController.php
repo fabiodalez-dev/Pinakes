@@ -121,6 +121,23 @@ class LibriApiController
             $types .= 'i';
         }
 
+        // Parse DataTables sorting parameters (with robust null checks to avoid notices)
+        $order = $q['order'][0] ?? null;
+        $orderColumn = isset($order['column']) ? (int) $order['column'] : 3; // Default to Info column (title)
+        $orderDir = (isset($order['dir']) && strtoupper(trim($order['dir'])) === 'DESC') ? 'DESC' : 'ASC';
+
+        // Map column indices to database fields
+        // Columns: 0=checkbox, 1=status, 2=cover, 3=info(title), 4=genre, 5=position, 6=year, 7=actions
+        $orderByMap = [
+            3 => 'l.titolo',           // Info column - sort by title
+            4 => 'g.nome',             // Genre column
+            5 => 's.codice, m.numero_livello, COALESCE(l.posizione_progressiva, p.ordine)', // Position
+            6 => 'l.anno_pubblicazione', // Year column
+        ];
+
+        $orderByClause = $orderByMap[$orderColumn] ?? 'l.titolo';
+        $orderBy = "ORDER BY {$orderByClause} {$orderDir}";
+
         // Count total records with prepared statement
         $total_sql = 'SELECT COUNT(*) AS c FROM libri l';
         $total_stmt = $db->prepare($total_sql);
@@ -190,7 +207,7 @@ class LibriApiController
                 LEFT JOIN posizioni p ON l.posizione_id=p.id
                 LEFT JOIN mensole m ON m.id = COALESCE(l.mensola_id, p.mensola_id)
                 LEFT JOIN scaffali s ON s.id = COALESCE(l.scaffale_id, p.scaffale_id)
-                $where ORDER BY l.titolo ASC LIMIT ?, ?";
+                $where $orderBy LIMIT ?, ?";
 
         // Add LIMIT parameters
         $params[] = $start;

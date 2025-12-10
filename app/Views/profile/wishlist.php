@@ -352,7 +352,7 @@ $reservationsRoute = route_path('reservations');
               <?php elseif ($nextAvailable): ?>
               <p class="text-muted small mb-0">
                 <i class="fas fa-calendar-alt me-1"></i>
-                <?= __("Disponibile dal:") ?> <?= date('d/m/Y', strtotime($nextAvailable)); ?>
+                <?= __("Disponibile dal:") ?> <?= format_date($nextAvailable, false, '/'); ?>
               </p>
               <?php else: ?>
               <p class="text-muted small mb-0"><?= __("Nessuna copia attualmente disponibile") ?></p>

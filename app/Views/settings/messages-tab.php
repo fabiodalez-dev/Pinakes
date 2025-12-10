@@ -67,10 +67,7 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <?php
-                  $date = new DateTime($message['created_at']);
-                  echo $date->format('d/m/Y H:i');
-                  ?>
+  <?= format_date($message['created_at'], true, '/') ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <?php if ($message['is_archived']): ?>

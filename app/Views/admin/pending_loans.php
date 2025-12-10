@@ -66,12 +66,12 @@
                                             <p class="text-gray-600 dark:text-gray-400 flex items-center">
                                                 <i class="fas fa-play w-4 text-center mr-2 text-green-500"></i>
                                                 <span class="font-medium"><?= __("Inizio:") ?></span>
-                                                <span class="ml-2"><?= date('d-m-Y', strtotime($loan['data_richiesta_inizio'])) ?></span>
+                                                <span class="ml-2"><?= format_date($loan['data_richiesta_inizio'], false, '/') ?></span>
                                             </p>
                                             <p class="text-gray-600 dark:text-gray-400 flex items-center">
                                                 <i class="fas fa-stop w-4 text-center mr-2 text-red-500"></i>
                                                 <span class="font-medium"><?= __("Fine:") ?></span>
-                                                <span class="ml-2"><?= date('d-m-Y', strtotime($loan['data_richiesta_fine'])) ?></span>
+                                                <span class="ml-2"><?= format_date($loan['data_richiesta_fine'], false, '/') ?></span>
                                             </p>
                                         </div>
                                     </div>
@@ -94,7 +94,7 @@
                         <div class="px-6 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
                             <p class="text-xs text-gray-500 dark:text-gray-400 flex items-center">
                                 <i class="fas fa-clock mr-2"></i>
-                                <?= __("Richiesta del %s", date('d-m-Y H:i', strtotime($loan['created_at']))) ?>
+                                <?= __("Richiesta del %s", format_date($loan['created_at'], true, '/')) ?>
                             </p>
                         </div>
                     </div>

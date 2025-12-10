@@ -49,8 +49,11 @@ $cookieBannerTexts = [
 ?>
 <!-- Silktide Consent Manager -->
 <script>
-    if (typeof silktideCookieBannerManager !== 'undefined') {
-        silktideCookieBannerManager.updateCookieBannerConfig({
+    (function() {
+        function initCookieBannerConfig() {
+            try {
+                if (typeof silktideCookieBannerManager !== 'undefined' && typeof silktideCookieBannerManager.updateCookieBannerConfig === 'function') {
+                    silktideCookieBannerManager.updateCookieBannerConfig({
             cookieTypes: [
                 {
                     id: 'essential',
@@ -103,8 +106,41 @@ $cookieBannerTexts = [
                 banner: 'bottomRight',
                 cookieIcon: 'bottomLeft',
             },
-        });
-    } else {
-        console.warn('silktideCookieBannerManager non è stato caricato.');
-    }
+                    });
+                    return true;
+                }
+                return false;
+            } catch (e) {
+                console.error('Cookie banner: initialization error', e);
+                return false;
+            }
+        }
+
+        // Try to initialize immediately
+        if (!initCookieBannerConfig()) {
+            // Max retry attempts to prevent infinite loop
+            var maxRetries = 30; // 30 retries × 100ms = 3 seconds max
+            var retryCount = 0;
+
+            // Centralized retry function with consistent behavior
+            function retry() {
+                if (retryCount >= maxRetries) {
+                    console.warn('Cookie banner: silktideCookieBannerManager not available after ' + maxRetries + ' retries');
+                    return; // Stop retrying after max attempts
+                }
+                if (!initCookieBannerConfig()) {
+                    retryCount++;
+                    setTimeout(retry, 100);
+                }
+            }
+
+            // Start retry loop after DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', retry);
+            } else {
+                // DOM already loaded, start retry with short initial delay
+                setTimeout(retry, 50);
+            }
+        }
+    })();
 </script>
