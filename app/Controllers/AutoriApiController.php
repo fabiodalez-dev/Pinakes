@@ -142,11 +142,36 @@ class AutoriApiController
         $params[] = $length;
         $param_types .= 'ii';
 
+        // Handle DataTables ordering
+        $orderColumn = 'a.nome';
+        $orderDir = 'ASC';
+
+        // Map column index to database column
+        $columnMap = [
+            0 => 'a.id',           // checkbox (fallback to id)
+            1 => 'a.nome',         // Nome
+            2 => 'a.pseudonimo',   // Pseudonimo
+            3 => $colNaz !== null ? "a.`$colNaz`" : 'a.nome',  // Nazionalità
+            4 => 'libri_count',    // N. Libri
+            5 => 'a.id'            // Azioni (fallback to id)
+        ];
+
+        // Parse order parameter from DataTables
+        if (isset($q['order'][0]['column']) && isset($q['order'][0]['dir'])) {
+            $colIdx = (int) $q['order'][0]['column'];
+            $dir = strtoupper($q['order'][0]['dir']) === 'DESC' ? 'DESC' : 'ASC';
+
+            if (isset($columnMap[$colIdx])) {
+                $orderColumn = $columnMap[$colIdx];
+                $orderDir = $dir;
+            }
+        }
+
         $selectNaz = $colNaz !== null ? "a.`$colNaz` AS nazionalita" : "'' AS nazionalita";
         $sql_prepared = "SELECT a.id, a.nome, a.pseudonimo, a.data_nascita, a.data_morte, a.biografia, a.sito_web,
                        $selectNaz,
                        (SELECT COUNT(*) FROM libri_autori la WHERE la.autore_id = a.id) AS libri_count
-                FROM autori a $where_prepared ORDER BY a.nome ASC LIMIT ?, ?";
+                FROM autori a $where_prepared ORDER BY $orderColumn $orderDir LIMIT ?, ?";
 
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {
