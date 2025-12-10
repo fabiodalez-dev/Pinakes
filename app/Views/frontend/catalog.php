@@ -1783,8 +1783,8 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                     displayName = parts[parts.length - 1];
                 }
 
-                // Sanitize title attribute to prevent XSS (escape HTML entities including double quotes)
-                const safeTitle = escapeHtml(gen.nome).replace(/"/g, '&quot;');
+                // Sanitize title attribute to prevent XSS
+                const safeTitle = escapeHtml(gen.nome);
 
                 html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;" title="' + safeTitle + '">';
                 html += '<span>' + escapeHtml(displayName) + '</span>';
@@ -1799,7 +1799,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
         if (genresContainer) {
             let html = '';
             filterOptions.generi.forEach(gen => {
-                if (gen.cnt > 0) {
+                if ((gen.cnt ?? 0) > 0) {
                     const isActive = currentFilters.genere === gen.nome ? 'active' : '';
                     const escapedName = gen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;">';
@@ -1810,7 +1810,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                     // Add subgenres if present
                     if (gen.children && gen.children.length > 0) {
                         gen.children.forEach(subgen => {
-                            if (subgen.cnt > 0) {
+                            if ((subgen.cnt ?? 0) > 0) {
                                 const isSubActive = currentFilters.genere === subgen.nome ? 'active' : '';
                                 const escapedSubName = subgen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                                 html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere\', \'' + escapedSubName + '\'); return false;">';
@@ -1832,10 +1832,10 @@ function updateFilterOptions(filterOptions, genreDisplay) {
         if (publishersContainer) {
             let html = '';
             filterOptions.editori.forEach(ed => {
-                if (ed.cnt > 0) {
+                if ((ed.cnt ?? 0) > 0) {
                     const isActive = currentFilters.editore === ed.nome ? 'active' : '';
                     const decodedName = decodeHtmlEntities(ed.nome);
-                    const escapedName = ed.nome.replace(/'/g, "\\'");
+                    const escapedName = ed.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'editore\', \'' + escapedName + '\'); return false;">';
                     html += '<span>' + escapeHtml(decodedName) + '</span>';
                     html += '<span class="count-badge">' + ed.cnt + '</span>';

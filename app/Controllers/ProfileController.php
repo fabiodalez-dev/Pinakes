@@ -101,14 +101,10 @@ class ProfileController
         $cod_fiscale = empty($cod_fiscale) ? null : $cod_fiscale;
         $indirizzo = empty($indirizzo) ? null : $indirizzo;
 
-        // Validate sesso - only allow M, F, A (for Altro), or empty
-        if ($sesso) {
-            $sesso = strtoupper(substr($sesso, 0, 1)); // Take first character and uppercase
-            if (!in_array($sesso, ['M', 'F', 'A'], true)) {
-                $sesso = null; // Invalid value, set to null
-            }
-        } else {
-            $sesso = null; // Empty value becomes null
+        // Validate sesso - only allow M, F, Altro, or empty (must match DB ENUM)
+        $sesso = empty($sesso) ? null : $sesso;
+        if ($sesso !== null && !\in_array($sesso, ['M', 'F', 'Altro'], true)) {
+            $sesso = null; // Invalid value, set to null
         }
 
         // Validate required fields

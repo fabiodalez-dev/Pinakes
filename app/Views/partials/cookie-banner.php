@@ -51,8 +51,9 @@ $cookieBannerTexts = [
 <script>
     (function() {
         function initCookieBannerConfig() {
-            if (typeof silktideCookieBannerManager !== 'undefined' && typeof silktideCookieBannerManager.updateCookieBannerConfig === 'function') {
-                silktideCookieBannerManager.updateCookieBannerConfig({
+            try {
+                if (typeof silktideCookieBannerManager !== 'undefined' && typeof silktideCookieBannerManager.updateCookieBannerConfig === 'function') {
+                    silktideCookieBannerManager.updateCookieBannerConfig({
             cookieTypes: [
                 {
                     id: 'essential',
@@ -105,10 +106,14 @@ $cookieBannerTexts = [
                 banner: 'bottomRight',
                 cookieIcon: 'bottomLeft',
             },
-                });
-                return true;
+                    });
+                    return true;
+                }
+                return false;
+            } catch (e) {
+                console.error('Cookie banner: initialization error', e);
+                return false;
             }
-            return false;
         }
 
         // Try to initialize immediately

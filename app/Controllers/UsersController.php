@@ -119,6 +119,9 @@ class UsersController
 
         $sesso = trim((string) ($data['sesso'] ?? ''));
         $sesso = $sesso !== '' ? $sesso : null;
+        if ($sesso !== null && !\in_array($sesso, ['M', 'F', 'Altro'], true)) {
+            $sesso = null; // Invalid value, set to null
+        }
 
         $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
@@ -309,6 +312,9 @@ class UsersController
 
         $sesso = trim((string) ($data['sesso'] ?? ''));
         $sesso = $sesso !== '' ? $sesso : null;
+        if ($sesso !== null && !\in_array($sesso, ['M', 'F', 'Altro'], true)) {
+            $sesso = null; // Invalid value, set to null
+        }
 
         $codiceTesseraInput = trim((string) ($data['codice_tessera'] ?? ''));
         $dataScadenzaInput = trim((string) ($data['data_scadenza_tessera'] ?? ''));

@@ -224,6 +224,21 @@ return function (App $app): void {
             return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
         }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
+        // Handle hybrid URLs for profile update (base in one language, action in another)
+        if ($locale === 'it_IT') {
+            $registerRouteIfUnique('POST', '/profilo/update', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new ProfileController();
+                return $controller->update($request, $response, $db);
+            }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+        } elseif ($locale === 'en_US') {
+            $registerRouteIfUnique('POST', '/profile/aggiorna', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new ProfileController();
+                return $controller->update($request, $response, $db);
+            }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+        }
+
         $profilePasswordRoute = RouteTranslator::getRouteForLocale('profile_password', $locale);
         $registerRouteIfUnique('POST', $profilePasswordRoute, function ($request, $response) use ($app) {
             $db = $app->getContainer()->get('db');
@@ -577,16 +592,94 @@ return function (App $app): void {
     })->add(new AdminAuthMiddleware());
 
     if ($installationLocale === 'en_US') {
+        // Legacy Italian and hybrid URLs -> redirect to English canonical routes
         $legacyRedirects = [
+            // Auth
             '/accedi' => 'login',
+            '/esci' => 'logout',
             '/registrati' => 'register',
+            '/registrati/successo' => 'register_success',
+            '/register/successo' => 'register_success',  // Hybrid
+            '/password-dimenticata' => 'forgot_password',
+            '/reimposta-password' => 'reset_password',
+            '/verifica-email' => 'verify_email',
+            // Profile
             '/profilo' => 'profile',
             '/profilo/password' => 'profile_password',
             '/profilo/aggiorna' => 'profile_update',
+            '/profile/aggiorna' => 'profile_update',  // Hybrid
+            // User area
+            '/utente/bacheca' => 'user_dashboard',
+            '/user/bacheca' => 'user_dashboard',  // Hybrid
             '/prenotazioni' => 'reservations',
             '/lista-desideri' => 'wishlist',
+            // Catalog
             '/catalogo' => 'catalog',
             '/catalogo.php' => 'catalog_legacy',
+            '/libro' => 'book',
+            '/autore' => 'author',
+            '/editore' => 'publisher',
+            '/genere' => 'genre',
+            // Pages
+            '/chi-siamo' => 'about',
+            '/contatti' => 'contact',
+            '/contatti/invia' => 'contact_submit',
+            '/contact/invia' => 'contact_submit',  // Hybrid
+            '/privacy' => 'privacy',
+            '/cookies' => 'cookies',
+            '/eventi' => 'events',
+            // Language
+            '/lingua' => 'language_switch',
+        ];
+
+        foreach ($legacyRedirects as $legacyPath => $routeKey) {
+            $targetPath = RouteTranslator::route($routeKey);
+            if ($targetPath === $legacyPath) {
+                continue;
+            }
+
+            $registerRouteIfUnique('GET', $legacyPath, function ($request, $response) use ($targetPath) {
+                return $response->withHeader('Location', $targetPath)->withStatus(302);
+            });
+        }
+    } elseif ($installationLocale === 'it_IT') {
+        // Legacy English and hybrid URLs -> redirect to Italian canonical routes
+        $legacyRedirects = [
+            // Auth
+            '/login' => 'login',
+            '/logout' => 'logout',
+            '/register' => 'register',
+            '/register/success' => 'register_success',
+            '/registrati/success' => 'register_success',  // Hybrid
+            '/forgot-password' => 'forgot_password',
+            '/reset-password' => 'reset_password',
+            '/verify-email' => 'verify_email',
+            // Profile
+            '/profile' => 'profile',
+            '/profile/password' => 'profile_password',
+            '/profile/update' => 'profile_update',
+            '/profilo/update' => 'profile_update',  // Hybrid
+            // User area
+            '/user/dashboard' => 'user_dashboard',
+            '/utente/dashboard' => 'user_dashboard',  // Hybrid
+            '/reservations' => 'reservations',
+            '/wishlist' => 'wishlist',
+            // Catalog
+            '/catalog' => 'catalog',
+            '/book' => 'book',
+            '/author' => 'author',
+            '/publisher' => 'publisher',
+            '/genre' => 'genre',
+            // Pages
+            '/about-us' => 'about',
+            '/contact' => 'contact',
+            '/contact/submit' => 'contact_submit',
+            '/contatti/submit' => 'contact_submit',  // Hybrid
+            '/privacy-policy' => 'privacy',
+            '/cookie-policy' => 'cookies',
+            '/events' => 'events',
+            // Language
+            '/language' => 'language_switch',
         ];
 
         foreach ($legacyRedirects as $legacyPath => $routeKey) {
@@ -2111,6 +2204,21 @@ return function (App $app): void {
             $controller = new \App\Controllers\ContactController();
             return $controller->submitForm($request, $response, $db);
         }, [new CsrfMiddleware()]);
+
+        // Handle hybrid URLs for contact submit (Italian base + English action and vice versa)
+        if ($locale === 'it_IT') {
+            $registerRouteIfUnique('POST', '/contatti/submit', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new \App\Controllers\ContactController();
+                return $controller->submitForm($request, $response, $db);
+            }, [new CsrfMiddleware()]);
+        } elseif ($locale === 'en_US') {
+            $registerRouteIfUnique('POST', '/contact/invia', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new \App\Controllers\ContactController();
+                return $controller->submitForm($request, $response, $db);
+            }, [new CsrfMiddleware()]);
+        }
     }
 
     // Privacy Policy page (multi-language variants)

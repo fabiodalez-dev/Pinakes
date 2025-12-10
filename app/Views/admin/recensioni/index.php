@@ -258,29 +258,60 @@ function toggleSection(section) {
 }
 
 (function() {
-    const withSwal = typeof Swal !== 'undefined';
+    // Pre-translated strings from PHP for proper i18n support
+    const i18n = {
+        conferma: <?= json_encode(__('Conferma')) ?>,
+        annulla: <?= json_encode(__('Annulla')) ?>,
+        confermiOperazione: <?= json_encode(__("Confermi l'operazione?")) ?>,
+        operazioneCompletata: <?= json_encode(__('Operazione completata')) ?>,
+        errore: <?= json_encode(__('Errore')) ?>,
+        operazioneNonRiuscita: <?= json_encode(__('Operazione non riuscita')) ?>,
+        erroreComunicazione: <?= json_encode(__('errore di comunicazione con il server')) ?>,
+        // Approve
+        recensioneApprovata: <?= json_encode(__('Recensione approvata')) ?>,
+        recensioneApprovataText: <?= json_encode(__('La recensione è stata approvata e pubblicata con successo.')) ?>,
+        approvaRecensione: <?= json_encode(__('Approva recensione')) ?>,
+        approvaRecensioneText: <?= json_encode(__('Vuoi approvare questa recensione e renderla visibile sul sito?')) ?>,
+        approva: <?= json_encode(__('Approva')) ?>,
+        impossibileApprovare: <?= json_encode(__('Impossibile approvare la recensione')) ?>,
+        // Reject
+        recensioneRifiutata: <?= json_encode(__('Recensione rifiutata')) ?>,
+        recensioneRifiutataText: <?= json_encode(__('La recensione è stata rifiutata e non sarà pubblicata.')) ?>,
+        rifiutaRecensione: <?= json_encode(__('Rifiuta recensione')) ?>,
+        rifiutaRecensioneText: <?= json_encode(__("Vuoi rifiutare questa recensione? L'utente verrà avvisato dell'esito.")) ?>,
+        rifiuta: <?= json_encode(__('Rifiuta')) ?>,
+        impossibileRifiutare: <?= json_encode(__('Impossibile rifiutare la recensione')) ?>,
+        // Delete
+        recensioneEliminata: <?= json_encode(__('Recensione eliminata')) ?>,
+        recensioneEliminataText: <?= json_encode(__('La recensione è stata eliminata definitivamente.')) ?>,
+        eliminaRecensione: <?= json_encode(__('Elimina recensione')) ?>,
+        eliminaRecensioneText: <?= json_encode(__('Vuoi eliminare definitivamente questa recensione? Questa azione non può essere annullata.')) ?>,
+        elimina: <?= json_encode(__('Elimina')) ?>,
+        impossibileEliminare: <?= json_encode(__('Impossibile eliminare la recensione')) ?>
+    };
+
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const confirmAction = async (options) => {
-        if (withSwal) {
+        if (typeof Swal !== 'undefined') {
             const result = await Swal.fire({
                 title: options.title,
                 text: options.text,
                 icon: options.icon || 'warning',
                 showCancelButton: true,
-                confirmButtonText: options.confirmText || __('Conferma'),
-                cancelButtonText: options.cancelText || __('Annulla'),
+                confirmButtonText: options.confirmText || i18n.conferma,
+                cancelButtonText: options.cancelText || i18n.annulla,
                 confirmButtonColor: '#111827',
                 cancelButtonColor: '#6b7280'
             });
             return result.isConfirmed;
         }
 
-        return window.confirm(options.text || options.title || __('Confermi l\'operazione?'));
+        return window.confirm(options.text || options.title || i18n.confermiOperazione);
     };
 
     const showFeedback = (icon, title, text) => {
-        if (withSwal) {
+        if (typeof Swal !== 'undefined') {
             Swal.fire({
                 icon,
                 title,
@@ -288,7 +319,7 @@ function toggleSection(section) {
                 confirmButtonColor: '#111827'
             });
         } else {
-            window.alert(text || title || __('Operazione completata'));
+            window.alert(text || title || i18n.operazioneCompletata);
         }
     };
 
@@ -335,11 +366,11 @@ function toggleSection(section) {
                         location.reload();
                     }
                 } else {
-                    showFeedback('error', __('Errore'), `${errorPrefix}: ${result.message || __('Operazione non riuscita')}`);
+                    showFeedback('error', i18n.errore, `${errorPrefix}: ${result.message || i18n.operazioneNonRiuscita}`);
                 }
             } catch (error) {
                 console.error('Review action error:', error);
-                showFeedback('error', __('Errore'), `${errorPrefix}: ${__('errore di comunicazione con il server')}`);
+                showFeedback('error', i18n.errore, `${errorPrefix}: ${i18n.erroreComunicazione}`);
             }
         });
     };
@@ -349,13 +380,13 @@ function toggleSection(section) {
             handleAction(btn, {
                 endpoint: 'approve',
                 successMessage: {
-                    title: __('Recensione approvata'),
-                    text: __('La recensione è stata approvata e pubblicata con successo.')
+                    title: i18n.recensioneApprovata,
+                    text: i18n.recensioneApprovataText
                 },
-                confirmTitle: __('Approva recensione'),
-                confirmText: __('Vuoi approvare questa recensione e renderla visibile sul sito?'),
-                confirmButton: __('Approva'),
-                errorPrefix: __('Impossibile approvare la recensione')
+                confirmTitle: i18n.approvaRecensione,
+                confirmText: i18n.approvaRecensioneText,
+                confirmButton: i18n.approva,
+                errorPrefix: i18n.impossibileApprovare
             });
         });
 
@@ -363,13 +394,13 @@ function toggleSection(section) {
             handleAction(btn, {
                 endpoint: 'reject',
                 successMessage: {
-                    title: __('Recensione rifiutata'),
-                    text: __('La recensione è stata rifiutata e non sarà pubblicata.')
+                    title: i18n.recensioneRifiutata,
+                    text: i18n.recensioneRifiutataText
                 },
-                confirmTitle: __('Rifiuta recensione'),
-                confirmText: __('Vuoi rifiutare questa recensione? L\'utente verrà avvisato dell\'esito.'),
-                confirmButton: __('Rifiuta'),
-                errorPrefix: __('Impossibile rifiutare la recensione')
+                confirmTitle: i18n.rifiutaRecensione,
+                confirmText: i18n.rifiutaRecensioneText,
+                confirmButton: i18n.rifiuta,
+                errorPrefix: i18n.impossibileRifiutare
             });
         });
 
@@ -379,13 +410,13 @@ function toggleSection(section) {
                 endpoint: '',
                 method: 'DELETE',
                 successMessage: {
-                    title: __('Recensione eliminata'),
-                    text: __('La recensione è stata eliminata definitivamente.')
+                    title: i18n.recensioneEliminata,
+                    text: i18n.recensioneEliminataText
                 },
-                confirmTitle: __('Elimina recensione'),
-                confirmText: __('Vuoi eliminare definitivamente questa recensione? Questa azione non può essere annullata.'),
-                confirmButton: __('Elimina'),
-                errorPrefix: __('Impossibile eliminare la recensione')
+                confirmTitle: i18n.eliminaRecensione,
+                confirmText: i18n.eliminaRecensioneText,
+                confirmButton: i18n.elimina,
+                errorPrefix: i18n.impossibileEliminare
             });
         });
     };
