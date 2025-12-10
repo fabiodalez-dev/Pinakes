@@ -2090,7 +2090,9 @@ return function (App $app): void {
         $registerRouteIfUnique('GET', $aboutRoute, function ($request, $response, $args) use ($app) {
             $db = $app->getContainer()->get('db');
             $controller = new \App\Controllers\CmsController();
-            return $controller->showPage($request, $response, $db, ['slug' => 'about-us']);
+            // Don't pass hardcoded slug - let controller use CmsHelper::getSlug('about') at runtime
+            // This resolves to locale-appropriate slug (chi-siamo for IT, about-us for EN)
+            return $controller->showPage($request, $response, $db, []);
         });
     }
 

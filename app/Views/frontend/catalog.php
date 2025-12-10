@@ -1183,6 +1183,7 @@ ob_start();
                             <?php if($genre_display['level'] === 0): ?>
                                 <!-- Display Level 1 Genres (Radici) -->
                                 <?php foreach($genre_display['genres'] as $genere): ?>
+                                    <?php if (($genere['cnt'] ?? 0) > 0): ?>
                                     <a href="#"
                                        class="filter-option count"
                                        onclick="updateFilter('genere', '<?= addslashes($genere['nome']) ?>'); return false;"
@@ -1190,10 +1191,12 @@ ob_start();
                                         <span><?= htmlspecialchars($genere['nome']) ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
                                     </a>
+                                    <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <!-- Display Level 2 or 3 Genres (children of selected parent) -->
                                 <?php foreach($genre_display['genres'] as $genere): ?>
+                                    <?php if (($genere['cnt'] ?? 0) > 0): ?>
                                     <?php
                                         $displayName = $genere['nome'];
                                         if (strpos($genere['nome'], ' - ') !== false) {
@@ -1208,6 +1211,7 @@ ob_start();
                                         <span><?= htmlspecialchars($displayName) ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
                                     </a>
+                                    <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </div>
@@ -1766,6 +1770,9 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             }
 
             genreDisplay.genres.forEach(gen => {
+                // Skip genres with 0 count
+                if (!gen.cnt || gen.cnt <= 0) return;
+
                 const isActive = currentFilters.genere === gen.nome ? 'active' : '';
                 const escapedName = gen.nome.replace(/'/g, "\\'");
                 let displayName = gen.nome;
