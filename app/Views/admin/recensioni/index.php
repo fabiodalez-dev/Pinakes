@@ -96,7 +96,7 @@
                     <div class="px-6 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
                         <p class="text-xs text-gray-500 dark:text-gray-400 flex items-center">
                             <i class="fas fa-clock mr-2"></i>
-                            <?= __("Recensione del") ?> <?php echo date('d-m-Y H:i', strtotime($review['created_at'])); ?>
+                            <?= __("Recensione del") ?> <?php echo format_date($review['created_at'], true); ?>
                         </p>
                     </div>
                 </div>
@@ -159,7 +159,7 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                             <?php echo HtmlHelper::e($review['utente_nome']); ?>
                                             <span class="mx-1">•</span>
-                                            <?= __("Approvata il") ?> <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
+                                            <?= __("Approvata il") ?> <?php echo format_date($review['approved_at'], false, '/'); ?>
                                         </div>
                                         <?php if (!empty($review['titolo'])): ?>
                                         <div class="text-xs font-medium text-gray-800 dark:text-gray-200 mt-1">
@@ -226,7 +226,7 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                             <?php echo HtmlHelper::e($review['utente_nome']); ?>
                                             <span class="mx-1">•</span>
-                                            <?= __("Rifiutata il") ?> <?php echo date('d/m/Y', strtotime($review['approved_at'])); ?>
+                                            <?= __("Rifiutata il") ?> <?php echo format_date($review['approved_at'], false, '/'); ?>
                                         </div>
                                         <?php if (!empty($review['titolo'])): ?>
                                         <div class="text-xs font-medium text-gray-800 dark:text-gray-200 mt-1">

@@ -233,7 +233,7 @@ $changelog ??= [];
                             <?php endif; ?>
                             <?php if (!empty($release['published_at'])): ?>
                             <span class="text-xs text-gray-500">
-                                <?= date('d/m/Y', strtotime($release['published_at'])) ?>
+                                <?= format_date($release['published_at'], false, '/') ?>
                             </span>
                             <?php endif; ?>
                         </div>
@@ -278,7 +278,7 @@ $changelog ??= [];
                     <?php foreach ($history as $log): ?>
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <?= date('d/m/Y H:i', strtotime($log['started_at'])) ?>
+                            <?= format_date($log['started_at'], true, '/') ?>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <span class="font-mono">
@@ -383,6 +383,7 @@ $changelog ??= [];
 
 <script>
 const csrfToken = '<?= Csrf::ensureToken() ?>';
+// formatDateLocale and appLocale are defined globally in layout.php
 
 async function checkForUpdatesManual() {
     try {
@@ -678,13 +679,7 @@ async function loadBackups() {
 
         data.backups.forEach(backup => {
             const date = new Date(backup.created_at * 1000);
-            const formattedDate = date.toLocaleDateString(<?= json_encode($_SESSION['user']['locale'] ?? 'it-IT') ?>, {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            const formattedDate = formatDateLocale(date, true);
 
             html += `
                 <tr class="hover:bg-gray-50">

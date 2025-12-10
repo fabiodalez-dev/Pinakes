@@ -365,11 +365,11 @@ function profileReservationBookUrl(array $item): string {
               </div>
               <div class="badge badge-date">
                 <i class="fas fa-calendar-plus"></i>
-                <span><?= sprintf('%s %s %s %s', __('Dal'), date('d/m/Y', strtotime($p['data_prestito'])), __('al'), date('d/m/Y', strtotime($p['data_scadenza']))) ?></span>
+                <span><?= sprintf('%s %s %s %s', __('Dal'), format_date($p['data_prestito'], false, '/'), __('al'), format_date($p['data_scadenza'], false, '/')) ?></span>
               </div>
               <div class="badge badge-date" style="font-size: 0.75rem; color: #999;">
                 <i class="fas fa-history"></i>
-                <span><?= sprintf('%s %s', __('Richiesto il'), date('d/m/Y H:i', strtotime($p['created_at']))) ?></span>
+                <span><?= sprintf('%s %s', __('Richiesto il'), format_date($p['created_at'], true, '/')) ?></span>
               </div>
             </div>
           </div>
@@ -430,16 +430,16 @@ function profileReservationBookUrl(array $item): string {
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-clock"></i>
-                  <span><?= sprintf('%s %s %s %s', __('Dal'), date('d/m/Y', strtotime($dataPrestito)), __('al'), date('d/m/Y', strtotime($scadenza))) ?></span>
+                  <span><?= sprintf('%s %s %s %s', __('Dal'), format_date($dataPrestito, false, '/'), __('al'), format_date($scadenza, false, '/')) ?></span>
                 </div>
                 <?php else: ?>
                 <div class="badge <?php echo $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar"></i>
-                  <span><?= sprintf('%s: %s', $isOverdue ? __('In ritardo') : __('Scadenza'), date('d/m/Y', strtotime($scadenza))) ?></span>
+                  <span><?= sprintf('%s: %s', $isOverdue ? __('In ritardo') : __('Scadenza'), format_date($scadenza, false, '/')) ?></span>
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-clock"></i>
-                  <span><?= sprintf('%s %s', __('Dal'), date('d/m/Y', strtotime($dataPrestito))) ?></span>
+                  <span><?= sprintf('%s %s', __('Dal'), format_date($dataPrestito, false, '/')) ?></span>
                 </div>
                 <?php endif; ?>
               </div>
@@ -504,7 +504,7 @@ function profileReservationBookUrl(array $item): string {
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-calendar"></i>
-                  <span><?= !empty($p['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($p['data_scadenza_prenotazione'])) : __('Non specificata') ?></span>
+                  <span><?= !empty($p['data_scadenza_prenotazione']) ? format_date($p['data_scadenza_prenotazione'], false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
               <form method="post" action="/reservation/cancel" onsubmit="return confirm('<?= htmlspecialchars(addslashes(__('Annullare questa prenotazione?')), ENT_QUOTES, 'UTF-8') ?>')">
@@ -577,7 +577,7 @@ function profileReservationBookUrl(array $item): string {
                 <?php if (!empty($p['data_restituzione'])): ?>
                 <div class="badge badge-date">
                   <i class="fas fa-calendar"></i>
-                  <span><?= date('d/m/Y', strtotime($p['data_restituzione'])) ?></span>
+                  <span><?= format_date($p['data_restituzione'], false, '/') ?></span>
                 </div>
                 <?php endif; ?>
               </div>
@@ -655,7 +655,7 @@ function profileReservationBookUrl(array $item): string {
                 </div>
                 <div class="badge badge-date">
                   <i class="fas fa-calendar"></i>
-                  <span><?php echo date('d/m/Y', strtotime($r['created_at'])); ?></span>
+                  <span><?php echo format_date($r['created_at'], false, '/'); ?></span>
                 </div>
               </div>
               <div class="review-stars" style="margin-top: 0.75rem;">

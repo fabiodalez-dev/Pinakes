@@ -2764,7 +2764,28 @@
                         "code": "324",
                         "name": "Il processo politico",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "324.2",
+                                "name": "",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "324.21",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "324.217",
+                                                "name": "Partiti Politici Di Sinistra",
+                                                "level": 6,
+                                                "children": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "325",

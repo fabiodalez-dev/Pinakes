@@ -193,12 +193,12 @@ $pluginSettings = $pluginSettings ?? [];
                                             <span>
                                                 <i class="fas fa-calendar mr-1"></i>
                                                 <?= __("Installato:") ?>
-                                                <?= date('d/m/Y', strtotime($plugin['installed_at'])) ?>
+                                                <?= format_date($plugin['installed_at'], false, '/') ?>
                                             </span>
                                             <?php if ($plugin['activated_at']): ?>
                                                 <span>
                                                     <i class="fas fa-bolt mr-1"></i>
-                                                    <?= __("Attivato:") ?> <?= date('d/m/Y', strtotime($plugin['activated_at'])) ?>
+                                                    <?= __("Attivato:") ?> <?= format_date($plugin['activated_at'], false, '/') ?>
                                                 </span>
                                             <?php endif; ?>
                                         </div>

@@ -170,6 +170,77 @@ if (!function_exists('book_url')) {
 // Hook System Helper Functions
 // ============================================================================
 
+if (!function_exists('format_date')) {
+    /**
+     * Format a date according to the current locale
+     *
+     * Italian (it_IT): DD-MM-YYYY or DD/MM/YYYY
+     * English (en_US): YYYY-MM-DD
+     *
+     * @param string|null $dateString Date string (any format parseable by strtotime)
+     * @param bool $includeTime Include time in output (H:i)
+     * @param string $separator Date separator for Italian format ('-' or '/')
+     * @return string Formatted date or original string if not a valid date
+     */
+    function format_date(?string $dateString, bool $includeTime = false, string $separator = '-'): string
+    {
+        if (empty($dateString)) {
+            return '';
+        }
+
+        $timestamp = strtotime($dateString);
+        if ($timestamp === false) {
+            return $dateString;
+        }
+
+        $locale = App\Support\I18n::getLocale();
+        $isItalian = str_starts_with($locale, 'it');
+
+        if ($isItalian) {
+            // Italian format: DD-MM-YYYY or DD/MM/YYYY
+            $format = $separator === '/' ? 'd/m/Y' : 'd-m-Y';
+        } else {
+            // English format: YYYY-MM-DD
+            $format = 'Y-m-d';
+        }
+
+        if ($includeTime) {
+            $format .= ' H:i';
+        }
+
+        return date($format, $timestamp);
+    }
+}
+
+if (!function_exists('format_date_short')) {
+    /**
+     * Format a date with short day/month (for calendars)
+     *
+     * Italian (it_IT): DD/MM
+     * English (en_US): MM/DD
+     *
+     * @param string|null $dateString Date string
+     * @return string Formatted short date
+     */
+    function format_date_short(?string $dateString): string
+    {
+        if (empty($dateString)) {
+            return '';
+        }
+
+        $timestamp = strtotime($dateString);
+        if ($timestamp === false) {
+            return $dateString;
+        }
+
+        $locale = App\Support\I18n::getLocale();
+        $isItalian = str_starts_with($locale, 'it');
+
+        // Italian: DD/MM, English: MM/DD
+        return $isItalian ? date('d/m', $timestamp) : date('m/d', $timestamp);
+    }
+}
+
 if (!function_exists('do_action')) {
     /**
      * Execute an action hook

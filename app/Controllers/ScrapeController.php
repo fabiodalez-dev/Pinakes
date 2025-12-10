@@ -361,12 +361,9 @@ class ScrapeController
             }
 
             $year = substr($pubDate, 0, 4);
-            // Convert to Italian format if full date (YYYY-MM-DD)
+            // Convert to locale-aware format if full date (YYYY-MM-DD)
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $pubDate)) {
-                $date = \DateTime::createFromFormat('Y-m-d', $pubDate);
-                if ($date) {
-                    $pubDate = $date->format('d/m/Y');
-                }
+                $pubDate = format_date($pubDate, false, '/');
             }
         }
 

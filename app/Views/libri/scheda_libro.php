@@ -16,15 +16,6 @@ $btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5
 $btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
 $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50';
 
-// Format date from YYYY-MM-DD to DD-MM-YYYY for display
-$fmtDate = function($s) {
-    $s = (string)$s;
-    if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) {
-        $ts = strtotime($s);
-        return $ts ? date('d-m-Y', $ts) : $s;
-    }
-    return $s;
-};
 ?>
 
 <section class="min-h-screen bg-gray-50 py-6">
@@ -322,7 +313,7 @@ $fmtDate = function($s) {
             <?php if (!empty($libro['data_pubblicazione'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Data di pubblicazione") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($fmtDate($libro['data_pubblicazione'])); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(format_date($libro['data_pubblicazione'])); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['collana'])): ?>
@@ -381,7 +372,7 @@ $fmtDate = function($s) {
             <?php if (!empty($libro['data_acquisizione'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Data acquisizione") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($fmtDate($libro['data_acquisizione'])); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(format_date($libro['data_acquisizione'])); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['tipo_acquisizione'])): ?>
@@ -521,13 +512,13 @@ $fmtDate = function($s) {
             <?php if (!empty($libro['created_at'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Data creazione") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(date('d/m/Y H:i', strtotime($libro['created_at']))); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(format_date($libro['created_at'], true, '/')); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['updated_at'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Ultima modifica") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(date('d/m/Y H:i', strtotime($libro['updated_at']))); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(format_date($libro['updated_at'], true, '/')); ?></dd>
             </div>
             <?php endif; ?>
           </dl>
@@ -601,16 +592,16 @@ $fmtDate = function($s) {
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <?php echo $res['data_inizio_richiesta'] ? date('d/m/Y', strtotime($res['data_inizio_richiesta'])) : '—'; ?>
+                  <?php echo $res['data_inizio_richiesta'] ? format_date($res['data_inizio_richiesta'], false, '/') : '—'; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php
                     $endDate = $res['data_fine_richiesta'] ?: ($res['data_scadenza_prenotazione'] ? substr($res['data_scadenza_prenotazione'], 0, 10) : null);
-                    echo $endDate ? date('d/m/Y', strtotime($endDate)) : '—';
+                    echo $endDate ? format_date($endDate, false, '/') : '—';
                   ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <?php echo !empty($res['data_scadenza_prenotazione']) ? date('d/m/Y', strtotime($res['data_scadenza_prenotazione'])) : '—'; ?>
+                  <?php echo !empty($res['data_scadenza_prenotazione']) ? format_date($res['data_scadenza_prenotazione'], false, '/') : '—'; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php echo (int)($res['queue_position'] ?? 1); ?>
@@ -712,7 +703,7 @@ $fmtDate = function($s) {
                   <?php if ($effectiveStatus === 'prenotato' && $loanStartDate): ?>
                   <div class="text-xs text-purple-600 mt-1">
                     <i class="fas fa-calendar-alt mr-1"></i>
-                    <?= __('Dal') ?> <?php echo date('d/m/Y', strtotime($loanStartDate)); ?>
+                    <?= __('Dal') ?> <?php echo format_date($loanStartDate, false, '/'); ?>
                   </div>
                   <?php endif; ?>
                 </td>
@@ -746,7 +737,7 @@ $fmtDate = function($s) {
                     $isScaduto = $scadenza < $oggi;
                     ?>
                     <span class="<?php echo $isScaduto ? 'text-red-600 font-semibold' : ''; ?>">
-                      <?php echo $scadenza->format('d/m/Y'); ?>
+                      <?= format_date($copia['data_scadenza'], false, '/') ?>
                       <?php if ($isScaduto): ?>
                         <i class="fas fa-exclamation-triangle ml-1"></i>
                       <?php endif; ?>
@@ -839,7 +830,7 @@ $fmtDate = function($s) {
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <i class="fas fa-calendar-alt text-gray-400 mr-1"></i>
-                  <?php echo App\Support\HtmlHelper::e(date('d/m/Y', strtotime($loan['data_prestito']))); ?>
+                  <?php echo App\Support\HtmlHelper::e(format_date($loan['data_prestito'], false, '/')); ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                   <?php
@@ -847,13 +838,13 @@ $fmtDate = function($s) {
                   ?>
                   <span class="<?php echo $isOverdue ? 'text-red-600 font-semibold' : 'text-gray-900'; ?>">
                     <i class="fas fa-calendar-times text-gray-400 mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e(date('d/m/Y', strtotime($loan['data_scadenza']))); ?>
+                    <?php echo App\Support\HtmlHelper::e(format_date($loan['data_scadenza'], false, '/')); ?>
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php if (!empty($loan['data_restituzione'])): ?>
                     <i class="fas fa-check-circle text-green-500 mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e(date('d/m/Y', strtotime($loan['data_restituzione']))); ?>
+                    <?php echo App\Support\HtmlHelper::e(format_date($loan['data_restituzione'], false, '/')); ?>
                   <?php else: ?>
                     <span class="text-gray-400 italic"><?= __("In corso") ?></span>
                   <?php endif; ?>
@@ -992,11 +983,11 @@ $fmtDate = function($s) {
             if ($calCopiaStatus === 'prenotato' && $calLoanStart > $calToday):
             ?>
             <span style="font-size: 0.75rem; color: #7C3AED;">
-              (<?= __("Prenotato") ?> <?php echo date('d/m', strtotime($calLoanStart)); ?> - <?php echo date('d/m', strtotime($calLoanEnd)); ?>)
+              (<?= __("Prenotato") ?> <?php echo format_date_short($calLoanStart); ?> - <?php echo format_date_short($calLoanEnd); ?>)
             </span>
             <?php elseif (in_array($calCopiaStatus, ['in_corso', 'in_ritardo'])): ?>
             <span style="font-size: 0.75rem; color: #DC2626;">
-              (<?= __("In prestito fino al") ?> <?php echo date('d/m', strtotime($calLoanEnd)); ?>)
+              (<?= __("In prestito fino al") ?> <?php echo format_date_short($calLoanEnd); ?>)
             </span>
             <?php else: ?>
             <span style="font-size: 0.75rem; color: #16A34A;">(<?= __("Disponibile") ?>)</span>
@@ -1080,6 +1071,8 @@ $fmtDate = function($s) {
           .replace(/'/g, '&#039;');
   }
 
+  // formatDateLocale and appLocale are defined globally in layout.php
+
   document.addEventListener('DOMContentLoaded', function() {
       const calendarEl = document.getElementById('copy-availability-calendar');
       if (calendarEl && typeof FullCalendar !== 'undefined') {
@@ -1132,8 +1125,8 @@ $fmtDate = function($s) {
                               <div class="text-left">
                                   <p><strong><?= __("Copia") ?>:</strong> ${escapeHtml(props.inventario)}</p>
                                   <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(props.statusLabel)}</p>
-                                  <p><strong><?= __("Dal") ?>:</strong> ${start.toLocaleDateString()}</p>
-                                  <p><strong><?= __("Al") ?>:</strong> ${end.toLocaleDateString()}</p>
+                                  <p><strong><?= __("Dal") ?>:</strong> ${formatDateLocale(start)}</p>
+                                  <p><strong><?= __("Al") ?>:</strong> ${formatDateLocale(end)}</p>
                               </div>
                           `,
                           icon: 'info',

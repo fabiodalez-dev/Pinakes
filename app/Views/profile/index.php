@@ -361,7 +361,7 @@
       <div class="info-item">
         <dt><?= __("Scadenza tessera") ?></dt>
         <dd class="<?php echo empty($user['data_scadenza_tessera']) ? 'empty' : ''; ?>">
-          <?php echo !empty($user['data_scadenza_tessera']) ? date('d/m/Y', strtotime($user['data_scadenza_tessera'])) : __('Non specificata'); ?>
+          <?php echo !empty($user['data_scadenza_tessera']) ? format_date($user['data_scadenza_tessera'], false, '/') : __('Non specificata'); ?>
         </dd>
       </div>
     </div>

@@ -241,13 +241,13 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                       <?php if (!empty($loan['data_richiesta_inizio'])): ?>
                         <span class="flex items-center">
                           <i class="fas fa-play mr-2 text-green-500"></i>
-                          <?= __("Inizio:") ?> <?= date('d-m-Y', strtotime((string)$loan['data_richiesta_inizio'])); ?>
+                          <?= __("Inizio:") ?> <?= format_date((string)$loan['data_richiesta_inizio']); ?>
                         </span>
                       <?php endif; ?>
                       <?php if (!empty($loan['data_richiesta_fine'])): ?>
                         <span class="flex items-center">
                           <i class="fas fa-stop mr-2 text-red-500"></i>
-                          <?= __("Fine:") ?> <?= date('d-m-Y', strtotime((string)$loan['data_richiesta_fine'])); ?>
+                          <?= __("Fine:") ?> <?= format_date((string)$loan['data_richiesta_fine']); ?>
                         </span>
                       <?php endif; ?>
                     </div>
@@ -263,7 +263,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                 </div>
                 <div class="mt-3 text-xs text-gray-400 flex items-center">
                   <i class="fas fa-clock mr-2"></i>
-                  <?= __("Richiesto il") ?> <?= !empty($loan['created_at']) ? date('d-m-Y H:i', strtotime((string)$loan['created_at'])) : 'N/D'; ?>
+                  <?= __("Richiesto il") ?> <?= !empty($loan['created_at']) ? format_date((string)$loan['created_at'], true) : 'N/D'; ?>
                 </div>
               </div>
             <?php endforeach; ?>
@@ -330,13 +330,13 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                       <?php if (!empty($startDate)): ?>
                         <span class="flex items-center">
                           <i class="fas fa-play mr-2 text-green-500"></i>
-                          <?= __("Inizio:") ?> <?= date('d-m-Y', strtotime((string)$startDate)); ?>
+                          <?= __("Inizio:") ?> <?= format_date((string)$startDate); ?>
                         </span>
                       <?php endif; ?>
                       <?php if (!empty($endDate)): ?>
                         <span class="flex items-center">
                           <i class="fas fa-stop mr-2 text-red-500"></i>
-                          <?= __("Fine:") ?> <?= date('d-m-Y', strtotime((string)$endDate)); ?>
+                          <?= __("Fine:") ?> <?= format_date((string)$endDate); ?>
                         </span>
                       <?php endif; ?>
                     </div>
@@ -344,7 +344,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                 </div>
                 <div class="mt-3 text-xs text-gray-400 flex items-center">
                   <i class="fas fa-clock mr-2"></i>
-                  <?= __("Creata il") ?> <?= !empty($res['created_at']) ? date('d-m-Y H:i', strtotime((string)$res['created_at'])) : 'N/D'; ?>
+                  <?= __("Creata il") ?> <?= !empty($res['created_at']) ? format_date((string)$res['created_at'], true) : 'N/D'; ?>
                 </div>
               </div>
             <?php endforeach; ?>
@@ -444,10 +444,10 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                       <?php echo App\Support\HtmlHelper::e($p['utente'] ?? ''); ?>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?php echo $p['data_prestito'] ? date('d-m-Y', strtotime($p['data_prestito'])) : ''; ?>
+                      <?php echo $p['data_prestito'] ? format_date($p['data_prestito']) : ''; ?>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?php echo $p['data_scadenza'] ? date('d-m-Y', strtotime($p['data_scadenza'])) : ''; ?>
+                      <?php echo $p['data_scadenza'] ? format_date($p['data_scadenza']) : ''; ?>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -504,10 +504,10 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                       <?php echo App\Support\HtmlHelper::e($p['utente'] ?? ''); ?>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?php echo $p['data_prestito'] ? date('d-m-Y', strtotime($p['data_prestito'])) : ''; ?>
+                      <?php echo $p['data_prestito'] ? format_date($p['data_prestito']) : ''; ?>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?php echo $p['data_scadenza'] ? date('d-m-Y', strtotime($p['data_scadenza'])) : ''; ?>
+                      <?php echo $p['data_scadenza'] ? format_date($p['data_scadenza']) : ''; ?>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -666,6 +666,8 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// formatDateLocale and appLocale are defined globally in layout.php
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize FullCalendar
     const calendarEl = document.getElementById('dashboard-calendar');
@@ -731,8 +733,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <p><strong><?= __("Tipo") ?>:</strong> ${escapeHtml(typeLabel)}</p>
                                 <p><strong><?= __("Utente") ?>:</strong> ${escapeHtml(props.user)}</p>
                                 <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(statusLabel)}</p>
-                                <p><strong><?= __("Dal") ?>:</strong> ${start.toLocaleDateString()}</p>
-                                <p><strong><?= __("Al") ?>:</strong> ${end.toLocaleDateString()}</p>
+                                <p><strong><?= __("Dal") ?>:</strong> ${formatDateLocale(start)}</p>
+                                <p><strong><?= __("Al") ?>:</strong> ${formatDateLocale(end)}</p>
                             </div>
                         `,
                         icon: 'info',

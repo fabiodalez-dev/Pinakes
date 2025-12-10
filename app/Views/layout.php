@@ -23,7 +23,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?php echo HtmlHelper::e($appName); ?> - Sistema di Gestione Bibliotecaria</title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/assets/vendor.css?v=<?= time() ?>" />
   <link rel="stylesheet" href="/assets/flatpickr-custom.css?v=<?= time() ?>" />
   <link rel="stylesheet" href="/assets/main.css?v=<?= time() ?>" />
@@ -709,6 +709,29 @@ $htmlLang = substr($currentLocale, 0, 2);
       return div.innerHTML;
     }
 
+    // Locale-aware date formatting (matches PHP format_date helper)
+    const appLocale = '<?= \App\Support\I18n::getLocale() ?>';
+    function formatDateLocale(date, includeTime = false, separator = '/') {
+      if (!date) return '';
+      const d = date instanceof Date ? date : new Date(date);
+      if (isNaN(d.getTime())) return '';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      let result;
+      if (appLocale.startsWith('it')) {
+        result = separator === '/' ? `${day}/${month}/${year}` : `${day}-${month}-${year}`;
+      } else {
+        result = `${year}-${month}-${day}`;
+      }
+      if (includeTime) {
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        result += ` ${hours}:${mins}`;
+      }
+      return result;
+    }
+
     // Modern library management system initialization
     document.addEventListener('DOMContentLoaded', function () {
       initializeGlobalSearch();
@@ -1247,11 +1270,11 @@ $htmlLang = substr($currentLocale, 0, 2);
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
 
-      if (diffMins < 1) return 'Adesso';
-      if (diffMins < 60) return `${diffMins} minut${diffMins === 1 ? 'o' : 'i'} fa`;
-      if (diffHours < 24) return `${diffHours} or${diffHours === 1 ? 'a' : 'e'} fa`;
-      if (diffDays === 1) return 'Ieri';
-      return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      if (diffMins < 1) return '<?= __("Adesso") ?>';
+      if (diffMins < 60) return `${diffMins} <?= __("minuti fa") ?>`;
+      if (diffHours < 24) return `${diffHours} <?= __("ore fa") ?>`;
+      if (diffDays === 1) return '<?= __("Ieri") ?>';
+      return formatDateLocale(date);
     }
 
     // HTML escape helper
