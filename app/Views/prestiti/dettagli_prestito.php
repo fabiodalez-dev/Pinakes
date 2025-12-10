@@ -50,7 +50,9 @@ function formatLoanStatus($status) {
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Libro:") ?></span>
-            <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? __('Non disponibile')); ?></span>
+            <a href="/admin/libri/modifica/<?= (int)($prestito['libro_id'] ?? 0); ?>" class="text-blue-600 underline hover:text-blue-800 transition-colors">
+              <?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? __('Non disponibile')); ?>
+            </a>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Utente:") ?></span>
