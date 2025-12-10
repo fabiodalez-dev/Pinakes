@@ -1812,7 +1812,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                         gen.children.forEach(subgen => {
                             if (subgen.cnt > 0) {
                                 const isSubActive = currentFilters.genere === subgen.nome ? 'active' : '';
-                                const escapedSubName = subgen.nome.replace(/'/g, "\\'");
+                                const escapedSubName = subgen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                                 html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere\', \'' + escapedSubName + '\'); return false;">';
                                 html += '<span>' + escapeHtml(subgen.nome) + '</span>';
                                 html += '<span class="count-badge">' + subgen.cnt + '</span>';

@@ -120,6 +120,7 @@ $cookieBannerTexts = [
             // Centralized retry function with consistent behavior
             function retry() {
                 if (retryCount >= maxRetries) {
+                    console.warn('Cookie banner: silktideCookieBannerManager not available after ' + maxRetries + ' retries');
                     return; // Stop retrying after max attempts
                 }
                 if (!initCookieBannerConfig()) {
