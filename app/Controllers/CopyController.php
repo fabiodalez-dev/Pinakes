@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\SecureLogger;
 use mysqli;
 
 class CopyController
@@ -130,6 +131,26 @@ class CopyController
         $stmt->bind_param('ssi', $stato, $note, $copyId);
         $stmt->execute();
         $stmt->close();
+
+        // Case 2 & 9: Handle Copy Status Changes
+        try {
+            $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+
+            // Case 2: Copy became unavailable (lost/damaged/etc) -> Reassign any pending reservation
+            if (in_array($stato, ['perso', 'danneggiato', 'manutenzione', 'in_restauro'])) {
+                $reassignmentService->reassignOnCopyLost($copyId);
+            }
+            // Case 9: Copy became available -> Assign to waiting reservation
+            elseif ($stato === 'disponibile') {
+                $reassignmentService->reassignOnReturn($copyId); // reassignOnReturn handles picking a waiting reservation
+            }
+        } catch (\Exception $e) {
+            SecureLogger::error(__('Errore gestione cambio stato copia'), [
+                'copia_id' => $copyId,
+                'stato' => $stato,
+                'error' => $e->getMessage()
+            ]);
+        }
 
         // Ricalcola disponibilità del libro
         $integrity = new \App\Support\DataIntegrity($db);

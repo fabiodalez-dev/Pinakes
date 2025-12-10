@@ -72,6 +72,7 @@ class MaintenanceService
         $results = [
             'scheduled_loans_activated' => 0,
             'reservations_converted' => 0,
+            'expired_reservations' => 0,
             'overdue_loans_updated' => 0,
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
@@ -84,21 +85,29 @@ class MaintenanceService
             $results['scheduled_loans_activated'] = $this->activateScheduledLoans();
         } catch (\Throwable $e) {
             $results['errors'][] = 'activateScheduledLoans: ' . $e->getMessage();
-            error_log('MaintenanceService error (activateScheduledLoans): ' . $e->getMessage());
+            SecureLogger::error(__('MaintenanceService errore attivazione prestiti'), ['error' => $e->getMessage()]);
         }
 
         try {
             $results['reservations_converted'] = $this->processScheduledReservations();
         } catch (\Throwable $e) {
             $results['errors'][] = 'processScheduledReservations: ' . $e->getMessage();
-            error_log('MaintenanceService error (processScheduledReservations): ' . $e->getMessage());
+            SecureLogger::error(__('MaintenanceService errore conversione prenotazioni'), ['error' => $e->getMessage()]);
+        }
+
+        // Check expired reservations (Case 4 from reservation plan)
+        try {
+            $results['expired_reservations'] = $this->checkExpiredReservations();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'checkExpiredReservations: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore prenotazioni scadute'), ['error' => $e->getMessage()]);
         }
 
         try {
             $results['overdue_loans_updated'] = $this->updateOverdueLoans();
         } catch (\Throwable $e) {
             $results['errors'][] = 'updateOverdueLoans: ' . $e->getMessage();
-            error_log('MaintenanceService error (updateOverdueLoans): ' . $e->getMessage());
+            SecureLogger::error(__('MaintenanceService errore prestiti in ritardo'), ['error' => $e->getMessage()]);
         }
 
         // Run automatic notifications
@@ -109,7 +118,7 @@ class MaintenanceService
             $results['wishlist_notifications'] = $notificationResults['wishlist_notifications'] ?? 0;
         } catch (\Throwable $e) {
             $results['errors'][] = 'runNotifications: ' . $e->getMessage();
-            error_log('MaintenanceService error (runNotifications): ' . $e->getMessage());
+            SecureLogger::error(__('MaintenanceService errore notifiche'), ['error' => $e->getMessage()]);
         }
 
         // Generate ICS calendar file
@@ -117,11 +126,11 @@ class MaintenanceService
             $results['ics_generated'] = $this->generateIcsCalendar();
             if ($results['ics_generated'] === false) {
                 $results['errors'][] = 'generateIcsCalendar: ICS file not generated';
-                error_log('MaintenanceService warning (generateIcsCalendar): ICS file could not be written');
+                SecureLogger::warning(__('MaintenanceService ICS non generato'));
             }
         } catch (\Throwable $e) {
             $results['errors'][] = 'generateIcsCalendar: ' . $e->getMessage();
-            error_log('MaintenanceService error (generateIcsCalendar): ' . $e->getMessage());
+            SecureLogger::error(__('MaintenanceService errore generazione ICS'), ['error' => $e->getMessage()]);
         }
 
         return $results;
@@ -235,7 +244,10 @@ class MaintenanceService
 
             } catch (\Throwable $e) {
                 $this->db->rollback();
-                error_log("MaintenanceService: Failed to activate loan {$loan['id']}: " . $e->getMessage());
+                SecureLogger::error(__('MaintenanceService errore attivazione prestito'), [
+                    'prestito_id' => $loan['id'],
+                    'error' => $e->getMessage()
+                ]);
             }
         }
 
@@ -312,7 +324,10 @@ class MaintenanceService
                     $convertedCount++;
                     $processedBooks[$bookId] = true;
 
-                    error_log("MaintenanceService: Converted reservation {$reservation['id']} to loan for book {$bookId}");
+                    SecureLogger::info(__('MaintenanceService prenotazione convertita in prestito'), [
+                        'prenotazione_id' => $reservation['id'],
+                        'libro_id' => $bookId
+                    ]);
                 } else {
                     // No copy available yet, rollback and continue
                     $this->db->rollback();
@@ -320,11 +335,117 @@ class MaintenanceService
 
             } catch (\Throwable $e) {
                 $this->db->rollback();
-                error_log("MaintenanceService: Failed to process reservation {$reservation['id']}: " . $e->getMessage());
+                SecureLogger::error(__('MaintenanceService errore elaborazione prenotazione'), [
+                    'prenotazione_id' => $reservation['id'],
+                    'error' => $e->getMessage()
+                ]);
             }
         }
 
         return $convertedCount;
+    }
+
+    /**
+     * Check and expire reservations past their due date (Case 4)
+     *
+     * Finds prestiti with stato='prenotato' where data_scadenza < today,
+     * marks them as 'scaduto', frees assigned copies, and triggers
+     * reassignment to next user in queue.
+     *
+     * @return int Number of reservations expired
+     * @throws \RuntimeException If query preparation fails
+     */
+    public function checkExpiredReservations(): int
+    {
+        $today = date('Y-m-d');
+
+        // Find expired reservations
+        $stmt = $this->db->prepare("
+            SELECT id, libro_id, copia_id, utente_id
+            FROM prestiti
+            WHERE stato = 'prenotato'
+            AND attivo = 1
+            AND data_scadenza < ?
+        ");
+
+        if (!$stmt) {
+            throw new \RuntimeException('Failed to prepare expired reservations query');
+        }
+
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $expiredReservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+
+        $expiredCount = 0;
+        $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
+        $integrity = new DataIntegrity($this->db);
+
+        foreach ($expiredReservations as $reservation) {
+            $this->db->begin_transaction();
+
+            try {
+                $id = (int) $reservation['id'];
+                $copiaId = $reservation['copia_id'] ? (int) $reservation['copia_id'] : null;
+                $libroId = (int) $reservation['libro_id'];
+
+                // Mark as expired
+                $updateStmt = $this->db->prepare("
+                    UPDATE prestiti
+                    SET stato = 'scaduto',
+                        attivo = 0,
+                        updated_at = NOW(),
+                        note = CONCAT(COALESCE(note, ''), '\n[System] " . __('Scaduta il') . " " . date('d/m/Y') . "')
+                    WHERE id = ?
+                ");
+                $updateStmt->bind_param('i', $id);
+                $updateStmt->execute();
+                $updateStmt->close();
+
+                // If a copy was assigned, make it available (if currently 'prenotato')
+                if ($copiaId) {
+                    $checkCopy = $this->db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
+                    $checkCopy->bind_param('i', $copiaId);
+                    $checkCopy->execute();
+                    $copyResult = $checkCopy->get_result();
+                    $copyState = $copyResult ? $copyResult->fetch_assoc() : null;
+                    $checkCopy->close();
+
+                    if ($copyState && $copyState['stato'] === 'prenotato') {
+                        // Update copy to available
+                        $updateCopy = $this->db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ?");
+                        $updateCopy->bind_param('i', $copiaId);
+                        $updateCopy->execute();
+                        $updateCopy->close();
+
+                        // Trigger reassignment logic for this copy
+                        $reassignmentService->reassignOnReturn($copiaId);
+                    }
+                }
+
+                // Recalculate book availability
+                $integrity->recalculateBookAvailability($libroId);
+
+                $this->db->commit();
+                $expiredCount++;
+
+                SecureLogger::info(__('MaintenanceService prenotazione scaduta'), [
+                    'prestito_id' => $id,
+                    'libro_id' => $libroId,
+                    'copia_id' => $copiaId
+                ]);
+
+            } catch (\Throwable $e) {
+                $this->db->rollback();
+                SecureLogger::error(__('MaintenanceService errore scadenza prenotazione'), [
+                    'prestito_id' => $reservation['id'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return $expiredCount;
     }
 
     /**
@@ -404,7 +525,9 @@ class MaintenanceService
                 );
 
                 if ($db->connect_error) {
-                    error_log('MaintenanceService: Database connection failed: ' . $db->connect_error);
+                    SecureLogger::error(__('MaintenanceService connessione database fallita'), [
+                        'error' => $db->connect_error
+                    ]);
                     return;
                 }
 
@@ -420,13 +543,13 @@ class MaintenanceService
             }
 
             if (!($result['skipped'] ?? false)) {
-                error_log(sprintf(
-                    'MaintenanceService (admin login): loans=%d, overdue=%d, reservations=%d, ics=%s',
-                    $result['scheduled_loans_activated'],
-                    $result['overdue_loans_updated'],
-                    $result['reservations_converted'] ?? 0,
-                    $result['ics_generated'] ? 'ok' : 'failed'
-                ));
+                SecureLogger::info(__('MaintenanceService eseguito al login admin'), [
+                    'scheduled_loans_activated' => $result['scheduled_loans_activated'],
+                    'overdue_loans_updated' => $result['overdue_loans_updated'],
+                    'reservations_converted' => $result['reservations_converted'] ?? 0,
+                    'expired_reservations' => $result['expired_reservations'] ?? 0,
+                    'ics_generated' => $result['ics_generated'] ? 'ok' : 'failed'
+                ]);
             }
 
         } catch (\Throwable $e) {
@@ -434,7 +557,9 @@ class MaintenanceService
             if ($createdConnection && isset($db) && $db instanceof mysqli) {
                 $db->close();
             }
-            error_log('MaintenanceService: Error during admin login hook: ' . $e->getMessage());
+            SecureLogger::error(__('MaintenanceService errore durante hook login admin'), [
+                'error' => $e->getMessage()
+            ]);
         }
     }
 }

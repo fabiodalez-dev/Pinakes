@@ -376,33 +376,43 @@ class ReservationsController
 
     private function getBookTotalCopies(int $bookId): int
     {
-        // Count only loanable copies from copie table
+        // First check if ANY copies exist in the copie table for this book
+        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        $totalCopiesExist = (int) ($row['total'] ?? 0);
+
+        // If copies exist in copie table, count only loanable ones
         // Exclude permanently unavailable copies: 'perso' (lost), 'danneggiato' (damaged), 'manutenzione' (maintenance)
         // Include 'disponibile' and 'prestato' (currently on loan but will return)
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ?
-            AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
-        ");
+        if ($totalCopiesExist > 0) {
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as total FROM copie
+                WHERE libro_id = ?
+                AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            ");
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            $stmt->close();
+
+            // Return actual loanable copies (can be 0 if all are lost/damaged)
+            return (int) ($row['total'] ?? 0);
+        }
+
+        // Fallback: if NO copies exist in copie table at all, use libri.copie_totali
+        // This handles legacy data where copies weren't tracked individually
+        $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
 
-        $total = (int) ($row['total'] ?? 0);
-
-        // Fallback: if no copies exist in copie table, check libri.copie_totali as minimum
-        if ($total === 0) {
-            $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
-            $stmt->bind_param('i', $bookId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $row = $result ? $result->fetch_assoc() : null;
-            $stmt->close();
-            $total = (int) ($row['copie_totali'] ?? 1);
-        }
-
-        return $total;
+        return (int) ($row['copie_totali'] ?? 1);
     }
 }
