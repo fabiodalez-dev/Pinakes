@@ -15,6 +15,16 @@ $statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 r
 $btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700';
 $btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
 $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50';
+
+// Format date from YYYY-MM-DD to DD-MM-YYYY for display
+$fmtDate = function($s) {
+    $s = (string)$s;
+    if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) {
+        $ts = strtotime($s);
+        return $ts ? date('d-m-Y', $ts) : $s;
+    }
+    return $s;
+};
 ?>
 
 <section class="min-h-screen bg-gray-50 py-6">
@@ -312,7 +322,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php if (!empty($libro['data_pubblicazione'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Data di pubblicazione") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['data_pubblicazione']); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($fmtDate($libro['data_pubblicazione'])); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['collana'])): ?>
@@ -368,13 +378,6 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <dd class="text-gray-900 font-medium">€ <?php echo htmlspecialchars(number_format((float)$libro['prezzo'], 2, ',', '.'), ENT_QUOTES, 'UTF-8'); ?></dd>
             </div>
             <?php endif; ?>
-            <?php 
-              $fmtDate = function($s) {
-                $s = (string)$s;
-                if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) { $ts = strtotime($s); return $ts ? date('d-m-Y', $ts) : $s; }
-                return $s;
-              };
-            ?>
             <?php if (!empty($libro['data_acquisizione'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Data acquisizione") ?></dt>
