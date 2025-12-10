@@ -2654,7 +2654,8 @@ class LibriController
         $bio = \App\Support\HtmlHelper::decode($bio);
 
         // Atomic update: only set bio if currently empty (prevents TOCTOU race condition)
-        $stmt = $db->prepare("UPDATE autori SET biografia = ? WHERE id = ? AND (biografia IS NULL OR biografia = '')");
+        // Use TRIM to also catch biographies containing only whitespace
+        $stmt = $db->prepare("UPDATE autori SET biografia = ? WHERE id = ? AND (biografia IS NULL OR TRIM(biografia) = '')");
         if (!$stmt) {
             return;
         }
