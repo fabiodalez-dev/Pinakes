@@ -75,7 +75,10 @@ class CmsAdminController
                     VALUES (?, ?, ?, ?, '', 1)
                 ");
                 $createStmt->bind_param('ssss', $slug, $currentLocale, $defaultTitle, $defaultContent);
-                $createStmt->execute();
+                if (!$createStmt->execute()) {
+                    // Log error but continue - we'll handle the 404 below if page still doesn't exist
+                    error_log("CmsAdminController: Failed to auto-create page '{$slug}' for locale '{$currentLocale}': " . $this->db->error);
+                }
                 $createStmt->close();
 
                 // Reload the page

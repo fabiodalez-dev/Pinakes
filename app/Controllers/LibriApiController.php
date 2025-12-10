@@ -121,9 +121,10 @@ class LibriApiController
             $types .= 'i';
         }
 
-        // Parse DataTables sorting parameters
-        $orderColumn = (int) ($q['order'][0]['column'] ?? 3); // Default to Info column (title)
-        $orderDir = strtoupper(trim($q['order'][0]['dir'] ?? 'asc')) === 'DESC' ? 'DESC' : 'ASC';
+        // Parse DataTables sorting parameters (with robust null checks to avoid notices)
+        $order = $q['order'][0] ?? null;
+        $orderColumn = isset($order['column']) ? (int) $order['column'] : 3; // Default to Info column (title)
+        $orderDir = (isset($order['dir']) && strtoupper(trim($order['dir'])) === 'DESC') ? 'DESC' : 'ASC';
 
         // Map column indices to database fields
         // Columns: 0=checkbox, 1=status, 2=cover, 3=info(title), 4=genre, 5=position, 6=year, 7=actions

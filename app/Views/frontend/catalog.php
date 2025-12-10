@@ -1783,7 +1783,10 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                     displayName = parts[parts.length - 1];
                 }
 
-                html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;" title="' + gen.nome + '">';
+                // Sanitize title attribute to prevent XSS (escape HTML entities including double quotes)
+                const safeTitle = escapeHtml(gen.nome).replace(/"/g, '&quot;');
+
+                html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;" title="' + safeTitle + '">';
                 html += '<span>' + escapeHtml(displayName) + '</span>';
                 html += '<span class="count-badge">' + gen.cnt + '</span>';
                 html += '</a>';

@@ -10,6 +10,38 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class LibriController
 {
     /**
+     * Centralized whitelist of allowed domains for external cover image downloads
+     * Used by both downloadExternalCover() and isUrlAllowed()
+     */
+    private const COVER_ALLOWED_DOMAINS = [
+        // Google Books
+        'books.google.com',
+        'books.google.it',
+        'images.google.com',
+        // Open Library
+        'covers.openlibrary.org',
+        // Italian bookstores
+        'www.libreriauniversitaria.it',
+        'img.libreriauniversitaria.it',
+        'img2.libreriauniversitaria.it',
+        'img3.libreriauniversitaria.it',
+        'cdn.mondadoristore.it',
+        'www.lafeltrinelli.it',
+        // Amazon
+        'images.amazon.com',
+        'images-na.ssl-images-amazon.com',
+        'images-eu.ssl-images-amazon.com',
+        // Ubik Libri
+        'www.ubiklibri.it',
+        'ubiklibri.it',
+    ];
+
+    /**
+     * Maximum file size for cover downloads (5MB)
+     */
+    private const MAX_COVER_SIZE = 5 * 1024 * 1024;
+
+    /**
      * Get the storage directory path
      * Centralized configuration for storage location
      */
@@ -37,7 +69,9 @@ class LibriController
 
     /**
      * Download external cover image and save locally
-     * Returns local URL path on success, null on failure
+     *
+     * @param string|null $url External URL or local path
+     * @return string|null Local URL path on success, original URL on failure, null/empty passed through
      */
     private function downloadExternalCover(?string $url): ?string
     {
@@ -45,27 +79,42 @@ class LibriController
             return $url; // Not an external URL, return as-is
         }
 
-        // Allowed domains for cover download (same as CoverController)
-        $allowedDomains = [
-            'images.google.com',
-            'books.google.com',
-            'covers.openlibrary.org',
-            'www.libreriauniversitaria.it',
-            'cdn.mondadoristore.it',
-            'www.lafeltrinelli.it',
-            'images-na.ssl-images-amazon.com',
-            'images-eu.ssl-images-amazon.com'
-        ];
-
         $parsedUrl = parse_url($url);
         $host = strtolower($parsedUrl['host'] ?? '');
 
-        if (!in_array($host, $allowedDomains, true)) {
+        // Use centralized whitelist
+        if (!\in_array($host, self::COVER_ALLOWED_DOMAINS, true)) {
             \App\Support\SecureLogger::warning('Cover download from non-whitelisted domain', ['url' => $url, 'host' => $host]);
             return $url; // Return original URL if domain not allowed
         }
 
         try {
+            // First, check file size via HEAD request to avoid downloading huge files
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_NOBODY => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
+            ]);
+            curl_exec($ch);
+            $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+            curl_close($ch);
+
+            // Check size limit before downloading (if Content-Length is provided)
+            if ($contentLength > self::MAX_COVER_SIZE) {
+                \App\Support\SecureLogger::warning('Cover too large (HEAD check)', [
+                    'url' => $url,
+                    'size' => $contentLength,
+                    'max' => self::MAX_COVER_SIZE
+                ]);
+                return $url;
+            }
+
             // Download the image
             $ch = curl_init($url);
             curl_setopt_array($ch, [
@@ -83,9 +132,19 @@ class LibriController
             $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            if ($imageData === false || $httpCode !== 200 || strlen($imageData) < 100) {
+            if ($imageData === false || $httpCode !== 200 || \strlen($imageData) < 100) {
                 \App\Support\SecureLogger::warning('Cover download failed', ['url' => $url, 'http_code' => $httpCode]);
                 return $url; // Return original URL on download failure
+            }
+
+            // Verify size after download (in case Content-Length was not provided or wrong)
+            if (\strlen($imageData) > self::MAX_COVER_SIZE) {
+                \App\Support\SecureLogger::warning('Cover too large (POST check)', [
+                    'url' => $url,
+                    'size' => \strlen($imageData),
+                    'max' => self::MAX_COVER_SIZE
+                ]);
+                return $url;
             }
 
             // Validate image
@@ -1582,6 +1641,7 @@ class LibriController
 
     /**
      * Security: Validate URL against whitelist for external image downloads
+     * Uses centralized COVER_ALLOWED_DOMAINS constant
      */
     private function isUrlAllowed(string $url): bool
     {
@@ -1595,18 +1655,6 @@ class LibriController
             return false;
         }
 
-        // Whitelist of allowed domains for cover image downloads
-        $allowedDomains = [
-            'img.libreriauniversitaria.it',
-            'img2.libreriauniversitaria.it',
-            'img3.libreriauniversitaria.it',
-            'covers.openlibrary.org',
-            'images.amazon.com',
-            'images-na.ssl-images-amazon.com',
-            'books.google.com',
-            'books.google.it'
-        ];
-
         $host = parse_url($url, PHP_URL_HOST);
         if (!$host) {
             return false;
@@ -1614,13 +1662,13 @@ class LibriController
 
         // Block localhost, private IPs, and internal networks
         if (
-            in_array($host, ['localhost', '127.0.0.1', '::1']) ||
+            \in_array($host, ['localhost', '127.0.0.1', '::1']) ||
             preg_match('/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)/', $host)
         ) {
             return false;
         }
 
-        return in_array($host, $allowedDomains, true);
+        return \in_array($host, self::COVER_ALLOWED_DOMAINS, true);
     }
 
     /**

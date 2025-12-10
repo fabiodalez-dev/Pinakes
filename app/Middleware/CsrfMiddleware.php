@@ -28,11 +28,20 @@ class CsrfMiddleware implements MiddlewareInterface
             $parsedBody = $request->getParsedBody();
 
             // Se il body non è parsato e il Content-Type è JSON, prova a parsarlo
+            // Importante: dopo la lettura, rewind dello stream e propagazione del parsed body
+            // per permettere ai downstream handler di accedere ai dati
             if (empty($parsedBody)) {
                 $contentType = $request->getHeaderLine('Content-Type');
                 if (strpos($contentType, 'application/json') !== false) {
                     $bodyRaw = (string) $request->getBody();
-                    $parsedBody = json_decode($bodyRaw, true);
+                    $decoded = json_decode($bodyRaw, true);
+                    if (is_array($decoded)) {
+                        $parsedBody = $decoded;
+                        // Propaga il parsed body alla request per i downstream handlers
+                        $request = $request->withParsedBody($parsedBody);
+                    }
+                    // Rewind dello stream per permettere letture successive
+                    $request->getBody()->rewind();
                 }
             }
 
@@ -72,6 +81,7 @@ class CsrfMiddleware implements MiddlewareInterface
             }
         }
 
+        // Passa la request (potenzialmente modificata con parsedBody) al handler
         return $handler->handle($request);
     }
 }

@@ -443,7 +443,7 @@
       <i class="fas fa-lock"></i>
       <?= __("Cambia password") ?>
     </h2>
-    <form method="post" action="/profilo/password">
+    <form method="post" action="<?= App\Support\RouteTranslator::route('profile_password') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">

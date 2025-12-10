@@ -113,6 +113,10 @@ $cookieBannerTexts = [
 
         // Try to initialize immediately
         if (!initCookieBannerConfig()) {
+            // Max retry attempts to prevent infinite loop
+            var maxRetries = 30; // 30 retries × 100ms = 3 seconds max
+            var retryCount = 0;
+
             // If not available, wait for DOMContentLoaded
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', function() {
@@ -122,9 +126,10 @@ $cookieBannerTexts = [
                     }
                 });
             } else {
-                // DOM already loaded, retry after script loads
+                // DOM already loaded, retry after script loads with limit
                 setTimeout(function retry() {
-                    if (!initCookieBannerConfig()) {
+                    if (!initCookieBannerConfig() && retryCount < maxRetries) {
+                        retryCount++;
                         setTimeout(retry, 100);
                     }
                 }, 50);
