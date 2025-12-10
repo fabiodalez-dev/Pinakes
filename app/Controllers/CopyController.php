@@ -56,8 +56,8 @@ class CopyController
         $stato = $data['stato'] ?? 'disponibile';
         $note = $data['note'] ?? '';
 
-        // Validazione stato
-        $statiValidi = ['disponibile', 'prestato', 'manutenzione', 'danneggiato', 'perso'];
+        // Validazione stato (deve corrispondere all'enum in copie.stato)
+        $statiValidi = ['disponibile', 'prestato', 'prenotato', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
         if (!in_array($stato, $statiValidi)) {
             $_SESSION['error_message'] = __('Stato non valido.');
             return $response->withHeader('Location', $this->safeReferer('/admin/libri'))->withStatus(302);

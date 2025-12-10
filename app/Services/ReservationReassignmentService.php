@@ -19,12 +19,73 @@ class ReservationReassignmentService
     private mysqli $db;
     private NotificationService $notificationService;
     private CopyRepository $copyRepo;
+    private bool $externalTransaction = false;
 
     public function __construct(mysqli $db)
     {
         $this->db = $db;
         $this->notificationService = new NotificationService($db);
         $this->copyRepo = new CopyRepository($db);
+    }
+
+    /**
+     * Indica che le operazioni sono già dentro una transazione esterna.
+     * Quando true, il servizio non aprirà/chiuderà transazioni proprie.
+     */
+    public function setExternalTransaction(bool $external): self
+    {
+        $this->externalTransaction = $external;
+        return $this;
+    }
+
+    /**
+     * Verifica se siamo già dentro una transazione.
+     */
+    private function isInTransaction(): bool
+    {
+        if ($this->externalTransaction) {
+            return true;
+        }
+        // MySQL: controlla se c'è una transazione attiva
+        $result = $this->db->query("SELECT @@autocommit as ac, @@in_transaction as it");
+        if ($result) {
+            $row = $result->fetch_assoc();
+            // in_transaction = 1 significa che siamo in una transazione
+            return (int)($row['it'] ?? 0) === 1;
+        }
+        return false;
+    }
+
+    /**
+     * Inizia una transazione solo se non siamo già in una.
+     */
+    private function beginTransactionIfNeeded(): bool
+    {
+        if ($this->isInTransaction()) {
+            return false; // Non abbiamo iniziato noi
+        }
+        $this->db->begin_transaction();
+        return true; // Abbiamo iniziato noi
+    }
+
+    /**
+     * Commit solo se abbiamo iniziato noi la transazione.
+     */
+    private function commitIfOwned(bool $ownTransaction): void
+    {
+        if ($ownTransaction) {
+            $this->db->commit();
+        }
+    }
+
+    /**
+     * Rollback solo se abbiamo iniziato noi la transazione.
+     */
+    private function rollbackIfOwned(bool $ownTransaction): void
+    {
+        if ($ownTransaction) {
+            $this->db->rollback();
+        }
     }
 
     /**
@@ -57,9 +118,8 @@ class ReservationReassignmentService
         }
 
         // 2. Se abbiamo trovato una prenotazione da sbloccare, proviamo ad assegnarla alla nuova copia
+        $ownTransaction = $this->beginTransactionIfNeeded();
         try {
-            $this->db->begin_transaction();
-
             // Verifica che la nuova copia sia effettivamente disponibile (lock)
             $stmt = $this->db->prepare("SELECT id, stato FROM copie WHERE id = ? FOR UPDATE");
             $stmt->bind_param('i', $newCopiaId);
@@ -68,7 +128,7 @@ class ReservationReassignmentService
             $stmt->close();
 
             if (!$copyStatus || $copyStatus['stato'] !== 'disponibile') {
-                $this->db->rollback();
+                $this->rollbackIfOwned($ownTransaction);
                 return;
             }
 
@@ -91,13 +151,13 @@ class ReservationReassignmentService
             // era occupata (es. 'prestato') o danneggiata. Quindi il suo stato non cambia.
             // Se fosse stata 'disponibile', non avremmo selezionato la prenotazione come "bloccata".
 
-            $this->db->commit();
+            $this->commitIfOwned($ownTransaction);
 
-            // Notifica l'utente
+            // Notifica l'utente (DOPO il commit, fuori dalla transazione)
             $this->notifyUserCopyAvailable((int) $reservation['id']);
 
         } catch (Exception $e) {
-            $this->db->rollback();
+            $this->rollbackIfOwned($ownTransaction);
             SecureLogger::error(__('Errore riassegnazione copia'), [
                 'libro_id' => $libroId,
                 'copia_id' => $newCopiaId,
@@ -135,14 +195,26 @@ class ReservationReassignmentService
 
         if ($nextCopyId) {
             // Riassegna
+            $ownTransaction = $this->beginTransactionIfNeeded();
             try {
-                $this->db->begin_transaction();
-
-                // Lock della nuova copia
-                $stmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+                // Lock della nuova copia e verifica stato (race condition protection)
+                $stmt = $this->db->prepare("SELECT id, stato FROM copie WHERE id = ? FOR UPDATE");
                 $stmt->bind_param('i', $nextCopyId);
                 $stmt->execute();
+                $copyStatus = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
+
+                // Verifica che la copia sia ancora disponibile (potrebbe essere cambiata)
+                if (!$copyStatus || $copyStatus['stato'] !== 'disponibile') {
+                    $this->rollbackIfOwned($ownTransaction);
+                    // Prova a cercare un'altra copia
+                    $nextCopyId = $this->findAvailableCopy((int) $reservation['libro_id'], $copiaId);
+                    if (!$nextCopyId) {
+                        // Nessuna copia disponibile
+                        $this->handleNoCopyAvailable((int) $reservation['id']);
+                    }
+                    return;
+                }
 
                 // Aggiorna prenotazione
                 $stmt = $this->db->prepare("UPDATE prestiti SET copia_id = ? WHERE id = ?");
@@ -153,13 +225,13 @@ class ReservationReassignmentService
                 // Aggiorna stato nuova copia
                 $this->copyRepo->updateStatus($nextCopyId, 'prenotato');
 
-                $this->db->commit();
+                $this->commitIfOwned($ownTransaction);
 
                 // Notifica (opzionale, magari solo per dire "cambio copia")
                 // $this->notifyUserCopyChanged(...)
 
             } catch (Exception $e) {
-                $this->db->rollback();
+                $this->rollbackIfOwned($ownTransaction);
                 SecureLogger::error(__('Errore riassegnazione copia persa'), [
                     'copia_id' => $copiaId,
                     'reservation_id' => $reservation['id'],
@@ -167,16 +239,24 @@ class ReservationReassignmentService
                 ]);
             }
         } else {
-            // Nessuna copia disponibile: la prenotazione rimane ma senza copia (o con copia persa per storico?)
-            // Meglio impostare copia_id a NULL per indicare "in coda senza copia" o "in attesa"
-            // E notificare l'utente che è tornato in lista d'attesa
-            $stmt = $this->db->prepare("UPDATE prestiti SET copia_id = NULL WHERE id = ?");
-            $stmt->bind_param('i', $reservation['id']);
-            $stmt->execute();
-            $stmt->close();
-
-            $this->notifyUserCopyUnavailable((int) $reservation['id'], 'lost_copy');
+            // Nessuna copia disponibile
+            $this->handleNoCopyAvailable((int) $reservation['id']);
         }
+    }
+
+    /**
+     * Gestisce il caso in cui non ci sono copie disponibili per una prenotazione.
+     */
+    private function handleNoCopyAvailable(int $reservationId): void
+    {
+        // Meglio impostare copia_id a NULL per indicare "in coda senza copia" o "in attesa"
+        // E notificare l'utente che è tornato in lista d'attesa
+        $stmt = $this->db->prepare("UPDATE prestiti SET copia_id = NULL WHERE id = ?");
+        $stmt->bind_param('i', $reservationId);
+        $stmt->execute();
+        $stmt->close();
+
+        $this->notifyUserCopyUnavailable($reservationId, 'lost_copy');
     }
 
     /**
