@@ -59,8 +59,7 @@
 + storage/plugins/digital-library/**
 + storage/plugins/dewey-editor/
 + storage/plugins/dewey-editor/**
-+ storage/plugins/scraping-pro/
-+ storage/plugins/scraping-pro/**
+# NOTE: scraping-pro is NOT bundled (premium plugin, sold separately)
 
 # Keep public uploads structure
 + public/uploads/
