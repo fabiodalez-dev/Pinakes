@@ -24,12 +24,14 @@ class BookRepository
     {
         $rows = [];
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
+        // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, e.nome AS editore,
                        GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
+                WHERE l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, e.nome
                 ORDER BY l.titolo ASC
                 LIMIT ?";
@@ -82,7 +84,7 @@ class BookRepository
         $sql .= " LEFT JOIN posizioni p ON l.posizione_id = p.id
                 LEFT JOIN mensole m ON p.mensola_id = m.id
                 LEFT JOIN scaffali s ON p.scaffale_id = s.id
-                WHERE l.id=? LIMIT 1";
+                WHERE l.id=? AND l.deleted_at IS NULL LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $id);
         $stmt->execute();
@@ -128,6 +130,7 @@ class BookRepository
     public function getByAuthorId(int $authorId): array
     {
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
+        // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
                        GROUP_CONCAT(DISTINCT a2.nome ORDER BY a2.nome SEPARATOR ', ') AS autori
@@ -136,6 +139,7 @@ class BookRepository
                 INNER JOIN libri_autori la ON l.id = la.libro_id AND la.autore_id = ?
                 LEFT JOIN libri_autori la2 ON l.id = la2.libro_id
                 LEFT JOIN autori a2 ON la2.autore_id = a2.id
+                WHERE l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
@@ -152,6 +156,7 @@ class BookRepository
     public function getByPublisherId(int $publisherId): array
     {
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
+        // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
                        GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
@@ -159,7 +164,7 @@ class BookRepository
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE l.editore_id = ?
+                WHERE l.editore_id = ? AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);

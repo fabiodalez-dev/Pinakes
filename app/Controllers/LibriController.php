@@ -1659,6 +1659,7 @@ class LibriController
         // CSRF validated by CsrfMiddleware
 
         // Case 10: Prevent deletion if there are active loans/reservations
+        // Check prestiti table (loans with stato: in_corso, prenotato, pendente, in_ritardo)
         $stmt = $db->prepare("
             SELECT COUNT(*) as count
             FROM prestiti
@@ -1668,10 +1669,22 @@ class LibriController
         ");
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $count = (int) $stmt->get_result()->fetch_assoc()['count'];
+        $prestitiCount = (int) $stmt->get_result()->fetch_assoc()['count'];
         $stmt->close();
 
-        if ($count > 0) {
+        // Also check prenotazioni table (waitlist entries with stato='attiva')
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count
+            FROM prenotazioni
+            WHERE libro_id = ?
+            AND stato = 'attiva'
+        ");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $prenotazioniCount = (int) $stmt->get_result()->fetch_assoc()['count'];
+        $stmt->close();
+
+        if ($prestitiCount > 0 || $prenotazioniCount > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare il libro: ci sono prestiti o prenotazioni attive. Termina prima i prestiti/prenotazioni.');
             return $response->withHeader('Location', '/admin/libri/' . $id)->withStatus(302);
         }

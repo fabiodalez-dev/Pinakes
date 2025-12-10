@@ -821,7 +821,7 @@ class PrestitiController
         // Get status filter from query params
         $queryParams = $request->getQueryParams();
         $statiParam = $queryParams['stati'] ?? '';
-        $validStates = ['pendente', 'prenotato', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato'];
+        $validStates = ['pendente', 'prenotato', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato', 'annullato', 'scaduto'];
 
         // Parse and validate requested states
         $requestedStates = [];
@@ -914,6 +914,8 @@ class PrestitiController
             'restituito' => __('Restituito'),
             'perso' => __('Perso'),
             'danneggiato' => __('Danneggiato'),
+            'annullato' => __('Annullato'),
+            'scaduto' => __('Scaduto'),
         ];
 
         // Sanitize CSV values to prevent formula injection (CSV injection)
