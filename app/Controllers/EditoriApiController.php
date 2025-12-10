@@ -96,6 +96,32 @@ class EditoriApiController
             $param_types .= 's';
         }
 
+        // Handle DataTables ordering
+        $orderColumn = 'e.nome';
+        $orderDir = 'ASC';
+
+        // Map column index to database column
+        // 0: checkbox, 1: nome, 2: sito_web, 3: indirizzo, 4: libri_count, 5: azioni
+        $columnMap = [
+            0 => 'e.id',           // checkbox (fallback to id)
+            1 => 'e.nome',         // Nome
+            2 => 'e.sito_web',     // Sito Web
+            3 => 'e.indirizzo',    // Indirizzo
+            4 => 'libri_count',    // N. Libri
+            5 => 'e.id'            // Azioni (fallback to id)
+        ];
+
+        // Parse order parameter from DataTables
+        if (isset($q['order'][0]['column']) && isset($q['order'][0]['dir'])) {
+            $colIdx = (int) $q['order'][0]['column'];
+            $dir = strtoupper($q['order'][0]['dir']) === 'DESC' ? 'DESC' : 'ASC';
+
+            if (isset($columnMap[$colIdx])) {
+                $orderColumn = $columnMap[$colIdx];
+                $orderDir = $dir;
+            }
+        }
+
         // Add LIMIT parameters
         $params[] = $start;
         $params[] = $length;
@@ -144,6 +170,8 @@ class EditoriApiController
         $count_stmt->close();
 
         // Main query - if HAVING is needed, wrap in subquery
+        // For subquery, we need to handle column references differently
+        $subOrderColumn = str_replace('e.', '', $orderColumn); // Remove table alias for subquery
         if ($having_clause !== '') {
             $sql_prepared = "SELECT * FROM (
                     SELECT e.*, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id) AS libri_count
@@ -151,7 +179,7 @@ class EditoriApiController
                     $where_prepared
                     $having_clause
                 ) AS sub
-                ORDER BY nome ASC
+                ORDER BY $subOrderColumn $orderDir
                 LIMIT ?, ?";
         } else {
             $sql_prepared = "SELECT e.*, (
@@ -159,7 +187,7 @@ class EditoriApiController
                     ) AS libri_count
                     FROM editori e
                     $where_prepared
-                    ORDER BY e.nome ASC
+                    ORDER BY $orderColumn $orderDir
                     LIMIT ?, ?";
         }
 

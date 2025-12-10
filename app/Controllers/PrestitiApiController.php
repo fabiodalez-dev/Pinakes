@@ -104,6 +104,31 @@ class PrestitiApiController
         $filteredRes = $count_stmt->get_result();
         $filtered = (int)($filteredRes->fetch_assoc()['c'] ?? 0);
 
+        // Handle DataTables ordering
+        $orderColumn = 'p.id';
+        $orderDir = 'DESC';
+
+        // Map column index to database column
+        // 0: libro, 1: utente, 2: data_prestito, 3: stato, 4: actions
+        $columnMap = [
+            0 => 'l.titolo',       // Libro
+            1 => 'utente',         // Utente (computed column)
+            2 => 'p.data_prestito',// Data Prestito
+            3 => 'p.stato',        // Stato
+            4 => 'p.id'            // Actions (fallback to id)
+        ];
+
+        // Parse order parameter from DataTables
+        if (isset($q['order'][0]['column']) && isset($q['order'][0]['dir'])) {
+            $colIdx = (int) $q['order'][0]['column'];
+            $dir = strtoupper($q['order'][0]['dir']) === 'DESC' ? 'DESC' : 'ASC';
+
+            if (isset($columnMap[$colIdx])) {
+                $orderColumn = $columnMap[$colIdx];
+                $orderDir = $dir;
+            }
+        }
+
         // Add LIMIT parameters
         $params[] = $start;
         $params[] = $length;
@@ -113,7 +138,7 @@ class PrestitiApiController
                        p.data_prestito, p.data_restituzione, p.attivo, p.stato,
                        CONCAT(staff.nome,' ',staff.cognome) AS processed_by
                 $base $where_prepared
-                ORDER BY p.id DESC LIMIT ?, ?";
+                ORDER BY $orderColumn $orderDir LIMIT ?, ?";
 
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {

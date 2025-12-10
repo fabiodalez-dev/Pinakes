@@ -175,6 +175,7 @@
 # CI/CD & documentation (except README/LICENSE already included)
 - .github/
 - docs/
+- CHANGELOG.md
 - *.md
 - .travis.yml
 - .circleci/
