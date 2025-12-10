@@ -84,10 +84,39 @@ class UtentiApiController
         $filtered = (int)($filtered_res->fetch_assoc()['c'] ?? 0);
         $count_stmt->close();
 
+        // Handle DataTables ordering
+        $orderColumn = 'u.cognome';
+        $orderDir = 'ASC';
+        $orderExtra = ', u.nome ASC'; // Secondary sort by nome
+
+        // Map column index to database column
+        // 0: nome/cognome, 1: email, 2: telefono, 3: tipo_utente, 4: stato, 5: actions
+        $columnMap = [
+            0 => 'u.cognome',      // Nome (sorts by cognome first)
+            1 => 'u.email',        // Email
+            2 => 'u.telefono',     // Telefono
+            3 => 'u.tipo_utente',  // Ruolo
+            4 => 'u.stato',        // Stato
+            5 => 'u.id'            // Actions (fallback to id)
+        ];
+
+        // Parse order parameter from DataTables
+        if (isset($q['order'][0]['column']) && isset($q['order'][0]['dir'])) {
+            $colIdx = (int) $q['order'][0]['column'];
+            $dir = strtoupper($q['order'][0]['dir']) === 'DESC' ? 'DESC' : 'ASC';
+
+            if (isset($columnMap[$colIdx])) {
+                $orderColumn = $columnMap[$colIdx];
+                $orderDir = $dir;
+                // Only add secondary sort for nome column
+                $orderExtra = ($colIdx === 0) ? ', u.nome ' . $dir : '';
+            }
+        }
+
         $sql = "SELECT u.id, u.nome, u.cognome, u.email, u.telefono, u.tipo_utente, u.stato,
                        u.codice_tessera, u.data_scadenza_tessera, u.created_at
                 $base $where
-                ORDER BY u.cognome ASC, u.nome ASC LIMIT ?, ?";
+                ORDER BY $orderColumn $orderDir$orderExtra LIMIT ?, ?";
 
         // Add LIMIT parameters
         $params[] = $start;

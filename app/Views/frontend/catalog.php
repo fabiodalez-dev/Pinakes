@@ -1760,7 +1760,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             // Add back button if not at level 0
             if (genreDisplay.level > 0) {
                 const backValue = genreDisplay.level === 1 ? '' : (genreDisplay.parent?.nome || '');
-                const backEscaped = backValue.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const backEscaped = backValue.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                 html += '<div class="filter-back-container">';
                 html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere\', \'' + backEscaped + '\'); return false;" title="' + i18n.torna_categoria_superiore + '">';
                 html += '<i class="fas fa-arrow-left"></i>';
@@ -1774,7 +1774,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 if ((gen.cnt ?? 0) <= 0) return;
 
                 const isActive = currentFilters.genere === gen.nome ? 'active' : '';
-                const escapedName = gen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const escapedName = gen.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                 let displayName = gen.nome;
 
                 // Shorten display name for lower levels
@@ -1801,7 +1801,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             filterOptions.generi.forEach(gen => {
                 if ((gen.cnt ?? 0) > 0) {
                     const isActive = currentFilters.genere === gen.nome ? 'active' : '';
-                    const escapedName = gen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    const escapedName = gen.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                     html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;">';
                     html += '<span>' + escapeHtml(gen.nome) + '</span>';
                     html += '<span class="count-badge">' + gen.cnt + '</span>';
@@ -1812,7 +1812,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                         gen.children.forEach(subgen => {
                             if ((subgen.cnt ?? 0) > 0) {
                                 const isSubActive = currentFilters.genere === subgen.nome ? 'active' : '';
-                                const escapedSubName = subgen.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                                const escapedSubName = subgen.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                                 html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere\', \'' + escapedSubName + '\'); return false;">';
                                 html += '<span>' + escapeHtml(subgen.nome) + '</span>';
                                 html += '<span class="count-badge">' + subgen.cnt + '</span>';
@@ -1835,7 +1835,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 if ((ed.cnt ?? 0) > 0) {
                     const isActive = currentFilters.editore === ed.nome ? 'active' : '';
                     const decodedName = decodeHtmlEntities(ed.nome);
-                    const escapedName = ed.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    const escapedName = ed.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                     html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'editore\', \'' + escapedName + '\'); return false;">';
                     html += '<span>' + escapeHtml(decodedName) + '</span>';
                     html += '<span class="count-badge">' + ed.cnt + '</span>';
