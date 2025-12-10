@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.0-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.1-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 [![CodeRabbit](https://img.shields.io/coderabbit/prs/reviewed/github/fabiodalez-dev/Pinakes?style=for-the-badge&logo=coderabbit&logoColor=white&label=PRs%20Reviewed)](https://coderabbit.ai)
@@ -22,50 +22,49 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.0
+## What's New in v0.4.1
 
-### GDPR Privacy Consent Tracking
+### ISBN Enhancement & Cross-Source Matching
 
-Full GDPR compliance with privacy policy acceptance tracking:
-- **Privacy consent tracking** — Users must accept privacy policy; acceptance date and policy version recorded
-- **New user fields** — `privacy_accettata`, `data_accettazione_privacy`, `privacy_policy_version`
-- **Automatic backfill** — Existing active users marked as accepted with registration date
-- **Privacy dashboard** — Administrators can view consent status per user
+New `IsbnFormatter` utility class for intelligent ISBN handling:
+- **ISBN validation** — Checksum verification for both ISBN-10 and ISBN-13 formats
+- **Bidirectional conversion** — ISBN-10 ↔ ISBN-13 conversion (respects 979-prefix limitations)
+- **All variants extraction** — Get all valid ISBN forms for cross-source matching
+- **Form auto-population** — Book form now properly handles `isbn10`, `isbn13` fields from SBN responses
 
-### Persistent "Remember Me" Sessions
+### Scraping Improvements
 
-Secure persistent login sessions:
-- **30-day sessions** — Secure tokens stored with SHA256 hashing
-- **Multi-device support** — Users can be logged in on multiple devices
-- **Automatic cleanup** — Expired tokens removed by maintenance cron
-- **New table** — `user_remember_tokens` for token storage
+- **Ubik Libri source** — New scraping source with author biography support
+- **Author bio field mapping** — Added to api-book-scraper plugin
+- **Cross-source ISBN enrichment** — ScrapeController can re-query SBN with ISBN variants for Dewey classification
 
-### Improved Maintenance System
+### Bug Fixes (12+)
 
-Enhanced reliability for background maintenance tasks:
-- **Process locking** — Prevents concurrent cron executions
-- **Error handling** — Index check wrapped in try/catch for robustness
-- **Marker-based throttling** — Weekly index checks, daily availability recalculation
-- **Session cleanup** — Automatic removal of expired remember tokens
+- **Catalog filters** — Now hide zero-count genres
+- **Chi-siamo redirect** — Fixed redirect loop
+- **Publication date** — Fixed formatting (DD-MM-YYYY)
+- **Duplicate routes** — Removed duplicate `/events` route registration
+- **Cookie banner** — Various improvements
+- **Review actions** — Fixed button handling in admin panel
+- **CSRF middleware** — Improvements for better security
+- **Loan detail pages** — Added clickable book links in `/admin/prestiti/modifica/` and `/admin/prestiti/dettagli/`
 
-### Loan Return UX Improvements
+### Files Changed
 
-Better user experience for book returns:
-- **Smart default status** — Return form defaults to "Returned on time"
-- **Clear labels** — Distinguishes "Returned on time" vs "Returned late"
-- **Form persistence** — Preserves selection on validation errors
+- 55 files modified
+- ~1,446 lines added, ~259 lines removed
 
 ---
 
-## Previous Release: v0.3.0
+## Previous Release: v0.4.0
 
-### Updating from v0.3.0
+### Updating from v0.4.0
 
-If you're already on v0.3.0, update directly from **Admin → Updates**. The auto-updater handles everything automatically.
+If you're already on v0.4.0, update directly from **Admin → Updates**. The auto-updater handles everything automatically.
 
-### Updating from v0.2.x or Earlier
+### Updating from v0.3.x or Earlier
 
-**Manual migration required.** Run the migration script before updating:
+**Manual migration required.** Run the migration scripts before updating:
 
 ```bash
 # 1. BACKUP YOUR DATABASE FIRST!
@@ -74,11 +73,12 @@ mysqldump -u USER -p DATABASE > backup_before_upgrade.sql
 # 2. Run migrations in order
 mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.3.0.sql
 mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.4.0.sql
+# Note: v0.4.1 has no database changes
 
 # 3. Then replace the application files
 ```
 
-**Key v0.3.0 features**: Dewey Classification system (JSON-based), Built-in Auto-Updater, Database Backup System, Author Normalization, Author/Publisher Merge
+**Key v0.4.0 features**: GDPR Privacy Consent Tracking, Persistent "Remember Me" Sessions, Improved Maintenance System, Loan Return UX Improvements
 
 ---
 
