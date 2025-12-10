@@ -1,4 +1,13 @@
 <?php
+/**
+ * Application Updater
+ *
+ * Handles version checking, downloading, and installing updates from GitHub releases.
+ * Includes verbose logging to SecureLogger for troubleshooting update issues.
+ *
+ * Log output: storage/logs/app.log (filter with grep -i "updater")
+ */
+
 declare(strict_types=1);
 
 namespace App\Support;
@@ -8,7 +17,7 @@ use Exception;
 use ZipArchive;
 
 /**
- * Application Updater
+ * Application Updater - DEBUG VERSION
  * Handles version checking, downloading, and installing updates from GitHub releases
  */
 class Updater
@@ -40,8 +49,6 @@ class Updater
 
     /**
      * Directories to skip completely during update.
-     * NOTE: 'vendor' is NOT in this list - release packages MUST include
-     * a production-ready vendor folder with all Composer dependencies.
      * @var array<string>
      */
     private array $skipPaths = [
@@ -56,10 +63,48 @@ class Updater
         $this->backupPath = $this->rootPath . '/storage/backups';
         $this->tempPath = sys_get_temp_dir() . '/pinakes_update_' . uniqid('', true);
 
+        $this->debugLog('DEBUG', 'Updater inizializzato', [
+            'rootPath' => $this->rootPath,
+            'backupPath' => $this->backupPath,
+            'tempPath' => $this->tempPath,
+            'php_version' => PHP_VERSION,
+            'memory_limit' => ini_get('memory_limit'),
+            'max_execution_time' => ini_get('max_execution_time'),
+            'allow_url_fopen' => ini_get('allow_url_fopen'),
+            'curl_available' => extension_loaded('curl'),
+            'openssl_available' => extension_loaded('openssl'),
+            'zip_available' => class_exists('ZipArchive'),
+        ]);
+
         // Ensure backup directory exists
         if (!is_dir($this->backupPath)) {
             if (!mkdir($this->backupPath, 0755, true) && !is_dir($this->backupPath)) {
+                $this->debugLog('ERROR', 'Impossibile creare directory di backup', [
+                    'path' => $this->backupPath,
+                    'error' => error_get_last()
+                ]);
                 throw new \RuntimeException(sprintf(__('Impossibile creare directory di backup: %s'), $this->backupPath));
+            }
+        }
+    }
+
+    /**
+     * Debug logging helper - logs to both SecureLogger and error_log
+     */
+    private function debugLog(string $level, string $message, array $context = []): void
+    {
+        $fullMessage = "[Updater DEBUG] [{$level}] {$message}";
+
+        // Always log to error_log for immediate visibility
+        error_log($fullMessage . ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        // Also log to SecureLogger if available
+        if (class_exists(SecureLogger::class)) {
+            $method = strtolower($level);
+            if (method_exists(SecureLogger::class, $method)) {
+                SecureLogger::$method($fullMessage, $context);
+            } else {
+                SecureLogger::info($fullMessage, $context);
             }
         }
     }
@@ -71,22 +116,32 @@ class Updater
     {
         $versionFile = $this->rootPath . '/version.json';
 
+        $this->debugLog('DEBUG', 'Lettura versione corrente', ['file' => $versionFile]);
+
         if (!file_exists($versionFile)) {
+            $this->debugLog('WARNING', 'File version.json non trovato', ['path' => $versionFile]);
             return '0.0.0';
         }
 
         $content = file_get_contents($versionFile);
         if ($content === false) {
-            error_log("[Updater] Impossibile leggere version.json");
+            $this->debugLog('ERROR', 'Impossibile leggere version.json', [
+                'path' => $versionFile,
+                'error' => error_get_last()
+            ]);
             return '0.0.0';
         }
 
         $data = json_decode($content, true);
         if (!is_array($data) || !isset($data['version'])) {
-            error_log("[Updater] version.json non valido o corrotto");
+            $this->debugLog('ERROR', 'version.json non valido', [
+                'content' => $content,
+                'json_error' => json_last_error_msg()
+            ]);
             return '0.0.0';
         }
 
+        $this->debugLog('INFO', 'Versione corrente rilevata', ['version' => $data['version']]);
         return $data['version'];
     }
 
@@ -98,10 +153,15 @@ class Updater
     {
         $currentVersion = $this->getCurrentVersion();
 
+        $this->debugLog('INFO', 'Controllo aggiornamenti in corso', [
+            'current_version' => $currentVersion
+        ]);
+
         try {
             $release = $this->getLatestRelease();
 
             if ($release === null) {
+                $this->debugLog('WARNING', 'Nessuna release trovata su GitHub');
                 return [
                     'available' => false,
                     'current' => $currentVersion,
@@ -114,6 +174,14 @@ class Updater
             $latestVersion = ltrim($release['tag_name'], 'v');
             $updateAvailable = version_compare($latestVersion, $currentVersion, '>');
 
+            $this->debugLog('INFO', 'Controllo completato', [
+                'current' => $currentVersion,
+                'latest' => $latestVersion,
+                'update_available' => $updateAvailable,
+                'release_name' => $release['name'] ?? 'N/A',
+                'published_at' => $release['published_at'] ?? 'N/A'
+            ]);
+
             return [
                 'available' => $updateAvailable,
                 'current' => $currentVersion,
@@ -123,7 +191,13 @@ class Updater
             ];
 
         } catch (Exception $e) {
-            error_log("[Updater] Error checking for updates: " . $e->getMessage());
+            $this->debugLog('ERROR', 'Errore durante controllo aggiornamenti', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return [
                 'available' => false,
                 'current' => $currentVersion,
@@ -141,30 +215,198 @@ class Updater
     {
         $url = "https://api.github.com/repos/{$this->repoOwner}/{$this->repoName}/releases/latest";
 
+        $this->debugLog('INFO', 'Richiesta GitHub API - latest release', [
+            'url' => $url,
+            'repo' => "{$this->repoOwner}/{$this->repoName}"
+        ]);
+
+        return $this->makeGitHubRequest($url);
+    }
+
+    /**
+     * Make HTTP request to GitHub API with detailed logging
+     */
+    private function makeGitHubRequest(string $url): ?array
+    {
+        $this->debugLog('DEBUG', 'Preparazione richiesta HTTP', [
+            'url' => $url,
+            'method' => 'GET'
+        ]);
+
+        $headers = [
+            'User-Agent: Pinakes-Updater/1.0',
+            'Accept: application/vnd.github.v3+json'
+        ];
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
-                'header' => [
-                    'User-Agent: Pinakes-Updater/1.0',
-                    'Accept: application/vnd.github.v3+json'
-                ],
-                'timeout' => 30
+                'header' => $headers,
+                'timeout' => 30,
+                'ignore_errors' => true // Questo ci permette di leggere anche risposte di errore
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
             ]
         ]);
 
+        $this->debugLog('DEBUG', 'Context HTTP creato', [
+            'headers' => $headers,
+            'timeout' => 30
+        ]);
+
+        // Capture response headers
+        $responseHeaders = [];
         $response = @file_get_contents($url, false, $context);
 
+        // Get response headers from $http_response_header (magic variable)
+        if (isset($http_response_header)) {
+            $responseHeaders = $http_response_header;
+        }
+
+        $this->debugLog('DEBUG', 'Risposta HTTP ricevuta', [
+            'response_length' => $response !== false ? strlen($response) : 0,
+            'response_headers' => $responseHeaders,
+            'response_preview' => $response !== false ? substr($response, 0, 500) : 'FALSE'
+        ]);
+
         if ($response === false) {
-            throw new Exception(__('Impossibile connettersi a GitHub'));
+            $error = error_get_last();
+            $this->debugLog('ERROR', 'Richiesta HTTP fallita', [
+                'url' => $url,
+                'error' => $error,
+                'response_headers' => $responseHeaders
+            ]);
+
+            // Prova a capire il problema
+            $this->diagnoseConnectionProblem($url);
+
+            throw new Exception(__('Impossibile connettersi a GitHub') . ': ' . ($error['message'] ?? 'Unknown error'));
+        }
+
+        // Parse status code from headers
+        $statusCode = 0;
+        if (!empty($responseHeaders[0])) {
+            preg_match('/HTTP\/\d\.\d\s+(\d+)/', $responseHeaders[0], $matches);
+            $statusCode = (int)($matches[1] ?? 0);
+        }
+
+        $this->debugLog('INFO', 'Status code HTTP', ['status' => $statusCode]);
+
+        if ($statusCode >= 400) {
+            $this->debugLog('ERROR', 'GitHub API ha restituito errore', [
+                'status_code' => $statusCode,
+                'response' => $response,
+                'url' => $url
+            ]);
+
+            // Decodifica errore GitHub
+            $errorData = json_decode($response, true);
+            $errorMessage = $errorData['message'] ?? 'Unknown GitHub error';
+
+            throw new Exception("GitHub API error ({$statusCode}): {$errorMessage}");
         }
 
         $data = json_decode($response, true);
 
-        if (!is_array($data) || !isset($data['tag_name'])) {
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->debugLog('ERROR', 'Errore parsing JSON', [
+                'json_error' => json_last_error_msg(),
+                'response_preview' => substr($response, 0, 1000)
+            ]);
             return null;
         }
 
+        if (!is_array($data) || !isset($data['tag_name'])) {
+            $this->debugLog('WARNING', 'Risposta GitHub non contiene tag_name', [
+                'keys' => is_array($data) ? array_keys($data) : 'not_array',
+                'data_preview' => is_array($data) ? json_encode(array_slice($data, 0, 5)) : 'N/A'
+            ]);
+            return null;
+        }
+
+        $this->debugLog('INFO', 'Release trovata', [
+            'tag_name' => $data['tag_name'],
+            'name' => $data['name'] ?? 'N/A',
+            'assets_count' => count($data['assets'] ?? []),
+            'zipball_url' => $data['zipball_url'] ?? 'N/A'
+        ]);
+
         return $data;
+    }
+
+    /**
+     * Diagnose connection problems
+     */
+    private function diagnoseConnectionProblem(string $url): void
+    {
+        $this->debugLog('INFO', '=== DIAGNOSI CONNESSIONE ===');
+
+        // Test DNS
+        $host = parse_url($url, PHP_URL_HOST);
+        $ip = @gethostbyname($host);
+        $this->debugLog('DEBUG', 'DNS lookup', [
+            'host' => $host,
+            'resolved_ip' => $ip,
+            'dns_ok' => ($ip !== $host)
+        ]);
+
+        // Test SSL
+        if (extension_loaded('openssl')) {
+            $sslContext = stream_context_create(['ssl' => ['capture_peer_cert' => true]]);
+            $socket = @stream_socket_client(
+                "ssl://{$host}:443",
+                $errno,
+                $errstr,
+                10,
+                STREAM_CLIENT_CONNECT,
+                $sslContext
+            );
+
+            if ($socket) {
+                $this->debugLog('DEBUG', 'SSL connection OK', ['host' => $host]);
+                fclose($socket);
+            } else {
+                $this->debugLog('ERROR', 'SSL connection FAILED', [
+                    'host' => $host,
+                    'errno' => $errno,
+                    'errstr' => $errstr
+                ]);
+            }
+        } else {
+            $this->debugLog('WARNING', 'OpenSSL extension non disponibile');
+        }
+
+        // Check if allow_url_fopen is enabled
+        $this->debugLog('DEBUG', 'PHP config check', [
+            'allow_url_fopen' => ini_get('allow_url_fopen'),
+            'default_socket_timeout' => ini_get('default_socket_timeout'),
+            'openssl_version' => defined('OPENSSL_VERSION_TEXT') ? OPENSSL_VERSION_TEXT : 'N/A'
+        ]);
+
+        // Test with cURL if available
+        if (extension_loaded('curl')) {
+            $this->debugLog('DEBUG', 'Testing with cURL...');
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_HTTPHEADER => ['User-Agent: Pinakes-Updater/1.0'],
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+            $curlResult = curl_exec($ch);
+            $curlInfo = curl_getinfo($ch);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            $this->debugLog('DEBUG', 'cURL test result', [
+                'success' => $curlResult !== false,
+                'http_code' => $curlInfo['http_code'] ?? 0,
+                'total_time' => $curlInfo['total_time'] ?? 0,
+                'error' => $curlError ?: 'none'
+            ]);
+        }
     }
 
     /**
@@ -175,6 +417,8 @@ class Updater
     {
         $url = "https://api.github.com/repos/{$this->repoOwner}/{$this->repoName}/releases?per_page={$limit}";
 
+        $this->debugLog('INFO', 'Recupero tutte le releases', ['url' => $url, 'limit' => $limit]);
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
@@ -182,17 +426,28 @@ class Updater
                     'User-Agent: Pinakes-Updater/1.0',
                     'Accept: application/vnd.github.v3+json'
                 ],
-                'timeout' => 30
+                'timeout' => 30,
+                'ignore_errors' => true
             ]
         ]);
 
         $response = @file_get_contents($url, false, $context);
 
         if ($response === false) {
+            $this->debugLog('ERROR', 'Impossibile recuperare releases', [
+                'error' => error_get_last()
+            ]);
             return [];
         }
 
-        return json_decode($response, true) ?? [];
+        $releases = json_decode($response, true) ?? [];
+
+        $this->debugLog('INFO', 'Releases recuperate', [
+            'count' => count($releases),
+            'versions' => array_map(fn($r) => $r['tag_name'] ?? 'unknown', $releases)
+        ]);
+
+        return $releases;
     }
 
     /**
@@ -201,39 +456,72 @@ class Updater
      */
     public function downloadUpdate(string $version): array
     {
+        $this->debugLog('INFO', '=== INIZIO DOWNLOAD UPDATE ===', ['target_version' => $version]);
+
         try {
             // Get release info
+            $this->debugLog('DEBUG', 'Recupero info release per versione', ['version' => $version]);
             $release = $this->getReleaseByVersion($version);
 
             if ($release === null) {
+                $this->debugLog('ERROR', 'Release non trovata', ['version' => $version]);
                 throw new Exception(__('Versione non trovata'));
             }
+
+            $this->debugLog('INFO', 'Release trovata', [
+                'tag' => $release['tag_name'],
+                'name' => $release['name'] ?? 'N/A',
+                'assets' => array_map(fn($a) => $a['name'], $release['assets'] ?? [])
+            ]);
 
             // Find the source code zip asset or use zipball_url
             $downloadUrl = $release['zipball_url'] ?? null;
 
             // Check for custom asset named pinakes-vX.X.X.zip first
             foreach ($release['assets'] ?? [] as $asset) {
+                $this->debugLog('DEBUG', 'Controllo asset', [
+                    'name' => $asset['name'],
+                    'size' => $asset['size'] ?? 0,
+                    'download_url' => $asset['browser_download_url'] ?? 'N/A'
+                ]);
+
                 if (preg_match('/pinakes.*\.zip$/i', $asset['name'])) {
                     $downloadUrl = $asset['browser_download_url'];
+                    $this->debugLog('INFO', 'Trovato asset personalizzato', [
+                        'name' => $asset['name'],
+                        'url' => $downloadUrl
+                    ]);
                     break;
                 }
             }
 
             if (!$downloadUrl) {
+                $this->debugLog('ERROR', 'URL di download non trovato', [
+                    'release' => $release['tag_name']
+                ]);
                 throw new Exception(__('URL di download non trovato'));
             }
 
+            $this->debugLog('INFO', 'URL download selezionato', ['url' => $downloadUrl]);
+
             // Create temp directory
             if (!is_dir($this->tempPath)) {
+                $this->debugLog('DEBUG', 'Creazione directory temporanea', ['path' => $this->tempPath]);
                 if (!mkdir($this->tempPath, 0755, true) && !is_dir($this->tempPath)) {
+                    $this->debugLog('ERROR', 'Impossibile creare directory temporanea', [
+                        'path' => $this->tempPath,
+                        'error' => error_get_last()
+                    ]);
                     throw new Exception(__('Impossibile creare directory temporanea'));
                 }
             }
 
             $zipPath = $this->tempPath . '/update.zip';
+            $this->debugLog('DEBUG', 'Path file ZIP', ['path' => $zipPath]);
 
             // Download the file
+            $this->debugLog('INFO', 'Inizio download file...', ['url' => $downloadUrl]);
+
             $context = stream_context_create([
                 'http' => [
                     'method' => 'GET',
@@ -242,31 +530,114 @@ class Updater
                         'Accept: application/octet-stream'
                     ],
                     'timeout' => 300,
-                    'follow_location' => true
+                    'follow_location' => true,
+                    'ignore_errors' => true
                 ]
             ]);
 
+            $startTime = microtime(true);
             $fileContent = @file_get_contents($downloadUrl, false, $context);
+            $downloadTime = round(microtime(true) - $startTime, 2);
 
-            if ($fileContent === false) {
-                throw new Exception(__('Download fallito'));
+            // Log response headers
+            if (isset($http_response_header)) {
+                $this->debugLog('DEBUG', 'Response headers download', [
+                    'headers' => $http_response_header
+                ]);
             }
 
-            if (file_put_contents($zipPath, $fileContent) === false) {
+            if ($fileContent === false) {
+                $error = error_get_last();
+                $this->debugLog('ERROR', 'Download fallito', [
+                    'url' => $downloadUrl,
+                    'error' => $error,
+                    'download_time' => $downloadTime
+                ]);
+                throw new Exception(__('Download fallito') . ': ' . ($error['message'] ?? 'Unknown error'));
+            }
+
+            $fileSize = strlen($fileContent);
+            $this->debugLog('INFO', 'Download completato', [
+                'size_bytes' => $fileSize,
+                'size_mb' => round($fileSize / 1024 / 1024, 2),
+                'time_seconds' => $downloadTime
+            ]);
+
+            if ($fileSize < 1000) {
+                $this->debugLog('ERROR', 'File scaricato troppo piccolo - probabilmente errore', [
+                    'content_preview' => substr($fileContent, 0, 500)
+                ]);
+                throw new Exception(__('File di aggiornamento non valido (troppo piccolo)'));
+            }
+
+            // Save file
+            $this->debugLog('DEBUG', 'Salvataggio file ZIP', ['path' => $zipPath]);
+            $bytesWritten = file_put_contents($zipPath, $fileContent);
+
+            if ($bytesWritten === false) {
+                $this->debugLog('ERROR', 'Impossibile salvare file', [
+                    'path' => $zipPath,
+                    'error' => error_get_last()
+                ]);
                 throw new Exception(__('Impossibile salvare il file di aggiornamento'));
             }
 
+            $this->debugLog('INFO', 'File salvato', [
+                'path' => $zipPath,
+                'bytes_written' => $bytesWritten
+            ]);
+
             // Verify it's a valid zip
+            $this->debugLog('DEBUG', 'Verifica integrità ZIP');
             $zip = new ZipArchive();
-            if ($zip->open($zipPath) !== true) {
+            $zipOpenResult = $zip->open($zipPath);
+
+            if ($zipOpenResult !== true) {
+                $zipErrors = [
+                    ZipArchive::ER_EXISTS => 'File already exists',
+                    ZipArchive::ER_INCONS => 'Zip archive inconsistent',
+                    ZipArchive::ER_INVAL => 'Invalid argument',
+                    ZipArchive::ER_MEMORY => 'Malloc failure',
+                    ZipArchive::ER_NOENT => 'No such file',
+                    ZipArchive::ER_NOZIP => 'Not a zip archive',
+                    ZipArchive::ER_OPEN => 'Can\'t open file',
+                    ZipArchive::ER_READ => 'Read error',
+                    ZipArchive::ER_SEEK => 'Seek error',
+                ];
+
+                $this->debugLog('ERROR', 'File ZIP non valido', [
+                    'error_code' => $zipOpenResult,
+                    'error_message' => $zipErrors[$zipOpenResult] ?? 'Unknown error',
+                    'file_size' => filesize($zipPath),
+                    'file_first_bytes' => bin2hex(substr(file_get_contents($zipPath), 0, 20))
+                ]);
                 throw new Exception(__('File di aggiornamento non valido'));
             }
 
+            $this->debugLog('INFO', 'ZIP valido', [
+                'num_files' => $zip->numFiles,
+                'status' => $zip->status,
+                'comment' => $zip->comment ?: 'none'
+            ]);
+
+            // List first 10 files in ZIP for debugging
+            $zipContents = [];
+            for ($i = 0; $i < min(10, $zip->numFiles); $i++) {
+                $zipContents[] = $zip->getNameIndex($i);
+            }
+            $this->debugLog('DEBUG', 'Contenuto ZIP (primi 10 file)', ['files' => $zipContents]);
+
             // Extract to temp directory
             $extractPath = $this->tempPath . '/extracted';
+            $this->debugLog('DEBUG', 'Estrazione ZIP', ['destination' => $extractPath]);
+
             if (!$zip->extractTo($extractPath)) {
                 $zip->close();
-                // Clean up partial extraction and downloaded zip
+                $this->debugLog('ERROR', 'Estrazione fallita', [
+                    'destination' => $extractPath,
+                    'zip_status' => $zip->status
+                ]);
+                // Clean up
                 if (is_dir($extractPath)) {
                     $this->deleteDirectory($extractPath);
                 }
@@ -275,9 +646,36 @@ class Updater
             }
             $zip->close();
 
+            $this->debugLog('INFO', 'Estrazione completata', ['path' => $extractPath]);
+
             // Find the actual content directory (GitHub adds a prefix)
             $dirs = glob($extractPath . '/*', GLOB_ONLYDIR);
+            $this->debugLog('DEBUG', 'Directory estratte', ['dirs' => $dirs]);
+
             $contentPath = count($dirs) === 1 ? $dirs[0] : $extractPath;
+
+            // Verify package structure
+            $this->debugLog('DEBUG', 'Verifica struttura pacchetto', ['path' => $contentPath]);
+            $requiredFiles = ['version.json', 'app', 'public', 'installer'];
+            $foundFiles = [];
+            $missingFiles = [];
+
+            foreach ($requiredFiles as $required) {
+                if (file_exists($contentPath . '/' . $required)) {
+                    $foundFiles[] = $required;
+                } else {
+                    $missingFiles[] = $required;
+                }
+            }
+
+            $this->debugLog('INFO', 'Verifica struttura', [
+                'found' => $foundFiles,
+                'missing' => $missingFiles
+            ]);
+
+            if (!empty($missingFiles)) {
+                $this->debugLog('ERROR', 'Pacchetto incompleto', ['missing' => $missingFiles]);
+            }
 
             return [
                 'success' => true,
@@ -286,7 +684,12 @@ class Updater
             ];
 
         } catch (Exception $e) {
-            error_log("[Updater] Download error: " . $e->getMessage());
+            $this->debugLog('ERROR', 'Errore download/estrazione', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
             return [
                 'success' => false,
                 'path' => null,
@@ -303,30 +706,21 @@ class Updater
         $tag = strpos($version, 'v') === 0 ? $version : 'v' . $version;
         $url = "https://api.github.com/repos/{$this->repoOwner}/{$this->repoName}/releases/tags/{$tag}";
 
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => [
-                    'User-Agent: Pinakes-Updater/1.0',
-                    'Accept: application/vnd.github.v3+json'
-                ],
-                'timeout' => 30
-            ]
+        $this->debugLog('INFO', 'Recupero release per tag', [
+            'version' => $version,
+            'tag' => $tag,
+            'url' => $url
         ]);
 
-        $response = @file_get_contents($url, false, $context);
-
-        if ($response === false) {
+        try {
+            return $this->makeGitHubRequest($url);
+        } catch (Exception $e) {
+            $this->debugLog('ERROR', 'Errore recupero release per versione', [
+                'version' => $version,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
-
-        $data = json_decode($response, true);
-
-        if (!is_array($data) || !isset($data['tag_name'])) {
-            return null;
-        }
-
-        return $data;
     }
 
     /**
@@ -337,11 +731,19 @@ class Updater
     {
         $logId = null;
 
+        $this->debugLog('INFO', '=== INIZIO BACKUP ===');
+
         try {
             $timestamp = date('Y-m-d_His');
             $backupDir = $this->backupPath . '/update_' . $timestamp;
 
+            $this->debugLog('DEBUG', 'Creazione directory backup', ['path' => $backupDir]);
+
             if (!mkdir($backupDir, 0755, true) && !is_dir($backupDir)) {
+                $this->debugLog('ERROR', 'Impossibile creare directory backup', [
+                    'path' => $backupDir,
+                    'error' => error_get_last()
+                ]);
                 throw new Exception(__('Impossibile creare directory di backup'));
             }
 
@@ -349,13 +751,23 @@ class Updater
             $logId = $this->logUpdateStart($this->getCurrentVersion(), 'backup', $backupDir);
 
             // Backup database
+            $this->debugLog('INFO', 'Inizio backup database');
             $dbBackupResult = $this->backupDatabase($backupDir . '/database.sql');
+
             if (!$dbBackupResult['success']) {
+                $this->debugLog('ERROR', 'Backup database fallito', [
+                    'error' => $dbBackupResult['error']
+                ]);
                 throw new Exception($dbBackupResult['error']);
             }
 
             // Mark backup as complete
             $this->logUpdateComplete($logId, true);
+
+            $this->debugLog('INFO', 'Backup completato con successo', [
+                'path' => $backupDir,
+                'db_file' => $backupDir . '/database.sql'
+            ]);
 
             return [
                 'success' => true,
@@ -364,9 +776,11 @@ class Updater
             ];
 
         } catch (Exception $e) {
-            error_log("[Updater] Backup error: " . $e->getMessage());
+            $this->debugLog('ERROR', 'Errore durante backup', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage()
+            ]);
 
-            // Mark backup as failed if log was started
             if ($logId !== null) {
                 $this->logUpdateComplete($logId, false, $e->getMessage());
             }
@@ -398,7 +812,6 @@ class Updater
             $dbFile = $dir . '/database.sql';
             $size = file_exists($dbFile) ? filesize($dbFile) : 0;
 
-            // Extract date from directory name (update_2025-12-05_143000)
             $dateStr = str_replace('update_', '', $name);
             $dateStr = str_replace('_', ' ', $dateStr);
 
@@ -411,7 +824,6 @@ class Updater
             ];
         }
 
-        // Sort by created_at descending (newest first)
         usort($backups, fn($a, $b) => $b['created_at'] - $a['created_at']);
 
         return $backups;
@@ -423,14 +835,12 @@ class Updater
      */
     public function deleteBackup(string $backupName): array
     {
-        // Validate backup name to prevent directory traversal
         if (preg_match('/[\/\\\\]|\.\./', $backupName)) {
             return ['success' => false, 'error' => __('Nome backup non valido')];
         }
 
         $backupPath = $this->backupPath . '/' . $backupName;
 
-        // Verify it exists and is within backup directory
         if (!is_dir($backupPath)) {
             return ['success' => false, 'error' => __('Backup non trovato')];
         }
@@ -457,7 +867,6 @@ class Updater
      */
     public function getBackupDownloadPath(string $backupName): array
     {
-        // Validate backup name
         if (preg_match('/[\/\\\\]|\.\./', $backupName)) {
             return ['success' => false, 'path' => null, 'filename' => null, 'error' => __('Nome backup non valido')];
         }
@@ -469,7 +878,6 @@ class Updater
             return ['success' => false, 'path' => null, 'filename' => null, 'error' => __('File backup non trovato')];
         }
 
-        // Verify path is within backup directory
         $realDbFile = realpath($dbFile);
         $realBackupDir = realpath($this->backupPath);
 
@@ -487,7 +895,7 @@ class Updater
     }
 
     /**
-     * Backup database to file using streaming to prevent memory exhaustion
+     * Backup database to file using streaming
      * @return array{success: bool, error: string|null}
      */
     private function backupDatabase(string $filepath): array
@@ -495,9 +903,8 @@ class Updater
         $handle = null;
 
         try {
-            SecureLogger::info(__('Avvio backup database'), ['filepath' => $filepath]);
+            $this->debugLog('INFO', 'Avvio backup database', ['filepath' => $filepath]);
 
-            // Open file handle for streaming writes (prevents memory exhaustion)
             $handle = fopen($filepath, 'w');
             if ($handle === false) {
                 throw new Exception(__('Impossibile aprire file di backup per scrittura'));
@@ -515,7 +922,7 @@ class Updater
             }
             $result->free();
 
-            SecureLogger::debug(__('Trovate tabelle da backuppare'), ['count' => count($tables)]);
+            $this->debugLog('DEBUG', 'Tabelle trovate', ['count' => count($tables), 'tables' => $tables]);
 
             // Write header
             fwrite($handle, "-- Pinakes Database Backup\n");
@@ -525,7 +932,7 @@ class Updater
             fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n\n");
 
             foreach ($tables as $table) {
-                SecureLogger::debug(__('Backup tabella'), ['table' => $table]);
+                $this->debugLog('DEBUG', 'Backup tabella', ['table' => $table]);
 
                 // Get create table statement
                 $createResult = $this->db->query("SHOW CREATE TABLE `{$table}`");
@@ -538,7 +945,7 @@ class Updater
                 fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
                 fwrite($handle, $createRow[1] . ";\n\n");
 
-                // Get data with unbuffered query to reduce memory usage
+                // Get data with unbuffered query
                 $this->db->real_query("SELECT * FROM `{$table}`");
                 $dataResult = $this->db->use_result();
 
@@ -568,7 +975,7 @@ class Updater
             $handle = null;
 
             $fileSize = filesize($filepath);
-            SecureLogger::info(__('Backup database completato'), [
+            $this->debugLog('INFO', 'Backup database completato', [
                 'filepath' => $filepath,
                 'size' => $this->formatBytes((float)$fileSize),
                 'tables' => count($tables)
@@ -577,14 +984,12 @@ class Updater
             return ['success' => true, 'error' => null];
 
         } catch (Exception $e) {
-            SecureLogger::error(__('Errore backup database'), ['error' => $e->getMessage()]);
+            $this->debugLog('ERROR', 'Errore backup database', ['error' => $e->getMessage()]);
 
-            // Clean up file handle
             if ($handle !== null && is_resource($handle)) {
                 fclose($handle);
             }
 
-            // Remove partial backup file
             if (file_exists($filepath)) {
                 @unlink($filepath);
             }
@@ -602,11 +1007,17 @@ class Updater
         $appBackupPath = null;
         $logId = null;
 
+        $this->debugLog('INFO', '=== INIZIO INSTALLAZIONE UPDATE ===', [
+            'source' => $sourcePath,
+            'target_version' => $targetVersion
+        ]);
+
         try {
             $currentVersion = $this->getCurrentVersion();
 
             // Verify source exists
             if (!is_dir($sourcePath)) {
+                $this->debugLog('ERROR', 'Directory sorgente non trovata', ['path' => $sourcePath]);
                 throw new Exception(__('Directory sorgente non trovata'));
             }
 
@@ -614,6 +1025,10 @@ class Updater
             $requiredPaths = ['version.json', 'app', 'public', 'installer'];
             foreach ($requiredPaths as $required) {
                 if (!file_exists($sourcePath . '/' . $required)) {
+                    $this->debugLog('ERROR', 'File/directory mancante nel pacchetto', [
+                        'missing' => $required,
+                        'source' => $sourcePath
+                    ]);
                     throw new Exception(sprintf(__('Pacchetto di aggiornamento non valido: manca %s'), $required));
                 }
             }
@@ -621,33 +1036,51 @@ class Updater
             // Log update start
             $logId = $this->logUpdateStart($currentVersion, $targetVersion, null);
 
-            // Backup current app files for atomic rollback
+            // Backup current app files
+            $this->debugLog('INFO', 'Backup file applicazione per rollback');
             $appBackupPath = $this->backupAppFiles();
 
-            // Copy files, preserving protected paths
+            // Copy files
+            $this->debugLog('INFO', 'Copia file aggiornamento');
             $this->copyDirectory($sourcePath, $this->rootPath);
 
-            // Clean up orphan files (files in old version but not in new)
+            // Clean up orphan files
+            $this->debugLog('INFO', 'Pulizia file orfani');
             $this->cleanupOrphanFiles($sourcePath);
 
             // Run database migrations
+            $this->debugLog('INFO', 'Esecuzione migrazioni database', [
+                'from' => $currentVersion,
+                'to' => $targetVersion
+            ]);
             $migrationResult = $this->runMigrations($currentVersion, $targetVersion);
 
             if (!$migrationResult['success']) {
+                $this->debugLog('ERROR', 'Migrazione fallita', [
+                    'error' => $migrationResult['error'],
+                    'executed' => $migrationResult['executed']
+                ]);
                 throw new Exception($migrationResult['error']);
             }
 
+            $this->debugLog('INFO', 'Migrazioni completate', [
+                'executed' => $migrationResult['executed']
+            ]);
+
             // Fix file permissions
+            $this->debugLog('INFO', 'Fix permessi file');
             $this->fixPermissions();
 
             // Mark update as complete
             $this->logUpdateComplete($logId, true);
 
-            // Cleanup temp files and app backup (success, no rollback needed)
+            // Cleanup
             $this->cleanup();
             if ($appBackupPath !== null && is_dir($appBackupPath)) {
                 $this->deleteDirectory($appBackupPath);
             }
+
+            $this->debugLog('INFO', '=== INSTALLAZIONE COMPLETATA CON SUCCESSO ===');
 
             return [
                 'success' => true,
@@ -655,16 +1088,23 @@ class Updater
             ];
 
         } catch (Exception $e) {
-            error_log("[Updater] Install error: " . $e->getMessage());
+            $this->debugLog('ERROR', 'Errore durante installazione', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
 
-            // Attempt to restore from backup if available
+            // Attempt rollback
             if ($appBackupPath !== null && is_dir($appBackupPath)) {
                 try {
-                    error_log("[Updater] Attempting rollback from: " . $appBackupPath);
+                    $this->debugLog('WARNING', 'Tentativo rollback', ['backup' => $appBackupPath]);
                     $this->restoreAppFiles($appBackupPath);
-                    error_log("[Updater] Rollback completed successfully");
+                    $this->debugLog('INFO', 'Rollback completato');
                 } catch (Exception $rollbackError) {
-                    error_log("[Updater] Rollback failed: " . $rollbackError->getMessage());
+                    $this->debugLog('ERROR', 'Rollback fallito', [
+                        'error' => $rollbackError->getMessage()
+                    ]);
                 }
             }
 
@@ -681,7 +1121,6 @@ class Updater
 
     /**
      * Backup application files for atomic rollback
-     * @return string Path to backup directory
      */
     private function backupAppFiles(): string
     {
@@ -692,7 +1131,6 @@ class Updater
             throw new Exception(__('Impossibile creare directory di backup applicazione'));
         }
 
-        // Directories to backup for rollback (vendor included - critical for dependencies)
         $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
 
         foreach ($dirsToBackup as $dir) {
@@ -704,7 +1142,6 @@ class Updater
             }
         }
 
-        // Also backup version.json
         $versionFile = $this->rootPath . '/version.json';
         if (file_exists($versionFile)) {
             copy($versionFile, $backupPath . '/version.json');
@@ -725,7 +1162,6 @@ class Updater
             $destPath = $this->rootPath . '/' . $dir;
 
             if (is_dir($sourcePath)) {
-                // Delete current and restore from backup
                 if (is_dir($destPath)) {
                     $this->deleteDirectory($destPath);
                 }
@@ -733,7 +1169,6 @@ class Updater
             }
         }
 
-        // Restore version.json
         $backupVersion = $backupPath . '/version.json';
         if (file_exists($backupVersion)) {
             copy($backupVersion, $this->rootPath . '/version.json');
@@ -741,7 +1176,7 @@ class Updater
     }
 
     /**
-     * Copy directory recursively (simple copy without preserve/skip logic)
+     * Copy directory recursively
      */
     private function copyDirectoryRecursive(string $source, string $dest): void
     {
@@ -773,12 +1208,10 @@ class Updater
     }
 
     /**
-     * Clean up orphan files that exist in old version but not in new
+     * Clean up orphan files
      */
     private function cleanupOrphanFiles(string $newSourcePath): void
     {
-        // Directories to check for orphan files
-        // NOTE: vendor/ is NOT included - it's fully replaced from the release package
         $dirsToCheck = ['app', 'config', 'locale', 'installer', 'public/assets'];
 
         foreach ($dirsToCheck as $dir) {
@@ -808,21 +1241,18 @@ class Updater
             $newPath = $newDir . '/' . $relativePath;
             $fullRelativePath = $basePath . '/' . $relativePath;
 
-            // Skip preserved paths
             foreach ($this->preservePaths as $preservePath) {
                 if (strpos($fullRelativePath, $preservePath) === 0) {
                     continue 2;
                 }
             }
 
-            // If file/dir doesn't exist in new version, remove it
             if (!file_exists($newPath)) {
                 if ($item->isDir()) {
-                    // Only remove empty directories
                     @rmdir($item->getPathname());
                 } else {
                     @unlink($item->getPathname());
-                    error_log("[Updater] Removed orphan file: " . $fullRelativePath);
+                    $this->debugLog('DEBUG', 'Rimosso file orfano', ['path' => $fullRelativePath]);
                 }
             }
         }
@@ -841,33 +1271,28 @@ class Updater
         foreach ($iterator as $item) {
             $relativePath = str_replace($source . '/', '', $item->getPathname());
 
-            // Path traversal protection - reject paths with .. or null bytes
             if (str_contains($relativePath, '..') || str_contains($relativePath, "\0")) {
                 throw new Exception(sprintf(__('Percorso non valido nel pacchetto: %s'), $relativePath));
             }
 
-            // Skip symlinks for security
             if ($item->isLink()) {
                 continue;
             }
 
             $targetPath = $dest . '/' . $relativePath;
 
-            // Verify target path is still within destination (double-check)
             $realDest = realpath($dest);
             $parentTarget = realpath(dirname($targetPath));
             if ($parentTarget !== false && $realDest !== false && strpos($parentTarget, $realDest) !== 0) {
                 throw new Exception(sprintf(__('Percorso non valido nel pacchetto: %s'), $relativePath));
             }
 
-            // Check if path should be skipped
             foreach ($this->skipPaths as $skipPath) {
                 if (strpos($relativePath, $skipPath) === 0) {
                     continue 2;
                 }
             }
 
-            // Check if path should be preserved (don't overwrite)
             foreach ($this->preservePaths as $preservePath) {
                 if (strpos($relativePath, $preservePath) === 0 && file_exists($targetPath)) {
                     continue 2;
@@ -881,7 +1306,6 @@ class Updater
                     }
                 }
             } else {
-                // Ensure parent directory exists
                 $parentDir = dirname($targetPath);
                 if (!is_dir($parentDir)) {
                     if (!mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
@@ -903,47 +1327,55 @@ class Updater
     {
         $executed = [];
 
+        $this->debugLog('INFO', 'Inizio migrazioni', [
+            'from' => $fromVersion,
+            'to' => $toVersion
+        ]);
+
         try {
             $migrationsPath = $this->rootPath . '/installer/database/migrations';
 
             if (!is_dir($migrationsPath)) {
+                $this->debugLog('WARNING', 'Directory migrazioni non trovata', ['path' => $migrationsPath]);
                 return ['success' => true, 'executed' => [], 'error' => null];
             }
 
-            // Get all migration files
             $files = glob($migrationsPath . '/migrate_*.sql');
             sort($files);
+
+            $this->debugLog('DEBUG', 'File migrazioni trovati', [
+                'count' => count($files),
+                'files' => array_map('basename', $files)
+            ]);
 
             foreach ($files as $file) {
                 $filename = basename($file);
 
-                // Extract version from filename (migrate_0.3.0.sql -> 0.3.0)
                 if (preg_match('/migrate_(.+)\.sql$/', $filename, $matches)) {
                     $migrationVersion = $matches[1];
 
-                    // Only run migrations that are newer than current and <= target
+                    $this->debugLog('DEBUG', 'Valutazione migrazione', [
+                        'file' => $filename,
+                        'migration_version' => $migrationVersion,
+                        'from_version' => $fromVersion,
+                        'to_version' => $toVersion,
+                        'is_newer_than_from' => version_compare($migrationVersion, $fromVersion, '>'),
+                        'is_lte_to' => version_compare($migrationVersion, $toVersion, '<=')
+                    ]);
+
                     if (version_compare($migrationVersion, $fromVersion, '>') &&
                         version_compare($migrationVersion, $toVersion, '<=')) {
 
-                        // Check if already executed
                         if ($this->isMigrationExecuted($migrationVersion)) {
+                            $this->debugLog('DEBUG', 'Migrazione già eseguita, skip', ['version' => $migrationVersion]);
                             continue;
                         }
 
-                        // Execute migration
+                        $this->debugLog('INFO', 'Esecuzione migrazione', ['file' => $filename]);
+
                         $sql = file_get_contents($file);
 
                         if ($sql !== false && trim($sql) !== '') {
-                            // Split into individual statements
-                            // NOTE: Migration files must contain simple SQL statements only.
-                            // Not supported: stored procedures, triggers, strings containing ';',
-                            // or multi-line comments containing ';'. For complex migrations,
-                            // use multiple simple statements.
-
-                            // Remove SQL comments (full-line only, starting with --)
-                            // NOTE: This only removes full-line comments, not inline comments
-                            // (e.g., "SELECT * -- comment") or multi-line comments (/* ... */).
-                            // Migration files should avoid inline comments for compatibility.
                             $sqlLines = explode("\n", $sql);
                             $sqlLines = array_filter($sqlLines, fn($line) => !preg_match('/^\s*--/', $line));
                             $sql = implode("\n", $sqlLines);
@@ -953,31 +1385,42 @@ class Updater
                                 fn($s) => !empty($s)
                             );
 
-                            foreach ($statements as $statement) {
+                            $this->debugLog('DEBUG', 'Statement da eseguire', [
+                                'count' => count($statements)
+                            ]);
+
+                            foreach ($statements as $idx => $statement) {
                                 if (!empty(trim($statement))) {
+                                    $this->debugLog('DEBUG', 'Esecuzione statement', [
+                                        'index' => $idx,
+                                        'sql_preview' => substr($statement, 0, 100)
+                                    ]);
+
                                     $result = $this->db->query($statement);
                                     if ($result === false) {
-                                        // Ignore idempotent errors (safe to retry migrations)
-                                        // 1060: Duplicate column name (column already added)
-                                        // 1061: Duplicate key name (index already exists)
-                                        // 1050: Table already exists (use IF NOT EXISTS in migrations)
-                                        // Note: 1068 (Multiple primary key) is NOT ignored - it's a schema error
                                         $ignorableErrors = [1060, 1061, 1050];
                                         if (!in_array($this->db->errno, $ignorableErrors, true)) {
+                                            $this->debugLog('ERROR', 'Errore SQL', [
+                                                'errno' => $this->db->errno,
+                                                'error' => $this->db->error,
+                                                'statement' => $statement
+                                            ]);
                                             throw new Exception(
                                                 sprintf(__('Errore SQL durante migrazione %s: %s'), $filename, $this->db->error)
                                             );
                                         }
-                                        // Log ignorable error but continue (expected on re-run)
-                                        error_log("[Updater] Ignorable migration error in {$filename} (errno {$this->db->errno}): " . $this->db->error);
+                                        $this->debugLog('WARNING', 'Errore SQL ignorabile', [
+                                            'errno' => $this->db->errno,
+                                            'error' => $this->db->error
+                                        ]);
                                     }
                                 }
                             }
                         }
 
-                        // Record migration
                         $this->recordMigration($migrationVersion, $filename);
                         $executed[] = $filename;
+                        $this->debugLog('INFO', 'Migrazione completata', ['file' => $filename]);
                     }
                 }
             }
@@ -989,6 +1432,10 @@ class Updater
             ];
 
         } catch (Exception $e) {
+            $this->debugLog('ERROR', 'Errore durante migrazioni', [
+                'error' => $e->getMessage(),
+                'executed_so_far' => $executed
+            ]);
             return [
                 'success' => false,
                 'executed' => $executed,
@@ -1016,7 +1463,6 @@ class Updater
      */
     private function isMigrationExecuted(string $version): bool
     {
-        // If migrations table doesn't exist yet, no migrations have been executed
         if (!$this->migrationsTableExists()) {
             return false;
         }
@@ -1042,12 +1488,10 @@ class Updater
      */
     private function recordMigration(string $version, string $filename): void
     {
-        // Ensure migrations table exists
         if (!$this->migrationsTableExists()) {
             $this->createMigrationsTable();
         }
 
-        // Get current batch number
         $result = $this->db->query("SELECT MAX(batch) as max_batch FROM migrations");
         if ($result === false) {
             throw new Exception(__('Errore recupero batch migrazioni') . ': ' . $this->db->error);
@@ -1087,12 +1531,11 @@ class Updater
     }
 
     /**
-     * Log update start (fails silently if table missing)
+     * Log update start
      */
     private function logUpdateStart(string $fromVersion, string $toVersion, ?string $backupPath): int
     {
         try {
-            // Try to create table if missing
             $this->db->query("CREATE TABLE IF NOT EXISTS `update_logs` (
                 `id` int NOT NULL AUTO_INCREMENT,
                 `from_version` varchar(20) NOT NULL,
@@ -1124,18 +1567,18 @@ class Updater
 
             return $id;
         } catch (\Throwable $e) {
-            error_log("[Updater] Log skipped: " . $e->getMessage());
+            $this->debugLog('WARNING', 'Log update start fallito', ['error' => $e->getMessage()]);
             return 0;
         }
     }
 
     /**
-     * Log update completion (fails silently)
+     * Log update completion
      */
     private function logUpdateComplete(int $logId, bool $success, ?string $error = null): void
     {
         if ($logId <= 0) {
-            return; // No log to update
+            return;
         }
 
         try {
@@ -1151,7 +1594,7 @@ class Updater
                 $stmt->close();
             }
         } catch (\Throwable $e) {
-            error_log("[Updater] Log completion skipped: " . $e->getMessage());
+            $this->debugLog('WARNING', 'Log update complete fallito', ['error' => $e->getMessage()]);
         }
     }
 
@@ -1169,7 +1612,6 @@ class Updater
             LIMIT ?
         ");
         if ($stmt === false) {
-            error_log("[Updater] Errore preparazione query storico: " . $this->db->error);
             return [];
         }
         $stmt->bind_param('i', $limit);
@@ -1188,7 +1630,7 @@ class Updater
     }
 
     /**
-     * Cleanup temporary files and reset caches
+     * Cleanup temporary files
      */
     public function cleanup(): void
     {
@@ -1196,17 +1638,15 @@ class Updater
             $this->deleteDirectory($this->tempPath);
         }
 
-        // Disable maintenance mode
         $this->disableMaintenanceMode();
 
-        // Reset OpCache to prevent serving stale compiled PHP
         if (function_exists('opcache_reset')) {
             opcache_reset();
         }
     }
 
     /**
-     * Enable maintenance mode to prevent user access during update
+     * Enable maintenance mode
      */
     private function enableMaintenanceMode(): void
     {
@@ -1218,7 +1658,7 @@ class Updater
     }
 
     /**
-     * Disable maintenance mode after update
+     * Disable maintenance mode
      */
     private function disableMaintenanceMode(): void
     {
@@ -1239,7 +1679,6 @@ class Updater
 
         $files = @scandir($dir);
         if ($files === false) {
-            error_log("[Updater] Impossibile leggere directory per pulizia: {$dir}");
             return;
         }
         $files = array_diff($files, ['.', '..']);
@@ -1257,11 +1696,10 @@ class Updater
     }
 
     /**
-     * Fix file and directory permissions after update
+     * Fix file and directory permissions
      */
     private function fixPermissions(): void
     {
-        // Directories that need to be writable
         $writableDirs = [
             'storage',
             'storage/backups',
@@ -1275,10 +1713,8 @@ class Updater
         foreach ($writableDirs as $dir) {
             $fullPath = $this->rootPath . '/' . $dir;
             if (is_dir($fullPath)) {
-                // Set directory to 755
                 chmod($fullPath, 0755);
 
-                // Recursively fix permissions for contents
                 $iterator = new \RecursiveIteratorIterator(
                     new \RecursiveDirectoryIterator($fullPath, \RecursiveDirectoryIterator::SKIP_DOTS),
                     \RecursiveIteratorIterator::SELF_FIRST
@@ -1294,19 +1730,16 @@ class Updater
             }
         }
 
-        // Ensure .env is not world-readable
         $envFile = $this->rootPath . '/.env';
         if (file_exists($envFile)) {
             chmod($envFile, 0600);
         }
 
-        // Ensure public/index.php is executable for some servers
         $indexFile = $this->rootPath . '/public/index.php';
         if (file_exists($indexFile)) {
             chmod($indexFile, 0644);
         }
 
-        // Fix app directory permissions (read-only for most)
         $appDirs = ['app', 'config', 'installer', 'locale', 'vendor'];
         foreach ($appDirs as $dir) {
             $fullPath = $this->rootPath . '/' . $dir;
@@ -1342,7 +1775,7 @@ class Updater
     }
 
     /**
-     * Check system requirements for update
+     * Check system requirements
      * @return array{met: bool, requirements: array<array>}
      */
     public function checkRequirements(): array
@@ -1350,7 +1783,6 @@ class Updater
         $requirements = [];
         $allMet = true;
 
-        // PHP version
         $phpVersion = PHP_VERSION;
         $phpMet = version_compare($phpVersion, '8.1.0', '>=');
         $requirements[] = [
@@ -1361,7 +1793,6 @@ class Updater
         ];
         if (!$phpMet) $allMet = false;
 
-        // ZipArchive extension
         $zipMet = class_exists('ZipArchive');
         $requirements[] = [
             'name' => 'ZipArchive',
@@ -1371,7 +1802,6 @@ class Updater
         ];
         if (!$zipMet) $allMet = false;
 
-        // Write permissions
         $writablePaths = [
             $this->rootPath,
             $this->backupPath,
@@ -1389,12 +1819,11 @@ class Updater
             if (!$writable) $allMet = false;
         }
 
-        // Disk space (need at least 100MB free)
         $freeSpace = disk_free_space($this->rootPath);
         if ($freeSpace === false) {
-            $freeSpace = 0; // Assume no space if check fails
+            $freeSpace = 0;
         }
-        $minSpace = 100 * 1024 * 1024; // 100MB
+        $minSpace = 100 * 1024 * 1024;
         $spaceMet = $freeSpace >= $minSpace;
         $requirements[] = [
             'name' => __('Spazio libero'),
@@ -1460,54 +1889,49 @@ class Updater
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
         $lockHandle = null;
 
-        // Register shutdown handler to ensure cleanup on fatal errors
+        $this->debugLog('INFO', '========================================');
+        $this->debugLog('INFO', '=== PERFORM UPDATE - INIZIO PROCESSO ===');
+        $this->debugLog('INFO', '========================================', [
+            'current_version' => $this->getCurrentVersion(),
+            'target_version' => $targetVersion,
+            'php_version' => PHP_VERSION,
+            'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'unknown',
+            'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? 'unknown',
+            'script_filename' => $_SERVER['SCRIPT_FILENAME'] ?? 'unknown'
+        ]);
+
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
         register_shutdown_function(function () use ($maintenanceFile, $lockFile) {
             $error = error_get_last();
             if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-                // Fatal error occurred - cleanup maintenance mode
-                SecureLogger::error(__('Errore fatale durante aggiornamento'), [
-                    'type' => $error['type'],
-                    'message' => $error['message'],
-                    'file' => $error['file'],
-                    'line' => $error['line']
-                ]);
+                error_log("[Updater DEBUG] FATAL ERROR during update: " . json_encode($error));
 
-                // Remove maintenance mode
                 if (file_exists($maintenanceFile)) {
                     @unlink($maintenanceFile);
                 }
 
-                // Remove lock file
                 if (file_exists($lockFile)) {
                     @unlink($lockFile);
                 }
             }
         });
 
-        // Prevent timeout on slow connections or large updates
         set_time_limit(0);
 
-        // Increase memory limit for large databases
         $currentMemory = ini_get('memory_limit');
         if ($currentMemory !== '-1') {
             $memoryBytes = $this->parseMemoryLimit($currentMemory);
-            $minMemory = 256 * 1024 * 1024; // 256MB minimum
+            $minMemory = 256 * 1024 * 1024;
             if ($memoryBytes < $minMemory) {
                 @ini_set('memory_limit', '256M');
-                SecureLogger::info(__('Memory limit aumentato'), [
+                $this->debugLog('INFO', 'Memory limit aumentato', [
                     'from' => $currentMemory,
                     'to' => '256M'
                 ]);
             }
         }
 
-        SecureLogger::info(__('Avvio aggiornamento'), [
-            'from' => $this->getCurrentVersion(),
-            'to' => $targetVersion
-        ]);
-
-        // Acquire exclusive lock to prevent concurrent updates
+        // Acquire lock
         $lockDir = dirname($lockFile);
         if (!is_dir($lockDir)) {
             @mkdir($lockDir, 0755, true);
@@ -1515,7 +1939,7 @@ class Updater
 
         $lockHandle = @fopen($lockFile, 'c');
         if (!$lockHandle) {
-            SecureLogger::error(__('Impossibile creare lock file'), ['path' => $lockFile]);
+            $this->debugLog('ERROR', 'Impossibile creare lock file', ['path' => $lockFile]);
             return [
                 'success' => false,
                 'error' => __('Impossibile creare il file di lock per l\'aggiornamento'),
@@ -1523,10 +1947,9 @@ class Updater
             ];
         }
 
-        // Try to acquire exclusive lock (non-blocking)
         if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
             fclose($lockHandle);
-            SecureLogger::warning(__('Aggiornamento già in corso'));
+            $this->debugLog('WARNING', 'Aggiornamento già in corso');
             return [
                 'success' => false,
                 'error' => __('Un altro aggiornamento è già in corso. Riprova più tardi.'),
@@ -1534,41 +1957,39 @@ class Updater
             ];
         }
 
-        // Write PID to lock file for debugging
         ftruncate($lockHandle, 0);
         fwrite($lockHandle, (string)getmypid());
         fflush($lockHandle);
 
-        // Enable maintenance mode to prevent user access during update
         $this->enableMaintenanceMode();
 
         $backupResult = ['path' => null, 'success' => false, 'error' => null];
         $result = null;
 
         try {
-            // Step 1: Create backup
-            SecureLogger::info(__('Step 1: Creazione backup'));
+            // Step 1: Backup
+            $this->debugLog('INFO', '>>> STEP 1: Creazione backup <<<');
             $backupResult = $this->createBackup();
             if (!$backupResult['success']) {
                 throw new Exception(__('Backup fallito') . ': ' . $backupResult['error']);
             }
-            SecureLogger::info(__('Backup completato'), ['path' => $backupResult['path']]);
+            $this->debugLog('INFO', 'Backup completato', ['path' => $backupResult['path']]);
 
-            // Step 2: Download update
-            SecureLogger::info(__('Step 2: Download aggiornamento'));
+            // Step 2: Download
+            $this->debugLog('INFO', '>>> STEP 2: Download aggiornamento <<<');
             $downloadResult = $this->downloadUpdate($targetVersion);
             if (!$downloadResult['success']) {
                 throw new Exception(__('Download fallito') . ': ' . $downloadResult['error']);
             }
-            SecureLogger::info(__('Download completato'), ['path' => $downloadResult['path']]);
+            $this->debugLog('INFO', 'Download completato', ['path' => $downloadResult['path']]);
 
-            // Step 3: Install update
-            SecureLogger::info(__('Step 3: Installazione aggiornamento'));
+            // Step 3: Install
+            $this->debugLog('INFO', '>>> STEP 3: Installazione aggiornamento <<<');
             $installResult = $this->installUpdate($downloadResult['path'], $targetVersion);
             if (!$installResult['success']) {
                 throw new Exception(__('Installazione fallita') . ': ' . $installResult['error']);
             }
-            SecureLogger::info(__('Installazione completata'));
+            $this->debugLog('INFO', 'Installazione completata');
 
             $result = [
                 'success' => true,
@@ -1576,28 +1997,32 @@ class Updater
                 'backup_path' => $backupResult['path']
             ];
 
-            SecureLogger::info(__('Aggiornamento completato con successo'), [
-                'version' => $targetVersion
-            ]);
+            $this->debugLog('INFO', '========================================');
+            $this->debugLog('INFO', '=== AGGIORNAMENTO COMPLETATO CON SUCCESSO ===');
+            $this->debugLog('INFO', '========================================');
 
         } catch (Exception $e) {
-            SecureLogger::error(__('Aggiornamento fallito'), ['error' => $e->getMessage()]);
+            $this->debugLog('ERROR', 'AGGIORNAMENTO FALLITO', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             $result = [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'backup_path' => $backupResult['path'] ?? null
             ];
         } finally {
-            // Always cleanup temporary files and disable maintenance mode
             $this->cleanup();
 
-            // Release and remove update lock
             if ($lockHandle !== null && \is_resource($lockHandle)) {
                 flock($lockHandle, LOCK_UN);
                 fclose($lockHandle);
             }
 
-            // Remove lock file
             if (file_exists($lockFile)) {
                 @unlink($lockFile);
             }
@@ -1631,8 +2056,7 @@ class Updater
     }
 
     /**
-     * Check and remove stale maintenance file (older than 30 minutes)
-     * Call this from admin routes to auto-recover from stuck maintenance
+     * Check and remove stale maintenance file
      */
     public static function checkStaleMaintenanceMode(): void
     {
@@ -1652,14 +2076,15 @@ class Updater
             return;
         }
 
-        // If maintenance mode is older than 30 minutes, it's probably stuck
-        $maxAge = 30 * 60; // 30 minutes
+        $maxAge = 30 * 60;
         if ((time() - $data['time']) > $maxAge) {
             @unlink($maintenanceFile);
-            SecureLogger::warning(__('Modalità manutenzione rimossa automaticamente (scaduta)'), [
-                'started' => date('Y-m-d H:i:s', $data['time']),
-                'age_minutes' => round((time() - $data['time']) / 60)
-            ]);
+            if (class_exists(SecureLogger::class)) {
+                SecureLogger::warning(__('Modalità manutenzione rimossa automaticamente (scaduta)'), [
+                    'started' => date('Y-m-d H:i:s', $data['time']),
+                    'age_minutes' => round((time() - $data['time']) / 60)
+                ]);
+            }
         }
     }
 }
