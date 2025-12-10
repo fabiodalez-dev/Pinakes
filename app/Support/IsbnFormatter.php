@@ -19,12 +19,27 @@ class IsbnFormatter
     /**
      * Clean ISBN: remove hyphens, spaces, convert to uppercase
      *
+     * X is only valid as the last character of ISBN-10 (check digit).
+     * Any X in other positions is removed.
+     *
      * @param string $isbn Raw ISBN input
-     * @return string Cleaned ISBN (digits and X only)
+     * @return string Cleaned ISBN (digits and X only, X only at end)
      */
     public static function clean(string $isbn): string
     {
-        return preg_replace('/[^0-9X]/i', '', strtoupper($isbn));
+        $cleaned = preg_replace('/[^0-9X]/i', '', strtoupper($isbn));
+
+        // X is only valid as the last character of ISBN-10
+        // Remove X from any other position
+        if (strlen($cleaned) > 1 && str_contains($cleaned, 'X')) {
+            $lastChar = substr($cleaned, -1);
+            $withoutLast = substr($cleaned, 0, -1);
+            // Remove any X from positions other than last
+            $withoutLast = str_replace('X', '', $withoutLast);
+            $cleaned = $withoutLast . $lastChar;
+        }
+
+        return $cleaned;
     }
 
     /**
@@ -108,7 +123,7 @@ class IsbnFormatter
     public static function isbn10ToIsbn13(string $isbn10): ?string
     {
         $isbn10 = self::clean($isbn10);
-        if (strlen($isbn10) !== 10) {
+        if (strlen($isbn10) !== 10 || !self::isValidIsbn10($isbn10)) {
             return null;
         }
 
@@ -134,7 +149,7 @@ class IsbnFormatter
     public static function isbn13ToIsbn10(string $isbn13): ?string
     {
         $isbn13 = self::clean($isbn13);
-        if (strlen($isbn13) !== 13) {
+        if (strlen($isbn13) !== 13 || !self::isValidIsbn13($isbn13)) {
             return null;
         }
 
@@ -190,7 +205,10 @@ class IsbnFormatter
     }
 
     /**
-     * Detect format: 'isbn10', 'isbn13', or null
+     * Detect format based on length: 'isbn10', 'isbn13', or null
+     *
+     * Note: This method only checks length, not validity.
+     * Use isValidIsbn10() or isValidIsbn13() to verify checksum.
      *
      * @param string $isbn ISBN to check
      * @return string|null 'isbn10', 'isbn13', or null if unrecognized length

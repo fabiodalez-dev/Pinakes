@@ -456,12 +456,7 @@ class SbnClient
             $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
         }
 
-        // Ensure generic 'isbn' field is set (prefer ISBN-13)
-        if (!empty($book['isbn13'])) {
-            $book['isbn'] = $book['isbn13'];
-        } elseif (!empty($book['isbn10'])) {
-            $book['isbn'] = $book['isbn10'];
-        }
+        $this->setGenericIsbn($book);
 
         return $book;
     }
@@ -534,14 +529,23 @@ class SbnClient
             $book['numero_inventario'] = 'SBN-' . $book['_sbn_bid'];
         }
 
-        // Ensure generic 'isbn' field is set (prefer ISBN-13)
+        $this->setGenericIsbn($book);
+
+        return $book;
+    }
+
+    /**
+     * Set generic 'isbn' field preferring ISBN-13 over ISBN-10
+     *
+     * @param array $book Book array (modified by reference)
+     */
+    private function setGenericIsbn(array &$book): void
+    {
         if (!empty($book['isbn13'])) {
             $book['isbn'] = $book['isbn13'];
         } elseif (!empty($book['isbn10'])) {
             $book['isbn'] = $book['isbn10'];
         }
-
-        return $book;
     }
 
     /**
