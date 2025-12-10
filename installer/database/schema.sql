@@ -746,7 +746,8 @@ CREATE TABLE `utenti` (
   KEY `idx_utenti_codice_tessera` (`codice_tessera`),
   KEY `idx_utenti_cod_fiscale` (`cod_fiscale`),
   KEY `idx_utenti_data_scadenza_tessera` (`data_scadenza_tessera`),
-  KEY `idx_utenti_data_ultimo_accesso` (`data_ultimo_accesso`)
+  KEY `idx_utenti_data_ultimo_accesso` (`data_ultimo_accesso`),
+  KEY `idx_tipo_utente` (`tipo_utente`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
