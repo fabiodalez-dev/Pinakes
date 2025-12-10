@@ -21,6 +21,12 @@ class ReservationReassignmentService
     private CopyRepository $copyRepo;
     private bool $externalTransaction = false;
 
+    /**
+     * Notifiche da inviare dopo il commit della transazione esterna.
+     * @var array<array{type: string, prestitoId: int, reason?: string}>
+     */
+    private array $deferredNotifications = [];
+
     public function __construct(mysqli $db)
     {
         $this->db = $db;
@@ -30,12 +36,45 @@ class ReservationReassignmentService
 
     /**
      * Indica che le operazioni sono già dentro una transazione esterna.
-     * Quando true, il servizio non aprirà/chiuderà transazioni proprie.
+     * Quando true, il servizio non aprirà/chiuderà transazioni proprie
+     * e le notifiche vengono differite (da inviare dopo il commit esterno).
      */
     public function setExternalTransaction(bool $external): self
     {
         $this->externalTransaction = $external;
         return $this;
+    }
+
+    /**
+     * Invia tutte le notifiche differite.
+     * Da chiamare DOPO il commit della transazione esterna.
+     */
+    public function flushDeferredNotifications(): void
+    {
+        foreach ($this->deferredNotifications as $notification) {
+            try {
+                if ($notification['type'] === 'copy_available') {
+                    $this->notifyUserCopyAvailable($notification['prestitoId']);
+                } elseif ($notification['type'] === 'copy_unavailable') {
+                    $this->notifyUserCopyUnavailable($notification['prestitoId'], $notification['reason'] ?? 'unknown');
+                }
+            } catch (Exception $e) {
+                SecureLogger::error(__('Errore invio notifica differita'), [
+                    'type' => $notification['type'],
+                    'prestito_id' => $notification['prestitoId'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+        $this->deferredNotifications = [];
+    }
+
+    /**
+     * Verifica se ci sono notifiche differite in attesa.
+     */
+    public function hasDeferredNotifications(): bool
+    {
+        return !empty($this->deferredNotifications);
     }
 
     /**
@@ -155,8 +194,16 @@ class ReservationReassignmentService
 
             $this->commitIfOwned($ownTransaction);
 
-            // Notifica l'utente (DOPO il commit, fuori dalla transazione)
-            $this->notifyUserCopyAvailable((int) $reservation['id']);
+            // Notifica l'utente DOPO il commit
+            // Se siamo in transazione esterna, differisci la notifica
+            if ($this->externalTransaction) {
+                $this->deferredNotifications[] = [
+                    'type' => 'copy_available',
+                    'prestitoId' => (int) $reservation['id']
+                ];
+            } else {
+                $this->notifyUserCopyAvailable((int) $reservation['id']);
+            }
 
         } catch (Exception $e) {
             $this->rollbackIfOwned($ownTransaction);
@@ -277,8 +324,17 @@ class ReservationReassignmentService
 
             $this->commitIfOwned($ownTransaction);
 
-            // Notifica DOPO il commit (fuori dalla transazione)
-            $this->notifyUserCopyUnavailable($reservationId, 'lost_copy');
+            // Notifica DOPO il commit
+            // Se siamo in transazione esterna, differisci la notifica
+            if ($this->externalTransaction) {
+                $this->deferredNotifications[] = [
+                    'type' => 'copy_unavailable',
+                    'prestitoId' => $reservationId,
+                    'reason' => 'lost_copy'
+                ];
+            } else {
+                $this->notifyUserCopyUnavailable($reservationId, 'lost_copy');
+            }
 
         } catch (Exception $e) {
             $this->rollbackIfOwned($ownTransaction);
