@@ -1,44 +1,30 @@
 # 🌐 Documentazione Frontend
 
-> **Guida per gli utenti finali**: Come navigare le pagine pubbliche della biblioteca online.
+> **Guida per gli utenti finali**: Come navigare le pagine pubbliche della biblioteca online (OPAC - Online Public Access Catalog)
 
-Questa cartella contiene la documentazione **dal punto di vista dell'utente finale** delle pagine pubbliche di Pinakes.
-
----
-
-## 📖 Le 7 Pagine Principali
-
-### 1. 🔑 [**Login - Accedi**](./login.md) ✨
-**URL**: http://localhost:8000/login
-
-La pagina dove accedi al tuo account con:
-- Form di login semplice (email + password)
-- Recupero password se dimenticata
-- Messaggi di errore chiari
-- Opzione "Mostra password"
-- Link a registrazione se nuovo utente
-- Sicurezza HTTPS e CSRF token
-
-**Tempo lettura**: 10 minuti | **Tempo azione**: 30 secondi
+Questa cartella contiene la documentazione **dal punto di vista dell'utente finale** delle pagine pubbliche di Pinakes: il catalogo pubblico (OPAC), il sistema di autenticazione, la gestione dei prestiti e la biblioteca digitale.
 
 ---
 
-### 2. 📝 [**Registrazione - Crea Account**](./register.md) ✨
-**URL**: http://localhost:8000/register
+## 📚 Cos'è il Catalogo Pubblico (OPAC)?
 
-La pagina dove crei un nuovo account con:
-- Form di registrazione (nome, cognome, email, password)
-- Requisiti password: 8+ caratteri, maiuscole, numeri, simboli
-- Email verification (link di conferma)
-- Admin approval (attesa 1-2 giorni)
-- Guida completa su errori e soluzioni
-- Termini di servizio da accettare
+L'**OPAC** (Online Public Access Catalog) è l'interfaccia pubblica della biblioteca dove gli utenti possono:
+- 🔍 Cercare e sfogliare il catalogo libri
+- 📖 Vedere i dettagli completi di ogni libro
+- ❤️ Salvare libri nei preferiti (wishlist)
+- 📅 Richiedere prestiti e prenotazioni
+- 👤 Gestire il proprio account e storico
+- 📱 Accedere alla biblioteca digitale (ebook/audiobook)
 
-**Tempo lettura**: 12 minuti | **Tempo azione**: 3-5 minuti
+**Accesso**: Chiunque può navigare il catalogo. Per prestiti e funzioni avanzate serve **registrazione + login**.
 
 ---
 
-### 3. 🏠 [**Home Page**](./home.md)
+## 📖 Le Pagine Principali
+
+### Sezione Pubblica (senza login)
+
+#### 1. 🏠 [**Home Page**](./home.md)
 **URL**: http://localhost:8000/
 
 La pagina iniziale della biblioteca con:
