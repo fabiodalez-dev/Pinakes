@@ -1,57 +1,77 @@
 # Personalizzazione del Sito: Temi e Contenuti
 
-Questa guida spiega come personalizzare l'aspetto del sito pubblico della biblioteca, gestire i contenuti della home page e creare pagine personalizzate.
+Questa guida spiega come gli amministratori possono personalizzare l'aspetto e i contenuti del sito pubblico della biblioteca.
 
 ## Indice
 - [Gestione dei Temi](#gestione-dei-temi)
-- [Aree CMS e Sezioni della Home Page](#aree-cms-e-sezioni-della-home-page)
-- [Pagine Custom](#pagine-custom)
-- [Area Eventi](#area-eventi)
+  - [Attivazione di un Tema](#attivazione-di-un-tema)
+  - [Personalizzazione dei Colori](#personalizzazione-dei-colori)
+  - [CSS e JS Personalizzati](#css-e-js-personalizzati)
+- [Gestione della Home Page (CMS)](#gestione-della-home-page-cms)
+  - [Modifica dei Contenuti delle Sezioni](#modifica-dei-contenuti-delle-sezioni)
+  - [Riordinare le Sezioni](#riordinare-le-sezioni)
+  - [Attivare e Disattivare le Sezioni](#attivare-e-disattivare-le-sezioni)
+- [Creazione di Pagine Personalizzate](#creazione-di-pagine-personalizzate)
+- [Gestione degli Eventi](#gestione-degli-eventi)
 
 ---
 
 ## Gestione dei Temi
 
-Pinakes permette di cambiare l'aspetto del sito scegliendo tra diversi temi predefiniti.
+Pinakes offre un sistema di temi flessibile per controllare l'aspetto grafico del sito.
 
-1.  **Accesso alle Impostazioni del Tema**: Dall'interfaccia di amministrazione, naviga in "Impostazioni" > "Tema".
-2.  **Scelta del Tema**: Vedrai un'anteprima dei temi disponibili. Seleziona quello che preferisci e salvalo.
-3.  **Personalizzazione dei Colori**: Alcuni temi potrebbero permettere di personalizzare i colori principali, come il colore degli accenti per i pulsanti e i link, per allinearli al brand della tua biblioteca.
-4.  **Logo**: Puoi caricare il logo della tua biblioteca, che verrà visualizzato nell'intestazione del sito.
+### Attivazione di un Tema
+1.  Vai su **Amministrazione > Temi**.
+2.  Vedrai un elenco dei temi disponibili.
+3.  Clicca sul pulsante **"Attiva"** sotto il tema che desideri utilizzare. Il sito pubblico verrà immediatamente aggiornato con il nuovo aspetto.
 
----
+### Personalizzazione dei Colori
+Ogni tema può essere personalizzato.
+1.  Clicca su **"Personalizza"** sotto il tema attivo.
+2.  Si aprirà una pagina dove potrai modificare i colori principali del sito, come:
+    -   Colore primario (per pulsanti, link e accenti)
+    -   Colore del testo
+    -   Colore di sfondo
+3.  Il sistema include un **controllo del contrasto** che ti avviserà se i colori scelti per testo e sfondo non sono sufficientemente leggibili, aiutandoti a mantenere il sito accessibile.
+4.  Salva le modifiche per applicarle. Puoi anche ripristinare i colori predefiniti del tema in qualsiasi momento.
 
-## Aree CMS e Sezioni della Home Page
-
-La home page è la parte più visitata del sito ed è altamente personalizzabile tramite un semplice sistema di gestione dei contenuti (CMS).
-
--   **Sezioni Riordinabili e Disattivabili**: La home page è composta da diverse sezioni (es. "Ultime Novità", "Chi Siamo", "Eventi"). Puoi:
-    -   **Riordinarle**: Trascina e rilascia le sezioni per cambiare il loro ordine di apparizione.
-    -   **Disattivarle**: Se non vuoi mostrare una certa sezione, puoi semplicemente nasconderla senza cancellarne il contenuto.
--   **Modifica dei Contenuti**: Puoi modificare il testo e le immagini di ogni sezione. Ad esempio, puoi cambiare il titolo della sezione "Ultime Novità" in "I Consigli del Bibliotecario" e selezionare manualmente quali libri mostrare.
-
----
-
-## Pagine Custom
-
-Oltre alle pagine standard del catalogo, puoi creare pagine personalizzate per fornire informazioni aggiuntive sulla tua biblioteca.
-
-1.  **Creazione di una Pagina**: Dall'area di amministrazione, vai su "CMS" > "Pagine" e clicca su "Crea Nuova Pagina".
-2.  **Inserimento dei Contenuti**: Utilizza un editor di testo semplice per scrivere il contenuto della pagina. Puoi formattare il testo, inserire immagini e link.
-3.  **Assegnazione di un URL**: Ad ogni pagina verrà assegnato un URL personalizzato (es. `www.nomebiblioteca.it/chi-siamo`).
-4.  **Aggiunta al Menu di Navigazione**: Puoi scegliere di aggiungere un link alla nuova pagina nel menu principale del sito, rendendola facilmente accessibile ai visitatori.
-
-Esempi di pagine custom includono:
-
--   **Chi Siamo**: Per raccontare la storia della biblioteca.
--   **Contatti**: Con indirizzo, orari di apertura, e una mappa.
--   **Regolamento**: Per illustrare le regole della biblioteca.
+### CSS e JS Personalizzati
+Nella pagina di personalizzazione, troverai anche delle aree di testo per inserire **CSS e JavaScript personalizzati**. Questo permette agli utenti più esperti di aggiungere stili o funzionalità specifiche senza dover modificare i file del tema.
 
 ---
 
-## Area Eventi
+## Gestione della Home Page (CMS)
 
-Se la tua biblioteca organizza eventi, puoi promuoverli direttamente sul sito.
+La home page è interamente gestibile da **Amministrazione > CMS > Modifica Home Page**.
 
--   **Creazione di un Evento**: Inserisci i dettagli dell'evento, come titolo, data, ora, luogo e una descrizione.
--   **Visualizzazione sul Sito**: Gli eventi possono essere mostrati in una sezione dedicata della home page o in una pagina "Eventi" separata, spesso con una visualizzazione a calendario.
+### Modifica dei Contenuti delle Sezioni
+La pagina è divisa in pannelli che corrispondono alle varie sezioni della home (Hero, Features, Ultimi Arrivi, etc.). Per ogni sezione, puoi:
+-   Modificare **titoli, sottotitoli e testi**.
+-   Cambiare l'**immagine di sfondo** (nella sezione Hero).
+-   Modificare il **testo e il link dei pulsanti**.
+-   Riempire i **campi SEO** (titolo, descrizione, parole chiave) per ottimizzare la visibilità della pagina sui motori di ricerca.
+
+### Riordinare le Sezioni
+Puoi cambiare l'ordine in cui le sezioni appaiono sulla home page semplicemente **trascinandole** su o giù nella pagina di modifica del CMS.
+
+### Attivare e Disattivare le Sezioni
+Ogni sezione ha un interruttore **"Attiva/Disattiva"**. Se non vuoi mostrare una certa sezione (ad esempio, non hai eventi in programma), puoi disattivarla temporaneamente senza perderne il contenuto.
+
+---
+
+## Creazione di Pagine Personalizzate
+
+Puoi creare pagine statiche aggiuntive (come "Chi Siamo", "Regolamento", "Contatti") in modo molto semplice.
+1.  Vai su **Amministrazione > CMS > Pagine**.
+2.  Crea una nuova pagina.
+3.  Utilizza l'editor di testo per inserire il contenuto, formattare il testo e aggiungere immagini.
+4.  Assegna un **URL (slug)** alla pagina (es. `chi-siamo`).
+5.  Una volta salvata, la pagina sarà accessibile all'indirizzo `tuosito.it/chi-siamo`. Puoi poi aggiungere manualmente il link a questa pagina nel menu di navigazione del sito.
+
+---
+
+## Gestione degli Eventi
+
+Se la funzionalità eventi è attiva, puoi gestire gli eventi da **Amministrazione > Eventi**.
+-   **Crea un evento**: Inserisci titolo, descrizione, data, ora e un'immagine in evidenza.
+-   **Visibilità**: Gli eventi attivi e futuri appariranno automaticamente nella sezione "Eventi" della home page e nella pagina archivio di tutti gli eventi, ordinati per data.

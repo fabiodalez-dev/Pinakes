@@ -1,61 +1,56 @@
-# L'Interfaccia di Amministrazione
+# L'Interfaccia di Amministrazione: Una Panoramica Dettagliata
 
-Questa guida offre una panoramica completa del pannello di amministrazione di Pinakes, progettato per essere intuitivo e funzionale.
+Questa guida descrive le principali componenti dell'interfaccia di amministrazione di Pinakes.
 
 ## Indice
+- [La Dashboard](#la-dashboard)
 - [La Sidebar di Navigazione](#la-sidebar-di-navigazione)
-- [Aggiornamenti e Notifiche](#aggiornamenti-e-notifiche)
-- [Barra di Ricerca Globale](#barra-di-ricerca-globale)
-- [Tabelle di Gestione (Libri, Autori, Editori)](#tabelle-di-gestione-libri-autori-editori)
+- [Tabelle di Gestione Interattive](#tabelle-di-gestione-interattive)
+- [Notifiche e Aggiornamenti](#notifiche-e-aggiornamenti)
+- [La Barra di Ricerca Globale](#la-barra-di-ricerca-globale)
 
 ---
+
+## La Dashboard
+
+La Dashboard è la prima pagina che vedi dopo il login. Offre una visione d'insieme dello stato della biblioteca attraverso una serie di "widget":
+
+-   **Statistiche Principali**: Numero totale di libri, copie disponibili, prestiti attivi e utenti registrati.
+-   **Richieste in Sospeso**: Un elenco delle richieste di prestito inviate dagli utenti che attendono la tua approvazione.
+-   **Prestiti in Scadenza e in Ritardo**: Un avviso sui prestiti che stanno per scadere o che sono già scaduti.
+-   **Ultime Attività**: Un log delle azioni recenti compiute nel sistema.
 
 ## La Sidebar di Navigazione
 
-La sidebar, situata sulla sinistra dello schermo, è il principale strumento di navigazione del pannello di amministrazione. È organizzata in sezioni logiche per un accesso rapido alle diverse funzionalità.
+La sidebar sulla sinistra è il tuo strumento di navigazione principale. Le voci più importanti sono:
 
--   **Dashboard**: La pagina principale, che offre una visione d'insieme dello stato della biblioteca: numero di libri, prestiti attivi, ritardi, e le ultime attività.
--   **Libri**: Da qui puoi aggiungere nuovi libri, visualizzare e modificare quelli esistenti, e gestire le copie.
--   **Autori**: Gestisci l'anagrafica degli autori.
--   **Editori**: Gestisci l'anagrafica degli editori.
--   **Prestiti**: Visualizza e gestisci tutti i prestiti, approva nuove richieste e registra le restituzioni.
--   **Utenti**: Gestisci gli account degli utenti, approva nuove registrazioni e visualizza lo storico dei prestiti per ogni utente.
--   **Catalogazione**: Definisci la struttura fisica della biblioteca tramite la gestione di scaffali e mensole (collocazione).
--   **CMS**: Personalizza i contenuti del sito pubblico, come la home page e le pagine custom.
+-   **Dashboard**: Torna alla pagina principale.
+-   **Libri**: Il centro della gestione del catalogo. Da qui puoi visualizzare, aggiungere, modificare ed eliminare i libri.
+-   **Prestiti**: Gestisci tutto il ciclo di vita dei prestiti.
+-   **Approvazione Prestiti**: Una pagina dedicata specificamente all'approvazione o al rifiuto delle richieste pendenti.
+-   **Utenti**: Gestisci gli account degli utenti.
+-   **Autori / Editori / Generi**: Pagine per la gestione delle anagrafiche correlate ai libri.
+-   **Catalogazione**: Definisci la struttura fisica della biblioteca (scaffali e mensole).
+-   **CMS**: Personalizza i contenuti del sito pubblico.
+-   **Temi**: Cambia l'aspetto grafico del sito.
 -   **Impostazioni**: Configura ogni aspetto del sistema.
 
----
+## Tabelle di Gestione Interattive
 
-## Aggiornamenti e Notifiche
+Pagine come "Libri", "Utenti" o "Prestiti" utilizzano tabelle di dati avanzate che ti permettono di:
 
-Il sistema ti tiene informato su eventi importanti e sulla disponibilità di nuove versioni del software.
+-   **Cercare e Filtrare**: Utilizza i campi di ricerca sopra ogni colonna per filtrare istantaneamente i risultati.
+-   **Ordinare**: Clicca sulle intestazioni delle colonne per ordinare i dati.
+-   **Azioni Rapide**: Ogni riga ha pulsanti per le azioni più comuni (es. "Modifica", "Elimina", "Visualizza Dettagli").
+-   **Azioni di Massa (Bulk)**: Seleziona più righe tramite le checkbox per applicare un'azione a tutti gli elementi selezionati (es. "Elimina Selezionati").
+-   **Esportare**: Esporta i dati visualizzati in formato CSV.
+-   **Paginazione**: Naviga facilmente tra un gran numero di record.
 
--   **Notifiche di Sistema**: Un'icona a forma di campanella nella barra superiore ti avvisa di nuove attività, come:
-    -   Nuove richieste di prestito da approvare.
-    -   Nuovi utenti in attesa di approvazione.
-    -   Libri in ritardo.
--   **Notifiche di Aggiornamento**: Quando è disponibile una nuova versione di Pinakes, vedrai una notifica che ti invita ad aggiornare. Il processo di aggiornamento è guidato e richiede pochi click per essere completato.
+## Notifiche e Aggiornamenti
 
----
+-   **Notifiche**: Un'icona a forma di campanella nella barra superiore ti avvisa in tempo reale di nuove attività importanti, come una nuova richiesta di prestito.
+-   **Aggiornamenti Software**: Il sistema verifica periodicamente la presenza di nuove versioni. Se un aggiornamento è disponibile, vedrai una notifica che ti guiderà attraverso un semplice processo di aggiornamento automatico.
 
-## Barra di Ricerca Globale
+## La Barra di Ricerca Globale
 
-Nella parte superiore del pannello di amministrazione è presente una barra di ricerca globale. Questo strumento ti permette di trovare rapidamente:
-
--   **Libri**: Cerca per titolo o autore.
--   **Utenti**: Cerca per nome o codice utente.
--   **Autori ed Editori**: Cerca per nome.
-
-I risultati vengono visualizzati in tempo reale mentre digiti, con link diretti alle pagine di dettaglio.
-
----
-
-## Tabelle di Gestione (Libri, Autori, Editori)
-
-Le sezioni come "Libri", "Autori", ed "Editori" presentano i dati in tabelle interattive che ti permettono di:
-
--   **Ordinare**: Clicca sull'intestazione di una colonna per ordinare i dati in modo ascendente o discendente.
--   **Filtrare**: Utilizza i campi di ricerca sopra la tabella per filtrare i risultati in base a criteri specifici.
--   **Paginazione**: Naviga tra le diverse pagine di risultati.
--   **Azioni Rapide**: Ogni riga della tabella ha pulsanti per azioni comuni come "Modifica", "Elimina" o "Visualizza Dettagli".
--   **Esportazione**: Puoi esportare i dati visualizzati in formati come CSV o PDF.
+In cima alla pagina, una barra di ricerca ti permette di trovare rapidamente qualsiasi cosa nel database: libri, autori, utenti, etc., senza dover navigare nelle sezioni specifiche.

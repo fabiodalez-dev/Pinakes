@@ -1,90 +1,91 @@
-# Guida alla Configurazione del Sistema
+# Guida Dettagliata alle Impostazioni
 
-Questa guida fornisce una descrizione dettagliata di tutte le opzioni disponibili nel pannello "Impostazioni" di Pinakes.
+La sezione **Amministrazione > Impostazioni** è il pannello di controllo centrale per configurare ogni aspetto di Pinakes. È organizzata in diverse schede (tab).
 
 ## Indice
-- [Identità della Biblioteca](#identità-della-biblioteca)
-- [Configurazione Email](#configurazione-email)
-- [Gestione Contenuti (CMS)](#gestione-contenuti-cms)
-- [Pagina Contatti](#pagina-contatti)
-- [Privacy e Cookie](#privacy-e-cookie)
+- [Generale](#generale)
+- [Email](#email)
 - [Template Email](#template-email)
-- [Formato Etichette](#formato-etichette)
-- [Impostazioni Avanzate](#impostazioni-avanzate)
+- [Contatti](#contatti)
+- [Privacy](#privacy)
+- [Etichette](#etichette)
+- [Avanzate](#avanzate)
 
 ---
 
-## Identità della Biblioteca
+## Generale
 
-In questa sezione puoi definire l'identità visiva e testuale della tua biblioteca.
+In questa scheda definisci l'identità della tua biblioteca.
 
--   **Nome Biblioteca**: Il nome che apparirà in tutto il sito e nelle comunicazioni.
--   **Logo**: Carica il logo della tua biblioteca. Verrà visualizzato nell'intestazione del sito e nelle email.
--   **Descrizione Breve**: Un breve testo che descrive la biblioteca, solitamente mostrato nella home page.
+-   **Nome Applicazione**: Il nome della tua biblioteca, che apparirà come titolo del sito e in tutte le comunicazioni.
+-   **Logo Applicazione**: Carica il tuo logo in formato PNG, JPG, WEBP o SVG (massimo 2MB). Verrà mostrato nell'intestazione del sito. Puoi anche rimuovere il logo esistente.
+-   **Descrizione nel Footer**: Un breve testo che apparirà nel footer (piè di pagina) del sito.
+-   **Link Social Media**: Inserisci gli URL completi dei tuoi profili social (Facebook, Twitter, Instagram, etc.). Le icone appariranno automaticamente nel footer.
 
----
+## Email
 
-## Configurazione Email
+Questa sezione è **fondamentale** per permettere al sistema di inviare email automatiche (notifiche, promemoria, etc.).
 
-Questa sezione è fondamentale per abilitare l'invio di email automatiche dal sistema (es. notifiche di prestito, promemoria).
+-   **Driver Email**:
+    -   **Mail**: Utilizza la funzione `mail()` di PHP. Semplice ma poco affidabile, spesso finisce in spam.
+    -   **SMTP**: **(Consigliato)** Permette di usare un server di posta esterno (come Gmail, Outlook, o il tuo provider di hosting) per un invio professionale e affidabile.
+-   **Indirizzo Mittente** e **Nome Mittente**: L'indirizzo e il nome che gli utenti vedranno come mittente delle email.
+-   **Configurazione SMTP**:
+    -   **Host, Porta, Username, Password**: Le credenziali fornite dal tuo servizio di posta.
+    -   **Sicurezza SMTP**: Solitamente `TLS` o `SSL`.
 
-Puoi scegliere tra diversi provider di posta elettronica:
-
--   **Gmail/Outlook**: Configurazioni semplificate per i servizi di posta più comuni. Richiede l'autenticazione tramite credenziali specifiche (per Gmail, è necessaria una "Password per le app").
--   **SMTP Personalizzato**: Per utilizzare un server di posta privato. Richiede l'inserimento manuale di host, porta, nome utente e password.
-
-Dopo aver inserito i dati, utilizza il pulsante **"Test Connessione"** per verificare che il sistema sia in grado di inviare email.
-
----
-
-## Gestione Contenuti (CMS)
-
-Qui puoi modificare i contenuti di alcune pagine chiave del sito pubblico:
-
--   **Home Page**: Personalizza i testi e le immagini della pagina principale.
--   **Chi Siamo**: Modifica il contenuto della pagina "Chi Siamo".
-
----
-
-## Pagina Contatti
-
-Inserisci le informazioni di contatto che saranno visibili al pubblico nella pagina "Contatti" del sito.
-
--   **Email Pubblica**: L'indirizzo email a cui gli utenti possono scriverti.
--   **Telefono**: Il numero di telefono della biblioteca.
--   **Indirizzo Fisico**: L'indirizzo completo della sede.
--   **Mappa Google**: Puoi inserire il codice di incorporamento di una mappa di Google Maps.
-
----
-
-## Privacy e Cookie
-
-Gestisci gli aspetti legali del sito.
-
--   **Banner Cookie**: Abilita o disabilita la visualizzazione del banner per il consenso all'uso dei cookie.
--   **Privacy Policy**: Modifica il testo della privacy policy.
-
----
+Dopo aver compilato i dati, usa il pulsante **"Invia Email di Test"** per verificare che la configurazione sia corretta.
 
 ## Template Email
 
-Il sistema invia diverse email automatiche. In questa sezione, puoi personalizzare il contenuto di ciascuna.
+Pinakes invia diverse email automatiche. In questa scheda, puoi personalizzare il contenuto di ognuna.
 
--   **Selezione del Template**: Scegli il template che vuoi modificare (es. "Benvenuto Nuovo Utente", "Promemoria Scadenza Prestito").
--   **Modifica di Oggetto e Corpo**: Puoi cambiare sia l'oggetto che il corpo del messaggio.
--   **Variabili Dinamiche**: Utilizza le variabili (es. `{{user_name}}`, `{{book_title}}`) per inserire dinamicamente informazioni specifiche nel testo dell'email.
+-   **Seleziona un Template**: Scegli dall'elenco l'email che vuoi modificare (es. "Richiesta di prestito approvata").
+-   **Modifica Oggetto e Corpo**: Puoi riscrivere completamente il testo.
+-   **Usa i Segnaposto (Placeholder)**: In ogni template, hai a disposizione una lista di "segnaposto" (es. `{{user_name}}`, `{{book_title}}`). Questi verranno sostituiti automaticamente dal sistema con i valori reali al momento dell'invio, permettendoti di creare email personalizzate.
 
----
+## Contatti
 
-## Formato Etichette
+Qui puoi configurare la pagina "Contatti" del sito pubblico.
 
-Scegli il formato delle etichette adesive che utilizzi per i libri. Questo garantirà che la stampa sia correttamente allineata.
+-   **Titolo e Contenuto della Pagina**: Testi che appariranno sopra il modulo di contatto.
+-   **Email e Telefono**: I contatti principali della biblioteca.
+-   **Embed Google Maps**: Incolla il codice `<iframe>` fornito da Google Maps per mostrare una mappa interattiva.
+-   **reCAPTCHA**: Se hai un account Google reCAPTCHA, inserisci qui la Site Key e la Secret Key per proteggere il modulo dallo spam.
+-   **Email per Notifiche**: L'indirizzo a cui verranno inviati i messaggi inviati dagli utenti tramite il modulo.
 
--   **Formati Predefiniti**: Seleziona uno dei formati standard (es. 25x38mm).
--   **Configurazione Personalizzata**: Se utilizzi un formato non standard, potresti avere la possibilità di inserire manualmente le dimensioni.
+## Privacy
 
----
+Gestisci le impostazioni relative alla privacy e ai cookie.
 
-## Impostazioni Avanzate
+-   **Contenuto Pagine**: Modifica il testo della "Privacy Policy" e della "Cookie Policy".
+-   **Banner Cookie**:
+    -   **Abilita/Disabilita**: Attiva o disattiva la comparsa del banner dei cookie per i nuovi visitatori.
+    -   **Testi del Banner**: Puoi personalizzare ogni testo mostrato nel banner e nel pannello delle preferenze.
+    -   **Categorie di Cookie**: Puoi scegliere di mostrare le opzioni per i cookie "Analitici" e di "Marketing". Se inserisci del codice negli appositi script nella scheda "Avanzate", questi toggle verranno attivati automaticamente.
 
-Questa sezione contiene configurazioni tecniche che raramente necessitano di essere modificate. Intervieni solo se sai cosa stai facendo o su indicazione del supporto tecnico.
+## Etichette
+
+Configura il formato delle etichette da stampare per i libri.
+
+-   **Formato Etichetta**: Seleziona una delle dimensioni standard (es. `25x38mm`). Il sistema adatterà automaticamente il layout di stampa.
+
+## Avanzate
+
+Questa sezione contiene impostazioni per utenti esperti.
+
+-   **Script Personalizzati**:
+    -   **JS Essenziali**: Codice JavaScript che verrà caricato sempre.
+    -   **JS Analitici/Marketing**: Codice che verrà caricato solo se l'utente fornisce il consenso tramite il banner dei cookie.
+    -   **CSS Personalizzato**: Regole CSS per modificare ulteriormente l'aspetto del sito.
+-   **Impostazioni Prestiti**:
+    -   **Giorni di preavviso scadenza**: Quanti giorni prima della scadenza inviare l'email di promemoria.
+-   **Sicurezza**:
+    -   **Forza HTTPS**: Reindirizza tutto il traffico da HTTP a HTTPS.
+    -   **Abilita HSTS**: Aggiunge un header di sicurezza che istruisce i browser a comunicare con il sito solo tramite HTTPS.
+-   **Modalità Catalogo**: Se attivata, disabilita tutte le funzioni di prestito e richiesta. Il sito funzionerà solo come un catalogo online da consultare, senza interazioni per gli utenti.
+-   **Sitemap**:
+    -   **Rigenera Sitemap**: Clicca questo pulsante per creare/aggiornare il file `sitemap.xml`, utile per l'indicizzazione sui motori di ricerca.
+-   **API Pubbliche**:
+    -   Abilita o disabilita l'accesso alle API pubbliche.
+    -   **Gestione API Keys**: Crea, attiva/disattiva o elimina chiavi di accesso per servizi esterni. Quando crei una nuova chiave, **copiala e salvala in un posto sicuro**, perché non verrà mostrata di nuovo.

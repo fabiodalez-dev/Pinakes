@@ -1,71 +1,72 @@
-# Catalogazione: Dewey e Collocazione
+# Guida alla Catalogazione: Collocazione e Dewey
 
-Questa guida spiega i due sistemi principali utilizzati in Pinakes per organizzare i libri: la classificazione Dewey e la collocazione fisica.
+Questa guida approfondisce gli strumenti a disposizione dell'amministratore per organizzare il catalogo in modo sia fisico (Collocazione) che logico (Classificazione Dewey).
 
 ## Indice
-- [Classificazione Dewey](#classificazione-dewey)
-  - [Come Funziona](#come-funziona)
-  - [Integrazione in Pinakes](#integrazione-in-pinakes)
-- [Collocazione Fisica](#collocazione-fisica)
-  - [Struttura della Collocazione](#struttura-della-collocazione)
-  - [Come Configurare Scaffali e Mensole](#come-configurare-scaffali-e-mensole)
+- [Collocazione Fisica: Organizzare la Biblioteca](#collocazione-fisica-organizzare-la-biblioteca)
+  - [La Logica: Scaffali, Mensole e Posizioni](#la-logica-scaffali-mensole-e-posizioni)
+  - [Come Configurare la Struttura](#come-configurare-la-struttura)
+  - [Assegnare una Collocazione a un Libro](#assegnare-una-collocazione-a-un-libro)
+- [Classificazione Dewey (Sistema a JSON)](#classificazione-dewey-sistema-a-json)
+  - [Come Funziona l'Interfaccia](#come-funziona-linterfaccia)
+  - [Vantaggi del Sistema Guidato](#vantaggi-del-sistema-guidato)
 
 ---
 
-## Classificazione Dewey
+## Collocazione Fisica: Organizzare la Biblioteca
 
-La Classificazione Decimale Dewey (CDD) è un sistema standardizzato a livello mondiale per organizzare i libri in base all'argomento.
+La sezione **Amministrazione > Collocazione** ti permette di replicare la struttura fisica della tua biblioteca nel sistema.
 
-### Come Funziona
+### La Logica: Scaffali, Mensole e Posizioni
 
-Il sistema divide la conoscenza in 10 classi principali, ognuna rappresentata da un numero di tre cifre:
+Il sistema si basa su una gerarchia a tre livelli:
 
--   **000-099**: Generalità (informatica, informazione, opere generali)
--   **100-199**: Filosofia e psicologia
--   **200-299**: Religione
--   **300-399**: Scienze sociali
--   **400-499**: Linguaggio
--   **500-599**: Scienze pure (matematica, scienze naturali)
--   **600-699**: Tecnologia (scienze applicate)
--   **700-799**: Arti e ricreazione
--   **800-899**: Letteratura
--   **900-999**: Storia e geografia
+1.  **Scaffali**: Sono i contenitori principali. Ogni scaffale è identificato da un **Codice** (es. "A", "NARR", "S1") e un **Nome** descrittivo (es. "Narrativa Straniera", "Saggistica", "Scaffale 1").
+2.  **Mensole**: Sono i ripiani all'interno di ogni scaffale. Ogni mensola è definita da un **Numero di Livello** (1, 2, 3...).
+3.  **Posizione Progressiva**: È il numero che indica la posizione del libro su una mensola, contando da sinistra a destra. **Questa viene calcolata automaticamente dal sistema**.
 
-Ogni classe è ulteriormente suddivisa per argomenti più specifici.
+Il risultato è un codice di collocazione semplice e intuitivo, come `A.1.15`.
 
-### Integrazione in Pinakes
+### Come Configurare la Struttura
 
-Pinakes semplifica l'uso del sistema Dewey:
+Nella pagina "Collocazione", troverai due pannelli principali:
 
-1.  **Suggerimenti Automatici**: Quando aggiungi o modifichi un libro, il sistema analizza il titolo e la descrizione per suggerirti la classificazione Dewey più appropriata.
-2.  **Struttura a Cascata (JSON)**: Invece di dover memorizzare i codici, puoi navigare attraverso le categorie in un menu a discesa. Selezionando una classe principale (es. 800 - Letteratura), ti verranno mostrate le divisioni successive (es. 850 - Letteratura Italiana), e così via, fino a trovare la classificazione più precisa.
-3.  **Ricerca per Dewey**: Gli utenti possono cercare libri nel catalogo filtrando per classe Dewey, facilitando la ricerca di opere su argomenti specifici.
+-   **Gestione Scaffali**:
+    -   **Aggiungi**: Crea un nuovo scaffale inserendo Codice e Nome.
+    -   **Riordina**: Trascina gli scaffali per cambiare l'ordine di visualizzazione.
+    -   **Elimina**: Puoi eliminare uno scaffale solo se non contiene mensole o libri.
+-   **Gestione Mensole**:
+    -   **Seleziona uno scaffale** dal menu a tendina.
+    -   **Aggiungi** le mensole specificando il numero di livello.
+
+### Assegnare una Collocazione a un Libro
+
+Quando aggiungi o modifichi un libro, nella sezione "Collocazione Fisica":
+1.  **Scegli lo Scaffale e la Mensola** dai menu a tendina.
+2.  **Lascia vuoto il campo "Posizione Progressiva"**: Il sistema troverà automaticamente il primo posto libero su quella mensola e lo assegnerà al libro.
+3.  **Forzare una Posizione**: Se necessario, puoi inserire un numero specifico nel campo "Posizione Progressiva". Il sistema verificherà se la posizione è già occupata.
+
+In fondo alla pagina "Collocazione" troverai anche una tabella con l'elenco di tutti i libri già posizionati, con la possibilità di filtrarli per scaffale o mensola e di esportare l'elenco in CSV.
 
 ---
 
-## Collocazione Fisica
+## Classificazione Dewey (Sistema a JSON)
 
-La collocazione è l'indirizzo fisico di un libro all'interno della biblioteca. Ti dice esattamente dove trovarlo.
+Pinakes semplifica l'applicazione della Classificazione Decimale Dewey grazie a un sistema interattivo basato su file JSON.
 
-### Struttura della Collocazione
+### Come Funziona l'Interfaccia
 
-La collocazione in Pinakes è formata da tre parti:
+Quando modifichi un libro, nel campo "Classificazione Dewey", non devi digitare un codice a memoria. Troverai invece una serie di menu a tendina a cascata:
 
--   **Scaffale**: Un codice (solitamente una lettera o una sigla) che identifica un mobile o una sezione della biblioteca (es. `A`, `NAR` per Narrativa).
--   **Mensola**: Il numero del ripiano all'interno dello scaffale (es. `1`, `2`).
--   **Posizione**: Un numero progressivo che indica la posizione del libro sulla mensola, assegnato automaticamente dal sistema.
+1.  **Classe Principale**: Seleziona una delle 10 classi principali (es. "800 - Letteratura").
+2.  **Divisione**: Il secondo menu si popolerà con le divisioni di quella classe (es. "850 - Letteratura italiana").
+3.  **Sezione**: Il terzo menu mostrerà le sezioni della divisione scelta (es. "853 - Narrativa italiana").
 
-**Esempio**: `A.2.15` significa:
--   Scaffale `A`
--   Mensola `2`
--   Posizione `15`
+Man mano che selezioni, il sistema costruisce il codice Dewey corretto per te.
 
-### Come Configurare Scaffali e Mensole
+### Vantaggi del Sistema Guidato
 
-Puoi definire la struttura fisica della tua biblioteca dal pannello di amministrazione, nella sezione "Collocazione".
-
-1.  **Crea gli Scaffali**: Aggiungi tutti i tuoi scaffali, assegnando a ciascuno un codice unico e un nome descrittivo (es. Codice: `A`, Nome: `Narrativa Straniera`).
-2.  **Aggiungi le Mensole**: Per ogni scaffale, definisci il numero di mensole (ripiani) che lo compongono.
-3.  **Assegnazione Automatica**: Una volta configurata la struttura, quando aggiungi un nuovo libro e selezioni uno scaffale e una mensola, il sistema assegnerà automaticamente la prima posizione libera.
-
-Puoi riordinare, aggiungere o eliminare scaffali e mensole in qualsiasi momento. Tuttavia, non puoi eliminare uno scaffale se contiene ancora dei libri.
+-   **Nessun Errore di Digitazione**: Elimina la possibilità di inserire codici inesistenti.
+-   **Facile da Usare**: Non è richiesta una conoscenza mnemonica dell'intero sistema Dewey.
+-   **Multilingua**: Le descrizioni delle categorie sono tradotte automaticamente in base alla lingua dell'interfaccia.
+-   **Suggerimenti Automatici**: In fase di scraping tramite ISBN, il sistema spesso riesce a suggerire una classificazione Dewey, che potrai poi confermare o perfezionare.
