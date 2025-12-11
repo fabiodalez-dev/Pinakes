@@ -34,7 +34,7 @@ New `IsbnFormatter` utility class for intelligent ISBN handling:
 
 ### Scraping Improvements
 
-- **Ubik Libri source** — New scraping source with author biography support
+- **New sources** — New scraping source with author biography support
 - **Author bio field mapping** — Added to api-book-scraper plugin
 - **Cross-source ISBN enrichment** — ScrapeController can re-query SBN with ISBN variants for Dewey classification
 
