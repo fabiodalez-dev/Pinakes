@@ -932,6 +932,12 @@ class Updater
             fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n\n");
 
             foreach ($tables as $table) {
+                // Validate table name (alphanumeric and underscore only)
+                if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table)) {
+                    $this->debugLog('WARNING', 'Skipping table with invalid name', ['table' => $table]);
+                    continue;
+                }
+
                 $this->debugLog('DEBUG', 'Backup tabella', ['table' => $table]);
 
                 // Get create table statement

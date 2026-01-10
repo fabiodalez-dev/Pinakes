@@ -114,7 +114,7 @@ $libri = $data['libri'];
             </label>
             <input id="filter_autore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
-            <ul id="filter_autore_suggest" class="autocomplete-suggestions"></ul>
+            <ul id="filter_autore_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="autore_id" />
           </div>
 
@@ -125,7 +125,7 @@ $libri = $data['libri'];
             </label>
             <input id="filter_editore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
-            <ul id="filter_editore_suggest" class="autocomplete-suggestions"></ul>
+            <ul id="filter_editore_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="editore_filter" />
           </div>
 
@@ -136,7 +136,7 @@ $libri = $data['libri'];
             </label>
             <input id="filter_genere" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
-            <ul id="filter_genere_suggest" class="autocomplete-suggestions"></ul>
+            <ul id="filter_genere_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="genere_id" />
           </div>
 
@@ -201,7 +201,7 @@ $libri = $data['libri'];
             </label>
             <input id="filter_posizione" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
-            <ul id="filter_posizione_suggest" class="autocomplete-suggestions"></ul>
+            <ul id="filter_posizione_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="posizione_id" />
           </div>
 
@@ -495,9 +495,11 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       dataSrc: function(json) {
         document.getElementById('total-count').textContent = (json.recordsTotal || 0).toLocaleString() + ' ' + window.__('libri');
-        gridData = json.data;
+        // Filter out any null/undefined rows to prevent render errors
+        const safeData = (json.data || []).filter(row => row != null);
+        gridData = safeData;
         if (currentView === 'grid') renderGrid();
-        return json.data;
+        return safeData;
       }
     },
     columns: [
@@ -508,6 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '40px',
         className: 'text-center align-middle',
         render: function(_, __, row) {
+          if (!row || !row.id) return '';
           const checked = selectedBooks.has(row.id) ? 'checked' : '';
           return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${row.id}" ${checked} />`;
         }
@@ -519,7 +522,8 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '50px',
         className: 'text-center align-middle',
         render: function(_, __, row) {
-          const s = (row.stato || '').toString().trim().toLowerCase();
+          if (!row) return '<span class="text-gray-400">-</span>';
+          const s = String(row.stato || '').trim().toLowerCase();
           let cls = 'bg-gray-400';
           let icon = 'fa-question-circle';
           if (s === 'disponibile') { cls = 'bg-green-500'; icon = 'fa-check-circle'; }
@@ -547,6 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '60px',
         className: 'text-center align-middle',
         render: function(data, type, row) {
+          if (!row) return '<div class="w-12 h-16 mx-auto bg-gray-100 rounded"></div>';
           const imageUrl = data || '/uploads/copertine/placeholder.jpg';
           return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity" onclick='showImageModal(${JSON.stringify(row)})'>
             <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
@@ -558,19 +563,21 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '250px',
         className: 'align-top',
         render: function(_, type, row) {
+          if (!row) return '<span class="text-gray-400">-</span>';
           const titolo = row.titolo || window.__('Senza titolo');
           const sottotitolo = row.sottotitolo ? `<div class="text-xs text-gray-500 italic mt-0.5 line-clamp-1">${row.sottotitolo}</div>` : '';
 
           let autoriHtml = '';
-          if (row.autori) {
-            const autoriArray = row.autori.split(', ').slice(0, 2);
-            const idsArray = row.autori_order_key ? row.autori_order_key.split(',') : [];
+          const autoriStr = String(row.autori || '');
+          if (autoriStr) {
+            const autoriArray = autoriStr.split(', ').slice(0, 2);
+            const idsArray = row.autori_order_key ? String(row.autori_order_key).split(',') : [];
             const linkedAutori = autoriArray.map((nome, i) => {
               const id = idsArray[i];
               if (id) return `<a href="/admin/autori/${id}" class="text-gray-600 hover:text-gray-900 hover:underline">${nome}</a>`;
               return nome;
             });
-            autoriHtml = `<div class="text-xs text-gray-600 mt-1"><i class="fas fa-user text-gray-400 mr-1"></i>${linkedAutori.join(', ')}${row.autori.split(', ').length > 2 ? ' ...' : ''}</div>`;
+            autoriHtml = `<div class="text-xs text-gray-600 mt-1"><i class="fas fa-user text-gray-400 mr-1"></i>${linkedAutori.join(', ')}${autoriStr.split(', ').length > 2 ? ' ...' : ''}</div>`;
           }
 
           let editoreHtml = '';
@@ -594,8 +601,9 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '120px',
         className: 'text-sm align-middle',
         render: function(data) {
-          if (!data || data.trim() === '') return '<span class="text-gray-400 text-xs">-</span>';
-          const genres = data.split(' / ');
+          const str = (data || '').toString().trim();
+          if (!str) return '<span class="text-gray-400 text-xs">-</span>';
+          const genres = str.split(' / ');
           return genres.map((g, i) =>
             `<span class="inline-block px-2 py-0.5 rounded text-xs ${i === 0 ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600'} mb-0.5">${g}</span>`
           ).join('<br>');
@@ -606,8 +614,9 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '120px',
         className: 'text-xs align-middle',
         render: function(data) {
-          if (!data || data === 'N/D') return '<span class="text-gray-400 text-xs">-</span>';
-          const parts = data.split(' - ').slice(0, 2);
+          const str = String(data || '').trim();
+          if (!str || str === 'N/D') return '<span class="text-gray-400 text-xs">-</span>';
+          const parts = str.split(' - ').slice(0, 2);
           return `<div class="text-xs leading-tight">${parts.map((p, i) => `<div class="${i === 0 ? 'font-medium text-gray-700' : 'text-gray-500'}">${p}</div>`).join('')}</div>`;
         }
       },
@@ -615,8 +624,8 @@ document.addEventListener('DOMContentLoaded', function() {
         data: 'anno_pubblicazione_formatted',
         width: '60px',
         className: 'text-center align-middle',
-        render: function(data) {
-          if (!data) return '<span class="text-gray-400">-</span>';
+        render: function(data, type, row) {
+          if (!row || !data) return '<span class="text-gray-400">-</span>';
           return `<span class="text-xs font-mono text-gray-600">${data}</span>`;
         }
       },
@@ -627,6 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '100px',
         className: 'text-center align-middle',
         render: function(data, type, row) {
+          if (!data || !row) return '<span class="text-gray-400">-</span>';
           return `<div class="flex items-center justify-center gap-0.5">
             <a href="/admin/libri/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
               <i class="fas fa-eye text-xs"></i>
@@ -749,14 +759,24 @@ document.addEventListener('DOMContentLoaded', function() {
     try { return await (await fetch(url)).json(); } catch { return []; }
   }
 
-  function setupAutocomplete(inputId, suggestId, url, onSelect) {
+  function setupAutocomplete(inputId, suggestId, hiddenId, url, onSelect) {
     const input = document.getElementById(inputId);
     const suggest = document.getElementById(suggestId);
+    const hidden = document.getElementById(hiddenId);
     if (!input || !suggest) return;
 
-    input.addEventListener('input', debounce(async function() {
-      const q = this.value.trim();
-      if (!q) { suggest.classList.add('hidden'); return; }
+    input.addEventListener('input', debounce(async () => {
+      const q = (input.value || '').trim();
+      if (!q) {
+        suggest.classList.add('hidden');
+        // Clear hidden ID and reload table when input is cleared
+        if (hidden && hidden.value) {
+          hidden.value = '';
+          table.ajax.reload();
+          updateActiveFilters();
+        }
+        return;
+      }
 
       const data = await fetchJSON(url + encodeURIComponent(q));
       suggest.innerHTML = '';
@@ -778,19 +798,19 @@ document.addEventListener('DOMContentLoaded', function() {
     input.addEventListener('blur', () => setTimeout(() => suggest.classList.add('hidden'), 200));
   }
 
-  setupAutocomplete('filter_autore', 'filter_autore_suggest', '/api/search/autori?q=', item => {
+  setupAutocomplete('filter_autore', 'filter_autore_suggest', 'autore_id', '/api/search/autori?q=', item => {
     document.getElementById('autore_id').value = item.id;
     document.getElementById('filter_autore').value = item.label;
   });
-  setupAutocomplete('filter_editore', 'filter_editore_suggest', '/api/search/editori?q=', item => {
+  setupAutocomplete('filter_editore', 'filter_editore_suggest', 'editore_filter', '/api/search/editori?q=', item => {
     document.getElementById('editore_filter').value = item.id;
     document.getElementById('filter_editore').value = item.label;
   });
-  setupAutocomplete('filter_genere', 'filter_genere_suggest', '/api/search/generi?q=', item => {
+  setupAutocomplete('filter_genere', 'filter_genere_suggest', 'genere_id', '/api/search/generi?q=', item => {
     document.getElementById('genere_id').value = item.id;
     document.getElementById('filter_genere').value = item.label;
   });
-  setupAutocomplete('filter_posizione', 'filter_posizione_suggest', '/api/search/collocazione?q=', item => {
+  setupAutocomplete('filter_posizione', 'filter_posizione_suggest', 'posizione_id', '/api/search/collocazione?q=', item => {
     document.getElementById('posizione_id').value = item.id;
     document.getElementById('filter_posizione').value = item.label;
   });
@@ -997,9 +1017,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const items = gridData.slice(start, start + gridPageSize);
 
     container.innerHTML = items.map(book => {
+      if (!book || !book.id) return '';
       const img = book.copertina_url || '/uploads/copertine/placeholder.jpg';
-      const statusClass = (book.stato || '').toLowerCase() === 'disponibile' ? 'bg-green-500' :
-                          (book.stato || '').toLowerCase() === 'prestato' ? 'bg-red-500' : 'bg-yellow-500';
+      const stato = String(book.stato || '').toLowerCase();
+      const statusClass = stato === 'disponibile' ? 'bg-green-500' :
+                          stato === 'prestato' ? 'bg-red-500' : 'bg-yellow-500';
+      const autori = String(book.autori || '');
+      const titolo = book.titolo || '<?= __("Senza titolo") ?>';
+      const anno = book.anno_pubblicazione_formatted || '';
       return `
         <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
           <a href="/admin/libri/${book.id}" class="flex flex-col h-full">
@@ -1008,9 +1033,9 @@ document.addEventListener('DOMContentLoaded', function() {
               <span class="absolute top-2 right-2 w-3 h-3 rounded-full ${statusClass} ring-2 ring-white"></span>
             </div>
             <div class="p-3 mt-auto">
-              <h3 class="font-medium text-sm text-gray-900 line-clamp-2 leading-tight">${book.titolo || '<?= __("Senza titolo") ?>'}</h3>
-              <p class="text-xs text-gray-500 mt-1 line-clamp-1">${book.autori || ''}</p>
-              ${book.anno_pubblicazione_formatted ? `<p class="text-xs text-gray-400 mt-0.5">${book.anno_pubblicazione_formatted}</p>` : ''}
+              <h3 class="font-medium text-sm text-gray-900 line-clamp-2 leading-tight">${titolo}</h3>
+              <p class="text-xs text-gray-500 mt-1 line-clamp-1">${autori}</p>
+              ${anno ? `<p class="text-xs text-gray-400 mt-0.5">${anno}</p>` : ''}
             </div>
           </a>
         </div>
@@ -1114,7 +1139,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <style>
 .autocomplete-suggestions {
-  @apply absolute z-30 bg-white border border-gray-200 rounded-lg mt-1 w-full hidden shadow-lg max-h-48 overflow-y-auto;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  margin-top: 0.25rem;
+  width: 100%;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  max-height: 12rem;
+  overflow-y: auto;
 }
 
 .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }

@@ -64,8 +64,13 @@ if (preg_match('/\.(?:png|jpg|jpeg|gif|ico|css|js|svg|woff|woff2|ttf|eot)$/', $u
         readfile($publicFile);
         return true;
     }
-    // If not in public/, try serving from root (for installer assets)
-    return false;
+    // Plugin assets are handled by Slim routes (don't return false)
+    if (strpos($uri, '/plugins/') === 0) {
+        // Fall through to Slim app - plugin routes handle these
+    } else {
+        // If not in public/, try serving from root (for installer assets)
+        return false;
+    }
 }
 
 // Handle /installer/ requests

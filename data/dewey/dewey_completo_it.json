@@ -2628,7 +2628,42 @@
                         "code": "305.8",
                         "name": "Gruppi etnici",
                         "level": 4,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "305.80",
+                                "name": "",
+                                "level": 5,
+                                "children": [
+                                    {
+                                        "code": "305.800",
+                                        "name": "",
+                                        "level": 6,
+                                        "children": [
+                                            {
+                                                "code": "305.8009",
+                                                "name": "",
+                                                "level": 7,
+                                                "children": [
+                                                    {
+                                                        "code": "305.80094",
+                                                        "name": "",
+                                                        "level": 8,
+                                                        "children": [
+                                                            {
+                                                                "code": "305.800944",
+                                                                "name": "GRUPPI ETNICI E NAZIONALI. Francia e Principato di Monaco",
+                                                                "level": 9,
+                                                                "children": []
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 ]
             },
