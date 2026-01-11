@@ -303,9 +303,14 @@ class UserActionsController
             $libroId = (int) $reservation['libro_id'];
 
             // Lock book row to prevent race conditions
-            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockStmt->bind_param('i', $libroId);
             $lockStmt->execute();
+            $lockResult = $lockStmt->get_result();
+            if (!$lockResult->fetch_assoc()) {
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=book_not_found')->withStatus(302);
+            }
             $lockStmt->close();
 
             // Check availability for the new date range (excluding this user's reservation)
@@ -399,9 +404,14 @@ class UserActionsController
 
         try {
             // Lock the book row to prevent concurrent loan requests
-            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockStmt->bind_param('i', $libroId);
             $lockStmt->execute();
+            $lockResult = $lockStmt->get_result();
+            if (!$lockResult->fetch_assoc()) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'book_not_found']);
+            }
             $lockStmt->close();
 
             // Re-check availability after acquiring lock - check full loan period
@@ -485,9 +495,14 @@ class UserActionsController
 
         try {
             // Lock the book row to serialize reservations for this book
-            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockStmt->bind_param('i', $libroId);
             $lockStmt->execute();
+            $lockResult = $lockStmt->get_result();
+            if (!$lockResult->fetch_assoc()) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'book_not_found']);
+            }
             $lockStmt->close();
 
             // Check if already has an active reservation for this book (inside transaction to prevent race condition)

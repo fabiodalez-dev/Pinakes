@@ -96,7 +96,7 @@ class CollocationRepository
 
     public function computeNextProgressiva(int $scaffaleId, int $mensolaId, ?int $excludeBookId = null): int
     {
-        $sql = 'SELECT MAX(posizione_progressiva) AS max_pos FROM libri WHERE scaffale_id = ? AND mensola_id = ?';
+        $sql = 'SELECT MAX(posizione_progressiva) AS max_pos FROM libri WHERE scaffale_id = ? AND mensola_id = ? AND deleted_at IS NULL';
         $types = 'ii';
         $params = [$scaffaleId, $mensolaId];
 
@@ -120,7 +120,7 @@ class CollocationRepository
 
     public function isProgressivaOccupied(int $scaffaleId, int $mensolaId, int $progressiva, ?int $excludeBookId = null): bool
     {
-        $sql = 'SELECT id FROM libri WHERE scaffale_id = ? AND mensola_id = ? AND posizione_progressiva = ?';
+        $sql = 'SELECT id FROM libri WHERE scaffale_id = ? AND mensola_id = ? AND posizione_progressiva = ? AND deleted_at IS NULL';
         $types = 'iii';
         $params = [$scaffaleId, $mensolaId, $progressiva];
 
@@ -234,10 +234,10 @@ class CollocationRepository
         $bestScaffale = null; $reason = '';
         $stmt = null;
         if ($sottogenereId > 0) {
-            $stmt = $this->db->prepare("SELECT l.scaffale_id, COUNT(*) c FROM libri l WHERE l.sottogenere_id = ? AND l.scaffale_id IS NOT NULL GROUP BY l.scaffale_id ORDER BY c DESC LIMIT 1");
+            $stmt = $this->db->prepare("SELECT l.scaffale_id, COUNT(*) c FROM libri l WHERE l.sottogenere_id = ? AND l.scaffale_id IS NOT NULL AND l.deleted_at IS NULL GROUP BY l.scaffale_id ORDER BY c DESC LIMIT 1");
             $stmt->bind_param('i', $sottogenereId);
         } elseif ($genereId > 0) {
-            $stmt = $this->db->prepare("SELECT l.scaffale_id, COUNT(*) c FROM libri l WHERE l.genere_id = ? AND l.scaffale_id IS NOT NULL GROUP BY l.scaffale_id ORDER BY c DESC LIMIT 1");
+            $stmt = $this->db->prepare("SELECT l.scaffale_id, COUNT(*) c FROM libri l WHERE l.genere_id = ? AND l.scaffale_id IS NOT NULL AND l.deleted_at IS NULL GROUP BY l.scaffale_id ORDER BY c DESC LIMIT 1");
             $stmt->bind_param('i', $genereId);
         }
         if ($stmt) { $stmt->execute(); $r = $stmt->get_result()->fetch_assoc(); if ($r) { $bestScaffale = (int)$r['scaffale_id']; $reason = 'scaffale più usato per il genere'; } }
@@ -277,7 +277,7 @@ class CollocationRepository
             LEFT JOIN (
                 SELECT p.mensola_id, COUNT(*) cnt
                 FROM posizioni p
-                JOIN libri l ON l.posizione_id = p.id
+                JOIN libri l ON l.posizione_id = p.id AND l.deleted_at IS NULL
                 WHERE p.scaffale_id = ?
                 GROUP BY p.mensola_id
             ) cnt ON cnt.mensola_id = m.id
@@ -293,7 +293,7 @@ class CollocationRepository
         if ($mensolaId) {
             $stmt = $this->db->prepare("SELECT p.id
                 FROM posizioni p
-                LEFT JOIN libri l ON l.posizione_id = p.id
+                LEFT JOIN libri l ON l.posizione_id = p.id AND l.deleted_at IS NULL
                 WHERE p.scaffale_id = ? AND p.mensola_id = ? AND l.id IS NULL
                 ORDER BY p.ordine ASC, p.id ASC LIMIT 1");
             $stmt->bind_param('ii', $bestScaffale, $mensolaId);

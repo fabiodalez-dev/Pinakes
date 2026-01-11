@@ -5074,6 +5074,62 @@ select {
 .slide-in-up {
     animation: slideInUp 0.3s ease-out;
   }
+/* Aspect Ratio Utilities with Browser Compatibility */
+/* Modern browsers: use native aspect-ratio */
+/* Older browsers (Safari < 15, older Chrome/Firefox): use padding-bottom fallback */
+/* 3:4 aspect ratio (book covers) */
+.aspect-book {
+    aspect-ratio: 3/4;
+  }
+/* 16:9 aspect ratio (videos, banners) */
+.aspect-video-custom {
+    aspect-ratio: 16/9;
+  }
+/* 1:1 aspect ratio (square thumbnails) */
+.aspect-square-custom {
+    aspect-ratio: 1/1;
+  }
+/* Fallback for browsers that don't support aspect-ratio */
+@supports not (aspect-ratio: 3/4) {
+    .aspect-book {
+      position: relative;
+      padding-bottom: 133.33%; /* 4/3 * 100 = 133.33% */
+    }
+
+    .aspect-book > * {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .aspect-video-custom {
+      position: relative;
+      padding-bottom: 56.25%; /* 9/16 * 100 = 56.25% */
+    }
+
+    .aspect-video-custom > * {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .aspect-square-custom {
+      position: relative;
+      padding-bottom: 100%;
+    }
+
+    .aspect-square-custom > * {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  }
 
 /* Import Inter font locally (self-hosted via @fontsource/inter) */ /* Latin subset - covers Italian */
 

@@ -134,7 +134,7 @@ class PrestitiController
 
         try {
             // Lock the book record to prevent concurrent updates
-            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockStmt->bind_param('i', $libro_id);
             $lockStmt->execute();
             $bookResult = $lockStmt->get_result();

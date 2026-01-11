@@ -26,7 +26,7 @@ class UserDashboardController
             $userId = (int)($_SESSION['user']['id'] ?? 0);
             
             // Count total books
-            $res = $db->query("SELECT COUNT(*) AS c FROM libri");
+            $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL");
             $stats['libri'] = (int)($res->fetch_assoc()['c'] ?? 0);
             
             // Count user active loans
@@ -64,6 +64,7 @@ class UserDashboardController
                         LIMIT 3) AS autore,
                        l.copie_disponibili
                 FROM libri l
+                WHERE l.deleted_at IS NULL
                 ORDER BY l.created_at DESC
                 LIMIT 5
             ");

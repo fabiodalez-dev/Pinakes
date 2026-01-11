@@ -427,7 +427,7 @@ class ReservationManager
         // Fallback: if no copies exist in copie table, check libri.copie_totali
         // This ensures consistency with ReservationsController::getBookTotalCopies()
         if ($totalCopies === 0) {
-            $fallbackStmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
+            $fallbackStmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
             $fallbackStmt->bind_param('i', $bookId);
             $fallbackStmt->execute();
             $fallbackRow = $fallbackStmt->get_result()?->fetch_assoc();

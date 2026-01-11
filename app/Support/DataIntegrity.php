@@ -909,15 +909,15 @@ class DataIntegrity {
             ]
         ];
 
-        // Statistiche generali
+        // Statistiche generali (exclude soft-deleted books)
         $stmt = $this->db->prepare("
             SELECT
-                (SELECT COUNT(*) FROM libri) as total_books,
+                (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) as total_books,
                 (SELECT COUNT(*) FROM prestiti) as total_loans,
                 (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso', 'in_ritardo')) as active_loans,
                 (SELECT COUNT(*) FROM prestiti WHERE stato = 'in_ritardo') as overdue_loans,
-                (SELECT COUNT(*) FROM libri WHERE copie_disponibili > 0) as books_available,
-                (SELECT COUNT(*) FROM libri WHERE copie_disponibili = 0) as books_unavailable
+                (SELECT COUNT(*) FROM libri WHERE copie_disponibili > 0 AND deleted_at IS NULL) as books_available,
+                (SELECT COUNT(*) FROM libri WHERE copie_disponibili = 0 AND deleted_at IS NULL) as books_unavailable
         ");
         $stmt->execute();
         $result = $stmt->get_result();

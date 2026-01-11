@@ -108,8 +108,8 @@ class CollocazioneController
             return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
         }
 
-        // Check if scaffale has books
-        $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE scaffale_id = ?");
+        // Check if scaffale has books (excluding soft-deleted)
+        $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE scaffale_id = ? AND deleted_at IS NULL");
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -132,8 +132,8 @@ class CollocazioneController
     public function deleteMensola(Request $request, Response $response, mysqli $db, int $id): Response
     {
         // CSRF validated by CsrfMiddleware
-        // Check if mensola has books
-        $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE mensola_id = ?");
+        // Check if mensola has books (excluding soft-deleted)
+        $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE mensola_id = ? AND deleted_at IS NULL");
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -261,7 +261,7 @@ class CollocazioneController
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
                 LEFT JOIN editori e ON l.editore_id = e.id
-                WHERE l.scaffale_id IS NOT NULL AND l.mensola_id IS NOT NULL";
+                WHERE l.scaffale_id IS NOT NULL AND l.mensola_id IS NOT NULL AND l.deleted_at IS NULL";
 
         $params = [];
         $types = '';
@@ -331,7 +331,7 @@ class CollocazioneController
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
                 LEFT JOIN editori e ON l.editore_id = e.id
-                WHERE l.scaffale_id IS NOT NULL AND l.mensola_id IS NOT NULL";
+                WHERE l.scaffale_id IS NOT NULL AND l.mensola_id IS NOT NULL AND l.deleted_at IS NULL";
 
         $params = [];
         $types = '';

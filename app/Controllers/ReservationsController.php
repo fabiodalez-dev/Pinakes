@@ -263,9 +263,15 @@ class ReservationsController
 
         try {
             // Lock book row for update to prevent race conditions
-            $stmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $stmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $stmt->bind_param('i', $bookId);
             $stmt->execute();
+            $result = $stmt->get_result();
+            if (!$result->fetch_assoc()) {
+                $this->db->rollback();
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
             $stmt->close();
 
             // Re-check availability after acquiring lock to avoid races
@@ -406,7 +412,7 @@ class ReservationsController
 
         // Fallback: if NO copies exist in copie table at all, use libri.copie_totali
         // This handles legacy data where copies weren't tracked individually
-        $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ?");
+        $stmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();

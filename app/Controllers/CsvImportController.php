@@ -631,7 +631,7 @@ class CsvImportController
     {
         // Strategia 1: Cerca per ID
         if (!empty($data['id']) && is_numeric($data['id'])) {
-            $stmt = $db->prepare("SELECT id FROM libri WHERE id = ? LIMIT 1");
+            $stmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
             $id = (int) $data['id'];
             $stmt->bind_param('i', $id);
             $stmt->execute();
@@ -645,7 +645,7 @@ class CsvImportController
 
         // Strategia 2: Cerca per ISBN13
         if (!empty($data['isbn13'])) {
-            $stmt = $db->prepare("SELECT id FROM libri WHERE isbn13 = ? LIMIT 1");
+            $stmt = $db->prepare("SELECT id FROM libri WHERE isbn13 = ? AND deleted_at IS NULL LIMIT 1");
             $stmt->bind_param('s', $data['isbn13']);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -658,7 +658,7 @@ class CsvImportController
 
         // Strategia 3: Cerca per EAN
         if (!empty($data['ean'])) {
-            $stmt = $db->prepare("SELECT id FROM libri WHERE ean = ? LIMIT 1");
+            $stmt = $db->prepare("SELECT id FROM libri WHERE ean = ? AND deleted_at IS NULL LIMIT 1");
             $stmt->bind_param('s', $data['ean']);
             $stmt->execute();
             $result = $stmt->get_result();
