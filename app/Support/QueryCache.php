@@ -52,6 +52,9 @@ class QueryCache
     /**
      * Get a value from cache or execute callback to generate it
      *
+     * Uses mutex locking to prevent cache stampede (thundering herd problem).
+     * Only one process computes the value while others wait.
+     *
      * @param string $key Unique cache key
      * @param callable $callback Function to generate value if not cached
      * @param int $ttl Time to live in seconds (default: 300 = 5 minutes)
@@ -65,13 +68,46 @@ class QueryCache
             return $cached;
         }
 
-        // Execute callback to get fresh value
-        $value = $callback();
+        // Acquire mutex lock to prevent stampede
+        $lockKey = self::hashKey($key) . '.lock';
+        $lockFile = self::getCacheDir() . '/' . $lockKey;
+        $lockHandle = @fopen($lockFile, 'c');
 
-        // Store in cache
-        self::set($key, $value, $ttl);
+        if ($lockHandle === false) {
+            // If we can't get a lock, just execute callback (graceful degradation)
+            return $callback();
+        }
 
-        return $value;
+        try {
+            // Try to acquire exclusive lock (non-blocking first)
+            if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+                // Another process is computing, wait for it and try cache again
+                flock($lockHandle, LOCK_EX);
+                $cached = self::get($key);
+                if ($cached !== null) {
+                    return $cached;
+                }
+            }
+
+            // Double-check cache after acquiring lock
+            $cached = self::get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
+
+            // Execute callback to get fresh value
+            $value = $callback();
+
+            // Store in cache
+            self::set($key, $value, $ttl);
+
+            return $value;
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+            // Clean up lock file (best effort)
+            @unlink($lockFile);
+        }
     }
 
     /**
@@ -181,15 +217,25 @@ class QueryCache
     }
 
     /**
-     * Clear all cache entries
+     * Clear all Pinakes cache entries
+     *
+     * Only clears entries with the 'pinakes_' prefix to avoid clearing
+     * other applications' cache entries that may share the same APCu instance.
      *
      * @return bool Success status
      */
     public static function flush(): bool
     {
-        // Try APCu first
+        // Try APCu first - only clear pinakes_* keys, not the entire cache
         if (self::hasApcu()) {
-            return apcu_clear_cache();
+            $success = true;
+            $iterator = new \APCUIterator('/^pinakes_/');
+            foreach ($iterator as $item) {
+                if (!apcu_delete($item['key'])) {
+                    $success = false;
+                }
+            }
+            return $success;
         }
 
         // Fallback to file cache - delete all files
@@ -223,6 +269,9 @@ class QueryCache
 
     /**
      * Get value from file cache
+     *
+     * Uses file locking (flock) to prevent reading incomplete/corrupted data
+     * and safe unserialize to prevent object injection attacks.
      */
     private static function getFromFile(string $hashedKey): mixed
     {
@@ -232,24 +281,45 @@ class QueryCache
             return null;
         }
 
-        $content = @file_get_contents($path);
-        if ($content === false) {
+        // Open file with shared lock for reading
+        $handle = @fopen($path, 'r');
+        if ($handle === false) {
             return null;
         }
 
-        $data = @unserialize($content);
-        if ($data === false || !is_array($data)) {
-            @unlink($path);
-            return null;
-        }
+        try {
+            // Acquire shared lock for reading
+            if (!flock($handle, LOCK_SH)) {
+                return null;
+            }
 
-        // Check expiration
-        if (isset($data['expires']) && $data['expires'] < time()) {
-            @unlink($path);
-            return null;
-        }
+            $content = stream_get_contents($handle);
+            if ($content === false || $content === '') {
+                return null;
+            }
 
-        return $data['value'] ?? null;
+            // Use safe unserialize to prevent object injection attacks
+            $data = @unserialize($content, ['allowed_classes' => false]);
+            if ($data === false || !\is_array($data)) {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+                @unlink($path);
+                return null;
+            }
+
+            // Check expiration
+            if (isset($data['expires']) && $data['expires'] < time()) {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+                @unlink($path);
+                return null;
+            }
+
+            return $data['value'] ?? null;
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
     }
 
     /**

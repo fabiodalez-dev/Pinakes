@@ -432,7 +432,12 @@ class ReservationManager
             $fallbackStmt->execute();
             $fallbackRow = $fallbackStmt->get_result()?->fetch_assoc();
             $fallbackStmt->close();
-            $totalCopies = (int) ($fallbackRow['copie_totali'] ?? 1);
+
+            // If book doesn't exist or is soft-deleted, return false immediately
+            if ($fallbackRow === null) {
+                return false;
+            }
+            $totalCopies = (int) $fallbackRow['copie_totali'];
         }
 
         if ($totalCopies === 0) {

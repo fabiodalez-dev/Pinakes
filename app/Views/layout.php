@@ -695,7 +695,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="/assets/vendor.bundle.js?v=<?= $appVersion ?>"></script>
+  <script src="/assets/vendor.bundle.js?v=<?= $appVersion ?>" defer></script>
   <script src="/assets/tinymce/tinymce.min.js" defer></script>
   <script src="/assets/flatpickr-init.js?v=<?= $appVersion ?>" defer></script>
   <script src="/assets/main.bundle.js?v=<?= $appVersion ?>" defer></script>

@@ -351,6 +351,7 @@ CREATE TABLE `libri` (
   KEY `fk_libri_mensola` (`mensola_id`),
   KEY `idx_libri_scaffale_mensola` (`scaffale_id`,`mensola_id`),
   KEY `idx_libri_posizione_progressiva` (`posizione_progressiva`),
+  KEY `idx_libri_deleted_at` (`deleted_at`),
   FULLTEXT KEY `ft_libri_search` (`titolo`,`sottotitolo`,`descrizione`,`parole_chiave`),
   CONSTRAINT `fk_libri_mensola` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_libri_scaffale` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE SET NULL,

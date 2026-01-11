@@ -419,6 +419,11 @@ class ReservationsController
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
 
-        return (int) ($row['copie_totali'] ?? 1);
+        // If book doesn't exist or is soft-deleted, return 0
+        if ($row === null) {
+            return 0;
+        }
+
+        return (int) $row['copie_totali'];
     }
 }

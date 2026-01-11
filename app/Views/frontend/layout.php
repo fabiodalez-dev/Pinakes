@@ -1568,13 +1568,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
             <hr class="my-4">
             <div class="text-center">
-                <?php
-                $versionFile = dirname(dirname(dirname(__DIR__))) . '/version.json';
-                $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
-                $version = $versionData['version'] ?? '0.1.1';
-                ?>
                 <p><?= date('Y') ?> • <?= HtmlHelper::e($appName) ?> • Powered by Pinakes
-                    v<?= HtmlHelper::e($version) ?></p>
+                    v<?= HtmlHelper::e($appVersion) ?></p>
             </div>
         </div>
     </footer>

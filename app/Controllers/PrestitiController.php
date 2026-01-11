@@ -111,20 +111,6 @@ class PrestitiController
             return $response->withHeader('Location', '/admin/prestiti/crea?error=missing_fields')->withStatus(302);
         }
 
-        // Case 8: Prevent multiple active reservations/loans for the same book by the same user
-        $dupStmt = $db->prepare("
-            SELECT id FROM prestiti
-            WHERE libro_id = ? AND utente_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'prenotato', 'pendente', 'in_ritardo')
-        ");
-        $dupStmt->bind_param('ii', $libro_id, $utente_id);
-        $dupStmt->execute();
-        if ($dupStmt->get_result()->num_rows > 0) {
-            $dupStmt->close();
-            return $response->withHeader('Location', '/admin/prestiti/crea?error=duplicate_reservation')->withStatus(302);
-        }
-        $dupStmt->close();
-
         // Verifica che la data di scadenza sia successiva alla data di prestito
         if (strtotime($data_scadenza) <= strtotime($data_prestito)) {
             return $response->withHeader('Location', '/admin/prestiti/crea?error=invalid_dates')->withStatus(302);
@@ -145,6 +131,23 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', '/admin/prestiti/crea?error=book_not_found')->withStatus(302);
             }
+
+            // Case 8: Prevent multiple active reservations/loans for the same book by the same user
+            // Moved inside transaction with FOR UPDATE to prevent race conditions
+            $dupStmt = $db->prepare("
+                SELECT id FROM prestiti
+                WHERE libro_id = ? AND utente_id = ? AND attivo = 1
+                AND stato IN ('in_corso', 'prenotato', 'pendente', 'in_ritardo')
+                FOR UPDATE
+            ");
+            $dupStmt->bind_param('ii', $libro_id, $utente_id);
+            $dupStmt->execute();
+            if ($dupStmt->get_result()->num_rows > 0) {
+                $dupStmt->close();
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prestiti/crea?error=duplicate_reservation')->withStatus(302);
+            }
+            $dupStmt->close();
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan)
             // Normalize to date-only to handle potential datetime inputs safely
