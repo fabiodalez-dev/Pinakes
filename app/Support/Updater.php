@@ -2043,6 +2043,9 @@ class Updater
     private function parseMemoryLimit(string $limit): int
     {
         $limit = trim($limit);
+        if ($limit === '' || $limit === '-1') {
+            return PHP_INT_MAX;
+        }
         $last = strtolower($limit[strlen($limit) - 1]);
         $value = (int) $limit;
 

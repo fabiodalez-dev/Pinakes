@@ -387,7 +387,8 @@ class QueryCache
 
             // Use safe unserialize to prevent object injection attacks
             $data = @unserialize($content, ['allowed_classes' => false]);
-            if (!is_array($data) || (isset($data['expires']) && $data['expires'] < $now)) {
+            // Delete if: not an array, missing 'expires' key (corrupted), or expired
+            if (!is_array($data) || !isset($data['expires']) || $data['expires'] < $now) {
                 if (@unlink($file)) {
                     $count++;
                 }
