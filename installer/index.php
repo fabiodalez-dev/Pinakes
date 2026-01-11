@@ -147,6 +147,7 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
             <html>
             <head>
                 <title>' . __("Autenticazione Richiesta") . '</title>
+                <link rel="stylesheet" href="/assets/vendor.css">
                 <link rel="stylesheet" href="/installer/assets/style.css">
             </head>
             <body>
@@ -208,6 +209,7 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
             <html>
             <head>
                 <title>' . __("Errore Installazione") . '</title>
+                <link rel="stylesheet" href="/assets/vendor.css">
                 <link rel="stylesheet" href="/installer/assets/style.css">
             </head>
             <body>
@@ -255,7 +257,8 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
         <html>
         <head>
             <title>' . __("Già Installato") . '</title>
-            <link rel="stylesheet" href="/installer/assets/style.css">
+            <link rel="stylesheet" href="/assets/vendor.css">
+                <link rel="stylesheet" href="/installer/assets/style.css">
         </head>
         <body>
             <div class="installer-container">
@@ -333,7 +336,8 @@ function renderHeader($currentStep, $stepTitle) {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title><?= htmlspecialchars($stepTitle) ?> - <?= __("Installer Pinakes") ?></title>
-        <link rel="stylesheet" href="/installer/assets/style.css">
+        <link rel="stylesheet" href="/assets/vendor.css">
+                <link rel="stylesheet" href="/installer/assets/style.css">
     </head>
     <body>
         <div class="installer-container">
