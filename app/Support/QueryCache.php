@@ -145,14 +145,14 @@ class QueryCache
     public static function set(string $key, mixed $value, int $ttl = 300): bool
     {
         $hashedKey = self::hashKey($key);
+        $success = self::setToFile($hashedKey, $value, $ttl);
 
-        // Try APCu first
+        // Also write to APCu if available
         if (self::hasApcu()) {
-            return apcu_store($hashedKey, $value, $ttl);
+            $success = apcu_store($hashedKey, $value, $ttl) && $success;
         }
 
-        // Fallback to file cache
-        return self::setToFile($hashedKey, $value, $ttl);
+        return $success;
     }
 
     /**
@@ -164,14 +164,14 @@ class QueryCache
     public static function delete(string $key): bool
     {
         $hashedKey = self::hashKey($key);
+        $success = self::deleteFromFile($hashedKey);
 
-        // Try APCu first
+        // Also delete from APCu if available
         if (self::hasApcu()) {
-            return apcu_delete($hashedKey);
+            $success = apcu_delete($hashedKey) && $success;
         }
 
-        // Fallback to file cache
-        return self::deleteFromFile($hashedKey);
+        return $success;
     }
 
     /**
