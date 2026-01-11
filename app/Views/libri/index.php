@@ -754,7 +754,8 @@ document.addEventListener('DOMContentLoaded', function() {
     filters.forEach(f => {
       const chip = document.createElement('span');
       chip.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs';
-      chip.innerHTML = `<i class="fas ${f.icon} text-gray-400"></i>${f.label}<button class="ml-1 text-gray-400 hover:text-red-500 transition-colors" data-clear="${f.key}"><i class="fas fa-times"></i></button>`;
+      const safeLabel = escapeHtml(f.label);
+      chip.innerHTML = `<i class="fas ${f.icon} text-gray-400"></i>${safeLabel}<button class="ml-1 text-gray-400 hover:text-red-500 transition-colors" data-clear="${f.key}"><i class="fas fa-times"></i></button>`;
       chip.querySelector('button').addEventListener('click', () => clearFilter(f.key));
       container.appendChild(chip);
     });
