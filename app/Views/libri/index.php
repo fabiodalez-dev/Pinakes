@@ -1020,8 +1020,12 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!book || !book.id) return '';
       const img = book.copertina_url || '/uploads/copertine/placeholder.jpg';
       const stato = String(book.stato || '').toLowerCase();
-      const statusClass = stato === 'disponibile' ? 'bg-green-500' :
-                          stato === 'prestato' ? 'bg-red-500' : 'bg-yellow-500';
+      let statusClass = 'bg-gray-400';
+      if (stato === 'disponibile') statusClass = 'bg-green-500';
+      else if (stato === 'prestato' || stato === 'in_ritardo') statusClass = 'bg-red-500';
+      else if (stato === 'riservato' || stato === 'prenotato') statusClass = 'bg-blue-500';
+      else if (stato === 'danneggiato' || stato === 'perso') statusClass = 'bg-orange-500';
+      else if (stato === 'manutenzione') statusClass = 'bg-yellow-500';
       const autori = String(book.autori || '');
       const titolo = book.titolo || '<?= __("Senza titolo") ?>';
       const anno = book.anno_pubblicazione_formatted || '';

@@ -668,7 +668,8 @@ class BookRepository
             return 0;
         }
 
-        return (int) $authorData;
+        // Fallback: unexpected formats (arrays, objects, non-numeric strings) are ignored
+        return 0;
     }
 
     private function getScaffaleLetter(int $scaffaleId): ?string
@@ -765,7 +766,7 @@ class BookRepository
                 $vals[] = (string) $v;
             }
         }
-        $sql = 'UPDATE libri SET ' . implode(',', $set) . ', updated_at=NOW() WHERE id=?';
+        $sql = 'UPDATE libri SET ' . implode(', ', $set) . ', updated_at=NOW() WHERE id=?';
         $types .= 'i';
         $vals[] = $bookId;
         $stmt = $this->db->prepare($sql);
