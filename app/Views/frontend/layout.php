@@ -26,6 +26,11 @@ $registerRoute = route_path('register');
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
+// Load app version for cache busting
+$versionFile = __DIR__ . '/../../version.json';
+$versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
+$appVersion = $versionData['version'] ?? '0.1.0';
+
 // Load theme colors
 if (isset($container)) {
     $themeManager = $container->get('themeManager');
@@ -171,10 +176,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link rel="icon" type="image/x-icon" href="<?= absoluteUrl('/favicon.ico') ?>">
 
     <!-- CSS moderno e minimale -->
-    <link href="<?= assetUrl('/vendor.css') ?>?v=<?= time() ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/flatpickr-custom.css') ?>?v=<?= time() ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/main.css') ?>?v=<?= time() ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/css/swal-theme.css') ?>?v=<?= time() ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/vendor.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/flatpickr-custom.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/main.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= assetUrl('/css/swal-theme.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
 
     <style>
         :root {
@@ -1575,10 +1580,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     </footer>
 
     <!-- Scripts -->
-    <script src="<?= assetUrl('/vendor.bundle.js') ?>"></script>
-    <script src="<?= assetUrl('/flatpickr-init.js') ?>"></script>
-    <script src="<?= assetUrl('/main.bundle.js') ?>" defer></script>
-    <script src="<?= assetUrl('/js/swal-config.js') ?>" defer></script>
+    <script src="<?= assetUrl('/vendor.bundle.js') ?>?v=<?= $appVersion ?>"></script>
+    <script src="<?= assetUrl('/flatpickr-init.js') ?>?v=<?= $appVersion ?>" defer></script>
+    <script src="<?= assetUrl('/main.bundle.js') ?>?v=<?= $appVersion ?>" defer></script>
+    <script src="<?= assetUrl('/js/swal-config.js') ?>?v=<?= $appVersion ?>" defer></script>
     <script>
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {

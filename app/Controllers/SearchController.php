@@ -110,7 +110,7 @@ class SearchController
                        (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile') AS copie_disponibili,
                        (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id) AS copie_totali
                 FROM libri l
-                WHERE l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?
+                WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?)
                 ORDER BY l.titolo LIMIT 20
             ");
             $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
@@ -217,7 +217,7 @@ class SearchController
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id) AS autori
             FROM libri l
-            WHERE l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ?
+            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ?)
             ORDER BY l.titolo LIMIT 10
         ");
         $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
@@ -336,7 +336,7 @@ class SearchController
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?
+            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
             ORDER BY l.titolo LIMIT 8
         ");
         $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
@@ -373,11 +373,9 @@ class SearchController
 
         $stmt = $db->prepare("
             SELECT a.id, a.nome, a.biografia,
-                   COUNT(la.libro_id) as libro_count
+                   (SELECT COUNT(*) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL) as libro_count
             FROM autori a
-            LEFT JOIN libri_autori la ON a.id = la.autore_id
             WHERE a.nome LIKE ?
-            GROUP BY a.id, a.nome, a.biografia
             ORDER BY a.nome LIMIT 4
         ");
         $stmt->bind_param('s', $s);
@@ -407,11 +405,9 @@ class SearchController
 
         $stmt = $db->prepare("
             SELECT e.id, e.nome, e.indirizzo,
-                   COUNT(l.id) as libro_count
+                   (SELECT COUNT(*) FROM libri l2 WHERE l2.editore_id = e.id AND l2.deleted_at IS NULL) as libro_count
             FROM editori e
-            LEFT JOIN libri l ON e.id = l.editore_id
             WHERE e.nome LIKE ?
-            GROUP BY e.id, e.nome, e.indirizzo
             ORDER BY e.nome LIMIT 3
         ");
         $stmt->bind_param('s', $s);

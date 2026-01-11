@@ -307,10 +307,16 @@ class MaintenanceService
             $this->db->begin_transaction();
 
             try {
-                // Lock the book row
-                $lockStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+                // Lock the book row (skip deleted books)
+                $lockStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
                 $lockStmt->bind_param('i', $bookId);
                 $lockStmt->execute();
+                $lockResult = $lockStmt->get_result();
+                if (!$lockResult->fetch_assoc()) {
+                    $lockStmt->close();
+                    $this->db->rollback();
+                    continue; // Skip deleted books
+                }
                 $lockStmt->close();
 
                 // Use ReservationManager to process the reservation

@@ -6,6 +6,12 @@ module.exports = {
     path.join(__dirname, '../app/Views/**/*.php'),  // Absolute path for correct resolution
     path.join(__dirname, '../public/**/*.html')
   ],
+  // Safelist classes that are dynamically used or defined in @layer utilities
+  safelist: [
+    'aspect-book',
+    'aspect-video-custom',
+    'aspect-square-custom',
+  ],
   darkMode: 'class',
   theme: {
     extend: {

@@ -22,6 +22,7 @@ class StatsController
                 COUNT(CASE WHEN p.attivo = 1 AND p.stato = 'in_ritardo' THEN 1 END) as prestiti_in_ritardo
             FROM libri l
             LEFT JOIN prestiti p ON l.id = p.libro_id
+            WHERE l.deleted_at IS NULL
             GROUP BY l.id
             HAVING prestiti_totali > 0
             ORDER BY prestiti_totali DESC
@@ -98,8 +99,8 @@ class StatsController
         // - stato IN ('in_corso', 'in_ritardo')
         $statsQuery = "
             SELECT
-                (SELECT COUNT(*) FROM libri WHERE stato = 'disponibile') as libri_disponibili,
-                (SELECT COUNT(*) FROM libri WHERE stato = 'prestato') as libri_prestati,
+                (SELECT COUNT(*) FROM libri WHERE stato = 'disponibile' AND deleted_at IS NULL) as libri_disponibili,
+                (SELECT COUNT(*) FROM libri WHERE stato = 'prestato' AND deleted_at IS NULL) as libri_prestati,
                 (SELECT COUNT(*) FROM prestiti WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo')) as prestiti_attivi,
                 (SELECT COUNT(*) FROM prestiti WHERE attivo = 1 AND stato = 'in_ritardo') as prestiti_in_ritardo,
                 (SELECT COUNT(*) FROM prestiti WHERE stato = 'restituito') as prestiti_completati,

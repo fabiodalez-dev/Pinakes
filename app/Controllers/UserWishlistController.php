@@ -20,7 +20,7 @@ final class UserWishlistController
         $uid = (int) $user['id'];
         $sql = "SELECT l.id, l.titolo, l.copertina_url, l.copie_disponibili
                 FROM wishlist w JOIN libri l ON l.id=w.libro_id
-                WHERE w.utente_id=? ORDER BY w.id DESC";
+                WHERE w.utente_id=? AND l.deleted_at IS NULL ORDER BY w.id DESC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $uid);
         $stmt->execute();

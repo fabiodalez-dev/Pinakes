@@ -50,7 +50,7 @@ class PublisherRepository
                        ) AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
-                WHERE l.editore_id = ?
+                WHERE l.editore_id = ? AND l.deleted_at IS NULL
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $publisherId);
@@ -69,7 +69,7 @@ class PublisherRepository
                 FROM autori a
                 INNER JOIN libri_autori la ON a.id = la.autore_id
                 INNER JOIN libri l ON la.libro_id = l.id
-                WHERE l.editore_id = ?
+                WHERE l.editore_id = ? AND l.deleted_at IS NULL
                 ORDER BY a.nome ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $publisherId);
@@ -84,7 +84,7 @@ class PublisherRepository
 
     public function countBooks(int $publisherId): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM libri WHERE editore_id = ?');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM libri WHERE editore_id = ? AND deleted_at IS NULL');
         $stmt->bind_param('i', $publisherId);
         $stmt->execute();
         $stmt->bind_result($count);
