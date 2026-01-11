@@ -1512,7 +1512,7 @@ return function (App $app): void {
         }
         $stmt->close();
         if (!$bookFound) {
-            $response->getBody()->write(json_encode(['error' => 'Book not found']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
         $data['available'] = ($data['copies_available'] > 0);
@@ -1719,7 +1719,7 @@ return function (App $app): void {
         $book = $bookStmt->get_result()->fetch_assoc();
         $bookStmt->close();
         if (!$book) {
-            $response->getBody()->write(json_encode(['error' => 'Book not found']));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 

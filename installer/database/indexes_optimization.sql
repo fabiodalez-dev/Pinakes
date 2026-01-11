@@ -30,6 +30,9 @@ ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_isbn10 (isbn10);
 ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_genere_scaffale (genere_id, scaffale_id);
 ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_sottogenere_scaffale (sottogenere_id, scaffale_id);
 
+-- Indice per soft-delete (SitemapGenerator, filtri deleted_at IS NULL)
+ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_libri_deleted_at (deleted_at);
+
 -- =====================================================
 -- TABELLA: libri_autori (CRITICA - mancano indici composti)
 -- Già presenti: libro_id, autore_id (singoli)

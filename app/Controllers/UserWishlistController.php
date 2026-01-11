@@ -64,7 +64,10 @@ final class UserWishlistController
         $libroId = (int) ($q['libro_id'] ?? 0);
         $fav = false;
         if ($libroId > 0) {
-            $stmt = $db->prepare('SELECT 1 FROM wishlist WHERE utente_id=? AND libro_id=? LIMIT 1');
+            // Join with libri to exclude soft-deleted books
+            $stmt = $db->prepare('SELECT 1 FROM wishlist w
+                JOIN libri l ON l.id = w.libro_id AND l.deleted_at IS NULL
+                WHERE w.utente_id = ? AND w.libro_id = ? LIMIT 1');
             $uid = (int) $user['id'];
             $stmt->bind_param('ii', $uid, $libroId);
             $stmt->execute();
@@ -101,6 +104,18 @@ final class UserWishlistController
             // Item was removed
             $payload = ['favorite' => false];
         } else {
+            // Validate book exists and is not soft-deleted before inserting
+            $checkStmt = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL');
+            $checkStmt->bind_param('i', $libroId);
+            $checkStmt->execute();
+            $bookExists = $checkStmt->get_result()->num_rows > 0;
+            $checkStmt->close();
+
+            if (!$bookExists) {
+                $response->getBody()->write(json_encode(['error' => true, 'message' => __('Libro non trovato')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+
             // Item didn't exist, insert it (use IGNORE to handle concurrent inserts)
             $stmt = $db->prepare('INSERT IGNORE INTO wishlist (utente_id, libro_id) VALUES (?, ?)');
             $stmt->bind_param('ii', $uid, $libroId);
