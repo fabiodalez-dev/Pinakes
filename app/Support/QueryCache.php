@@ -30,7 +30,7 @@ class QueryCache
 
             // Ensure directory exists
             if (!is_dir(self::$cacheDir)) {
-                @mkdir(self::$cacheDir, 0770, true);
+                @mkdir(self::$cacheDir, 0755, true);
             }
         }
 
@@ -71,6 +71,11 @@ class QueryCache
         // Acquire mutex lock to prevent stampede
         $lockKey = self::hashKey($key) . '.lock';
         $lockFile = self::getCacheDir() . '/' . $lockKey;
+
+        // Check lock file mtime BEFORE fopen (fopen 'c' mode can update mtime)
+        clearstatcache(true, $lockFile);
+        $initialLockMtime = @filemtime($lockFile);
+
         $lockHandle = @fopen($lockFile, 'c');
 
         if ($lockHandle === false) {
@@ -81,17 +86,25 @@ class QueryCache
         try {
             $lockAcquired = false;
             $staleLock = false;
+            $timedOut = false;
             $start = microtime(true);
             $maxWaitSeconds = 8.0;
             $staleThreshold = 300;
             $sleepMicros = 200000;
 
-            while (!$lockAcquired) {
+            // Check if lock file was already stale before we opened it
+            if ($initialLockMtime !== false && (time() - $initialLockMtime) > $staleThreshold) {
+                $staleLock = true;
+            }
+
+            while (!$lockAcquired && !$staleLock) {
                 $lockAcquired = flock($lockHandle, LOCK_EX | LOCK_NB);
                 if ($lockAcquired) {
                     break;
                 }
 
+                // Re-check mtime periodically (using clearstatcache for fresh stat)
+                clearstatcache(true, $lockFile);
                 $lockMtime = @filemtime($lockFile);
                 if ($lockMtime !== false && (time() - $lockMtime) > $staleThreshold) {
                     $staleLock = true;
@@ -99,6 +112,7 @@ class QueryCache
                 }
 
                 if ((microtime(true) - $start) >= $maxWaitSeconds) {
+                    $timedOut = true;
                     break;
                 }
 
@@ -118,12 +132,12 @@ class QueryCache
 
             return $value;
         } finally {
-            if (isset($lockAcquired) && $lockAcquired) {
+            if ($lockAcquired) {
                 flock($lockHandle, LOCK_UN);
             }
             fclose($lockHandle);
-            // Clean up lock file (best effort)
-            if ((isset($lockAcquired) && $lockAcquired) || (isset($staleLock) && $staleLock)) {
+            // Clean up lock file (best effort) - also clean up on timeout to prevent accumulation
+            if ($lockAcquired || $staleLock || $timedOut) {
                 @unlink($lockFile);
             }
         }
