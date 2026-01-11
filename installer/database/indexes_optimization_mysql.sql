@@ -80,6 +80,7 @@ CALL add_index_if_not_exists('prestiti', 'idx_libro_utente', 'libro_id, utente_i
 CALL add_index_if_not_exists('utenti', 'idx_nome', 'nome(50)');
 CALL add_index_if_not_exists('utenti', 'idx_cognome', 'cognome(50)');
 CALL add_index_if_not_exists('utenti', 'idx_nome_cognome', 'nome(50), cognome(50)');
+-- Indice aggiuntivo su tipo_utente (non sostituisce altri indici)
 CALL add_index_if_not_exists('utenti', 'idx_tipo_utente', 'tipo_utente');
 
 -- =====================================================

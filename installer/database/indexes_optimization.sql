@@ -90,6 +90,7 @@ ALTER TABLE prestiti ADD INDEX IF NOT EXISTS idx_libro_utente (libro_id, utente_
 ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_nome (nome(50));
 ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_cognome (cognome(50));
 ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_nome_cognome (nome(50), cognome(50));
+-- Indice aggiuntivo su tipo_utente (non sostituisce altri indici)
 ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_tipo_utente (tipo_utente);
 
 -- =====================================================

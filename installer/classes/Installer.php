@@ -40,6 +40,7 @@ class Installer {
         'prestiti',
         'recensioni',
         'scaffali',
+        'sedi',
         'staff',
         'system_settings',
         'tag',
@@ -91,12 +92,12 @@ class Installer {
         $envContent .= "# IMPORTANT: Keep this file secure and never commit it to version control\n\n";
 
         $envContent .= "# Database Configuration\n";
-        $envContent .= "DB_HOST={$host}\n";
-        $envContent .= "DB_USER={$user}\n";
-        $envContent .= "DB_PASS={$password}\n";
-        $envContent .= "DB_NAME={$database}\n";
+        $envContent .= "DB_HOST=" . $this->quoteEnvValue($host) . "\n";
+        $envContent .= "DB_USER=" . $this->quoteEnvValue($user) . "\n";
+        $envContent .= "DB_PASS=" . $this->quoteEnvValue($password) . "\n";
+        $envContent .= "DB_NAME=" . $this->quoteEnvValue($database) . "\n";
         $envContent .= "DB_PORT={$port}\n";
-        $envContent .= "DB_SOCKET={$socket}\n\n";
+        $envContent .= "DB_SOCKET=" . $this->quoteEnvValue($socket) . "\n\n";
 
         $envContent .= "# Application Environment\n";
         $envContent .= "# Set to 'production' for live environments, 'development' for local dev\n";
@@ -623,6 +624,7 @@ class Installer {
                 'idx_isbn10' => 'isbn10',
                 'idx_genere_scaffale' => 'genere_id, scaffale_id',
                 'idx_sottogenere_scaffale' => 'sottogenere_id, scaffale_id',
+                'idx_libri_deleted_at' => 'deleted_at',
             ],
             'libri_autori' => [
                 'idx_libro_autore' => 'libro_id, autore_id',
@@ -639,12 +641,15 @@ class Installer {
             'prestiti' => [
                 'idx_stato_attivo' => 'stato, attivo',
                 'idx_data_prestito' => 'data_prestito',
+                'idx_copia_id' => 'copia_id',
+                'idx_origine' => 'origine',
+                'idx_libro_utente' => 'libro_id, utente_id',
             ],
             'utenti' => [
                 'idx_nome' => 'nome(50)',
                 'idx_cognome' => 'cognome(50)',
                 'idx_nome_cognome' => 'nome(50), cognome(50)',
-                'idx_ruolo' => 'ruolo',
+                'idx_tipo_utente' => 'tipo_utente',
             ],
             'generi' => [
                 'idx_nome' => 'nome(50)',
@@ -654,11 +659,15 @@ class Installer {
             ],
             'copie' => [
                 'idx_numero_inventario' => 'numero_inventario',
+                'idx_sede_id' => 'sede_id',
             ],
             'prenotazioni' => [
                 'idx_libro_id' => 'libro_id',
                 'idx_utente_id' => 'utente_id',
                 'idx_stato' => 'stato',
+                'idx_stato_libro' => 'stato, libro_id',
+                'idx_queue_position' => 'queue_position',
+                'idx_data_scadenza' => 'data_scadenza_prenotazione',
             ],
         ];
 
@@ -1018,6 +1027,27 @@ HTACCESS;
         } catch (\Throwable $e) {
             return 'base64:' . base64_encode(hash('sha256', uniqid((string)mt_rand(), true), true));
         }
+    }
+
+    /**
+     * Quote a value for .env file if it contains special characters.
+     * Values with spaces, #, =, quotes, or other special chars need double-quoting.
+     */
+    private function quoteEnvValue(string $value): string
+    {
+        // Empty string should be quoted
+        if ($value === '') {
+            return '""';
+        }
+
+        // Check if value needs quoting (contains special chars)
+        if (preg_match('/[\s#="\'\\\\$`!]/', $value)) {
+            // Escape backslashes and double quotes
+            $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+            return '"' . $escaped . '"';
+        }
+
+        return $value;
     }
 
     /**
