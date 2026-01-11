@@ -385,6 +385,26 @@ document.addEventListener('DOMContentLoaded', function() {
   // Debounce helper
   const debounce = (fn, ms=300) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),ms); }; };
 
+  const escapeHtml = (value) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const getStatusMeta = (statoRaw) => {
+    const stato = String(statoRaw || '').trim().toLowerCase();
+    if (stato === 'disponibile') return { cls: 'bg-green-500', icon: 'fa-check-circle' };
+    if (stato === 'prestato' || stato === 'non disponibile' || stato === 'in_ritardo') {
+      return { cls: 'bg-red-500', icon: 'fa-times-circle' };
+    }
+    if (stato === 'riservato' || stato === 'prenotato') return { cls: 'bg-blue-500', icon: 'fa-bookmark' };
+    if (stato === 'danneggiato' || stato === 'perso') return { cls: 'bg-orange-500', icon: 'fa-exclamation-circle' };
+    if (stato === 'manutenzione') return { cls: 'bg-yellow-500', icon: 'fa-wrench' };
+    return { cls: 'bg-gray-400', icon: 'fa-question-circle' };
+  };
+
   // Recent searches management
   const RECENT_SEARCHES_KEY = 'pinakes_recent_searches';
   const MAX_RECENT_SEARCHES = 10;
@@ -496,7 +516,8 @@ document.addEventListener('DOMContentLoaded', function() {
       dataSrc: function(json) {
         document.getElementById('total-count').textContent = (json.recordsTotal || 0).toLocaleString() + ' ' + window.__('libri');
         // Filter out any null/undefined rows to prevent render errors
-        const safeData = (json.data || []).filter(row => row != null);
+        const rows = Array.isArray(json?.data) ? json.data : [];
+        const safeData = rows.filter(row => row != null);
         gridData = safeData;
         if (currentView === 'grid') renderGrid();
         return safeData;
@@ -510,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '40px',
         className: 'text-center align-middle',
         render: function(_, __, row) {
-          if (!row || !row.id) return '';
+          if (!row || row.id == null) return '';
           const checked = selectedBooks.has(row.id) ? 'checked' : '';
           return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${row.id}" ${checked} />`;
         }
@@ -523,24 +544,20 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(_, __, row) {
           if (!row) return '<span class="text-gray-400">-</span>';
-          const s = String(row.stato || '').trim().toLowerCase();
-          let cls = 'bg-gray-400';
-          let icon = 'fa-question-circle';
-          if (s === 'disponibile') { cls = 'bg-green-500'; icon = 'fa-check-circle'; }
-          else if (s === 'prestato' || s === 'non disponibile') { cls = 'bg-red-500'; icon = 'fa-times-circle'; }
-          else if (s === 'riservato') { cls = 'bg-yellow-500'; icon = 'fa-clock'; }
-          else if (s === 'danneggiato') { cls = 'bg-orange-500'; icon = 'fa-exclamation-circle'; }
+          const statusMeta = getStatusMeta(row.stato);
 
-          let tooltip = row.stato || '<?= __("Sconosciuto") ?>';
+          let tooltip = escapeHtml(row.stato || '<?= __("Sconosciuto") ?>');
           if (row.prestito_info) {
-            tooltip += `\n<?= __("Utente") ?>: ${row.prestito_info.utente}\n<?= __("Scadenza") ?>: ${row.prestito_info.scadenza}`;
+            const utente = escapeHtml(row.prestito_info.utente);
+            const scadenza = escapeHtml(row.prestito_info.scadenza);
+            tooltip += `\n<?= __("Utente") ?>: ${utente}\n<?= __("Scadenza") ?>: ${scadenza}`;
             if (row.prestito_info.in_ritardo) {
               tooltip += `\n<?= __("IN RITARDO") ?>`;
             }
           }
 
-          return `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full ${cls} text-white text-xs cursor-help" title="${tooltip.replace(/"/g, '&quot;')}">
-            <i class="fas ${icon} text-xs"></i>
+          return `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full ${statusMeta.cls} text-white text-xs cursor-help" title="${tooltip}">
+            <i class="fas ${statusMeta.icon} text-xs"></i>
           </span>`;
         }
       },
@@ -552,8 +569,9 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(data, type, row) {
           if (!row) return '<div class="w-12 h-16 mx-auto bg-gray-100 rounded"></div>';
-          const imageUrl = data || '/uploads/copertine/placeholder.jpg';
-          return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity" onclick='showImageModal(${JSON.stringify(row)})'>
+          const imageUrl = escapeHtml(data || '/uploads/copertine/placeholder.jpg');
+          const payload = encodeURIComponent(JSON.stringify(row));
+          return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity js-cover-modal" data-book="${payload}">
             <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
           </div>`;
         }
@@ -564,8 +582,8 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'align-top',
         render: function(_, type, row) {
           if (!row) return '<span class="text-gray-400">-</span>';
-          const titolo = row.titolo || window.__('Senza titolo');
-          const sottotitolo = row.sottotitolo ? `<div class="text-xs text-gray-500 italic mt-0.5 line-clamp-1">${row.sottotitolo}</div>` : '';
+          const titolo = escapeHtml(row.titolo || window.__('Senza titolo'));
+          const sottotitolo = row.sottotitolo ? `<div class="text-xs text-gray-500 italic mt-0.5 line-clamp-1">${escapeHtml(row.sottotitolo)}</div>` : '';
 
           let autoriHtml = '';
           const autoriStr = String(row.autori || '');
@@ -574,20 +592,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const idsArray = row.autori_order_key ? String(row.autori_order_key).split(',') : [];
             const linkedAutori = autoriArray.map((nome, i) => {
               const id = idsArray[i];
-              if (id) return `<a href="/admin/autori/${id}" class="text-gray-600 hover:text-gray-900 hover:underline">${nome}</a>`;
-              return nome;
+              const safeName = escapeHtml(nome);
+              if (id) return `<a href="/admin/autori/${id}" class="text-gray-600 hover:text-gray-900 hover:underline">${safeName}</a>`;
+              return safeName;
             });
             autoriHtml = `<div class="text-xs text-gray-600 mt-1"><i class="fas fa-user text-gray-400 mr-1"></i>${linkedAutori.join(', ')}${autoriStr.split(', ').length > 2 ? ' ...' : ''}</div>`;
           }
 
           let editoreHtml = '';
           if (row.editore_nome) {
-            editoreHtml = `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-building text-gray-400 mr-1"></i>${row.editore_nome}</div>`;
+            editoreHtml = `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-building text-gray-400 mr-1"></i>${escapeHtml(row.editore_nome)}</div>`;
           }
 
           let isbnHtml = '';
           if (row.isbn13 || row.isbn10) {
-            isbnHtml = `<div class="text-xs text-gray-400 mt-0.5 font-mono">${row.isbn13 || row.isbn10}</div>`;
+            isbnHtml = `<div class="text-xs text-gray-400 mt-0.5 font-mono">${escapeHtml(row.isbn13 || row.isbn10)}</div>`;
           }
 
           return `<div class="min-w-0">
@@ -605,7 +624,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!str) return '<span class="text-gray-400 text-xs">-</span>';
           const genres = str.split(' / ');
           return genres.map((g, i) =>
-            `<span class="inline-block px-2 py-0.5 rounded text-xs ${i === 0 ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600'} mb-0.5">${g}</span>`
+            `<span class="inline-block px-2 py-0.5 rounded text-xs ${i === 0 ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600'} mb-0.5">${escapeHtml(g)}</span>`
           ).join('<br>');
         }
       },
@@ -617,7 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const str = String(data || '').trim();
           if (!str || str === 'N/D') return '<span class="text-gray-400 text-xs">-</span>';
           const parts = str.split(' - ').slice(0, 2);
-          return `<div class="text-xs leading-tight">${parts.map((p, i) => `<div class="${i === 0 ? 'font-medium text-gray-700' : 'text-gray-500'}">${p}</div>`).join('')}</div>`;
+          return `<div class="text-xs leading-tight">${parts.map((p, i) => `<div class="${i === 0 ? 'font-medium text-gray-700' : 'text-gray-500'}">${escapeHtml(p)}</div>`).join('')}</div>`;
         }
       },
       { // Year
@@ -636,7 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '100px',
         className: 'text-center align-middle',
         render: function(data, type, row) {
-          if (!data || !row) return '<span class="text-gray-400">-</span>';
+          if (!row || data == null) return '<span class="text-gray-400">-</span>';
           return `<div class="flex items-center justify-center gap-0.5">
             <a href="/admin/libri/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
               <i class="fas fa-eye text-xs"></i>
@@ -662,6 +681,20 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       updateBulkActionsBar();
     }
+  });
+
+  document.getElementById('libri-table').addEventListener('click', (e) => {
+    const el = e.target.closest('.js-cover-modal');
+    if (!el) return;
+    const payload = el.dataset.book;
+    if (!payload) return;
+    let bookData;
+    try {
+      bookData = JSON.parse(decodeURIComponent(payload));
+    } catch {
+      return;
+    }
+    window.showImageModal(bookData);
   });
 
   // Filter event handlers
@@ -1017,18 +1050,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const items = gridData.slice(start, start + gridPageSize);
 
     container.innerHTML = items.map(book => {
-      if (!book || !book.id) return '';
-      const img = book.copertina_url || '/uploads/copertine/placeholder.jpg';
-      const stato = String(book.stato || '').toLowerCase();
-      let statusClass = 'bg-gray-400';
-      if (stato === 'disponibile') statusClass = 'bg-green-500';
-      else if (stato === 'prestato' || stato === 'in_ritardo') statusClass = 'bg-red-500';
-      else if (stato === 'riservato' || stato === 'prenotato') statusClass = 'bg-blue-500';
-      else if (stato === 'danneggiato' || stato === 'perso') statusClass = 'bg-orange-500';
-      else if (stato === 'manutenzione') statusClass = 'bg-yellow-500';
-      const autori = String(book.autori || '');
-      const titolo = book.titolo || '<?= __("Senza titolo") ?>';
-      const anno = book.anno_pubblicazione_formatted || '';
+      if (!book || book.id == null) return '';
+      const img = escapeHtml(book.copertina_url || '/uploads/copertine/placeholder.jpg');
+      const statusClass = getStatusMeta(book.stato).cls;
+      const autori = escapeHtml(book.autori || '');
+      const titolo = escapeHtml(book.titolo || '<?= __("Senza titolo") ?>');
+      const anno = escapeHtml(book.anno_pubblicazione_formatted || '');
       return `
         <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
           <a href="/admin/libri/${book.id}" class="flex flex-col h-full">
