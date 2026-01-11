@@ -30,7 +30,7 @@ class QueryCache
 
             // Ensure directory exists
             if (!is_dir(self::$cacheDir)) {
-                @mkdir(self::$cacheDir, 0775, true);
+                @mkdir(self::$cacheDir, 0770, true);
             }
         }
 
@@ -79,17 +79,32 @@ class QueryCache
         }
 
         try {
-            // Try to acquire exclusive lock (non-blocking first)
-            if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
-                // Another process is computing, wait for it and try cache again
-                flock($lockHandle, LOCK_EX);
-                $cached = self::get($key);
-                if ($cached !== null) {
-                    return $cached;
+            $lockAcquired = false;
+            $staleLock = false;
+            $start = microtime(true);
+            $maxWaitSeconds = 8.0;
+            $staleThreshold = 300;
+            $sleepMicros = 200000;
+
+            while (!$lockAcquired) {
+                $lockAcquired = flock($lockHandle, LOCK_EX | LOCK_NB);
+                if ($lockAcquired) {
+                    break;
                 }
+
+                $lockMtime = @filemtime($lockFile);
+                if ($lockMtime !== false && (time() - $lockMtime) > $staleThreshold) {
+                    $staleLock = true;
+                    break;
+                }
+
+                if ((microtime(true) - $start) >= $maxWaitSeconds) {
+                    break;
+                }
+
+                usleep($sleepMicros);
             }
 
-            // Double-check cache after acquiring lock
             $cached = self::get($key);
             if ($cached !== null) {
                 return $cached;
@@ -103,10 +118,14 @@ class QueryCache
 
             return $value;
         } finally {
-            flock($lockHandle, LOCK_UN);
+            if (isset($lockAcquired) && $lockAcquired) {
+                flock($lockHandle, LOCK_UN);
+            }
             fclose($lockHandle);
             // Clean up lock file (best effort)
-            @unlink($lockFile);
+            if ((isset($lockAcquired) && $lockAcquired) || (isset($staleLock) && $staleLock)) {
+                @unlink($lockFile);
+            }
         }
     }
 
@@ -145,12 +164,14 @@ class QueryCache
     public static function set(string $key, mixed $value, int $ttl = 300): bool
     {
         $hashedKey = self::hashKey($key);
-        $success = self::setToFile($hashedKey, $value, $ttl);
+        $success = true;
 
         // Also write to APCu if available
         if (self::hasApcu()) {
             $success = apcu_store($hashedKey, $value, $ttl) && $success;
         }
+
+        $success = self::setToFile($hashedKey, $value, $ttl) && $success;
 
         return $success;
     }
@@ -332,7 +353,7 @@ class QueryCache
 
         $result = @file_put_contents($path, serialize($data), LOCK_EX);
         if ($result !== false) {
-            @chmod($path, 0664);
+            @chmod($path, 0660);
         }
 
         return $result !== false;
@@ -361,11 +382,6 @@ class QueryCache
      */
     public static function gc(): int
     {
-        // APCu handles its own garbage collection
-        if (self::hasApcu()) {
-            return 0;
-        }
-
         $cacheDir = self::getCacheDir();
         if (!is_dir($cacheDir)) {
             return 0;
@@ -380,8 +396,15 @@ class QueryCache
         $now = time();
 
         foreach ($files as $file) {
+            if (str_ends_with($file, '.lock')) {
+                continue;
+            }
+
             $content = @file_get_contents($file);
             if ($content === false) {
+                if (@unlink($file)) {
+                    $count++;
+                }
                 continue;
             }
 
@@ -391,6 +414,19 @@ class QueryCache
             if (!is_array($data) || !isset($data['expires']) || $data['expires'] < $now) {
                 if (@unlink($file)) {
                     $count++;
+                }
+            }
+        }
+
+        $lockFiles = glob($cacheDir . '/*.lock');
+        if ($lockFiles !== false) {
+            $staleTime = $now - 300;
+            foreach ($lockFiles as $lockFile) {
+                $lockMtime = @filemtime($lockFile);
+                if ($lockMtime !== false && $lockMtime < $staleTime) {
+                    if (@unlink($lockFile)) {
+                        $count++;
+                    }
                 }
             }
         }
