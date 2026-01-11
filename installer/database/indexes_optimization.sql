@@ -113,6 +113,9 @@ ALTER TABLE posizioni ADD INDEX IF NOT EXISTS idx_scaffale_mensola (scaffale_id,
 -- Indice per inventario
 ALTER TABLE copie ADD INDEX IF NOT EXISTS idx_numero_inventario (numero_inventario);
 
+-- Indice per sede (multi-branch support)
+ALTER TABLE copie ADD INDEX IF NOT EXISTS idx_sede_id (sede_id);
+
 -- =====================================================
 -- TABELLA: prenotazioni (aggiungere indici mancanti)
 -- =====================================================

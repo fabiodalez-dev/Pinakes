@@ -127,7 +127,7 @@ class QueryCache
             if ($success) {
                 return $value;
             }
-            return null;
+            // APCu miss - fall through to file cache
         }
 
         // Fallback to file cache
@@ -185,7 +185,7 @@ class QueryCache
         $hashedPrefix = 'pinakes_' . $prefix;
         $count = 0;
 
-        // Try APCu first
+        // Clear APCu cache if available
         if (self::hasApcu()) {
             $iterator = new \APCUIterator('/^' . preg_quote($hashedPrefix, '/') . '/');
             foreach ($iterator as $item) {
@@ -193,18 +193,18 @@ class QueryCache
                     $count++;
                 }
             }
-            return $count;
+            // Don't return early - also clear file cache
         }
 
-        // Fallback to file cache - scan directory
+        // Also clear file cache for consistency
         $cacheDir = self::getCacheDir();
         if (!is_dir($cacheDir)) {
-            return 0;
+            return $count;
         }
 
         $files = glob($cacheDir . '/' . $hashedPrefix . '*');
         if ($files === false) {
-            return 0;
+            return $count;
         }
 
         foreach ($files as $file) {
@@ -226,37 +226,34 @@ class QueryCache
      */
     public static function flush(): bool
     {
-        // Try APCu first - only clear pinakes_* keys, not the entire cache
+        $successApcu = true;
+        $successFiles = true;
+
+        // Clear APCu cache if available - only pinakes_* keys, not the entire cache
         if (self::hasApcu()) {
-            $success = true;
             $iterator = new \APCUIterator('/^pinakes_/');
             foreach ($iterator as $item) {
                 if (!apcu_delete($item['key'])) {
-                    $success = false;
+                    $successApcu = false;
                 }
             }
-            return $success;
+            // Don't return early - also clear file cache
         }
 
-        // Fallback to file cache - delete all files
+        // Also clear file cache for consistency
         $cacheDir = self::getCacheDir();
-        if (!is_dir($cacheDir)) {
-            return true;
-        }
-
-        $files = glob($cacheDir . '/pinakes_*');
-        if ($files === false) {
-            return true;
-        }
-
-        $success = true;
-        foreach ($files as $file) {
-            if (!@unlink($file)) {
-                $success = false;
+        if (is_dir($cacheDir)) {
+            $files = glob($cacheDir . '/pinakes_*');
+            if ($files !== false) {
+                foreach ($files as $file) {
+                    if (!@unlink($file)) {
+                        $successFiles = false;
+                    }
+                }
             }
         }
 
-        return $success;
+        return $successApcu && $successFiles;
     }
 
     /**
@@ -301,16 +298,14 @@ class QueryCache
             // Use safe unserialize to prevent object injection attacks
             $data = @unserialize($content, ['allowed_classes' => false]);
             if ($data === false || !\is_array($data)) {
-                flock($handle, LOCK_UN);
-                fclose($handle);
+                // finally block handles unlock/close
                 @unlink($path);
                 return null;
             }
 
             // Check expiration
             if (isset($data['expires']) && $data['expires'] < time()) {
-                flock($handle, LOCK_UN);
-                fclose($handle);
+                // finally block handles unlock/close
                 @unlink($path);
                 return null;
             }
@@ -390,7 +385,8 @@ class QueryCache
                 continue;
             }
 
-            $data = @unserialize($content);
+            // Use safe unserialize to prevent object injection attacks
+            $data = @unserialize($content, ['allowed_classes' => false]);
             if (!is_array($data) || (isset($data['expires']) && $data['expires'] < $now)) {
                 if (@unlink($file)) {
                     $count++;

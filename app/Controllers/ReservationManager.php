@@ -414,34 +414,47 @@ class ReservationManager
             return false;
         }
 
-        // Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
-        $totalStmt = $this->db->prepare("
-            SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
-        ");
-        $totalStmt->bind_param('i', $bookId);
-        $totalStmt->execute();
-        $totalCopies = (int) ($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
-        $totalStmt->close();
+        // First check if ANY copies exist in the copie table for this book
+        // This distinguishes between "no records" vs "all copies lost/damaged"
+        $existStmt = $this->db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
+        $existStmt->bind_param('i', $bookId);
+        $existStmt->execute();
+        $totalCopiesExist = (int) ($existStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $existStmt->close();
 
-        // Fallback: if no copies exist in copie table, check libri.copie_totali
-        // This ensures consistency with ReservationsController::getBookTotalCopies()
-        if ($totalCopies === 0) {
-            $fallbackStmt = $this->db->prepare("SELECT GREATEST(IFNULL(copie_totali, 1), 1) AS copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
+        if ($totalCopiesExist > 0) {
+            // Copies exist in copie table - count only loanable ones
+            // Exclude permanently unavailable: 'perso', 'danneggiato', 'manutenzione'
+            $totalStmt = $this->db->prepare("
+                SELECT COUNT(*) as total FROM copie
+                WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            ");
+            $totalStmt->bind_param('i', $bookId);
+            $totalStmt->execute();
+            $totalCopies = (int) ($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
+            $totalStmt->close();
+
+            // If all copies are lost/damaged, book is unavailable
+            if ($totalCopies === 0) {
+                return false;
+            }
+        } else {
+            // No copies in copie table - fallback to libri.copie_totali for legacy data
+            $fallbackStmt = $this->db->prepare("SELECT IFNULL(copie_totali, 1) AS copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
             $fallbackStmt->bind_param('i', $bookId);
             $fallbackStmt->execute();
             $fallbackRow = $fallbackStmt->get_result()?->fetch_assoc();
             $fallbackStmt->close();
 
-            // If book doesn't exist or is soft-deleted, return false immediately
+            // If book doesn't exist or is soft-deleted, return false
             if ($fallbackRow === null) {
                 return false;
             }
             $totalCopies = (int) $fallbackRow['copie_totali'];
-        }
 
-        if ($totalCopies === 0) {
-            return false;
+            if ($totalCopies === 0) {
+                return false;
+            }
         }
 
         // Count active loans that overlap with the requested period (include prenotato, pendente)

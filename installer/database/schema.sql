@@ -120,7 +120,9 @@ CREATE TABLE `copie` (
   UNIQUE KEY `uniq_numero_inventario` (`numero_inventario`),
   KEY `idx_libro_id` (`libro_id`),
   KEY `idx_stato` (`stato`),
-  CONSTRAINT `copie_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
+  KEY `idx_sede_id` (`sede_id`),
+  CONSTRAINT `copie_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `copie_ibfk_2` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -663,6 +665,28 @@ CREATE TABLE `scaffali` (
   UNIQUE KEY `lettera` (`lettera`),
   UNIQUE KEY `uniq_codice` (`codice`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sedi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Nome della sede (es. Sede Centrale, Succursale Nord)',
+  `codice` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Codice identificativo della sede',
+  `indirizzo` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `citta` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cap` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provincia` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `orari_apertura` text COLLATE utf8mb4_unicode_ci COMMENT 'Orari di apertura in formato libero',
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_codice` (`codice`),
+  KEY `idx_is_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Sedi della biblioteca (per sistemi multi-sede)';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
