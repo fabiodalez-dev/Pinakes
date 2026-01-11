@@ -45,6 +45,7 @@ CALL add_index_if_not_exists('libri', 'idx_created_at', 'created_at');
 CALL add_index_if_not_exists('libri', 'idx_isbn10', 'isbn10');
 CALL add_index_if_not_exists('libri', 'idx_genere_scaffale', 'genere_id, scaffale_id');
 CALL add_index_if_not_exists('libri', 'idx_sottogenere_scaffale', 'sottogenere_id, scaffale_id');
+CALL add_index_if_not_exists('libri', 'idx_libri_deleted_at', 'deleted_at');
 
 -- =====================================================
 -- TABELLA: libri_autori (CRITICA - JOIN efficienti)
@@ -95,6 +96,7 @@ CALL add_index_if_not_exists('posizioni', 'idx_scaffale_mensola', 'scaffale_id, 
 -- TABELLA: copie
 -- =====================================================
 CALL add_index_if_not_exists('copie', 'idx_numero_inventario', 'numero_inventario');
+CALL add_index_if_not_exists('copie', 'idx_sede_id', 'sede_id');
 
 -- =====================================================
 -- TABELLA: prenotazioni
