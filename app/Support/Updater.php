@@ -17,7 +17,7 @@ use Exception;
 use ZipArchive;
 
 /**
- * Application Updater - DEBUG VERSION
+ * Application Updater
  * Handles version checking, downloading, and installing updates from GitHub releases
  */
 class Updater

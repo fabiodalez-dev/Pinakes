@@ -1042,8 +1042,8 @@ HTACCESS;
 
         // Check if value needs quoting (contains special chars)
         if (preg_match('/[\s#="\'\\\\$`!]/', $value)) {
-            // Escape backslashes and double quotes
-            $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+            // Escape backslashes, double quotes, and $ (prevent shell/variable expansion)
+            $escaped = str_replace(['\\', '"', '$'], ['\\\\', '\\"', '\\$'], $value);
             return '"' . $escaped . '"';
         }
 

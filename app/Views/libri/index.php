@@ -439,7 +439,13 @@ document.addEventListener('DOMContentLoaded', function() {
     searches.forEach(search => {
       const li = document.createElement('li');
       li.className = 'px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex items-center gap-2 text-gray-700';
-      li.innerHTML = `<i class="fas fa-history text-gray-400 text-xs"></i><span>${search}</span>`;
+      // DOM-safe: avoid innerHTML with user content
+      const icon = document.createElement('i');
+      icon.className = 'fas fa-history text-gray-400 text-xs';
+      const span = document.createElement('span');
+      span.textContent = search;
+      li.appendChild(icon);
+      li.appendChild(span);
       li.addEventListener('click', () => {
         document.getElementById('search_text').value = search;
         document.getElementById('recent-searches-dropdown').classList.add('hidden');
@@ -1145,18 +1151,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Image modal
   window.showImageModal = function(bookData) {
-    const img = bookData.copertina_url || '/uploads/copertine/placeholder.jpg';
+    const img = escapeHtml(bookData.copertina_url || '/uploads/copertine/placeholder.jpg');
+    const titolo = escapeHtml(bookData.titolo || '');
+    const autori = escapeHtml(bookData.autori || '');
+    const editore = escapeHtml(bookData.editore_nome || '');
+    const bookId = parseInt(bookData.id, 10) || 0;
     if (window.Swal) {
       Swal.fire({
         html: `
           <div class="text-left">
             <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" onerror="this.src='/uploads/copertine/placeholder.jpg'">
-            <h3 class="font-semibold text-lg">${bookData.titolo || ''}</h3>
-            ${bookData.autori ? `<p class="text-sm text-gray-600 mt-1">${bookData.autori}</p>` : ''}
-            ${bookData.editore_nome ? `<p class="text-sm text-gray-500">${bookData.editore_nome}</p>` : ''}
+            <h3 class="font-semibold text-lg">${titolo}</h3>
+            ${autori ? `<p class="text-sm text-gray-600 mt-1">${autori}</p>` : ''}
+            ${editore ? `<p class="text-sm text-gray-500">${editore}</p>` : ''}
             <div class="flex gap-2 mt-4">
-              <a href="/admin/libri/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700"><?= __("Dettagli") ?></a>
-              <a href="/admin/libri/modifica/${bookData.id}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200"><?= __("Modifica") ?></a>
+              <a href="/admin/libri/${bookId}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700"><?= __("Dettagli") ?></a>
+              <a href="/admin/libri/modifica/${bookId}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200"><?= __("Modifica") ?></a>
             </div>
           </div>
         `,
