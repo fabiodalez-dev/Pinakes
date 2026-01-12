@@ -385,6 +385,3 @@ docs/reference/agents.md
 
 # Internal development folder (completely untracked)
 internal/
-
-# Manual update files for users with broken updater
-test-updater/

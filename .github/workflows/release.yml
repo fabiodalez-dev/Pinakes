@@ -103,6 +103,20 @@ jobs:
           body: |
             # Pinakes v${{ steps.version.outputs.VERSION }}
 
+            > ⚠️ **UPGRADING FROM v0.4.1 - v0.4.3?**
+            >
+            > The built-in updater has a bug that prevents automatic updates on shared hosting.
+            > **You must manually patch the updater first:**
+            >
+            > 1. Download `test-updater/` folder from this release
+            > 2. Upload the `app/` folder via FTP, overwriting existing files
+            > 3. Then retry the update from Admin → Updates
+            >
+            > Or upload `test-updater/manual-update.php` to your site root and access it via browser.
+            > See `test-updater/README.md` for detailed instructions.
+
+            ---
+
             ${{ steps.changelog.outputs.CHANGELOG }}
 
             ---
@@ -115,7 +129,7 @@ jobs:
             shasum -a 256 -c pinakes-v${{ steps.version.outputs.VERSION }}.zip.sha256
             ```
 
-            ## 📋 Installation
+            ## 📋 Installation (New Installations)
 
             1. Extract archive:
                ```bash
@@ -123,18 +137,13 @@ jobs:
                cd pinakes-v${{ steps.version.outputs.VERSION }}
                ```
 
-            2. Install dependencies:
-               ```bash
-               composer install --no-dev --optimize-autoloader
-               ```
-
-            3. Configure environment:
+            2. Configure environment:
                ```bash
                cp .env.example .env
                # Edit .env with your settings
                ```
 
-            4. Run web installer at: http://yourdomain.com
+            3. Run web installer at: http://yourdomain.com
 
             See README.md in the package for complete documentation.
           files: |
