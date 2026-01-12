@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.1-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.4-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 [![CodeRabbit](https://img.shields.io/coderabbit/prs/reviewed/github/fabiodalez-dev/Pinakes?style=for-the-badge&logo=coderabbit&logoColor=white&label=PRs%20Reviewed)](https://coderabbit.ai)
@@ -22,7 +22,58 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.1
+> ## ⚠️ IMPORTANT: Upgrading from v0.4.1 - v0.4.3
+>
+> **If you're running version 0.4.1, 0.4.2, or 0.4.3, the built-in updater has a bug that prevents automatic updates on shared hosting.**
+>
+> The old `Updater.php` uses the system temp directory (`/tmp`), which fails on most shared hosting providers.
+>
+> **Before updating, you must manually patch the updater:**
+>
+> 1. Download the `test-updater/` folder from this release
+> 2. Upload the `app/` folder via FTP, overwriting existing files
+> 3. Then retry the update from Admin → Updates
+>
+> **Or use the emergency script:**
+> 1. Upload `test-updater/manual-update.php` to your site root
+> 2. Access it via browser: `https://yourdomain.com/manual-update.php`
+> 3. Delete the file after the update completes
+>
+> See [`test-updater/README.md`](test-updater/README.md) for detailed instructions.
+
+---
+
+## What's New in v0.4.4
+
+### Robust Auto-Updater
+
+Complete rewrite of the update system for reliable operation on shared hosting:
+
+- **Always uses `storage/tmp`** — No longer relies on system `/tmp` directory
+- **Pre-flight checks** — Verifies permissions, disk space (200MB minimum), and required extensions before starting
+- **cURL primary download** — More reliable than `file_get_contents`, with automatic fallback
+- **Automatic retry** — 3 attempts for ZIP extraction with memory increase between retries
+- **Old temp cleanup** — Automatically removes stale temporary directories older than 1 hour
+- **Idempotent migrations** — Ignores 8 common SQL errors for safe re-running
+- **Detailed logging** — New `/admin/updates/logs` endpoint for troubleshooting
+
+### Smaller Release Package
+
+- **Excluded `node_modules/`** — Not needed in production (compiled assets in `public/assets/`)
+- **Package size reduced** from ~95MB to ~15-20MB
+- **Faster updates** — Smaller download, faster extraction
+
+### Manual Update Files Included
+
+- **`test-updater/` folder** — Contains patched files for users stuck on broken updater versions
+- **`manual-update.php`** — Standalone emergency update script
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.1</strong> - ISBN Enhancement & Bug Fixes</summary>
 
 ### ISBN Enhancement & Cross-Source Matching
 
@@ -49,20 +100,32 @@ New `IsbnFormatter` utility class for intelligent ISBN handling:
 - **CSRF middleware** — Improvements for better security
 - **Loan detail pages** — Added clickable book links in `/admin/prestiti/modifica/` and `/admin/prestiti/dettagli/`
 
-### Files Changed
+</details>
 
-- 55 files modified
-- ~1,446 lines added, ~259 lines removed
+<details>
+<summary><strong>v0.4.0</strong> - GDPR & Session Improvements</summary>
+
+**Key features**: GDPR Privacy Consent Tracking, Persistent "Remember Me" Sessions, Improved Maintenance System, Loan Return UX Improvements
+
+</details>
 
 ---
 
-## Previous Release: v0.4.0
+## Upgrading
 
-### Updating from v0.4.0
+### From v0.4.4+
 
-If you're already on v0.4.0, update directly from **Admin → Updates**. The auto-updater handles everything automatically.
+Update directly from **Admin → Updates**. The auto-updater handles everything automatically.
 
-### Updating from v0.3.x or Earlier
+### From v0.4.1 - v0.4.3 (Broken Updater)
+
+**Manual patch required first.** See the warning box above or [`test-updater/README.md`](test-updater/README.md).
+
+### From v0.4.0
+
+Update directly from **Admin → Updates**.
+
+### From v0.3.x or Earlier
 
 **Manual migration required.** Run the migration scripts before updating:
 

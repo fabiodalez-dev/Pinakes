@@ -115,8 +115,9 @@
 - /frontend/node_modules/
 # Keep frontend/ source for customization (users can rebuild with npm)
 
-# Test/updater files for broken updater users
-- /test-updater/
+# Manual update files for users with broken updater (0.4.1-0.4.3)
++ /test-updater/
++ /test-updater/**
 
 # Testing
 - .phpunit.result.cache
