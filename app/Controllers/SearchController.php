@@ -452,11 +452,24 @@ class SearchController
     public function locations(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
-        $rows=[];
+        $rows = [];
         if ($q !== '') {
-            $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, CONCAT(nome, COALESCE(CONCAT(' - ', posizione), '')) AS label FROM collocazione WHERE nome LIKE ? OR posizione LIKE ? ORDER BY nome, posizione LIMIT 20");
-            $stmt->bind_param('ss', $s, $s);
+            $s = '%' . $q . '%';
+            $stmt = $db->prepare("
+                SELECT p.id,
+                       CONCAT(
+                           COALESCE(s.codice, s.nome, ''),
+                           ' - Liv. ',
+                           m.numero_livello
+                       ) AS label
+                FROM posizioni p
+                JOIN scaffali s ON p.scaffale_id = s.id
+                JOIN mensole m ON p.mensola_id = m.id
+                WHERE s.nome LIKE ? OR s.codice LIKE ? OR CAST(m.numero_livello AS CHAR) LIKE ?
+                ORDER BY s.ordine, m.numero_livello
+                LIMIT 20
+            ");
+            $stmt->bind_param('sss', $s, $s, $s);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {

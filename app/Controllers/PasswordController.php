@@ -8,6 +8,7 @@ use App\Support\Csrf;
 use App\Support\Mailer;
 use App\Support\EmailService;
 use App\Support\RouteTranslator;
+use App\Support\RateLimiter;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -35,8 +36,9 @@ class PasswordController
         // Ensure MySQL and PHP use the same timezone (UTC)
         $db->query("SET SESSION time_zone = '+00:00'");
 
-        // Rate limiting: max 3 requests per 15 minutes per email
-        if (!$this->checkRateLimit($db, $email, 'forgot_password', 3, 15)) {
+        // Rate limiting: prevent brute force attacks on password reset
+        $rateLimitKey = 'forgot_password:' . strtolower($email);
+        if (RateLimiter::isLimited($rateLimitKey)) {
             return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=rate_limit')->withStatus(302);
         }
 
@@ -196,47 +198,4 @@ class PasswordController
         return $protocol . '://localhost';
     }
 
-    /**
-     * Check rate limit for an action
-     * Returns false if limit exceeded, true otherwise
-     */
-    private function checkRateLimit(mysqli $db, string $identifier, string $action, int $maxAttempts, int $windowMinutes): bool
-    {
-        $windowSeconds = $windowMinutes * 60;
-        $timeLimit = gmdate('Y-m-d H:i:s', time() - $windowSeconds);
-
-        // Ensure rate_limit_log table exists
-        $db->query("
-            CREATE TABLE IF NOT EXISTS rate_limit_log (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                identifier VARCHAR(255) NOT NULL,
-                action VARCHAR(100) NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_identifier_action (identifier, action),
-                INDEX idx_timestamp (timestamp)
-            )
-        ");
-
-        // Count recent attempts
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM rate_limit_log WHERE identifier = ? AND action = ? AND timestamp > ?");
-        $stmt->bind_param('sss', $identifier, $action, $timeLimit);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
-        $stmt->close();
-
-        $recentAttempts = (int) ($row['count'] ?? 0);
-
-        if ($recentAttempts >= $maxAttempts) {
-            return false;
-        }
-
-        // Log this attempt
-        $stmt = $db->prepare("INSERT INTO rate_limit_log (identifier, action) VALUES (?, ?)");
-        $stmt->bind_param('ss', $identifier, $action);
-        $stmt->execute();
-        $stmt->close();
-
-        return true;
-    }
 }
