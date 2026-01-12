@@ -61,7 +61,22 @@ class Updater
         $this->db = $db;
         $this->rootPath = dirname(__DIR__, 2);
         $this->backupPath = $this->rootPath . '/storage/backups';
-        $this->tempPath = sys_get_temp_dir() . '/pinakes_update_' . uniqid('', true);
+
+        // Try system temp first, fallback to storage/tmp if not writable
+        $systemTemp = sys_get_temp_dir();
+        $storageTmp = $this->rootPath . '/storage/tmp';
+
+        // Ensure storage/tmp exists
+        if (!is_dir($storageTmp)) {
+            @mkdir($storageTmp, 0775, true);
+        }
+
+        // Use storage/tmp if system temp is not writable (common on shared hosting)
+        if (!is_writable($systemTemp) && is_writable($storageTmp)) {
+            $this->tempPath = $storageTmp . '/pinakes_update_' . uniqid('', true);
+        } else {
+            $this->tempPath = $systemTemp . '/pinakes_update_' . uniqid('', true);
+        }
 
         $this->debugLog('DEBUG', 'Updater inizializzato', [
             'rootPath' => $this->rootPath,

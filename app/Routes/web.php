@@ -2764,4 +2764,10 @@ return function (App $app): void {
         return $controller->clearMaintenance($request, $response);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // View updater logs (for debugging)
+    $app->get('/admin/updates/logs', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->getLogs($request, $response);
+    })->add(new AdminAuthMiddleware());
+
 };
