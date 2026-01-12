@@ -72,6 +72,9 @@ if ($presetUserId > 0) {
         case 'no_copies_available':
           echo __('Tutte le copie di questo libro hanno già un prestito attivo o prenotato. Attendi che una copia venga restituita.');
           break;
+        case 'duplicate_reservation':
+          echo __('Questo utente ha già un prestito o una prenotazione attiva per questo libro.');
+          break;
         default:
           echo __('Errore durante la creazione del prestito.');
       }

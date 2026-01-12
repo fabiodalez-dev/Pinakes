@@ -33,7 +33,7 @@ class LibriApiController
         $anno_to = trim((string) ($q['anno_to'] ?? ''));
 
         // Build WHERE clause with prepared statement parameters
-        $where = 'WHERE 1=1 ';
+        $where = 'WHERE l.deleted_at IS NULL ';
         $params = [];
         $types = '';
 
@@ -138,8 +138,8 @@ class LibriApiController
         $orderByClause = $orderByMap[$orderColumn] ?? 'l.titolo';
         $orderBy = "ORDER BY {$orderByClause} {$orderDir}";
 
-        // Count total records with prepared statement
-        $total_sql = 'SELECT COUNT(*) AS c FROM libri l';
+        // Count total records with prepared statement (excluding soft-deleted)
+        $total_sql = 'SELECT COUNT(*) AS c FROM libri l WHERE l.deleted_at IS NULL';
         $total_stmt = $db->prepare($total_sql);
         if (!$total_stmt) {
             AppLog::error('libri.total.prepare_failed', ['error' => $db->error]);
@@ -312,7 +312,7 @@ class LibriApiController
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 INNER JOIN libri_autori la ON l.id = la.libro_id
-                WHERE la.autore_id = ?
+                WHERE la.autore_id = ? AND l.deleted_at IS NULL
                 ORDER BY l.titolo ASC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $authorId);
@@ -343,7 +343,7 @@ class LibriApiController
                 FROM libri l
                 INNER JOIN libri_autori la ON l.id = la.libro_id
                 INNER JOIN autori a ON la.autore_id = a.id
-                WHERE l.editore_id = ?
+                WHERE l.editore_id = ? AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato
                 ORDER BY l.titolo ASC";
         $stmt = $db->prepare($sql);
@@ -409,7 +409,7 @@ class LibriApiController
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.genere_id = ?
+            WHERE l.genere_id = ? AND l.deleted_at IS NULL
             GROUP BY l.id
             ORDER BY l.created_at DESC
             LIMIT ?

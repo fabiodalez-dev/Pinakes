@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DataIntegrity;
 use App\Support\NotificationService;
+use App\Support\SecureLogger;
 use Exception;
 
 /**
@@ -119,7 +120,7 @@ class PrestitiController
 
         try {
             // Lock the book record to prevent concurrent updates
-            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? FOR UPDATE");
+            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockStmt->bind_param('i', $libro_id);
             $lockStmt->execute();
             $bookResult = $lockStmt->get_result();
@@ -130,6 +131,23 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', '/admin/prestiti/crea?error=book_not_found')->withStatus(302);
             }
+
+            // Case 8: Prevent multiple active reservations/loans for the same book by the same user
+            // Moved inside transaction with FOR UPDATE to prevent race conditions
+            $dupStmt = $db->prepare("
+                SELECT id FROM prestiti
+                WHERE libro_id = ? AND utente_id = ? AND attivo = 1
+                AND stato IN ('in_corso', 'prenotato', 'pendente', 'in_ritardo')
+                FOR UPDATE
+            ");
+            $dupStmt->bind_param('ii', $libro_id, $utente_id);
+            $dupStmt->execute();
+            if ($dupStmt->get_result()->num_rows > 0) {
+                $dupStmt->close();
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prestiti/crea?error=duplicate_reservation')->withStatus(302);
+            }
+            $dupStmt->close();
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan)
             // Normalize to date-only to handle potential datetime inputs safely
@@ -377,7 +395,7 @@ class PrestitiController
                     $integrity->validateAndUpdateLoan($newLoanId);
                 }
             } catch (\Throwable $e) {
-                error_log('DataIntegrity warning (store loan): ' . $e->getMessage());
+                SecureLogger::warning(__('DataIntegrity warning (store loan)'), ['error' => $e->getMessage()]);
             }
 
             // Create in-app notification for new loan
@@ -408,7 +426,7 @@ class PrestitiController
                         );
                     }
                 } catch (\Throwable $e) {
-                    error_log('Failed to create loan notification: ' . $e->getMessage());
+                    SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);
                 }
             }
 
@@ -592,7 +610,7 @@ class PrestitiController
             // Valida e aggiorna lo stato del prestito
             $validationResult = $integrity->validateAndUpdateLoan($id);
             if (!$validationResult['success']) {
-                error_log("Warning: Loan validation failed for loan {$id}: " . $validationResult['message']);
+                SecureLogger::warning(__('Validazione prestito fallita'), ['loan_id' => $id, 'message' => $validationResult['message']]);
             }
 
             // Se copia torna disponibile, gestisci notifiche
@@ -601,7 +619,15 @@ class PrestitiController
                 $notificationService = new NotificationService($db);
                 $notificationService->notifyWishlistBookAvailability($libro_id);
 
-                // Processa prenotazioni attive per questo libro
+                // Case 3: Reassign returned copy to next waiting reservation (NEW SYSTEM - prestiti table)
+                try {
+                    $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                    $reassignmentService->reassignOnReturn($copia_id);
+                } catch (\Exception $e) {
+                    SecureLogger::error(__('Riassegnazione copia fallita'), ['copia_id' => $copia_id, 'error' => $e->getMessage()]);
+                }
+
+                // Processa prenotazioni attive per questo libro (Future/Scheduled reservations)
                 $reservationManager = new \App\Controllers\ReservationManager($db);
                 $reservationManager->processBookAvailability($libro_id);
             }
@@ -613,7 +639,7 @@ class PrestitiController
 
         } catch (Exception $e) {
             $db->rollback();
-            error_log("Error processing loan return {$id}: " . $e->getMessage());
+            SecureLogger::error(__('Errore elaborazione restituzione'), ['loan_id' => $id, 'error' => $e->getMessage()]);
             if ($redirectTo) {
                 $separator = strpos($redirectTo, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', $redirectTo . $separator . 'error=update_failed')->withStatus(302);
@@ -734,7 +760,7 @@ class PrestitiController
             $integrity = new DataIntegrity($db);
             $validationResult = $integrity->validateAndUpdateLoan($id);
             if (!$validationResult['success']) {
-                error_log("Warning: Loan validation failed for loan {$id}: " . $validationResult['message']);
+                SecureLogger::warning(__('Validazione prestito fallita'), ['loan_id' => $id, 'message' => $validationResult['message']]);
             }
 
             $db->commit();
@@ -746,7 +772,7 @@ class PrestitiController
 
         } catch (Exception $e) {
             $db->rollback();
-            error_log("Renewal failed for loan {$id}: " . $e->getMessage());
+            SecureLogger::error(__('Rinnovo prestito fallito'), ['loan_id' => $id, 'error' => $e->getMessage()]);
 
             $errorUrl = $redirectTo ?? '/admin/prestiti';
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -798,7 +824,7 @@ class PrestitiController
         // Get status filter from query params
         $queryParams = $request->getQueryParams();
         $statiParam = $queryParams['stati'] ?? '';
-        $validStates = ['pendente', 'prenotato', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato'];
+        $validStates = ['pendente', 'prenotato', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato', 'annullato', 'scaduto'];
 
         // Parse and validate requested states
         $requestedStates = [];
@@ -852,7 +878,7 @@ class PrestitiController
         } else {
             $result = $db->query($sql);
             if ($result === false) {
-                error_log('exportCsv query error: ' . $db->error);
+                SecureLogger::error(__('Errore export CSV'), ['error' => $db->error]);
             }
         }
         $loans = [];
@@ -891,6 +917,8 @@ class PrestitiController
             'restituito' => __('Restituito'),
             'perso' => __('Perso'),
             'danneggiato' => __('Danneggiato'),
+            'annullato' => __('Annullato'),
+            'scaduto' => __('Scaduto'),
         ];
 
         // Sanitize CSV values to prevent formula injection (CSV injection)

@@ -7,7 +7,9 @@ use mysqli;
 
 class BookRepository
 {
-    public function __construct(private mysqli $db) {}
+    public function __construct(private mysqli $db)
+    {
+    }
 
     private function logDebug(string $label, array $payload): void
     {
@@ -22,12 +24,14 @@ class BookRepository
     {
         $rows = [];
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
+        // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, e.nome AS editore,
                        GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
+                WHERE l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, e.nome
                 ORDER BY l.titolo ASC
                 LIMIT ?";
@@ -80,13 +84,14 @@ class BookRepository
         $sql .= " LEFT JOIN posizioni p ON l.posizione_id = p.id
                 LEFT JOIN mensole m ON p.mensola_id = m.id
                 LEFT JOIN scaffali s ON p.scaffale_id = s.id
-                WHERE l.id=? LIMIT 1";
+                WHERE l.id=? AND l.deleted_at IS NULL LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();
-        if (!$row) return null;
+        if (!$row)
+            return null;
 
         // Normalize genre hierarchy
         // Query currently returns:
@@ -112,7 +117,9 @@ class BookRepository
         $stmt2->execute();
         $authorsRes = $stmt2->get_result();
         $row['autori'] = [];
-        while ($a = $authorsRes->fetch_assoc()) { $row['autori'][] = $a; }
+        while ($a = $authorsRes->fetch_assoc()) {
+            $row['autori'][] = $a;
+        }
 
         // Plugin hook: Allow plugins to extend book data
         $row = \App\Support\Hooks::apply('book.data.get', $row, [$id]);
@@ -123,6 +130,7 @@ class BookRepository
     public function getByAuthorId(int $authorId): array
     {
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
+        // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
                        GROUP_CONCAT(DISTINCT a2.nome ORDER BY a2.nome SEPARATOR ', ') AS autori
@@ -131,6 +139,7 @@ class BookRepository
                 INNER JOIN libri_autori la ON l.id = la.libro_id AND la.autore_id = ?
                 LEFT JOIN libri_autori la2 ON l.id = la2.libro_id
                 LEFT JOIN autori a2 ON la2.autore_id = a2.id
+                WHERE l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
@@ -147,6 +156,7 @@ class BookRepository
     public function getByPublisherId(int $publisherId): array
     {
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
+        // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
                        GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
@@ -154,7 +164,7 @@ class BookRepository
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE l.editore_id = ?
+                WHERE l.editore_id = ? AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
@@ -174,7 +184,7 @@ class BookRepository
 
         $scaffale_id_val = $data['scaffale_id'] ?? null;
         if ($scaffale_id_val !== null) {
-            $scaffale_id_val = (int)$scaffale_id_val;
+            $scaffale_id_val = (int) $scaffale_id_val;
             if ($scaffale_id_val <= 0) {
                 $scaffale_id_val = null;
             }
@@ -182,7 +192,7 @@ class BookRepository
 
         $mensola_id_val = $data['mensola_id'] ?? null;
         if ($mensola_id_val !== null) {
-            $mensola_id_val = (int)$mensola_id_val;
+            $mensola_id_val = (int) $mensola_id_val;
             if ($mensola_id_val <= 0) {
                 $mensola_id_val = null;
             }
@@ -190,7 +200,7 @@ class BookRepository
 
         $posizione_progressiva_val = $data['posizione_progressiva'] ?? null;
         if ($posizione_progressiva_val !== null) {
-            $posizione_progressiva_val = (int)$posizione_progressiva_val;
+            $posizione_progressiva_val = (int) $posizione_progressiva_val;
             if ($posizione_progressiva_val <= 0) {
                 $posizione_progressiva_val = null;
             }
@@ -198,12 +208,12 @@ class BookRepository
 
         $collocazione = '';
         if (!empty($data['collocazione'])) {
-            $collocazione = (string)$data['collocazione'];
+            $collocazione = (string) $data['collocazione'];
         } else {
             $collocazione = $this->buildCollocazioneString($scaffale_id_val, $mensola_id_val, $posizione_progressiva_val);
         }
 
-        $posizione_id_val = !empty($data['posizione_id']) ? (int)$data['posizione_id'] : null;
+        $posizione_id_val = !empty($data['posizione_id']) ? (int) $data['posizione_id'] : null;
 
         // Normalize optional dates: store NULL when empty
         $data_acquisizione = $data['data_acquisizione'] ?? null;
@@ -216,11 +226,11 @@ class BookRepository
         }
 
         // Normalize codes to avoid unique conflicts on empty strings
-        $isbn10 = trim((string)($data['isbn10'] ?? ''));
+        $isbn10 = trim((string) ($data['isbn10'] ?? ''));
         $isbn10 = $isbn10 === '' ? null : $isbn10;
-        $isbn13 = trim((string)($data['isbn13'] ?? ''));
+        $isbn13 = trim((string) ($data['isbn13'] ?? ''));
         $isbn13 = $isbn13 === '' ? null : $isbn13;
-        $ean = trim((string)($data['ean'] ?? ''));
+        $ean = trim((string) ($data['ean'] ?? ''));
         $ean = $ean === '' ? null : $ean;
 
         // Scalars that may be nullable
@@ -228,21 +238,21 @@ class BookRepository
         if ($peso === '' || $peso === null) {
             $peso = null;
         } else {
-            $peso = (float)$peso;
+            $peso = (float) $peso;
         }
         $prezzo = $data['prezzo'] ?? null;
         if ($prezzo === '' || $prezzo === null) {
             $prezzo = null;
         } else {
-            $prezzo = (float)$prezzo;
+            $prezzo = (float) $prezzo;
         }
 
         $genere_id_val = $data['genere_id'] ?? null;
         $sottogenere_id_val = $data['sottogenere_id'] ?? null;
         $editore_id_val = $data['editore_id'] ?? null;
 
-        $copie_totali = isset($data['copie_totali']) ? (int)$data['copie_totali'] : 1;
-        $copie_disponibili = isset($data['copie_disponibili']) ? (int)$data['copie_disponibili'] : 1;
+        $copie_totali = isset($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
+        $copie_disponibili = isset($data['copie_disponibili']) ? (int) $data['copie_disponibili'] : 1;
 
         $tipo_acquisizione = $this->normalizeEnumValue($data['tipo_acquisizione'] ?? null, 'tipo_acquisizione', 'acquisto');
         $stato = $this->normalizeEnumValue($data['stato'] ?? null, 'stato', 'disponibile');
@@ -370,17 +380,17 @@ class BookRepository
         $stmt->bind_param($bindTypes, ...$bindParams);
         try {
             $stmt->execute();
-            $this->logDebug('createBasic.execute.ok', ['insert_id' => (int)$this->db->insert_id]);
+            $this->logDebug('createBasic.execute.ok', ['insert_id' => (int) $this->db->insert_id]);
         } catch (\Throwable $e) {
             $this->logDebug('createBasic.execute.error', [
                 'error' => $e->getMessage(),
-                'code' => (int)$e->getCode(),
+                'code' => (int) $e->getCode(),
                 'mysqli_error' => $stmt->error,
             ]);
             throw $e;
         }
 
-        $bookId = (int)$this->db->insert_id;
+        $bookId = (int) $this->db->insert_id;
         $this->syncAuthors($bookId, $data['autori_ids'] ?? []);
         return $bookId;
     }
@@ -391,7 +401,7 @@ class BookRepository
 
         $scaffale_id_val = $data['scaffale_id'] ?? null;
         if ($scaffale_id_val !== null) {
-            $scaffale_id_val = (int)$scaffale_id_val;
+            $scaffale_id_val = (int) $scaffale_id_val;
             if ($scaffale_id_val <= 0) {
                 $scaffale_id_val = null;
             }
@@ -399,7 +409,7 @@ class BookRepository
 
         $mensola_id_val = $data['mensola_id'] ?? null;
         if ($mensola_id_val !== null) {
-            $mensola_id_val = (int)$mensola_id_val;
+            $mensola_id_val = (int) $mensola_id_val;
             if ($mensola_id_val <= 0) {
                 $mensola_id_val = null;
             }
@@ -407,7 +417,7 @@ class BookRepository
 
         $posizione_progressiva_val = $data['posizione_progressiva'] ?? null;
         if ($posizione_progressiva_val !== null) {
-            $posizione_progressiva_val = (int)$posizione_progressiva_val;
+            $posizione_progressiva_val = (int) $posizione_progressiva_val;
             if ($posizione_progressiva_val <= 0) {
                 $posizione_progressiva_val = null;
             }
@@ -415,12 +425,12 @@ class BookRepository
 
         $collocazione = '';
         if (!empty($data['collocazione'])) {
-            $collocazione = (string)$data['collocazione'];
+            $collocazione = (string) $data['collocazione'];
         } else {
             $collocazione = $this->buildCollocazioneString($scaffale_id_val, $mensola_id_val, $posizione_progressiva_val);
         }
 
-        $posizione_id_val = !empty($data['posizione_id']) ? (int)$data['posizione_id'] : null;
+        $posizione_id_val = !empty($data['posizione_id']) ? (int) $data['posizione_id'] : null;
 
         $data_acquisizione = $data['data_acquisizione'] ?? null;
         if ($data_acquisizione === '' || $data_acquisizione === null) {
@@ -431,32 +441,32 @@ class BookRepository
             $data_pubblicazione = null;
         }
 
-        $isbn10_upd = trim((string)($data['isbn10'] ?? ''));
+        $isbn10_upd = trim((string) ($data['isbn10'] ?? ''));
         $isbn10_upd = $isbn10_upd === '' ? null : $isbn10_upd;
-        $isbn13_upd = trim((string)($data['isbn13'] ?? ''));
+        $isbn13_upd = trim((string) ($data['isbn13'] ?? ''));
         $isbn13_upd = $isbn13_upd === '' ? null : $isbn13_upd;
-        $ean = trim((string)($data['ean'] ?? ''));
+        $ean = trim((string) ($data['ean'] ?? ''));
         $ean = $ean === '' ? null : $ean;
 
         $peso = $data['peso'] ?? null;
         if ($peso === '' || $peso === null) {
             $peso = null;
         } else {
-            $peso = (float)$peso;
+            $peso = (float) $peso;
         }
         $prezzo = $data['prezzo'] ?? null;
         if ($prezzo === '' || $prezzo === null) {
             $prezzo = null;
         } else {
-            $prezzo = (float)$prezzo;
+            $prezzo = (float) $prezzo;
         }
 
         $genere_id_val = $data['genere_id'] ?? null;
         $sottogenere_id_val = $data['sottogenere_id'] ?? null;
         $editore_id_val = $data['editore_id'] ?? null;
 
-        $copie_totali = isset($data['copie_totali']) ? (int)$data['copie_totali'] : 1;
-        $copie_disponibili = isset($data['copie_disponibili']) ? (int)$data['copie_disponibili'] : 1;
+        $copie_totali = isset($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
+        $copie_disponibili = isset($data['copie_disponibili']) ? (int) $data['copie_disponibili'] : 1;
 
         $tipo_acquisizione = $this->normalizeEnumValue($data['tipo_acquisizione'] ?? null, 'tipo_acquisizione', 'acquisto');
         $stato = $this->normalizeEnumValue($data['stato'] ?? null, 'stato', 'disponibile');
@@ -583,7 +593,7 @@ class BookRepository
         } catch (\Throwable $e) {
             $this->logDebug('updateBasic.execute.error', [
                 'error' => $e->getMessage(),
-                'code' => (int)$e->getCode(),
+                'code' => (int) $e->getCode(),
                 'mysqli_error' => $stmt->error,
             ]);
             throw $e;
@@ -604,7 +614,7 @@ class BookRepository
             return $default;
         }
 
-        $candidate = trim((string)$value);
+        $candidate = trim((string) $value);
         if ($candidate === '') {
             return in_array($default, $options, true) ? $default : $options[0];
         }
@@ -630,8 +640,9 @@ class BookRepository
             error_log("Critical error: Unable to prepare statement for deleting book authors for book_id: $bookId");
             throw new \Exception("Database error: unable to delete book authors");
         }
-        if (!$authorIds) return;
-        
+        if (!$authorIds)
+            return;
+
         $stmt = $this->db->prepare("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, 'principale')");
         foreach ($authorIds as $authorData) {
             $authorId = $this->processAuthorId($authorData);
@@ -641,14 +652,14 @@ class BookRepository
             }
         }
     }
-    
+
     private function processAuthorId($authorData): int
     {
         // Handle both old format (just ID) and new format (could be temp ID with label)
         if (is_numeric($authorData)) {
-            return (int)$authorData;
+            return (int) $authorData;
         }
-        
+
         // Handle new author format from Choices.js (new_timestamp)
         if (is_string($authorData) && strpos($authorData, 'new_') === 0) {
             // This is a new author that needs to be created
@@ -656,8 +667,9 @@ class BookRepository
             // based on your form submission logic
             return 0;
         }
-        
-        return (int)$authorData;
+
+        // Fallback: unexpected formats (arrays, objects, non-numeric strings) are ignored
+        return 0;
     }
 
     private function getScaffaleLetter(int $scaffaleId): ?string
@@ -666,7 +678,9 @@ class BookRepository
         $stmt->bind_param('i', $scaffaleId);
         $stmt->execute();
         $stmt->bind_result($lettera);
-        if ($stmt->fetch()) { return $lettera; }
+        if ($stmt->fetch()) {
+            return $lettera;
+        }
         return null;
     }
 
@@ -680,7 +694,7 @@ class BookRepository
         $stmt->execute();
         $stmt->bind_result($level);
         if ($stmt->fetch()) {
-            return $level !== null ? (int)$level : null;
+            return $level !== null ? (int) $level : null;
         }
         return null;
     }
@@ -706,13 +720,9 @@ class BookRepository
 
     public function delete(int $id): bool
     {
-        $stmt = $this->db->prepare('DELETE FROM libri_autori WHERE libro_id=?');
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $stmt = $this->db->prepare('DELETE FROM prestiti WHERE libro_id=?');
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $stmt = $this->db->prepare('DELETE FROM libri WHERE id=?');
+        // Internal SOFT DELETE
+        // Does not delete related records (kept for history/integrity)
+        $stmt = $this->db->prepare('UPDATE libri SET deleted_at = NOW() WHERE id=?');
         $stmt->bind_param('i', $id);
         return $stmt->execute();
     }
@@ -720,36 +730,45 @@ class BookRepository
     public function updateOptionals(int $bookId, array $data): void
     {
         $cols = [];
-        foreach (['numero_pagine','ean','data_pubblicazione','anno_pubblicazione','traduttore','collana','edizione'] as $c) {
+        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'collana', 'edizione'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
                 $cols[$c] = $data[$c];
             }
         }
         // Map scraped_* into columns if present
         if ($this->hasColumn('numero_pagine') && !isset($cols['numero_pagine']) && !empty($data['scraped_pages'])) {
-            $cols['numero_pagine'] = (int)$data['scraped_pages'];
+            $cols['numero_pagine'] = (int) $data['scraped_pages'];
         }
         if ($this->hasColumn('ean') && !isset($cols['ean']) && !empty($data['scraped_ean'])) {
-            $cols['ean'] = (string)$data['scraped_ean'];
+            $cols['ean'] = (string) $data['scraped_ean'];
         }
         if ($this->hasColumn('data_pubblicazione') && !isset($cols['data_pubblicazione']) && !empty($data['scraped_pub_date'])) {
-            $cols['data_pubblicazione'] = (string)$data['scraped_pub_date'];
+            $cols['data_pubblicazione'] = (string) $data['scraped_pub_date'];
         }
         if ($this->hasColumn('collana') && !isset($cols['collana']) && !empty($data['scraped_series'])) {
-            $cols['collana'] = (string)$data['scraped_series'];
+            $cols['collana'] = (string) $data['scraped_series'];
         }
         if ($this->hasColumn('traduttore') && !isset($cols['traduttore']) && !empty($data['scraped_translator'])) {
-            $cols['traduttore'] = (string)$data['scraped_translator'];
+            $cols['traduttore'] = (string) $data['scraped_translator'];
         }
-        if (!$cols) return;
-        $set=[]; $types=''; $vals=[];
-        foreach ($cols as $k=>$v) {
+        if (!$cols)
+            return;
+        $set = [];
+        $types = '';
+        $vals = [];
+        foreach ($cols as $k => $v) {
             $set[] = "$k = ?";
-            if ($k === 'numero_pagine' || $k === 'anno_pubblicazione') { $types.='i'; $vals[]=(int)$v; }
-            else { $types.='s'; $vals[]=(string)$v; }
+            if ($k === 'numero_pagine' || $k === 'anno_pubblicazione') {
+                $types .= 'i';
+                $vals[] = (int) $v;
+            } else {
+                $types .= 's';
+                $vals[] = (string) $v;
+            }
         }
-        $sql = 'UPDATE libri SET '.implode(',', $set).', updated_at=NOW() WHERE id=?';
-        $types .= 'i'; $vals[]=$bookId;
+        $sql = 'UPDATE libri SET ' . implode(', ', $set) . ', updated_at=NOW() WHERE id=?';
+        $types .= 'i';
+        $vals[] = $bookId;
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param($types, ...$vals);
         $stmt->execute();
@@ -762,7 +781,9 @@ class BookRepository
             $this->columnCache = [];
             $res = $this->db->query('SHOW COLUMNS FROM libri');
             if ($res) {
-                while ($r = $res->fetch_assoc()) { $this->columnCache[$r['Field']] = true; }
+                while ($r = $res->fetch_assoc()) {
+                    $this->columnCache[$r['Field']] = true;
+                }
             }
         }
         return isset($this->columnCache[$name]);
@@ -772,8 +793,19 @@ class BookRepository
     private function hasColumnInTable(string $table, string $name): bool
     {
         // Whitelist di tabelle valide per prevenire SQL injection
-        $validTables = ['libri', 'autori', 'libri_autori', 'editori', 'generi',
-                        'utenti', 'prestiti', 'prenotazioni', 'posizioni', 'scaffali', 'mensole'];
+        $validTables = [
+            'libri',
+            'autori',
+            'libri_autori',
+            'editori',
+            'generi',
+            'utenti',
+            'prestiti',
+            'prenotazioni',
+            'posizioni',
+            'scaffali',
+            'mensole'
+        ];
 
         if (!in_array($table, $validTables, true)) {
             return false;
@@ -801,15 +833,16 @@ class BookRepository
 
     private function getEnumOptions(string $table, string $column): array
     {
-        $key = $table.'.'.$column;
-        if (isset($this->enumCache[$key])) return $this->enumCache[$key];
+        $key = $table . '.' . $column;
+        if (isset($this->enumCache[$key]))
+            return $this->enumCache[$key];
         $opts = [];
         $stmt = $this->db->prepare('SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1');
         if ($stmt) {
             $stmt->bind_param('ss', $table, $column);
             if ($stmt->execute()) {
                 $stmt->bind_result($columnType);
-                if ($stmt->fetch() && preg_match("/enum\\((.*)\\)/i", (string)$columnType, $m)) {
+                if ($stmt->fetch() && preg_match("/enum\\((.*)\\)/i", (string) $columnType, $m)) {
                     $vals = str_getcsv($m[1], ',', "'", "\\");
                     foreach ($vals as $v) {
                         $opts[] = $v;

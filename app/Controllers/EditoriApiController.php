@@ -262,8 +262,8 @@ class EditoriApiController
         $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
         $types = str_repeat('i', count($cleanIds));
 
-        // Check if any publisher has books
-        $checkSql = "SELECT id FROM libri WHERE editore_id IN ($placeholders) LIMIT 1";
+        // Check if any publisher has books (only non-deleted books)
+        $checkSql = "SELECT id FROM libri WHERE editore_id IN ($placeholders) AND deleted_at IS NULL LIMIT 1";
         $checkStmt = $db->prepare($checkSql);
         if (!$checkStmt) {
             AppLog::error('editori.bulk_delete.check_prepare_failed', ['error' => $db->error]);

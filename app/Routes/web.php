@@ -1500,15 +1500,21 @@ return function (App $app): void {
         $bookId = (int) $args['id'];
         $data = ['available' => false, 'copies_available' => 0, 'copies_total' => 0, 'next_due_date' => null, 'queue' => 0];
         // Copies info
-        $stmt = $db->prepare("SELECT copie_disponibili, copie_totali FROM libri WHERE id = ?");
+        $stmt = $db->prepare("SELECT copie_disponibili, copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $res = $stmt->get_result();
+        $bookFound = false;
         if ($row = $res->fetch_assoc()) {
+            $bookFound = true;
             $data['copies_available'] = (int) ($row['copie_disponibili'] ?? 0);
             $data['copies_total'] = (int) ($row['copie_totali'] ?? 0);
         }
         $stmt->close();
+        if (!$bookFound) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
         $data['available'] = ($data['copies_available'] > 0);
         // Next due date among active loans
         if (!$data['available']) {
@@ -1707,11 +1713,15 @@ return function (App $app): void {
         $stmt->close();
 
         // Get book info
-        $bookStmt = $db->prepare("SELECT copie_disponibili, copie_totali FROM libri WHERE id = ?");
+        $bookStmt = $db->prepare("SELECT copie_disponibili, copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
         $bookStmt->bind_param('i', $libroId);
         $bookStmt->execute();
         $book = $bookStmt->get_result()->fetch_assoc();
         $bookStmt->close();
+        if (!$book) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
 
         $data = [
             'libro_id' => $libroId,
@@ -1979,7 +1989,7 @@ return function (App $app): void {
         }
 
         // Get current book data
-        $stmt = $db->prepare('SELECT copie_totali, numero_inventario FROM libri WHERE id = ?');
+        $stmt = $db->prepare('SELECT copie_totali, numero_inventario FROM libri WHERE id = ? AND deleted_at IS NULL');
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -2026,7 +2036,7 @@ return function (App $app): void {
         $integrity->recalculateBookAvailability($bookId);
 
         // Get updated availability
-        $stmt = $db->prepare('SELECT copie_disponibili FROM libri WHERE id = ?');
+        $stmt = $db->prepare('SELECT copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL');
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();

@@ -167,13 +167,14 @@ final class ConfigStore
         $name = $dbCfg['database'] ?? '';
         $port = (int) ($dbCfg['port'] ?? 3306);
         $charset = $dbCfg['charset'] ?? 'utf8mb4';
+        $socket = $dbCfg['socket'] ?? null;
 
         if ($name === '' || $user === '') {
             return;
         }
 
         try {
-            $mysqli = new \mysqli($host, $user, $pass, $name, $port);
+            $mysqli = new \mysqli($host, $user, $pass, $name, $port, $socket);
             $mysqli->set_charset($charset);
 
             // Map ConfigStore paths to database schema
@@ -347,6 +348,7 @@ final class ConfigStore
         $name = $dbCfg['database'] ?? '';
         $port = (int) ($dbCfg['port'] ?? 3306);
         $charset = $dbCfg['charset'] ?? 'utf8mb4';
+        $socket = $dbCfg['socket'] ?? null;
 
         if ($name === '' || $user === '') {
             return self::$dbSettingsCache;
@@ -355,7 +357,7 @@ final class ConfigStore
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
         try {
-            $mysqli = new \mysqli($host, $user, $pass, $name, $port);
+            $mysqli = new \mysqli($host, $user, $pass, $name, $port, $socket);
             $mysqli->set_charset($charset);
 
             // Ensure table exists

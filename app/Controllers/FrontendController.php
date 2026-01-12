@@ -69,6 +69,7 @@ class FrontendController
                    g.nome AS genere
             FROM libri l
             LEFT JOIN generi g ON l.genere_id = g.id
+            WHERE l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT 10
         ";
@@ -133,7 +134,7 @@ class FrontendController
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                     FROM libri l
-                    WHERE l.genere_id IN ({$placeholders})
+                    WHERE l.genere_id IN ({$placeholders}) AND l.deleted_at IS NULL
                     ORDER BY l.created_at DESC
                     LIMIT 4
                 ";
@@ -409,10 +410,11 @@ class FrontendController
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            WHERE l.deleted_at IS NULL
         ";
 
         if (!empty($where_conditions['conditions'])) {
-            $base_query .= " WHERE " . implode(' AND ', $where_conditions['conditions']);
+            $base_query .= " AND " . implode(' AND ', $where_conditions['conditions']);
         }
 
         // Query per il conteggio totale
@@ -492,10 +494,11 @@ class FrontendController
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            WHERE l.deleted_at IS NULL
         ";
 
         if (!empty($where_conditions['conditions'])) {
-            $base_query .= " WHERE " . implode(' AND ', $where_conditions['conditions']);
+            $base_query .= " AND " . implode(' AND ', $where_conditions['conditions']);
         }
 
         // Query per il conteggio totale
@@ -589,7 +592,7 @@ class FrontendController
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE l.id = ?
+            WHERE l.id = ? AND l.deleted_at IS NULL
             LIMIT 1
         ";
 
@@ -898,16 +901,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         FROM (
             -- Select all genres that have books or are parents of genres with books
             SELECT DISTINCT g.id FROM generi g
-            JOIN libri l ON g.id = l.genere_id
+            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
             UNION
             SELECT DISTINCT gp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
-            JOIN libri l ON g.id = l.genere_id
+            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
             UNION
             SELECT DISTINCT gpp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
             JOIN generi gpp ON gp.parent_id = gpp.id
-            JOIN libri l ON g.id = l.genere_id
+            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
         ) as genre_ids
         JOIN generi g ON genre_ids.id = g.id
         ORDER BY g.parent_id, g.nome
@@ -934,7 +937,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $queryEditori = "
         SELECT e.id, e.nome, COUNT(DISTINCT l.id) AS cnt
         FROM editori e
-        JOIN libri l ON e.id = l.editore_id
+        JOIN libri l ON e.id = l.editore_id AND l.deleted_at IS NULL
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
@@ -969,16 +972,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+        WHERE l.deleted_at IS NULL
     ";
     if (!empty($conditionsAvail)) {
         // Keep all conditions except availability filter (which is excluded via filtersForAvailability)
         // Note: The availability filter is never in conditions because it's excluded, so we just use them as-is
-        $availabilityBaseQuery .= " WHERE " . implode(' AND ', $conditionsAvail);
+        $availabilityBaseQuery .= " AND " . implode(' AND ', $conditionsAvail);
     }
 
-    // Count available books
-    $queryAvailable = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery .
-                     (empty($conditionsAvail) ? " WHERE" : " AND") . " l.stato = 'disponibile'";
+    // Count available books (base query always has WHERE l.deleted_at IS NULL)
+    $queryAvailable = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'disponibile'";
     $stmt = $db->prepare($queryAvailable);
     if (!empty($paramsAvail)) {
         $stmt->bind_param($typesAvail, ...$paramsAvail);
@@ -986,9 +989,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $stmt->execute();
     $availableCount = $stmt->get_result()->fetch_assoc()['cnt'];
 
-    // Count borrowed books
-    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery .
-                    (empty($conditionsAvail) ? " WHERE" : " AND") . " l.stato = 'prestato'";
+    // Count borrowed books (base query always has WHERE l.deleted_at IS NULL)
+    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'prestato'";
     $stmt = $db->prepare($queryBorrowed);
     if (!empty($paramsAvail)) {
         $stmt->bind_param($typesAvail, ...$paramsAvail);
@@ -1026,6 +1028,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                            g.nome AS genere
                     FROM libri l
                     LEFT JOIN generi g ON l.genere_id = g.id
+                    WHERE l.deleted_at IS NULL
                     ORDER BY l.created_at DESC
                     LIMIT ? OFFSET ?
                 ";
@@ -1046,7 +1049,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                     FROM libri l
-                    WHERE l.genere_id = ?
+                    WHERE l.genere_id = ? AND l.deleted_at IS NULL
                     ORDER BY l.created_at DESC
                     LIMIT ? OFFSET ?
                 ";
@@ -1074,12 +1077,12 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Calculate pagination for total count
         switch ($section) {
             case 'latest':
-                $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri");
+                $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE deleted_at IS NULL");
                 $countStmt->execute();
                 $countResult = $countStmt->get_result();
                 break;
             case 'genre':
-                $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE genere_id = ?");
+                $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE genere_id = ? AND deleted_at IS NULL");
                 $countStmt->bind_param("i", $genere_id);
                 $countStmt->execute();
                 $countResult = $countStmt->get_result();
@@ -1136,7 +1139,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
             JOIN autori a ON la.autore_id = a.id
-            WHERE a.nome = ?
+            WHERE a.nome = ? AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('s', $authorName);
@@ -1156,7 +1159,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             JOIN autori a ON la.autore_id = a.id
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE a.nome = ?
+            WHERE a.nome = ? AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
@@ -1211,7 +1214,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             SELECT COUNT(l.id) as total
             FROM libri l
             JOIN editori e ON l.editore_id = e.id
-            WHERE e.nome = ?
+            WHERE e.nome = ? AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('s', $publisherName);
@@ -1229,7 +1232,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE e.nome = ?
+            WHERE e.nome = ? AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
@@ -1299,7 +1302,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             SELECT COUNT(l.id) as total
             FROM libri l
             JOIN generi g ON l.genere_id = g.id
-            WHERE g.nome = ?
+            WHERE g.nome = ? AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('s', $genreName);
@@ -1317,7 +1320,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             JOIN generi g ON l.genere_id = g.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE g.nome = ?
+            WHERE g.nome = ? AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
@@ -1554,7 +1557,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             SELECT COUNT(DISTINCT l.id) as total
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
-            WHERE la.autore_id = ?
+            WHERE la.autore_id = ? AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('i', $authorId);
@@ -1580,7 +1583,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                 WHERE stato IN ('in_corso', 'prenotato')
                 GROUP BY libro_id
             ) prestiti_attivi ON l.id = prestiti_attivi.libro_id
-            WHERE la.autore_id = ?
+            WHERE la.autore_id = ? AND l.deleted_at IS NULL
             ORDER BY l.anno_pubblicazione DESC, l.titolo ASC
             LIMIT ? OFFSET ?
         ";
@@ -1685,6 +1688,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE la.autore_id IN ($placeholders)
                 AND l.id != ?
+                AND l.deleted_at IS NULL
                 GROUP BY l.id
                 ORDER BY l.created_at DESC
                 LIMIT ?
@@ -1716,6 +1720,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.genere_id = ?
                 AND l.id NOT IN ($placeholders)
+                AND l.deleted_at IS NULL
                 GROUP BY l.id
                 ORDER BY l.created_at DESC
                 LIMIT ?
@@ -1747,6 +1752,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.id NOT IN ($placeholders)
+                AND l.deleted_at IS NULL
                 GROUP BY l.id
                 ORDER BY l.created_at DESC
                 LIMIT ?
