@@ -138,7 +138,8 @@ verify_package_contents() {
         ".idea"
         ".cursor"
         ".github"
-        # node_modules and frontend ARE INCLUDED for customization
+        # node_modules is EXCLUDED (not needed - compiled assets in public/assets)
+        # frontend/ is INCLUDED for customization (users can rebuild)
         "internal"          # Internal dev docs
         "tests"             # PHPUnit tests
         "docs"              # Documentation (dev only)

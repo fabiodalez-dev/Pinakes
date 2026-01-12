@@ -110,9 +110,15 @@
 - scripts/copy-vendor-assets.js
 - scripts/export-email-templates-to-installer.php
 
-# Development dependencies - KEEP for customization
-# - node_modules/       # INCLUDED: needed for frontend rebuilds
-# - /frontend/          # INCLUDED: source files for customization
+# Development dependencies
+- node_modules/
+- /frontend/node_modules/
+# Keep frontend/ source for customization (users can rebuild with npm)
+
+# Test/updater files for broken updater users
+- /test-updater/
+
+# Testing
 - .phpunit.result.cache
 - .phpunit.cache/
 - tests/
