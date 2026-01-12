@@ -239,7 +239,23 @@ $changelog ??= [];
                         </div>
                         <?php if (!empty($release['body'])): ?>
                         <div class="prose prose-sm max-w-none text-gray-600">
-                            <?= nl2br(HtmlHelper::e($release['body'])) ?>
+                            <?php
+                            // Simple markdown parsing for release notes
+                            $body = HtmlHelper::e($release['body']);
+                            // Code blocks ```...```
+                            $body = preg_replace('/```(\w*)\n?([\s\S]*?)```/', '<pre class="bg-gray-100 rounded p-2 overflow-x-auto text-xs"><code>$2</code></pre>', $body);
+                            // Inline code `...`
+                            $body = preg_replace('/`([^`]+)`/', '<code class="bg-gray-100 px-1 rounded text-xs">$1</code>', $body);
+                            // Bold **...**
+                            $body = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $body);
+                            // Headers ## ...
+                            $body = preg_replace('/^## (.+)$/m', '<h4 class="font-semibold mt-3 mb-1">$1</h4>', $body);
+                            // List items - ...
+                            $body = preg_replace('/^[\-\*] (.+)$/m', '<li class="ml-4">$1</li>', $body);
+                            // Newlines
+                            $body = nl2br($body);
+                            echo $body;
+                            ?>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -529,20 +545,23 @@ async function startUpdate(version) {
 
         const data = await response.json();
 
-        setStepComplete('download');
-        setStepActive('install');
-        await sleep(300);
-        setStepComplete('install');
-        setStepActive('migrate');
-        await sleep(300);
-        setStepComplete('migrate');
-
         if (data.success) {
+            // Mark steps complete only on success
+            setStepComplete('download');
+            setStepActive('install');
+            await sleep(300);
+            setStepComplete('install');
+            setStepActive('migrate');
+            await sleep(300);
+            setStepComplete('migrate');
+
             document.getElementById('updateIcon').innerHTML = '<i class="fas fa-check-circle text-green-600 text-3xl"></i>';
             document.getElementById('updateIcon').className = 'w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4';
             document.getElementById('updateTitle').textContent = '<?= __("Aggiornamento completato!") ?>';
             document.getElementById('updateMessage').textContent = '<?= __("Pinakes è stato aggiornato con successo.") ?>';
         } else {
+            // Mark failed step with error indicator
+            setStepFailed('download');
             document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
             document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
             document.getElementById('updateTitle').textContent = '<?= __("Aggiornamento fallito") ?>';
@@ -577,6 +596,15 @@ function setStepComplete(step) {
         el.querySelector('div').className = 'w-6 h-6 rounded-full bg-green-500 flex items-center justify-center';
         el.querySelector('i').className = 'fas fa-check text-white text-xs';
         el.querySelector('span').className = 'text-sm text-green-600';
+    }
+}
+
+function setStepFailed(step) {
+    const el = document.querySelector(`[data-step="${step}"]`);
+    if (el) {
+        el.querySelector('div').className = 'w-6 h-6 rounded-full bg-red-500 flex items-center justify-center';
+        el.querySelector('i').className = 'fas fa-times text-white text-xs';
+        el.querySelector('span').className = 'text-sm text-red-600 font-medium';
     }
 }
 

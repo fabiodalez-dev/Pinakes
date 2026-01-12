@@ -296,6 +296,51 @@ class UpdateController
     }
 
     /**
+     * API: Get recent updater logs
+     */
+    public function getLogs(Request $request, Response $response): Response
+    {
+        $logFile = dirname(__DIR__, 2) . '/storage/logs/app.log';
+        $lines = (int)($request->getQueryParams()['lines'] ?? 200);
+        $filter = $request->getQueryParams()['filter'] ?? 'Updater';
+
+        if (!file_exists($logFile)) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('File di log non trovato'),
+                'path' => $logFile
+            ], 404);
+        }
+
+        // Read last N lines
+        $allLines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($allLines === false) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Impossibile leggere il file di log')
+            ], 500);
+        }
+
+        // Get last lines and filter for Updater entries
+        $lastLines = array_slice($allLines, -$lines);
+        $filtered = [];
+
+        foreach ($lastLines as $line) {
+            if ($filter === '' || stripos($line, $filter) !== false) {
+                $filtered[] = $line;
+            }
+        }
+
+        return $this->jsonResponse($response, [
+            'success' => true,
+            'total_lines' => count($allLines),
+            'filtered_count' => count($filtered),
+            'filter' => $filter,
+            'logs' => $filtered
+        ]);
+    }
+
+    /**
      * Helper: Send JSON response
      */
     private function jsonResponse(Response $response, array $data, int $status = 200): Response
