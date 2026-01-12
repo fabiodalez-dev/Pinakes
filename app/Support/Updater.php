@@ -62,26 +62,61 @@ class Updater
         $this->rootPath = dirname(__DIR__, 2);
         $this->backupPath = $this->rootPath . '/storage/backups';
 
-        // Try system temp first, fallback to storage/tmp if not writable
-        $systemTemp = sys_get_temp_dir();
+        // ALWAYS use storage/tmp - system temp is unreliable on shared hosting
         $storageTmp = $this->rootPath . '/storage/tmp';
 
-        // Ensure storage/tmp exists
-        if (!is_dir($storageTmp)) {
-            @mkdir($storageTmp, 0775, true);
+        // Ensure all required directories exist with correct permissions
+        $requiredDirs = [
+            $storageTmp,
+            $this->backupPath,
+            $this->rootPath . '/storage/logs',
+            $this->rootPath . '/storage/cache',
+        ];
+
+        foreach ($requiredDirs as $dir) {
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+            // Try to fix permissions if directory exists but isn't writable
+            if (is_dir($dir) && !is_writable($dir)) {
+                @chmod($dir, 0775);
+            }
         }
 
-        // Use storage/tmp if system temp is not writable (common on shared hosting)
-        if (!is_writable($systemTemp) && is_writable($storageTmp)) {
-            $this->tempPath = $storageTmp . '/pinakes_update_' . uniqid('', true);
-        } else {
-            $this->tempPath = $systemTemp . '/pinakes_update_' . uniqid('', true);
+        // Clean up old update temp directories to free space
+        $this->cleanupOldTempDirs($storageTmp);
+
+        // Always use storage/tmp for maximum compatibility
+        $this->tempPath = $storageTmp . '/pinakes_update_' . uniqid('', true);
+
+        // Pre-flight checks
+        $issues = [];
+
+        if (!is_writable($storageTmp)) {
+            $issues[] = "storage/tmp non scrivibile";
+        }
+        if (!is_writable($this->backupPath)) {
+            $issues[] = "storage/backups non scrivibile";
+        }
+        if (!class_exists('ZipArchive')) {
+            $issues[] = "Estensione ZipArchive non disponibile";
+        }
+        if (!extension_loaded('curl') && !ini_get('allow_url_fopen')) {
+            $issues[] = "Né cURL né allow_url_fopen disponibili";
+        }
+
+        // Check disk space (need at least 200MB free)
+        $freeSpace = @disk_free_space($this->rootPath);
+        if ($freeSpace !== false && $freeSpace < 200 * 1024 * 1024) {
+            $issues[] = sprintf("Spazio disco insufficiente: %s disponibili, servono almeno 200MB",
+                $this->formatBytes((float)$freeSpace));
         }
 
         $this->debugLog('DEBUG', 'Updater inizializzato', [
             'rootPath' => $this->rootPath,
             'backupPath' => $this->backupPath,
             'tempPath' => $this->tempPath,
+            'storageTmp_writable' => is_writable($storageTmp),
             'php_version' => PHP_VERSION,
             'memory_limit' => ini_get('memory_limit'),
             'max_execution_time' => ini_get('max_execution_time'),
@@ -89,16 +124,52 @@ class Updater
             'curl_available' => extension_loaded('curl'),
             'openssl_available' => extension_loaded('openssl'),
             'zip_available' => class_exists('ZipArchive'),
+            'free_space_mb' => $freeSpace !== false ? round($freeSpace / 1024 / 1024) : 'unknown',
+            'pre_flight_issues' => $issues ?: 'none'
         ]);
 
-        // Ensure backup directory exists
-        if (!is_dir($this->backupPath)) {
-            if (!mkdir($this->backupPath, 0755, true) && !is_dir($this->backupPath)) {
-                $this->debugLog('ERROR', 'Impossibile creare directory di backup', [
-                    'path' => $this->backupPath,
-                    'error' => error_get_last()
-                ]);
-                throw new \RuntimeException(sprintf(__('Impossibile creare directory di backup: %s'), $this->backupPath));
+        if (!empty($issues)) {
+            $this->debugLog('ERROR', 'Pre-flight check fallito', ['issues' => $issues]);
+            throw new \RuntimeException(
+                __('Controllo pre-aggiornamento fallito') . ': ' . implode(', ', $issues)
+            );
+        }
+    }
+
+    /**
+     * Clean up old temporary update directories to free disk space
+     */
+    private function cleanupOldTempDirs(string $tmpDir): void
+    {
+        if (!is_dir($tmpDir)) {
+            return;
+        }
+
+        $dirs = @glob($tmpDir . '/pinakes_update_*', GLOB_ONLYDIR);
+        if ($dirs === false) {
+            return;
+        }
+
+        $now = time();
+        $maxAge = 3600; // 1 hour
+
+        foreach ($dirs as $dir) {
+            $mtime = @filemtime($dir);
+            if ($mtime !== false && ($now - $mtime) > $maxAge) {
+                $this->debugLog('DEBUG', 'Pulizia vecchia directory temporanea', ['path' => $dir]);
+                $this->deleteDirectory($dir);
+            }
+        }
+
+        // Also clean up old app backup directories
+        $appBackups = @glob($tmpDir . '/pinakes_app_backup_*', GLOB_ONLYDIR);
+        if ($appBackups !== false) {
+            foreach ($appBackups as $dir) {
+                $mtime = @filemtime($dir);
+                if ($mtime !== false && ($now - $mtime) > $maxAge) {
+                    $this->debugLog('DEBUG', 'Pulizia vecchio backup app', ['path' => $dir]);
+                    $this->deleteDirectory($dir);
+                }
             }
         }
     }
@@ -534,41 +605,93 @@ class Updater
             $zipPath = $this->tempPath . '/update.zip';
             $this->debugLog('DEBUG', 'Path file ZIP', ['path' => $zipPath]);
 
-            // Download the file
+            // Download the file - try cURL first (more reliable), fallback to file_get_contents
             $this->debugLog('INFO', 'Inizio download file...', ['url' => $downloadUrl]);
 
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'GET',
-                    'header' => [
-                        'User-Agent: Pinakes-Updater/1.0',
-                        'Accept: application/octet-stream'
-                    ],
-                    'timeout' => 300,
-                    'follow_location' => true,
-                    'ignore_errors' => true
-                ]
-            ]);
-
             $startTime = microtime(true);
-            $fileContent = @file_get_contents($downloadUrl, false, $context);
-            $downloadTime = round(microtime(true) - $startTime, 2);
+            $fileContent = false;
+            $downloadMethod = 'unknown';
 
-            // Log response headers
-            if (isset($http_response_header)) {
-                $this->debugLog('DEBUG', 'Response headers download', [
-                    'headers' => $http_response_header
+            // Try cURL first (more reliable on shared hosting)
+            if (extension_loaded('curl')) {
+                $this->debugLog('DEBUG', 'Tentativo download con cURL');
+                $downloadMethod = 'curl';
+
+                $ch = curl_init($downloadUrl);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_MAXREDIRS => 10,
+                    CURLOPT_TIMEOUT => 300,
+                    CURLOPT_CONNECTTIMEOUT => 30,
+                    CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                    CURLOPT_HTTPHEADER => ['Accept: application/octet-stream'],
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_BUFFERSIZE => 1024 * 1024, // 1MB buffer
                 ]);
+
+                $fileContent = curl_exec($ch);
+                $curlInfo = curl_getinfo($ch);
+                $curlError = curl_error($ch);
+                $curlErrno = curl_errno($ch);
+                curl_close($ch);
+
+                $this->debugLog('DEBUG', 'Risultato cURL', [
+                    'http_code' => $curlInfo['http_code'] ?? 0,
+                    'size_download' => $curlInfo['size_download'] ?? 0,
+                    'total_time' => $curlInfo['total_time'] ?? 0,
+                    'error' => $curlError ?: 'none',
+                    'errno' => $curlErrno
+                ]);
+
+                if ($curlErrno !== 0 || ($curlInfo['http_code'] ?? 0) >= 400) {
+                    $this->debugLog('WARNING', 'cURL fallito, tentativo con file_get_contents', [
+                        'error' => $curlError,
+                        'http_code' => $curlInfo['http_code'] ?? 0
+                    ]);
+                    $fileContent = false;
+                }
             }
+
+            // Fallback to file_get_contents
+            if ($fileContent === false) {
+                $this->debugLog('DEBUG', 'Tentativo download con file_get_contents');
+                $downloadMethod = 'file_get_contents';
+
+                $context = stream_context_create([
+                    'http' => [
+                        'method' => 'GET',
+                        'header' => [
+                            'User-Agent: Pinakes-Updater/1.0',
+                            'Accept: application/octet-stream'
+                        ],
+                        'timeout' => 300,
+                        'follow_location' => true,
+                        'ignore_errors' => true
+                    ]
+                ]);
+
+                $fileContent = @file_get_contents($downloadUrl, false, $context);
+
+                // Log response headers
+                if (isset($http_response_header)) {
+                    $this->debugLog('DEBUG', 'Response headers download', [
+                        'headers' => $http_response_header
+                    ]);
+                }
+            }
+
+            $downloadTime = round(microtime(true) - $startTime, 2);
 
             if ($fileContent === false) {
                 $error = error_get_last();
-                $this->debugLog('ERROR', 'Download fallito', [
+                $this->debugLog('ERROR', 'Download fallito con entrambi i metodi', [
                     'url' => $downloadUrl,
                     'error' => $error,
-                    'download_time' => $downloadTime
+                    'download_time' => $downloadTime,
+                    'curl_available' => extension_loaded('curl')
                 ]);
-                throw new Exception(__('Download fallito') . ': ' . ($error['message'] ?? 'Unknown error'));
+                throw new Exception(__('Download fallito') . ': ' . ($error['message'] ?? 'Impossibile scaricare il file'));
             }
 
             $fileSize = strlen($fileContent);
@@ -642,15 +765,73 @@ class Updater
             }
             $this->debugLog('DEBUG', 'Contenuto ZIP (primi 10 file)', ['files' => $zipContents]);
 
-            // Extract to temp directory
+            // Extract to temp directory - with fallback retry
             $extractPath = $this->tempPath . '/extracted';
             $this->debugLog('DEBUG', 'Estrazione ZIP', ['destination' => $extractPath]);
 
-            if (!$zip->extractTo($extractPath)) {
+            // Create extraction directory
+            if (!is_dir($extractPath)) {
+                @mkdir($extractPath, 0775, true);
+            }
+
+            $extractionSuccess = $zip->extractTo($extractPath);
+
+            // If extraction failed, try fallback to storage/tmp
+            if (!$extractionSuccess) {
+                $this->debugLog('WARNING', 'Estrazione fallita, tentativo con storage/tmp', [
+                    'original_path' => $extractPath,
+                    'zip_status' => $zip->status,
+                    'last_error' => error_get_last()
+                ]);
+
+                // Clean up failed attempt
+                if (is_dir($extractPath)) {
+                    $this->deleteDirectory($extractPath);
+                }
+
+                // Try with storage/tmp instead
+                $storageTmp = $this->rootPath . '/storage/tmp';
+                if (!is_dir($storageTmp)) {
+                    @mkdir($storageTmp, 0775, true);
+                }
+
+                $fallbackTempPath = $storageTmp . '/pinakes_update_' . uniqid('', true);
+                @mkdir($fallbackTempPath, 0775, true);
+                $extractPath = $fallbackTempPath . '/extracted';
+                @mkdir($extractPath, 0775, true);
+
+                // Update tempPath for cleanup later
+                $this->tempPath = $fallbackTempPath;
+
+                $this->debugLog('DEBUG', 'Retry estrazione con storage/tmp', [
+                    'new_temp_path' => $fallbackTempPath,
+                    'new_extract_path' => $extractPath
+                ]);
+
+                // Move ZIP to new location
+                $newZipPath = $fallbackTempPath . '/update.zip';
+                if (!rename($zipPath, $newZipPath)) {
+                    copy($zipPath, $newZipPath);
+                    @unlink($zipPath);
+                }
+                $zipPath = $newZipPath;
+
+                // Re-open ZIP and extract
                 $zip->close();
-                $this->debugLog('ERROR', 'Estrazione fallita', [
+                $zip = new ZipArchive();
+                if ($zip->open($zipPath) !== true) {
+                    throw new Exception(__('Impossibile riaprire il file ZIP'));
+                }
+
+                $extractionSuccess = $zip->extractTo($extractPath);
+            }
+
+            if (!$extractionSuccess) {
+                $zip->close();
+                $this->debugLog('ERROR', 'Estrazione fallita definitivamente', [
                     'destination' => $extractPath,
-                    'zip_status' => $zip->status
+                    'zip_status' => $zip->status,
+                    'last_error' => error_get_last()
                 ]);
                 // Clean up
                 if (is_dir($extractPath)) {
@@ -1146,9 +1327,22 @@ class Updater
     private function backupAppFiles(): string
     {
         $timestamp = date('Y-m-d_His');
-        $backupPath = sys_get_temp_dir() . '/pinakes_app_backup_' . $timestamp;
+
+        // ALWAYS use storage/tmp for app backup to avoid shared hosting issues
+        $storageTmp = $this->rootPath . '/storage/tmp';
+        if (!is_dir($storageTmp)) {
+            @mkdir($storageTmp, 0775, true);
+        }
+
+        $backupPath = $storageTmp . '/pinakes_app_backup_' . $timestamp;
+
+        $this->debugLog('DEBUG', 'Creazione backup app files', ['path' => $backupPath]);
 
         if (!mkdir($backupPath, 0755, true) && !is_dir($backupPath)) {
+            $this->debugLog('ERROR', 'Impossibile creare directory backup app', [
+                'path' => $backupPath,
+                'error' => error_get_last()
+            ]);
             throw new Exception(__('Impossibile creare directory di backup applicazione'));
         }
 
@@ -1419,9 +1613,17 @@ class Updater
 
                                     $result = $this->db->query($statement);
                                     if ($result === false) {
-                                        $ignorableErrors = [1060, 1061, 1050];
+                                        // Ignorable MySQL errors for idempotent migrations:
+                                        // 1060: Duplicate column name (ADD COLUMN when column exists)
+                                        // 1061: Duplicate key name (ADD INDEX when index exists)
+                                        // 1050: Table already exists (CREATE TABLE)
+                                        // 1091: Can't DROP (column/key doesn't exist)
+                                        // 1068: Multiple primary key defined
+                                        // 1022: Duplicate key (constraint already exists)
+                                        // 1826: Duplicate foreign key constraint
+                                        $ignorableErrors = [1060, 1061, 1050, 1091, 1068, 1022, 1826];
                                         if (!in_array($this->db->errno, $ignorableErrors, true)) {
-                                            $this->debugLog('ERROR', 'Errore SQL', [
+                                            $this->debugLog('ERROR', 'Errore SQL critico', [
                                                 'errno' => $this->db->errno,
                                                 'error' => $this->db->error,
                                                 'statement' => $statement
@@ -1430,7 +1632,7 @@ class Updater
                                                 sprintf(__('Errore SQL durante migrazione %s: %s'), $filename, $this->db->error)
                                             );
                                         }
-                                        $this->debugLog('WARNING', 'Errore SQL ignorabile', [
+                                        $this->debugLog('DEBUG', 'Errore SQL ignorabile (oggetto già esistente)', [
                                             'errno' => $this->db->errno,
                                             'error' => $this->db->error
                                         ]);

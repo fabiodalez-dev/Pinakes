@@ -34,10 +34,11 @@ $repoOwner = 'fabiodalez-dev';
 $repoName = 'Pinakes';
 $targetVersion = $_GET['version'] ?? null;
 
-// Error reporting
+// Error reporting and resource limits
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-set_time_limit(300); // 5 minutes
+set_time_limit(600); // 10 minutes
+ini_set('memory_limit', '512M'); // Ensure enough memory for extraction
 
 echo "<!DOCTYPE html><html><head><title>Pinakes Manual Update</title>";
 echo "<style>body{font-family:monospace;padding:20px;background:#1e1e1e;color:#fff;}";
@@ -55,6 +56,17 @@ function output($msg, $type = 'info') {
     echo "<p class=\"$class\">$msg</p>";
     flush();
     ob_flush();
+}
+
+function deleteRecursiveDir($path) {
+    if (!is_dir($path)) {
+        return @unlink($path);
+    }
+    $files = array_diff(@scandir($path) ?: [], ['.', '..']);
+    foreach ($files as $file) {
+        deleteRecursiveDir($path . '/' . $file);
+    }
+    return @rmdir($path);
 }
 
 // Step 1: Check permissions
@@ -89,6 +101,41 @@ if (!$allOk) {
     output("Fix permissions before continuing!", 'error');
     output("Run: chmod -R 775 storage app public config", 'warning');
     exit;
+}
+
+// Check ZipArchive extension
+if (!class_exists('ZipArchive')) {
+    output("ZipArchive extension not available! Contact your hosting provider.", 'error');
+    exit;
+}
+output("ZipArchive: OK", 'ok');
+
+// Check disk space (need at least 200MB)
+$freeSpace = @disk_free_space($rootPath);
+if ($freeSpace !== false) {
+    $freeSpaceMB = round($freeSpace / 1024 / 1024);
+    if ($freeSpace < 200 * 1024 * 1024) {
+        output("Disk space insufficient: {$freeSpaceMB}MB available, need at least 200MB", 'error');
+        exit;
+    }
+    output("Disk space: {$freeSpaceMB}MB available", 'ok');
+} else {
+    output("Cannot check disk space (continuing anyway)", 'warning');
+}
+
+// Clean up old temp directories
+$tmpDir = $rootPath . '/storage/tmp';
+$oldDirs = @glob($tmpDir . '/extracted*', GLOB_ONLYDIR);
+if ($oldDirs) {
+    foreach ($oldDirs as $oldDir) {
+        deleteRecursiveDir($oldDir);
+    }
+    output("Cleaned up " . count($oldDirs) . " old temp directories", 'ok');
+}
+// Also clean old update.zip if exists
+if (file_exists($tmpDir . '/update.zip')) {
+    @unlink($tmpDir . '/update.zip');
+    output("Cleaned up old update.zip", 'ok');
 }
 
 // Step 2: Get current version
@@ -229,34 +276,73 @@ if (function_exists('curl_init')) {
 $size = filesize($zipPath);
 output("Downloaded: " . round($size / 1024 / 1024, 2) . " MB", 'ok');
 
-// Step 6: Extract update
+// Step 6: Extract update (with retry)
 output("=== Step 6: Extracting Update ===");
 
-if (!class_exists('ZipArchive')) {
-    output("ZipArchive extension not available!", 'error');
-    exit;
-}
+$extractPath = $tmpDir . '/extracted_' . time();
+$extractionSuccess = false;
+$maxRetries = 3;
 
-$zip = new ZipArchive();
-$result = $zip->open($zipPath);
-if ($result !== true) {
-    output("Cannot open ZIP file (error code: $result)", 'error');
-    @unlink($zipPath);
-    exit;
-}
+for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+    output("Extraction attempt $attempt of $maxRetries...");
 
-$extractPath = $tmpDir . '/extracted';
-@mkdir($extractPath, 0775, true);
+    // Clean up any previous failed extraction
+    if (is_dir($extractPath)) {
+        deleteRecursiveDir($extractPath);
+    }
+    @mkdir($extractPath, 0775, true);
 
-if (!$zip->extractTo($extractPath)) {
-    output("Extraction failed!", 'error');
+    $zip = new ZipArchive();
+    $result = $zip->open($zipPath);
+
+    if ($result !== true) {
+        $errorMessages = [
+            ZipArchive::ER_NOZIP => 'Not a ZIP file',
+            ZipArchive::ER_INVAL => 'Invalid argument',
+            ZipArchive::ER_MEMORY => 'Memory allocation failure',
+            ZipArchive::ER_READ => 'Read error',
+            ZipArchive::ER_SEEK => 'Seek error',
+        ];
+        $errorMsg = $errorMessages[$result] ?? "Unknown error code: $result";
+        output("Cannot open ZIP: $errorMsg", 'warning');
+
+        if ($attempt < $maxRetries) {
+            output("Waiting 2 seconds before retry...", 'warning');
+            sleep(2);
+            continue;
+        }
+        output("All attempts failed to open ZIP", 'error');
+        @unlink($zipPath);
+        exit;
+    }
+
+    // Try extraction
+    if ($zip->extractTo($extractPath)) {
+        $zip->close();
+        $extractionSuccess = true;
+        output("Extracted successfully", 'ok');
+        break;
+    }
+
     $zip->close();
-    @unlink($zipPath);
-    exit;
+    output("Extraction failed on attempt $attempt", 'warning');
+
+    if ($attempt < $maxRetries) {
+        output("Waiting 2 seconds before retry...", 'warning');
+        sleep(2);
+        // Try increasing memory for next attempt
+        $currentLimit = ini_get('memory_limit');
+        $currentBytes = (int)$currentLimit * 1024 * 1024;
+        @ini_set('memory_limit', ($currentBytes * 2) . 'M');
+    }
 }
 
-$zip->close();
-output("Extracted successfully", 'ok');
+if (!$extractionSuccess) {
+    output("Extraction failed after $maxRetries attempts!", 'error');
+    @unlink($zipPath);
+    deleteRecursiveDir($extractPath);
+    exit;
+}
 
 // Find the content directory (GitHub adds a prefix folder)
 $dirs = glob($extractPath . '/*', GLOB_ONLYDIR);
@@ -352,8 +438,12 @@ if (is_dir($migrationsPath)) {
                             if (empty($stmt) || strpos($stmt, '--') === 0) continue;
                             if (!$db->query($stmt)) {
                                 $errno = $db->errno;
-                                // Ignore expected errors (1060=duplicate column, 1061=duplicate key, 1050=table exists)
-                                if (!in_array($errno, [1060, 1061, 1050])) {
+                                // Ignore expected idempotent errors:
+                                // 1060=duplicate column, 1061=duplicate key, 1050=table exists
+                                // 1091=can't DROP, 1068=multiple primary key, 1022=duplicate key entry
+                                // 1826=duplicate FK constraint, 1146=table doesn't exist (for DROP IF NOT EXISTS)
+                                $ignorableErrors = [1060, 1061, 1050, 1091, 1068, 1022, 1826, 1146];
+                                if (!in_array($errno, $ignorableErrors)) {
                                     output("SQL error ($errno): " . $db->error, 'warning');
                                 }
                             }
@@ -372,19 +462,8 @@ if (is_dir($migrationsPath)) {
 // Step 10: Cleanup
 output("=== Step 10: Cleanup ===");
 
-function deleteRecursive($path) {
-    if (is_dir($path)) {
-        $files = array_diff(scandir($path), ['.', '..']);
-        foreach ($files as $file) {
-            deleteRecursive($path . '/' . $file);
-        }
-        return rmdir($path);
-    }
-    return unlink($path);
-}
-
 @unlink($zipPath);
-deleteRecursive($extractPath);
+deleteRecursiveDir($extractPath);
 output("Cleanup completed", 'ok');
 
 // Done
