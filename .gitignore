@@ -130,6 +130,9 @@ storage/plugins/dewey-editor/*
 !storage/plugins/dewey-editor/views/
 !storage/plugins/dewey-editor/views/*.php
 
+# Premium plugin - never track (private/commercial)
+storage/plugins/scraping-pro/
+
 # Cache & Temp
 cache/*
 tmp/*

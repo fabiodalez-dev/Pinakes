@@ -222,6 +222,7 @@ class SitemapGenerator
                        LIMIT 1
                    ) AS autore_principale
             FROM libri l
+            WHERE l.deleted_at IS NULL
             ORDER BY l.updated_at DESC
             LIMIT 2000
         ";
@@ -328,7 +329,7 @@ class SitemapGenerator
         $sql = "
             SELECT g.nome
             FROM generi g
-            JOIN libri l ON l.genere_id = g.id
+            JOIN libri l ON l.genere_id = g.id AND l.deleted_at IS NULL
             GROUP BY g.id, g.nome
             HAVING COUNT(l.id) > 0
             ORDER BY g.nome ASC

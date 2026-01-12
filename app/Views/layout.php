@@ -24,10 +24,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   <title><?php echo HtmlHelper::e($appName); ?> - Sistema di Gestione Bibliotecaria</title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/assets/vendor.css?v=<?= time() ?>" />
-  <link rel="stylesheet" href="/assets/flatpickr-custom.css?v=<?= time() ?>" />
-  <link rel="stylesheet" href="/assets/main.css?v=<?= time() ?>" />
-  <link rel="stylesheet" href="/assets/css/swal-theme.css?v=<?= time() ?>" />
+  <link rel="stylesheet" href="/assets/vendor.css?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="/assets/flatpickr-custom.css?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="/assets/main.css?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="/assets/css/swal-theme.css?v=<?= $appVersion ?>" />
   <script>
     (function () {
       if (typeof window.__ !== 'function') {
@@ -695,12 +695,12 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="/assets/vendor.bundle.js"></script>
-  <script src="/assets/tinymce/tinymce.min.js"></script>
-  <script src="/assets/flatpickr-init.js"></script>
-  <script src="/assets/main.bundle.js"></script>
-  <script src="/assets/js/csrf-helper.js"></script>
-  <script src="/assets/js/swal-config.js"></script>
+  <script src="/assets/vendor.bundle.js?v=<?= $appVersion ?>" defer></script>
+  <script src="/assets/tinymce/tinymce.min.js" defer></script>
+  <script src="/assets/flatpickr-init.js?v=<?= $appVersion ?>" defer></script>
+  <script src="/assets/main.bundle.js?v=<?= $appVersion ?>" defer></script>
+  <script src="/assets/js/csrf-helper.js?v=<?= $appVersion ?>" defer></script>
+  <script src="/assets/js/swal-config.js?v=<?= $appVersion ?>" defer></script>
   <script>
 
     function escapeHtml(value) {

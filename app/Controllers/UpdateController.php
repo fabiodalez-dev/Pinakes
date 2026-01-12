@@ -16,11 +16,8 @@ class UpdateController
      */
     public function index(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            $_SESSION['error_message'] = __('Accesso negato');
-            return $this->redirect($response, '/admin/dashboard');
-        }
+        // Admin-only access check removed - relying on Middleware
+
 
         $updater = new Updater($db);
 
@@ -52,10 +49,8 @@ class UpdateController
      */
     public function checkUpdates(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+        // Admin-only access check removed
+
 
         $updater = new Updater($db);
         $updateInfo = $updater->checkForUpdates();
@@ -68,10 +63,8 @@ class UpdateController
      */
     public function performUpdate(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+        // Admin-only access check removed
+
 
         // Verify CSRF token
         $data = (array) $request->getParsedBody();
@@ -121,10 +114,8 @@ class UpdateController
      */
     public function createBackup(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+        // Admin-only access check removed
+
 
         // Verify CSRF token
         $data = (array) $request->getParsedBody();
@@ -156,10 +147,8 @@ class UpdateController
      */
     public function getHistory(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+        // Admin-only access check removed
+
 
         $updater = new Updater($db);
         $history = $updater->getUpdateHistory();
@@ -193,9 +182,7 @@ class UpdateController
      */
     public function getBackups(Request $request, Response $response, mysqli $db): Response
     {
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+
 
         $updater = new Updater($db);
         $backups = $updater->getBackupList();
@@ -208,9 +195,7 @@ class UpdateController
      */
     public function deleteBackup(Request $request, Response $response, mysqli $db): Response
     {
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+
 
         $data = (array) $request->getParsedBody();
         $csrfToken = $data['csrf_token'] ?? '';
@@ -245,9 +230,7 @@ class UpdateController
      */
     public function downloadBackup(Request $request, Response $response, mysqli $db): Response
     {
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+
 
         $backupName = $request->getQueryParams()['backup'] ?? '';
         if (empty($backupName)) {
@@ -278,10 +261,8 @@ class UpdateController
      */
     public function clearMaintenance(Request $request, Response $response): Response
     {
-        // Admin-only access
-        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
-            return $this->jsonResponse($response, ['error' => __('Accesso negato')], 403);
-        }
+        // Admin-only access check removed
+
 
         // Verify CSRF token
         $data = (array) $request->getParsedBody();

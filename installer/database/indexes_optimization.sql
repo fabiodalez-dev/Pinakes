@@ -30,6 +30,9 @@ ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_isbn10 (isbn10);
 ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_genere_scaffale (genere_id, scaffale_id);
 ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_sottogenere_scaffale (sottogenere_id, scaffale_id);
 
+-- Indice per soft-delete (SitemapGenerator, filtri deleted_at IS NULL)
+ALTER TABLE libri ADD INDEX IF NOT EXISTS idx_libri_deleted_at (deleted_at);
+
 -- =====================================================
 -- TABELLA: libri_autori (CRITICA - mancano indici composti)
 -- Già presenti: libro_id, autore_id (singoli)
@@ -87,7 +90,8 @@ ALTER TABLE prestiti ADD INDEX IF NOT EXISTS idx_libro_utente (libro_id, utente_
 ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_nome (nome(50));
 ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_cognome (cognome(50));
 ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_nome_cognome (nome(50), cognome(50));
-ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_ruolo (ruolo);
+-- Indice aggiuntivo su tipo_utente (non sostituisce altri indici)
+ALTER TABLE utenti ADD INDEX IF NOT EXISTS idx_tipo_utente (tipo_utente);
 
 -- =====================================================
 -- TABELLA: generi (manca indice su nome)
@@ -109,6 +113,9 @@ ALTER TABLE posizioni ADD INDEX IF NOT EXISTS idx_scaffale_mensola (scaffale_id,
 
 -- Indice per inventario
 ALTER TABLE copie ADD INDEX IF NOT EXISTS idx_numero_inventario (numero_inventario);
+
+-- Indice per sede (multi-branch support)
+ALTER TABLE copie ADD INDEX IF NOT EXISTS idx_sede_id (sede_id);
 
 -- =====================================================
 -- TABELLA: prenotazioni (aggiungere indici mancanti)
