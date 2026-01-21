@@ -404,10 +404,18 @@
   @apply text-blue-600;
 }
 
+.prose a:focus-visible {
+  @apply text-blue-600 outline-none ring-2 ring-blue-500/30 ring-offset-1;
+}
+
 .dark .prose a {
   @apply text-blue-400;
 }
 
 .dark .prose a:hover {
   @apply text-blue-300;
+}
+
+.dark .prose a:focus-visible {
+  @apply text-blue-300 outline-none ring-2 ring-blue-400/30 ring-offset-1 ring-offset-gray-900;
 }

@@ -318,6 +318,7 @@ class NotificationService {
             $result = $stmt->get_result();
 
             if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
                 return false;
             }
             $stmt->close();
@@ -922,6 +923,7 @@ class NotificationService {
             $result = $stmt->get_result();
 
             if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
                 return false;
             }
             $stmt->close();
@@ -966,6 +968,7 @@ class NotificationService {
             $result = $stmt->get_result();
 
             if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
                 return false;
             }
             $stmt->close();
@@ -1002,6 +1005,7 @@ class NotificationService {
             $result = $stmt->get_result();
 
             if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
                 return false;
             }
             $stmt->close();
@@ -1047,6 +1051,7 @@ class NotificationService {
             $result = $stmt->get_result();
 
             if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
                 return false;
             }
             $stmt->close();

@@ -137,7 +137,7 @@ class PrestitiController
             $dupStmt = $db->prepare("
                 SELECT id FROM prestiti
                 WHERE libro_id = ? AND utente_id = ? AND attivo = 1
-                AND stato IN ('in_corso', 'prenotato', 'pendente', 'in_ritardo')
+                AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'pendente', 'in_ritardo')
                 FOR UPDATE
             ");
             $dupStmt->bind_param('ii', $libro_id, $utente_id);
@@ -174,7 +174,7 @@ class PrestitiController
                 $loanCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prestiti
                     WHERE libro_id = ? AND attivo = 1
-                    AND stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
                     AND data_prestito <= ? AND data_scadenza >= ?
                 ");
                 $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
@@ -214,7 +214,7 @@ class PrestitiController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                        AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -242,7 +242,7 @@ class PrestitiController
                 $loanCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prestiti
                     WHERE libro_id = ? AND attivo = 1
-                    AND stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
                     AND data_prestito <= ? AND data_scadenza >= ?
                 ");
                 $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
@@ -282,7 +282,7 @@ class PrestitiController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                        AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -314,7 +314,7 @@ class PrestitiController
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
+                AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo','pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
             ");
@@ -824,7 +824,7 @@ class PrestitiController
         // Get status filter from query params
         $queryParams = $request->getQueryParams();
         $statiParam = $queryParams['stati'] ?? '';
-        $validStates = ['pendente', 'prenotato', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato', 'annullato', 'scaduto'];
+        $validStates = ['pendente', 'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato', 'annullato', 'scaduto'];
 
         // Parse and validate requested states
         $requestedStates = [];
@@ -912,6 +912,7 @@ class PrestitiController
         $statusLabels = [
             'pendente' => __('Pendente'),
             'prenotato' => __('Prenotato'),
+            'da_ritirare' => __('Da Ritirare'),
             'in_corso' => __('In Corso'),
             'in_ritardo' => __('In Ritardo'),
             'restituito' => __('Restituito'),

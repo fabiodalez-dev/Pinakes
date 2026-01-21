@@ -56,9 +56,14 @@ server {
     # ========================================
     # Static assets with caching
     # ========================================
+    # Note: Security headers must be repeated here because Nginx doesn't inherit
+    # add_header directives from parent context when add_header is used in a location
     location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp3|mp4|webm|pdf|epub)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         try_files $uri =404;
     }
 
@@ -70,12 +75,16 @@ server {
         try_files $uri =404;
 
         # CORS headers for media streaming (Digital Library plugin)
+        # Note: Security headers must be repeated here (Nginx doesn't inherit add_header)
         location ~* \.(mp3|m4a|ogg|wav|mp4|webm|ogv)$ {
             add_header Access-Control-Allow-Origin "*" always;
             add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range, Content-Type" always;
             add_header Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges" always;
             add_header Accept-Ranges bytes always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
             try_files $uri =404;
         }
     }
@@ -83,8 +92,14 @@ server {
     # ========================================
     # Installer (accessible at /installer/)
     # ========================================
-    # Remove or comment out this block after installation is complete.
+    # SECURITY: Remove or comment out this block after installation is complete.
+    # Access is restricted to localhost only as a safety measure.
     location ^~ /installer/ {
+        # Only allow access from localhost (loopback)
+        allow 127.0.0.1;
+        allow ::1;
+        deny all;
+
         alias /var/www/pinakes/installer/;
         index index.php;
 

@@ -664,6 +664,7 @@
   "Da": "From",
   "Da Inventariare": "To Be Inventoried",
   "Da approvare": "To approve",
+  "Da consegnare": "To deliver",
   "Da creare": "To be created",
   "Da prenotazione": "From reservation",
   "Da prenotazioni": "From reservations",
@@ -2221,6 +2222,7 @@
   "Profilo Editore": "Publisher Profile",
   "Profilo aggiornato con successo.": "Profile updated successfully.",
   "Profilo professionale": "Professional Profile",
+  "Pronti per il Ritiro": "Ready for Pickup",
   "Pronti per il prestito": "Ready for loan",
   "Prossimi Passi": "Next Steps",
   "Protezione anti-spam per il form contatti": "Anti-spam protection for contact form",
@@ -2472,6 +2474,7 @@
   "Scadenza:": "Due date:",
   "Scadenza: %s": "Expiry: %s",
   "Scaduto": "Expired",
+  "Scaduta": "Expired",
   "Scaduta il": "Expired on",
   "Scaffale": "Bookcase",
   "Scaffale *": "Bookcase *",
@@ -3643,7 +3646,10 @@
   "Errore attivazione prestito schedulato": "Scheduled loan activation error",
   "Errore elaborazione ritiro scaduto": "Expired pickup processing error",
   "Il termine per il ritiro è scaduto": "The pickup deadline has passed",
+  "Ritiro non effettuato entro il termine previsto": "Pickup not completed within the deadline",
   "Ritiro già confermato o modificato": "Pickup already confirmed or modified",
   "Prestito già modificato da altra richiesta": "Loan already modified by another request",
-  "Errore invio notifica ritiro scaduto": "Error sending pickup expired notification"
+  "Errore invio notifica ritiro scaduto": "Error sending pickup expired notification",
+  "Nessun prestito in attesa di ritiro": "No loans waiting for pickup",
+  "Gestisci tutti": "Manage all"
 }

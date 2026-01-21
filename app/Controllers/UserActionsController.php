@@ -43,7 +43,7 @@ class UserActionsController
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prenotato', 'in_corso', 'in_ritardo')
+                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
                 ORDER BY pr.data_prestito ASC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ii', $uid, $uid);

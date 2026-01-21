@@ -14,6 +14,16 @@ $loanActionTranslations = array_merge([
     'rejectPromptTitle' => __('Rifiuta prestito'),
     'rejectPromptLabel' => __('Motivo del rifiuto (opzionale):'),
     'rejectPromptPlaceholder' => __('Aggiungi un motivo (opzionale)'),
+    // Confirm pickup translations
+    'confirmPickupTitle' => __('Confermare il ritiro?'),
+    'confirmPickupText' => __('Questa azione conferma che l\'utente ha ritirato il libro.'),
+    'pickupButton' => __('Conferma Ritiro'),
+    'successPickupTitle' => __('Ritiro confermato!'),
+    'cancelPickupTitle' => __('Annullare il prestito scaduto?'),
+    'cancelPickupText' => __('Il termine per il ritiro è scaduto. Vuoi annullare questo prestito?'),
+    'cancelPickupButton' => __('Annulla Prestito'),
+    'cancelPickupReason' => __('Ritiro non effettuato entro il termine previsto'),
+    'successCancelPickupTitle' => __('Prestito annullato!'),
     // Add missing translations for the Swal dialogs in prestiti/index.php
     'Approva Prestito?' => __('Approva Prestito?'),
     'Approverai questa richiesta di prestito?' => __('Approverai questa richiesta di prestito?'),
@@ -203,6 +213,106 @@ $loanActionTranslations = array_merge([
             }
             await showSuccess(t.successRejectTitle, data.message || '');
             if (!document.querySelector('.approve-btn')) {
+              window.location.reload();
+            }
+          } else {
+            await showError(data.message);
+          }
+        } catch (_) {
+          await showError(t.serverError);
+        }
+      });
+    });
+
+    // Confirm pickup button handler
+    document.querySelectorAll('.confirm-pickup-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') {
+        return;
+      }
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', async function() {
+        const loanId = parseInt(this.dataset.loanId || '0', 10);
+        if (!loanId) return;
+
+        if (hasSwal()) {
+          const confirmed = await window.Swal.fire({
+            icon: 'question',
+            title: t.confirmPickupTitle,
+            text: t.confirmPickupText,
+            showCancelButton: true,
+            confirmButtonText: t.pickupButton,
+            cancelButtonText: t.cancelButton,
+            confirmButtonColor: '#16a34a',
+            focusCancel: true
+          });
+          if (!confirmed.isConfirmed) {
+            return;
+          }
+        } else if (!window.confirm(t.confirmPickupTitle)) {
+          return;
+        }
+
+        try {
+          const { response, data } = await sendRequest('/admin/loans/confirm-pickup', { loan_id: loanId }, csrf);
+          if (response.ok && data.success) {
+            const card = this.closest('[data-pickup-card]');
+            if (card) {
+              card.remove();
+            }
+            await showSuccess(t.successPickupTitle, data.message || '');
+            if (!document.querySelector('.confirm-pickup-btn') && !document.querySelector('.approve-btn')) {
+              window.location.reload();
+            }
+          } else {
+            await showError(data.message);
+          }
+        } catch (_) {
+          await showError(t.serverError);
+        }
+      });
+    });
+
+    // Cancel expired pickup button handler
+    document.querySelectorAll('.cancel-pickup-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') {
+        return;
+      }
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', async function() {
+        const loanId = parseInt(this.dataset.loanId || '0', 10);
+        if (!loanId) return;
+
+        if (hasSwal()) {
+          const confirmed = await window.Swal.fire({
+            icon: 'warning',
+            title: t.cancelPickupTitle,
+            text: t.cancelPickupText,
+            showCancelButton: true,
+            confirmButtonText: t.cancelPickupButton,
+            cancelButtonText: t.cancelButton,
+            confirmButtonColor: '#dc2626',
+            focusCancel: true
+          });
+          if (!confirmed.isConfirmed) {
+            return;
+          }
+        } else if (!window.confirm(t.cancelPickupTitle)) {
+          return;
+        }
+
+        try {
+          const { response, data } = await sendRequest('/admin/loans/reject', {
+            loan_id: loanId,
+            reason: t.cancelPickupReason
+          }, csrf);
+
+          if (response.ok && data.success) {
+            const card = this.closest('[data-pickup-card]');
+            if (card) {
+              card.remove();
+            }
+            await showSuccess(t.successCancelPickupTitle, data.message || '');
+            if (!document.querySelector('.confirm-pickup-btn') && !document.querySelector('.approve-btn')) {
               window.location.reload();
             }
           } else {

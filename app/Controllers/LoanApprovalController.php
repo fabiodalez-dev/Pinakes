@@ -31,10 +31,34 @@ class LoanApprovalController
         $stmt->execute();
         $result = $stmt->get_result();
         $pendingLoans = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        // Get all loans ready for pickup (da_ritirare)
+        $today = date('Y-m-d');
+        $pickupStmt = $db->prepare("
+            SELECT p.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   p.data_prestito as data_richiesta_inizio,
+                   p.data_scadenza as data_richiesta_fine,
+                   p.pickup_deadline,
+                   COALESCE(p.origine, 'richiesta') as origine
+            FROM prestiti p
+            JOIN libri l ON p.libro_id = l.id
+            JOIN utenti u ON p.utente_id = u.id
+            WHERE p.stato = 'da_ritirare'
+              OR (p.stato = 'prenotato' AND p.data_prestito <= ?)
+            ORDER BY
+                CASE WHEN p.pickup_deadline IS NOT NULL THEN p.pickup_deadline ELSE p.data_prestito END ASC
+        ");
+        $pickupStmt->bind_param('s', $today);
+        $pickupStmt->execute();
+        $pickupResult = $pickupStmt->get_result();
+        $pickupLoans = $pickupResult->fetch_all(MYSQLI_ASSOC);
+        $pickupStmt->close();
 
         ob_start();
         $title = "Approvazione Prestiti - Amministrazione";
-        $pendingLoans = $pendingLoans;
+        // $pendingLoans and $pickupLoans are already set from queries above
         require __DIR__ . '/../Views/admin/pending_loans.php';
         $content = ob_get_clean();
 
@@ -218,12 +242,21 @@ class LoanApprovalController
             }
 
             // Assegna la copia al prestito con lo stato corretto e pickup_deadline se applicabile
-            $stmt = $db->prepare("
-                UPDATE prestiti
-                SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?
-                WHERE id = ? AND stato = 'pendente'
-            ");
-            $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $pickupDeadline, $loanId);
+            if ($pickupDeadline !== null) {
+                $stmt = $db->prepare("
+                    UPDATE prestiti
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?
+                    WHERE id = ? AND stato = 'pendente'
+                ");
+                $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $pickupDeadline, $loanId);
+            } else {
+                $stmt = $db->prepare("
+                    UPDATE prestiti
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL
+                    WHERE id = ? AND stato = 'pendente'
+                ");
+                $stmt->bind_param('sii', $newState, $selectedCopy['id'], $loanId);
+            }
             $stmt->execute();
             $stmt->close();
 
@@ -440,10 +473,23 @@ class LoanApprovalController
             $updateStmt->execute();
             $updateStmt->close();
 
-            // Update copy status to 'prestato'
+            // Update copy status to 'prestato' (only if copy is in a loanable state)
             if ($copiaId) {
-                $copyRepo = new \App\Models\CopyRepository($db);
-                $copyRepo->updateStatus($copiaId, 'prestato');
+                // Verify copy is in a valid state for lending
+                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ?");
+                $copyCheckStmt->bind_param('i', $copiaId);
+                $copyCheckStmt->execute();
+                $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
+                $copyCheckStmt->close();
+
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                if ($copyResult && !in_array($copyResult['stato'], $invalidStates)) {
+                    $copyRepo = new \App\Models\CopyRepository($db);
+                    $copyRepo->updateStatus($copiaId, 'prestato');
+                } elseif ($copyResult) {
+                    // Log anomaly: loan confirmed but copy in invalid state - requires manual review
+                    error_log("[confirmPickup] WARNING: Loan {$loanId} confirmed but copy {$copiaId} is in state '{$copyResult['stato']}' - requires manual review");
+                }
             }
 
             // Recalculate book availability

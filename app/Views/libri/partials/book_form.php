@@ -2852,12 +2852,18 @@ function initializeIsbnImport() {
                 const descInput = document.querySelector('textarea[name="descrizione"]');
                 if (descInput) {
                     // Sanitize description from external sources (XSS prevention)
-                    const safeDescription = window.DOMPurify
-                        ? DOMPurify.sanitize(data.description, {
+                    let safeDescription;
+                    if (window.DOMPurify) {
+                        safeDescription = DOMPurify.sanitize(data.description, {
                             ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'b', 'i'],
                             ALLOWED_ATTR: ['href', 'title', 'target', 'rel']
-                          })
-                        : data.description;
+                        });
+                    } else {
+                        // Fallback: strip all HTML tags for safety
+                        const tempDiv = document.createElement('div');
+                        tempDiv.textContent = data.description;
+                        safeDescription = tempDiv.innerHTML;
+                    }
                     descInput.value = safeDescription;
                     // Also update TinyMCE editor if available
                     if (window.tinymce && tinymce.get('descrizione')) {

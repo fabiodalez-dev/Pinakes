@@ -11,8 +11,8 @@ class DashboardController
 {
     public function index(Request $request, Response $response, mysqli $db): Response
     {
-        $stats = ['libri'=>0,'utenti'=>0,'prestiti_in_corso'=>0,'autori'=>0,'prestiti_pendenti'=>0];
-        $lastBooks = $active = $overdue = $pending = $reservations = $calendarEvents = [];
+        $stats = ['libri'=>0,'utenti'=>0,'prestiti_in_corso'=>0,'autori'=>0,'prestiti_pendenti'=>0,'pickup_pronti'=>0];
+        $lastBooks = $active = $overdue = $pending = $pickupLoans = $reservations = $calendarEvents = [];
 
         try {
             $repo = new \App\Models\DashboardStats($db);
@@ -21,6 +21,7 @@ class DashboardController
             $active = $repo->activeLoans();
             $overdue = $repo->overdueLoans();
             $pending = $repo->pendingLoans(6);
+            $pickupLoans = $repo->pickupReadyLoans(6);
             $reservations = $repo->activeReservations(6);
             $calendarEvents = $repo->calendarEvents();
         } catch (\Exception $e) {

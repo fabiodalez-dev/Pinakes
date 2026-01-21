@@ -11,8 +11,11 @@ class DashboardStats
 
     public function counts(): array
     {
+        $today = date('Y-m-d');
+
         // Singola query invece di 5 query separate
         // Include count for pickup confirmations (origine='prenotazione') and manual requests separately
+        // pickup_pronti: loans in 'da_ritirare' state OR 'prenotato' with data_prestito <= today
         $sql = "SELECT
                     (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS libri,
                     (SELECT COUNT(*) FROM utenti) AS utenti,
@@ -20,7 +23,8 @@ class DashboardStats
                     (SELECT COUNT(*) FROM autori) AS autori,
                     (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti,
                     (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND origine = 'prenotazione') AS ritiri_da_confermare,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali";
+                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali,
+                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= '$today')) AS pickup_pronti";
 
         $result = $this->db->query($sql);
         if ($result && $row = $result->fetch_assoc()) {
@@ -31,11 +35,12 @@ class DashboardStats
                 'autori' => (int)($row['autori'] ?? 0),
                 'prestiti_pendenti' => (int)($row['prestiti_pendenti'] ?? 0),
                 'ritiri_da_confermare' => (int)($row['ritiri_da_confermare'] ?? 0),
-                'richieste_manuali' => (int)($row['richieste_manuali'] ?? 0)
+                'richieste_manuali' => (int)($row['richieste_manuali'] ?? 0),
+                'pickup_pronti' => (int)($row['pickup_pronti'] ?? 0)
             ];
         }
 
-        return ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0, 'ritiri_da_confermare' => 0, 'richieste_manuali' => 0];
+        return ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0, 'ritiri_da_confermare' => 0, 'richieste_manuali' => 0, 'pickup_pronti' => 0];
     }
 
     public function lastBooks(int $limit = 4): array
@@ -117,6 +122,34 @@ class DashboardStats
     }
 
     /**
+     * Get loans ready for pickup (da_ritirare or prenotato with date reached)
+     */
+    public function pickupReadyLoans(int $limit = 6): array
+    {
+        $rows = [];
+        $today = date('Y-m-d');
+        $sql = "SELECT p.id, p.libro_id, p.utente_id, p.stato, p.data_prestito, p.data_scadenza,
+                       p.pickup_deadline, p.created_at,
+                       l.titolo, l.copertina_url,
+                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.stato = 'da_ritirare'
+                   OR (p.stato = 'prenotato' AND p.data_prestito <= ?)
+                ORDER BY COALESCE(p.pickup_deadline, p.data_prestito) ASC
+                LIMIT ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param('si', $today, $limit);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
      * Get active reservations for dashboard display
      */
     public function activeReservations(int $limit = 6): array
@@ -160,7 +193,7 @@ class DashboardStats
                     JOIN libri l ON p.libro_id = l.id
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE (p.attivo = 1 OR p.stato = 'pendente')
-                      AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                      AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
                       AND p.data_scadenza >= ?
                       AND p.data_prestito <= ?
                     ORDER BY p.data_prestito ASC";
