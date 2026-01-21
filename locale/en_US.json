@@ -3657,5 +3657,6 @@
   "Prestito non trovato o non cancellabile": "Loan not found or cannot be cancelled",
   "Ritiro annullato con successo": "Pickup cancelled successfully",
   "Ritiro non effettuato": "Pickup not completed",
-  "Errore durante l'annullamento del ritiro": "Error cancelling pickup"
+  "Errore durante l'annullamento del ritiro": "Error cancelling pickup",
+  "Prestito senza copia assegnata - contattare l'amministratore": "Loan has no assigned copy - contact administrator"
 }

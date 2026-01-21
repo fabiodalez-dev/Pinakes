@@ -1839,7 +1839,7 @@ return function (App $app): void {
                     $occupiedCount++;
                     if ($loan['stato'] === 'in_ritardo') {
                         $hasOverdue = true;
-                    } elseif ($loan['stato'] === 'prenotato' || $loan['stato'] === 'pendente') {
+                    } elseif ($loan['stato'] === 'prenotato' || $loan['stato'] === 'pendente' || $loan['stato'] === 'da_ritirare') {
                         $hasReserved = true;
                     }
                 }

@@ -123,7 +123,7 @@
 
         <!-- Section: Pending Approval -->
         <div>
-            <?php if (!empty($pickupLoans)): ?>
+            <?php if (!empty($pickupLoans) || !empty($pendingLoans)): ?>
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                     <i class="fas fa-hourglass-start text-white text-sm"></i>

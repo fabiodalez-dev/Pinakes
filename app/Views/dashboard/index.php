@@ -162,6 +162,10 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
             <?= __("Prestiti programmati") ?>
           </span>
           <span class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full" style="background-color: #F97316;"></span>
+            <?= __("Da Ritirare") ?>
+          </span>
+          <span class="flex items-center gap-2">
             <span class="w-3 h-3 rounded-full bg-red-500"></span>
             <?= __("Prestiti scaduti") ?>
           </span>

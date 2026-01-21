@@ -450,6 +450,17 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
+            // Block if no copy assigned (data integrity issue - legacy/migration problem)
+            if (empty($loan['copia_id'])) {
+                $db->rollback();
+                error_log("[confirmPickup] ERROR: Loan {$loanId} has no assigned copy - cannot confirm pickup");
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito senza copia assegnata - contattare l\'amministratore')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             // Check if pickup deadline has passed
             if (!empty($loan['pickup_deadline']) && $today > $loan['pickup_deadline']) {
                 $db->rollback();
@@ -582,10 +593,29 @@ class LoanApprovalController
             $updateStmt->execute();
             $updateStmt->close();
 
-            // Release copy if assigned (set back to 'disponibile')
+            // Prepare reassignment service (for advancing reservation queue)
+            // Critical: This is the ONLY reassignment opportunity if MaintenanceService doesn't run
+            $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+            $reassignmentService->setExternalTransaction(true);
+
+            // Release copy if assigned (set back to 'disponibile' only if valid state)
             if ($copiaId) {
-                $copyRepo = new \App\Models\CopyRepository($db);
-                $copyRepo->updateStatus($copiaId, 'disponibile');
+                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ?");
+                $copyCheckStmt->bind_param('i', $copiaId);
+                $copyCheckStmt->execute();
+                $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
+                $copyCheckStmt->close();
+
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
+                    $copyRepo = new \App\Models\CopyRepository($db);
+                    $copyRepo->updateStatus($copiaId, 'disponibile');
+
+                    // Advance reservation queue: promote next waiting user for this copy
+                    $reassignmentService->reassignOnReturn($copiaId);
+                } elseif ($copyResult) {
+                    error_log("[cancelPickup] WARNING: Copy {$copiaId} in state '{$copyResult['stato']}' not reset to disponibile");
+                }
             }
 
             // Recalculate book availability
@@ -593,6 +623,9 @@ class LoanApprovalController
             $integrity->recalculateBookAvailability($libroId);
 
             $db->commit();
+
+            // Send deferred reservation notifications AFTER commit (outside transaction)
+            $reassignmentService->flushDeferredNotifications();
 
             // Send notification to user about cancelled pickup (outside transaction)
             try {
