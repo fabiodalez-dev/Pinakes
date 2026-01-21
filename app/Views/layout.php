@@ -112,6 +112,73 @@ $htmlLang = substr($currentLocale, 0, 2);
         </button>
       </div>
 
+      <!-- Quick Actions Section -->
+      <div class="px-4 pb-4 pt-2 border-b border-gray-200">
+        <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?>
+        </div>
+        <div class="space-y-2 mt-3">
+          <a href="/admin/libri/crea"
+            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+              <i class="fas fa-plus text-sm text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium text-sm"><?= __("Nuovo Libro") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Aggiungi alla collezione") ?></div>
+            </div>
+          </a>
+
+          <?php if (!$isCatalogueMode): ?>
+            <a href="/prestiti/crea"
+              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                <i class="fas fa-handshake text-sm text-gray-600"></i>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
+              </div>
+            </a>
+
+            <a href="/admin/loans/pending"
+              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                <i class="fas fa-clock text-sm text-gray-600"></i>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
+              </div>
+            </a>
+          <?php endif; ?>
+
+          <a href="/admin/maintenance/integrity-report"
+            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+              <i class="fas fa-shield-alt text-sm text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium text-sm"><?= __("Manutenzione") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Integrità dati") ?></div>
+            </div>
+          </a>
+
+          <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
+          <a href="/admin/updates" id="sidebar-updates-link"
+            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 relative">
+              <i class="fas fa-sync-alt text-sm text-gray-600"></i>
+              <span id="sidebar-update-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-100"></span>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium text-sm"><?= __("Aggiornamenti") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Verifica versioni") ?></div>
+            </div>
+          </a>
+          <?php endif; ?>
+        </div>
+      </div>
+
       <!-- Navigation Menu -->
       <nav class="flex-1 px-4 py-6 pb-24 space-y-2 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
 
@@ -303,73 +370,6 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
           </div>
         <?php endif; ?>
-
-        <!-- Quick Actions Section -->
-        <div class="pt-6 mt-6 border-t border-gray-200">
-          <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?>
-          </div>
-          <div class="space-y-2 mt-3">
-            <a href="/admin/libri/crea"
-              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                <i class="fas fa-plus text-sm text-gray-600"></i>
-              </div>
-              <div class="ml-3">
-                <div class="font-medium text-sm"><?= __("Nuovo Libro") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Aggiungi alla collezione") ?></div>
-              </div>
-            </a>
-
-            <?php if (!$isCatalogueMode): ?>
-              <a href="/prestiti/crea"
-                class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                  <i class="fas fa-handshake text-sm text-gray-600"></i>
-                </div>
-                <div class="ml-3">
-                  <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
-                  <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
-                </div>
-              </a>
-
-              <a href="/admin/loans/pending"
-                class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                  <i class="fas fa-clock text-sm text-gray-600"></i>
-                </div>
-                <div class="ml-3">
-                  <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
-                  <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
-                </div>
-              </a>
-            <?php endif; ?>
-
-            <a href="/admin/maintenance/integrity-report"
-              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                <i class="fas fa-shield-alt text-sm text-gray-600"></i>
-              </div>
-              <div class="ml-3">
-                <div class="font-medium text-sm"><?= __("Manutenzione") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Integrità dati") ?></div>
-              </div>
-            </a>
-
-            <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
-            <a href="/admin/updates" id="sidebar-updates-link"
-              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 relative">
-                <i class="fas fa-sync-alt text-sm text-gray-600"></i>
-                <span id="sidebar-update-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-100"></span>
-              </div>
-              <div class="ml-3">
-                <div class="font-medium text-sm"><?= __("Aggiornamenti") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Verifica versioni") ?></div>
-              </div>
-            </a>
-            <?php endif; ?>
-          </div>
-        </div>
 
         <!-- Statistics Section -->
         <div class="pt-6 mt-6 border-t border-gray-200">
