@@ -159,6 +159,12 @@ $httpsDetected = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 
 // Secure session configuration
 if (session_status() !== PHP_SESSION_ACTIVE) {
+    // Use application-local session storage to avoid /tmp cleanup issues
+    $sessionPath = dirname(__DIR__) . '/storage/sessions';
+    if (is_dir($sessionPath) && is_writable($sessionPath)) {
+        ini_set('session.save_path', $sessionPath);
+    }
+
     // Configure secure session parameters
     ini_set('session.cookie_httponly', '1');
     ini_set('session.cookie_secure', $httpsDetected ? '1' : '0');

@@ -231,7 +231,28 @@ Migrations are executed in version order, only for versions newer than the curre
    'dall'amministratore'    -- Wrong (syntax error)
    ```
 
-3. **No semicolons inside string values** (would split the statement)
+3. **No semicolons inside string values** (would split the statement):
+   ```sql
+   -- WRONG: CSS inline styles have semicolons that break the parser
+   INSERT INTO `email_templates` VALUES ('test', '<div style="padding: 20px; margin: 10px;">content</div>');
+   -- The parser sees this as TWO statements:
+   -- 1) INSERT INTO `email_templates` VALUES ('test', '<div style="padding: 20px
+   -- 2) margin: 10px;">content</div>')
+
+   -- CORRECT: Use HTML attributes or table-based layouts instead
+   INSERT INTO `email_templates` VALUES ('test', '<table cellpadding="20"><tr><td>content</td></tr></table>');
+   -- Or use single CSS property without semicolon
+   INSERT INTO `email_templates` VALUES ('test', '<div style="padding:20px">content</div>');
+   ```
+
+   **Common problematic patterns:**
+   - `style="color: red; font-size: 14px"` - Multiple CSS properties
+   - `style="background-color: #fff; padding: 10px; margin: 5px"` - Any inline style with `;`
+
+   **Safe alternatives:**
+   - Use `<table bgcolor="#fff" cellpadding="10">` instead of inline styles
+   - Use single CSS properties: `style="padding:20px"` (no trailing semicolon)
+   - Use HTML attributes: `<font color="red">`, `<td align="center">`
 
 4. **Comment lines** starting with `--` are filtered out before execution
 
