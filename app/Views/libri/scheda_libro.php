@@ -536,7 +536,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
         <div class="card-body">
           <div class="prose prose-sm max-w-none text-gray-700">
-            <?php echo nl2br(App\Support\HtmlHelper::e($libro['descrizione'])); ?>
+            <?php echo App\Support\HtmlHelper::sanitizeHtml($libro['descrizione']); ?>
           </div>
         </div>
       </div>

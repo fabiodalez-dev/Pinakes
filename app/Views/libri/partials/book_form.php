@@ -2847,11 +2847,15 @@ function initializeIsbnImport() {
                 subtitleInput.value = data.subtitle;
             }
 
-            // Description
+            // Description - update TinyMCE if initialized
             if (data.description) {
                 const descInput = document.querySelector('textarea[name="descrizione"]');
                 if (descInput) {
                     descInput.value = data.description;
+                    // Also update TinyMCE editor if available
+                    if (window.tinymce && tinymce.get('descrizione')) {
+                        tinymce.get('descrizione').setContent(data.description);
+                    }
                 }
             }
             
@@ -3630,5 +3634,34 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Initialize TinyMCE for book description (basic editor: bold, italic, lists)
+function initBookTinyMCE() {
+    if (window.tinymce) {
+        tinymce.init({
+            selector: '#descrizione',
+            license_key: 'gpl',
+            height: 250,
+            menubar: false,
+            toolbar_mode: 'wrap',
+            plugins: ['lists', 'link', 'autolink'],
+            toolbar: 'bold italic | bullist numlist | link | removeformat',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
+            branding: false,
+            promotion: false,
+            statusbar: false,
+            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
+        });
+    } else {
+        // TinyMCE not loaded yet, retry in 100ms
+        setTimeout(initBookTinyMCE, 100);
+    }
+}
+// Wait for DOM then init TinyMCE
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBookTinyMCE);
+} else {
+    initBookTinyMCE();
+}
 
 </script>
