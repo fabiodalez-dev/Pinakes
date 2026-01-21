@@ -486,8 +486,8 @@ class LoanApprovalController
 
             // Update copy status to 'prestato' (only if copy is in a loanable state)
             if ($copiaId) {
-                // Verify copy is in a valid state for lending
-                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ?");
+                // Verify copy is in a valid state for lending (FOR UPDATE prevents TOCTOU race)
+                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
                 $copyCheckStmt->bind_param('i', $copiaId);
                 $copyCheckStmt->execute();
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
@@ -600,7 +600,8 @@ class LoanApprovalController
 
             // Release copy if assigned (set back to 'disponibile' only if valid state)
             if ($copiaId) {
-                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ?");
+                // FOR UPDATE prevents TOCTOU race - lock row before checking and updating
+                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
                 $copyCheckStmt->bind_param('i', $copiaId);
                 $copyCheckStmt->execute();
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
