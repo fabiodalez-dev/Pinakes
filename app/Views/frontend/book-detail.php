@@ -590,6 +590,43 @@ $additional_css = "
         font-weight: 400;
     }
 
+    .description-content ul,
+    .description-content ol {
+        margin: 1em 0;
+        padding-left: 2em;
+    }
+
+    .description-content ul {
+        list-style-type: disc;
+    }
+
+    .description-content ol {
+        list-style-type: decimal;
+    }
+
+    .description-content li {
+        margin: 0.5em 0;
+    }
+
+    .description-content strong,
+    .description-content b {
+        font-weight: 700;
+    }
+
+    .description-content em,
+    .description-content i {
+        font-style: italic;
+    }
+
+    .description-content a {
+        color: var(--primary-color, #3b82f6);
+        text-decoration: underline;
+    }
+
+    .description-content a:hover {
+        color: var(--primary-hover, #2563eb);
+    }
+
     .tab-content {
         padding: 2.5rem 0;
     }
