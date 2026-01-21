@@ -45,10 +45,12 @@
 + storage/calendar/.htaccess
 
 # Keep bundled plugins (CRITICAL!)
-# Note: Exclude .DS_Store within plugins before ** patterns
+# Note: Exclude .DS_Store and CLAUDE.md within plugins before ** patterns
 + storage/plugins/
 + storage/plugins/.gitkeep
 - storage/plugins/**/.DS_Store
+- storage/plugins/**/CLAUDE.md
+- storage/plugins/**/claude.md
 + storage/plugins/open-library/
 + storage/plugins/open-library/**
 + storage/plugins/z39-server/
