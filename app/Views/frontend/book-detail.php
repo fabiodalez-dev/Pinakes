@@ -1560,7 +1560,7 @@ ob_start();
                     </h2>
                     <div class="description-content">
                         <?php if (!empty($book['descrizione'])): ?>
-                            <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml($book['descrizione']) ?></div>
+                            <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
                         <?php else: ?>
                             <p class="text-muted"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
                         <?php endif; ?>

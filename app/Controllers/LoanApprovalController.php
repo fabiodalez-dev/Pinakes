@@ -396,7 +396,7 @@ class LoanApprovalController
             // Lock and verify loan is ready for pickup
             // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today (for systems without MaintenanceService)
             $stmt = $db->prepare("
-                SELECT id, libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato
+                SELECT id, libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, pickup_deadline
                 FROM prestiti
                 WHERE id = ? AND attivo = 1
                 AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
@@ -413,6 +413,16 @@ class LoanApprovalController
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito non trovato o non pronto per il ritiro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Check if pickup deadline has passed
+            if (!empty($loan['pickup_deadline']) && $today > $loan['pickup_deadline']) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Il termine per il ritiro è scaduto')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }

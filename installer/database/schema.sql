@@ -618,6 +618,7 @@ CREATE TABLE `prestiti` (
   KEY `idx_prestiti_attivo_stato` (`attivo`,`stato`),
   KEY `idx_prestiti_stato_origine` (`stato`,`origine`),
   KEY `idx_copia_id` (`copia_id`),
+  KEY `idx_prestiti_pickup_deadline` (`pickup_deadline`),
   CONSTRAINT `fk_prestiti_copia` FOREIGN KEY (`copia_id`) REFERENCES `copie` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `prestiti_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prestiti_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`),

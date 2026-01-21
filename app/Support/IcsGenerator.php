@@ -119,12 +119,18 @@ class IcsGenerator
         }
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
+            // For da_ritirare state, use pickup_deadline as end date (shows pickup window)
+            // For other states, use data_scadenza (shows full loan period)
+            $endDate = ($row['stato'] === 'da_ritirare' && !empty($row['pickup_deadline']))
+                ? $row['pickup_deadline']
+                : $row['data_scadenza'];
+
             $events[] = [
                 'uid' => 'loan-' . $row['id'] . '@pinakes',
                 'title' => $this->getLoanTitle($row['stato'], $row['titolo']),
                 'description' => $this->getLoanDescription($row),
                 'start' => $row['data_prestito'],
-                'end' => $row['data_scadenza'],
+                'end' => $endDate,
                 'type' => 'prestito',
                 'status' => $row['stato'],
                 'updated' => $row['updated_at'] ?? date('Y-m-d H:i:s')

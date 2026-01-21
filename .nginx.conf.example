@@ -160,10 +160,12 @@ server {
 # Access installer at: http://example.com:8889/
 #
 server {
-    listen 8889;
-    listen [::]:8889;
+    # SECURITY: Limit installer to loopback interface only
+    # Never expose installer to public network
+    listen 127.0.0.1:8889;
+    listen [::1]:8889;
 
-    server_name example.com localhost;
+    server_name localhost;
 
     # Point to the installer directory (NOT public!)
     root /var/www/pinakes/installer;

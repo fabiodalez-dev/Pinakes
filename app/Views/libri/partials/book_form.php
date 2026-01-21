@@ -2847,14 +2847,21 @@ function initializeIsbnImport() {
                 subtitleInput.value = data.subtitle;
             }
 
-            // Description - update TinyMCE if initialized
+            // Description - update TinyMCE if initialized (sanitize external data)
             if (data.description) {
                 const descInput = document.querySelector('textarea[name="descrizione"]');
                 if (descInput) {
-                    descInput.value = data.description;
+                    // Sanitize description from external sources (XSS prevention)
+                    const safeDescription = window.DOMPurify
+                        ? DOMPurify.sanitize(data.description, {
+                            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'b', 'i'],
+                            ALLOWED_ATTR: ['href', 'title', 'target', 'rel']
+                          })
+                        : data.description;
+                    descInput.value = safeDescription;
                     // Also update TinyMCE editor if available
                     if (window.tinymce && tinymce.get('descrizione')) {
-                        tinymce.get('descrizione').setContent(data.description);
+                        tinymce.get('descrizione').setContent(safeDescription);
                     }
                 }
             }
@@ -3636,8 +3643,14 @@ style.textContent = `
 document.head.appendChild(style);
 
 // Initialize TinyMCE for book description (basic editor: bold, italic, lists)
+let tinyMceInitAttempts = 0;
+const TINYMCE_MAX_RETRIES = 30;
 function initBookTinyMCE() {
     if (window.tinymce) {
+        // Guard against double initialization
+        if (tinymce.get('descrizione')) {
+            return;
+        }
         tinymce.init({
             selector: '#descrizione',
             license_key: 'gpl',
@@ -3653,8 +3666,13 @@ function initBookTinyMCE() {
             placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
         });
     } else {
-        // TinyMCE not loaded yet, retry in 100ms
-        setTimeout(initBookTinyMCE, 100);
+        // TinyMCE not loaded yet, retry in 100ms (with cap)
+        if (tinyMceInitAttempts < TINYMCE_MAX_RETRIES) {
+            tinyMceInitAttempts += 1;
+            setTimeout(initBookTinyMCE, 100);
+        } else {
+            console.error('TinyMCE non disponibile dopo i retry.');
+        }
     }
 }
 // Wait for DOM then init TinyMCE

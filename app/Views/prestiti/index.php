@@ -361,7 +361,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
                     // Show "Conferma Ritiro" button for da_ritirare OR prenotato with today's date
-                    const today = new Date().toISOString().split('T')[0];
+                    // Use local date (not UTC) to correctly compare with server dates
+                    const now = new Date();
+                    const today = now.getFullYear() + '-' +
+                        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(now.getDate()).padStart(2, '0');
                     const isReadyForPickup = row.stato === 'da_ritirare' ||
                         (row.stato === 'prenotato' && row.data_prestito && row.data_prestito <= today);
                     if (isReadyForPickup) {

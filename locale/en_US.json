@@ -3641,5 +3641,9 @@
   "Ritiri scaduti elaborati": "Expired pickups processed",
   "Prestito pronto per ritiro non trovato": "Loan ready for pickup not found",
   "Errore attivazione prestito schedulato": "Scheduled loan activation error",
-  "Errore elaborazione ritiro scaduto": "Expired pickup processing error"
+  "Errore elaborazione ritiro scaduto": "Expired pickup processing error",
+  "Il termine per il ritiro è scaduto": "The pickup deadline has passed",
+  "Ritiro già confermato o modificato": "Pickup already confirmed or modified",
+  "Prestito già modificato da altra richiesta": "Loan already modified by another request",
+  "Errore invio notifica ritiro scaduto": "Error sending pickup expired notification"
 }

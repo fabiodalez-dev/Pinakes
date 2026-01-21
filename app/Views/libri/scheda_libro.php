@@ -536,7 +536,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
         <div class="card-body">
           <div class="prose prose-sm max-w-none text-gray-700">
-            <?php echo App\Support\HtmlHelper::sanitizeHtml($libro['descrizione']); ?>
+            <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
           </div>
         </div>
       </div>
@@ -1147,44 +1147,6 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   </script>
 
   <style>
-    /* Rich text content styles for book description */
-    .prose ul,
-    .prose ol {
-      margin: 1em 0;
-      padding-left: 2em;
-    }
-
-    .prose ul {
-      list-style-type: disc;
-    }
-
-    .prose ol {
-      list-style-type: decimal;
-    }
-
-    .prose li {
-      margin: 0.5em 0;
-    }
-
-    .prose strong,
-    .prose b {
-      font-weight: 700;
-    }
-
-    .prose em,
-    .prose i {
-      font-style: italic;
-    }
-
-    .prose a {
-      color: #3b82f6;
-      text-decoration: underline;
-    }
-
-    .prose a:hover {
-      color: #2563eb;
-    }
-
     /* FullCalendar custom styles for copy availability */
     #copy-availability-calendar .fc-event {
       cursor: pointer;

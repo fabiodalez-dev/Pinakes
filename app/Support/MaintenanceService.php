@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use mysqli;
+use App\Models\SettingsRepository;
 
 /**
  * Service for running background maintenance tasks
@@ -245,14 +246,25 @@ class MaintenanceService
                 $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
 
                 // Update loan status to da_ritirare with pickup deadline
+                // State guard: only update if still in 'prenotato' state (prevents race with confirmPickup)
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
                     SET stato = 'da_ritirare', pickup_deadline = ?
-                    WHERE id = ?
+                    WHERE id = ? AND stato = 'prenotato'
                 ");
                 $updateStmt->bind_param('si', $pickupDeadline, $loan['id']);
                 $updateStmt->execute();
+                $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();
+
+                // Check if the update actually happened (row may have been modified by concurrent request)
+                if ($affectedRows === 0) {
+                    $this->db->rollback();
+                    SecureLogger::debug(__('Prestito già modificato da altra richiesta'), [
+                        'prestito_id' => $loan['id']
+                    ]);
+                    continue;
+                }
 
                 // Note: Copy remains 'disponibile' - book is still physically in library
                 // Copy will be marked 'prestato' only when admin confirms pickup
@@ -546,18 +558,28 @@ class MaintenanceService
                 // Build note suffix safely with bound parameter
                 $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . date('d/m/Y');
 
-                // Mark as expired
+                // Mark as expired with state guard (prevents TOCTOU with concurrent confirmPickup)
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
                     SET stato = 'scaduto',
                         attivo = 0,
                         updated_at = NOW(),
                         note = CONCAT(COALESCE(note, ''), ?)
-                    WHERE id = ?
+                    WHERE id = ? AND stato = 'da_ritirare'
                 ");
                 $updateStmt->bind_param('si', $noteSuffix, $id);
                 $updateStmt->execute();
+                $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();
+
+                // Check if the update actually happened (row may have been picked up concurrently)
+                if ($affectedRows === 0) {
+                    $this->db->rollback();
+                    SecureLogger::debug(__('Ritiro già confermato o modificato'), [
+                        'prestito_id' => $id
+                    ]);
+                    continue;
+                }
 
                 // Copy should already be 'disponibile' during da_ritirare state
                 // But let's ensure it's available for reassignment
@@ -589,6 +611,17 @@ class MaintenanceService
 
                 // Invia notifiche differite DOPO il commit della transazione
                 $reassignmentService->flushDeferredNotifications();
+
+                // Send pickup expired notification to user
+                try {
+                    $notificationService = new NotificationService($this->db);
+                    $notificationService->sendPickupExpiredNotification($id);
+                } catch (\Throwable $notifError) {
+                    SecureLogger::warning(__('Errore invio notifica ritiro scaduto'), [
+                        'prestito_id' => $id,
+                        'error' => $notifError->getMessage()
+                    ]);
+                }
 
                 SecureLogger::info(__('MaintenanceService ritiro scaduto'), [
                     'prestito_id' => $id,
