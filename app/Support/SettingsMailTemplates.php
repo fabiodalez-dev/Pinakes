@@ -292,6 +292,23 @@ HTML,
 <p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,
             ],
+            'loan_pickup_cancelled' => [
+                'label' => __('Ritiro annullato'),
+                'description' => __("Inviata quando un ritiro viene annullato dall'amministratore."),
+                'subject' => '❌ Ritiro annullato',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'motivo'],
+                'body' => <<<'HTML'
+<h2>Ritiro annullato</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Ti informiamo che il ritiro del seguente libro è stato annullato:</p>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Motivo:</strong> {{motivo}}</p>
+</div>
+<p>Il libro è stato reso disponibile per altri utenti. Se desideri ancora questo libro, ti invitiamo a effettuare una nuova richiesta di prestito.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
             'user_password_setup' => [
                 'label' => __('Imposta password'),
                 'description' => __("Inviata ai nuovi utenti per impostare la password del loro account."),

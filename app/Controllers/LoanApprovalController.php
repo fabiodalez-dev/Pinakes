@@ -515,4 +515,109 @@ class LoanApprovalController
         }
     }
 
+    /**
+     * Cancel a pickup that was not collected (e.g., expired or user didn't show up).
+     * Accepts loans in 'da_ritirare' state or 'prenotato' state if data_prestito <= today.
+     * Releases the copy and updates availability.
+     */
+    public function cancelPickup(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody();
+        if (!is_array($data) || empty($data)) {
+            $contentType = $request->getHeaderLine('Content-Type');
+            if (str_contains($contentType, 'application/json')) {
+                $raw = (string) $request->getBody();
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    $data = $decoded;
+                }
+            }
+        }
+        $loanId = (int) ($data['loan_id'] ?? 0);
+        $reason = $data['reason'] ?? __('Ritiro non effettuato');
+
+        if ($loanId <= 0) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        try {
+            $db->begin_transaction();
+            $today = date('Y-m-d');
+
+            // Lock and verify loan is in a cancellable pickup state
+            // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today
+            $stmt = $db->prepare("
+                SELECT id, libro_id, copia_id, utente_id, stato
+                FROM prestiti
+                WHERE id = ? AND attivo = 1
+                AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
+                FOR UPDATE
+            ");
+            $stmt->bind_param('is', $loanId, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $loan = $result->fetch_assoc();
+            $stmt->close();
+
+            if (!$loan) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non cancellabile')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $libroId = (int) $loan['libro_id'];
+            $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
+
+            // Mark loan as cancelled/expired
+            $updateStmt = $db->prepare("
+                UPDATE prestiti
+                SET stato = 'annullato', attivo = 0, pickup_deadline = NULL
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->execute();
+            $updateStmt->close();
+
+            // Release copy if assigned (set back to 'disponibile')
+            if ($copiaId) {
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $copyRepo->updateStatus($copiaId, 'disponibile');
+            }
+
+            // Recalculate book availability
+            $integrity = new DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+
+            $db->commit();
+
+            // Send notification to user about cancelled pickup (outside transaction)
+            try {
+                $notificationService = new \App\Support\NotificationService($db);
+                $notificationService->sendPickupCancelledNotification($loanId, $reason);
+            } catch (\Exception $notifError) {
+                error_log("[cancelPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
+                // Don't fail - cancellation already committed
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Ritiro annullato con successo')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+
+        } catch (Exception $e) {
+            $db->rollback();
+            error_log("[cancelPickup] Error for loan {$loanId}: " . $e->getMessage());
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Errore durante l\'annullamento del ritiro')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
 }

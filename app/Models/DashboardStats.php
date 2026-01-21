@@ -11,8 +11,6 @@ class DashboardStats
 
     public function counts(): array
     {
-        $today = date('Y-m-d');
-
         // Singola query invece di 5 query separate
         // Include count for pickup confirmations (origine='prenotazione') and manual requests separately
         // pickup_pronti: loans in 'da_ritirare' state OR 'prenotato' with data_prestito <= today
@@ -24,7 +22,7 @@ class DashboardStats
                     (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti,
                     (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND origine = 'prenotazione') AS ritiri_da_confermare,
                     (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= '$today')) AS pickup_pronti";
+                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= CURDATE())) AS pickup_pronti";
 
         $result = $this->db->query($sql);
         if ($result && $row = $result->fetch_assoc()) {

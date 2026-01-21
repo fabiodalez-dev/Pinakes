@@ -1071,6 +1071,43 @@ class NotificationService {
     }
 
     /**
+     * Invia notifica quando un ritiro viene annullato dall'admin
+     */
+    public function sendPickupCancelledNotification(int $loanId, string $reason = ''): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
+                return false;
+            }
+            $stmt->close();
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'motivo' => $reason ?: __('Ritiro non effettuato entro la scadenza')
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_cancelled', $variables);
+
+        } catch (Exception $e) {
+            error_log("Failed to send pickup cancelled notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Send reservation book available notification
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {

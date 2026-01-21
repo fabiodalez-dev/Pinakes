@@ -301,7 +301,7 @@ $loanActionTranslations = array_merge([
         }
 
         try {
-          const { response, data } = await sendRequest('/admin/loans/reject', {
+          const { response, data } = await sendRequest('/admin/loans/cancel-pickup', {
             loan_id: loanId,
             reason: t.cancelPickupReason
           }, csrf);

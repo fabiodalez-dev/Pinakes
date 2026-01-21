@@ -3651,5 +3651,11 @@
   "Prestito già modificato da altra richiesta": "Loan already modified by another request",
   "Errore invio notifica ritiro scaduto": "Error sending pickup expired notification",
   "Nessun prestito in attesa di ritiro": "No loans waiting for pickup",
-  "Gestisci tutti": "Manage all"
+  "Gestisci tutti": "Manage all",
+  "Ritiro annullato": "Pickup cancelled",
+  "Inviata quando un ritiro viene annullato dall'amministratore.": "Sent when a pickup is cancelled by an administrator.",
+  "Prestito non trovato o non cancellabile": "Loan not found or cannot be cancelled",
+  "Ritiro annullato con successo": "Pickup cancelled successfully",
+  "Ritiro non effettuato": "Pickup not completed",
+  "Errore durante l'annullamento del ritiro": "Error cancelling pickup"
 }

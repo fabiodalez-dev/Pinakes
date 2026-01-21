@@ -36,10 +36,11 @@
                 </span>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <?php $today = date('Y-m-d'); ?>
                 <?php foreach ($pickupLoans as $loan): ?>
                     <?php
-                    $isExpired = !empty($loan['pickup_deadline']) && $loan['pickup_deadline'] < date('Y-m-d');
-                    $isExpiringSoon = !empty($loan['pickup_deadline']) && $loan['pickup_deadline'] === date('Y-m-d');
+                    $isExpired = !empty($loan['pickup_deadline']) && $loan['pickup_deadline'] < $today;
+                    $isExpiringSoon = !empty($loan['pickup_deadline']) && $loan['pickup_deadline'] === $today;
                     ?>
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border <?= $isExpired ? 'border-red-300 dark:border-red-700' : ($isExpiringSoon ? 'border-amber-300 dark:border-amber-700' : 'border-gray-200 dark:border-gray-700') ?> overflow-hidden hover:shadow-md transition-shadow" data-pickup-card>
                         <div class="p-6">

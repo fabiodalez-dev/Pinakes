@@ -735,6 +735,7 @@ foreach ($calendarEvents as $event) {
     // Color based on type/status
     $startColor = $isReservation ? '#8B5CF6' : match($event['status']) {
         'in_corso' => '#10B981',     // Green
+        'da_ritirare' => '#F97316',  // Orange (ready for pickup)
         'prenotato' => '#3B82F6',    // Blue
         'in_ritardo' => '#EF4444',   // Red
         'pendente' => '#F59E0B',     // Amber
