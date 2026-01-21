@@ -210,6 +210,31 @@ migrate_0.4.4.sql
 
 Migrations are executed in version order, only for versions newer than the current version.
 
+### Migration SQL Format Requirements
+
+**CRITICAL:** The updater parses SQL files using `explode(';', $sql)`. This means:
+
+1. **Single-line INSERT statements required** for templates with HTML:
+   ```sql
+   -- CORRECT: Single line
+   INSERT INTO `table` VALUES ('key', '<h1>HTML</h1><p>Content</p>');
+
+   -- WRONG: Multi-line (breaks parser)
+   INSERT INTO `table` VALUES ('key',
+   '<h1>HTML</h1>
+   <p>Content</p>');
+   ```
+
+2. **Escape single quotes** as `''` (two single quotes):
+   ```sql
+   'dall''amministratore'   -- Correct
+   'dall'amministratore'    -- Wrong (syntax error)
+   ```
+
+3. **No semicolons inside string values** (would split the statement)
+
+4. **Comment lines** starting with `--` are filtered out before execution
+
 ### Idempotent Migrations
 
 The updater ignores these MySQL errors to allow re-running migrations:
