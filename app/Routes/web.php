@@ -1382,6 +1382,15 @@ return function (App $app): void {
         return $controller->rejectLoan($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/loans/confirm-pickup', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new LoanApprovalController();
+        $db = $app->getContainer()->get('db');
+        return $controller->confirmPickup($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Maintenance routes
     $app->get('/admin/maintenance/integrity-report', function ($request, $response) use ($app) {
         $controller = new MaintenanceController();

@@ -122,18 +122,19 @@ class ReservationManager
             return false;
         }
 
-        // Count overlapping loans (include pendente, prenotato, in_corso, in_ritardo)
+        // Count overlapping loans (include pendente, prenotato, da_ritirare, in_corso, in_ritardo)
         // Overlap check: existing_start <= our_end AND existing_end >= our_start
         // Note: We only count LOANS here, not reservations, because:
         // - This method is only used by processBookAvailability() to convert reservations to loans
         // - Reservations are in a queue system - they wait their turn, they don't block each other
         // - When converting reservation #1, other reservations shouldn't prevent the conversion
+        // Note: 'da_ritirare' counts as occupied even if copy is physically available
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as conflicts
             FROM prestiti
             WHERE libro_id = ?
             AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
             AND data_prestito <= ? AND data_scadenza >= ?
         ");
         $stmt->bind_param('iss', $bookId, $endDate, $startDate);
@@ -173,6 +174,7 @@ class ReservationManager
             // Find an available copy for this date range (no overlapping loans)
             // Consider 'disponibile' and 'prenotato' copies (exclude perso/danneggiato/manutenzione)
             // The NOT EXISTS clause ensures no overlapping loans for the requested dates
+            // Note: 'da_ritirare' copies are still 'disponibile' but have a loan reservation
             $copyStmt = $this->db->prepare("
                 SELECT c.id FROM copie c
                 WHERE c.libro_id = ?
@@ -181,7 +183,7 @@ class ReservationManager
                     SELECT 1 FROM prestiti p
                     WHERE p.copia_id = c.id
                     AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
                     AND p.data_prestito <= ?
                     AND p.data_scadenza >= ?
                 )
@@ -210,7 +212,7 @@ class ReservationManager
             $overlapCopyStmt = $this->db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
+                AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo','pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
             ");
@@ -457,16 +459,17 @@ class ReservationManager
             }
         }
 
-        // Count active loans that overlap with the requested period (include prenotato, pendente)
+        // Count active loans that overlap with the requested period (include da_ritirare, prenotato, pendente)
         // Overlap condition: existing_start <= our_end AND existing_end >= our_start
         // Note: We don't exclude user's own loans here - if they have a loan, they have the book.
         // Unless we want to allow them to borrow ANOTHER copy? Usually no.
+        // Note: 'da_ritirare' counts as occupied even if copy is physically available
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as active_loans
             FROM prestiti
             WHERE libro_id = ?
             AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
             AND data_prestito <= ? AND data_scadenza >= ?
         ");
         $stmt->bind_param('iss', $bookId, $endDate, $startDate);

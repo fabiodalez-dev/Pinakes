@@ -62,10 +62,10 @@ class MaintenanceService
      * Run all maintenance tasks immediately
      *
      * Executes scheduled loan activation, reservation processing,
-     * overdue loan updates, notifications, and ICS calendar generation.
+     * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{scheduled_loans_activated: int, reservations_converted: int, expired_reservations: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, ics_generated: bool, errors: array} Results for each maintenance task
+     * @return array{scheduled_loans_activated: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, ics_generated: bool, errors: array} Results for each maintenance task
      */
     public function runAll(): array
     {
@@ -73,6 +73,7 @@ class MaintenanceService
             'scheduled_loans_activated' => 0,
             'reservations_converted' => 0,
             'expired_reservations' => 0,
+            'expired_pickups' => 0,
             'overdue_loans_updated' => 0,
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
@@ -101,6 +102,14 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'checkExpiredReservations: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore prenotazioni scadute'), ['error' => $e->getMessage()]);
+        }
+
+        // Check expired pickups (da_ritirare with pickup_deadline passed)
+        try {
+            $results['expired_pickups'] = $this->checkExpiredPickups();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'checkExpiredPickups: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore ritiri scaduti'), ['error' => $e->getMessage()]);
         }
 
         try {
@@ -188,13 +197,17 @@ class MaintenanceService
     }
 
     /**
-     * Activate scheduled loans (prenotato -> in_corso) when their start date arrives
+     * Activate scheduled loans (prenotato -> da_ritirare) when their start date arrives
      *
      * Finds all active loans with status 'prenotato' where data_prestito <= today,
-     * updates their status to 'in_corso', marks the copy as 'prestato',
+     * updates their status to 'da_ritirare' (ready for pickup), sets the pickup_deadline,
      * and recalculates book availability. Uses transactions for data integrity.
      *
-     * @return int Number of loans activated
+     * Note: The copy remains 'disponibile' during 'da_ritirare' state because
+     * the book is physically still in the library. It will be marked 'prestato'
+     * only when admin confirms the pickup via confirmPickup().
+     *
+     * @return int Number of loans activated (moved to da_ritirare)
      * @throws \RuntimeException If query preparation fails
      */
     public function activateScheduledLoans(): int
@@ -220,31 +233,51 @@ class MaintenanceService
         // Instantiate DataIntegrity once outside the loop to reduce overhead
         $integrity = new DataIntegrity($this->db);
 
+        // Get pickup expiry days from settings
+        $settingsRepo = new SettingsRepository($this->db);
+        $pickupDays = (int) $settingsRepo->get('loans', 'pickup_expiry_days', '3');
+
         foreach ($scheduledLoans as $loan) {
             $this->db->begin_transaction();
 
             try {
-                // Update loan status to in_corso
-                $updateStmt = $this->db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ?");
-                $updateStmt->bind_param('i', $loan['id']);
+                // Calculate pickup deadline
+                $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
+
+                // Update loan status to da_ritirare with pickup deadline
+                $updateStmt = $this->db->prepare("
+                    UPDATE prestiti
+                    SET stato = 'da_ritirare', pickup_deadline = ?
+                    WHERE id = ?
+                ");
+                $updateStmt->bind_param('si', $pickupDeadline, $loan['id']);
                 $updateStmt->execute();
                 $updateStmt->close();
 
-                // Mark the copy as 'prestato'
-                $copyStmt = $this->db->prepare("UPDATE copie SET stato = 'prestato' WHERE id = ?");
-                $copyStmt->bind_param('i', $loan['copia_id']);
-                $copyStmt->execute();
-                $copyStmt->close();
+                // Note: Copy remains 'disponibile' - book is still physically in library
+                // Copy will be marked 'prestato' only when admin confirms pickup
 
                 // Recalculate book availability using DataIntegrity for consistency
+                // (da_ritirare counts as "slot occupied" even if copy is available)
                 $integrity->recalculateBookAvailability((int)$loan['libro_id']);
 
                 $this->db->commit();
                 $activatedCount++;
 
+                // Send pickup ready notification to user (outside transaction)
+                try {
+                    $notificationService = new NotificationService($this->db);
+                    $notificationService->sendPickupReadyNotification((int)$loan['id']);
+                } catch (\Throwable $notifError) {
+                    SecureLogger::warning(__('Errore invio notifica ritiro pronto'), [
+                        'prestito_id' => $loan['id'],
+                        'error' => $notifError->getMessage()
+                    ]);
+                }
+
             } catch (\Throwable $e) {
                 $this->db->rollback();
-                SecureLogger::error(__('MaintenanceService errore attivazione prestito'), [
+                SecureLogger::error(__('Errore attivazione prestito schedulato'), [
                     'prestito_id' => $loan['id'],
                     'error' => $e->getMessage()
                 ]);
@@ -463,6 +496,119 @@ class MaintenanceService
     }
 
     /**
+     * Check and expire pickups past their pickup_deadline (da_ritirare -> scaduto)
+     *
+     * Finds prestiti with stato='da_ritirare' where pickup_deadline < today,
+     * marks them as 'scaduto', frees assigned copies, and triggers
+     * reassignment to next user in queue.
+     *
+     * @return int Number of pickups expired
+     * @throws \RuntimeException If query preparation fails
+     */
+    public function checkExpiredPickups(): int
+    {
+        $today = date('Y-m-d');
+
+        // Find expired pickups (da_ritirare with pickup_deadline passed)
+        $stmt = $this->db->prepare("
+            SELECT id, libro_id, copia_id, utente_id
+            FROM prestiti
+            WHERE stato = 'da_ritirare'
+            AND attivo = 1
+            AND pickup_deadline IS NOT NULL
+            AND pickup_deadline < ?
+        ");
+
+        if (!$stmt) {
+            throw new \RuntimeException('Failed to prepare expired pickups query');
+        }
+
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $expiredPickups = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+
+        $expiredCount = 0;
+        $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
+        // Mark as external transaction so reassignmentService won't start nested transactions
+        $reassignmentService->setExternalTransaction(true);
+        $integrity = new DataIntegrity($this->db);
+
+        foreach ($expiredPickups as $pickup) {
+            $this->db->begin_transaction();
+
+            try {
+                $id = (int) $pickup['id'];
+                $copiaId = $pickup['copia_id'] ? (int) $pickup['copia_id'] : null;
+                $libroId = (int) $pickup['libro_id'];
+
+                // Build note suffix safely with bound parameter
+                $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . date('d/m/Y');
+
+                // Mark as expired
+                $updateStmt = $this->db->prepare("
+                    UPDATE prestiti
+                    SET stato = 'scaduto',
+                        attivo = 0,
+                        updated_at = NOW(),
+                        note = CONCAT(COALESCE(note, ''), ?)
+                    WHERE id = ?
+                ");
+                $updateStmt->bind_param('si', $noteSuffix, $id);
+                $updateStmt->execute();
+                $updateStmt->close();
+
+                // Copy should already be 'disponibile' during da_ritirare state
+                // But let's ensure it's available for reassignment
+                if ($copiaId) {
+                    $checkCopy = $this->db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
+                    $checkCopy->bind_param('i', $copiaId);
+                    $checkCopy->execute();
+                    $copyResult = $checkCopy->get_result();
+                    $copyState = $copyResult ? $copyResult->fetch_assoc() : null;
+                    $checkCopy->close();
+
+                    // Ensure copy is available
+                    if ($copyState && $copyState['stato'] !== 'disponibile') {
+                        $updateCopy = $this->db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ?");
+                        $updateCopy->bind_param('i', $copiaId);
+                        $updateCopy->execute();
+                        $updateCopy->close();
+                    }
+
+                    // Trigger reassignment logic for this copy (inside same transaction)
+                    $reassignmentService->reassignOnReturn($copiaId);
+                }
+
+                // Recalculate book availability
+                $integrity->recalculateBookAvailability($libroId);
+
+                $this->db->commit();
+                $expiredCount++;
+
+                // Invia notifiche differite DOPO il commit della transazione
+                $reassignmentService->flushDeferredNotifications();
+
+                SecureLogger::info(__('MaintenanceService ritiro scaduto'), [
+                    'prestito_id' => $id,
+                    'libro_id' => $libroId,
+                    'copia_id' => $copiaId
+                ]);
+
+            } catch (\Throwable $e) {
+                $this->db->rollback();
+                SecureLogger::error(__('MaintenanceService errore scadenza ritiro'), [
+                    'prestito_id' => $pickup['id'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return $expiredCount;
+    }
+
+    /**
      * Update overdue loans status (in_corso -> in_ritardo)
      *
      * Bulk updates all active loans that have passed their due date,
@@ -562,6 +708,7 @@ class MaintenanceService
                     'overdue_loans_updated' => $result['overdue_loans_updated'],
                     'reservations_converted' => $result['reservations_converted'] ?? 0,
                     'expired_reservations' => $result['expired_reservations'] ?? 0,
+                    'expired_pickups' => $result['expired_pickups'] ?? 0,
                     'ics_generated' => $result['ics_generated'] ? 'ok' : 'failed'
                 ]);
             }

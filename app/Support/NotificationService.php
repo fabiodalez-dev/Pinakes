@@ -758,7 +758,7 @@ class NotificationService {
         $loanStmt = $this->db->prepare("
             SELECT COUNT(*) as count FROM prestiti
             WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
             AND data_prestito <= ? AND data_scadenza >= ?
         ");
         $loanStmt->bind_param('iss', $bookId, $today, $today);
@@ -798,12 +798,12 @@ class NotificationService {
         }
 
         // Find the earliest end date among active loans
-        // Include 'pendente' to account for pending loan requests in availability calculation
+        // Include 'pendente' and 'da_ritirare' to account for pending loan requests in availability calculation
         $loanStmt = $this->db->prepare("
             SELECT MIN(data_scadenza) as earliest_end
             FROM prestiti
             WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
             AND data_scadenza >= ?
         ");
         $loanStmt->bind_param('is', $bookId, $today);
@@ -980,6 +980,87 @@ class NotificationService {
 
         } catch (Exception $e) {
             error_log("Failed to send loan rejected notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia notifica quando un prestito è pronto per il ritiro (stato da_ritirare)
+     */
+    public function sendPickupReadyNotification(int $loanId): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if (!$loan = $result->fetch_assoc()) {
+                return false;
+            }
+            $stmt->close();
+
+            // Calculate number of days for loan
+            $startDate = new \DateTime($loan['data_prestito']);
+            $endDate = new \DateTime($loan['data_scadenza']);
+            $days = $endDate->diff($startDate)->days;
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
+                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
+                'giorni_prestito' => $days,
+                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : '',
+                'pickup_instructions' => __('Recati in biblioteca durante gli orari di apertura per ritirare il libro.')
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_ready', $variables);
+
+        } catch (Exception $e) {
+            error_log("Failed to send pickup ready notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia notifica quando la scadenza del ritiro è passata (prestito scaduto)
+     */
+    public function sendPickupExpiredNotification(int $loanId): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if (!$loan = $result->fetch_assoc()) {
+                return false;
+            }
+            $stmt->close();
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : ''
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_expired', $variables);
+
+        } catch (Exception $e) {
+            error_log("Failed to send pickup expired notification: " . $e->getMessage());
             return false;
         }
     }

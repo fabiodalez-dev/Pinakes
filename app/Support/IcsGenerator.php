@@ -99,14 +99,14 @@ class IcsGenerator
         $today = date('Y-m-d');
 
         // Fetch active/scheduled loans
-        $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza,
+        $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            u.email, p.updated_at
                     FROM prestiti p
                     JOIN libri l ON p.libro_id = l.id
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.attivo = 1
-                      AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                      AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
                       AND (p.data_scadenza >= ? OR p.stato = 'in_ritardo')
                     ORDER BY p.data_prestito ASC";
         $stmt = $this->db->prepare($loanSql);
@@ -182,6 +182,7 @@ class IcsGenerator
     {
         $prefix = match($status) {
             'in_corso' => '📖 ' . __('Prestito'),
+            'da_ritirare' => '📦 ' . __('Da Ritirare'),
             'prenotato' => '📋 ' . __('Prestito Programmato'),
             'in_ritardo' => '⚠️ ' . __('Prestito Scaduto'),
             'pendente' => '⏳ ' . __('Richiesta Pendente'),
@@ -234,6 +235,7 @@ class IcsGenerator
     {
         return match($status) {
             'in_corso' => __('In corso'),
+            'da_ritirare' => __('Da Ritirare'),
             'prenotato' => __('Programmato'),
             'in_ritardo' => __('Scaduto'),
             'pendente' => __('In attesa'),
@@ -307,6 +309,7 @@ class IcsGenerator
 
         return match($status) {
             'in_corso' => '#10B981', // Green
+            'da_ritirare' => '#F97316', // Orange (ready for pickup)
             'prenotato' => '#3B82F6', // Blue
             'in_ritardo' => '#EF4444', // Red
             'pendente' => '#F59E0B', // Amber

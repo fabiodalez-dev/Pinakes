@@ -9,6 +9,9 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Modalità solo catalogo - disabilita prestiti, prenotazioni e wishlist');
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'pickup_expiry_days', '3', 'Giorni per ritirare un prestito approvato prima che scada');
+
 INSERT INTO `generi` VALUES (1,'Prosa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (2,'Poesia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (3,'Teatro',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);

@@ -43,8 +43,9 @@ class DataIntegrity {
             $stmt->close();
 
             // Ricalcola copie_disponibili e stato per tutti i libri dalla tabella copie
-            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, o prenotato già iniziato)
+            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, da_ritirare, o prenotato già iniziato)
             // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
+            // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora 'disponibile'
             $stmt = $this->db->prepare("
                 UPDATE libri l
                 SET copie_disponibili = GREATEST(
@@ -54,7 +55,7 @@ class DataIntegrity {
                         LEFT JOIN prestiti p ON c.id = p.copia_id
                             AND p.attivo = 1
                             AND (
-                                p.stato IN ('in_corso', 'in_ritardo')
+                                p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
                                 OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                             )
                         WHERE c.libro_id = l.id
@@ -84,7 +85,7 @@ class DataIntegrity {
                             LEFT JOIN prestiti p ON c.id = p.copia_id
                                 AND p.attivo = 1
                                 AND (
-                                    p.stato IN ('in_corso', 'in_ritardo')
+                                    p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
                                     OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                                 )
                             WHERE c.libro_id = l.id
@@ -265,8 +266,9 @@ class DataIntegrity {
             $stmt->close();
 
             // Aggiorna copie_disponibili e stato del libro dalla tabella copie
-            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, o prenotato già iniziato)
+            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, da_ritirare, o prenotato già iniziato)
             // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
+            // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora 'disponibile'
             $stmt = $this->db->prepare("
                 UPDATE libri l
                 SET copie_disponibili = GREATEST(
@@ -276,7 +278,7 @@ class DataIntegrity {
                         LEFT JOIN prestiti p ON c.id = p.copia_id
                             AND p.attivo = 1
                             AND (
-                                p.stato IN ('in_corso', 'in_ritardo')
+                                p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
                                 OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                             )
                         WHERE c.libro_id = ?
@@ -306,7 +308,7 @@ class DataIntegrity {
                             LEFT JOIN prestiti p ON c.id = p.copia_id
                                 AND p.attivo = 1
                                 AND (
-                                    p.stato IN ('in_corso', 'in_ritardo')
+                                    p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
                                     OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                                 )
                             WHERE c.libro_id = ?
@@ -447,7 +449,7 @@ class DataIntegrity {
             FROM prenotazioni pr
             JOIN prestiti p ON pr.libro_id = p.libro_id
             WHERE pr.stato = 'attiva'
-              AND p.stato IN ('in_corso','in_ritardo','pendente')
+              AND p.stato IN ('in_corso','in_ritardo','da_ritirare','pendente')
               AND p.attivo = 1
               AND (
                     (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
@@ -714,12 +716,13 @@ class DataIntegrity {
             $stmt->close();
 
             // 4. Annulla prenotazioni attive che si sovrappongono a prestiti attivi dello stesso libro
+            // Note: 'da_ritirare' è incluso perché il libro è riservato per quell'utente
             $stmt = $this->db->prepare("
                 UPDATE prenotazioni pr
                 JOIN prestiti p ON pr.libro_id = p.libro_id
                 SET pr.stato = 'annullata'
                 WHERE pr.stato = 'attiva'
-                  AND p.stato IN ('in_corso','in_ritardo','pendente')
+                  AND p.stato IN ('in_corso','in_ritardo','da_ritirare','pendente')
                   AND p.attivo = 1
                   AND (
                         (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
@@ -910,11 +913,12 @@ class DataIntegrity {
         ];
 
         // Statistiche generali (exclude soft-deleted books)
+        // Note: 'da_ritirare' conta come prestito attivo (libro riservato)
         $stmt = $this->db->prepare("
             SELECT
                 (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) as total_books,
                 (SELECT COUNT(*) FROM prestiti) as total_loans,
-                (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso', 'in_ritardo')) as active_loans,
+                (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso', 'in_ritardo', 'da_ritirare')) as active_loans,
                 (SELECT COUNT(*) FROM prestiti WHERE stato = 'in_ritardo') as overdue_loans,
                 (SELECT COUNT(*) FROM libri WHERE copie_disponibili > 0 AND deleted_at IS NULL) as books_available,
                 (SELECT COUNT(*) FROM libri WHERE copie_disponibili = 0 AND deleted_at IS NULL) as books_unavailable

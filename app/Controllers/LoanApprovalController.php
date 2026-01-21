@@ -92,9 +92,18 @@ class LoanApprovalController
             $dataScadenza = $loan['data_scadenza'];
             $today = date('Y-m-d');
 
-            // Determine state: 'prenotato' if future loan, 'in_corso' if immediate
+            // Determine state: 'prenotato' if future loan, 'da_ritirare' if immediate
+            // User must confirm pickup before loan becomes 'in_corso'
             $isFutureLoan = ($dataPrestito > $today);
-            $newState = $isFutureLoan ? 'prenotato' : 'in_corso';
+            $newState = $isFutureLoan ? 'prenotato' : 'da_ritirare';
+
+            // Calculate pickup deadline for immediate loans (da_ritirare state)
+            $pickupDeadline = null;
+            if (!$isFutureLoan) {
+                $settingsRepo = new \App\Models\SettingsRepository($db);
+                $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
+                $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
+            }
 
             // Step 1: Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
             $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
@@ -107,7 +116,7 @@ class LoanApprovalController
             $loanCountStmt = $db->prepare("
                 SELECT COUNT(*) as count FROM prestiti
                 WHERE libro_id = ? AND attivo = 1 AND id != ?
-                AND stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
             ");
             $loanCountStmt->bind_param('iiss', $libroId, $loanId, $dataScadenza, $dataPrestito);
@@ -142,7 +151,7 @@ class LoanApprovalController
             }
 
             // Step 4: Find a specific lendable copy without overlapping assigned loans for this period
-            // Include 'pendente' to match Step 2's counting logic
+            // Include 'pendente' and 'da_ritirare' to match Step 2's counting logic
             // Exclude non-lendable copies (perso, danneggiato, manutenzione)
             $overlapStmt = $db->prepare("
                 SELECT c.id FROM copie c
@@ -152,7 +161,7 @@ class LoanApprovalController
                     SELECT 1 FROM prestiti p
                     WHERE p.copia_id = c.id
                     AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+                    AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
                     AND p.data_prestito <= ?
                     AND p.data_scadenza >= ?
                 )
@@ -189,7 +198,7 @@ class LoanApprovalController
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1 AND id != ?
-                AND stato IN ('in_corso','prenotato','in_ritardo','pendente')
+                AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo','pendente')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
                 FOR UPDATE
@@ -208,23 +217,21 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Assegna la copia al prestito con lo stato corretto
+            // Assegna la copia al prestito con lo stato corretto e pickup_deadline se applicabile
             $stmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = ?, attivo = 1, copia_id = ?
+                SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?
                 WHERE id = ? AND stato = 'pendente'
             ");
-            $stmt->bind_param('sii', $newState, $selectedCopy['id'], $loanId);
+            $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $pickupDeadline, $loanId);
             $stmt->execute();
             $stmt->close();
 
-            // Aggiorna stato della copia a 'prestato' SOLO se il prestito inizia oggi
-            // Per i prestiti futuri (prenotato), la copia rimane disponibile
-            // MaintenanceService::activateScheduledLoans() la segnerà come 'prestato' quando il prestito inizia
-            $copyRepo = new \App\Models\CopyRepository($db);
-            if (!$isFutureLoan) {
-                $copyRepo->updateStatus($selectedCopy['id'], 'prestato');
-            }
+            // Per 'da_ritirare', la copia resta 'disponibile' finché l'utente non ritira
+            // Per 'prenotato', la copia resta 'disponibile' finché non inizia il prestito
+            // Solo quando si conferma il ritiro (confirmPickup) o MaintenanceService transita
+            // da prenotato a da_ritirare, la copia NON viene marcata come 'prestato'
+            // La copia diventa 'prestato' SOLO quando si conferma il ritiro
 
             // Update book availability with integrity check
             $integrity = new DataIntegrity($db);
@@ -232,10 +239,16 @@ class LoanApprovalController
 
             $db->commit();
 
-            // Send approval notification to user
+            // Send appropriate notification to user
             try {
                 $notificationService = new \App\Support\NotificationService($db);
-                $notificationService->sendLoanApprovedNotification($loanId);
+                if ($isFutureLoan) {
+                    // Future loan: send general approval notification
+                    $notificationService->sendLoanApprovedNotification($loanId);
+                } else {
+                    // Immediate loan (da_ritirare): send pickup ready notification with deadline
+                    $notificationService->sendPickupReadyNotification($loanId);
+                }
             } catch (Exception $notifError) {
                 error_log("Error sending approval notification for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail the approval if notification fails
@@ -245,7 +258,7 @@ class LoanApprovalController
                 'success' => true,
                 'message' => $isFutureLoan
                     ? __('Prestito prenotato con successo')
-                    : __('Prestito approvato con successo')
+                    : __('Prestito approvato - in attesa di ritiro')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
@@ -346,6 +359,101 @@ class LoanApprovalController
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore nel rifiuto della richiesta')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Confirm pickup of a loan that is ready for pickup.
+     * Accepts loans in 'da_ritirare' state or 'prenotato' state if data_prestito <= today.
+     * This allows the system to work even without MaintenanceService.
+     */
+    public function confirmPickup(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody();
+        if (!is_array($data) || empty($data)) {
+            $contentType = $request->getHeaderLine('Content-Type');
+            if (str_contains($contentType, 'application/json')) {
+                $raw = (string) $request->getBody();
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    $data = $decoded;
+                }
+            }
+        }
+        $loanId = (int) ($data['loan_id'] ?? 0);
+
+        if ($loanId <= 0) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        try {
+            $db->begin_transaction();
+            $today = date('Y-m-d');
+
+            // Lock and verify loan is ready for pickup
+            // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today (for systems without MaintenanceService)
+            $stmt = $db->prepare("
+                SELECT id, libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato
+                FROM prestiti
+                WHERE id = ? AND attivo = 1
+                AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
+                FOR UPDATE
+            ");
+            $stmt->bind_param('is', $loanId, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $loan = $result->fetch_assoc();
+            $stmt->close();
+
+            if (!$loan) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non pronto per il ritiro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $libroId = (int) $loan['libro_id'];
+            $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
+
+            // Update loan state to 'in_corso'
+            $updateStmt = $db->prepare("
+                UPDATE prestiti
+                SET stato = 'in_corso', pickup_deadline = NULL
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->execute();
+            $updateStmt->close();
+
+            // Update copy status to 'prestato'
+            if ($copiaId) {
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $copyRepo->updateStatus($copiaId, 'prestato');
+            }
+
+            // Recalculate book availability
+            $integrity = new DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+
+            $db->commit();
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Ritiro confermato con successo')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+
+        } catch (Exception $e) {
+            $db->rollback();
+            error_log("[confirmPickup] Error for loan {$loanId}: " . $e->getMessage());
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Errore durante la conferma del ritiro')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }

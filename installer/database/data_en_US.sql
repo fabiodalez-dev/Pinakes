@@ -192,6 +192,9 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Catalogue-only mode - disables loans, reservations and wishlist');
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'pickup_expiry_days', '3', 'Days to pick up an approved loan before it expires');
+
 -- ============================================================================
 -- System Settings - Complete default configuration
 -- These replace the old storage/settings.json file
