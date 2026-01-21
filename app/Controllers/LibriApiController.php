@@ -577,7 +577,7 @@ class LibriApiController
         $types = str_repeat('i', count($cleanIds));
 
         // Check if any book has active loans or pending reservations
-        $checkSql = "SELECT libro_id FROM prestiti WHERE libro_id IN ($placeholders) AND stato IN ('in_corso', 'in_ritardo', 'prenotato', 'pendente') AND attivo = 1 LIMIT 1";
+        $checkSql = "SELECT libro_id FROM prestiti WHERE libro_id IN ($placeholders) AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente') AND attivo = 1 LIMIT 1";
         $checkStmt = $db->prepare($checkSql);
         if (!$checkStmt) {
             AppLog::error('libri.bulk_delete.check_prepare_failed', ['error' => $db->error]);

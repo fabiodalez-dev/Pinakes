@@ -8,7 +8,8 @@
   "description": "Gestione eBooks (PDF/ePub) e audiobooks con player integrato Green Audio Player. Consente upload e riproduzione di contenuti digitali direttamente nella biblioteca.",
   "main_file": "wrapper.php",
   "requires_php": "8.0",
-  "requires_app": "1.0",
+  "requires_app": "0.4.0",
+  "max_app_version": "0.4.5",
   "metadata": {
     "category": "media",
     "priority": 10,

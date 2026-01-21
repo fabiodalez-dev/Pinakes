@@ -1382,6 +1382,24 @@ return function (App $app): void {
         return $controller->rejectLoan($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/loans/confirm-pickup', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new LoanApprovalController();
+        $db = $app->getContainer()->get('db');
+        return $controller->confirmPickup($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/loans/cancel-pickup', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new LoanApprovalController();
+        $db = $app->getContainer()->get('db');
+        return $controller->cancelPickup($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Maintenance routes
     $app->get('/admin/maintenance/integrity-report', function ($request, $response) use ($app) {
         $controller = new MaintenanceController();
@@ -1684,7 +1702,7 @@ return function (App $app): void {
         $stmt = $db->prepare("
             SELECT data_prestito, data_scadenza, stato
             FROM prestiti
-            WHERE libro_id = ? AND attivo = 1 AND stato IN ('in_corso', 'prenotato', 'in_ritardo')
+            WHERE libro_id = ? AND attivo = 1 AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $libroId);
@@ -1754,7 +1772,7 @@ return function (App $app): void {
         $stmt = $db->prepare("
             SELECT p.copia_id, p.data_prestito, p.data_scadenza, p.stato
             FROM prestiti p
-            WHERE p.libro_id = ? AND p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
+            WHERE p.libro_id = ? AND p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
             ORDER BY p.data_prestito
         ");
         $stmt->bind_param('i', $libroId);
@@ -1821,7 +1839,7 @@ return function (App $app): void {
                     $occupiedCount++;
                     if ($loan['stato'] === 'in_ritardo') {
                         $hasOverdue = true;
-                    } elseif ($loan['stato'] === 'prenotato' || $loan['stato'] === 'pendente') {
+                    } elseif ($loan['stato'] === 'prenotato' || $loan['stato'] === 'pendente' || $loan['stato'] === 'da_ritirare') {
                         $hasReserved = true;
                     }
                 }

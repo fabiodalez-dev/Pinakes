@@ -361,8 +361,61 @@
   .desktop-grid-3 {
     @apply grid-cols-3;
   }
-  
+
   .desktop-grid-4 {
     @apply grid-cols-4;
   }
+}
+
+/* Prose Content Styles (for rich text descriptions) */
+.prose ul,
+.prose ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin: 0.5em 0;
+}
+
+.prose strong,
+.prose b {
+  font-weight: 700;
+}
+
+.prose em,
+.prose i {
+  font-style: italic;
+}
+
+.prose a {
+  @apply text-blue-500 underline;
+}
+
+.prose a:hover {
+  @apply text-blue-600;
+}
+
+.prose a:focus-visible {
+  @apply text-blue-600 outline-none ring-2 ring-blue-500/30 ring-offset-1;
+}
+
+.dark .prose a {
+  @apply text-blue-400;
+}
+
+.dark .prose a:hover {
+  @apply text-blue-300;
+}
+
+.dark .prose a:focus-visible {
+  @apply text-blue-300 outline-none ring-2 ring-blue-400/30 ring-offset-1 ring-offset-gray-900;
 }

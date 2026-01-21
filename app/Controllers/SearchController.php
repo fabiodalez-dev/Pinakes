@@ -458,7 +458,7 @@ class SearchController
             $stmt = $db->prepare("
                 SELECT p.id,
                        CONCAT(
-                           COALESCE(s.codice, s.nome, ''),
+                           COALESCE(NULLIF(s.codice, ''), s.nome, ''),
                            ' - Liv. ',
                            m.numero_livello
                        ) AS label

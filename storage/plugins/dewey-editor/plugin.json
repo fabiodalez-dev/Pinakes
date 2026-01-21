@@ -8,7 +8,8 @@
   "plugin_url": "",
   "main_file": "DeweyEditorPlugin.php",
   "requires_php": "7.4",
-  "requires_app": "1.0.0",
+  "requires_app": "0.4.0",
+  "max_app_version": "0.4.5",
   "settings": false,
   "metadata": {
     "category": "admin",

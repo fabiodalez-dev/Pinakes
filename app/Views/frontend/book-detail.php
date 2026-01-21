@@ -590,6 +590,43 @@ $additional_css = "
         font-weight: 400;
     }
 
+    .description-content ul,
+    .description-content ol {
+        margin: 1em 0;
+        padding-left: 2em;
+    }
+
+    .description-content ul {
+        list-style-type: disc;
+    }
+
+    .description-content ol {
+        list-style-type: decimal;
+    }
+
+    .description-content li {
+        margin: 0.5em 0;
+    }
+
+    .description-content strong,
+    .description-content b {
+        font-weight: 700;
+    }
+
+    .description-content em,
+    .description-content i {
+        font-style: italic;
+    }
+
+    .description-content a {
+        color: var(--primary-color, #3b82f6);
+        text-decoration: underline;
+    }
+
+    .description-content a:hover {
+        color: var(--primary-hover, #2563eb);
+    }
+
     .tab-content {
         padding: 2.5rem 0;
     }
@@ -1523,7 +1560,7 @@ ob_start();
                     </h2>
                     <div class="description-content">
                         <?php if (!empty($book['descrizione'])): ?>
-                            <p><?= nl2br(htmlspecialchars(html_entity_decode($book['descrizione'] ?? '', ENT_QUOTES, 'UTF-8'))) ?></p>
+                            <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
                         <?php else: ?>
                             <p class="text-muted"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
                         <?php endif; ?>

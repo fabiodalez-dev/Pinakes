@@ -26,6 +26,9 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 // Chart.js - charting library (self-hosted, no CDN)
 import Chart from 'chart.js/auto';
 
+// DOMPurify - XSS sanitization library (self-hosted, no CDN)
+import DOMPurify from 'dompurify';
+
 // DataTables and extensions
 import DataTable from 'datatables.net';
 import 'datatables.net-dt/css/dataTables.dataTables.min.css';
@@ -64,6 +67,7 @@ window.UppyXHRUpload = XHRUpload.default || XHRUpload;
 window.Choices = Choices;
 window.Swal = Swal;
 window.Chart = Chart;
+window.DOMPurify = DOMPurify;
 
 // Flatpickr with localization support
 window.flatpickr = flatpickr;

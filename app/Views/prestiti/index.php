@@ -10,6 +10,8 @@ function getStatusBadge($status) {
             return "<span class='$baseClasses bg-orange-100 text-orange-800'><i class='fas fa-hourglass-half mr-2'></i>" . __("Pendente") . "</span>";
         case 'prenotato':
             return "<span class='$baseClasses bg-purple-100 text-purple-800'><i class='fas fa-calendar-check mr-2'></i>" . __("Prenotato") . "</span>";
+        case 'da_ritirare':
+            return "<span class='$baseClasses bg-amber-100 text-amber-800'><i class='fas fa-box mr-2'></i>" . __("Da Ritirare") . "</span>";
         case 'in_corso':
             return "<span class='$baseClasses bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>" . __("In Corso") . "</span>";
         case 'in_ritardo':
@@ -187,6 +189,7 @@ function getStatusBadge($status) {
             <div class="flex flex-wrap items-center gap-2 text-sm">
               <button data-status="pendente" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Pendente") ?></button>
               <button data-status="prenotato" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Prenotato") ?></button>
+              <button data-status="da_ritirare" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Da Ritirare") ?></button>
               <button data-status="in_corso" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In Corso") ?></button>
               <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In Ritardo") ?></button>
               <button data-status="restituito" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Restituito") ?></button>
@@ -331,6 +334,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             return `<span class='${baseClasses} bg-orange-100 text-orange-800'><i class='fas fa-hourglass-half mr-2'></i><?= __("Pendente") ?></span>`;
                         case 'prenotato':
                             return `<span class='${baseClasses} bg-purple-100 text-purple-800'><i class='fas fa-calendar-check mr-2'></i><?= __("Prenotato") ?></span>`;
+                        case 'da_ritirare':
+                            return `<span class='${baseClasses} bg-amber-100 text-amber-800'><i class='fas fa-box mr-2'></i><?= __("Da Ritirare") ?></span>`;
                         case 'in_corso':
                             return `<span class='${baseClasses} bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i><?= __("In Corso") ?></span>`;
                         case 'in_ritardo':
@@ -355,7 +360,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         <a href="/admin/prestiti/dettagli/${row.id}" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
-                    if (row.attivo === 1) {
+                    // Show "Conferma Ritiro" button for da_ritirare OR prenotato with today's date
+                    // Use local date (not UTC) to correctly compare with server dates
+                    const now = new Date();
+                    const today = now.getFullYear() + '-' +
+                        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(now.getDate()).padStart(2, '0');
+                    const isReadyForPickup = row.stato === 'da_ritirare' ||
+                        (row.stato === 'prenotato' && row.data_prestito && row.data_prestito <= today);
+                    if (isReadyForPickup) {
+                        actions += `<button type="button" onclick="confirmPickup(${row.id})" class="p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${window.__('Conferma Ritiro')}">
+                            <i class="fas fa-box-open w-4 h-4"></i>
+                        </button>`;
+                    }
+                    if (row.attivo === 1 && row.stato === 'in_corso') {
                         actions += `<a href="/admin/prestiti/restituito/${row.id}" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="${window.__('Registra Restituzione')}">
                             <i class="fas fa-undo-alt w-4 h-4"></i>
                         </a>`;
@@ -499,6 +517,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-calendar-check mr-1"></i>${__('Prenotato')}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="da_ritirare" class="export-status-cb w-4 h-4 text-amber-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"><i class="fas fa-box mr-1"></i>${__('Da Ritirare')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="in_corso" class="export-status-cb w-4 h-4 text-blue-600 rounded" checked>
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-clock mr-1"></i>${__('In Corso')}</span>
                     </label>
@@ -557,6 +579,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 const statuses = result.value;
                 const url = '/admin/prestiti/export-csv?stati=' + encodeURIComponent(statuses.join(','));
                 window.location.href = url;
+            }
+        });
+    };
+
+    // Confirm pickup function for da_ritirare loans
+    window.confirmPickup = function(loanId) {
+        Swal.fire({
+            title: __('Conferma Ritiro'),
+            text: __('L\'utente ha ritirato il libro?'),
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: __('Conferma Ritiro'),
+            cancelButtonText: __('Annulla'),
+            confirmButtonColor: '#d97706'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch('/admin/loans/confirm-pickup', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({ loan_id: parseInt(loanId) })
+                })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire(__('Successo'), __('Ritiro confermato! Il prestito è ora in corso.'), 'success').then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire(__('Errore'), data.message || __('Errore nella conferma del ritiro'), 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire(__('Errore'), __('Errore di comunicazione con il server'), 'error');
+                });
             }
         });
     };

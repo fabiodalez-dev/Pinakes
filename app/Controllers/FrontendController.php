@@ -1580,7 +1580,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             LEFT JOIN (
                 SELECT libro_id, COUNT(*) as count
                 FROM prestiti
-                WHERE stato IN ('in_corso', 'prenotato')
+                WHERE stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
                 GROUP BY libro_id
             ) prestiti_attivi ON l.id = prestiti_attivi.libro_id
             WHERE la.autore_id = ? AND l.deleted_at IS NULL

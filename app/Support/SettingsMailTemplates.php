@@ -249,6 +249,66 @@ HTML,
 <p><em>La prenotazione è stata convertita in un prestito in attesa di conferma del ritiro.</em></p>
 HTML,
             ],
+            'loan_pickup_ready' => [
+                'label' => __('Pronto per il ritiro'),
+                'description' => __("Inviata quando un prestito è stato approvato e il libro è pronto per il ritiro."),
+                'subject' => '📦 Libro pronto per il ritiro!',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'scadenza_ritiro', 'pickup_instructions'],
+                'body' => <<<'HTML'
+<h2>Il tuo libro è pronto per il ritiro!</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Siamo lieti di informarti che la tua richiesta di prestito è stata <strong>approvata</strong> e il libro è pronto per il ritiro!</p>
+<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
+    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
+    <p style="margin: 5px 0;"><strong>Periodo prestito:</strong> {{data_inizio}} - {{data_fine}}</p>
+    <p style="margin: 5px 0;"><strong>Durata:</strong> {{giorni_prestito}} giorni</p>
+</div>
+<div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>⏰ Scadenza ritiro: {{scadenza_ritiro}}</strong></p>
+    <p>Ritira il libro entro questa data, altrimenti il prestito verrà annullato automaticamente.</p>
+</div>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>📦 Come ritirare</strong></p>
+    <p>{{pickup_instructions}}</p>
+</div>
+<p>Buona lettura!</p>
+HTML,
+            ],
+            'loan_pickup_expired' => [
+                'label' => __('Ritiro scaduto'),
+                'description' => __("Inviata quando il tempo per ritirare un libro è scaduto e il prestito è stato annullato."),
+                'subject' => '⏰ Tempo per il ritiro scaduto',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'scadenza_ritiro'],
+                'body' => <<<'HTML'
+<h2>Tempo per il ritiro scaduto</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Purtroppo non hai ritirato il libro entro il tempo previsto.</p>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Scadenza ritiro:</strong> {{scadenza_ritiro}}</p>
+</div>
+<p>Il prestito è stato automaticamente annullato e il libro è stato reso disponibile per altri utenti.</p>
+<p>Se desideri ancora questo libro, ti invitiamo a effettuare una nuova richiesta di prestito.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
+            'loan_pickup_cancelled' => [
+                'label' => __('Ritiro annullato'),
+                'description' => __("Inviata quando un ritiro viene annullato dall'amministratore."),
+                'subject' => '❌ Ritiro annullato',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'motivo'],
+                'body' => <<<'HTML'
+<h2>Ritiro annullato</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Ti informiamo che il ritiro del seguente libro è stato annullato:</p>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Motivo:</strong> {{motivo}}</p>
+</div>
+<p>Il libro è stato reso disponibile per altri utenti. Se desideri ancora questo libro, ti invitiamo a effettuare una nuova richiesta di prestito.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
             'user_password_setup' => [
                 'label' => __('Imposta password'),
                 'description' => __("Inviata ai nuovi utenti per impostare la password del loro account."),

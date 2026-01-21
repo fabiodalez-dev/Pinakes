@@ -2847,11 +2847,28 @@ function initializeIsbnImport() {
                 subtitleInput.value = data.subtitle;
             }
 
-            // Description
+            // Description - update TinyMCE if initialized (sanitize external data)
             if (data.description) {
                 const descInput = document.querySelector('textarea[name="descrizione"]');
                 if (descInput) {
-                    descInput.value = data.description;
+                    // Sanitize description from external sources (XSS prevention)
+                    let safeDescription;
+                    if (window.DOMPurify) {
+                        safeDescription = DOMPurify.sanitize(data.description, {
+                            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'b', 'i'],
+                            ALLOWED_ATTR: ['href', 'title', 'target', 'rel']
+                        });
+                    } else {
+                        // Fallback: strip all HTML tags for safety
+                        const tempDiv = document.createElement('div');
+                        tempDiv.textContent = data.description;
+                        safeDescription = tempDiv.innerHTML;
+                    }
+                    descInput.value = safeDescription;
+                    // Also update TinyMCE editor if available
+                    if (window.tinymce && tinymce.get('descrizione')) {
+                        tinymce.get('descrizione').setContent(safeDescription);
+                    }
                 }
             }
             
@@ -3630,5 +3647,45 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Initialize TinyMCE for book description (basic editor: bold, italic, lists)
+let tinyMceInitAttempts = 0;
+const TINYMCE_MAX_RETRIES = 30;
+function initBookTinyMCE() {
+    if (window.tinymce) {
+        // Guard against double initialization
+        if (tinymce.get('descrizione')) {
+            return;
+        }
+        tinymce.init({
+            selector: '#descrizione',
+            license_key: 'gpl',
+            height: 250,
+            menubar: false,
+            toolbar_mode: 'wrap',
+            plugins: ['lists', 'link', 'autolink'],
+            toolbar: 'bold italic | bullist numlist | link | removeformat',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
+            branding: false,
+            promotion: false,
+            statusbar: false,
+            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
+        });
+    } else {
+        // TinyMCE not loaded yet, retry in 100ms (with cap)
+        if (tinyMceInitAttempts < TINYMCE_MAX_RETRIES) {
+            tinyMceInitAttempts += 1;
+            setTimeout(initBookTinyMCE, 100);
+        } else {
+            console.error('TinyMCE non disponibile dopo i retry.');
+        }
+    }
+}
+// Wait for DOM then init TinyMCE
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBookTinyMCE);
+} else {
+    initBookTinyMCE();
+}
 
 </script>

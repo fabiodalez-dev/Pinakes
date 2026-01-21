@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.4-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.5-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 [![CodeRabbit](https://img.shields.io/coderabbit/prs/reviewed/github/fabiodalez-dev/Pinakes?style=for-the-badge&logo=coderabbit&logoColor=white&label=PRs%20Reviewed)](https://coderabbit.ai)
@@ -43,7 +43,54 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.4
+## What's New in v0.4.5
+
+### Pickup Confirmation System (da_ritirare)
+
+Complete workflow enhancement for loan management with physical pickup verification:
+
+- **New loan state `da_ritirare`** — Approved loans now enter "Ready for Pickup" state before becoming active
+- **Two-step approval workflow** — Admin approves request → Patron picks up book → Admin confirms pickup
+- **Configurable pickup deadline** — Set days allowed for pickup in Settings → Loans (default: 3 days)
+- **Cancel pickup option** — Admin can cancel uncollected loans, automatically advancing reservation queue
+- **Visual indicators** — Orange badge for "Ready for Pickup" status in loan lists and dashboard
+
+**Loan State Flow:**
+```
+Request → [pendente] → Approval → [da_ritirare] → Confirm Pickup → [in_corso]
+                                        ↓
+                              (Cancel or Expire) → [annullato/scaduto]
+```
+
+**For future-dated loans:**
+```
+[pendente] → [prenotato] → (date reached) → [da_ritirare] → Confirm → [in_corso]
+```
+
+### Calendar Integration
+
+- **Visual distinction** — `da_ritirare` periods shown in orange/amber on dashboard calendar
+- **Availability blocking** — Pickup-pending loans correctly block the period for other reservations
+- **ICS export** — Ready-for-pickup events included in calendar subscriptions
+
+### Reservation Queue Improvements
+
+- **Automatic queue advancement** — When a pickup is cancelled, next patron in queue is automatically notified
+- **Works without cron** — Queue advancement happens in real-time when admin cancels pickup
+- **Copy liberation** — Cancelled pickups immediately free the copy for reassignment
+
+### Data Integrity
+
+- **Copy protection** — Loans without assigned copies are blocked from pickup confirmation
+- **Transaction safety** — All state transitions use database transactions with proper locking
+- **Availability recalculation** — Book availability correctly accounts for `da_ritirare` state
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.4</strong> - Robust Auto-Updater</summary>
 
 ### Robust Auto-Updater
 
@@ -68,9 +115,7 @@ Complete rewrite of the update system for reliable operation on shared hosting:
 - **`test-updater/` folder** — Contains patched files for users stuck on broken updater versions
 - **`manual-update.php`** — Standalone emergency update script
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.1</strong> - ISBN Enhancement & Bug Fixes</summary>
@@ -116,6 +161,12 @@ New `IsbnFormatter` utility class for intelligent ISBN handling:
 ### From v0.4.4+
 
 Update directly from **Admin → Updates**. The auto-updater handles everything automatically.
+
+**v0.4.5 migration notes:**
+- New loan state `da_ritirare` added to database ENUM
+- New `pickup_deadline` column added to `prestiti` table
+- New `pickup_expiry_days` setting added (default: 3 days)
+- Existing `in_corso` loans are unaffected
 
 ### From v0.4.1 - v0.4.3 (Broken Updater)
 
@@ -227,10 +278,16 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 - **Admin sidebar simplified** without loan management menus
 - **Perfect for**: digital archives, reference-only collections, museum libraries
 
-### Reservation Pickup Confirmation
-- **Two-step loan workflow**: reservations create loans in "pending" state until physical pickup
-- **Admin confirmation**: "Conferma Ritiro" button activates the loan when patron collects book
-- **Origin tracking**: system tracks whether loans originated from reservations or manual creation
+### Pickup Confirmation System
+- **New `da_ritirare` state** — Approved loans enter "Ready for Pickup" before becoming active
+- **Two-step workflow** — Admin approves → Patron picks up → Admin confirms pickup
+- **Configurable pickup deadline** — Days allowed for pickup (Settings → Loans, default: 3 days)
+- **Cancel pickup** — Admin can cancel uncollected loans, freeing copy and advancing reservation queue
+- **Automatic queue advancement** — Next patron notified immediately when pickup is cancelled
+- **Works without cron** — Real-time queue processing, no maintenance service dependency
+- **Visual indicators** — Orange badge for "Ready for Pickup" in all loan views
+- **Calendar integration** — `da_ritirare` periods shown in orange, block availability for other reservations
+- **Origin tracking** — System tracks whether loans originated from reservations or manual creation
 
 ### Calendar & ICS Integration
 - **Interactive dashboard calendar** (FullCalendar) showing all loans and reservations
@@ -538,7 +595,9 @@ If Pinakes helps your library, please ⭐ the repository!
 
 - `app/Views/libri/partials/book_form.php` – Catalog form logic, ISBN ingestion
 - `app/Controllers/PrestitiController.php` – Core lending workflows
+- `app/Controllers/LoanApprovalController.php` – Loan approval, pickup confirmation, cancellation
 - `app/Controllers/ReservationsController.php` – Queue handling
+- `app/Services/ReservationReassignmentService.php` – Queue advancement on returns/cancellations
 - `app/Controllers/UserWishlistController.php` – Wishlist UX
 - `app/Views/frontend/catalog.php` – Public catalog filters
 - `app/Controllers/SeoController.php` – Sitemap + robots.txt

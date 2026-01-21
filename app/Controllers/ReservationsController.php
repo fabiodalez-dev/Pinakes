@@ -49,7 +49,7 @@ class ReservationsController
         $stmt = $this->db->prepare("
             SELECT data_prestito, data_scadenza, data_restituzione, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente', 'prenotato')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'pendente', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);
@@ -343,7 +343,7 @@ class ReservationsController
         $stmt = $this->db->prepare("
             SELECT data_prestito, data_scadenza, data_restituzione, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'pendente', 'prenotato')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'pendente', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);

@@ -4,6 +4,7 @@ function formatLoanStatus($status) {
     return match ($status) {
         'pendente' => __('In Attesa di Approvazione'),
         'prenotato' => __('Prenotato'),
+        'da_ritirare' => __('Da Ritirare'),
         'in_corso' => __('In Corso'),
         'in_ritardo' => __('In Ritardo'),
         'restituito' => __('Restituito'),
@@ -93,6 +94,7 @@ function formatLoanStatus($status) {
               echo match($prestito['stato'] ?? '') {
                 'pendente' => 'bg-orange-100 text-orange-800',
                 'prenotato' => 'bg-purple-100 text-purple-800',
+                'da_ritirare' => 'bg-amber-100 text-amber-800',
                 'restituito' => 'bg-green-100 text-green-800',
                 'in_corso' => 'bg-blue-100 text-blue-800',
                 'in_ritardo' => 'bg-yellow-100 text-yellow-800',

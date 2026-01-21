@@ -99,15 +99,22 @@ class IcsGenerator
         $today = date('Y-m-d');
 
         // Fetch active/scheduled loans
-        $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza,
+        $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            u.email, p.updated_at
                     FROM prestiti p
                     JOIN libri l ON p.libro_id = l.id
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.attivo = 1
-                      AND p.stato IN ('in_corso', 'prenotato', 'in_ritardo', 'pendente')
-                      AND (p.data_scadenza >= ? OR p.stato = 'in_ritardo')
+                      AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                      AND (
+                          (CASE
+                              WHEN p.stato = 'da_ritirare' AND p.pickup_deadline IS NOT NULL
+                              THEN p.pickup_deadline
+                              ELSE p.data_scadenza
+                           END) >= ?
+                          OR p.stato = 'in_ritardo'
+                      )
                     ORDER BY p.data_prestito ASC";
         $stmt = $this->db->prepare($loanSql);
         if ($stmt === false) {
@@ -119,12 +126,18 @@ class IcsGenerator
         }
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
+            // For da_ritirare state, use pickup_deadline as end date (shows pickup window)
+            // For other states, use data_scadenza (shows full loan period)
+            $endDate = ($row['stato'] === 'da_ritirare' && !empty($row['pickup_deadline']))
+                ? $row['pickup_deadline']
+                : $row['data_scadenza'];
+
             $events[] = [
                 'uid' => 'loan-' . $row['id'] . '@pinakes',
                 'title' => $this->getLoanTitle($row['stato'], $row['titolo']),
                 'description' => $this->getLoanDescription($row),
                 'start' => $row['data_prestito'],
-                'end' => $row['data_scadenza'],
+                'end' => $endDate,
                 'type' => 'prestito',
                 'status' => $row['stato'],
                 'updated' => $row['updated_at'] ?? date('Y-m-d H:i:s')
@@ -182,6 +195,7 @@ class IcsGenerator
     {
         $prefix = match($status) {
             'in_corso' => '📖 ' . __('Prestito'),
+            'da_ritirare' => '📦 ' . __('Da Ritirare'),
             'prenotato' => '📋 ' . __('Prestito Programmato'),
             'in_ritardo' => '⚠️ ' . __('Prestito Scaduto'),
             'pendente' => '⏳ ' . __('Richiesta Pendente'),
@@ -234,6 +248,7 @@ class IcsGenerator
     {
         return match($status) {
             'in_corso' => __('In corso'),
+            'da_ritirare' => __('Da Ritirare'),
             'prenotato' => __('Programmato'),
             'in_ritardo' => __('Scaduto'),
             'pendente' => __('In attesa'),
@@ -307,6 +322,7 @@ class IcsGenerator
 
         return match($status) {
             'in_corso' => '#10B981', // Green
+            'da_ritirare' => '#F97316', // Orange (ready for pickup)
             'prenotato' => '#3B82F6', // Blue
             'in_ritardo' => '#EF4444', // Red
             'pendente' => '#F59E0B', // Amber

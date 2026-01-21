@@ -536,7 +536,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
         <div class="card-body">
           <div class="prose prose-sm max-w-none text-gray-700">
-            <?php echo nl2br(App\Support\HtmlHelper::e($libro['descrizione'])); ?>
+            <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
           </div>
         </div>
       </div>
@@ -890,6 +890,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                         $statusIcon = 'fa-clock';
                         $statusLabel = __('In Attesa');
                         break;
+                      case 'da_ritirare':
+                        $statusClass = 'bg-amber-100 text-amber-800';
+                        $statusIcon = 'fa-box';
+                        $statusLabel = __('Da Ritirare');
+                        break;
                     }
                   ?>
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $statusClass; ?>">
@@ -1027,6 +1032,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               'prenotato' => '#8B5CF6',      // Purple - reserved
               'in_ritardo' => '#F59E0B',     // Amber - overdue
               'pendente' => '#3B82F6',       // Blue - pending
+              'da_ritirare' => '#F97316',    // Orange - ready for pickup
               default => $copyColor
           };
 
@@ -1036,6 +1042,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               'prenotato' => __('Prenotato'),
               'in_ritardo' => __('In ritardo'),
               'pendente' => __('In attesa'),
+              'da_ritirare' => __('Da Ritirare'),
               default => ucfirst($stato)
           };
 
