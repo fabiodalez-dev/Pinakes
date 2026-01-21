@@ -8,7 +8,8 @@
   "description": "Client per servizi web di scraping dati libri tramite ISBN/EAN con API key authentication. Priorità più alta di Open Library.",
   "main_file": "wrapper.php",
   "requires_php": "8.0",
-  "requires_app": "1.0",
+  "requires_app": "0.4.0",
+  "max_app_version": "0.4.5",
   "metadata": {
     "category": "scraping",
     "priority": 3,
