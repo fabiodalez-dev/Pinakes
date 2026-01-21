@@ -81,6 +81,38 @@ server {
     }
 
     # ========================================
+    # Installer (accessible at /installer/)
+    # ========================================
+    # Remove or comment out this block after installation is complete.
+    location ^~ /installer/ {
+        alias /var/www/pinakes/installer/;
+        index index.php;
+
+        # Static assets for installer
+        location ~* ^/installer/.*\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            try_files $uri =404;
+        }
+
+        # PHP processing for installer
+        location ~ ^/installer/.*\.php$ {
+            # Only allow index.php
+            if ($uri !~ "^/installer/index\.php$") {
+                return 403;
+            }
+
+            fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+            fastcgi_index index.php;
+            # Important: Use $request_filename with alias
+            fastcgi_param SCRIPT_FILENAME $request_filename;
+            include fastcgi_params;
+            fastcgi_read_timeout 300;
+        }
+
+        # Route to installer index.php
+        try_files $uri $uri/ /installer/index.php?$query_string;
+    }
+
+    # ========================================
     # PHP Processing
     # ========================================
     location ~ \.php$ {
