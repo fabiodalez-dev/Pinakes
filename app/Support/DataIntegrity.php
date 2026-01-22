@@ -22,17 +22,15 @@ class DataIntegrity {
         try {
             $this->db->begin_transaction();
 
-            // Aggiorna stato copie basandosi sui prestiti attivi OGGI
-            // - 'in_corso' e 'in_ritardo' → sempre prestato
-            // - 'prenotato' → prestato SOLO se data_prestito <= OGGI (il prestito è iniziato)
+            // Aggiorna stato copie basandosi sui prestiti attivi
+            // - 'in_corso' e 'in_ritardo' → copia prestata (libro fisicamente fuori)
+            // - 'da_ritirare' e 'prenotato' → copia rimane disponibile (libro ancora in biblioteca)
+            // Note: la copia passa a 'prestato' solo dopo confirmPickup()
             $stmt = $this->db->prepare("
                 UPDATE copie c
                 LEFT JOIN prestiti p ON c.id = p.copia_id
                     AND p.attivo = 1
-                    AND (
-                        p.stato IN ('in_corso', 'in_ritardo')
-                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
-                    )
+                    AND p.stato IN ('in_corso', 'in_ritardo')
                 SET c.stato = CASE
                     WHEN p.id IS NOT NULL THEN 'prestato'
                     ELSE 'disponibile'
@@ -136,16 +134,15 @@ class DataIntegrity {
         $results = ['updated' => 0, 'errors' => [], 'total' => 0];
 
         // Prima aggiorna tutte le copie (operazione veloce)
+        // Note: solo 'in_corso' e 'in_ritardo' marcano la copia come 'prestato'
+        // 'da_ritirare' e 'prenotato' lasciano la copia 'disponibile' (libro fisicamente in biblioteca)
         try {
             $this->db->begin_transaction();
             $stmt = $this->db->prepare("
                 UPDATE copie c
                 LEFT JOIN prestiti p ON c.id = p.copia_id
                     AND p.attivo = 1
-                    AND (
-                        p.stato IN ('in_corso', 'in_ritardo')
-                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
-                    )
+                    AND p.stato IN ('in_corso', 'in_ritardo')
                 SET c.stato = CASE
                     WHEN p.id IS NOT NULL THEN 'prestato'
                     ELSE 'disponibile'
@@ -243,17 +240,15 @@ class DataIntegrity {
                 $this->db->begin_transaction();
             }
 
-            // Aggiorna stato copie del libro basandosi sui prestiti attivi OGGI
-            // - 'in_corso' e 'in_ritardo' → sempre prestato
-            // - 'prenotato' → prestato SOLO se data_prestito <= OGGI (il prestito è iniziato)
+            // Aggiorna stato copie del libro basandosi sui prestiti attivi
+            // - 'in_corso' e 'in_ritardo' → copia prestata (libro fisicamente fuori)
+            // - 'da_ritirare' e 'prenotato' → copia rimane disponibile (libro ancora in biblioteca)
+            // Note: la copia passa a 'prestato' solo dopo confirmPickup()
             $stmt = $this->db->prepare("
                 UPDATE copie c
                 LEFT JOIN prestiti p ON c.id = p.copia_id
                     AND p.attivo = 1
-                    AND (
-                        p.stato IN ('in_corso', 'in_ritardo')
-                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
-                    )
+                    AND p.stato IN ('in_corso', 'in_ritardo')
                 SET c.stato = CASE
                     WHEN p.id IS NOT NULL THEN 'prestato'
                     ELSE 'disponibile'

@@ -591,8 +591,10 @@ class MaintenanceService
                     $copyState = $copyResult ? $copyResult->fetch_assoc() : null;
                     $checkCopy->close();
 
-                    // Ensure copy is available
-                    if ($copyState && $copyState['stato'] !== 'disponibile') {
+                    // Ensure copy is available (but don't resurrect non-restorable copies)
+                    // Skip if copy is in a permanent non-available state (perso, danneggiato, manutenzione)
+                    $nonRestorableStates = ['perso', 'danneggiato', 'manutenzione'];
+                    if ($copyState && !in_array($copyState['stato'], $nonRestorableStates, true) && $copyState['stato'] !== 'disponibile') {
                         $updateCopy = $this->db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ?");
                         $updateCopy->bind_param('i', $copiaId);
                         $updateCopy->execute();
