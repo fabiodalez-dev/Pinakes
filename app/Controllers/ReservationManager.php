@@ -29,6 +29,65 @@ class ReservationManager
     }
 
     /**
+     * Check if a transaction is currently active
+     *
+     * Uses mysqli's internal flag to detect active transactions.
+     * This is needed because begin_transaction() inside an active transaction
+     * would silently succeed in MySQLi but cause undefined behavior.
+     *
+     * @return bool True if a transaction is active
+     */
+    private function isInTransaction(): bool
+    {
+        // Check if autocommit is disabled (indicates active transaction)
+        // Note: begin_transaction() internally disables autocommit
+        $result = $this->db->query("SELECT @@autocommit as ac");
+        if ($result) {
+            $row = $result->fetch_assoc();
+            return (int) ($row['ac'] ?? 1) === 0;
+        }
+        return false;
+    }
+
+    /**
+     * Begin transaction only if not already in one
+     *
+     * @return bool True if we started a new transaction, false if already in one
+     */
+    private function beginTransactionIfNeeded(): bool
+    {
+        if ($this->isInTransaction()) {
+            return false; // Already in transaction, don't start a new one
+        }
+        $this->db->begin_transaction();
+        return true;
+    }
+
+    /**
+     * Commit transaction only if we started it
+     *
+     * @param bool $ownTransaction Whether we started the transaction
+     */
+    private function commitIfOwned(bool $ownTransaction): void
+    {
+        if ($ownTransaction) {
+            $this->db->commit();
+        }
+    }
+
+    /**
+     * Rollback transaction only if we started it
+     *
+     * @param bool $ownTransaction Whether we started the transaction
+     */
+    private function rollbackIfOwned(bool $ownTransaction): void
+    {
+        if ($ownTransaction) {
+            $this->db->rollback();
+        }
+    }
+
+    /**
      * Process reservations when a book becomes available
      *
      * Finds the next date-eligible reservation (where start date <= today)
@@ -167,8 +226,9 @@ class ReservationManager
         $newState = 'pendente';
         $origine = 'prenotazione';
 
-        // Start transaction - required for SELECT...FOR UPDATE to hold locks
-        $this->db->begin_transaction();
+        // Start transaction only if not already in one (e.g., called from MaintenanceService)
+        // This prevents nested transaction issues with MySQLi
+        $ownTransaction = $this->beginTransactionIfNeeded();
 
         try {
             // Find an available copy for this date range (no overlapping loans)
@@ -199,7 +259,7 @@ class ReservationManager
 
             if (!$copyId) {
                 // No copy available for the requested range – treat as failed allocation
-                $this->db->rollback();
+                $this->rollbackIfOwned($ownTransaction);
                 return false;
             }
 
@@ -223,7 +283,7 @@ class ReservationManager
 
             if ($overlapCopy) {
                 // Abort if race detected
-                $this->db->rollback();
+                $this->rollbackIfOwned($ownTransaction);
                 return false;
             }
 
@@ -249,7 +309,7 @@ class ReservationManager
 
             // Verify INSERT succeeded (insert_id = 0 means failure)
             if ($loanId <= 0) {
-                $this->db->rollback();
+                $this->rollbackIfOwned($ownTransaction);
                 return false;
             }
 
@@ -261,11 +321,11 @@ class ReservationManager
             $integrity = new \App\Support\DataIntegrity($this->db);
             $integrity->recalculateBookAvailability($bookId);
 
-            $this->db->commit();
+            $this->commitIfOwned($ownTransaction);
             return $loanId;
 
         } catch (\Exception $e) {
-            $this->db->rollback();
+            $this->rollbackIfOwned($ownTransaction);
             error_log("Failed to create loan from reservation: " . $e->getMessage());
             return false;
         }

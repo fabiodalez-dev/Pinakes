@@ -98,13 +98,13 @@ class PrestitiController
         $data_scadenza = $data['data_scadenza'] ?? '';
         $note = trim((string) ($data['note'] ?? '')) ?: null;
 
-        // Se le date sono vuote, usa i valori di default
+        // Se le date sono vuote, usa i valori di default (server timezone for consistency)
         if (empty($data_prestito)) {
-            $data_prestito = gmdate('Y-m-d');
+            $data_prestito = date('Y-m-d');
         }
         if (empty($data_scadenza)) {
             // Default to 1 month after the loan start date (not from today)
-            $data_scadenza = gmdate('Y-m-d', strtotime($data_prestito . ' +1 month'));
+            $data_scadenza = date('Y-m-d', strtotime($data_prestito . ' +1 month'));
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
@@ -151,7 +151,8 @@ class PrestitiController
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan)
             // Normalize to date-only to handle potential datetime inputs safely
-            $today = gmdate('Y-m-d');
+            // Use date() consistently for server timezone
+            $today = date('Y-m-d');
             $loanStartDate = date('Y-m-d', strtotime($data_prestito));
             $isImmediateLoan = ($loanStartDate <= $today);
 
@@ -560,7 +561,7 @@ class PrestitiController
             return $response->withHeader('Location', '/admin/prestiti/restituito/' . $id . '?error=invalid_status')->withStatus(302);
         }
 
-        $data_restituzione = gmdate('Y-m-d');
+        $data_restituzione = date('Y-m-d');
 
         // Avvia transazione
         $db->begin_transaction();
