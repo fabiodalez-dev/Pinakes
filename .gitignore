@@ -39,6 +39,7 @@ export-*.php
 fix-*.php
 debug_*.php
 test_*.php
+router.php
 
 # ========================================
 # CRITICAL: Archives
