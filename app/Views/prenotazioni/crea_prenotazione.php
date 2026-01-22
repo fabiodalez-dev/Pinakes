@@ -81,7 +81,7 @@
 
             <div class="p-10">
                 <form method="POST" action="/admin/prenotazioni/crea" class="space-y-12">
-                    <input type="hidden" name="csrf_token" value="<?php echo App\Support\Csrf::generate(); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo App\Support\Csrf::ensureToken(); ?>">
 
                     <!-- Main Fields Section -->
                     <div class="space-y-12">

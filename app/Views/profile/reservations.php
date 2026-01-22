@@ -691,7 +691,7 @@ function profileReservationBookUrl(array $item): string {
     <div id="reviewBookTitle" style="font-size: 1.125rem; color: #6b7280; margin-bottom: 1.5rem;"></div>
     <form id="reviewForm">
       <input type="hidden" id="review-book-id" name="libro_id">
-      <input type="hidden" name="csrf_token" value="<?php echo Csrf::generateToken(); ?>">
+      <input type="hidden" name="csrf_token" value="<?php echo Csrf::ensureToken(); ?>">
 
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;"><?= __('Valutazione *') ?></label>
