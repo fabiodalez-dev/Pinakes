@@ -26,7 +26,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 ### Stability & Bug Fixes
 
 - **Copy state protection** — Fixed issue where copy state could incorrectly change during loan approval
-- **Pickup workflow refinement** — `prenotato` and `da_ritirare` states now correctly keep copies as `disponibile`
+- **Pickup workflow refinement** — `reserved` and `ready_for_pickup` states now correctly keep copies as `available`
 - **MaintenanceService improvements** — Expired pickup handling no longer resurrects non-restorable copies
 
 ---
@@ -46,11 +46,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 <details>
 <summary><strong>v0.4.5</strong> - Pickup Confirmation System</summary>
 
-### Pickup Confirmation System (da_ritirare)
+### Pickup Confirmation System (ready_for_pickup)
 
 Complete workflow enhancement for loan management with physical pickup verification:
 
-- **New loan state `da_ritirare`** — Approved loans now enter "Ready for Pickup" state before becoming active
+- **New loan state `ready_for_pickup`** — Approved loans now enter "Ready for Pickup" state before becoming active
 - **Two-step approval workflow** — Admin approves request → Patron picks up book → Admin confirms pickup
 - **Configurable pickup deadline** — Set days allowed for pickup in Settings → Loans (default: 3 days)
 - **Cancel pickup option** — Admin can cancel uncollected loans, automatically advancing reservation queue
@@ -74,7 +74,7 @@ Request → [pending] → Approval → [ready_for_pickup] → Confirm Pickup →
 
 ### Calendar Integration
 
-- **Visual distinction** — `da_ritirare` periods shown in orange/amber on dashboard calendar
+- **Visual distinction** — `ready_for_pickup` periods shown in orange/amber on dashboard calendar
 - **Availability blocking** — Pickup-pending loans correctly block the period for other reservations
 - **ICS export** — Ready-for-pickup events included in calendar subscriptions
 
@@ -88,7 +88,7 @@ Request → [pending] → Approval → [ready_for_pickup] → Confirm Pickup →
 
 - **Copy protection** — Loans without assigned copies are blocked from pickup confirmation
 - **Transaction safety** — All state transitions use database transactions with proper locking
-- **Availability recalculation** — Book availability correctly accounts for `da_ritirare` state
+- **Availability recalculation** — Book availability correctly accounts for `ready_for_pickup` state
 
 </details>
 
@@ -166,10 +166,10 @@ New `IsbnFormatter` utility class for intelligent ISBN handling:
 Update directly from **Admin → Updates**. The auto-updater handles everything automatically.
 
 **v0.4.5+ migration notes:**
-- New loan state `da_ritirare` added to database ENUM
+- New loan state `ready_for_pickup` (da_ritirare) added to database ENUM
 - New `pickup_deadline` column added to `prestiti` table
 - New `pickup_expiry_days` setting added (default: 3 days)
-- Existing `in_corso` loans are unaffected
+- Existing `active` (in_corso) loans are unaffected
 
 ### From v0.3.x or Earlier
 
@@ -274,14 +274,14 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 - **Perfect for**: digital archives, reference-only collections, museum libraries
 
 ### Pickup Confirmation System
-- **New `da_ritirare` state** — Approved loans enter "Ready for Pickup" before becoming active
+- **New `ready_for_pickup` state** — Approved loans enter "Ready for Pickup" before becoming active
 - **Two-step workflow** — Admin approves → Patron picks up → Admin confirms pickup
 - **Configurable pickup deadline** — Days allowed for pickup (Settings → Loans, default: 3 days)
 - **Cancel pickup** — Admin can cancel uncollected loans, freeing copy and advancing reservation queue
 - **Automatic queue advancement** — Next patron notified immediately when pickup is cancelled
 - **Works without cron** — Real-time queue processing, no maintenance service dependency
 - **Visual indicators** — Orange badge for "Ready for Pickup" in all loan views
-- **Calendar integration** — `da_ritirare` periods shown in orange, block availability for other reservations
+- **Calendar integration** — `ready_for_pickup` periods shown in orange, block availability for other reservations
 - **Origin tracking** — System tracks whether loans originated from reservations or manual creation
 
 ### Calendar & ICS Integration
