@@ -242,6 +242,11 @@ public/assets/*.map
 public/assets/*.LICENSE.txt
 
 # ========================================
+# PHPStan
+# ========================================
+phpstan-report.json
+
+# ========================================
 # PHPUnit & Tests
 # ========================================
 .phpunit.result.cache

@@ -1,0 +1,643 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Controllers/AutoriApiController.php
+
+		-
+			message: '#^Variable \$randomSuffix might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Controllers/CmsController.php
+
+		-
+			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Controllers/EditoriApiController.php
+
+		-
+			message: '#^Variable \$final_params in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 2
+			path: app/Controllers/FrontendController.php
+
+		-
+			message: '#^Variable \$genere_id might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Controllers/FrontendController.php
+
+		-
+			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Controllers/LibriApiController.php
+
+		-
+			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Controllers/PrestitiApiController.php
+
+		-
+			message: '#^Variable \$newLoanId in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.variable
+			count: 2
+			path: app/Controllers/PrestitiController.php
+
+		-
+			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Controllers/UtentiApiController.php
+
+		-
+			message: '#^Variable \$words in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Models/AuthorRepository.php
+
+		-
+			message: '#^Variable \$http_response_header in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.variable
+			count: 3
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Variable \$pageData might not be defined\.$#'
+			identifier: variable.undefined
+			count: 5
+			path: app/Views/admin/cms-edit.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/cms-edit.php
+
+		-
+			message: '#^Variable \$report might not be defined\.$#'
+			identifier: variable.undefined
+			count: 7
+			path: app/Views/admin/integrity_report.php
+
+		-
+			message: '#^Variable \$language might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/languages/edit-routes.php
+
+		-
+			message: '#^Variable \$routes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/admin/languages/edit-routes.php
+
+		-
+			message: '#^Variable \$language might not be defined\.$#'
+			identifier: variable.undefined
+			count: 13
+			path: app/Views/admin/languages/edit.php
+
+		-
+			message: '#^Variable \$languages might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/languages/index.php
+
+		-
+			message: '#^Variable \$unreadCount might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/notifications.php
+
+		-
+			message: '#^Variable \$pendingLoans might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/pending_loans.php
+
+		-
+			message: '#^Variable \$plugins might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/plugins.php
+
+		-
+			message: '#^Variable \$approvedReviews might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/recensioni/index.php
+
+		-
+			message: '#^Variable \$pendingCount might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/recensioni/index.php
+
+		-
+			message: '#^Variable \$rejectedReviews might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/recensioni/index.php
+
+		-
+			message: '#^Variable \$loansByMonth might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/stats.php
+
+		-
+			message: '#^Variable \$loansByStatus might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/stats.php
+
+		-
+			message: '#^Variable \$theme might not be defined\.$#'
+			identifier: variable.undefined
+			count: 5
+			path: app/Views/admin/theme-customize.php
+
+		-
+			message: '#^Variable \$themes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/admin/themes.php
+
+		-
+			message: '#^Variable \$return_url on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Views/auth/login.php
+
+		-
+			message: '#^Variable \$sections might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/cms/edit-home.php
+
+		-
+			message: '#^Variable \$mensole might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/collocazione/index.php
+
+		-
+			message: '#^Variable \$posizioni might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/collocazione/index.php
+
+		-
+			message: '#^Variable \$scaffali might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/collocazione/index.php
+
+		-
+			message: '#^Variable \$calendarEvents might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/dashboard/index.php
+
+		-
+			message: '#^Variable \$stats might not be defined\.$#'
+			identifier: variable.undefined
+			count: 4
+			path: app/Views/dashboard/index.php
+
+		-
+			message: '#^Variable \$eventsEnabled might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/events/index.php
+
+		-
+			message: '#^Variable \$page might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/events/index.php
+
+		-
+			message: '#^Variable \$totalPages might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/events/index.php
+
+		-
+			message: '#^Variable \$archive_info might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/archive.php
+
+		-
+			message: '#^Variable \$archive_type might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/archive.php
+
+		-
+			message: '#^Variable \$page might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/archive.php
+
+		-
+			message: '#^Variable \$totalBooks might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/frontend/archive.php
+
+		-
+			message: '#^Variable \$totalPages might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/archive.php
+
+		-
+			message: '#^Variable \$book might not be defined\.$#'
+			identifier: variable.undefined
+			count: 14
+			path: app/Views/frontend/book-detail.php
+
+		-
+			message: '#^Variable \$reviewStats might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: app/Views/frontend/book-detail.php
+
+		-
+			message: '#^Variable \$container might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/frontend/catalog.php
+
+		-
+			message: '#^Variable \$filter_options might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/catalog.php
+
+		-
+			message: '#^Variable \$genre_display might not be defined\.$#'
+			identifier: variable.undefined
+			count: 5
+			path: app/Views/frontend/catalog.php
+
+		-
+			message: '#^Variable \$total_books might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/frontend/catalog.php
+
+		-
+			message: '#^Variable \$content might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/cms-page.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/frontend/cms-page.php
+
+		-
+			message: '#^Variable \$privacyText might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/contact.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/contact.php
+
+		-
+			message: '#^Variable \$pageContent might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/cookies-page.php
+
+		-
+			message: '#^Variable \$db might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/event-detail.php
+
+		-
+			message: '#^Variable \$event might not be defined\.$#'
+			identifier: variable.undefined
+			count: 12
+			path: app/Views/frontend/event-detail.php
+
+		-
+			message: '#^Variable \$page might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/events.php
+
+		-
+			message: '#^Variable \$seoCanonical might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/events.php
+
+		-
+			message: '#^Variable \$seoDescription might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/frontend/events.php
+
+		-
+			message: '#^Variable \$seoTitle might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/frontend/events.php
+
+		-
+			message: '#^Variable \$totalPages might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/events.php
+
+		-
+			message: '#^Variable \$footerDescription on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Views/frontend/layout.php
+
+		-
+			message: '#^Variable \$ogTitle in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.variable
+			count: 1
+			path: app/Views/frontend/layout.php
+
+		-
+			message: '#^Variable \$twitterCard in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.variable
+			count: 1
+			path: app/Views/frontend/layout.php
+
+		-
+			message: '#^Variable \$pageContent might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/frontend/privacy-page.php
+
+		-
+			message: '#^Variable \$generiPrincipali might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/generi/index.php
+
+		-
+			message: '#^Variable \$totalGeneri might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/generi/index.php
+
+		-
+			message: '#^Variable \$content might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/layout.php
+
+		-
+			message: '#^Variable \$book on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Views/libri/partials/book_form.php
+
+		-
+			message: '#^Variable \$mensole might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/libri/partials/book_form.php
+
+		-
+			message: '#^Variable \$scaffali might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/libri/partials/book_form.php
+
+		-
+			message: '#^Variable \$btnPrimary on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Views/libri/scheda_libro.php
+
+		-
+			message: '#^Variable \$libro might not be defined\.$#'
+			identifier: variable.undefined
+			count: 5
+			path: app/Views/libri/scheda_libro.php
+
+		-
+			message: '#^Variable \$libri might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/prenotazioni/crea_prenotazione.php
+
+		-
+			message: '#^Variable \$utenti might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/prenotazioni/crea_prenotazione.php
+
+		-
+			message: '#^Variable \$p might not be defined\.$#'
+			identifier: variable.undefined
+			count: 4
+			path: app/Views/prenotazioni/modifica_prenotazione.php
+
+		-
+			message: '#^Variable \$prestito might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: app/Views/prestiti/dettagli_prestito.php
+
+		-
+			message: '#^Variable \$activePrestiti might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/profile/reservations.php
+
+		-
+			message: '#^Variable \$items might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/profile/reservations.php
+
+		-
+			message: '#^Variable \$pastPrestiti might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/profile/reservations.php
+
+		-
+			message: '#^Variable \$activeTab might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/settings/advanced-tab.php
+
+		-
+			message: '#^Variable \$csrfToken might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: app/Views/settings/advanced-tab.php
+
+		-
+			message: '#^Variable \$activeTab might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/settings/contacts-tab.php
+
+		-
+			message: '#^Variable \$csrfToken might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/settings/contacts-tab.php
+
+		-
+			message: '#^Variable \$templates might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/settings/index.php
+
+		-
+			message: '#^Variable \$activeTab might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/settings/messages-tab.php
+
+		-
+			message: '#^Variable \$activeTab might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/settings/privacy-tab.php
+
+		-
+			message: '#^Variable \$csrfToken might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/settings/privacy-tab.php
+
+		-
+			message: '#^Variable \$activePrestiti might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/user_dashboard/prenotazioni.php
+
+		-
+			message: '#^Variable \$items might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/user_dashboard/prenotazioni.php
+
+		-
+			message: '#^Variable \$myReviews might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/user_dashboard/prenotazioni.php
+
+		-
+			message: '#^Variable \$pastPrestiti might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/user_dashboard/prenotazioni.php
+
+		-
+			message: '#^Variable \$content might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/user_layout.php
+
+		-
+			message: '#^Variable \$baseDir might not be defined\.$#'
+			identifier: variable.undefined
+			count: 17
+			path: installer/steps/step1.php
+
+		-
+			message: '#^Variable \$installer might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: installer/steps/step2.php
+
+		-
+			message: '#^Variable \$validator might not be defined\.$#'
+			identifier: variable.undefined
+			count: 11
+			path: installer/steps/step2.php
+
+		-
+			message: '#^Variable \$debug in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: installer/steps/step3.php
+
+		-
+			message: '#^Variable \$installer might not be defined\.$#'
+			identifier: variable.undefined
+			count: 8
+			path: installer/steps/step3.php
+
+		-
+			message: '#^Variable \$installer might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: installer/steps/step4.php
+
+		-
+			message: '#^Variable \$validator might not be defined\.$#'
+			identifier: variable.undefined
+			count: 9
+			path: installer/steps/step4.php
+
+		-
+			message: '#^Variable \$baseDir might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: installer/steps/step5.php
+
+		-
+			message: '#^Variable \$installer might not be defined\.$#'
+			identifier: variable.undefined
+			count: 8
+			path: installer/steps/step5.php
+
+		-
+			message: '#^Variable \$validator might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: installer/steps/step5.php
+
+		-
+			message: '#^Variable \$installer might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: installer/steps/step6.php
+
+		-
+			message: '#^Variable \$validator might not be defined\.$#'
+			identifier: variable.undefined
+			count: 10
+			path: installer/steps/step6.php
+
+		-
+			message: '#^Variable \$baseDir might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: installer/steps/step7.php
+
+		-
+			message: '#^Variable \$installer might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: installer/steps/step7.php
