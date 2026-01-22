@@ -182,33 +182,36 @@ $errorHandler = $errorMiddleware->getDefaultErrorHandler();
 **Fix**: Removed unused `use ($app)` from closures that don't need it.
 
 **Routes fixed** (22 total):
-- `/admin/sessioni`
-- `/admin/sessioni/{id}`
-- `/admin/esporta-sessione/{id}`
-- `/admin/autori/{id}`
+- Login page (GET handler)
+- Profile update page (GET)
+- Profile password page (GET)
+- `/register` (GET)
+- `/register_success` (GET)
+- Forgot password page (GET handler)
+- `/admin/security-logs` (GET)
+- `/admin/cms/{slug}` (GET)
+- `/admin/cms/{slug}/update` (POST)
+- `/admin/cms/upload` (POST)
+- `/admin/utenti/crea` (GET)
 - `/admin/autori/crea` (GET)
-- `/admin/autori/modifica/{id}`
-- `/admin/autori/{id}/merge`
-- `/admin/statistiche/generi`
-- `/admin/statistiche/prestiti`
-- `/admin/statistiche/utenti`
+- `/prestiti/crea` (GET)
 - `/admin/editori/crea` (GET)
-- `/api/cover/download`
-- `/api/scrape/isbn`
+- `/api/cover/download` (POST)
+- `/api/scrape/isbn` (GET)
 - Catalog legacy redirect
 - Contact page (GET)
-- `/proxy/cover`
-- `/api/plugins/proxy-image`
-- `/admin/updates/maintenance/clear`
-- `/admin/updates/logs`
+- `/proxy/cover` (GET)
+- `/api/plugins/proxy-image` (GET)
+- `/admin/updates/maintenance/clear` (POST)
+- `/admin/updates/logs` (GET)
 
 **What it influences**: No runtime change, cleaner code without unused variables.
 
 **How to test**: All affected routes continue to work correctly:
-- Admin session management
-- Author management (view, create, edit, merge)
-- Statistics pages
-- Publisher creation
+- Auth pages (login, register, forgot password)
+- Profile pages
+- CMS pages
+- User/author/loan creation forms
 - Cover download/proxy
 - ISBN scraping
 - Contact page
