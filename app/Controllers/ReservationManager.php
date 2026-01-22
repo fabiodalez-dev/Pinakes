@@ -354,10 +354,10 @@ class ReservationManager
      * Sends the 'reservation_book_available' email template to the user.
      * Updates the notifica_inviata flag only on successful send.
      *
-     * @param array{id: int, libro_id: int, email: string, nome: string, cognome: string} $reservation Reservation data with user info
+     * @param array{id: int, libro_id: int, email: string, nome: string, cognome: string, data_inizio_richiesta: string, data_fine_richiesta: string} $reservation Reservation data with user info
      * @return bool True if email was sent successfully
      */
-    private function sendReservationNotification($reservation)
+    private function sendReservationNotification(array $reservation): bool
     {
         try {
             // Get book details
