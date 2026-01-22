@@ -227,6 +227,14 @@ class ReservationsAdminController
             return $response->withHeader('Location', '/admin/prenotazioni/crea?error=missing_data')->withStatus(302);
         }
 
+        // Validate date formats (reset to empty if invalid format)
+        if ($dataPrenotazione !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataPrenotazione)) {
+            $dataPrenotazione = '';
+        }
+        if ($dataScadenza !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataScadenza)) {
+            $dataScadenza = '';
+        }
+
         // Set default dates if not provided (use date() for server timezone consistency)
         $today = date('Y-m-d');
 
