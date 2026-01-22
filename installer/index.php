@@ -17,30 +17,34 @@ if (isset($_GET['reset']) || (!isset($_GET['step']) || $_GET['step'] == 0)) {
 }
 
 // Simple translation function for installer
-function __($key) {
+function __(string $key, mixed ...$args): string {
     static $translations = null;
 
     // Get locale from session (defaults to Italian)
     $locale = $_SESSION['app_locale'] ?? 'it';
 
-    // Italian is the default - return key as-is
-    if ($locale === 'it') {
-        return $key;
-    }
+    $message = $key;
 
     // Load English translations only when needed
-    if ($translations === null && $locale === 'en_US') {
-        $translationFile = dirname(__DIR__) . '/locale/en_US.json';
-        if (file_exists($translationFile)) {
-            $json = file_get_contents($translationFile);
-            $translations = json_decode($json, true) ?? [];
-        } else {
-            $translations = [];
+    if ($locale === 'en_US') {
+        if ($translations === null) {
+            $translationFile = dirname(__DIR__) . '/locale/en_US.json';
+            if (file_exists($translationFile)) {
+                $json = file_get_contents($translationFile);
+                $translations = json_decode($json, true) ?? [];
+            } else {
+                $translations = [];
+            }
         }
+        $message = $translations[$key] ?? $key;
     }
 
-    // Return translation if exists, otherwise return original key (Italian)
-    return $translations[$key] ?? $key;
+    // Apply sprintf formatting if args provided
+    if (!empty($args)) {
+        return sprintf($message, ...$args);
+    }
+
+    return $message;
 }
 
 // Load helper classes
