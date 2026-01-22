@@ -493,10 +493,198 @@ Users see compatibility warnings in the admin update panel before proceeding.
 
 ---
 
+## Pre-Update Patch System
+
+The updater includes a **pre-update patch system** that allows fixing Updater bugs remotely without requiring users to manually update files.
+
+### How It Works
+
+Before starting the main update process, the updater checks for a `pre-update-patch.php` file in the GitHub release:
+
+1. **Download patch file** from `https://github.com/.../releases/download/vX.X.X/pre-update-patch.php`
+2. **Verify checksum** using `pre-update-patch.php.sha256`
+3. **Check target versions** - only apply if current version is in the patch's target list
+4. **Apply patches** - string replacements in specified files
+5. **Continue with update** - the patched Updater then runs normally
+
+### Patch File Format
+
+```php
+<?php
+// pre-update-patch.php
+return [
+    'version' => '1.0.0',
+    'target_versions' => ['0.4.3', '0.4.4', '0.4.5'],  // Only apply to these versions
+    'patches' => [
+        [
+            'file' => 'app/Support/Updater.php',
+            'search' => "explode(';', \$sql)",
+            'replace' => "\$this->splitSqlStatements(\$sql)",
+            'description' => 'Fix SQL parser for CSS semicolons'
+        ],
+        // Add more patches as needed
+    ]
+];
+```
+
+### Creating a Patch for a Release
+
+1. **Create `pre-update-patch.php`** with the patch definition
+2. **Generate checksum**:
+   ```bash
+   shasum -a 256 pre-update-patch.php > pre-update-patch.php.sha256
+   ```
+3. **Upload both files** to the GitHub release as assets
+
+### Graceful Fallback
+
+If no patch file exists (404), the updater continues normally. This means:
+- **Patch files are optional** - only add them when needed
+- **No patch = normal update** - the system works identically to before
+- **Failed patches don't block updates** - errors are logged but update continues
+
+### Security
+
+- **Checksum verification** - SHA256 hash must match
+- **Path validation** - patches can only modify files within the application root
+- **No arbitrary code** - patches use string replacement, not eval()
+- **Target version filtering** - patches only apply to specific versions
+
+### Logging
+
+All pre-update patch operations are logged:
+```
+[Updater DEBUG] [INFO] === PRE-UPDATE PATCH CHECK ===
+[Updater DEBUG] [INFO] Nessun pre-update-patch disponibile (OK, normale)
+```
+
+Or when a patch is applied:
+```
+[Updater DEBUG] [INFO] Pre-update-patch scaricato
+[Updater DEBUG] [INFO] Checksum verificato
+[Updater DEBUG] [INFO] Patch applicata {"file":"app/Support/Updater.php","description":"Fix SQL parser"}
+```
+
+---
+
+## Post-Install Patch System
+
+The updater also includes a **post-install patch system** that runs after the update is successfully installed. This is useful for:
+
+- Applying hotfixes to the newly installed code
+- Cleaning up obsolete files from previous versions
+- Running database queries for data migrations
+
+### How It Works
+
+After the update is installed and migrations run, the updater checks for a `post-install-patch.php` file:
+
+1. **Download patch file** from `https://github.com/.../releases/download/vX.X.X/post-install-patch.php`
+2. **Verify checksum** using `post-install-patch.php.sha256`
+3. **Check target versions** - only apply if *source* version (before update) is in the patch's target list
+4. **Apply patches** - file patches, cleanup, and SQL queries
+5. **Complete update** - finalize the update process
+
+### Patch File Format
+
+```php
+<?php
+// post-install-patch.php
+return [
+    'version' => '1.0.0',
+    'target_versions' => ['0.4.3', '0.4.4', '0.4.5'],  // Source versions to patch
+    'patches' => [
+        [
+            'file' => 'app/Controllers/MyController.php',
+            'search' => 'old_function()',
+            'replace' => 'new_function()',
+            'description' => 'Rename deprecated function'
+        ]
+    ],
+    'cleanup' => [
+        'storage/cache/old_file.php',       // Delete obsolete files
+        'app/Support/DeprecatedClass.php',
+    ],
+    'sql' => [
+        "UPDATE impostazioni SET valore = 'new' WHERE chiave = 'old_key'",
+        "DELETE FROM cache_table WHERE created_at < NOW() - INTERVAL 30 DAY"
+    ]
+];
+```
+
+### Supported Operations
+
+| Operation | Description | Safety Checks |
+|-----------|-------------|---------------|
+| `patches` | String replacements in files | Path validation, file must exist |
+| `cleanup` | Delete obsolete files | Protected files list, path validation |
+| `sql` | Execute SQL queries | Dangerous pattern blocking |
+
+### Protected Files
+
+These files cannot be deleted via cleanup:
+
+- `.env`
+- `version.json`
+- `public/index.php`
+- `composer.json`
+
+### Blocked SQL Patterns
+
+These SQL patterns are blocked for safety:
+
+- `DROP DATABASE`
+- `DROP TABLE` (without IF EXISTS)
+- `TRUNCATE TABLE` on core tables
+- `DELETE FROM` without WHERE clause
+
+### Creating a Post-Install Patch
+
+1. **Create `post-install-patch.php`** with the patch definition
+2. **Generate checksum**:
+   ```bash
+   shasum -a 256 post-install-patch.php > post-install-patch.php.sha256
+   ```
+3. **Upload both files** to the GitHub release as assets
+
+### When to Use Each Patch Type
+
+| Scenario | Use |
+|----------|-----|
+| Fix bug in Updater itself | Pre-update patch |
+| Fix bug in newly installed code | Post-install patch |
+| Delete obsolete files from old version | Post-install cleanup |
+| Migrate data after schema change | Post-install SQL |
+| Add missing config before update | Pre-update patch |
+
+### Graceful Fallback
+
+Same as pre-update patches:
+- **Patch files are optional** - only add them when needed
+- **No patch = normal update** - 404 is handled gracefully
+- **Failed patches don't block updates** - errors are logged but update completes
+
+### Logging
+
+```
+[Updater DEBUG] [INFO] >>> STEP 4: Post-install patch check <<<
+[Updater DEBUG] [INFO] Nessun post-install-patch disponibile (OK, normale)
+```
+
+Or when a patch is applied:
+```
+[Updater DEBUG] [INFO] Post-install-patch scaricato
+[Updater DEBUG] [INFO] Checksum verificato
+[Updater DEBUG] [INFO] Post-install patch applicato {"patches":1,"cleanup":2,"sql":1}
+```
+
+---
+
 ## Version History
 
 | Version | Changes |
 |---------|---------|
+| 0.4.6 | Added: Pre-update and post-install patch systems for remote bug fixes |
 | 0.4.4 | Fixed: Always use storage/tmp, cURL download, retry mechanism, disk space check |
 | 0.4.3 | Added: Log viewer endpoint |
 | 0.4.2 | Added: Verbose logging |

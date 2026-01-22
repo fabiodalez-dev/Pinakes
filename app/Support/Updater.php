@@ -2190,6 +2190,15 @@ class Updater
         $result = null;
 
         try {
+            // Step 0: Apply pre-update patch (if available)
+            $this->debugLog('INFO', '>>> STEP 0: Pre-update patch check <<<');
+            $patchResult = $this->applyPreUpdatePatch($targetVersion);
+            if ($patchResult['applied']) {
+                $this->debugLog('INFO', 'Pre-update patch applicato', [
+                    'patches' => $patchResult['patches']
+                ]);
+            }
+
             // Step 1: Backup
             $this->debugLog('INFO', '>>> STEP 1: Creazione backup <<<');
             $backupResult = $this->createBackup();
@@ -2213,6 +2222,19 @@ class Updater
                 throw new Exception(__('Installazione fallita') . ': ' . $installResult['error']);
             }
             $this->debugLog('INFO', 'Installazione completata');
+
+            // Step 4: Apply post-install patch (if available)
+            $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
+            $postPatchResult = $this->applyPostInstallPatch($targetVersion);
+            if ($postPatchResult['applied']) {
+                $this->debugLog('INFO', 'Post-install patch applicato', [
+                    'patches' => $postPatchResult['patches'],
+                    'cleanup' => $postPatchResult['cleanup'],
+                    'sql' => $postPatchResult['sql']
+                ]);
+            } else {
+                $this->debugLog('INFO', 'Nessun post-install-patch disponibile (OK, normale)');
+            }
 
             $result = [
                 'success' => true,
@@ -2279,6 +2301,546 @@ class Updater
         }
 
         return $value;
+    }
+
+    /**
+     * Apply pre-update patch from GitHub if available
+     *
+     * This method downloads and executes a patch file from GitHub releases
+     * before the main update process. It allows fixing Updater bugs remotely
+     * without requiring users to manually update files.
+     *
+     * @param string $targetVersion The version being updated to
+     * @return array{success: bool, applied: bool, error: string|null, patches: array}
+     */
+    public function applyPreUpdatePatch(string $targetVersion): array
+    {
+        $this->debugLog('INFO', '=== PRE-UPDATE PATCH CHECK ===', [
+            'current_version' => $this->getCurrentVersion(),
+            'target_version' => $targetVersion
+        ]);
+
+        $result = [
+            'success' => true,
+            'applied' => false,
+            'error' => null,
+            'patches' => []
+        ];
+
+        try {
+            // Build URL for pre-update-patch.php from GitHub release
+            $tag = strpos($targetVersion, 'v') === 0 ? $targetVersion : 'v' . $targetVersion;
+            $baseUrl = "https://github.com/{$this->repoOwner}/{$this->repoName}/releases/download/{$tag}";
+            $patchUrl = $baseUrl . '/pre-update-patch.php';
+            $checksumUrl = $baseUrl . '/pre-update-patch.php.sha256';
+
+            $this->debugLog('DEBUG', 'Tentativo download pre-update-patch', [
+                'patch_url' => $patchUrl,
+                'checksum_url' => $checksumUrl
+            ]);
+
+            // Download patch file
+            $patchContent = $this->downloadPatchFile($patchUrl);
+
+            if ($patchContent === null) {
+                // 404 or download failed - this is OK, no patch needed
+                $this->debugLog('INFO', 'Nessun pre-update-patch disponibile (OK, normale)', [
+                    'reason' => 'File not found or download failed'
+                ]);
+                return $result;
+            }
+
+            $this->debugLog('INFO', 'Pre-update-patch scaricato', [
+                'size' => strlen($patchContent)
+            ]);
+
+            // Download checksum file
+            $checksumContent = $this->downloadPatchFile($checksumUrl);
+
+            if ($checksumContent === null) {
+                $this->debugLog('WARNING', 'Checksum file non trovato, patch ignorata per sicurezza');
+                return $result;
+            }
+
+            // Verify checksum
+            $expectedChecksum = trim(explode(' ', trim($checksumContent))[0]);
+            $actualChecksum = hash('sha256', $patchContent);
+
+            if ($expectedChecksum !== $actualChecksum) {
+                $this->debugLog('ERROR', 'Checksum pre-update-patch non valido', [
+                    'expected' => $expectedChecksum,
+                    'actual' => $actualChecksum
+                ]);
+                // Don't fail the update, just skip the patch
+                return $result;
+            }
+
+            $this->debugLog('INFO', 'Checksum verificato', ['checksum' => $actualChecksum]);
+
+            // Save patch to temp file and evaluate
+            $tempPatchFile = $this->rootPath . '/storage/tmp/pre-update-patch-' . uniqid() . '.php';
+            if (!is_dir(dirname($tempPatchFile))) {
+                @mkdir(dirname($tempPatchFile), 0775, true);
+            }
+
+            if (file_put_contents($tempPatchFile, $patchContent) === false) {
+                $this->debugLog('ERROR', 'Impossibile salvare patch temporanea');
+                return $result;
+            }
+
+            // Execute patch file to get patch definition
+            $patchDefinition = require $tempPatchFile;
+            @unlink($tempPatchFile);
+
+            if (!is_array($patchDefinition)) {
+                $this->debugLog('WARNING', 'Patch definition non valida (non è un array)');
+                return $result;
+            }
+
+            // Check if current version is in target versions
+            $currentVersion = $this->getCurrentVersion();
+            $targetVersions = $patchDefinition['target_versions'] ?? [];
+
+            $this->debugLog('DEBUG', 'Verifica versione target', [
+                'current' => $currentVersion,
+                'targets' => $targetVersions
+            ]);
+
+            if (!in_array($currentVersion, $targetVersions, true)) {
+                $this->debugLog('INFO', 'Versione corrente non richiede patch', [
+                    'current' => $currentVersion,
+                    'targets' => $targetVersions
+                ]);
+                return $result;
+            }
+
+            // Apply patches
+            $patches = $patchDefinition['patches'] ?? [];
+            $appliedPatches = [];
+
+            foreach ($patches as $patch) {
+                $patchResult = $this->applySinglePatch($patch);
+                if ($patchResult['success']) {
+                    $appliedPatches[] = [
+                        'file' => $patch['file'] ?? 'unknown',
+                        'description' => $patch['description'] ?? 'No description'
+                    ];
+                    $this->debugLog('INFO', 'Patch applicata', [
+                        'file' => $patch['file'] ?? 'unknown',
+                        'description' => $patch['description'] ?? ''
+                    ]);
+                } else {
+                    $this->debugLog('WARNING', 'Patch fallita', [
+                        'file' => $patch['file'] ?? 'unknown',
+                        'error' => $patchResult['error']
+                    ]);
+                }
+            }
+
+            $result['applied'] = !empty($appliedPatches);
+            $result['patches'] = $appliedPatches;
+
+            $this->debugLog('INFO', '=== PRE-UPDATE PATCH COMPLETATO ===', [
+                'patches_applied' => count($appliedPatches)
+            ]);
+
+        } catch (\Throwable $e) {
+            // Don't fail the entire update if patch fails
+            $this->debugLog('ERROR', 'Errore durante pre-update-patch', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage()
+            ]);
+            // Still return success=true to allow update to continue
+            $result['error'] = $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    /**
+     * Download patch file from URL, returns null on 404 or error
+     */
+    private function downloadPatchFile(string $url): ?string
+    {
+        // Try cURL first
+        if (extension_loaded('curl')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 5,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+
+            $content = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            if ($httpCode === 404 || $httpCode === 403) {
+                // File not found - this is normal (no patch needed)
+                return null;
+            }
+
+            if ($httpCode >= 200 && $httpCode < 300 && $content !== false) {
+                return $content;
+            }
+
+            $this->debugLog('DEBUG', 'cURL download fallito', [
+                'url' => $url,
+                'http_code' => $httpCode,
+                'error' => $error
+            ]);
+        }
+
+        // Fallback to file_get_contents
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => ['User-Agent: Pinakes-Updater/1.0'],
+                'timeout' => 30,
+                'follow_location' => true,
+                'ignore_errors' => true
+            ]
+        ]);
+
+        $content = @file_get_contents($url, false, $context);
+
+        // Check HTTP status from response headers
+        if (isset($http_response_header)) {
+            foreach ($http_response_header as $header) {
+                if (preg_match('/HTTP\/\d\.\d\s+(\d+)/', $header, $matches)) {
+                    $httpCode = (int) $matches[1];
+                    if ($httpCode === 404 || $httpCode === 403) {
+                        return null;
+                    }
+                    break;
+                }
+            }
+        }
+
+        return $content !== false ? $content : null;
+    }
+
+    /**
+     * Apply a single file patch
+     *
+     * @param array{file: string, search: string, replace: string, description?: string} $patch
+     * @return array{success: bool, error: string|null}
+     */
+    private function applySinglePatch(array $patch): array
+    {
+        if (!isset($patch['file'], $patch['search'], $patch['replace'])) {
+            return ['success' => false, 'error' => 'Invalid patch definition'];
+        }
+
+        $filePath = $this->rootPath . '/' . $patch['file'];
+
+        // Security: ensure path is within root
+        $realPath = realpath($filePath);
+        $realRoot = realpath($this->rootPath);
+
+        if ($realPath === false) {
+            return ['success' => false, 'error' => 'File not found: ' . $patch['file']];
+        }
+
+        if (strpos($realPath, $realRoot) !== 0) {
+            return ['success' => false, 'error' => 'Invalid file path (outside root)'];
+        }
+
+        // Read file content
+        $content = file_get_contents($realPath);
+        if ($content === false) {
+            return ['success' => false, 'error' => 'Cannot read file'];
+        }
+
+        // Check if search string exists
+        if (strpos($content, $patch['search']) === false) {
+            // Already patched or different version
+            return ['success' => false, 'error' => 'Search string not found (possibly already patched)'];
+        }
+
+        // Apply replacement
+        $newContent = str_replace($patch['search'], $patch['replace'], $content);
+
+        if ($newContent === $content) {
+            return ['success' => false, 'error' => 'No changes made'];
+        }
+
+        // Write back
+        if (file_put_contents($realPath, $newContent) === false) {
+            return ['success' => false, 'error' => 'Cannot write file'];
+        }
+
+        // Clear opcache for this file
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($realPath, true);
+        }
+
+        return ['success' => true, 'error' => null];
+    }
+
+    /**
+     * Apply post-install patch from GitHub if available
+     *
+     * This method downloads and executes a patch file from GitHub releases
+     * after the update completes. It allows applying hotfixes, cleanup tasks,
+     * and SQL queries to the newly installed version.
+     *
+     * @param string $targetVersion The version that was just installed
+     * @return array{success: bool, applied: bool, error: string|null, patches: array, cleanup: array, sql: array}
+     */
+    public function applyPostInstallPatch(string $targetVersion): array
+    {
+        $this->debugLog('INFO', '=== POST-INSTALL PATCH CHECK ===', [
+            'installed_version' => $targetVersion
+        ]);
+
+        $result = [
+            'success' => true,
+            'applied' => false,
+            'error' => null,
+            'patches' => [],
+            'cleanup' => [],
+            'sql' => []
+        ];
+
+        try {
+            // Build URL for post-install-patch.php from GitHub release
+            $tag = strpos($targetVersion, 'v') === 0 ? $targetVersion : 'v' . $targetVersion;
+            $baseUrl = "https://github.com/{$this->repoOwner}/{$this->repoName}/releases/download/{$tag}";
+            $patchUrl = $baseUrl . '/post-install-patch.php';
+            $checksumUrl = $baseUrl . '/post-install-patch.php.sha256';
+
+            $this->debugLog('DEBUG', 'Tentativo download post-install-patch', [
+                'patch_url' => $patchUrl,
+                'checksum_url' => $checksumUrl
+            ]);
+
+            // Download patch file
+            $patchContent = $this->downloadPatchFile($patchUrl);
+
+            if ($patchContent === null) {
+                // 404 or download failed - this is OK, no patch needed
+                $this->debugLog('INFO', 'Nessun post-install-patch disponibile (OK, normale)', [
+                    'reason' => 'File not found or download failed'
+                ]);
+                return $result;
+            }
+
+            $this->debugLog('INFO', 'Post-install-patch scaricato', [
+                'size' => strlen($patchContent)
+            ]);
+
+            // Download checksum file
+            $checksumContent = $this->downloadPatchFile($checksumUrl);
+
+            if ($checksumContent === null) {
+                $this->debugLog('WARNING', 'Checksum file non trovato, patch ignorata per sicurezza');
+                return $result;
+            }
+
+            // Verify checksum
+            $expectedChecksum = trim(explode(' ', trim($checksumContent))[0]);
+            $actualChecksum = hash('sha256', $patchContent);
+
+            if ($expectedChecksum !== $actualChecksum) {
+                $this->debugLog('ERROR', 'Checksum post-install-patch non valido', [
+                    'expected' => $expectedChecksum,
+                    'actual' => $actualChecksum
+                ]);
+                return $result;
+            }
+
+            $this->debugLog('INFO', 'Checksum verificato', ['checksum' => $actualChecksum]);
+
+            // Save patch to temp file and evaluate
+            $tempPatchFile = $this->rootPath . '/storage/tmp/post-install-patch-' . uniqid() . '.php';
+            if (!is_dir(dirname($tempPatchFile))) {
+                @mkdir(dirname($tempPatchFile), 0775, true);
+            }
+
+            if (file_put_contents($tempPatchFile, $patchContent) === false) {
+                $this->debugLog('ERROR', 'Impossibile salvare patch temporanea');
+                return $result;
+            }
+
+            // Execute patch file to get patch definition
+            $patchDefinition = require $tempPatchFile;
+            @unlink($tempPatchFile);
+
+            if (!is_array($patchDefinition)) {
+                $this->debugLog('WARNING', 'Patch definition non valida (non è un array)');
+                return $result;
+            }
+
+            $anyApplied = false;
+
+            // 1. Apply file patches
+            $patches = $patchDefinition['patches'] ?? [];
+            $appliedPatches = [];
+
+            foreach ($patches as $patch) {
+                $patchResult = $this->applySinglePatch($patch);
+                if ($patchResult['success']) {
+                    $appliedPatches[] = [
+                        'file' => $patch['file'] ?? 'unknown',
+                        'description' => $patch['description'] ?? 'No description'
+                    ];
+                    $this->debugLog('INFO', 'Patch applicata', [
+                        'file' => $patch['file'] ?? 'unknown',
+                        'description' => $patch['description'] ?? ''
+                    ]);
+                    $anyApplied = true;
+                } else {
+                    $this->debugLog('WARNING', 'Patch fallita', [
+                        'file' => $patch['file'] ?? 'unknown',
+                        'error' => $patchResult['error']
+                    ]);
+                }
+            }
+            $result['patches'] = $appliedPatches;
+
+            // 2. Apply cleanup (file deletion)
+            $cleanup = $patchDefinition['cleanup'] ?? [];
+            $cleanedFiles = [];
+
+            foreach ($cleanup as $fileToDelete) {
+                $cleanupResult = $this->cleanupFile($fileToDelete);
+                if ($cleanupResult['success']) {
+                    $cleanedFiles[] = $fileToDelete;
+                    $this->debugLog('INFO', 'File eliminato', ['file' => $fileToDelete]);
+                    $anyApplied = true;
+                } else {
+                    $this->debugLog('WARNING', 'Cleanup fallito', [
+                        'file' => $fileToDelete,
+                        'error' => $cleanupResult['error']
+                    ]);
+                }
+            }
+            $result['cleanup'] = $cleanedFiles;
+
+            // 3. Apply SQL queries
+            $sqlQueries = $patchDefinition['sql'] ?? [];
+            $executedSql = [];
+
+            foreach ($sqlQueries as $sql) {
+                $sqlResult = $this->executePostInstallSql($sql);
+                if ($sqlResult['success']) {
+                    $executedSql[] = substr($sql, 0, 100) . (strlen($sql) > 100 ? '...' : '');
+                    $this->debugLog('INFO', 'SQL eseguito', ['sql' => substr($sql, 0, 100)]);
+                    $anyApplied = true;
+                } else {
+                    $this->debugLog('WARNING', 'SQL fallito', [
+                        'sql' => substr($sql, 0, 100),
+                        'error' => $sqlResult['error']
+                    ]);
+                }
+            }
+            $result['sql'] = $executedSql;
+
+            $result['applied'] = $anyApplied;
+
+            $this->debugLog('INFO', '=== POST-INSTALL PATCH COMPLETATO ===', [
+                'patches_applied' => count($appliedPatches),
+                'files_cleaned' => count($cleanedFiles),
+                'sql_executed' => count($executedSql)
+            ]);
+
+        } catch (\Throwable $e) {
+            // Don't fail if post-install patch fails - update is already done
+            $this->debugLog('ERROR', 'Errore durante post-install-patch', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage()
+            ]);
+            $result['error'] = $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    /**
+     * Delete a file as part of cleanup
+     *
+     * @param string $relativePath Path relative to root
+     * @return array{success: bool, error: string|null}
+     */
+    private function cleanupFile(string $relativePath): array
+    {
+        $filePath = $this->rootPath . '/' . $relativePath;
+
+        // Security: ensure path is within root
+        $realPath = realpath($filePath);
+        $realRoot = realpath($this->rootPath);
+
+        if ($realPath === false) {
+            // File doesn't exist - consider this success (already cleaned)
+            return ['success' => true, 'error' => null];
+        }
+
+        if (strpos($realPath, $realRoot) !== 0) {
+            return ['success' => false, 'error' => 'Invalid file path (outside root)'];
+        }
+
+        // Don't allow deleting critical files
+        $protectedPaths = ['.env', 'version.json', 'public/index.php', 'composer.json'];
+        foreach ($protectedPaths as $protected) {
+            if ($relativePath === $protected || strpos($relativePath, $protected) === 0) {
+                return ['success' => false, 'error' => 'Cannot delete protected file'];
+            }
+        }
+
+        // Delete file or directory
+        if (is_dir($realPath)) {
+            $this->deleteDirectory($realPath);
+        } else {
+            @unlink($realPath);
+        }
+
+        return ['success' => !file_exists($realPath), 'error' => null];
+    }
+
+    /**
+     * Execute a post-install SQL query
+     *
+     * @param string $sql SQL query to execute
+     * @return array{success: bool, error: string|null}
+     */
+    private function executePostInstallSql(string $sql): array
+    {
+        $sql = trim($sql);
+        if (empty($sql)) {
+            return ['success' => true, 'error' => null];
+        }
+
+        // Security: block dangerous operations
+        $dangerousPatterns = [
+            '/\bDROP\s+DATABASE\b/i',
+            '/\bTRUNCATE\s+TABLE\s+utenti\b/i',
+            '/\bDELETE\s+FROM\s+utenti\s+WHERE\s+1/i',
+        ];
+
+        foreach ($dangerousPatterns as $pattern) {
+            if (preg_match($pattern, $sql)) {
+                return ['success' => false, 'error' => 'Dangerous SQL blocked'];
+            }
+        }
+
+        $result = $this->db->query($sql);
+
+        if ($result === false) {
+            // Allow certain ignorable errors (same as migrations)
+            $ignorableErrors = [1060, 1061, 1050, 1091, 1068, 1022, 1826, 1146];
+            if (in_array($this->db->errno, $ignorableErrors, true)) {
+                return ['success' => true, 'error' => null];
+            }
+            return ['success' => false, 'error' => $this->db->error];
+        }
+
+        return ['success' => true, 'error' => null];
     }
 
     /**
