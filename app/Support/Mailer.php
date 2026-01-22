@@ -143,7 +143,7 @@ final class Mailer
                 $enc  = (string)ConfigStore::get('mail.smtp.encryption', 'tls');
                 if ($enc === 'ssl') { $mailer->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS; }
                 elseif ($enc === 'tls') { $mailer->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; }
-                else { $mailer->SMTPSecure = false; }
+                else { $mailer->SMTPSecure = ''; $mailer->SMTPAutoTLS = false; }
                 $user = (string)ConfigStore::get('mail.smtp.username', '');
                 $pass = (string)ConfigStore::get('mail.smtp.password', '');
                 if ($user !== '') { $mailer->SMTPAuth = true; $mailer->Username = $user; $mailer->Password = $pass; }
