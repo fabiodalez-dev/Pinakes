@@ -183,8 +183,10 @@ class ReservationReassignmentService
             $stmt->execute();
             $stmt->close();
 
-            // Aggiorna stato nuova copia a 'prenotato'
-            $this->copyRepo->updateStatus($newCopiaId, 'prenotato');
+            // Note: With the new 'da_ritirare' flow, the copy remains 'disponibile' until
+            // pickup is confirmed. The copy state changes to 'prestato' only when the
+            // admin confirms the pickup via LoanApprovalController::confirmPickup().
+            // Previously this line was: $this->copyRepo->updateStatus($newCopiaId, 'prenotato');
 
             // Se la prenotazione aveva una vecchia copia assegnata, dobbiamo verificare
             // se quella copia ora deve cambiare stato?
@@ -278,8 +280,10 @@ class ReservationReassignmentService
                 $stmt->execute();
                 $stmt->close();
 
-                // Aggiorna stato nuova copia
-                $this->copyRepo->updateStatus($nextCopyId, 'prenotato');
+                // Note: With the new 'da_ritirare' flow, the copy remains 'disponibile' until
+                // pickup is confirmed. The copy state changes to 'prestato' only when the
+                // admin confirms the pickup via LoanApprovalController::confirmPickup().
+                // Previously this line was: $this->copyRepo->updateStatus($nextCopyId, 'prenotato');
 
                 $this->commitIfOwned($ownTransaction);
 

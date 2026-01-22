@@ -396,8 +396,8 @@ class UserActionsController
         }
 
         $utenteId = (int) $user['id'];
-        $data_prestito = gmdate('Y-m-d');
-        $data_scadenza = gmdate('Y-m-d', strtotime('+14 days'));
+        $data_prestito = date('Y-m-d');
+        $data_scadenza = date('Y-m-d', strtotime('+14 days'));
 
         // Use transaction + lock to prevent race conditions
         $db->begin_transaction();

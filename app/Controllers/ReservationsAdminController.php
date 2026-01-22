@@ -106,22 +106,66 @@ class ReservationsAdminController
         $stato = (string) ($data['stato'] ?? 'attiva');
         $start = trim((string) ($data['data_prenotazione'] ?? ''));
         $end = trim((string) ($data['data_scadenza_prenotazione'] ?? ''));
+
+        // Date range for the requested loan period
+        $dataInizioRichiesta = trim((string) ($data['data_inizio_richiesta'] ?? ''));
+        $dataFineRichiesta = trim((string) ($data['data_fine_richiesta'] ?? ''));
+
+        // Validate date formats
         if ($start !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start))
             $start = '';
         if ($end !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end))
             $end = '';
+        if ($dataInizioRichiesta !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataInizioRichiesta))
+            $dataInizioRichiesta = '';
+        if ($dataFineRichiesta !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataFineRichiesta))
+            $dataFineRichiesta = '';
+
+        $today = date('Y-m-d');
         if ($start === '') {
-            $start = date('Y-m-d');
+            $start = $today;
         }
         if ($end === '') {
             $end = date('Y-m-d', strtotime($start . ' +1 month'));
         }
+
+        // Derive data_inizio_richiesta from data_prenotazione (start) if not explicitly provided
+        // This ensures the loan period matches the reservation dates from the form
+        if ($dataInizioRichiesta === '') {
+            $dataInizioRichiesta = $start;
+        }
+        // Derive data_fine_richiesta from data_scadenza_prenotazione (end) if not explicitly provided
+        if ($dataFineRichiesta === '') {
+            $dataFineRichiesta = $end;
+        }
+
+        // Normalize inverted date range (defensive check)
+        if ($dataFineRichiesta < $dataInizioRichiesta) {
+            $dataFineRichiesta = $dataInizioRichiesta;
+        }
+
         $startDt = $start . ' 00:00:00';
         $endDt = $end . ' 23:59:59';
-        $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=? WHERE id=?");
-        $stmt->bind_param('sssi', $stato, $startDt, $endDt, $id);
+
+        // Get libro_id before update for availability recalculation
+        $libroStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ?");
+        $libroStmt->bind_param('i', $id);
+        $libroStmt->execute();
+        $libroResult = $libroStmt->get_result()->fetch_assoc();
+        $libroStmt->close();
+        $libroId = $libroResult ? (int) $libroResult['libro_id'] : 0;
+
+        $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
+        $stmt->bind_param('sssssi', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $id);
         $stmt->execute();
         $stmt->close();
+
+        // Recalculate book availability after reservation update
+        if ($libroId > 0) {
+            $integrity = new \App\Support\DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+        }
+
         return $response->withHeader('Location', '/admin/prenotazioni?updated=1')->withStatus(302);
     }
 
@@ -169,22 +213,52 @@ class ReservationsAdminController
         $dataPrenotazione = trim((string) ($data['data_prenotazione'] ?? ''));
         $dataScadenza = trim((string) ($data['data_scadenza'] ?? ''));
 
+        // Date range for the requested loan period (critical for availability calculations)
+        $dataInizioRichiesta = trim((string) ($data['data_inizio_richiesta'] ?? ''));
+        $dataFineRichiesta = trim((string) ($data['data_fine_richiesta'] ?? ''));
+
         // Validation
         if ($libroId <= 0 || $utenteId <= 0) {
             return $response->withHeader('Location', '/admin/prenotazioni/crea?error=missing_data')->withStatus(302);
         }
 
-        // Set default dates if not provided
+        // Set default dates if not provided (use date() for server timezone consistency)
+        $today = date('Y-m-d');
+
+        // Parse form dates (date only, without time)
+        $dataPrenotazioneDate = $dataPrenotazione;
+        $dataScadenzaDate = $dataScadenza;
+
         if (empty($dataPrenotazione)) {
-            $dataPrenotazione = gmdate('Y-m-d H:i:s');
+            $dataPrenotazione = date('Y-m-d H:i:s');
+            $dataPrenotazioneDate = $today;
         } else {
+            $dataPrenotazioneDate = $dataPrenotazione; // Keep date only for loan period
             $dataPrenotazione = $dataPrenotazione . ' 00:00:00';
         }
 
         if (empty($dataScadenza)) {
             $dataScadenza = date('Y-m-d H:i:s', strtotime('+30 days'));
+            $dataScadenzaDate = date('Y-m-d', strtotime('+30 days'));
         } else {
+            $dataScadenzaDate = $dataScadenza; // Keep date only for loan period
             $dataScadenza = $dataScadenza . ' 23:59:59';
+        }
+
+        // Derive data_inizio_richiesta from data_prenotazione if not explicitly provided
+        // This ensures the loan period matches the reservation dates from the form
+        if (empty($dataInizioRichiesta) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataInizioRichiesta)) {
+            $dataInizioRichiesta = $dataPrenotazioneDate;
+        }
+
+        // Derive data_fine_richiesta from data_scadenza if not explicitly provided
+        if (empty($dataFineRichiesta) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataFineRichiesta)) {
+            $dataFineRichiesta = $dataScadenzaDate;
+        }
+
+        // Normalize inverted date range (defensive check)
+        if ($dataFineRichiesta < $dataInizioRichiesta) {
+            $dataFineRichiesta = $dataInizioRichiesta;
         }
 
         // Calculate queue position
@@ -198,12 +272,17 @@ class ReservationsAdminController
         }
         $stmt->close();
 
-        // Insert reservation
-        $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, data_prenotazione, data_scadenza_prenotazione, queue_position, stato) VALUES (?, ?, ?, ?, ?, 'attiva')");
-        $stmt->bind_param('iissi', $libroId, $utenteId, $dataPrenotazione, $dataScadenza, $queuePosition);
+        // Insert reservation with date range for availability calculations
+        $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta, queue_position, stato) VALUES (?, ?, ?, ?, ?, ?, ?, 'attiva')");
+        $stmt->bind_param('iissssi', $libroId, $utenteId, $dataPrenotazione, $dataScadenza, $dataInizioRichiesta, $dataFineRichiesta, $queuePosition);
 
         if ($stmt->execute()) {
             $stmt->close();
+
+            // Recalculate book availability after new reservation
+            $integrity = new \App\Support\DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+
             return $response->withHeader('Location', '/admin/prenotazioni?created=1')->withStatus(302);
         } else {
             $stmt->close();

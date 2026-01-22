@@ -1621,7 +1621,8 @@ class Updater
                                         // 1068: Multiple primary key defined
                                         // 1022: Duplicate key (constraint already exists)
                                         // 1826: Duplicate foreign key constraint
-                                        $ignorableErrors = [1060, 1061, 1050, 1091, 1068, 1022, 1826];
+                                        // 1146: Table doesn't exist (DROP TABLE IF NOT EXISTS workaround)
+                                        $ignorableErrors = [1060, 1061, 1050, 1091, 1068, 1022, 1826, 1146];
                                         if (!in_array($this->db->errno, $ignorableErrors, true)) {
                                             $this->debugLog('ERROR', 'Errore SQL critico', [
                                                 'errno' => $this->db->errno,
@@ -2480,8 +2481,14 @@ class Updater
             $error = curl_error($ch);
             curl_close($ch);
 
-            if ($httpCode === 404 || $httpCode === 403) {
+            if ($httpCode === 404) {
                 // File not found - this is normal (no patch needed)
+                return null;
+            }
+
+            if ($httpCode === 403) {
+                // Access denied - log for diagnosis (rate limit or permissions issue)
+                $this->debugLog('WARNING', 'Download patch negato (403)', ['url' => $url]);
                 return null;
             }
 
@@ -2514,7 +2521,11 @@ class Updater
             foreach ($http_response_header as $header) {
                 if (preg_match('/HTTP\/\d\.\d\s+(\d+)/', $header, $matches)) {
                     $httpCode = (int) $matches[1];
-                    if ($httpCode === 404 || $httpCode === 403) {
+                    if ($httpCode === 404) {
+                        return null;
+                    }
+                    if ($httpCode === 403) {
+                        $this->debugLog('WARNING', 'Download patch negato (403)', ['url' => $url]);
                         return null;
                     }
                     break;
@@ -2558,9 +2569,14 @@ class Updater
         }
 
         // Check if search string exists
-        if (strpos($content, $patch['search']) === false) {
+        $occurrences = substr_count($content, $patch['search']);
+        if ($occurrences === 0) {
             // Already patched or different version
             return ['success' => false, 'error' => 'Search string not found (possibly already patched)'];
+        }
+        if ($occurrences > 1) {
+            // Ambiguous patch - search string is not unique
+            return ['success' => false, 'error' => 'Search string is not unique (' . $occurrences . ' occurrences)'];
         }
 
         // Apply replacement

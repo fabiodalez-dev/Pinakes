@@ -94,7 +94,8 @@ class LoanApprovalController
             $db->begin_transaction();
 
             // Lock and verify loan is still pending (FOR UPDATE prevents concurrent approval)
-            $stmt = $db->prepare("SELECT libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id = ? AND stato = 'pendente' FOR UPDATE");
+            // Include copia_id to check if a copy was already assigned (e.g., from reservation)
+            $stmt = $db->prepare("SELECT libro_id, utente_id, data_prestito, data_scadenza, copia_id FROM prestiti WHERE id = ? AND stato = 'pendente' FOR UPDATE");
             $stmt->bind_param('i', $loanId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -112,6 +113,7 @@ class LoanApprovalController
             $stmt->close();
 
             $libroId = (int) $loan['libro_id'];
+            $existingCopiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             $dataPrestito = $loan['data_prestito'];
             $dataScadenza = $loan['data_scadenza'];
             $today = date('Y-m-d');
@@ -174,28 +176,57 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Step 4: Find a specific lendable copy without overlapping assigned loans for this period
-            // Include 'pendente' and 'da_ritirare' to match Step 2's counting logic
-            // Exclude non-lendable copies (perso, danneggiato, manutenzione)
-            $overlapStmt = $db->prepare("
-                SELECT c.id FROM copie c
-                WHERE c.libro_id = ?
-                AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
-                AND NOT EXISTS (
-                    SELECT 1 FROM prestiti p
-                    WHERE p.copia_id = c.id
-                    AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
-                    AND p.data_prestito <= ?
-                    AND p.data_scadenza >= ?
-                )
-                LIMIT 1
-            ");
-            $overlapStmt->bind_param('iss', $libroId, $dataScadenza, $dataPrestito);
-            $overlapStmt->execute();
-            $overlapResult = $overlapStmt->get_result();
-            $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
-            $overlapStmt->close();
+            // Step 4: Find a copy. First check if loan already has an assigned copy.
+            $selectedCopy = null;
+
+            // Check if loan already has an assigned copy that's still valid for this period
+            if ($existingCopiaId !== null) {
+                $existingCopyStmt = $db->prepare("
+                    SELECT c.id FROM copie c
+                    WHERE c.id = ?
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id
+                        AND p.attivo = 1
+                        AND p.id != ?
+                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
+                        AND p.data_prestito <= ?
+                        AND p.data_scadenza >= ?
+                    )
+                ");
+                $existingCopyStmt->bind_param('iiss', $existingCopiaId, $loanId, $dataScadenza, $dataPrestito);
+                $existingCopyStmt->execute();
+                $existingCopyResult = $existingCopyStmt->get_result();
+                $selectedCopy = $existingCopyResult ? $existingCopyResult->fetch_assoc() : null;
+                $existingCopyStmt->close();
+            }
+
+            // If no pre-assigned copy or it's no longer valid, find a new one
+            if (!$selectedCopy) {
+                // Find a specific lendable copy without overlapping assigned loans for this period
+                // Include 'pendente' and 'da_ritirare' to match Step 2's counting logic
+                // Exclude non-lendable copies (perso, danneggiato, manutenzione)
+                $overlapStmt = $db->prepare("
+                    SELECT c.id FROM copie c
+                    WHERE c.libro_id = ?
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id
+                        AND p.attivo = 1
+                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
+                        AND p.data_prestito <= ?
+                        AND p.data_scadenza >= ?
+                    )
+                    LIMIT 1
+                ");
+                $overlapStmt->bind_param('iss', $libroId, $dataScadenza, $dataPrestito);
+                $overlapStmt->execute();
+                $overlapResult = $overlapStmt->get_result();
+                $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
+                $overlapStmt->close();
+            }
 
             if (!$selectedCopy) {
                 // Fallback: try date-aware method to find available copy for the requested period
