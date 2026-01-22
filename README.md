@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.5-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.7-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 [![CodeRabbit](https://img.shields.io/coderabbit/prs/reviewed/github/fabiodalez-dev/Pinakes?style=for-the-badge&logo=coderabbit&logoColor=white&label=PRs%20Reviewed)](https://coderabbit.ai)
@@ -22,28 +22,30 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-> ## ⚠️ IMPORTANT: Upgrading from v0.4.1 - v0.4.3
->
-> **If you're running version 0.4.1, 0.4.2, or 0.4.3, the built-in updater has a bug that prevents automatic updates on shared hosting.**
->
-> The old `Updater.php` uses the system temp directory (`/tmp`), which fails on most shared hosting providers.
->
-> **Before updating, you must manually patch the updater:**
->
-> 1. Download the `test-updater/` folder from this release
-> 2. Upload the `app/` folder via FTP, overwriting existing files
-> 3. Then retry the update from Admin → Updates
->
-> **Or use the emergency script:**
-> 1. Upload `test-updater/manual-update.php` to your site root
-> 2. Access it via browser: `https://yourdomain.com/manual-update.php`
-> 3. Delete the file after the update completes
->
-> See [`test-updater/README.md`](test-updater/README.md) for detailed instructions.
+## What's New in v0.4.7
+
+### Stability & Bug Fixes
+
+- **Copy state protection** — Fixed issue where copy state could incorrectly change during loan approval
+- **Pickup workflow refinement** — `prenotato` and `da_ritirare` states now correctly keep copies as `disponibile`
+- **MaintenanceService improvements** — Expired pickup handling no longer resurrects non-restorable copies
 
 ---
 
-## What's New in v0.4.5
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.6</strong> - Updater Symlink Fix</summary>
+
+### Updater Symlink Fix
+
+- **Symlink exclusion** — Release packages no longer include `public/installer/assets` symlink that caused update failures
+- **Package integrity** — Verified clean extraction on shared hosting environments
+
+</details>
+
+<details>
+<summary><strong>v0.4.5</strong> - Pickup Confirmation System</summary>
 
 ### Pickup Confirmation System (da_ritirare)
 
@@ -85,9 +87,7 @@ Request → [pendente] → Approval → [da_ritirare] → Confirm Pickup → [in
 - **Transaction safety** — All state transitions use database transactions with proper locking
 - **Availability recalculation** — Book availability correctly accounts for `da_ritirare` state
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.4</strong> - Robust Auto-Updater</summary>
@@ -158,23 +158,15 @@ New `IsbnFormatter` utility class for intelligent ISBN handling:
 
 ## Upgrading
 
-### From v0.4.4+
+### From v0.4.0+
 
 Update directly from **Admin → Updates**. The auto-updater handles everything automatically.
 
-**v0.4.5 migration notes:**
+**v0.4.5+ migration notes:**
 - New loan state `da_ritirare` added to database ENUM
 - New `pickup_deadline` column added to `prestiti` table
 - New `pickup_expiry_days` setting added (default: 3 days)
 - Existing `in_corso` loans are unaffected
-
-### From v0.4.1 - v0.4.3 (Broken Updater)
-
-**Manual patch required first.** See the warning box above or [`test-updater/README.md`](test-updater/README.md).
-
-### From v0.4.0
-
-Update directly from **Admin → Updates**.
 
 ### From v0.3.x or Earlier
 
