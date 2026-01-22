@@ -2802,9 +2802,15 @@ class Updater
         }
 
         // Don't allow deleting critical files
+        // Protect: exact match, files in protected subdirectories,
+        // and files with protected basename in any subdirectory (e.g., subdir/.env)
         $protectedPaths = ['.env', 'version.json', 'public/index.php', 'composer.json'];
+        $basename = basename($relativePath);
         foreach ($protectedPaths as $protected) {
-            if ($relativePath === $protected || strpos($relativePath, $protected) === 0) {
+            $protectedBasename = basename($protected);
+            if ($relativePath === $protected ||
+                strpos($relativePath, $protected . '/') === 0 ||
+                $basename === $protectedBasename) {
                 return ['success' => false, 'error' => 'Cannot delete protected file'];
             }
         }

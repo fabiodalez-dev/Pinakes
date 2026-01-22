@@ -131,55 +131,10 @@ class LoanApprovalController
                 $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
             }
 
-            // Step 1: Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
-            $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
-            $totalCopiesStmt->bind_param('i', $libroId);
-            $totalCopiesStmt->execute();
-            $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
-            $totalCopiesStmt->close();
-
-            // Step 2: Count overlapping loans (excluding the current pending one)
-            $loanCountStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM prestiti
-                WHERE libro_id = ? AND attivo = 1 AND id != ?
-                AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
-                AND data_prestito <= ? AND data_scadenza >= ?
-            ");
-            $loanCountStmt->bind_param('iiss', $libroId, $loanId, $dataScadenza, $dataPrestito);
-            $loanCountStmt->execute();
-            $overlappingLoans = (int) ($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
-            $loanCountStmt->close();
-
-            // Step 3: Count overlapping prenotazioni
-            // Use COALESCE to handle NULL data_inizio_richiesta and data_fine_richiesta
-            // Fall back to data_scadenza_prenotazione if specific dates are not set
-            $resCountStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM prenotazioni
-                WHERE libro_id = ? AND stato = 'attiva'
-                AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
-                AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
-                AND utente_id != ?
-            ");
-            $resCountStmt->bind_param('issi', $libroId, $dataScadenza, $dataPrestito, $loan['utente_id']);
-            $resCountStmt->execute();
-            $overlappingReservations = (int) ($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
-            $resCountStmt->close();
-
-            // Check if there's at least one slot available
-            $totalOccupied = $overlappingLoans + $overlappingReservations;
-            if ($totalOccupied >= $totalCopies) {
-                $db->rollback();
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-            }
-
-            // Step 4: Find a copy. First check if loan already has an assigned copy.
+            // Step 1: Try to use pre-assigned copy first (avoids false rejection when slots are at capacity)
+            // If loan already has a valid assigned copy, we can skip global slot counting
             $selectedCopy = null;
 
-            // Check if loan already has an assigned copy that's still valid for this period
             if ($existingCopiaId !== null) {
                 $existingCopyStmt = $db->prepare("
                     SELECT c.id FROM copie c
@@ -202,10 +157,55 @@ class LoanApprovalController
                 $existingCopyStmt->close();
             }
 
-            // If no pre-assigned copy or it's no longer valid, find a new one
+            // Step 2: If no valid pre-assigned copy, check global availability and find a new copy
             if (!$selectedCopy) {
-                // Find a specific lendable copy without overlapping assigned loans for this period
-                // Include 'pendente' and 'da_ritirare' to match Step 2's counting logic
+                // Step 2a: Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+                $totalCopiesStmt->bind_param('i', $libroId);
+                $totalCopiesStmt->execute();
+                $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+                $totalCopiesStmt->close();
+
+                // Step 2b: Count overlapping loans (excluding the current pending one)
+                $loanCountStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM prestiti
+                    WHERE libro_id = ? AND attivo = 1 AND id != ?
+                    AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
+                    AND data_prestito <= ? AND data_scadenza >= ?
+                ");
+                $loanCountStmt->bind_param('iiss', $libroId, $loanId, $dataScadenza, $dataPrestito);
+                $loanCountStmt->execute();
+                $overlappingLoans = (int) ($loanCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $loanCountStmt->close();
+
+                // Step 2c: Count overlapping prenotazioni
+                // Use COALESCE to handle NULL data_inizio_richiesta and data_fine_richiesta
+                // Fall back to data_scadenza_prenotazione if specific dates are not set
+                $resCountStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM prenotazioni
+                    WHERE libro_id = ? AND stato = 'attiva'
+                    AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
+                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+                    AND utente_id != ?
+                ");
+                $resCountStmt->bind_param('issi', $libroId, $dataScadenza, $dataPrestito, $loan['utente_id']);
+                $resCountStmt->execute();
+                $overlappingReservations = (int) ($resCountStmt->get_result()->fetch_assoc()['count'] ?? 0);
+                $resCountStmt->close();
+
+                // Check if there's at least one slot available
+                $totalOccupied = $overlappingLoans + $overlappingReservations;
+                if ($totalOccupied >= $totalCopies) {
+                    $db->rollback();
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+                }
+
+                // Step 2d: Find a specific lendable copy without overlapping assigned loans for this period
+                // Include 'pendente' and 'da_ritirare' to match counting logic
                 // Exclude non-lendable copies (perso, danneggiato, manutenzione)
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
@@ -228,6 +228,7 @@ class LoanApprovalController
                 $overlapStmt->close();
             }
 
+            // Step 3: Final fallback using CopyRepository
             if (!$selectedCopy) {
                 // Fallback: try date-aware method to find available copy for the requested period
                 $copyRepo = new \App\Models\CopyRepository($db);
