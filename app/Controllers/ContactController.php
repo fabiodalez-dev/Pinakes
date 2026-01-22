@@ -30,7 +30,7 @@ class ContactController
         return $response;
     }
 
-    public function submitForm(Request $request, Response $response, mysqli $db): Response
+    public function submitForm(Request $request, Response $response, \mysqli $db): Response
     {
         $data = $request->getParsedBody();
 
@@ -185,7 +185,7 @@ class ContactController
         string $cognome,
         string $email,
         int $messageId,
-        mysqli $db
+        \mysqli $db
     ): void {
         try {
             $notificationService = new \App\Support\NotificationService($db);

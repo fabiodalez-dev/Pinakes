@@ -134,7 +134,7 @@ class PluginController
 
             $response->getBody()->write(json_encode($result));
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             error_log("[Plugin Upload] Exception: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
