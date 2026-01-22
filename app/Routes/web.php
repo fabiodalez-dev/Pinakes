@@ -170,7 +170,7 @@ return function (App $app): void {
 
     // Canonical login route
     // Login - support both English and localized routes
-    $loginGetHandler = function ($request, $response) use ($app) {
+    $loginGetHandler = function ($request, $response) {
         // If already logged in, redirect appropriately
         if (!empty($_SESSION['user'])) {
             $userRole = $_SESSION['user']['tipo_utente'] ?? '';
@@ -220,7 +220,7 @@ return function (App $app): void {
         }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
         // Redirect GET to profile update to profile
-        $registerRouteIfUnique('GET', $profileUpdateRoute, function ($request, $response) use ($app) {
+        $registerRouteIfUnique('GET', $profileUpdateRoute, function ($request, $response) {
             return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
         }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
@@ -251,7 +251,7 @@ return function (App $app): void {
         }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
 
         // Redirect GET to profile password to profile
-        $registerRouteIfUnique('GET', $profilePasswordRoute, function ($request, $response) use ($app) {
+        $registerRouteIfUnique('GET', $profilePasswordRoute, function ($request, $response) {
             return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
         }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
     }
@@ -308,7 +308,7 @@ return function (App $app): void {
     }
 
     // Public registration routes (translated)
-    $app->get(RouteTranslator::route('register'), function ($request, $response) use ($app) {
+    $app->get(RouteTranslator::route('register'), function ($request, $response) {
         // Redirect logged-in users to dashboard
         if (!empty($_SESSION['user']['id'])) {
             return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
@@ -325,7 +325,7 @@ return function (App $app): void {
         $controller = new RegistrationController();
         return $controller->register($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(3, 3600))->add(new CsrfMiddleware()); // 3 attempts per hour
-    $app->get(RouteTranslator::route('register_success'), function ($request, $response) use ($app) {
+    $app->get(RouteTranslator::route('register_success'), function ($request, $response) {
         $controller = new RegistrationController();
         return $controller->success($request, $response);
     });
@@ -339,7 +339,7 @@ return function (App $app): void {
     $registerRouteIfUnique('GET', RouteTranslator::route('verify_email'), $verifyEmailHandler); // Localized (skipped if same)
 
     // Password reset - support both English and localized routes
-    $forgotPasswordGetHandler = function ($request, $response) use ($app) {
+    $forgotPasswordGetHandler = function ($request, $response) {
         $controller = new PasswordController();
         return $controller->forgotForm($request, $response);
     };
@@ -464,7 +464,7 @@ return function (App $app): void {
 
     // Admin settings (general + email + templates)
     // Security Logs (Admin Only)
-    $app->get('/admin/security-logs', function ($request, $response) use ($app) {
+    $app->get('/admin/security-logs', function ($request, $response) {
         $controller = new \App\Controllers\SecurityLogsController();
         return $controller->index($request, $response);
     })->add(new AdminAuthMiddleware());
@@ -875,17 +875,17 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Admin CMS routes - Other pages (catch-all, MUST be after specific routes)
-    $app->get('/admin/cms/{slug}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/cms/{slug}', function ($request, $response, $args) {
         $controller = new \App\Controllers\Admin\CmsAdminController();
         return $controller->editPage($request, $response, $args);
     })->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/cms/{slug}/update', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/cms/{slug}/update', function ($request, $response, $args) {
         $controller = new \App\Controllers\Admin\CmsAdminController();
         return $controller->updatePage($request, $response, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/cms/upload', function ($request, $response) use ($app) {
+    $app->post('/admin/cms/upload', function ($request, $response) {
         $controller = new \App\Controllers\Admin\CmsAdminController();
         return $controller->uploadImage($request, $response);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
@@ -957,7 +957,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
-    $app->get('/admin/utenti/crea', function ($request, $response) use ($app) {
+    $app->get('/admin/utenti/crea', function ($request, $response) {
         $controller = new \App\Controllers\UsersController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
@@ -1015,7 +1015,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
-    $app->get('/admin/autori/crea', function ($request, $response) use ($app) {
+    $app->get('/admin/autori/crea', function ($request, $response) {
         $controller = new AutoriController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
@@ -1308,7 +1308,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
-    $app->get('/prestiti/crea', function ($request, $response) use ($app) {
+    $app->get('/prestiti/crea', function ($request, $response) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
@@ -1587,7 +1587,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
-    $app->get('/admin/editori/crea', function ($request, $response) use ($app) {
+    $app->get('/admin/editori/crea', function ($request, $response) {
         $controller = new \App\Controllers\EditorsController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
@@ -1615,7 +1615,7 @@ return function (App $app): void {
     $app->get('/api/dewey/search', [DeweyApiController::class, 'search'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
     $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->post('/api/cover/download', function ($request, $response) use ($app) {
+    $app->post('/api/cover/download', function ($request, $response) {
         $controller = new \App\Controllers\CoverController();
         return $controller->download($request, $response);
     })->add(new CsrfMiddleware());
@@ -1935,7 +1935,7 @@ return function (App $app): void {
     // Editor delete route
 
     // API per scraping dati libro tramite ISBN - PROTETTO: Solo admin e staff
-    $app->get("/api/scrape/isbn", function ($request, $response) use ($app) {
+    $app->get("/api/scrape/isbn", function ($request, $response) {
         $controller = new \App\Controllers\ScrapeController();
         return $controller->byIsbn($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
@@ -2081,7 +2081,7 @@ return function (App $app): void {
 
     // Legacy redirect for backward compatibility (all language variants)
     foreach ($supportedLocales as $locale) {
-        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('catalog_legacy', $locale), function ($request, $response) use ($app) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('catalog_legacy', $locale), function ($request, $response) {
             return $response->withHeader('Location', RouteTranslator::route('catalog'))->withStatus(301);
         });
     }
@@ -2227,7 +2227,7 @@ return function (App $app): void {
     foreach ($supportedLocales as $locale) {
         $contactRoute = RouteTranslator::getRouteForLocale('contact', $locale);
 
-        $registerRouteIfUnique('GET', $contactRoute, function ($request, $response) use ($app) {
+        $registerRouteIfUnique('GET', $contactRoute, function ($request, $response) {
             $controller = new \App\Controllers\ContactController();
             return $controller->showPage($request, $response);
         });
@@ -2282,7 +2282,7 @@ return function (App $app): void {
     }
 
     // Cover proxy endpoint for previews (bypasses CORS)
-    $app->get('/proxy/cover', function ($request, $response) use ($app) {
+    $app->get('/proxy/cover', function ($request, $response) {
         $url = $request->getQueryParams()['url'] ?? '';
         if (!$url) {
             return $response->withStatus(400);
@@ -2400,7 +2400,7 @@ return function (App $app): void {
 
     // Plugin image proxy endpoint - More permissive for plugin extensibility
     // Allows any HTTPS domain but protects against SSRF attacks
-    $app->get('/api/plugins/proxy-image', function ($request, $response) use ($app) {
+    $app->get('/api/plugins/proxy-image', function ($request, $response) {
         $url = $request->getQueryParams()['url'] ?? '';
         if (!$url) {
             return $response->withStatus(400);
@@ -2777,13 +2777,13 @@ return function (App $app): void {
     })->add(new AdminAuthMiddleware());
 
     // Emergency maintenance mode clear (for recovery after failed updates)
-    $app->post('/admin/updates/maintenance/clear', function ($request, $response) use ($app) {
+    $app->post('/admin/updates/maintenance/clear', function ($request, $response) {
         $controller = new \App\Controllers\UpdateController();
         return $controller->clearMaintenance($request, $response);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // View updater logs (for debugging)
-    $app->get('/admin/updates/logs', function ($request, $response) use ($app) {
+    $app->get('/admin/updates/logs', function ($request, $response) {
         $controller = new \App\Controllers\UpdateController();
         return $controller->getLogs($request, $response);
     })->add(new AdminAuthMiddleware());
