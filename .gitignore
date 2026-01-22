@@ -385,3 +385,4 @@ docs/reference/agents.md
 
 # Internal development folder (completely untracked)
 internal/
+updater.md
