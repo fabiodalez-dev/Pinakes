@@ -58,15 +58,19 @@ Complete workflow enhancement for loan management with physical pickup verificat
 
 **Loan State Flow:**
 ```
-Request → [pendente] → Approval → [da_ritirare] → Confirm Pickup → [in_corso]
+Request → [pending] → Approval → [ready_for_pickup] → Confirm Pickup → [active]
                                         ↓
-                              (Cancel or Expire) → [annullato/scaduto]
+                              (Cancel or Expire) → [cancelled/expired]
 ```
+
+*Database values: pendente, da_ritirare, in_corso, annullato, scaduto*
 
 **For future-dated loans:**
 ```
-[pendente] → [prenotato] → (date reached) → [da_ritirare] → Confirm → [in_corso]
+[pending] → [reserved] → (date reached) → [ready_for_pickup] → Confirm → [active]
 ```
+
+*Database values: pendente, prenotato, da_ritirare, in_corso*
 
 ### Calendar Integration
 
