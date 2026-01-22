@@ -157,16 +157,21 @@ class ReservationsAdminController
 
         $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
         $stmt->bind_param('sssssi', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $id);
-        $stmt->execute();
-        $stmt->close();
 
-        // Recalculate book availability after reservation update
-        if ($libroId > 0) {
-            $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+        if ($stmt->execute()) {
+            $stmt->close();
+
+            // Recalculate book availability after reservation update
+            if ($libroId > 0) {
+                $integrity = new \App\Support\DataIntegrity($db);
+                $integrity->recalculateBookAvailability($libroId);
+            }
+
+            return $response->withHeader('Location', '/admin/prenotazioni?updated=1')->withStatus(302);
+        } else {
+            $stmt->close();
+            return $response->withHeader('Location', '/admin/prenotazioni/modifica/' . $id . '?error=update_failed')->withStatus(302);
         }
-
-        return $response->withHeader('Location', '/admin/prenotazioni?updated=1')->withStatus(302);
     }
 
     public function createForm(Request $request, Response $response, mysqli $db): Response
