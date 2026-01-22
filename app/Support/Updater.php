@@ -1591,14 +1591,13 @@ class Updater
                         $sql = file_get_contents($file);
 
                         if ($sql !== false && trim($sql) !== '') {
+                            // Remove comment lines (starting with --)
                             $sqlLines = explode("\n", $sql);
                             $sqlLines = array_filter($sqlLines, fn($line) => !preg_match('/^\s*--/', $line));
                             $sql = implode("\n", $sqlLines);
 
-                            $statements = array_filter(
-                                array_map('trim', explode(';', $sql)),
-                                fn($s) => !empty($s)
-                            );
+                            // Split statements respecting quoted strings (handles CSS semicolons)
+                            $statements = $this->splitSqlStatements($sql);
 
                             $this->debugLog('DEBUG', 'Statement da eseguire', [
                                 'count' => count($statements)
@@ -1666,6 +1665,63 @@ class Updater
                 'error' => $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Split SQL content into individual statements, respecting quoted strings.
+     *
+     * This method correctly handles semicolons inside quoted strings (e.g., CSS inline styles
+     * like style="padding: 20px; margin: 10px") by only splitting on semicolons that are
+     * outside of single-quoted strings.
+     *
+     * @param string $sql The SQL content to split
+     * @return array<string> Array of individual SQL statements
+     */
+    private function splitSqlStatements(string $sql): array
+    {
+        $statements = [];
+        $current = '';
+        $inString = false;
+        $length = strlen($sql);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+
+            // Handle single quotes (SQL string delimiter)
+            if ($char === "'") {
+                // Check for escaped quote ('')
+                if ($inString && $i + 1 < $length && $sql[$i + 1] === "'") {
+                    // Escaped quote - add both and skip next
+                    $current .= "''";
+                    $i++;
+                    continue;
+                }
+                // Toggle string state
+                $inString = !$inString;
+                $current .= $char;
+                continue;
+            }
+
+            // Handle semicolon - only split if outside string
+            if ($char === ';' && !$inString) {
+                $trimmed = trim($current);
+                if (!empty($trimmed)) {
+                    $statements[] = $trimmed;
+                }
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        // Add final statement if any
+        $trimmed = trim($current);
+        if (!empty($trimmed)) {
+            $statements[] = $trimmed;
+        }
+
+        return $statements;
     }
 
     /**
