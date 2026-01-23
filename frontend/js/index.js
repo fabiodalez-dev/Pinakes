@@ -17,6 +17,8 @@ function initDarkMode() {
       applyDarkModeClass(next);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     };
-  } catch (e) {}
+  } catch (_e) {
+    // localStorage may throw in private browsing mode - gracefully ignore
+  }
 }
 document.addEventListener('DOMContentLoaded', initDarkMode);
