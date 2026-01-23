@@ -30,7 +30,7 @@ class CopyRepository
                    u.cognome as utente_cognome,
                    u.email as utente_email
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('pendente', 'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
             LEFT JOIN utenti u ON p.utente_id = u.id
             WHERE c.libro_id = ?
             ORDER BY c.numero_inventario ASC
@@ -120,7 +120,7 @@ class CopyRepository
         $stmt = $this->db->prepare("
             SELECT c.*
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL
@@ -158,7 +158,7 @@ class CopyRepository
                 SELECT 1 FROM prestiti p
                 WHERE p.copia_id = c.id
                 AND p.attivo = 1
-                AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                 AND p.data_prestito <= ?
                 AND p.data_scadenza >= ?
             )
@@ -185,7 +185,7 @@ class CopyRepository
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
             FROM copie c
-            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
+            LEFT JOIN prestiti p ON c.id = p.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
             AND p.id IS NULL

@@ -94,59 +94,86 @@ class ReservationManager
      * and attempts to convert it to a pending loan. Only processes one
      * reservation at a time to maintain queue order.
      *
+     * Uses row-level locking (SELECT FOR UPDATE) to prevent race conditions
+     * where multiple processes try to convert the same reservation.
+     *
      * @param int $bookId The book ID to process reservations for
      * @return bool True if a reservation was successfully converted to a loan
      */
     public function processBookAvailability($bookId)
     {
         $today = date('Y-m-d');
+        $ownTransaction = $this->beginTransactionIfNeeded();
 
-        // Get the next date-eligible reservation in queue
-        // Only process reservations where start date <= today (ready to convert to loan)
-        $stmt = $this->db->prepare("
-            SELECT r.*, u.email, u.nome, u.cognome
-            FROM prenotazioni r
-            JOIN utenti u ON r.utente_id = u.id
-            WHERE r.libro_id = ? AND r.stato = 'attiva'
-            AND r.data_inizio_richiesta <= ?
-            ORDER BY r.queue_position ASC
-            LIMIT 1
-        ");
-        $stmt->bind_param('is', $bookId, $today);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $nextReservation = $result->fetch_assoc();
+        try {
+            // Lock the book row first to serialize all reservation processing for this book
+            $lockBookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $bookId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
 
-        if ($nextReservation) {
-            // Check if the desired date range is available
-            $startDate = $nextReservation['data_inizio_richiesta'];
-            $endDate = $nextReservation['data_fine_richiesta'];
+            // Get the next date-eligible reservation in queue
+            // Only process reservations where start date <= today (ready to convert to loan)
+            // Note: Book-level lock above serializes all processing for this book,
+            // so we don't need row-level lock on prenotazioni here
+            $stmt = $this->db->prepare("
+                SELECT r.*, u.email, u.nome, u.cognome
+                FROM prenotazioni r
+                JOIN utenti u ON r.utente_id = u.id
+                WHERE r.libro_id = ? AND r.stato = 'attiva'
+                AND r.data_inizio_richiesta <= ?
+                ORDER BY r.queue_position ASC
+                LIMIT 1
+            ");
+            $stmt->bind_param('is', $bookId, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $nextReservation = $result->fetch_assoc();
+            $stmt->close();
 
-            if ($this->isDateRangeAvailable($bookId, $startDate, $endDate)) {
-                // Create the loan - check return value to handle race conditions
-                $loanCreated = $this->createLoanFromReservation($nextReservation);
+            if ($nextReservation) {
+                // Check if the desired date range is available
+                $startDate = $nextReservation['data_inizio_richiesta'];
+                $endDate = $nextReservation['data_fine_richiesta'];
 
-                if ($loanCreated === false) {
-                    // Race condition detected - loan creation failed
-                    return false;
+                if ($this->isDateRangeAvailable($bookId, $startDate, $endDate)) {
+                    // Create the loan - check return value to handle race conditions
+                    // Note: createLoanFromReservation() handles its own transaction internally
+                    // when called standalone, but here we're already in a transaction
+                    $loanCreated = $this->createLoanFromReservation($nextReservation);
+
+                    if ($loanCreated === false) {
+                        // Race condition detected - loan creation failed
+                        $this->rollbackIfOwned($ownTransaction);
+                        return false;
+                    }
+
+                    // Mark reservation as completed
+                    $stmt = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ?");
+                    $stmt->bind_param('i', $nextReservation['id']);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    // Update queue positions for remaining reservations
+                    $this->updateQueuePositions($bookId);
+
+                    $this->commitIfOwned($ownTransaction);
+
+                    // Send notification AFTER commit to avoid sending emails for rolled-back changes
+                    $this->sendReservationNotification($nextReservation);
+
+                    return true;
                 }
-
-                // Mark reservation as completed
-                $stmt = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ?");
-                $stmt->bind_param('i', $nextReservation['id']);
-                $stmt->execute();
-
-                // Update queue positions for remaining reservations
-                $this->updateQueuePositions($bookId);
-
-                // Send notification to user
-                $this->sendReservationNotification($nextReservation);
-
-                return true;
             }
-        }
 
-        return false;
+            $this->commitIfOwned($ownTransaction);
+            return false;
+
+        } catch (\Exception $e) {
+            $this->rollbackIfOwned($ownTransaction);
+            error_log("processBookAvailability error: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -181,7 +208,7 @@ class ReservationManager
             return false;
         }
 
-        // Count overlapping loans (include pendente, prenotato, da_ritirare, in_corso, in_ritardo)
+        // Count overlapping loans (approved states only)
         // Overlap check: existing_start <= our_end AND existing_end >= our_start
         // Note: We only count LOANS here, not reservations, because:
         // - This method is only used by processBookAvailability() to convert reservations to loans
@@ -193,7 +220,7 @@ class ReservationManager
             FROM prestiti
             WHERE libro_id = ?
             AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             AND data_prestito <= ? AND data_scadenza >= ?
         ");
         $stmt->bind_param('iss', $bookId, $endDate, $startDate);
@@ -221,7 +248,7 @@ class ReservationManager
         $startDate = $reservation['data_inizio_richiesta'];
         $endDate = $reservation['data_fine_richiesta'];
 
-        // Always create as 'pendente' - requires admin confirmation of physical pickup
+        // Always create as 'pendente' (attivo=0) - requires admin confirmation of physical pickup
         // Origin is 'prenotazione' to distinguish from manual requests
         $newState = 'pendente';
         $origine = 'prenotazione';
@@ -243,7 +270,7 @@ class ReservationManager
                     SELECT 1 FROM prestiti p
                     WHERE p.copia_id = c.id
                     AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                     AND p.data_prestito <= ?
                     AND p.data_scadenza >= ?
                 )
@@ -272,7 +299,7 @@ class ReservationManager
             $overlapCopyStmt = $this->db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo','pendente')
+                AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
             ");
@@ -291,7 +318,7 @@ class ReservationManager
             // Copy stays available until admin confirms physical pickup
             $stmt = $this->db->prepare("
                 INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, origine, attivo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
             ");
             $stmt->bind_param(
                 'iiissss',
@@ -519,7 +546,7 @@ class ReservationManager
             }
         }
 
-        // Count active loans that overlap with the requested period (include da_ritirare, prenotato, pendente)
+        // Count active loans that overlap with the requested period (approved states only)
         // Overlap condition: existing_start <= our_end AND existing_end >= our_start
         // Note: We don't exclude user's own loans here - if they have a loan, they have the book.
         // Unless we want to allow them to borrow ANOTHER copy? Usually no.
@@ -529,7 +556,7 @@ class ReservationManager
             FROM prestiti
             WHERE libro_id = ?
             AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             AND data_prestito <= ? AND data_scadenza >= ?
         ");
         $stmt->bind_param('iss', $bookId, $endDate, $startDate);
@@ -573,40 +600,57 @@ class ReservationManager
      * Marks reservations as 'annullata' when data_scadenza_prenotazione
      * is in the past, and reorders queue positions for affected books.
      *
-     * @return void
+     * Uses transaction to ensure atomic update and queue reordering.
+     *
+     * @return int Number of reservations cancelled
      */
-    public function cancelExpiredReservations()
+    public function cancelExpiredReservations(): int
     {
-        // First, get affected book IDs BEFORE updating to avoid race condition
-        $selectStmt = $this->db->prepare("
-            SELECT DISTINCT libro_id
-            FROM prenotazioni
-            WHERE stato = 'attiva'
-            AND data_scadenza_prenotazione IS NOT NULL
-            AND data_scadenza_prenotazione < NOW()
-        ");
-        $selectStmt->execute();
-        $result = $selectStmt->get_result();
-        $affectedBooks = [];
-        while ($row = $result->fetch_assoc()) {
-            $affectedBooks[] = $row['libro_id'];
-        }
-        $selectStmt->close();
+        $ownTransaction = $this->beginTransactionIfNeeded();
 
-        // Now update the reservations
-        $stmt = $this->db->prepare("
-            UPDATE prenotazioni
-            SET stato = 'annullata'
-            WHERE stato = 'attiva'
-            AND data_scadenza_prenotazione IS NOT NULL
-            AND data_scadenza_prenotazione < NOW()
-        ");
-        $stmt->execute();
-        $stmt->close();
+        try {
+            // First, get affected book IDs BEFORE updating
+            // Use FOR UPDATE to lock rows and prevent concurrent modifications
+            $selectStmt = $this->db->prepare("
+                SELECT DISTINCT libro_id
+                FROM prenotazioni
+                WHERE stato = 'attiva'
+                AND data_scadenza_prenotazione IS NOT NULL
+                AND data_scadenza_prenotazione < NOW()
+                FOR UPDATE
+            ");
+            $selectStmt->execute();
+            $result = $selectStmt->get_result();
+            $affectedBooks = [];
+            while ($row = $result->fetch_assoc()) {
+                $affectedBooks[] = (int) $row['libro_id'];
+            }
+            $selectStmt->close();
 
-        // Reorder queue positions for affected books
-        foreach ($affectedBooks as $bookId) {
-            $this->reorderQueuePositions($bookId);
+            // Now update the reservations
+            $stmt = $this->db->prepare("
+                UPDATE prenotazioni
+                SET stato = 'annullata'
+                WHERE stato = 'attiva'
+                AND data_scadenza_prenotazione IS NOT NULL
+                AND data_scadenza_prenotazione < NOW()
+            ");
+            $stmt->execute();
+            $cancelledCount = $this->db->affected_rows;
+            $stmt->close();
+
+            // Reorder queue positions for affected books
+            foreach ($affectedBooks as $bookId) {
+                $this->reorderQueuePositions($bookId);
+            }
+
+            $this->commitIfOwned($ownTransaction);
+            return $cancelledCount;
+
+        } catch (\Exception $e) {
+            $this->rollbackIfOwned($ownTransaction);
+            error_log("cancelExpiredReservations error: " . $e->getMessage());
+            return 0;
         }
     }
 

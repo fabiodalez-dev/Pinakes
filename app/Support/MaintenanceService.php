@@ -204,9 +204,8 @@ class MaintenanceService
      * updates their status to 'da_ritirare' (ready for pickup), sets the pickup_deadline,
      * and recalculates book availability. Uses transactions for data integrity.
      *
-     * Note: The copy remains 'disponibile' during 'da_ritirare' state because
-     * the book is physically still in the library. It will be marked 'prestato'
-     * only when admin confirms the pickup via confirmPickup().
+     * Note: The copy remains 'prenotato' during 'da_ritirare' state (blocked for the user).
+     * It will be marked 'prestato' only when admin confirms the pickup via confirmPickup().
      *
      * @return int Number of loans activated (moved to da_ritirare)
      * @throws \RuntimeException If query preparation fails
@@ -266,8 +265,7 @@ class MaintenanceService
                     continue;
                 }
 
-                // Note: Copy remains 'disponibile' - book is still physically in library
-                // Copy will be marked 'prestato' only when admin confirms pickup
+                // Note: Copy remains 'prenotato' until pickup is confirmed
 
                 // Recalculate book availability using DataIntegrity for consistency
                 // (da_ritirare counts as "slot occupied" even if copy is available)
@@ -581,7 +579,7 @@ class MaintenanceService
                     continue;
                 }
 
-                // Copy should already be 'disponibile' during da_ritirare state
+                // Copy should already be 'prenotato' during da_ritirare state
                 // But let's ensure it's available for reassignment
                 if ($copiaId) {
                     $checkCopy = $this->db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
