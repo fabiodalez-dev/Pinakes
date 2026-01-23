@@ -91,13 +91,26 @@ class ReservationsController
         $loanIntervals = [];
         foreach ($currentLoans as $loan) {
             $startDateLoan = $loan['data_prestito'] ?? null;
-            $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
+            $loanStatus = $loan['stato'] ?? '';
+
             if (!$startDateLoan) {
                 continue;
             }
-            if (!$endDateLoan || $endDateLoan < $startDateLoan) {
-                $endDateLoan = $startDateLoan;
+
+            // For transitional states (pendente, prenotato, da_ritirare), the copy is committed
+            // and unavailable until the loan is either picked up, completed, or cancelled.
+            // Use a far future date to block availability.
+            $transitionalStates = ['pendente', 'prenotato', 'da_ritirare'];
+            if (in_array($loanStatus, $transitionalStates, true)) {
+                // Block for 1 year from start date (or until manually resolved)
+                $endDateLoan = (new DateTime($startDateLoan))->add(new DateInterval('P1Y'))->format('Y-m-d');
+            } else {
+                $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
+                if (!$endDateLoan || $endDateLoan < $startDateLoan) {
+                    $endDateLoan = $startDateLoan;
+                }
             }
+
             $loanIntervals[] = [$startDateLoan, $endDateLoan];
         }
 
