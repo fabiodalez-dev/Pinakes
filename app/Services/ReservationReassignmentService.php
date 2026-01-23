@@ -180,10 +180,11 @@ class ReservationReassignmentService
             $stmt->execute();
             $stmt->close();
 
-            // Note: With the new 'da_ritirare' flow, the copy remains 'disponibile' until
-            // pickup is confirmed. The copy state changes to 'prestato' only when the
-            // admin confirms the pickup via LoanApprovalController::confirmPickup().
-            // Previously this line was: $this->copyRepo->updateStatus($newCopiaId, 'prenotato');
+            // Block the copy for the reserved loan period
+            $copyRepo = new \App\Models\CopyRepository($this->db);
+            if (!$copyRepo->updateStatus($newCopiaId, 'prenotato')) {
+                throw new \RuntimeException("Failed to update copy status for copia_id={$newCopiaId}");
+            }
 
             // Se la prenotazione aveva una vecchia copia assegnata, dobbiamo verificare
             // se quella copia ora deve cambiare stato?
@@ -277,10 +278,11 @@ class ReservationReassignmentService
                 $stmt->execute();
                 $stmt->close();
 
-                // Note: With the new 'da_ritirare' flow, the copy remains 'disponibile' until
-                // pickup is confirmed. The copy state changes to 'prestato' only when the
-                // admin confirms the pickup via LoanApprovalController::confirmPickup().
-                // Previously this line was: $this->copyRepo->updateStatus($nextCopyId, 'prenotato');
+                // Block the copy for the reserved loan period
+                $copyRepo = new \App\Models\CopyRepository($this->db);
+                if (!$copyRepo->updateStatus($nextCopyId, 'prenotato')) {
+                    throw new \RuntimeException("Failed to update copy status for copia_id={$nextCopyId}");
+                }
 
                 $this->commitIfOwned($ownTransaction);
 

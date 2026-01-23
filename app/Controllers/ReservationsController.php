@@ -45,11 +45,11 @@ class ReservationsController
         $bookId = (int) $args['id'];
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending and scheduled)
+        // Get current and future loans for this book (approved states only)
         $stmt = $this->db->prepare("
-            SELECT data_prestito, data_scadenza, data_restituzione, stato
+            SELECT data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'pendente', 'prenotato')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);
@@ -88,16 +88,46 @@ class ReservationsController
         $start->setTime(0, 0, 0);
 
         // Normalize intervals
+        // Note: 'pendente' loans do NOT block slots - they are just unconfirmed requests.
+        // Only approved loans (prenotato, da_ritirare, in_corso, in_ritardo) block slots.
         $loanIntervals = [];
         foreach ($currentLoans as $loan) {
             $startDateLoan = $loan['data_prestito'] ?? null;
-            $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
+            $loanStatus = $loan['stato'] ?? '';
+
             if (!$startDateLoan) {
                 continue;
             }
+
+            // Skip 'pendente' - it's just a request, doesn't block any slot
+            if ($loanStatus === 'pendente') {
+                continue;
+            }
+
+            // For approved states, use the actual loan period
+            // 'prenotato': future loan - block from data_prestito to data_scadenza
+            // 'da_ritirare': ready for pickup - block until pickup_deadline (shorter window)
+            // 'in_corso'/'in_ritardo': active loan - block until data_scadenza or data_restituzione
+            if ($loanStatus === 'da_ritirare') {
+                // For 'da_ritirare', prioritize pickup_deadline (shorter blocking window)
+                $pickupDeadline = $loan['pickup_deadline'] ?? null;
+                if ($pickupDeadline) {
+                    $endDateLoan = substr($pickupDeadline, 0, 10); // Extract date part
+                } else {
+                    // Fallback: data_scadenza or 7 days from start
+                    $endDateLoan = $loan['data_scadenza']
+                        ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
+                }
+            } else {
+                // For other states: data_restituzione > data_scadenza > null
+                $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
+            }
+
+            // Fallback: if still no end date, use start date (single day block)
             if (!$endDateLoan || $endDateLoan < $startDateLoan) {
                 $endDateLoan = $startDateLoan;
             }
+
             $loanIntervals[] = [$startDateLoan, $endDateLoan];
         }
 
@@ -249,15 +279,6 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Check for existing pending loan request from this user for this book
-        $stmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND stato = 'pendente' LIMIT 1");
-        $stmt->bind_param('ii', $bookId, $userId);
-        $stmt->execute();
-        if ($stmt->get_result()->fetch_assoc()) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già una richiesta di prestito in attesa per questo libro')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
         // Start transaction for concurrency control
         $this->db->begin_transaction();
 
@@ -273,6 +294,23 @@ class ReservationsController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
             $stmt->close();
+
+            // Check for existing active loan from this user for this book (any active state)
+            // Note: 'pendente' has attivo=0, other active states have attivo=1
+            // This check is inside transaction after lock to prevent TOCTOU race condition
+            $dupStmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND (
+                (attivo = 0 AND stato = 'pendente')
+                OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+            ) FOR UPDATE");
+            $dupStmt->bind_param('ii', $bookId, $userId);
+            $dupStmt->execute();
+            if ($dupStmt->get_result()->fetch_assoc()) {
+                $dupStmt->close();
+                $this->db->rollback();
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già un prestito attivo o in attesa per questo libro')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $dupStmt->close();
 
             // Re-check availability after acquiring lock to avoid races
             $postLockAvailability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);
@@ -339,11 +377,11 @@ class ReservationsController
     {
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending and scheduled)
+        // Get current and future loans for this book (approved states only)
         $stmt = $this->db->prepare("
-            SELECT data_prestito, data_scadenza, data_restituzione, stato
+            SELECT data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'pendente', 'prenotato')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);

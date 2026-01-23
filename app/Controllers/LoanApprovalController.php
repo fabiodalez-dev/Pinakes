@@ -56,9 +56,84 @@ class LoanApprovalController
         $pickupLoans = $pickupResult->fetch_all(MYSQLI_ASSOC);
         $pickupStmt->close();
 
+        // Get scheduled loans (prenotato with data_prestito > today - future loans)
+        $scheduledStmt = $db->prepare("
+            SELECT p.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   p.data_prestito as data_richiesta_inizio,
+                   p.data_scadenza as data_richiesta_fine,
+                   COALESCE(p.origine, 'richiesta') as origine
+            FROM prestiti p
+            JOIN libri l ON p.libro_id = l.id
+            JOIN utenti u ON p.utente_id = u.id
+            WHERE p.stato = 'prenotato' AND p.data_prestito > ? AND p.attivo = 1
+            ORDER BY p.data_prestito ASC
+        ");
+        $scheduledStmt->bind_param('s', $today);
+        $scheduledStmt->execute();
+        $scheduledLoans = $scheduledStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $scheduledStmt->close();
+
+        // Get active loans (in_corso)
+        $activeStmt = $db->prepare("
+            SELECT p.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   p.data_prestito as data_richiesta_inizio,
+                   p.data_scadenza as data_richiesta_fine,
+                   c.numero_inventario as copia_inventario
+            FROM prestiti p
+            JOIN libri l ON p.libro_id = l.id
+            JOIN utenti u ON p.utente_id = u.id
+            LEFT JOIN copie c ON p.copia_id = c.id
+            WHERE p.stato = 'in_corso' AND p.attivo = 1
+            ORDER BY p.data_scadenza ASC
+        ");
+        $activeStmt->execute();
+        $activeLoans = $activeStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $activeStmt->close();
+
+        // Get overdue loans (in_ritardo)
+        $overdueStmt = $db->prepare("
+            SELECT p.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   p.data_prestito as data_richiesta_inizio,
+                   p.data_scadenza as data_richiesta_fine,
+                   c.numero_inventario as copia_inventario,
+                   DATEDIFF(?, p.data_scadenza) as giorni_ritardo
+            FROM prestiti p
+            JOIN libri l ON p.libro_id = l.id
+            JOIN utenti u ON p.utente_id = u.id
+            LEFT JOIN copie c ON p.copia_id = c.id
+            WHERE p.stato = 'in_ritardo' AND p.attivo = 1
+            ORDER BY p.data_scadenza ASC
+        ");
+        $overdueStmt->bind_param('s', $today);
+        $overdueStmt->execute();
+        $overdueLoans = $overdueStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $overdueStmt->close();
+
+        // Get active reservations
+        $reservationsStmt = $db->prepare("
+            SELECT r.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   r.data_inizio_richiesta, r.data_fine_richiesta,
+                   r.data_scadenza_prenotazione,
+                   (SELECT COUNT(*) + 1 FROM prenotazioni r2
+                    WHERE r2.libro_id = r.libro_id
+                    AND r2.stato = 'attiva'
+                    AND r2.created_at < r.created_at) as posizione_coda
+            FROM prenotazioni r
+            JOIN libri l ON r.libro_id = l.id
+            JOIN utenti u ON r.utente_id = u.id
+            WHERE r.stato = 'attiva'
+            ORDER BY r.created_at ASC
+        ");
+        $reservationsStmt->execute();
+        $activeReservations = $reservationsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $reservationsStmt->close();
+
         ob_start();
-        $title = "Approvazione Prestiti - Amministrazione";
-        // $pendingLoans and $pickupLoans are already set from queries above
+        $title = __("Gestione Prestiti") . " - " . __("Amministrazione");
         require __DIR__ . '/../Views/admin/pending_loans.php';
         $content = ob_get_clean();
 
@@ -145,7 +220,7 @@ class LoanApprovalController
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
                         AND p.id != ?
-                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
+                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -170,7 +245,7 @@ class LoanApprovalController
                 $loanCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prestiti
                     WHERE libro_id = ? AND attivo = 1 AND id != ?
-                    AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
+                    AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo')
                     AND data_prestito <= ? AND data_scadenza >= ?
                 ");
                 $loanCountStmt->bind_param('iiss', $libroId, $loanId, $dataScadenza, $dataPrestito);
@@ -205,7 +280,6 @@ class LoanApprovalController
                 }
 
                 // Step 2d: Find a specific lendable copy without overlapping assigned loans for this period
-                // Include 'pendente' and 'da_ritirare' to match counting logic
                 // Exclude non-lendable copies (perso, danneggiato, manutenzione)
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
@@ -215,7 +289,7 @@ class LoanApprovalController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo', 'pendente')
+                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -254,7 +328,7 @@ class LoanApprovalController
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1 AND id != ?
-                AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo','pendente')
+                AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
                 FOR UPDATE
@@ -271,6 +345,23 @@ class LoanApprovalController
                     'message' => __('Nessuna copia disponibile per il periodo richiesto')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Block the copy for the loan period (prenotato/da_ritirare)
+            $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
+            $copyCheckStmt->bind_param('i', $selectedCopy['id']);
+            $copyCheckStmt->execute();
+            $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
+            $copyCheckStmt->close();
+
+            $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+            if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
+                throw new \RuntimeException(__('Copia non disponibile per il prestito'));
+            }
+
+            $copyRepo = new \App\Models\CopyRepository($db);
+            if (!$copyRepo->updateStatus($selectedCopy['id'], 'prenotato')) {
+                throw new \RuntimeException(__('Impossibile aggiornare lo stato della copia'));
             }
 
             // Assegna la copia al prestito con lo stato corretto e pickup_deadline se applicabile
@@ -292,10 +383,7 @@ class LoanApprovalController
             $stmt->execute();
             $stmt->close();
 
-            // Per 'da_ritirare', la copia resta 'disponibile' finché l'utente non ritira
-            // Per 'prenotato', la copia resta 'disponibile' finché non inizia il prestito
-            // Solo quando si conferma il ritiro (confirmPickup) o MaintenanceService transita
-            // da prenotato a da_ritirare, la copia NON viene marcata come 'prestato'
+            // Per 'da_ritirare' e 'prenotato', la copia resta 'prenotato' fino al ritiro
             // La copia diventa 'prestato' SOLO quando si conferma il ritiro
 
             // Update book availability with integrity check
@@ -363,8 +451,17 @@ class LoanApprovalController
         $db->begin_transaction();
 
         try {
-            // Lock and verify loan is still pending
-            $stmt = $db->prepare("SELECT libro_id, utente_id FROM prestiti WHERE id = ? AND stato = 'pendente' FOR UPDATE");
+            // Lock and fetch FULL loan data BEFORE deletion (needed for rejection email)
+            // Must include user email/name and book title since loan will be deleted
+            $stmt = $db->prepare("
+                SELECT p.libro_id, p.utente_id, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ? AND p.stato = 'pendente'
+                FOR UPDATE
+            ");
             $stmt->bind_param('i', $loanId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -381,6 +478,10 @@ class LoanApprovalController
             }
 
             $bookId = (int) $loan['libro_id'];
+            // Store data needed for rejection email BEFORE deletion
+            $userEmail = $loan['utente_email'];
+            $userName = $loan['utente_nome'];
+            $bookTitle = $loan['libro_titolo'];
 
             // Delete the loan
             $stmt = $db->prepare("DELETE FROM prestiti WHERE id = ? AND stato = 'pendente'");
@@ -404,9 +505,15 @@ class LoanApprovalController
             $db->commit();
 
             // Send notification AFTER successful commit (outside transaction)
+            // Use pre-fetched data since loan is deleted
             try {
                 $notificationService = new \App\Support\NotificationService($db);
-                $notificationService->sendLoanRejectedNotification($loanId, $reason);
+                $notificationService->sendLoanRejectedNotificationDirect(
+                    $userEmail,
+                    $userName,
+                    $bookTitle,
+                    $reason
+                );
             } catch (\Exception $notifError) {
                 error_log("[rejectLoan] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - deletion already committed
@@ -615,10 +722,10 @@ class LoanApprovalController
             $libroId = (int) $loan['libro_id'];
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
-            // Mark loan as cancelled/expired
+            // Mark loan as expired (not picked up)
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'annullato', attivo = 0, pickup_deadline = NULL
+                SET stato = 'scaduto', attivo = 0, pickup_deadline = NULL
                 WHERE id = ?
             ");
             $updateStmt->bind_param('i', $loanId);

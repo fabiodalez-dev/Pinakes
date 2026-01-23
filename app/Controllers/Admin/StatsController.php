@@ -84,7 +84,7 @@ class StatsController
                 stato,
                 COUNT(*) as totale
             FROM prestiti
-            WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'pendente')
+            WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo')
             GROUP BY stato
         ";
         $loansByStatusResult = $db->query($loansByStatusQuery);

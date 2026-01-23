@@ -66,6 +66,7 @@ $settings = require __DIR__ . '/../config/settings.php';
 
 use App\Support\NotificationService;
 use App\Support\DataIntegrity;
+use App\Models\SettingsRepository;
 
 // Funzione per logging
 function logMessage(string $message): void {
@@ -125,7 +126,8 @@ try {
     if ($hour === 6) { // Run at 6 AM
         logMessage("Running daily maintenance tasks");
 
-        // Activate scheduled loans (prenotato -> in_corso) when their start date arrives
+        // Transition scheduled loans (prenotato -> da_ritirare) when their start date arrives
+        // NOTE: Copy stays 'prenotato' during da_ritirare - it only becomes 'prestato' when user picks up (confirmPickup)
         $stmt = $db->prepare("
             SELECT id, copia_id, libro_id FROM prestiti
             WHERE stato = 'prenotato'
@@ -136,35 +138,60 @@ try {
         $scheduledLoans = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
+        // Get pickup deadline setting
+        $settingsRepo = new \App\Models\SettingsRepository($db);
+        $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
+        // Use UTC to match DB session timezone (set to UTC at connection)
+        $pickupDeadline = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+            ->modify("+{$pickupDays} days")
+            ->format('Y-m-d');
+
         $activatedLoans = 0;
         foreach ($scheduledLoans as $loan) {
             $db->begin_transaction();
             try {
-                // Update loan status to in_corso
-                $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ?");
-                $updateStmt->bind_param('i', $loan['id']);
+                // Update loan status to da_ritirare (NOT in_corso - user must pick up first)
+                // Set pickup_deadline so MaintenanceService can expire if not picked up
+                // State guard prevents overwriting concurrent changes (e.g., already picked up)
+                $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'da_ritirare', pickup_deadline = ? WHERE id = ? AND stato = 'prenotato'");
+                $updateStmt->bind_param('si', $pickupDeadline, $loan['id']);
                 $updateStmt->execute();
+                $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();
 
-                // Mark the copy as 'prestato'
-                $copyStmt = $db->prepare("UPDATE copie SET stato = 'prestato' WHERE id = ?");
-                $copyStmt->bind_param('i', $loan['copia_id']);
-                $copyStmt->execute();
-                $copyStmt->close();
+                // Skip if loan state changed concurrently (already picked up, cancelled, etc.)
+                if ($affectedRows === 0) {
+                    $db->rollback();
+                    continue;
+                }
+
+                // DO NOT mark the copy as 'prestato' - copy stays available/prenotato
+                // Copy state will be updated to 'prestato' only when user confirms pickup
+                // DataIntegrity.recalculateBookAvailability will set copy to 'prenotato' for da_ritirare loans
 
                 // Recalculate book availability using DataIntegrity for consistency
                 $integrity = new DataIntegrity($db);
-                $integrity->recalculateBookAvailability((int)$loan['libro_id']);
+                if (!$integrity->recalculateBookAvailability((int)$loan['libro_id'])) {
+                    throw new \RuntimeException("recalculateBookAvailability failed for book {$loan['libro_id']}");
+                }
 
                 $db->commit();
                 $activatedLoans++;
+
+                // Send pickup ready notification to user (outside transaction)
+                try {
+                    $notificationService = new \App\Support\NotificationService($db);
+                    $notificationService->sendPickupReadyNotification($loan['id']);
+                } catch (Throwable $notifError) {
+                    logMessage("Failed to send pickup notification for loan {$loan['id']}: " . $notifError->getMessage());
+                }
             } catch (Throwable $e) {
                 $db->rollback();
                 logMessage("Failed to activate loan {$loan['id']}: " . $e->getMessage());
             }
         }
 
-        logMessage("Activated {$activatedLoans} scheduled loans (prenotato -> in_corso)");
+        logMessage("Activated {$activatedLoans} scheduled loans (prenotato -> da_ritirare)");
 
         // Update overdue loans status
         $stmt = $db->prepare("

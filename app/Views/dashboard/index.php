@@ -378,7 +378,87 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
     <?php endif; ?>
 
     <!-- ============================================== -->
-    <!-- SECTION 3: OVERDUE LOANS (Need Attention - Red) -->
+    <!-- SECTION 3: SCHEDULED LOANS (Future - Cyan) -->
+    <!-- ============================================== -->
+    <?php if (!empty($scheduledLoans)): ?>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
+      <div class="p-6 border-b border-cyan-200 bg-cyan-50 flex flex-col md:flex-row items-center justify-between gap-4 rounded-t-xl">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-cyan-500 rounded-lg flex items-center justify-center">
+            <i class="fas fa-calendar-day text-white"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900"><?= __("Prestiti Programmati") ?></h2>
+            <p class="text-sm text-cyan-600"><?= __("Prestiti con data di inizio futura") ?></p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="bg-cyan-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($scheduledLoans) ?></span>
+          <a href="/admin/loans/pending" class="px-4 py-2 text-sm bg-cyan-600 text-white hover:bg-cyan-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
+            <i class="fas fa-external-link-alt mr-1"></i>
+            <?= __("Gestisci tutti") ?>
+          </a>
+        </div>
+      </div>
+      <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <?php foreach ($scheduledLoans as $loan): ?>
+            <div class="flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+              <div class="p-5">
+                <div class="flex gap-4">
+                  <div class="flex-shrink-0">
+                    <?php $cover = !empty($loan['copertina_url']) ? $loan['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
+                    <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
+                         alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
+                         class="w-20 h-28 object-cover rounded-lg shadow-sm"
+                         onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mb-2 bg-cyan-100 text-cyan-700">
+                      <i class="fas fa-calendar-day text-[10px]"></i>
+                      <?= __("Programmato") ?>
+                    </span>
+                    <p class="text-sm text-gray-600 flex items-center">
+                      <i class="fas fa-user w-4 mr-2 text-cyan-500"></i>
+                      <?= App\Support\HtmlHelper::e($loan['utente_nome'] ?? ''); ?>
+                    </p>
+                    <?php if (!empty($loan['email'])): ?>
+                      <p class="text-sm text-gray-500 flex items-center mt-1">
+                        <i class="fas fa-envelope w-4 mr-2 text-gray-400"></i>
+                        <?= App\Support\HtmlHelper::e($loan['email']); ?>
+                      </p>
+                    <?php endif; ?>
+                    <div class="mt-2 space-y-1 text-xs text-gray-500">
+                      <?php if (!empty($loan['data_prestito'])): ?>
+                        <span class="flex items-center">
+                          <i class="fas fa-calendar-alt w-4 mr-2 text-cyan-500"></i>
+                          <?= __("Inizio:") ?> <?= format_date((string)$loan['data_prestito']); ?>
+                        </span>
+                      <?php endif; ?>
+                      <?php if (!empty($loan['data_scadenza'])): ?>
+                        <span class="flex items-center">
+                          <i class="fas fa-calendar-times w-4 mr-2 text-red-500"></i>
+                          <?= __("Fine:") ?> <?= format_date((string)$loan['data_scadenza']); ?>
+                        </span>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400 flex items-center mt-auto">
+                <i class="fas fa-clock mr-2"></i>
+                <?= __("Creato il") ?> <?= !empty($loan['created_at']) ? format_date((string)$loan['created_at'], true) : 'N/D'; ?>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- ============================================== -->
+    <!-- SECTION 4: OVERDUE LOANS (Need Attention - Red) -->
     <!-- ============================================== -->
     <?php if (!empty($overdue)): ?>
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
@@ -436,7 +516,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
     <?php endif; ?>
 
     <!-- ============================================== -->
-    <!-- SECTION 4: ACTIVE RESERVATIONS (Purple) -->
+    <!-- SECTION 5: ACTIVE RESERVATIONS (Purple) -->
     <!-- ============================================== -->
     <?php if (!empty($reservations)): ?>
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
@@ -520,7 +600,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
     <?php endif; ?>
 
     <!-- ============================================== -->
-    <!-- SECTION 5: ACTIVE LOANS (Green) -->
+    <!-- SECTION 6: ACTIVE LOANS (Green) -->
     <!-- ============================================== -->
     <?php if (!empty($active)): ?>
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
@@ -599,7 +679,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
     <?php endif; ?>
 
     <!-- ============================================== -->
-    <!-- SECTION 6: RECENT BOOKS (Informational - Gray) -->
+    <!-- SECTION 7: RECENT BOOKS (Informational - Gray) -->
     <!-- ============================================== -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">

@@ -88,7 +88,7 @@ class IcsGenerator
     /**
      * Fetch all events (loans and reservations) from database
      *
-     * Retrieves active loans (in_corso, prenotato, in_ritardo, pendente)
+     * Retrieves active loans (in_corso, da_ritirare, prenotato, in_ritardo)
      * and active reservations, filtering out past events except overdue loans.
      *
      * @return array<int, array{uid: string, title: string, description: string, start: string, end: string, type: string, status: string, updated: string}> Array of event data
@@ -106,7 +106,7 @@ class IcsGenerator
                     JOIN libri l ON p.libro_id = l.id
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.attivo = 1
-                      AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                      AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                       AND (
                           (CASE
                               WHEN p.stato = 'da_ritirare' AND p.pickup_deadline IS NOT NULL
@@ -187,7 +187,7 @@ class IcsGenerator
     /**
      * Get loan title with emoji prefix based on status
      *
-     * @param string $status Loan status (in_corso, prenotato, in_ritardo, pendente)
+     * @param string $status Loan status (in_corso, da_ritirare, prenotato, in_ritardo)
      * @param string $bookTitle Book title to include
      * @return string Formatted title with emoji and localized prefix
      */
