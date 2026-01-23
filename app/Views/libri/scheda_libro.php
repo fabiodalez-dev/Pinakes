@@ -1369,6 +1369,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <select id="edit-copy-stato" name="stato" class="form-input" required aria-required="true">
             <option value="disponibile"><?= __("Disponibile") ?></option>
             <option value="prestato" disabled><?= __("Prestato (usa il sistema Prestiti)") ?></option>
+            <option value="prenotato" disabled><?= __("Prenotato (prestito in attesa)") ?></option>
             <option value="manutenzione"><?= __("In manutenzione") ?></option>
             <option value="danneggiato"><?= __("Danneggiato") ?></option>
             <option value="perso"><?= __("Perso") ?></option>
@@ -1405,9 +1406,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
       const statoSelect = document.getElementById('edit-copy-stato');
       const prestatoOption = statoSelect.querySelector('option[value="prestato"]');
+      const prenotatoOption = statoSelect.querySelector('option[value="prenotato"]');
+
+      // Normalize stato to lowercase for comparison
+      const stato = (currentStato || '').toLowerCase();
 
       // Se lo stato corrente è "prestato", riabilita l'opzione per poterla selezionare
-      if (currentStato === 'prestato') {
+      if (stato === 'prestato') {
         prestatoOption.disabled = false;
         prestatoOption.textContent = __('Prestato (imposta "Disponibile" per chiudere il prestito)');
       } else {
@@ -1415,7 +1420,16 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         prestatoOption.textContent = __('Prestato (usa il sistema Prestiti)');
       }
 
-      statoSelect.value = currentStato;
+      // Se lo stato corrente è "prenotato", riabilita l'opzione per poterla selezionare
+      if (stato === 'prenotato') {
+        prenotatoOption.disabled = false;
+        prenotatoOption.textContent = __('Prenotato (imposta "Disponibile" per cancellare)');
+      } else {
+        prenotatoOption.disabled = true;
+        prenotatoOption.textContent = __('Prenotato (prestito in attesa)');
+      }
+
+      statoSelect.value = stato;
 
       editCopyForm.action = `/admin/libri/copie/${copyId}/update`;
 

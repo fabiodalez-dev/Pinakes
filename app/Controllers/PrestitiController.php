@@ -352,18 +352,44 @@ class PrestitiController
 
             // Inserimento del prestito con copia_id
             $stmt = $db->prepare("INSERT INTO prestiti
-                (libro_id, copia_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, sanzione, renewals, processed_by, note, attivo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (libro_id, copia_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, sanzione, renewals, processed_by, note, attivo, pickup_deadline)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $data_restituzione = null;
-            // For future loans, use 'prenotato' (reserved) status; for immediate loans, use 'in_corso'
-            $stato_prestito = $isImmediateLoan ? 'in_corso' : 'prenotato';
+
+            // Determine loan state based on date and "Consegna immediata" checkbox
+            // - Future loans: always 'prenotato' (user will pick up when loan starts)
+            // - Immediate loans with checkbox checked: 'in_corso' (book delivered now)
+            // - Immediate loans with checkbox unchecked: 'da_ritirare' (user must confirm pickup)
+            $consegnaImmediata = isset($_POST['consegna_immediata']) && $_POST['consegna_immediata'] === '1';
+            $pickupDeadline = null;
+
+            if ($isImmediateLoan) {
+                if ($consegnaImmediata) {
+                    // Book delivered immediately to user
+                    $stato_prestito = 'in_corso';
+                    $copyStatus = 'prestato';
+                } else {
+                    // User must come to pick up the book
+                    $stato_prestito = 'da_ritirare';
+                    $copyStatus = 'prenotato';
+                    // Calculate pickup deadline from settings
+                    $settingsRepo = new \App\Models\SettingsRepository($db);
+                    $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
+                    $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
+                }
+            } else {
+                // Future loan - user will pick up when loan period starts
+                $stato_prestito = 'prenotato';
+                $copyStatus = 'prenotato';
+            }
+
             $sanzione = 0.00;
             $renewals = 0;
             $attivo = 1;
 
             $stmt->bind_param(
-                "iiissssdiisi",
+                "iiissssdiisis",
                 $libro_id,
                 $selectedCopy['id'],
                 $utente_id,
@@ -375,15 +401,14 @@ class PrestitiController
                 $renewals,
                 $processedBy,
                 $note,
-                $attivo
+                $attivo,
+                $pickupDeadline
             );
             $stmt->execute();
             $newLoanId = (int) $db->insert_id;
             $stmt->close();
 
-            // Update copy status: 'prestato' for immediate loans, 'prenotato' for future loans
-            // This matches ReservationManager behavior for consistency
-            $copyStatus = $isImmediateLoan ? 'prestato' : 'prenotato';
+            // Update copy status based on delivery mode
             $copyRepo->updateStatus($selectedCopy['id'], $copyStatus);
 
 
@@ -750,7 +775,42 @@ class PrestitiController
         $db->begin_transaction();
 
         try {
-            // Lock the book row to prevent concurrent renewals from racing
+            // Lock the loan row FIRST to prevent concurrent renewals and match LoanRepository lock order
+            $lockLoanStmt = $db->prepare("
+                SELECT id, attivo, stato, renewals, data_scadenza
+                FROM prestiti WHERE id = ? FOR UPDATE
+            ");
+            $lockLoanStmt->bind_param('i', $id);
+            $lockLoanStmt->execute();
+            $lockedLoan = $lockLoanStmt->get_result()->fetch_assoc();
+            $lockLoanStmt->close();
+
+            // Re-validate loan state after acquiring lock (may have changed since initial fetch)
+            if (!$lockedLoan || (int) $lockedLoan['attivo'] !== 1) {
+                $db->rollback();
+                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+                return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_not_active')->withStatus(302);
+            }
+            if ($lockedLoan['stato'] === 'in_ritardo') {
+                $db->rollback();
+                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+                return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_overdue')->withStatus(302);
+            }
+            if ((int) $lockedLoan['renewals'] >= $maxRenewals) {
+                $db->rollback();
+                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+                return $response->withHeader('Location', $errorUrl . $separator . 'error=max_renewals')->withStatus(302);
+            }
+
+            // Use the locked values for calculations (in case they changed)
+            $currentDueDate = $lockedLoan['data_scadenza'];
+            $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
+            $currentRenewals = (int) $lockedLoan['renewals'];
+
+            // Now lock the book row
             $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockStmt->bind_param('i', $libroId);
             $lockStmt->execute();
