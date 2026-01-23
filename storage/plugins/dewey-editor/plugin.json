@@ -9,7 +9,7 @@
   "main_file": "DeweyEditorPlugin.php",
   "requires_php": "7.4",
   "requires_app": "0.4.0",
-  "max_app_version": "0.4.7",
+  "max_app_version": "0.4.7.1",
   "settings": false,
   "metadata": {
     "category": "admin",
