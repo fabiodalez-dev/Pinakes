@@ -1370,7 +1370,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                                     <a class="btn btn-primary-header" href="<?= absoluteUrl('/admin/dashboard') ?>">
                                         <i class="fas fa-user-shield"></i>
-                                        <span class="d-none d-md-inline"><?= __('Admin') ?></span>
+                                        <span class="d-none d-md-inline"><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __('Admin') : __('Staff') ?></span>
                                     </a>
                                 <?php else: ?>
                                     <div class="user-dropdown" id="userDropdown">
@@ -1460,7 +1460,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php endif; ?>
                         <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                             <a href="<?= absoluteUrl('/admin/dashboard') ?>" class="mobile-nav-link">
-                                <i class="fas fa-user-shield me-2"></i><?= __("Admin") ?>
+                                <i class="fas fa-user-shield me-2"></i><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __("Admin") : __("Staff") ?>
                             </a>
                         <?php else: ?>
                             <a href="<?= absoluteUrl($profileRoute) ?>" class="mobile-nav-link">
