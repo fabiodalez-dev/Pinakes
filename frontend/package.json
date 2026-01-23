@@ -4,16 +4,20 @@
   "private": true,
   "scripts": {
     "start": "webpack --mode development --watch --config webpack.config.js",
-    "build": "webpack --mode production --config webpack.config.js"
+    "build": "webpack --mode production --config webpack.config.js",
+    "lint": "eslint js/"
   },
   "devDependencies": {
     "@babel/core": "^7.28.4",
     "@babel/preset-env": "^7.28.3",
+    "@eslint/js": "^9.39.2",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.19",
     "autoprefixer": "^10.4.21",
     "babel-loader": "^10.0.0",
     "css-loader": "^7.1.2",
+    "eslint": "^9.39.2",
+    "globals": "^17.1.0",
     "mini-css-extract-plugin": "^2.9.4",
     "postcss": "^8.5.6",
     "postcss-loader": "^8.2.0",
@@ -53,5 +57,6 @@
     "pdfmake": "^0.2.20",
     "sortablejs": "^1.15.6",
     "sweetalert2": "^11.26.3"
-  }
+  },
+  "type": "module"
 }
