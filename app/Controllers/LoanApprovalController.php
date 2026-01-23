@@ -56,9 +56,84 @@ class LoanApprovalController
         $pickupLoans = $pickupResult->fetch_all(MYSQLI_ASSOC);
         $pickupStmt->close();
 
+        // Get scheduled loans (prenotato with data_prestito > today - future loans)
+        $scheduledStmt = $db->prepare("
+            SELECT p.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   p.data_prestito as data_richiesta_inizio,
+                   p.data_scadenza as data_richiesta_fine,
+                   COALESCE(p.origine, 'richiesta') as origine
+            FROM prestiti p
+            JOIN libri l ON p.libro_id = l.id
+            JOIN utenti u ON p.utente_id = u.id
+            WHERE p.stato = 'prenotato' AND p.data_prestito > ? AND p.attivo = 1
+            ORDER BY p.data_prestito ASC
+        ");
+        $scheduledStmt->bind_param('s', $today);
+        $scheduledStmt->execute();
+        $scheduledLoans = $scheduledStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $scheduledStmt->close();
+
+        // Get active loans (in_corso)
+        $activeStmt = $db->prepare("
+            SELECT p.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   p.data_prestito as data_richiesta_inizio,
+                   p.data_scadenza as data_richiesta_fine,
+                   c.numero_inventario as copia_inventario
+            FROM prestiti p
+            JOIN libri l ON p.libro_id = l.id
+            JOIN utenti u ON p.utente_id = u.id
+            LEFT JOIN copie c ON p.copia_id = c.id
+            WHERE p.stato = 'in_corso' AND p.attivo = 1
+            ORDER BY p.data_scadenza ASC
+        ");
+        $activeStmt->execute();
+        $activeLoans = $activeStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $activeStmt->close();
+
+        // Get overdue loans (in_ritardo)
+        $overdueStmt = $db->prepare("
+            SELECT p.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   p.data_prestito as data_richiesta_inizio,
+                   p.data_scadenza as data_richiesta_fine,
+                   c.numero_inventario as copia_inventario,
+                   DATEDIFF(?, p.data_scadenza) as giorni_ritardo
+            FROM prestiti p
+            JOIN libri l ON p.libro_id = l.id
+            JOIN utenti u ON p.utente_id = u.id
+            LEFT JOIN copie c ON p.copia_id = c.id
+            WHERE p.stato = 'in_ritardo' AND p.attivo = 1
+            ORDER BY p.data_scadenza ASC
+        ");
+        $overdueStmt->bind_param('s', $today);
+        $overdueStmt->execute();
+        $overdueLoans = $overdueStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $overdueStmt->close();
+
+        // Get active reservations
+        $reservationsStmt = $db->prepare("
+            SELECT r.*, l.titolo, l.copertina_url,
+                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
+                   r.data_inizio_richiesta, r.data_fine_richiesta,
+                   r.data_scadenza_prenotazione,
+                   (SELECT COUNT(*) + 1 FROM prenotazioni r2
+                    WHERE r2.libro_id = r.libro_id
+                    AND r2.stato = 'attiva'
+                    AND r2.created_at < r.created_at) as posizione_coda
+            FROM prenotazioni r
+            JOIN libri l ON r.libro_id = l.id
+            JOIN utenti u ON r.utente_id = u.id
+            WHERE r.stato = 'attiva'
+            ORDER BY r.created_at ASC
+        ");
+        $reservationsStmt->execute();
+        $activeReservations = $reservationsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $reservationsStmt->close();
+
         ob_start();
-        $title = "Approvazione Prestiti - Amministrazione";
-        // $pendingLoans and $pickupLoans are already set from queries above
+        $title = __("Gestione Prestiti") . " - " . __("Amministrazione");
         require __DIR__ . '/../Views/admin/pending_loans.php';
         $content = ob_get_clean();
 

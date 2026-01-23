@@ -106,19 +106,21 @@ class ReservationsController
 
             // For approved states, use the actual loan period
             // 'prenotato': future loan - block from data_prestito to data_scadenza
-            // 'da_ritirare': ready for pickup - block until pickup_deadline or data_scadenza
+            // 'da_ritirare': ready for pickup - block until pickup_deadline (shorter window)
             // 'in_corso'/'in_ritardo': active loan - block until data_scadenza or data_restituzione
-            $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
-
-            // For 'da_ritirare', if no end date, use pickup_deadline or 7 days from start
-            if ($loanStatus === 'da_ritirare' && !$endDateLoan) {
+            if ($loanStatus === 'da_ritirare') {
+                // For 'da_ritirare', prioritize pickup_deadline (shorter blocking window)
                 $pickupDeadline = $loan['pickup_deadline'] ?? null;
                 if ($pickupDeadline) {
                     $endDateLoan = substr($pickupDeadline, 0, 10); // Extract date part
                 } else {
-                    // Default: 7 days for pickup
-                    $endDateLoan = (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
+                    // Fallback: data_scadenza or 7 days from start
+                    $endDateLoan = $loan['data_scadenza']
+                        ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
                 }
+            } else {
+                // For other states: data_restituzione > data_scadenza > null
+                $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
             }
 
             // Fallback: if still no end date, use start date (single day block)
