@@ -33,12 +33,27 @@ This document describes the PHPStan static analysis integration and all fixes ap
 **Fix**: Updated `installer/index.php` to match the main helper signature:
 ```php
 function __(string $key, mixed ...$args): string {
-    $translations = $GLOBALS['translations'] ?? [];
-    $translated = $translations[$key] ?? $key;
-    if (!empty($args)) {
-        return sprintf($translated, ...$args);
+    static $translations = null;
+
+    // Get locale from session (defaults to Italian)
+    $locale = $_SESSION['app_locale'] ?? 'it';
+    $message = $key;
+
+    // Load English translations only when needed
+    if ($locale === 'en_US') {
+        if ($translations === null) {
+            $translationFile = dirname(__DIR__) . '/locale/en_US.json';
+            if (file_exists($translationFile)) {
+                $translations = json_decode(file_get_contents($translationFile), true) ?? [];
+            }
+        }
+        $message = $translations[$key] ?? $key;
     }
-    return $translated;
+
+    if (!empty($args)) {
+        return sprintf($message, ...$args);
+    }
+    return $message;
 }
 ```
 
