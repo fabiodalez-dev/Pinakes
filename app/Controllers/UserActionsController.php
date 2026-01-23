@@ -422,8 +422,8 @@ class UserActionsController
                 return $this->back($response, ['loan_error' => 'not_available']);
             }
 
-            // Check for existing pending loan request from this user for this book
-            $dupStmt = $db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND stato = 'pendente' LIMIT 1");
+            // Check for existing active loan from this user for this book (any active state)
+            $dupStmt = $db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('pendente', 'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo') LIMIT 1");
             $dupStmt->bind_param('ii', $libroId, $utenteId);
             $dupStmt->execute();
             $dupResult = $dupStmt->get_result();

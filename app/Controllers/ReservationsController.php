@@ -249,12 +249,12 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Check for existing pending loan request from this user for this book
-        $stmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND stato = 'pendente' LIMIT 1");
+        // Check for existing active loan from this user for this book (any active state)
+        $stmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('pendente', 'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo') LIMIT 1");
         $stmt->bind_param('ii', $bookId, $userId);
         $stmt->execute();
         if ($stmt->get_result()->fetch_assoc()) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già una richiesta di prestito in attesa per questo libro')]));
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già un prestito attivo o in attesa per questo libro')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
