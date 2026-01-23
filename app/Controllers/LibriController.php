@@ -1659,13 +1659,13 @@ class LibriController
         // CSRF validated by CsrfMiddleware
 
         // Case 10: Prevent deletion if there are active loans/reservations
-        // Check prestiti table (loans with stato: in_corso, da_ritirare, prenotato, pendente, in_ritardo)
+        // Check prestiti table (approved loans only)
         $stmt = $db->prepare("
             SELECT COUNT(*) as count
             FROM prestiti
             WHERE libro_id = ?
             AND attivo = 1
-            AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'pendente', 'in_ritardo')
+            AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
         ");
         $stmt->bind_param('i', $id);
         $stmt->execute();

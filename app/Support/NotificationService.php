@@ -759,7 +759,7 @@ class NotificationService {
         $loanStmt = $this->db->prepare("
             SELECT COUNT(*) as count FROM prestiti
             WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             AND data_prestito <= ? AND data_scadenza >= ?
         ");
         $loanStmt->bind_param('iss', $bookId, $today, $today);
@@ -798,13 +798,12 @@ class NotificationService {
             return $today;
         }
 
-        // Find the earliest end date among active loans
-        // Include 'pendente' and 'da_ritirare' to account for pending loan requests in availability calculation
+        // Find the earliest end date among active loans (approved states only)
         $loanStmt = $this->db->prepare("
             SELECT MIN(data_scadenza) as earliest_end
             FROM prestiti
             WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato', 'pendente')
+            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             AND data_scadenza >= ?
         ");
         $loanStmt->bind_param('is', $bookId, $today);
@@ -983,6 +982,36 @@ class NotificationService {
 
         } catch (Exception $e) {
             error_log("Failed to send loan rejected notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia email di rifiuto prestito con dati pre-caricati (per quando il prestito è già eliminato)
+     *
+     * @param string $userEmail Email dell'utente
+     * @param string $userName Nome completo dell'utente
+     * @param string $bookTitle Titolo del libro
+     * @param string $reason Motivo del rifiuto
+     * @return bool True se l'email è stata inviata
+     */
+    public function sendLoanRejectedNotificationDirect(
+        string $userEmail,
+        string $userName,
+        string $bookTitle,
+        string $reason = ''
+    ): bool {
+        try {
+            $variables = [
+                'utente_nome' => $userName,
+                'libro_titolo' => $bookTitle,
+                'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
+            ];
+
+            return $this->emailService->sendTemplate($userEmail, 'loan_rejected', $variables);
+
+        } catch (Exception $e) {
+            error_log("Failed to send loan rejected notification (direct): " . $e->getMessage());
             return false;
         }
     }

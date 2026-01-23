@@ -148,6 +148,33 @@ class DashboardStats
     }
 
     /**
+     * Get scheduled loans (prenotato with future data_prestito)
+     */
+    public function scheduledLoans(int $limit = 6): array
+    {
+        $rows = [];
+        $today = date('Y-m-d');
+        $sql = "SELECT p.id, p.libro_id, p.utente_id, p.stato, p.data_prestito, p.data_scadenza,
+                       p.created_at,
+                       l.titolo, l.copertina_url,
+                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.stato = 'prenotato' AND p.data_prestito > ? AND p.attivo = 1
+                ORDER BY p.data_prestito ASC
+                LIMIT ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param('si', $today, $limit);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
      * Get active reservations for dashboard display
      */
     public function activeReservations(int $limit = 6): array

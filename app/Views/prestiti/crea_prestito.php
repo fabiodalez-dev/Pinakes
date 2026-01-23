@@ -149,6 +149,20 @@ if ($presetUserId > 0) {
       </div>
     </div>
 
+    <!-- Consegna immediata (solo per prestiti con data_prestito <= oggi) -->
+    <div id="consegna_immediata_container" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <input type="checkbox" name="consegna_immediata" id="consegna_immediata" value="1" checked
+             class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500">
+      <div class="flex-1">
+        <label for="consegna_immediata" class="block text-sm font-medium text-gray-900 cursor-pointer">
+          <?= __("Consegna immediata") ?>
+        </label>
+        <p class="text-xs text-gray-500 mt-0.5">
+          <?= __("Il libro viene consegnato subito all'utente. Se deselezionato, il prestito rimarrà in stato 'Da ritirare' fino alla conferma del ritiro.") ?>
+        </p>
+      </div>
+    </div>
+
     <!-- Note sul prestito -->
     <div>
       <label for="note" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Note (opzionali)") ?></label>
@@ -312,6 +326,29 @@ if ($presetUserId > 0) {
         return false;
       }
 
+      // Show/hide "Consegna immediata" checkbox based on whether date is today or future
+      const consegnaContainer = document.getElementById('consegna_immediata_container');
+      const consegnaCheckbox = document.getElementById('consegna_immediata');
+
+      function updateConsegnaImmediataVisibility(dateStr) {
+        if (!consegnaContainer || !consegnaCheckbox) return;
+
+        const today = formatDate(new Date());
+        const isImmediate = dateStr <= today;
+
+        if (isImmediate) {
+          // Show checkbox for immediate loans (today or past - though past shouldn't happen)
+          consegnaContainer.classList.remove('hidden');
+        } else {
+          // Hide checkbox for future loans - they always go through da_ritirare flow
+          consegnaContainer.classList.add('hidden');
+          consegnaCheckbox.checked = false; // Uncheck when hidden
+        }
+      }
+
+      // Initialize visibility on page load
+      updateConsegnaImmediataVisibility(dataPrestitoEl.value);
+
       // Get locale for flatpickr
       const appLocale = document.documentElement.lang?.startsWith('it') ? 'it' : 'en';
       const isItalian = appLocale === 'it';
@@ -339,6 +376,9 @@ if ($presetUserId > 0) {
 
             // Update hint about availability
             updateDateHint(dateStr);
+
+            // Show/hide "Consegna immediata" checkbox based on date
+            updateConsegnaImmediataVisibility(dateStr);
           }
         }
       };

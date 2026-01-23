@@ -131,10 +131,14 @@ class UserActionsController
 
         try {
             // Get loan details and lock
+            // Note: 'pendente' has attivo=0, 'prenotato' has attivo=1
             $stmt = $db->prepare("
                 SELECT id, copia_id, stato, libro_id
                 FROM prestiti
-                WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('pendente', 'prenotato')
+                WHERE id = ? AND utente_id = ? AND (
+                    (attivo = 0 AND stato = 'pendente')
+                    OR (attivo = 1 AND stato = 'prenotato')
+                )
                 FOR UPDATE
             ");
             $stmt->bind_param('ii', $loanId, $uid);
@@ -422,8 +426,12 @@ class UserActionsController
                 return $this->back($response, ['loan_error' => 'not_available']);
             }
 
-            // Check for existing pending loan request from this user for this book
-            $dupStmt = $db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND stato = 'pendente' LIMIT 1");
+            // Check for existing active loan from this user for this book (any active state)
+            // Note: 'pendente' has attivo=0, other active states have attivo=1
+            $dupStmt = $db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND (
+                (attivo = 0 AND stato = 'pendente')
+                OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+            ) LIMIT 1");
             $dupStmt->bind_param('ii', $libroId, $utenteId);
             $dupStmt->execute();
             $dupResult = $dupStmt->get_result();
