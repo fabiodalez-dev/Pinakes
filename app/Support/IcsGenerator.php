@@ -88,7 +88,7 @@ class IcsGenerator
     /**
      * Fetch all events (loans and reservations) from database
      *
-     * Retrieves active loans (in_corso, prenotato, in_ritardo, pendente)
+     * Retrieves active loans (in_corso, da_ritirare, prenotato, in_ritardo)
      * and active reservations, filtering out past events except overdue loans.
      *
      * @return array<int, array{uid: string, title: string, description: string, start: string, end: string, type: string, status: string, updated: string}> Array of event data
