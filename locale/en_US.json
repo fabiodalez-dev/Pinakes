@@ -3757,6 +3757,7 @@
   "Google Books API collegata": "Google Books API connected",
   "Hai già una prenotazione attiva per questo libro.": "You already have an active reservation for this book.",
   "Hai già una richiesta di prestito in attesa per questo libro": "You already have a pending loan request for this book",
+  "Hai già un prestito attivo o in attesa per questo libro": "You already have an active or pending loan for this book",
   "ID genere non valido": "Invalid genre ID",
   "IN RITARDO": "OVERDUE",
   "ISBN non trovato. Fonti consultate: %s": "ISBN not found. Sources consulted: %s",
