@@ -280,9 +280,13 @@ class LoanApprovalController
             $copyCheckStmt->close();
 
             $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
-            if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
-                $copyRepo = new \App\Models\CopyRepository($db);
-                $copyRepo->updateStatus($selectedCopy['id'], 'prenotato');
+            if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
+                throw new \RuntimeException(__('Copia non disponibile per il prestito'));
+            }
+
+            $copyRepo = new \App\Models\CopyRepository($db);
+            if (!$copyRepo->updateStatus($selectedCopy['id'], 'prenotato')) {
+                throw new \RuntimeException(__('Impossibile aggiornare lo stato della copia'));
             }
 
             // Assegna la copia al prestito con lo stato corretto e pickup_deadline se applicabile

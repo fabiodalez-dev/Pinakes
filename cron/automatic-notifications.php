@@ -127,7 +127,7 @@ try {
         logMessage("Running daily maintenance tasks");
 
         // Transition scheduled loans (prenotato -> da_ritirare) when their start date arrives
-        // NOTE: Copy stays 'disponibile' - it only becomes 'prestato' when user picks up (confirmPickup)
+        // NOTE: Copy stays 'prenotato' during da_ritirare - it only becomes 'prestato' when user picks up (confirmPickup)
         $stmt = $db->prepare("
             SELECT id, copia_id, libro_id FROM prestiti
             WHERE stato = 'prenotato'
@@ -149,10 +149,18 @@ try {
             try {
                 // Update loan status to da_ritirare (NOT in_corso - user must pick up first)
                 // Set pickup_deadline so MaintenanceService can expire if not picked up
-                $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'da_ritirare', pickup_deadline = ? WHERE id = ?");
+                // State guard prevents overwriting concurrent changes (e.g., already picked up)
+                $updateStmt = $db->prepare("UPDATE prestiti SET stato = 'da_ritirare', pickup_deadline = ? WHERE id = ? AND stato = 'prenotato'");
                 $updateStmt->bind_param('si', $pickupDeadline, $loan['id']);
                 $updateStmt->execute();
+                $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();
+
+                // Skip if loan state changed concurrently (already picked up, cancelled, etc.)
+                if ($affectedRows === 0) {
+                    $db->rollback();
+                    continue;
+                }
 
                 // DO NOT mark the copy as 'prestato' - copy stays available/prenotato
                 // Copy state will be updated to 'prestato' only when user confirms pickup
