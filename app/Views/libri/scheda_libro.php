@@ -797,10 +797,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     <?php if (!$canEdit): ?>
                     <?php
                     // Show actual status instead of generic "In prestito"
+                    // Use explicit fallback to surface unexpected values during testing
                     $statusText = match($loanStatusVal) {
                         'in_corso' => __('In prestito'),
                         'in_ritardo' => __('In ritardo'),
-                        default => __('In prestito')
+                        default => __('Stato sconosciuto')
                     };
                     ?>
                     <span class="text-gray-400 text-xs"><?= $statusText ?></span>
@@ -1411,23 +1412,27 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       // Normalize stato to lowercase for comparison
       const stato = (currentStato || '').toLowerCase();
 
-      // Se lo stato corrente è "prestato", riabilita l'opzione per poterla selezionare
-      if (stato === 'prestato') {
-        prestatoOption.disabled = false;
-        prestatoOption.textContent = __('Prestato (imposta "Disponibile" per chiudere il prestito)');
-      } else {
-        prestatoOption.disabled = true;
-        prestatoOption.textContent = __('Prestato (usa il sistema Prestiti)');
+      // Helper function to toggle loan-related options
+      function toggleLoanOption(option, isCurrentState, enabledText, disabledText) {
+        option.disabled = !isCurrentState;
+        option.textContent = isCurrentState ? enabledText : disabledText;
       }
 
-      // Se lo stato corrente è "prenotato", riabilita l'opzione per poterla selezionare
-      if (stato === 'prenotato') {
-        prenotatoOption.disabled = false;
-        prenotatoOption.textContent = __('Prenotato (imposta "Disponibile" per cancellare)');
-      } else {
-        prenotatoOption.disabled = true;
-        prenotatoOption.textContent = __('Prenotato (prestito in attesa)');
-      }
+      // Toggle prestato option based on current state
+      toggleLoanOption(
+        prestatoOption,
+        stato === 'prestato',
+        __('Prestato (imposta "Disponibile" per chiudere il prestito)'),
+        __('Prestato (usa il sistema Prestiti)')
+      );
+
+      // Toggle prenotato option based on current state
+      toggleLoanOption(
+        prenotatoOption,
+        stato === 'prenotato',
+        __('Prenotato (imposta "Disponibile" per cancellare)'),
+        __('Prenotato (prestito in attesa)')
+      );
 
       statoSelect.value = stato;
 
