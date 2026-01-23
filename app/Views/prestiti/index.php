@@ -195,6 +195,7 @@ function getStatusBadge($status) {
               <button data-status="in_corso" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In Corso") ?></button>
               <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In Ritardo") ?></button>
               <button data-status="restituito" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Restituito") ?></button>
+              <button data-status="scaduto" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Scaduto") ?></button>
               <button data-status="" class="status-filter-btn btn-primary px-3 py-1.5"><?= __("Tutti") ?></button>
             </div>
         </div>
@@ -543,6 +544,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="danneggiato" class="export-status-cb w-4 h-4 text-red-600 rounded" checked>
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>${__('Danneggiato')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="scaduto" class="export-status-cb w-4 h-4 text-gray-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700"><i class="fas fa-calendar-times mr-1"></i>${__('Scaduto')}</span>
                     </label>
                 </div>
             `,

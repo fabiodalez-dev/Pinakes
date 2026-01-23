@@ -119,21 +119,8 @@ class PrestitiController
         $db->begin_transaction();
 
         try {
-            // Lock the book record to prevent concurrent updates
-            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
-            $lockStmt->bind_param('i', $libro_id);
-            $lockStmt->execute();
-            $bookResult = $lockStmt->get_result();
-            $book = $bookResult ? $bookResult->fetch_assoc() : null;
-            $lockStmt->close();
-
-            if (!$book) {
-                $db->rollback();
-                return $response->withHeader('Location', '/admin/prestiti/crea?error=book_not_found')->withStatus(302);
-            }
-
             // Case 8: Prevent multiple active reservations/loans for the same book by the same user
-            // Moved inside transaction with FOR UPDATE to prevent race conditions
+            // Lock prestiti FIRST to keep lock order consistent (prestiti -> libri) and prevent deadlocks
             // Note: 'pendente' has attivo=0, other active states have attivo=1
             $dupStmt = $db->prepare("
                 SELECT id FROM prestiti
@@ -151,6 +138,19 @@ class PrestitiController
                 return $response->withHeader('Location', '/admin/prestiti/crea?error=duplicate_reservation')->withStatus(302);
             }
             $dupStmt->close();
+
+            // Now lock the book record (after prestiti to maintain consistent lock order)
+            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockStmt->bind_param('i', $libro_id);
+            $lockStmt->execute();
+            $bookResult = $lockStmt->get_result();
+            $book = $bookResult ? $bookResult->fetch_assoc() : null;
+            $lockStmt->close();
+
+            if (!$book) {
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prestiti/crea?error=book_not_found')->withStatus(302);
+            }
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan)
             // Normalize to date-only to handle potential datetime inputs safely
