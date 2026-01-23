@@ -141,7 +141,10 @@ try {
         // Get pickup deadline setting
         $settingsRepo = new \App\Models\SettingsRepository($db);
         $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
-        $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
+        // Use UTC to match DB session timezone (set to UTC at connection)
+        $pickupDeadline = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+            ->modify("+{$pickupDays} days")
+            ->format('Y-m-d');
 
         $activatedLoans = 0;
         foreach ($scheduledLoans as $loan) {
@@ -168,7 +171,9 @@ try {
 
                 // Recalculate book availability using DataIntegrity for consistency
                 $integrity = new DataIntegrity($db);
-                $integrity->recalculateBookAvailability((int)$loan['libro_id']);
+                if (!$integrity->recalculateBookAvailability((int)$loan['libro_id'])) {
+                    throw new \RuntimeException("recalculateBookAvailability failed for book {$loan['libro_id']}");
+                }
 
                 $db->commit();
                 $activatedLoans++;

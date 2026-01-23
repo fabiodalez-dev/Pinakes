@@ -277,19 +277,6 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Check for existing active loan from this user for this book (any active state)
-        // Note: 'pendente' has attivo=0, other active states have attivo=1
-        $stmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND (
-            (attivo = 0 AND stato = 'pendente')
-            OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-        ) LIMIT 1");
-        $stmt->bind_param('ii', $bookId, $userId);
-        $stmt->execute();
-        if ($stmt->get_result()->fetch_assoc()) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già un prestito attivo o in attesa per questo libro')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
         // Start transaction for concurrency control
         $this->db->begin_transaction();
 
@@ -305,6 +292,23 @@ class ReservationsController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
             $stmt->close();
+
+            // Check for existing active loan from this user for this book (any active state)
+            // Note: 'pendente' has attivo=0, other active states have attivo=1
+            // This check is inside transaction after lock to prevent TOCTOU race condition
+            $dupStmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND (
+                (attivo = 0 AND stato = 'pendente')
+                OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+            ) FOR UPDATE");
+            $dupStmt->bind_param('ii', $bookId, $userId);
+            $dupStmt->execute();
+            if ($dupStmt->get_result()->fetch_assoc()) {
+                $dupStmt->close();
+                $this->db->rollback();
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già un prestito attivo o in attesa per questo libro')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $dupStmt->close();
 
             // Re-check availability after acquiring lock to avoid races
             $postLockAvailability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);

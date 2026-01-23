@@ -182,7 +182,9 @@ class ReservationReassignmentService
 
             // Block the copy for the reserved loan period
             $copyRepo = new \App\Models\CopyRepository($this->db);
-            $copyRepo->updateStatus($newCopiaId, 'prenotato');
+            if (!$copyRepo->updateStatus($newCopiaId, 'prenotato')) {
+                throw new \RuntimeException("Failed to update copy status for copia_id={$newCopiaId}");
+            }
 
             // Se la prenotazione aveva una vecchia copia assegnata, dobbiamo verificare
             // se quella copia ora deve cambiare stato?
@@ -278,7 +280,9 @@ class ReservationReassignmentService
 
                 // Block the copy for the reserved loan period
                 $copyRepo = new \App\Models\CopyRepository($this->db);
-                $copyRepo->updateStatus($nextCopyId, 'prenotato');
+                if (!$copyRepo->updateStatus($nextCopyId, 'prenotato')) {
+                    throw new \RuntimeException("Failed to update copy status for copia_id={$nextCopyId}");
+                }
 
                 $this->commitIfOwned($ownTransaction);
 

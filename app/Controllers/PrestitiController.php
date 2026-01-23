@@ -134,10 +134,13 @@ class PrestitiController
 
             // Case 8: Prevent multiple active reservations/loans for the same book by the same user
             // Moved inside transaction with FOR UPDATE to prevent race conditions
+            // Note: 'pendente' has attivo=0, other active states have attivo=1
             $dupStmt = $db->prepare("
                 SELECT id FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND attivo = 1
-                AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'pendente', 'in_ritardo')
+                WHERE libro_id = ? AND utente_id = ? AND (
+                    (attivo = 0 AND stato = 'pendente')
+                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                )
                 FOR UPDATE
             ");
             $dupStmt->bind_param('ii', $libro_id, $utente_id);
@@ -743,63 +746,69 @@ class PrestitiController
         $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
         $libroId = (int) $loan['libro_id'];
 
-        // Check if renewal conflicts with other reservations/loans
-        // Extension is allowed if:
-        // 1. No other reservations/loans overlap with the extension period, OR
-        // 2. Another copy is available for those overlapping reservations
-        $extensionStart = $currentDueDate; // Extension starts from current due date
-        $extensionEnd = $proposedNewDueDate;
-
-        // Count other active loans/reservations overlapping with extension period (excluding current loan)
-        $conflictStmt = $db->prepare("
-            SELECT COUNT(*) as count FROM prestiti
-            WHERE libro_id = ? AND id != ? AND attivo = 1
-            AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
-            AND data_prestito <= ? AND data_scadenza >= ?
-        ");
-        $conflictStmt->bind_param('iiss', $libroId, $id, $extensionEnd, $extensionStart);
-        $conflictStmt->execute();
-        $overlappingLoans = (int) ($conflictStmt->get_result()->fetch_assoc()['count'] ?? 0);
-        $conflictStmt->close();
-
-        // Count overlapping prenotazioni (queue-based reservations)
-        $resConflictStmt = $db->prepare("
-            SELECT COUNT(*) as count FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
-            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
-        ");
-        $resConflictStmt->bind_param('iss', $libroId, $extensionEnd, $extensionStart);
-        $resConflictStmt->execute();
-        $overlappingReservations = (int) ($resConflictStmt->get_result()->fetch_assoc()['count'] ?? 0);
-        $resConflictStmt->close();
-
-        // Count total lendable copies (exclude perso, danneggiato, manutenzione)
-        $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
-        $totalCopiesStmt->bind_param('i', $libroId);
-        $totalCopiesStmt->execute();
-        $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
-        $totalCopiesStmt->close();
-
-        // Check if extension is possible:
-        // - Count this loan as 1 (it will occupy a slot in the extension period)
-        // - Add other overlapping loans + reservations
-        // - If total > totalCopies, extension not possible (would block another reservation)
-        // Note: Use > not >= because the current loan already has its assigned copy
-        $totalOccupied = 1 + $overlappingLoans + $overlappingReservations; // 1 = current loan being renewed
-        if ($totalOccupied > $totalCopies) {
-            $errorUrl = $redirectTo ?? '/admin/prestiti';
-            $separator = strpos($errorUrl, '?') === false ? '?' : '&';
-            return $response->withHeader('Location', $errorUrl . $separator . 'error=extension_conflicts')->withStatus(302);
-        }
-
-        // Start transaction
+        // Start transaction BEFORE conflict check to prevent race conditions
         $db->begin_transaction();
 
         try {
-            // Calculate new due date (add 14 days)
-            $currentDueDate = $loan['data_scadenza'];
-            $newDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
+            // Lock the book row to prevent concurrent renewals from racing
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockStmt->bind_param('i', $libroId);
+            $lockStmt->execute();
+            $lockStmt->close();
+
+            // Check if renewal conflicts with other reservations/loans
+            // Extension is allowed if:
+            // 1. No other reservations/loans overlap with the extension period, OR
+            // 2. Another copy is available for those overlapping reservations
+            $extensionStart = $currentDueDate; // Extension starts from current due date
+            $extensionEnd = $proposedNewDueDate;
+
+            // Count other active loans/reservations overlapping with extension period (excluding current loan)
+            $conflictStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM prestiti
+                WHERE libro_id = ? AND id != ? AND attivo = 1
+                AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
+                AND data_prestito <= ? AND data_scadenza >= ?
+            ");
+            $conflictStmt->bind_param('iiss', $libroId, $id, $extensionEnd, $extensionStart);
+            $conflictStmt->execute();
+            $overlappingLoans = (int) ($conflictStmt->get_result()->fetch_assoc()['count'] ?? 0);
+            $conflictStmt->close();
+
+            // Count overlapping prenotazioni (queue-based reservations)
+            $resConflictStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM prenotazioni
+                WHERE libro_id = ? AND stato = 'attiva'
+                AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
+                AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+            ");
+            $resConflictStmt->bind_param('iss', $libroId, $extensionEnd, $extensionStart);
+            $resConflictStmt->execute();
+            $overlappingReservations = (int) ($resConflictStmt->get_result()->fetch_assoc()['count'] ?? 0);
+            $resConflictStmt->close();
+
+            // Count total lendable copies (exclude perso, danneggiato, manutenzione)
+            $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+            $totalCopiesStmt->bind_param('i', $libroId);
+            $totalCopiesStmt->execute();
+            $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+            $totalCopiesStmt->close();
+
+            // Check if extension is possible:
+            // - Count this loan as 1 (it will occupy a slot in the extension period)
+            // - Add other overlapping loans + reservations
+            // - If total > totalCopies, extension not possible (would block another reservation)
+            // Note: Use > not >= because the current loan already has its assigned copy
+            $totalOccupied = 1 + $overlappingLoans + $overlappingReservations; // 1 = current loan being renewed
+            if ($totalOccupied > $totalCopies) {
+                $db->rollback();
+                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+                return $response->withHeader('Location', $errorUrl . $separator . 'error=extension_conflicts')->withStatus(302);
+            }
+
+            // All checks passed - proceed with renewal
+            $newDueDate = $proposedNewDueDate;
             $newRenewalCount = $currentRenewals + 1;
 
             // Update loan
