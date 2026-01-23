@@ -516,7 +516,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
     <?php endif; ?>
 
     <!-- ============================================== -->
-    <!-- SECTION 4: ACTIVE RESERVATIONS (Purple) -->
+    <!-- SECTION 5: ACTIVE RESERVATIONS (Purple) -->
     <!-- ============================================== -->
     <?php if (!empty($reservations)): ?>
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
@@ -600,7 +600,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
     <?php endif; ?>
 
     <!-- ============================================== -->
-    <!-- SECTION 5: ACTIVE LOANS (Green) -->
+    <!-- SECTION 6: ACTIVE LOANS (Green) -->
     <!-- ============================================== -->
     <?php if (!empty($active)): ?>
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
@@ -679,7 +679,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
     <?php endif; ?>
 
     <!-- ============================================== -->
-    <!-- SECTION 6: RECENT BOOKS (Informational - Gray) -->
+    <!-- SECTION 7: RECENT BOOKS (Informational - Gray) -->
     <!-- ============================================== -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
       <div class="p-6 border-b border-gray-200 flex items-center justify-between">

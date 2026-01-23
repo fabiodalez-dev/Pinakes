@@ -361,7 +361,7 @@ class PrestitiController
             // - Future loans: always 'prenotato' (user will pick up when loan starts)
             // - Immediate loans with checkbox checked: 'in_corso' (book delivered now)
             // - Immediate loans with checkbox unchecked: 'da_ritirare' (user must confirm pickup)
-            $consegnaImmediata = isset($_POST['consegna_immediata']) && $_POST['consegna_immediata'] === '1';
+            $consegnaImmediata = isset($data['consegna_immediata']) && $data['consegna_immediata'] === '1';
             $pickupDeadline = null;
 
             if ($isImmediateLoan) {
@@ -777,7 +777,7 @@ class PrestitiController
         try {
             // Lock the loan row FIRST to prevent concurrent renewals and match LoanRepository lock order
             $lockLoanStmt = $db->prepare("
-                SELECT id, attivo, stato, renewals, data_scadenza
+                SELECT id, attivo, stato, renewals, data_scadenza, libro_id
                 FROM prestiti WHERE id = ? FOR UPDATE
             ");
             $lockLoanStmt->bind_param('i', $id);
@@ -809,6 +809,8 @@ class PrestitiController
             $currentDueDate = $lockedLoan['data_scadenza'];
             $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
             $currentRenewals = (int) $lockedLoan['renewals'];
+            // Refresh libro_id from locked loan to ensure consistency
+            $libroId = (int) $lockedLoan['libro_id'];
 
             // Now lock the book row
             $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");

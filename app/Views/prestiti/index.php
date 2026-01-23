@@ -23,7 +23,7 @@ function getStatusBadge($status) {
         case 'danneggiato':
             return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Danneggiato") . "</span>";
         case 'scaduto':
-            return "<span class='$baseClasses bg-slate-200 text-slate-700'><i class='fas fa-calendar-times mr-2'></i>" . __("Scaduto") . "</span>";
+            return "<span class='$baseClasses bg-gray-200 text-gray-700'><i class='fas fa-calendar-times mr-2'></i>" . __("Scaduto") . "</span>";
         default:
             return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . __("Sconosciuto") . "</span>";
     }
@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         case 'danneggiato':
                             return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i><?= __("Danneggiato") ?></span>`;
                         case 'scaduto':
-                            return `<span class='${baseClasses} bg-slate-200 text-slate-700'><i class='fas fa-calendar-times mr-2'></i><?= __("Scaduto") ?></span>`;
+                            return `<span class='${baseClasses} bg-gray-200 text-gray-700'><i class='fas fa-calendar-times mr-2'></i><?= __("Scaduto") ?></span>`;
                         default:
                             return `<span class='${baseClasses} bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i><?= __("Sconosciuto") ?></span>`;
                     }
