@@ -665,23 +665,41 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 <td class="px-6 py-4 whitespace-nowrap">
                   <?php
                   // Determine effective status based on loan state and dates
+                  // This handles display even if copy.stato wasn't properly updated
                   $rawCopiaStatus = strtolower($copia['stato'] ?? '');
                   $loanStatus = $copia['prestito_stato'] ?? null;
                   $loanStartDate = $copia['data_prestito'] ?? null;
                   $todayDate = date('Y-m-d');
 
-                  // If copy is "prestato" but the loan is "prenotato" and hasn't started yet,
-                  // show as "prenotato" (reserved for future) instead of "prestato"
-                  // Use substr to compare only date portion (YYYY-MM-DD) in case of datetime strings
-                  if ($rawCopiaStatus === 'prestato' && $loanStatus === 'prenotato' && substr((string)$loanStartDate, 0, 10) > $todayDate) {
-                      $effectiveStatus = 'prenotato';
-                      $effectiveLabel = __('Prenotato');
-                      $effectiveClass = 'bg-purple-100 text-purple-800';
+                  // Priority: show loan-based status if there's an active loan
+                  if ($loanStatus) {
+                      // Determine effective status based on loan state
+                      if ($loanStatus === 'da_ritirare') {
+                          $effectiveStatus = 'da_ritirare';
+                          $effectiveLabel = __('Da Ritirare');
+                          $effectiveClass = 'bg-amber-100 text-amber-800';
+                      } elseif ($loanStatus === 'prenotato' && substr((string)$loanStartDate, 0, 10) > $todayDate) {
+                          // Future scheduled loan
+                          $effectiveStatus = 'prenotato';
+                          $effectiveLabel = __('Prenotato');
+                          $effectiveClass = 'bg-purple-100 text-purple-800';
+                      } elseif ($loanStatus === 'in_ritardo') {
+                          $effectiveStatus = 'in_ritardo';
+                          $effectiveLabel = __('In ritardo');
+                          $effectiveClass = 'bg-red-100 text-red-800';
+                      } else {
+                          // in_corso or prenotato with today's start date
+                          $effectiveStatus = 'prestato';
+                          $effectiveLabel = __('Prestato');
+                          $effectiveClass = 'bg-red-100 text-red-800';
+                      }
                   } else {
+                      // No active loan - use copy's stored status
                       $effectiveStatus = $rawCopiaStatus;
                       $copiaStatusLabels = [
                           'disponibile' => __('Disponibile'),
                           'prestato'    => __('Prestato'),
+                          'prenotato'   => __('Prenotato'),
                           'manutenzione' => __('In manutenzione'),
                           'perso'       => __('Perso'),
                           'danneggiato' => __('Danneggiato'),
@@ -689,6 +707,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                       $copiaStatusClasses = [
                           'disponibile' => 'bg-green-100 text-green-800',
                           'prestato'    => 'bg-red-100 text-red-800',
+                          'prenotato'   => 'bg-purple-100 text-purple-800',
                           'manutenzione' => 'bg-yellow-100 text-yellow-800',
                           'perso'       => 'bg-gray-100 text-gray-800',
                           'danneggiato' => 'bg-orange-100 text-orange-800',
@@ -752,7 +771,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div class="flex items-center justify-end gap-2">
                     <?php
-                    $canEdit = empty($copia['prestito_id']);
+                    // Allow editing if no active loan OR if loan is da_ritirare/prenotato (book still at library)
+                    // Only block editing when book is physically with the user (in_corso, in_ritardo)
+                    $loanStatusVal = $copia['prestito_stato'] ?? null;
+                    $bookAtLibrary = in_array($loanStatusVal, ['da_ritirare', 'prenotato'], true);
+                    $canEdit = empty($copia['prestito_id']) || $bookAtLibrary;
                     $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione']);
                     ?>
                     <?php if ($canEdit): ?>
@@ -772,7 +795,15 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     </button>
                     <?php endif; ?>
                     <?php if (!$canEdit): ?>
-                    <span class="text-gray-400 text-xs"><?= __("In prestito") ?></span>
+                    <?php
+                    // Show actual status instead of generic "In prestito"
+                    $statusText = match($loanStatusVal) {
+                        'in_corso' => __('In prestito'),
+                        'in_ritardo' => __('In ritardo'),
+                        default => __('In prestito')
+                    };
+                    ?>
+                    <span class="text-gray-400 text-xs"><?= $statusText ?></span>
                     <?php endif; ?>
                   </div>
                 </td>
