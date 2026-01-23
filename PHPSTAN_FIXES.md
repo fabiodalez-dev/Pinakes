@@ -80,7 +80,7 @@ function __(string $key, mixed ...$args): string {
 | `app/Controllers/PluginController.php` | `Exception` → `\Exception` |
 | `app/Support/PluginManager.php` | `Exception` → `\Exception` |
 
-**What it influences**: No runtime behavior change (PHP resolves these correctly), but improves code clarity and PHPStan compatibility.
+**What it influences**: Prevents potential runtime errors. In namespaced code, unqualified class names like `mysqli` resolve to `App\Controllers\mysqli` (not global `\mysqli`), which would cause "Class not found" errors. The explicit `\` prefix ensures correct resolution.
 
 **How to test**:
 1. Submit a contact form and verify it saves to database
@@ -129,7 +129,7 @@ return $response->withBody(new \Slim\Psr7\Stream($body));
 **How to test**:
 1. Trigger rate limit by making rapid requests to a protected endpoint (e.g., `/api/scrape/isbn`)
 2. Verify JSON error response is returned with status 429
-3. Response should contain `{"error": "...", "retry_after": ...}`
+3. Response should contain `{"error": "...", "message": "..."}` with `Retry-After` HTTP header
 
 ---
 
