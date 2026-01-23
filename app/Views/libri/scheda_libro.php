@@ -678,8 +678,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                           $effectiveStatus = 'da_ritirare';
                           $effectiveLabel = __('Da Ritirare');
                           $effectiveClass = 'bg-amber-100 text-amber-800';
-                      } elseif ($loanStatus === 'prenotato' && substr((string)$loanStartDate, 0, 10) > $todayDate) {
-                          // Future scheduled loan
+                      } elseif ($loanStatus === 'prenotato') {
+                          // Scheduled loan (future or today waiting activation)
                           $effectiveStatus = 'prenotato';
                           $effectiveLabel = __('Prenotato');
                           $effectiveClass = 'bg-purple-100 text-purple-800';
@@ -688,7 +688,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                           $effectiveLabel = __('In ritardo');
                           $effectiveClass = 'bg-red-100 text-red-800';
                       } else {
-                          // in_corso or prenotato with today's start date
+                          // in_corso - actively borrowed
                           $effectiveStatus = 'prestato';
                           $effectiveLabel = __('Prestato');
                           $effectiveClass = 'bg-red-100 text-red-800';

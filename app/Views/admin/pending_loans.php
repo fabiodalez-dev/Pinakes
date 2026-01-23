@@ -21,6 +21,15 @@
     <div class="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <?php
+            // Explicit class mappings for Tailwind static scanner compatibility
+            $colorClasses = [
+                'red' => ['bg' => 'bg-red-100', 'dark_bg' => 'dark:bg-red-900/30', 'text' => 'text-red-600', 'dark_text' => 'dark:text-red-400'],
+                'orange' => ['bg' => 'bg-orange-100', 'dark_bg' => 'dark:bg-orange-900/30', 'text' => 'text-orange-600', 'dark_text' => 'dark:text-orange-400'],
+                'blue' => ['bg' => 'bg-blue-100', 'dark_bg' => 'dark:bg-blue-900/30', 'text' => 'text-blue-600', 'dark_text' => 'dark:text-blue-400'],
+                'purple' => ['bg' => 'bg-purple-100', 'dark_bg' => 'dark:bg-purple-900/30', 'text' => 'text-purple-600', 'dark_text' => 'dark:text-purple-400'],
+                'green' => ['bg' => 'bg-green-100', 'dark_bg' => 'dark:bg-green-900/30', 'text' => 'text-green-600', 'dark_text' => 'dark:text-green-400'],
+                'indigo' => ['bg' => 'bg-indigo-100', 'dark_bg' => 'dark:bg-indigo-900/30', 'text' => 'text-indigo-600', 'dark_text' => 'dark:text-indigo-400'],
+            ];
             $stats = [
                 ['label' => __('In Ritardo'), 'count' => count($overdueLoans ?? []), 'color' => 'red', 'icon' => 'fa-exclamation-triangle'],
                 ['label' => __('Da Ritirare'), 'count' => count($pickupLoans ?? []), 'color' => 'orange', 'icon' => 'fa-box'],
@@ -30,10 +39,11 @@
                 ['label' => __('Prenotazioni'), 'count' => count($activeReservations ?? []), 'color' => 'indigo', 'icon' => 'fa-bookmark'],
             ];
             foreach ($stats as $stat):
+                $cc = $colorClasses[$stat['color']];
             ?>
             <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                <div class="w-10 h-10 bg-<?= $stat['color'] ?>-100 dark:bg-<?= $stat['color'] ?>-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <i class="fas <?= $stat['icon'] ?> text-<?= $stat['color'] ?>-600 dark:text-<?= $stat['color'] ?>-400"></i>
+                <div class="w-10 h-10 <?= $cc['bg'] ?> <?= $cc['dark_bg'] ?> rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas <?= $stat['icon'] ?> <?= $cc['text'] ?> <?= $cc['dark_text'] ?>"></i>
                 </div>
                 <div>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white"><?= $stat['count'] ?></p>
@@ -462,6 +472,9 @@ unset($loanActionTranslations);
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Get CSRF token for protected requests
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
     // Return loan button handler
     document.querySelectorAll('.return-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -481,8 +494,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': csrfToken
+                        },
+                        body: JSON.stringify({ _csrf: csrfToken })
                     })
                     .then(response => response.json())
                     .then(data => {
@@ -523,8 +538,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': csrfToken
+                        },
+                        body: JSON.stringify({ _csrf: csrfToken })
                     })
                     .then(response => response.json())
                     .then(data => {
