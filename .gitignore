@@ -245,7 +245,14 @@ public/assets/*.LICENSE.txt
 # ========================================
 # PHPStan
 # ========================================
+phpstan.neon
+phpstan-baseline.neon
+phpstan-stubs.php
 phpstan-report.json
+phpstan.json
+PHPSTAN_FIXES.md
+vendor/phpstan/
+vendor/bin/
 
 # ========================================
 # PHPUnit & Tests

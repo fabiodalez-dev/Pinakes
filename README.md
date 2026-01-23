@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.7-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.7.1-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -21,7 +21,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.7
+## What's New in v0.4.7.1
+
+### Code Quality & Plugin Compatibility
+
+- **ESLint integration** — Frontend build now includes ESLint with strict rules
+- **Plugin compatibility** — All pre-installed plugins updated to `max_app_version: 1.0.0`
+- **Loan workflow stability** — Additional fixes to copy state transitions during approval/rejection
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.7</strong> - Stability & Bug Fixes</summary>
 
 ### Stability & Bug Fixes
 
@@ -29,9 +42,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Pickup workflow refinement** — `reserved` and `ready_for_pickup` states now correctly keep copies as `available`
 - **MaintenanceService improvements** — Expired pickup handling no longer resurrects non-restorable copies
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.6</strong> - Updater Symlink Fix</summary>
@@ -117,43 +128,6 @@ Complete rewrite of the update system for reliable operation on shared hosting:
 
 - **`test-updater/` folder** — Contains patched files for users stuck on broken updater versions
 - **`manual-update.php`** — Standalone emergency update script
-
-</details>
-
-<details>
-<summary><strong>v0.4.1</strong> - ISBN Enhancement & Bug Fixes</summary>
-
-### ISBN Enhancement & Cross-Source Matching
-
-New `IsbnFormatter` utility class for intelligent ISBN handling:
-- **ISBN validation** — Checksum verification for both ISBN-10 and ISBN-13 formats
-- **Bidirectional conversion** — ISBN-10 ↔ ISBN-13 conversion (respects 979-prefix limitations)
-- **All variants extraction** — Get all valid ISBN forms for cross-source matching
-- **Form auto-population** — Book form now properly handles `isbn10`, `isbn13` fields from SBN responses
-
-### Scraping Improvements
-
-- **New sources** — New scraping source with author biography support
-- **Author bio field mapping** — Added to api-book-scraper plugin
-- **Cross-source ISBN enrichment** — ScrapeController can re-query SBN with ISBN variants for Dewey classification
-
-### Bug Fixes (12+)
-
-- **Catalog filters** — Now hide zero-count genres
-- **Chi-siamo redirect** — Fixed redirect loop
-- **Publication date** — Fixed formatting (DD-MM-YYYY)
-- **Duplicate routes** — Removed duplicate `/events` route registration
-- **Cookie banner** — Various improvements
-- **Review actions** — Fixed button handling in admin panel
-- **CSRF middleware** — Improvements for better security
-- **Loan detail pages** — Added clickable book links in `/admin/prestiti/modifica/` and `/admin/prestiti/dettagli/`
-
-</details>
-
-<details>
-<summary><strong>v0.4.0</strong> - GDPR & Session Improvements</summary>
-
-**Key features**: GDPR Privacy Consent Tracking, Persistent "Remember Me" Sessions, Improved Maintenance System, Loan Return UX Improvements
 
 </details>
 
