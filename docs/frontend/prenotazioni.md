@@ -9,6 +9,61 @@ La pagina **prenotazioni** è il **tuo centro di controllo** per gestire:
 
 ---
 
+## 🔄 Flusso di un Prestito
+
+Quando richiedi un libro, il prestito passa attraverso diversi stati:
+
+```
+┌─────────────┐     Admin        ┌─────────────┐     Data          ┌─────────────┐
+│  PENDENTE   │ ──approva───────>│  PRENOTATO  │ ──raggiunta──────>│ DA RITIRARE │
+│  (attesa)   │                  │ (confermato)│                   │ (pronto!)   │
+└─────────────┘                  └─────────────┘                   └─────────────┘
+                                                                          │
+                                                                   Ritiri il libro
+                                                                          │
+                                                                          ▼
+                                                                   ┌─────────────┐
+                                                                   │  IN CORSO   │
+                                                                   │ (in mano)   │
+                                                                   └─────────────┘
+                                                                          │
+                                                              ┌───────────┴───────────┐
+                                                              │                       │
+                                                              ▼                       ▼
+                                                       Restituito             Non restituito
+                                                       in tempo                    │
+                                                              │                    ▼
+                                                              │            ┌─────────────┐
+                                                              │            │ IN RITARDO  │
+                                                              │            │  (scaduto!) │
+                                                              │            └─────────────┘
+                                                              │                    │
+                                                              ▼                    ▼
+                                                       ┌─────────────────────────────┐
+                                                       │       STORICO PRESTITI       │
+                                                       │ (restituito/perso/etc)       │
+                                                       └─────────────────────────────────┘
+```
+
+### Stati del Prestito
+
+| Stato | Descrizione | Cosa fare |
+|-------|-------------|-----------|
+| **Pendente** | Richiesta inviata, in attesa approvazione admin | Aspetta conferma via email |
+| **Prenotato** | Approvato! Programmato per una data futura | Aspetta la data di inizio |
+| **Da Ritirare** | Il libro è PRONTO! Vai a ritirarlo | Ritira entro X giorni |
+| **In Corso** | Il libro è in tuo possesso | Restituisci entro la scadenza |
+| **In Ritardo** | La scadenza è passata! | Restituisci SUBITO |
+
+### ⚠️ Importante: Da Ritirare
+
+Quando il tuo prestito diventa **"Da Ritirare"**:
+- Riceverai una **email di notifica**
+- Hai un **tempo limite** per ritirare il libro (di solito 3-5 giorni)
+- Se non ritiri in tempo, il prestito potrebbe essere **annullato**
+
+---
+
 ## 🎯 3 Sezioni Principali
 
 ```
@@ -116,15 +171,38 @@ Esempio: "Prestiti in corso | 3 prestiti attivi"
 
 ---
 
-## 📖 Sezione 2: Prenotazioni Attive
+## 📖 Sezione 2: Prenotazioni e Richieste Attive
 
-### **Cosa Sono le Prenotazioni**
+### **Tipi di Richieste**
 
-Una **prenotazione** è una **richiesta di prestito** per un libro che:
-- ✅ È attualmente IN PRESTITO da qualcun altro, oppure
-- ✅ Hai RICHIESTO per date future
+In questa sezione puoi vedere diversi tipi di richieste:
 
-**Stato**: In attesa di approvazione dall'admin oppure confermata.
+| Tipo | Badge | Descrizione |
+|------|-------|-------------|
+| **Richiesta Pendente** | ⏳ In Attesa | Hai fatto una richiesta, l'admin deve approvarla |
+| **Prestito Prenotato** | 📋 Prenotato | Approvato! Aspetta la data di inizio |
+| **Da Ritirare** | 📦 Pronto | Il libro è pronto! Vai a ritirarlo in biblioteca |
+| **In Coda** | 📊 Posizione #N | Sei in coda per un libro non disponibile |
+
+### **Cosa Significa Ogni Stato**
+
+**⏳ Richiesta Pendente**:
+- Hai chiesto un libro ma l'admin non ha ancora risposto
+- Riceverai una email quando viene approvata o rifiutata
+
+**📋 Prestito Prenotato**:
+- La tua richiesta è stata APPROVATA!
+- Il prestito inizierà alla data indicata
+- Riceverai una notifica quando sarà pronto
+
+**📦 Da Ritirare**:
+- Il libro ti sta ASPETTANDO in biblioteca!
+- Hai un tempo limite per ritirarlo (di solito 3-5 giorni)
+- Se non lo ritiri, il prestito potrebbe essere annullato
+
+**📊 In Coda**:
+- Il libro è prestato a qualcun altro
+- Quando viene restituito, tocca a te
 
 ### **Indicatore**
 
@@ -244,10 +322,11 @@ Esempio: "Storico prestiti | 15 prestiti passati"
 |-------|-------|------------|
 | **Restituito** | ✅ Grigio | Restituito in tempo |
 | **Restituito in ritardo** | ⚠️ Giallo | Restituito ma dopo scadenza |
-| **Perso** | ❌ Rosso | Libro non restituito (cercato a lungo) |
+| **Perso** | ❌ Rosso | Marcato come perso dall'admin |
 | **Danneggiato** | 🔧 Rosso | Libro restituito ma rotto |
-| **Prestato** | 📖 Blu | Ancora in prestito a qualcuno (legacy) |
-| **In corso** | 🔄 Verde | Ancora in corso (legacy) |
+| **Annullato** | ⛔ Grigio | Richiesta annullata dall'admin o dall'utente |
+| **Rifiutato** | ❌ Grigio | Richiesta rifiutata dall'admin |
+| **Scaduto** | ⏰ Arancione | Non ritirato in tempo (pickup scaduto) |
 
 ### **Se Non Hai Storico**
 
@@ -466,8 +545,11 @@ Contatta la biblioteca per chiarimenti.
 **Storico**:
 - ✅ Restituito: OK, in tempo
 - ⚠️ Restituito in ritardo: Restituito ma dopo scadenza
-- ❌ Perso: Non restituito (cercato)
+- ❌ Perso: Marcato come perso dall'admin
 - 🔧 Danneggiato: Restituito rovinato
+- ⛔ Annullato: Richiesta annullata (admin o utente)
+- ❌ Rifiutato: Richiesta rifiutata dall'admin
+- ⏰ Scaduto: Non ritirato in tempo (pickup scaduto)
 
 ---
 
