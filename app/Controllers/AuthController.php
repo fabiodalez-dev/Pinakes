@@ -55,8 +55,12 @@ class AuthController
             $row = $res ? $res->fetch_assoc() : null;
             $stmt->close();
 
-            // Constant-time password verification to avoid leaking valid emails
-            $dummyHash = '$2y$12$PXZb520pM93TmNGnoJy2TuhssLxu4XversvqtKZ4B7xrm0sAldZE6';
+            // Constant-time password verification to prevent timing attacks.
+            // SECURITY NOTE: This dummy hash is NOT a leaked credential - it's an intentional
+            // security measure. By always running password_verify() even for non-existent users,
+            // attackers cannot enumerate valid emails by measuring response times.
+            // See OWASP: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+            $dummyHash = '$2y$12$PXZb520pM93TmNGnoJy2TuhssLxu4XversvqtKZ4B7xrm0sAldZE6'; // @codingStandardsIgnoreLine
             $hashToCheck = (string) ($row['password'] ?? $dummyHash);
 
             // Plugin hook: Custom login validation (e.g., reCAPTCHA, 2FA)
