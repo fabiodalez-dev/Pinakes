@@ -1,10 +1,22 @@
 parameters:
 	ignoreErrors:
 		-
+			message: '#^If condition is always true\.$#'
+			identifier: if.alwaysTrue
+			count: 1
+			path: app/Controllers/Admin/CmsAdminController.php
+
+		-
 			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1
 			path: app/Controllers/AutoriApiController.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Controllers/AutoriController.php
 
 		-
 			message: '#^Variable \$randomSuffix might not be defined\.$#'
@@ -13,10 +25,34 @@ parameters:
 			path: app/Controllers/CmsController.php
 
 		-
+			message: '#^Offset ''mime'' on array\{0\: int\<0, max\>, 1\: int\<0, max\>, 2\: int, 3\: string, mime\: string, channels\?\: int, bits\?\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Controllers/CoverController.php
+
+		-
+			message: '#^If condition is always true\.$#'
+			identifier: if.alwaysTrue
+			count: 1
+			path: app/Controllers/CsvImportController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between '',''\|'';'' and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Controllers/CsvImportController.php
+
+		-
 			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1
 			path: app/Controllers/EditoriApiController.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Controllers/EditorsController.php
 
 		-
 			message: '#^Variable \$final_params in empty\(\) always exists and is not falsy\.$#'
@@ -31,10 +67,40 @@ parameters:
 			path: app/Controllers/FrontendController.php
 
 		-
+			message: '#^Offset ''posizione_scaffale'' on non\-empty\-array\<string, float\|int\|string\|null\> on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Controllers/LibriApiController.php
+
+		-
 			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1
 			path: app/Controllers/LibriApiController.php
+
+		-
+			message: '#^If condition is always true\.$#'
+			identifier: if.alwaysTrue
+			count: 2
+			path: app/Controllers/LibriController.php
+
+		-
+			message: '#^Offset ''copie_totali'' on array\{titolo\: string, sottotitolo\: string, isbn10\: mixed, isbn13\: mixed, ean\: mixed, genere_id\: int\|null, sottogenere_id\: int\|null, editore_id\: int\|null, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Controllers/LibriController.php
+
+		-
+			message: '#^Offset ''mime'' on array\{0\: int\<0, max\>, 1\: int\<0, max\>, 2\: int, 3\: string, mime\: string, channels\?\: int, bits\?\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Controllers/LibriController.php
+
+		-
+			message: '#^Offset ''sottotitolo'' on array\{titolo\: string, sottotitolo\: string, isbn10\: mixed, isbn13\: mixed, ean\: mixed, genere_id\: mixed, sottogenere_id\: mixed, editore_id\: mixed, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Controllers/LibriController.php
 
 		-
 			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
@@ -49,16 +115,190 @@ parameters:
 			path: app/Controllers/PrestitiController.php
 
 		-
+			message: '#^Using nullsafe method call on non\-nullable type mysqli_result\|false\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Controllers/ReservationManager.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between mixed and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Controllers/ScrapeController.php
+
+		-
+			message: '#^Offset ''size'' on array\{name\: string, type\: string, tmp_name\: string, error\: int, size\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Controllers/SettingsController.php
+
+		-
+			message: '#^Offset ''tmp_name'' on array\{name\: string, type\: string, tmp_name\: string, error\: int, size\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Controllers/SettingsController.php
+
+		-
 			message: '#^Variable \$params in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1
 			path: app/Controllers/UtentiApiController.php
 
 		-
+			message: '#^Property App\\Middleware\\RateLimitMiddleware\:\:\$maxAttempts is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Middleware/RateLimitMiddleware.php
+
+		-
 			message: '#^Variable \$words in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1
 			path: app/Models/AuthorRepository.php
+
+		-
+			message: '#^Offset ''smtp'' on array\{\}\|array\{driver\?\: non\-falsy\-string\|numeric\-string, from_email\?\: string, from_name\?\: string\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/ConfigStore.php
+
+		-
+			message: '#^Offset ''http''\|''https'' on array\{http\: 80, https\: 443\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/DataIntegrity.php
+
+		-
+			message: '#^Offset ''http''\|''https'' on array\{http\: 80, https\: 443\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Support/HtmlHelper.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed~\(0\|0\.0\|''''\|''0''\|array\{\}\|false\|null\) and '''' will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Support/HtmlHelper.php
+
+		-
+			message: '#^Ternary operator condition is always true\.$#'
+			identifier: ternary.alwaysTrue
+			count: 1
+			path: app/Support/InputValidator.php
+
+		-
+			message: '#^Negated boolean expression is always true\.$#'
+			identifier: booleanNot.alwaysTrue
+			count: 1
+			path: app/Support/Log.php
+
+		-
+			message: '#^Offset ''expiration_warnings'' on array\{expiration_warnings\: int, overdue_notifications\: int, wishlist_notifications\: int, errors\: array\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/MaintenanceService.php
+
+		-
+			message: '#^Offset ''expired_pickups'' on array\{skipped\?\: bool, reason\?\: string, scheduled_loans_activated\?\: int, reservations_converted\?\: int, expired_reservations\?\: int, overdue_loans_updated\?\: int, expiration_warnings\?\: int, overdue_notifications\?\: int, \.\.\.\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/MaintenanceService.php
+
+		-
+			message: '#^Offset ''overdue…'' on array\{expiration_warnings\: int, overdue_notifications\: int, wishlist_notifications\: int, errors\: array\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/MaintenanceService.php
+
+		-
+			message: '#^Offset ''wishlist…'' on array\{expiration_warnings\: int, overdue_notifications\: int, wishlist_notifications\: int, errors\: array\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/MaintenanceService.php
+
+		-
+			message: '#^Call to function method_exists\(\) with object and ''__call'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Support/PluginManager.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 2
+			path: app/Support/PluginManager.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed~\(0\|0\.0\|''''\|''0''\|array\{\}\|false\|null\) and '''' will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Support/PluginManager.php
+
+		-
+			message: '#^Negated boolean expression is always true\.$#'
+			identifier: booleanNot.alwaysTrue
+			count: 1
+			path: app/Support/QueryCache.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: app/Support/QueryCache.php
+
+		-
+			message: '#^Offset ''file'' on array\{file\: string, search\: string, replace\: string, description\?\: string\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Offset ''http_code'' on \(array\{url\: string, content_type\: string\|null, http_code\: int, header_size\: int, request_size\: int, filetime\: int, ssl_verify_result\: int, redirect_count\: int, \.\.\.\}\|false\) on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Offset ''http_code'' on array\{url\: string, content_type\: string\|null, http_code\: int, header_size\: int, request_size\: int, filetime\: int, ssl_verify_result\: int, redirect_count\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Offset ''replace'' on array\{file\: string, search\: string, replace\: string, description\?\: string\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Offset ''search'' on array\{file\: string, search\: string, replace\: string, description\?\: string\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Offset ''size_download'' on array\{url\: string, content_type\: string\|null, http_code\: int, header_size\: int, request_size\: int, filetime\: int, ssl_verify_result\: int, redirect_count\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Offset ''total_time'' on array\{url\: string, content_type\: string\|null, http_code\: int, header_size\: int, request_size\: int, filetime\: int, ssl_verify_result\: int, redirect_count\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between resource and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Support/Updater.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Support/Updater.php
 
 		-
 			message: '#^Variable \$http_response_header in isset\(\) always exists and is not nullable\.$#'
@@ -367,6 +607,12 @@ parameters:
 			path: app/Views/frontend/events.php
 
 		-
+			message: '#^Strict comparison using \!\=\= between '''' and '''' will always evaluate to false\.$#'
+			identifier: notIdentical.alwaysFalse
+			count: 1
+			path: app/Views/frontend/layout.php
+
+		-
 			message: '#^Variable \$footerDescription on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.variable
 			count: 1
@@ -481,6 +727,18 @@ parameters:
 			path: app/Views/profile/reservations.php
 
 		-
+			message: '#^Call to function method_exists\(\) with App\\Models\\ApiKeyRepository and ''ensureTable'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Views/settings/advanced-tab.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between App\\Models\\ApiKeyRepository and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 2
+			path: app/Views/settings/advanced-tab.php
+
+		-
 			message: '#^Variable \$activeTab might not be defined\.$#'
 			identifier: variable.undefined
 			count: 1
@@ -553,16 +811,52 @@ parameters:
 			path: app/Views/user_dashboard/prenotazioni.php
 
 		-
+			message: '#^Strict comparison using \!\=\= between '''' and '''' will always evaluate to false\.$#'
+			identifier: notIdentical.alwaysFalse
+			count: 1
+			path: app/Views/user_layout.php
+
+		-
 			message: '#^Variable \$content might not be defined\.$#'
 			identifier: variable.undefined
 			count: 1
 			path: app/Views/user_layout.php
 
 		-
+			message: '#^Offset ''http''\|''https'' on array\{http\: 80, https\: 443\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: installer/classes/Installer.php
+
+		-
+			message: '#^Ternary operator condition is always false\.$#'
+			identifier: ternary.alwaysFalse
+			count: 1
+			path: installer/index.php
+
+		-
+			message: '#^Ternary operator condition is always true\.$#'
+			identifier: ternary.alwaysTrue
+			count: 1
+			path: installer/index.php
+
+		-
 			message: '#^Variable \$baseDir might not be defined\.$#'
 			identifier: variable.undefined
 			count: 17
 			path: installer/steps/step1.php
+
+		-
+			message: '#^If condition is always false\.$#'
+			identifier: if.alwaysFalse
+			count: 1
+			path: installer/steps/step2.php
+
+		-
+			message: '#^Instanceof between mysqli and mysqli will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: installer/steps/step2.php
 
 		-
 			message: '#^Variable \$installer might not be defined\.$#'
@@ -575,6 +869,18 @@ parameters:
 			identifier: variable.undefined
 			count: 11
 			path: installer/steps/step2.php
+
+		-
+			message: '#^If condition is always true\.$#'
+			identifier: if.alwaysTrue
+			count: 1
+			path: installer/steps/step3.php
+
+		-
+			message: '#^Offset ''debug_log'' on non\-empty\-array\<mixed, mixed\> in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: installer/steps/step3.php
 
 		-
 			message: '#^Variable \$debug in empty\(\) always exists and is not falsy\.$#'

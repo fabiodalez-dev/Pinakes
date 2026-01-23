@@ -203,19 +203,6 @@ class AutoriApiController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
-    private function columnExists(mysqli $db, string $table, string $column): bool
-    {
-        $sql = "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1";
-        $stmt = $db->prepare($sql);
-        if (!$stmt) {
-            return false;
-        }
-        $stmt->bind_param('ss', $table, $column);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->num_rows > 0;
-    }
-
     private function resolveColumn(mysqli $db, string $table, array $candidates): ?string
     {
         $stmt = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");

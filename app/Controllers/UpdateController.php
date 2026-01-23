@@ -350,14 +350,4 @@ class UpdateController
             ->withHeader('Content-Type', 'application/json')
             ->withStatus($status);
     }
-
-    /**
-     * Helper: Redirect
-     */
-    private function redirect(Response $response, string $url): Response
-    {
-        return $response
-            ->withHeader('Location', $url)
-            ->withStatus(302);
-    }
 }

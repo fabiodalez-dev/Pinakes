@@ -10,12 +10,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class NotificationsController
 {
-    private mysqli $db;
     private NotificationService $notificationService;
 
     public function __construct(mysqli $db)
     {
-        $this->db = $db;
         $this->notificationService = new NotificationService($db);
     }
 

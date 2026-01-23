@@ -299,28 +299,6 @@ class SearchController
         
         return $results;
     }
-    
-    private function searchUsers(mysqli $db, string $query): array
-    {
-        $results = [];
-        $s = '%'.$query.'%';
-        
-        $stmt = $db->prepare("SELECT id, CONCAT(nome,' ',cognome) AS label FROM utenti WHERE nome LIKE ? OR cognome LIKE ? ORDER BY cognome, nome LIMIT 5");
-        $stmt->bind_param('ss', $s, $s);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        
-        while ($row = $res->fetch_assoc()) {
-            $results[] = [
-                'id' => $row['id'],
-                'label' => HtmlHelper::decode($row['label']),
-                'type' => 'user',
-                'url' => '/admin/utenti/' . $row['id']
-            ];
-        }
-        
-        return $results;
-    }
 
     private function searchBooksWithDetails(mysqli $db, string $query): array
     {
