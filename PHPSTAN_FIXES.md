@@ -4,9 +4,9 @@ This document describes the PHPStan static analysis integration and all fixes ap
 
 ## Configuration
 
-- **Level**: 3
+- **Level**: 4
 - **Config file**: `phpstan.neon`
-- **Baseline**: `phpstan-baseline.neon` (282 baseline entries for View/template variable errors)
+- **Baseline**: `phpstan-baseline.neon` (341 baseline entries for View/template variable errors + level 4 checks)
 - **Stubs**: `phpstan-stubs.php` (helper function signatures)
 
 ### Running PHPStan
@@ -251,18 +251,56 @@ ignoreErrors:
 
 ---
 
-## Baseline Errors (282)
+### 10. Dead Code Removal (Level 4)
+
+**Problem**: PHPStan level 4 detected unused methods and properties that were dead code.
+
+**Fix**: Removed the following dead code:
+
+| Type | Location | Item |
+|------|----------|------|
+| Method | `AutoriApiController.php` | `columnExists()` - never called |
+| Method | `FrontendController.php` | `createSlug()` - never called |
+| Method | `FrontendController.php` | `render()` - never called |
+| Method | `SearchController.php` | `searchUsers()` - never called |
+| Method | `UpdateController.php` | `redirect()` - never called |
+| Method | `ReservationReassignmentService.php` | `findAvailableCopy()` - replaced by `findAvailableCopyExcluding()` |
+| Property | `NotificationsController.php` | `$db` - assigned but never read |
+| Property | `ReservationReassignmentService.php` | `$copyRepo` - assigned, usages commented out |
+| Import | `ReservationReassignmentService.php` | `use App\Models\CopyRepository` - no longer needed |
+
+**Files changed**:
+- `app/Controllers/AutoriApiController.php`
+- `app/Controllers/FrontendController.php`
+- `app/Controllers/SearchController.php`
+- `app/Controllers/UpdateController.php`
+- `app/Controllers/Admin/NotificationsController.php`
+- `app/Services/ReservationReassignmentService.php`
+
+**What it influences**: No runtime change - removed code was never executed.
+
+**How to test**: Application functions normally - no functionality removed since code was dead.
+
+**Note**: `RateLimitMiddleware::$maxAttempts` was NOT removed despite being flagged. The property is assigned from constructor but never read - this is a **design bug** (the middleware accepts rate limit config but delegates to `RateLimiter::isLimited()` which ignores it). This should be fixed separately by actually using `$maxAttempts` in the rate limiting logic.
+
+---
+
+## Baseline Errors (341)
 
 The following error types are baselined (not fixed) because they are false positives or would require significant refactoring:
 
 | Error Type | Count | Description |
 |------------|-------|-------------|
-| `variable.undefined` | 240 | Variables passed to Views via `extract()` or `include` |
-| `empty.variable` | 9 | `empty($var)` on variables that always exist |
-| `isset.variable` | 7 | `isset($var)` on variables that always exist |
+| `variable.undefined` | 91 | Variables passed to Views via `extract()` or `include` |
+| `nullCoalesce.offset` | 18 | Defensive `??` on array keys that always exist |
+| `empty.variable` | 8 | `empty($var)` on variables that always exist |
+| `notIdentical.alwaysTrue` | 5 | Comparisons that always evaluate to true |
+| `isset.offset` | 5 | `isset()` on array keys that always exist |
 | `nullCoalesce.variable` | 4 | `$var ?? default` on always-defined variables |
-| `offsetAccess.notFound` | 2 | Array key access on mixed types |
-| Others | 20 | Various template-related false positives |
+| `isset.variable` | 4 | `isset($var)` on variables that always exist |
+| `if.alwaysTrue` | 4 | Conditions that are always true |
+| `function.alreadyNarrowedType` | 4 | Redundant type checks |
+| Others | 15 | Various level 4 checks (ternary, boolean, instanceof) |
 
 ### Why Baselined?
 
@@ -296,7 +334,7 @@ Created stubs for helper functions defined with `function_exists()` guard:
 
 ## Future Improvements
 
-1. **Increase Level**: Currently at level 3. Consider increasing to 4 or 5 after fixing more type issues.
+1. **Increase Level**: Currently at level 4. Consider increasing to level 5 after addressing more type issues in Views.
 
 2. **View Type Hints**: Consider using a template engine with better type support (Twig, Blade) or adding PHPDoc to views.
 

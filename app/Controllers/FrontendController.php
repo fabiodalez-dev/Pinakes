@@ -1355,21 +1355,6 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         return $response->withHeader('Content-Type', 'text/html');
     }
 
-    private function createSlug(string $text): string
-    {
-        // Decodifica entità HTML
-        $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
-        // Converte in minuscolo
-        $text = strtolower($text);
-        // Sostituisce caratteri accentati con equivalenti non accentati
-        $text = iconv('UTF-8', 'ASCII//TRANSLIT', $text);
-        // Rimuove caratteri speciali eccetto lettere, numeri, spazi e trattini
-        $text = preg_replace('/[^a-z0-9\s-]/', '', $text);
-        $text = preg_replace('/[\s-]+/', '-', $text);
-        $text = trim($text, '-');
-        return $text;
-    }
-
     public function getBookUrl(array $book): string
     {
         return book_url($book);
@@ -1613,23 +1598,6 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         include __DIR__ . '/../Views/frontend/archive.php';
         $content = ob_get_clean();
 
-        $response->getBody()->write($content);
-        return $response->withHeader('Content-Type', 'text/html');
-    }
-
-    private function render(Response $response, string $template, array $data = []): Response
-    {
-        ob_start();
-
-        $templatePath = __DIR__ . '/../Views/' . $template;
-        if (file_exists($templatePath)) {
-            include $templatePath;
-        } else {
-            $response->getBody()->write('Template not found: ' . $template);
-            return $response->withStatus(500);
-        }
-
-        $content = ob_get_clean();
         $response->getBody()->write($content);
         return $response->withHeader('Content-Type', 'text/html');
     }

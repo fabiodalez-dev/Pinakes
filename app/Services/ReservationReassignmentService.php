@@ -6,7 +6,6 @@ namespace App\Services;
 use mysqli;
 use App\Support\NotificationService;
 use App\Support\SecureLogger;
-use App\Models\CopyRepository;
 use Exception;
 
 /**
@@ -18,7 +17,6 @@ class ReservationReassignmentService
 {
     private mysqli $db;
     private NotificationService $notificationService;
-    private CopyRepository $copyRepo;
     private bool $externalTransaction = false;
 
     /**
@@ -31,7 +29,6 @@ class ReservationReassignmentService
     {
         $this->db = $db;
         $this->notificationService = new NotificationService($db);
-        $this->copyRepo = new CopyRepository($db);
     }
 
     /**
@@ -370,34 +367,6 @@ class ReservationReassignmentService
         // Nota: reassignOnNewCopy fa esattamente questo logicamente: prende una copia disponibile (questa)
         // e cerca chi ne ha bisogno.
         $this->reassignOnNewCopy($libroId, $copiaId);
-    }
-
-    private function findAvailableCopy(int $libroId, ?int $excludeCopiaId = null): ?int
-    {
-        $sql = "
-            SELECT id
-            FROM copie
-            WHERE libro_id = ?
-            AND stato = 'disponibile'
-        ";
-        $params = [$libroId];
-        $types = "i";
-
-        if ($excludeCopiaId) {
-            $sql .= " AND id != ?";
-            $params[] = $excludeCopiaId;
-            $types .= "i";
-        }
-
-        $sql .= " LIMIT 1";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-        $res = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        return $res ? (int) $res['id'] : null;
     }
 
     /**
