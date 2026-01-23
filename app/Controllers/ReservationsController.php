@@ -45,11 +45,11 @@ class ReservationsController
         $bookId = (int) $args['id'];
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending and scheduled)
+        // Get current and future loans for this book (approved states only)
         $stmt = $this->db->prepare("
-            SELECT data_prestito, data_scadenza, data_restituzione, stato
+            SELECT data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'pendente', 'prenotato')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);
@@ -88,6 +88,8 @@ class ReservationsController
         $start->setTime(0, 0, 0);
 
         // Normalize intervals
+        // Note: 'pendente' loans do NOT block slots - they are just unconfirmed requests.
+        // Only approved loans (prenotato, da_ritirare, in_corso, in_ritardo) block slots.
         $loanIntervals = [];
         foreach ($currentLoans as $loan) {
             $startDateLoan = $loan['data_prestito'] ?? null;
@@ -97,18 +99,31 @@ class ReservationsController
                 continue;
             }
 
-            // For transitional states (pendente, prenotato, da_ritirare), the copy is committed
-            // and unavailable until the loan is either picked up, completed, or cancelled.
-            // Use a far future date to block availability.
-            $transitionalStates = ['pendente', 'prenotato', 'da_ritirare'];
-            if (in_array($loanStatus, $transitionalStates, true)) {
-                // Block for 1 year from start date (or until manually resolved)
-                $endDateLoan = (new DateTime($startDateLoan))->add(new DateInterval('P1Y'))->format('Y-m-d');
-            } else {
-                $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
-                if (!$endDateLoan || $endDateLoan < $startDateLoan) {
-                    $endDateLoan = $startDateLoan;
+            // Skip 'pendente' - it's just a request, doesn't block any slot
+            if ($loanStatus === 'pendente') {
+                continue;
+            }
+
+            // For approved states, use the actual loan period
+            // 'prenotato': future loan - block from data_prestito to data_scadenza
+            // 'da_ritirare': ready for pickup - block until pickup_deadline or data_scadenza
+            // 'in_corso'/'in_ritardo': active loan - block until data_scadenza or data_restituzione
+            $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
+
+            // For 'da_ritirare', if no end date, use pickup_deadline or 7 days from start
+            if ($loanStatus === 'da_ritirare' && !$endDateLoan) {
+                $pickupDeadline = $loan['pickup_deadline'] ?? null;
+                if ($pickupDeadline) {
+                    $endDateLoan = substr($pickupDeadline, 0, 10); // Extract date part
+                } else {
+                    // Default: 7 days for pickup
+                    $endDateLoan = (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
                 }
+            }
+
+            // Fallback: if still no end date, use start date (single day block)
+            if (!$endDateLoan || $endDateLoan < $startDateLoan) {
+                $endDateLoan = $startDateLoan;
             }
 
             $loanIntervals[] = [$startDateLoan, $endDateLoan];
@@ -263,7 +278,11 @@ class ReservationsController
         }
 
         // Check for existing active loan from this user for this book (any active state)
-        $stmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('pendente', 'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo') LIMIT 1");
+        // Note: 'pendente' has attivo=0, other active states have attivo=1
+        $stmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND (
+            (attivo = 0 AND stato = 'pendente')
+            OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+        ) LIMIT 1");
         $stmt->bind_param('ii', $bookId, $userId);
         $stmt->execute();
         if ($stmt->get_result()->fetch_assoc()) {
@@ -352,11 +371,11 @@ class ReservationsController
     {
         $totalCopies = $this->getBookTotalCopies($bookId);
 
-        // Get current and future loans for this book (including pending and scheduled)
+        // Get current and future loans for this book (approved states only)
         $stmt = $this->db->prepare("
-            SELECT data_prestito, data_scadenza, data_restituzione, stato
+            SELECT data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato
             FROM prestiti
-            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'pendente', 'prenotato')
+            WHERE libro_id = ? AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $bookId);

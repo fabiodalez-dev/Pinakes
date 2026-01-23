@@ -106,7 +106,7 @@ class IcsGenerator
                     JOIN libri l ON p.libro_id = l.id
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.attivo = 1
-                      AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                      AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                       AND (
                           (CASE
                               WHEN p.stato = 'da_ritirare' AND p.pickup_deadline IS NOT NULL

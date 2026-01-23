@@ -173,9 +173,9 @@ class PrestitiController
 
                 // Step 2: Count overlapping loans for the loan period
                 $loanCountStmt = $db->prepare("
-                    SELECT COUNT(*) as count FROM prestiti
-                    WHERE libro_id = ? AND attivo = 1
-                    AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                SELECT COUNT(*) as count FROM prestiti
+                WHERE libro_id = ? AND attivo = 1
+                AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                     AND data_prestito <= ? AND data_scadenza >= ?
                 ");
                 $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
@@ -215,7 +215,7 @@ class PrestitiController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                        AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -230,7 +230,7 @@ class PrestitiController
                 // all copies have overlapping loans for the requested period
             } else {
                 // For FUTURE loans, find a copy that has no overlapping active loans
-                // Also verify book-level availability (considering prenotazioni and pendente loans)
+                // Also verify book-level availability (considering prenotazioni)
 
                 // Step 1: Count total lendable copies (exclude perso, danneggiato, manutenzione)
                 $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
@@ -239,11 +239,11 @@ class PrestitiController
                 $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
                 $totalCopiesStmt->close();
 
-                // Step 2: Count overlapping loans (all types, including pendente without copia_id)
+                // Step 2: Count overlapping loans (approved states only)
                 $loanCountStmt = $db->prepare("
-                    SELECT COUNT(*) as count FROM prestiti
-                    WHERE libro_id = ? AND attivo = 1
-                    AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                SELECT COUNT(*) as count FROM prestiti
+                WHERE libro_id = ? AND attivo = 1
+                AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                     AND data_prestito <= ? AND data_scadenza >= ?
                 ");
                 $loanCountStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
@@ -283,7 +283,7 @@ class PrestitiController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
+                        AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
                     )
@@ -311,11 +311,11 @@ class PrestitiController
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
-            // Include 'pendente' in race condition check to prevent double-booking
+            // Race condition check to prevent double-booking
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo','pendente')
+                AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo')
                 AND data_prestito <= ? AND data_scadenza >= ?
                 LIMIT 1
             ");
@@ -736,6 +736,61 @@ class PrestitiController
             $errorUrl = $redirectTo ?? '/admin/prestiti';
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $errorUrl . $separator . 'error=max_renewals')->withStatus(302);
+        }
+
+        // Calculate proposed new due date for conflict checking
+        $currentDueDate = $loan['data_scadenza'];
+        $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
+        $libroId = (int) $loan['libro_id'];
+
+        // Check if renewal conflicts with other reservations/loans
+        // Extension is allowed if:
+        // 1. No other reservations/loans overlap with the extension period, OR
+        // 2. Another copy is available for those overlapping reservations
+        $extensionStart = $currentDueDate; // Extension starts from current due date
+        $extensionEnd = $proposedNewDueDate;
+
+        // Count other active loans/reservations overlapping with extension period (excluding current loan)
+        $conflictStmt = $db->prepare("
+            SELECT COUNT(*) as count FROM prestiti
+            WHERE libro_id = ? AND id != ? AND attivo = 1
+            AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
+            AND data_prestito <= ? AND data_scadenza >= ?
+        ");
+        $conflictStmt->bind_param('iiss', $libroId, $id, $extensionEnd, $extensionStart);
+        $conflictStmt->execute();
+        $overlappingLoans = (int) ($conflictStmt->get_result()->fetch_assoc()['count'] ?? 0);
+        $conflictStmt->close();
+
+        // Count overlapping prenotazioni (queue-based reservations)
+        $resConflictStmt = $db->prepare("
+            SELECT COUNT(*) as count FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+            AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
+            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+        ");
+        $resConflictStmt->bind_param('iss', $libroId, $extensionEnd, $extensionStart);
+        $resConflictStmt->execute();
+        $overlappingReservations = (int) ($resConflictStmt->get_result()->fetch_assoc()['count'] ?? 0);
+        $resConflictStmt->close();
+
+        // Count total lendable copies (exclude perso, danneggiato, manutenzione)
+        $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+        $totalCopiesStmt->bind_param('i', $libroId);
+        $totalCopiesStmt->execute();
+        $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $totalCopiesStmt->close();
+
+        // Check if extension is possible:
+        // - Count this loan as 1 (it will occupy a slot in the extension period)
+        // - Add other overlapping loans + reservations
+        // - If total > totalCopies, extension not possible (would block another reservation)
+        // Note: Use > not >= because the current loan already has its assigned copy
+        $totalOccupied = 1 + $overlappingLoans + $overlappingReservations; // 1 = current loan being renewed
+        if ($totalOccupied > $totalCopies) {
+            $errorUrl = $redirectTo ?? '/admin/prestiti';
+            $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+            return $response->withHeader('Location', $errorUrl . $separator . 'error=extension_conflicts')->withStatus(302);
         }
 
         // Start transaction
