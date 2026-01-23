@@ -187,7 +187,7 @@ class IcsGenerator
     /**
      * Get loan title with emoji prefix based on status
      *
-     * @param string $status Loan status (in_corso, prenotato, in_ritardo, pendente)
+     * @param string $status Loan status (in_corso, da_ritirare, prenotato, in_ritardo)
      * @param string $bookTitle Book title to include
      * @return string Formatted title with emoji and localized prefix
      */

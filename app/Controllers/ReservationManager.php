@@ -159,8 +159,11 @@ class ReservationManager
 
                     $this->commitIfOwned($ownTransaction);
 
-                    // Send notification AFTER commit to avoid sending emails for rolled-back changes
-                    $this->sendReservationNotification($nextReservation);
+                    // Send notification ONLY if we own the transaction (committed above)
+                    // If external transaction, caller is responsible for notifications after their commit
+                    if ($ownTransaction) {
+                        $this->sendReservationNotification($nextReservation);
+                    }
 
                     return true;
                 }

@@ -27,14 +27,21 @@ class DataIntegrity {
             // - 'prenotato' e 'da_ritirare' → copia prenotata (libro fisicamente in biblioteca ma riservato)
             // - Nessun prestito attivo → copia disponibile
             // Note: la copia passa a 'prestato' solo dopo confirmPickup()
+            // IMPORTANT: Use EXISTS with priority to handle copies with multiple loans
+            // (e.g., in_corso + future prenotato). Physical possession takes precedence.
             $stmt = $this->db->prepare("
                 UPDATE copie c
-                LEFT JOIN prestiti p ON c.id = p.copia_id
-                    AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'da_ritirare')
                 SET c.stato = CASE
-                    WHEN p.stato IN ('in_corso', 'in_ritardo') THEN 'prestato'
-                    WHEN p.stato IN ('prenotato', 'da_ritirare') THEN 'prenotato'
+                    WHEN EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id AND p.attivo = 1
+                        AND p.stato IN ('in_corso', 'in_ritardo')
+                    ) THEN 'prestato'
+                    WHEN EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id AND p.attivo = 1
+                        AND p.stato IN ('prenotato', 'da_ritirare')
+                    ) THEN 'prenotato'
                     ELSE 'disponibile'
                 END
                 WHERE c.stato IN ('disponibile', 'prestato', 'prenotato')
@@ -139,16 +146,22 @@ class DataIntegrity {
         // - 'in_corso' e 'in_ritardo' → copia prestata (libro fisicamente fuori)
         // - 'prenotato' e 'da_ritirare' → copia prenotata (libro fisicamente in biblioteca ma riservato)
         // - Nessun prestito attivo → copia disponibile
+        // IMPORTANT: Use EXISTS with priority to handle copies with multiple loans
         try {
             $this->db->begin_transaction();
             $stmt = $this->db->prepare("
                 UPDATE copie c
-                LEFT JOIN prestiti p ON c.id = p.copia_id
-                    AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'da_ritirare')
                 SET c.stato = CASE
-                    WHEN p.stato IN ('in_corso', 'in_ritardo') THEN 'prestato'
-                    WHEN p.stato IN ('prenotato', 'da_ritirare') THEN 'prenotato'
+                    WHEN EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id AND p.attivo = 1
+                        AND p.stato IN ('in_corso', 'in_ritardo')
+                    ) THEN 'prestato'
+                    WHEN EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id AND p.attivo = 1
+                        AND p.stato IN ('prenotato', 'da_ritirare')
+                    ) THEN 'prenotato'
                     ELSE 'disponibile'
                 END
                 WHERE c.stato IN ('disponibile', 'prestato', 'prenotato')
@@ -249,14 +262,20 @@ class DataIntegrity {
             // - 'prenotato' e 'da_ritirare' → copia prenotata (libro fisicamente in biblioteca ma riservato)
             // - Nessun prestito attivo → copia disponibile
             // Note: la copia passa a 'prestato' solo dopo confirmPickup()
+            // IMPORTANT: Use EXISTS with priority to handle copies with multiple loans
             $stmt = $this->db->prepare("
                 UPDATE copie c
-                LEFT JOIN prestiti p ON c.id = p.copia_id
-                    AND p.attivo = 1
-                    AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'da_ritirare')
                 SET c.stato = CASE
-                    WHEN p.stato IN ('in_corso', 'in_ritardo') THEN 'prestato'
-                    WHEN p.stato IN ('prenotato', 'da_ritirare') THEN 'prenotato'
+                    WHEN EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id AND p.attivo = 1
+                        AND p.stato IN ('in_corso', 'in_ritardo')
+                    ) THEN 'prestato'
+                    WHEN EXISTS (
+                        SELECT 1 FROM prestiti p
+                        WHERE p.copia_id = c.id AND p.attivo = 1
+                        AND p.stato IN ('prenotato', 'da_ritirare')
+                    ) THEN 'prenotato'
                     ELSE 'disponibile'
                 END
                 WHERE c.libro_id = ?
@@ -450,7 +469,7 @@ class DataIntegrity {
             FROM prenotazioni pr
             JOIN prestiti p ON pr.libro_id = p.libro_id
             WHERE pr.stato = 'attiva'
-              AND p.stato IN ('in_corso','in_ritardo','da_ritirare')
+              AND p.stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')
               AND p.attivo = 1
               AND (
                     (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
@@ -723,7 +742,7 @@ class DataIntegrity {
                 JOIN prestiti p ON pr.libro_id = p.libro_id
                 SET pr.stato = 'annullata'
                 WHERE pr.stato = 'attiva'
-                  AND p.stato IN ('in_corso','in_ritardo','da_ritirare')
+                  AND p.stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')
                   AND p.attivo = 1
                   AND (
                         (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
