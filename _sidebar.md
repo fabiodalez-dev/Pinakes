@@ -15,7 +15,6 @@
   * [FAQ Operazioni](guida/faq-operazioni.md)
 
 * **Amministrazione**
-  * [Aggiornamenti](admin/updater.md)
   * [Sistema Plugin](admin/plugin.md)
   * [Backup e Ripristino](admin/backup.md)
   * [Configurazione](admin/configurazione.md)
