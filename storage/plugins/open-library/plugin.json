@@ -12,7 +12,13 @@
   "max_app_version": "1.0.0",
   "metadata": {
     "category": "scraping",
-    "tags": ["api", "openlibrary", "scraping", "books", "covers"],
+    "tags": [
+      "api",
+      "openlibrary",
+      "scraping",
+      "books",
+      "covers"
+    ],
     "priority": 5,
     "api_endpoints": [
       "https://openlibrary.org/isbn/{isbn}.json",

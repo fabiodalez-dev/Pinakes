@@ -106,3 +106,7 @@ cache/*
 !storage/plugins/api-book-scraper/
 !storage/plugins/digital-library/
 !storage/plugins/dewey-editor/
+
+# Premium plugins (never include in releases)
+scraping-pro-*.zip
+scraping-pro/
