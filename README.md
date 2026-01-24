@@ -328,13 +328,12 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (6 included):
+**Pre-installed plugins** (5 included):
 - **Open Library** — Metadata scraping from Open Library + Google Books API
 - **Z39 Server** — SRU 1.2 API + SBN client for Italian library metadata with Dewey extraction
 - **API Book Scraper** — External ISBN enrichment via custom APIs
 - **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
 - **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
-- **Scraping Pro** — Advanced metadata scraping with configurable sources and priority ordering
 
 ### CMS and Customization
 - **Homepage editor** with drag-and-drop blocks (hero banner, featured shelves, events, testimonials)
@@ -506,17 +505,6 @@ Complete Dewey Decimal Classification management system with multilingual suppor
 - **Hierarchical navigation** — Optional collapsible "Browse categories" for discovering codes
 - **Breadcrumb display** — Shows full classification path (e.g., "500 → 590 → 599 → 599.9")
 - **Frontend validation** — Real-time format validation before submission
-
-### 6. Scraping Pro (`scraping-pro-v1.0.0.zip`)
-
-Advanced metadata scraping plugin with configurable sources and intelligent enrichment.
-
-- **Multi-source scraping** — Configure multiple metadata sources with priority ordering
-- **Custom field mapping** — Map external API fields to Pinakes schema
-- **Bulk enrichment** — Enrich existing catalog entries in batch mode
-- **Priority ordering** — Define source priority for fallback behavior
-- **Cache management** — Reduce API calls with intelligent caching
-- **Error handling** — Detailed logging and retry logic for failed requests
 
 ---
 
