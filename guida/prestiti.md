@@ -1,10 +1,10 @@
-# 📚 Guida Completa ai Prestiti
+# Guida Completa ai Prestiti
 
 > **Il cuore della biblioteca!** Questa guida documenta ogni aspetto del sistema prestiti: stati, transizioni, email, prenotazioni, disponibilità e molto altro.
 
 ---
 
-## 🚀 Quick Start: Il Tuo Primo Prestito
+## Quick Start: Il Tuo Primo Prestito
 
 ### Scenario: Un utente vuole un libro
 
@@ -13,17 +13,17 @@
 3. **Cerca il libro**: Digita titolo, ISBN o EAN
 4. **Seleziona le date**: Il calendario mostra la disponibilità
 5. **Clicca "Crea Prestito"**
-6. ✅ Fatto! Il prestito è in attesa di approvazione
+6.  Fatto! Il prestito è in attesa di approvazione
 
 ### Opzione "Consegna Immediata"
 
 Se l'utente è davanti a te con il libro in mano:
-- ☑️ Spunta **"Consegna Immediata"**
+-  Spunta **"Consegna Immediata"**
 - Il prestito salta l'approvazione e va direttamente a "In Corso"
 
 ---
 
-## 🔄 Il Ciclo di Vita Completo del Prestito
+## Il Ciclo di Vita Completo del Prestito
 
 ### Diagramma di Flusso Principale
 
@@ -54,7 +54,7 @@ DA_RITIRARE ─(scade)──→ SCADUTO
 
 ---
 
-## 📊 I 10 Stati del Prestito
+## I 10 Stati del Prestito
 
 ### Stati Attivi (il libro è impegnato)
 
@@ -79,7 +79,7 @@ DA_RITIRARE ─(scade)──→ SCADUTO
 
 ---
 
-## 🔀 Transizioni di Stato Dettagliate
+## Transizioni di Stato Dettagliate
 
 ### 1. Creazione Richiesta
 
@@ -261,7 +261,7 @@ PENDENTE/PRENOTATO/DA_RITIRARE → ANNULLATO
 
 ---
 
-## 📧 Sistema Email Automatiche
+## Sistema Email Automatiche
 
 ### Tabella Completa Notifiche
 
@@ -320,9 +320,9 @@ pickup_deadline = oggi + pickup_expiry_days (default: 3 giorni)
 Giorno 1: Prestito approvato → stato = da_ritirare
           pickup_deadline = Giorno 4
 
-Giorno 2: Utente può ritirare ✓
-Giorno 3: Utente può ritirare ✓
-Giorno 4: Ultimo giorno! ⚠️
+Giorno 2: Utente può ritirare 
+Giorno 3: Utente può ritirare 
+Giorno 4: Ultimo giorno! 
 
 Giorno 5: MaintenanceService esegue
           → stato = scaduto
@@ -337,7 +337,7 @@ In **Impostazioni → Prestiti**:
 
 ---
 
-## 🔄 Sistema Rinnovi
+## Sistema Rinnovi
 
 ### Regole Rinnovo
 
@@ -353,9 +353,9 @@ In **Impostazioni → Prestiti**:
 ```
 1. Utente clicca "Rinnova" nel suo profilo
 2. Sistema verifica:
-   - Stato = in_corso? ✓
-   - Rinnovi < 3? ✓
-   - Nessun conflitto con prenotazioni? ✓
+   - Stato = in_corso? 
+   - Rinnovi < 3? 
+   - Nessun conflitto con prenotazioni? 
 3. Se tutto OK:
    - data_scadenza += 14 giorni
    - renewals += 1
@@ -385,7 +385,7 @@ ALTRIMENTI:
 
 ---
 
-## 📅 Sistema Prenotazioni (Wishlist/Coda)
+## Sistema Prenotazioni (Wishlist/Coda)
 
 ### Cos'è una Prenotazione
 
@@ -432,7 +432,7 @@ Quando un libro **non è disponibile**, l'utente può **prenotarlo**:
 
 ---
 
-## 📊 Calcolo Disponibilità
+## Calcolo Disponibilità
 
 ### Formula
 
@@ -468,7 +468,7 @@ La disponibilità viene ricalcolata dopo:
 
 ---
 
-## 📆 Calendario Disponibilità
+## Calendario Disponibilità
 
 ### Nel Form Creazione Prestito
 
@@ -476,9 +476,9 @@ Il calendario Flatpickr mostra visivamente la disponibilità:
 
 | Colore | Significato |
 |--------|-------------|
-| 🟢 **Verde** | Tutte le copie disponibili |
-| 🟡 **Giallo** | Alcune copie disponibili |
-| 🔴 **Rosso** | Nessuna copia disponibile |
+| **Verde** | Tutte le copie disponibili |
+| **Giallo** | Alcune copie disponibili |
+| **Rosso** | Nessuna copia disponibile |
 | ⬜ **Grigio** | Data passata (non selezionabile) |
 
 ### Indicatore Copie
@@ -503,7 +503,7 @@ Il sistema genera un file ICS per sincronizzare con calendari esterni:
 
 ---
 
-## 🔧 Gestione Amministrativa
+## Gestione Amministrativa
 
 ### Dashboard → Gestione Prestiti
 
@@ -511,39 +511,39 @@ Il sistema genera un file ICS per sincronizzare con calendari esterni:
 
 **6 Sezioni Operative:**
 
-#### 1. 🔴 Prestiti in Ritardo
+#### 1.  Prestiti in Ritardo
 - **Priorità**: MASSIMA
 - **Mostra**: Utente, libro, giorni di ritardo
 - **Azioni**: Restituisci, Contatta utente
 
-#### 2. 🟠 Pronti per il Ritiro
+#### 2.  Pronti per il Ritiro
 - **Priorità**: ALTA
 - **Mostra**: Utente, libro, giorni rimasti per ritiro
 - **Azioni**: Conferma Ritiro, Annulla
 
-#### 3. 🔵 Da Approvare
+#### 3.  Da Approvare
 - **Priorità**: ALTA
 - **Mostra**: Utente, libro, date richieste
 - **Azioni**: Approva, Rifiuta (con motivo)
 
-#### 4. 🟣 Programmati
+#### 4.  Programmati
 - **Priorità**: BASSA (informativo)
 - **Mostra**: Utente, libro, data attivazione
 - **Info**: Si attiveranno automaticamente
 
-#### 5. 🟢 In Corso
+#### 5.  In Corso
 - **Priorità**: NORMALE
 - **Mostra**: Utente, libro, data scadenza
 - **Azioni**: Restituisci, Rinnova
 
-#### 6. 🔵 Prenotazioni
+#### 6.  Prenotazioni
 - **Priorità**: BASSA
 - **Mostra**: Utente, libro, posizione in coda
 - **Azioni**: Annulla
 
 ---
 
-## ⚙️ Configurazione
+## Configurazione
 
 ### Impostazioni → Prestiti
 
@@ -564,7 +564,7 @@ Il sistema genera un file ICS per sincronizzare con calendari esterni:
 
 ---
 
-## 🛡️ Regole di Business
+## Regole di Business
 
 ### Un Utente, Un Libro
 
@@ -600,13 +600,13 @@ Tutte le operazioni critiche usano:
 
 ---
 
-## 💡 Best Practices per Admin
+## Best Practices per Admin
 
 ### Routine Quotidiana
 
-1. **Mattina**: Controlla sezione "In Ritardo" 🔴
-2. **Durante il giorno**: Approva richieste pendenti 🔵
-3. **Sera**: Verifica "Da Ritirare" non scaduti 🟠
+1. **Mattina**: Controlla sezione "In Ritardo" 
+2. **Durante il giorno**: Approva richieste pendenti 
+3. **Sera**: Verifica "Da Ritirare" non scaduti 
 
 ### Gestione Ritardi
 
@@ -623,7 +623,7 @@ Tutte le operazioni critiche usano:
 
 ---
 
-## 👨‍💻 Sezione Sviluppatori
+## ‍ Sezione Sviluppatori
 
 ### Controller e Routes
 
@@ -857,7 +857,7 @@ public function processReturn(int $loanId, string $status, ?float $sanction = nu
 
 ---
 
-## 📋 Checklist Operativa
+## Checklist Operativa
 
 ### Nuovo Prestito
 - [ ] Utente identificato
