@@ -147,7 +147,14 @@ temp/*
 # ========================================
 /server/
 /server/*
-/sito/
+
+# ========================================
+# Website (sito) - track only documentation
+# ========================================
+/sito/*
+!/sito/template/
+/sito/template/*
+!/sito/template/documentation/
 
 # ========================================
 # Logs
