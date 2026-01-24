@@ -163,6 +163,17 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
           </a>
 
+          <a href="https://fabiodalez-dev.github.io/Pinakes/" target="_blank" rel="noopener"
+            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+              <i class="fas fa-book text-sm text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium text-sm"><?= __("Documentazione") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Guida online") ?></div>
+            </div>
+          </a>
+
           <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
           <a href="/admin/updates" id="sidebar-updates-link"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">

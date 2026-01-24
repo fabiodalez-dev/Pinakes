@@ -15,7 +15,10 @@
     "priority": 3,
     "api_version": "1.0",
     "documentation": "README.md",
-    "php_extensions": ["curl", "json"],
+    "php_extensions": [
+      "curl",
+      "json"
+    ],
     "hooks": []
   }
 }

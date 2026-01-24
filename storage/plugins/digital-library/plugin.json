@@ -13,7 +13,10 @@
   "metadata": {
     "category": "media",
     "priority": 10,
-    "php_extensions": ["gd", "fileinfo"],
+    "php_extensions": [
+      "gd",
+      "fileinfo"
+    ],
     "assets": {
       "css": [
         "public/assets/vendor/green-audio-player/css/green-audio-player.min.css",
