@@ -71,13 +71,13 @@ Prima di iniziare, verifica di avere:
 L'installer ti guiderà automaticamente. **Non devi fare nulla di tecnico!**
 
 **Step 1: Verifica Requisiti**
-```
+```text
  Il sistema controlla che il tuo hosting abbia PHP e MySQL
  Se tutto è ok, vai al passo successivo
 ```
 
 **Step 2: Crea il Database**
-```
+```text
  Metti: Nome database (es. "biblioteca_db")
  Metti: Utente database (es. "bib_user")
  Metti: Password (sicura, es. "Abc123!@#")
@@ -85,7 +85,7 @@ L'installer ti guiderà automaticamente. **Non devi fare nulla di tecnico!**
 ```
 
 **Step 3: Crea l'Amministratore**
-```
+```text
  Metti: Nome (es. "Mario")
  Metti: Email (es. mario@scuola.it)
  Metti: Password (per l'admin)
@@ -93,26 +93,26 @@ L'installer ti guiderà automaticamente. **Non devi fare nulla di tecnico!**
 ```
 
 **Step 4: Configura il Nome della Biblioteca**
-```
+```text
  Metti: Nome biblioteca (es. "Biblioteca Scuola Galilei")
  Metti: Email per notifiche (es. biblioteca@scuola.it)
  Metti: Logo (facoltativo, puoi farlo dopo)
 ```
 
 **Step 5: Email (Facoltativo per Ora)**
-```
+```text
  Puoi lasciar vuoto e configurare dopo
  O inserire Gmail/Outlook se lo conosci
 ```
 
 **Step 6: Verifica Finale**
-```
+```text
  Il sistema controlla che tutto funziona
  Se ok, vai al passo finale
 ```
 
-**Step 7:  Completamento**
-```
+**Step 7: Completamento**
+```text
  L'installer dice "Installazione completata!"
  Salva le credenziali (password admin)
  Accedi alla dashboard
@@ -267,7 +267,7 @@ tuodominio.it/
 
 ---
 
-** Sei pronto!** Inizia subito ad usare Pinakes! 
+**Sei pronto!** Inizia subito ad usare Pinakes! 
 
 ---
 

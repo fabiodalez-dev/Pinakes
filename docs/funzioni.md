@@ -7,7 +7,7 @@
 
 ## Struttura dei file CMS
 
-```
+```text
 app/
 ├── Controllers/
 │   └── CmsController.php          # Logica di visualizzazione e salvataggio
@@ -167,5 +167,5 @@ Il CMS non gestisce direttamente le copie dei libri; questa logica è presente n
 
 ---
 
-*Ultimo aggiornamento: 19 Ottobre 2025*  
-*Versione documento: 1.0.0* 
+Ultimo aggiornamento: 19 Ottobre 2025
+Versione documento: 1.0.0 

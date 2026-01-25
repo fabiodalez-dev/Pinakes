@@ -165,7 +165,7 @@ Il sistema manda automaticamente 8 tipi di email. Qui le puoi personalizzare.
 - `{{due_date}}` → diventa la data di scadenza vera
 
 **Esempio:**
-```
+```text
 Scrivi: "Ciao {{user_name}}, il libro {{book_title}} scade il {{due_date}}"
 Sistema manda: "Ciao Mario, il libro La Divina Commedia scade il 25/10/2025"
 ```
@@ -202,7 +202,7 @@ Scegli il **formato delle etichette** che stamperai:
 
 **Dove**: Dashboard → Impostazioni → **Tab "Avanzate"**
 
->  **Per la maggior parte degli utenti**: Lascia tutto di default, funziona perfettamente!
+> **Per la maggior parte degli utenti**: Lascia tutto di default, funziona perfettamente!
 > Esplora questa sezione solo se hai esigenze specifiche.
 
 #### **JavaScript e CSS Personalizzati**
