@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.7.1-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.7.2-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.7.1
+## What's New in v0.4.7.2
+
+### Minor Bug Fixes
+
+- **Cron scripts standalone execution** — Cron jobs now load `.env` directly, working independently from web server context
+- **Version display fix** — Footer now correctly shows version from `version.json`
+- **Documentation improvements** — Cleanup and linting fixes across documentation files
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.7.1</strong> - Code Quality & Plugin Compatibility</summary>
 
 ### Code Quality & Plugin Compatibility
 
@@ -31,9 +44,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Plugin compatibility** — All pre-installed plugins updated to `max_app_version: 1.0.0`
 - **Loan workflow stability** — Additional fixes to copy state transitions during approval/rejection
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.7</strong> - Stability & Bug Fixes</summary>
@@ -135,39 +146,7 @@ Complete rewrite of the update system for reliable operation on shared hosting:
 
 ---
 
-## Upgrading
-
-### From v0.4.0+
-
-Update directly from **Admin → Updates**. The auto-updater handles everything automatically.
-
-**v0.4.5+ migration notes:**
-- New loan state `ready_for_pickup` (da_ritirare) added to database ENUM
-- New `pickup_deadline` column added to `prestiti` table
-- New `pickup_expiry_days` setting added (default: 3 days)
-- Existing `active` (in_corso) loans are unaffected
-
-### From v0.3.x or Earlier
-
-**Manual migration required.** Run the migration scripts before updating:
-
-```bash
-# 1. BACKUP YOUR DATABASE FIRST!
-mysqldump -u USER -p DATABASE > backup_before_upgrade.sql
-
-# 2. Run migrations in order
-mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.3.0.sql
-mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.4.0.sql
-# Note: v0.4.1 has no database changes
-
-# 3. Then replace the application files
-```
-
-**Key v0.4.0 features**: GDPR Privacy Consent Tracking, Persistent "Remember Me" Sessions, Improved Maintenance System, Loan Return UX Improvements
-
----
-
-## ⚡ Quick Start (New Installations)
+## ⚡ Quick Start
 
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
@@ -178,6 +157,18 @@ mysql -u USER -p DATABASE < installer/database/migrations/migrate_0.4.0.sql
 
 **Email configuration**: Supports both PHP `mail()` and SMTP. Required for notifications to work (loan confirmations, due-date reminders, registration approvals, reservation alerts). Can be configured during installation or later from the admin panel.
 
+**Post-install** (optional but recommended):
+- Remove/lock the `installer/` directory (button provided on final step)
+- Configure SMTP, registration policy, and CMS blocks from **Admin → Settings**
+- Schedule cron jobs for automated tasks:
+  ```bash
+  # Notifications every hour (8 AM - 8 PM)
+  0 8-20 * * * /usr/bin/php /path/to/cron/automatic-notifications.php >> /var/log/biblioteca-cron.log 2>&1
+
+  # Full maintenance at 6 AM (handles reservation/pickup expirations)
+  0 6 * * * /usr/bin/php /path/to/cron/full-maintenance.php >> /var/log/biblioteca-maintenance.log 2>&1
+  ```
+
 All frontend assets are precompiled. Works on shared hosting. No Composer or build tools required on production. All configuration values can be changed later from the admin panel.
 
 ---
@@ -185,6 +176,8 @@ All frontend assets are precompiled. Works on shared hosting. No Composer or bui
 ## Story Behind the Name
 
 **Pinakes** comes from the ancient Greek word *πίνακες* ("tables" or "catalogues"). Callimachus of Cyrene compiled the *Pinakes* around 245 BC for the Library of Alexandria: 120 scrolls that indexed more than 120,000 works with authorship, subject and location. This project borrows that same mission—organising and sharing knowledge with modern tools.
+
+**Full documentation**: [fabiodalez-dev.github.io/Pinakes](https://fabiodalez-dev.github.io/Pinakes/)
 
 ---
 
@@ -366,47 +359,6 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 - **Extensible via plugins** if you want custom scrapers, integrations, or business logic
 - **Self-hosted and GPL-3 licensed** — full control, no vendor lock-in, no recurring fees
 - **Works on shared hosting** — no root access, Docker, or build tools required on production
-
----
-
-## Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/fabiodalez-dev/pinakes.git
-   cd pinakes
-   ```
-
-2. **(Optional) Refresh dependencies locally**
-   ```bash
-   composer install --no-dev --optimize-autoloader
-   cd frontend && npm install && npm run build && cd ..
-   ```
-
-3. **Fix writable directories** — Git cannot store 0777 permissions:
-   ```bash
-   ./bin/setup-permissions.sh
-   # or set 777 manually on uploads/, storage/, backups/, public/uploads/
-   ```
-
-4. **Start a local server** (or configure your vhost):
-   ```bash
-   php -S 0.0.0.0:8000 router.php
-   ```
-
-5. **Run the web installer** — visit your domain. The installer walks through:
-   - Requirement checks (PHP extensions, directory permissions)
-   - Database credentials & connection test
-   - Schema + sample data import (Dewey, genres, email templates)
-   - Admin account creation
-   - App + email configuration
-
-   It writes `.env` and `.installed` automatically — no manual file editing needed.
-
-6. **Post-install**
-   - Remove/lock the `installer/` directory (button provided on final step)
-   - Configure SMTP, registration policy, and CMS blocks from **Admin → Settings**
-   - Schedule `php cron/automatic-notifications.php` (daily) for automatic email reminders
 
 ---
 
