@@ -27,7 +27,7 @@ $registerRoute = route_path('register');
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
 // Load app version for cache busting
-$versionFile = __DIR__ . '/../../version.json';
+$versionFile = __DIR__ . '/../../../version.json';
 $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
 $appVersion = $versionData['version'] ?? '0.1.0';
 
