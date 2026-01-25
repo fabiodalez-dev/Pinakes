@@ -1,6 +1,6 @@
-# 📖 Guida Completa: La Scheda Libro
+# Guida Completa: La Scheda Libro
 
-## 🎯 Introduzione
+## Introduzione
 
 La **scheda libro** è la pagina di dettaglio di ogni libro nel tuo sistema. Qui puoi:
 - **Visualizzare tutte le informazioni** del libro
@@ -14,7 +14,7 @@ La **scheda libro** è la pagina di dettaglio di ogni libro nel tuo sistema. Qui
 
 ---
 
-## 🚀 Come Accedere alla Scheda Libro
+## Come Accedere alla Scheda Libro
 
 ### Metodo 1: Dalla Lista Libri (Più veloce)
 1. **Vai su**: Dashboard → **Libri**
@@ -36,38 +36,38 @@ La **scheda libro** è la pagina di dettaglio di ogni libro nel tuo sistema. Qui
 
 ---
 
-## 📋 Sezioni della Scheda Libro
+## Sezioni della Scheda Libro
 
-### 1️⃣ Intestazione (In Alto)
+### 1⃣ Intestazione (In Alto)
 
 **Contiene**:
-- 📚 **Titolo del libro** (grande e visibile)
-- 👤 **Autore/i** (sottotitolo)
+-  **Titolo del libro** (grande e visibile)
+-  **Autore/i** (sottotitolo)
 - 🆔 **ID Libro** (es. #56 - numero univoco)
 - ⭐ **Valutazione** (se attivata)
 
 **Bottoni Principali**:
-- ✏️ **Modifica** - Va alla form di modifica
-- 🏷️ **Stampa Etichetta** - Genera il PDF per stampare
+-  **Modifica** - Va alla form di modifica
+-  **Stampa Etichetta** - Genera il PDF per stampare
 - ⋮ **Menu Azioni** - Altre operazioni
 
 ---
 
-### 2️⃣ Anteprima Copertina (Sinistra)
+### 2⃣ Anteprima Copertina (Sinistra)
 
 **Visualizza**:
-- 🖼️ **Immagine della copertina** ad alta risoluzione
-- 📊 **Dimensioni della copertina** salvate
-- 🔄 **Link per aggiornare** la copertina
+-  **Immagine della copertina** ad alta risoluzione
+-  **Dimensioni della copertina** salvate
+-  **Link per aggiornare** la copertina
 
 **Informazioni Rapide**:
-- ✅ Disponibilità attuale
-- 📍 Collocazione (es. A.2.15)
-- 🔗 Link diretto al libro
+-  Disponibilità attuale
+-  Collocazione (es. A.2.15)
+-  Link diretto al libro
 
 ---
 
-### 3️⃣ Informazioni Base (Sezione Principale)
+### 3⃣ Informazioni Base (Sezione Principale)
 
 #### Titolo e Autori
 ```
@@ -96,7 +96,7 @@ Autore/i:
 
 ---
 
-### 4️⃣ Classificazione (Sezione Centrale)
+### 4⃣ Classificazione (Sezione Centrale)
 
 #### Classificazione Dewey
 ```
@@ -121,7 +121,7 @@ Categoria Genitore: Narrativa Italiana
 
 ---
 
-### 5️⃣ Posizione Fisica (Sezione Importante)
+### 5⃣ Posizione Fisica (Sezione Importante)
 
 **Layout della Biblioteca**:
 ```
@@ -138,11 +138,11 @@ COLLOCAZIONE: A.2.15
 - **Posizione 15**: Il 15° libro da sinistra a destra
 - **Collocazione A.2.15**: Indirizzo completo fisico del libro
 
-> 📚 **Per approfondire**: Leggi la [Guida Collocazione](/docs/collocazione.MD) per capire come è organizzata la biblioteca.
+>  **Per approfondire**: Leggi la [Guida Collocazione](/docs/collocazione.MD) per capire come è organizzata la biblioteca.
 
 ---
 
-### 6️⃣ Gestione Biblioteca (Sezione Amministrativa)
+### 6⃣ Gestione Biblioteca (Sezione Amministrativa)
 
 #### Inventario
 | **Campo** | **Cosa contiene** | **Esempio** |
@@ -155,23 +155,23 @@ COLLOCAZIONE: A.2.15
 
 #### Stato Attuale
 ```
-Stato: Disponibile (verde ✅)
+Stato: Disponibile (verde )
 Disponibilità: 1 di 3 copie
 Ultimo aggiornamento: 19/10/2025
 ```
 
 **Stati possibili**:
-- ✅ **Disponibile** - Pronto per prestito
-- 📕 **Prestato** - In prestito attivo
-- ⚠️ **Non Disponibile** - Temporaneamente non accessibile
-- 🔧 **Danneggiato** - Necessita riparazione
-- ❌ **Perso** - Da ricercare/sostituire
-- 🚫 **Riservato** - Riservato da qualcuno
-- 🏗️ **In Riparazione** - Essendo aggiustato
+-  **Disponibile** - Pronto per prestito
+-  **Prestato** - In prestito attivo
+-  **Non Disponibile** - Temporaneamente non accessibile
+-  **Danneggiato** - Necessita riparazione
+-  **Perso** - Da ricercare/sostituire
+-  **Riservato** - Riservato da qualcuno
+-  **In Riparazione** - Essendo aggiustato
 
 ---
 
-### 7️⃣ Dettagli Fisici (Sezione Dimensioni)
+### 7⃣ Dettagli Fisici (Sezione Dimensioni)
 
 ```
 Peso: 0.450 kg (450 grammi)
@@ -181,7 +181,7 @@ Formato: Brossura
 
 ---
 
-### 8️⃣ Acquisizione (Sezione Storico)
+### 8⃣ Acquisizione (Sezione Storico)
 
 #### Quando è Entrato in Biblioteca
 | **Campo** | **Cosa contiene** | **Esempio** |
@@ -192,7 +192,7 @@ Formato: Brossura
 
 ---
 
-### 9️⃣ Descrizione e Parole Chiave
+### 9⃣ Descrizione e Parole Chiave
 
 #### Descrizione (Sezione Trama)
 ```
@@ -216,7 +216,7 @@ Donazione dalla biblioteca comunale di Milano."
 
 ---
 
-### 🔟 Sezione Prestiti (Se Attiva)
+### Sezione Prestiti (Se Attiva)
 
 **Se il libro è in prestito**:
 ```
@@ -231,15 +231,15 @@ Donazione dalla biblioteca comunale di Milano."
 ```
 
 **Azioni disponibili**:
-- 📝 Visualizza dettagli prestito
-- ✅ Conferma restituzione (quando torna)
-- 📞 Invia promemoria
+-  Visualizza dettagli prestito
+-  Conferma restituzione (quando torna)
+-  Invia promemoria
 
 ---
 
-## ⚙️ Bottoni e Azioni Disponibili
+## Bottoni e Azioni Disponibili
 
-### Bottone ✏️ Modifica
+### Bottone  Modifica
 **Cosa fa**: Apre il form di modifica del libro
 
 **Quando usarlo**:
@@ -250,11 +250,11 @@ Donazione dalla biblioteca comunale di Milano."
 
 **Link**: `/admin/libri/update/56` (es. con ID 56)
 
-> 📚 **Per approfondire**: Leggi la [Guida Modifica Libro](/docs/modifica_libro.MD) per tutte le operazioni possibili.
+>  **Per approfondire**: Leggi la [Guida Modifica Libro](/docs/modifica_libro.MD) per tutte le operazioni possibili.
 
 ---
 
-### Bottone 🏷️ Stampa Etichetta
+### Bottone  Stampa Etichetta
 **Cosa fa**: Genera un PDF con l'etichetta adesiva
 
 **Formato**:
@@ -286,26 +286,26 @@ Donazione dalla biblioteca comunale di Milano."
 3. **Stampa** su carta adesiva 25×38mm
 4. **Taglia e applica** sul dorso del libro
 
-> 📚 **Per approfondire**: Leggi la [Guida Stampa Etichette](/docs/stampa_etichette.MD) per istruzioni complete.
+>  **Per approfondire**: Leggi la [Guida Stampa Etichette](/docs/stampa_etichette.MD) per istruzioni complete.
 
 ---
 
 ### Bottone ⋮ Menu Azioni Rapide
 
 **Azioni disponibili**:
-- 📋 **Duplica** - Crea una copia del libro con nuovi dati
-- 🖨️ **Stampa** - Stampa la scheda completa
-- 📁 **Esporta** - Esporta i dati in formato vario
-- 🗑️ **Elimina** - Rimuove il libro (con conferma)
+-  **Duplica** - Crea una copia del libro con nuovi dati
+-  **Stampa** - Stampa la scheda completa
+-  **Esporta** - Esporta i dati in formato vario
+-  **Elimina** - Rimuove il libro (con conferma)
 
 ---
 
-## 🎯 Workflow Completo da Scheda Libro
+## Workflow Completo da Scheda Libro
 
 ### Scenario 1: Vuoi Modificare Il Libro
 ```
 1. Apri la scheda
-2. Clicca ✏️ "Modifica"
+2. Clicca  "Modifica"
 3. Cambai quello che serve
 4. Clicca "Salva Modifiche"
 5. Torni automaticamente alla scheda aggiornata
@@ -314,7 +314,7 @@ Donazione dalla biblioteca comunale di Milano."
 ### Scenario 2: Vuoi Stampare L'etichetta
 ```
 1. Apri la scheda
-2. Clicca 🏷️ "Stampa Etichetta"
+2. Clicca  "Stampa Etichetta"
 3. Si apre il PDF
 4. Stampa su carta adesiva 25x38mm
 5. Applica sul dorso del libro
@@ -325,7 +325,7 @@ Donazione dalla biblioteca comunale di Milano."
 1. Apri la scheda
 2. Vedrai la sezione PRESTITO ATTIVO
 3. Quando il libro ritorna:
-   - Clicca ✅ "Conferma Restituzione"
+   - Clicca  "Conferma Restituzione"
    - Lo stato cambia a "Disponibile"
 4. Puoi ora modificarlo o spostarlo
 ```
@@ -342,22 +342,22 @@ Donazione dalla biblioteca comunale di Milano."
 
 ---
 
-## 📊 Configurare i Formati Etichette
+## Configurare i Formati Etichette
 
 ### Dove Configurare
 1. **Vai su**: Dashboard → **Impostazioni**
 2. **Sezione**: "Etichette" o "Label Settings"
 3. **Opzioni disponibili**:
-   - 📏 **Formato**: 25×38mm, 50×25mm, 70×36mm
-   - 🖨️ **Tipo carta**: Adesiva, carta normale
-   - 📝 **Font e dimensioni**: (Sconsigliato cambiare)
-   - 📌 **Margini**: Automatico o personalizzato
+   -  **Formato**: 25×38mm, 50×25mm, 70×36mm
+   -  **Tipo carta**: Adesiva, carta normale
+   -  **Font e dimensioni**: (Sconsigliato cambiare)
+   -  **Margini**: Automatico o personalizzato
 
 ### Passo-Passo
 
 #### Passo 1: Accedi alle Impostazioni
 ```
-Dashboard → ⚙️ Impostazioni → 🏷️ Etichette
+Dashboard →  Impostazioni →  Etichette
 ```
 
 #### Passo 2: Scegli Formato
@@ -378,36 +378,36 @@ Tipo carta:
 
 #### Passo 4: Salva Configurazione
 ```
-Clicca: 💾 "Salva Impostazioni"
-Vedrai: ✅ "Configurazione salvata!"
+Clicca:  "Salva Impostazioni"
+Vedrai:  "Configurazione salvata!"
 ```
 
 #### Passo 5: Stampa le Etichette
 ```
-Vai alla scheda libro → 🏷️ "Stampa Etichetta"
+Vai alla scheda libro →  "Stampa Etichetta"
 Le nuove etichette userannno il formato configurato
 ```
 
 ---
 
-## 💡 Consigli Pratici
+## Consigli Pratici
 
-### ✅ Best Practices
+### Best Practices
 - **Controlla sempre** la collocazione prima di stampare
 - **Usa sempre 25×38mm** come standard (è universale)
 - **Stampa una prova** su carta normale prima sull'adesiva
 - **Applica subito** dopo stampare (adesivo fresco)
 - **Allinea dritto** - il lettore lo apprezzerà
 
-### ❌ Errori da Evitare
-- ❌ Non stampare senza aver configurato il formato
-- ❌ Non usare etichette pieghe o rovinate
-- ❌ Non applicare su dorsi sporchi/polverosi
-- ❌ Non ignorare lo stato "Prestato" (è importante!)
+### Errori da Evitare
+-  Non stampare senza aver configurato il formato
+-  Non usare etichette pieghe o rovinate
+-  Non applicare su dorsi sporchi/polverosi
+-  Non ignorare lo stato "Prestato" (è importante!)
 
 ---
 
-## 📍 Informazioni sulla Posizione Fisica
+## Informazioni sulla Posizione Fisica
 
 ### Come Leggere la Collocazione
 ```
@@ -452,7 +452,7 @@ A.2.15
 
 ---
 
-## 📞 Supporto
+## Supporto
 
 ### Hai Bisogno di Aiuto?
 
@@ -471,7 +471,7 @@ A.2.15
 
 ---
 
-## 📚 Guide Correlate
+## Guide Correlate
 
 - [Guida Inserimento Libri](/docs/inserimento_libri.MD) - Come aggiungere un nuovo libro
 - [Guida Modifica Libro](/docs/modifica_libro.MD) - Come modificare i dati
@@ -481,19 +481,19 @@ A.2.15
 
 ---
 
-## 🎯 Riepilogo Veloce
+## Riepilogo Veloce
 
 ### Da Scheda Libro Puoi:
-✅ **Vedere** tutte le informazioni
-✅ **Modificare** i dati (clicca ✏️)
-✅ **Stampare etichetta** (clicca 🏷️)
-✅ **Visualizzare prestiti** attivi
-✅ **Controllare stato** (disponibile/prestato)
-✅ **Copiare il libro** (per altre copie)
-✅ **Trovare la posizione** fisica
+**Vedere** tutte le informazioni
+**Modificare** i dati (clicca )
+**Stampare etichetta** (clicca )
+**Visualizzare prestiti** attivi
+**Controllare stato** (disponibile/prestato)
+**Copiare il libro** (per altre copie)
+**Trovare la posizione** fisica
 
 ---
 
-**📖 Documento aggiornato: 19 Ottobre 2025**
-**📌 Versione: 1.0.0 - Guida Scheda Libro**
-**✍️ Per utenti finali della biblioteca**
+** Documento aggiornato: 19 Ottobre 2025**
+** Versione: 1.0.0 - Guida Scheda Libro**
+** Per utenti finali della biblioteca**

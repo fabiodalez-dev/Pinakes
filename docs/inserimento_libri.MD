@@ -1,6 +1,6 @@
-# 📚 Guida Completa: Come Aggiungere un Nuovo Libro
+# Guida Completa: Come Aggiungere un Nuovo Libro
 
-## 🎯 Introduzione per l'Utente Finale
+## Introduzione per l'Utente Finale
 
 Questa guida ti spiega **passo dopo passo** come aggiungere nuovi libri al sistema della tua biblioteca. **Non serve alcuna conoscenza tecnica** - è tutto progettato per essere **semplice come compilare un modulo**.
 
@@ -8,16 +8,16 @@ Il sistema è pensato per **semplificare al massimo** il lavoro di catalogazione
 
 ---
 
-## 🚀 Due Modi per Aggiungere Libri
+## Due Modi per Aggiungere Libri
 
 | **Metodo** | **Quando usarlo** | **Tempo richiesto** | **Difficoltà** |
 |------------|-------------------|-------------------|----------------|
-| **📱 Automatico da ISBN/EAN** | **SEMPRE** quando hai ISBN o EAN | **2 minuti** | 🟢 Facilissimo |
-| **📝 Manuale** | Solo se non hai ISBN/EAN | **10-15 minuti** | 🟡 Semplice |
+| ** Automatico da ISBN/EAN** | **SEMPRE** quando hai ISBN o EAN | **2 minuti** |  Facilissimo |
+| ** Manuale** | Solo se non hai ISBN/EAN | **10-15 minuti** |  Semplice |
 
-> 💡 **Consiglio**: Usa sempre il metodo automatico quando possibile. Il sistema trova **tutte le informazioni** da solo!
+>  **Consiglio**: Usa sempre il metodo automatico quando possibile. Il sistema trova **tutte le informazioni** da solo!
 
-### 🔍 Cos'è l'ISBN e l'EAN?
+### Cos'è l'ISBN e l'EAN?
 
 **ISBN (International Standard Book Number)** e **EAN (European Article Number)** sono codici univoci che identificano i libri:
 
@@ -35,11 +35,11 @@ Il sistema è pensato per **semplificare al massimo** il lavoro di catalogazione
 - Sulla prima pagina interna (colophon)
 - Nella quarta di copertina
 
-> 💡 **Importante**: Il nostro sistema accetta **sia ISBN che EAN** per l'importazione automatica!
+>  **Importante**: Il nostro sistema accetta **sia ISBN che EAN** per l'importazione automatica!
 
 ---
 
-## 📱 Metodo 1: Inserimento Automatico (Consigliato!)
+## Metodo 1: Inserimento Automatico (Consigliato!)
 
 ### Passo 1: Preparazione
 - **Trova l'ISBN o EAN** sul retro del libro
@@ -47,7 +47,7 @@ Il sistema è pensato per **semplificare al massimo** il lavoro di catalogazione
 - **Esempio ISBN-10**: `8842935786` (può finire anche con la lettera X)
 - **Esempio EAN**: `9788842935780`
 
-> 💡 **Suggerimento**: Non importa se copi il codice con i trattini (`978-88-429-3578-0`) o senza (`9788842935780`), il sistema li riconosce entrambi!
+>  **Suggerimento**: Non importa se copi il codice con i trattini (`978-88-429-3578-0`) o senza (`9788842935780`), il sistema li riconosce entrambi!
 
 ### Passo 2: Accesso al Form
 1. **Vai su**: Dashboard → **Libri**
@@ -62,14 +62,14 @@ Il sistema è pensato per **semplificare al massimo** il lavoro di catalogazione
 3. **Clicca**: Bottone blu **"Importa Dati"** (icona download)
 4. **Attendi**: 3-5 secondi mentre il sistema cerca online
 
-> ⏱️ **Cosa succede durante l'attesa?**
+> ⏱ **Cosa succede durante l'attesa?**
 > Il sistema sta contattando fonti online autorizzate per recuperare tutte le informazioni del libro. Vedi la sezione "Come funziona lo Scraping" più sotto per i dettagli.
 
 ### Passo 4: Risultato dell'Importazione
 
 Il sistema compila **automaticamente** questi campi:
 
-#### ✅ Informazioni Bibliografiche
+#### Informazioni Bibliografiche
 - **Titolo completo** - con maiuscole corrette
 - **Sottotitolo** - se presente nell'edizione
 - **Autore/i** - con nome e cognome completi
@@ -78,35 +78,35 @@ Il sistema compila **automaticamente** questi campi:
 - **Editore** - nome casa editrice
   - Se l'editore non esiste, viene segnalato come "Da creare"
 
-#### ✅ Codici Identificativi
+#### Codici Identificativi
 - **ISBN-10** - formato pulito (senza trattini)
 - **ISBN-13** - formato pulito
 - **EAN** - se disponibile
 
-#### ✅ Dettagli Pubblicazione
+#### Dettagli Pubblicazione
 - **Data di pubblicazione** - in formato italiano leggibile
   - Es: "26 agosto 2025" oppure "2025"
 - **Numero pagine** - conteggio totale
 - **Lingua** - lingua del testo
 
-#### ✅ Dettagli Fisici
+#### Dettagli Fisici
 - **Formato** - tipo di rilegatura
   - Es: "Brossura", "Copertina rigida"
 - **Dimensioni** - larghezza x altezza in cm
 - **Peso** - in kg (convertito automaticamente da grammi)
 
-#### ✅ Contenuti e Prezzi
+#### Contenuti e Prezzi
 - **Descrizione** - trama o sinossi del libro
 - **Prezzo** - prezzo di copertina in euro
 - **Collana/Serie** - se il libro fa parte di una collana
 - **Numero serie** - posizione nella collana
 
-#### ✅ Risorse Multimediali
+#### Risorse Multimediali
 - **Copertina** - immagine ad alta risoluzione
   - Scaricata automaticamente dai server ufficiali
   - Salvata nella tua libreria
 
-#### ✅ Classificazione
+#### Classificazione
 - **Genere** - categoria letteraria
   - Il sistema fa un mapping intelligente per associarlo alle tue categorie
 
@@ -114,26 +114,26 @@ Il sistema compila **automaticamente** questi campi:
 
 Dopo l'importazione automatica, **devi aggiungere manualmente** solo queste informazioni specifiche della tua biblioteca:
 
-#### 📍 Posizione Fisica (Obbligatoria)
+#### Posizione Fisica (Obbligatoria)
 - **Scaffale**: Seleziona da menu (es. "A - Scaffale Principale")
 - **Mensola**: Seleziona il ripiano (es. "Livello 2")
 - **Posizione progressiva**: Numero del libro sulla mensola
   - Puoi inserirlo manualmente (es. "15")
   - Oppure cliccare "Genera automaticamente" per trovare il primo posto libero
 
-> 📚 **Vuoi capire meglio come funziona la collocazione?**
+>  **Vuoi capire meglio come funziona la collocazione?**
 > Consulta la [pagina Collocazione](/docs/collocazione.MD) che spiega in dettaglio il sistema di organizzazione fisica degli scaffali, come funziona la numerazione progressiva e come ottimizzare lo spazio.
 
-#### 🔢 Gestione Inventario (Opzionale)
+#### Gestione Inventario (Opzionale)
 - **Numero inventario**: Codice univoco per tracciabilità
   - Es: "INV-2024-001" oppure semplicemente "001"
 - **Copie totali**: Quante copie possiedi (default: 1)
 - **Copie disponibili**: Quante sono disponibili per il prestito (default: 1)
 
-#### 🏷️ Classificazione Dewey (Opzionale ma Consigliata)
+#### Classificazione Dewey (Opzionale ma Consigliata)
 - Vedi sezione dedicata più sotto per capire come usarla
 
-#### 📝 Informazioni Aggiuntive (Opzionali)
+#### Informazioni Aggiuntive (Opzionali)
 - **Data acquisizione**: Quando è entrato in biblioteca
 - **Tipo acquisizione**: Come l'hai ottenuto
   - "Acquisto", "Donazione", "Prestito permanente", "Deposito"
@@ -152,7 +152,7 @@ Dopo l'importazione automatica, **devi aggiungere manualmente** solo queste info
    - Link alla scheda completa
    - Opzione per stampare l'etichetta
 
-### 🎯 Risultato Finale
+### Risultato Finale
 Dopo il salvataggio:
 - Il libro è **immediatamente disponibile** per ricerca e prestito
 - Puoi **stampare l'etichetta** con QR code
@@ -161,9 +161,9 @@ Dopo il salvataggio:
 
 ---
 
-## 🤖 Come Funziona lo Scraping Automatico
+## Come Funziona lo Scraping Automatico
 
-### 📡 Cos'è lo Scraping?
+### Cos'è lo Scraping?
 
 Lo **scraping** (o "web scraping") è una tecnica informatica che permette al sistema di:
 1. **Connettersi** a siti web specializzati in libri
@@ -171,13 +171,13 @@ Lo **scraping** (o "web scraping") è una tecnica informatica che permette al si
 3. **Estrarre** automaticamente tutte le informazioni pubbliche
 4. **Importare** i dati nel nostro database
 
-> 💡 **In parole semplici**: Il sistema "legge" le pagine web come faresti tu, ma in modo automatico e istantaneo!
+>  **In parole semplici**: Il sistema "legge" le pagine web come faresti tu, ma in modo automatico e istantaneo!
 
-### 🌐 Da Dove Vengono i Dati?
+### Da Dove Vengono i Dati?
 
 Il sistema interroga **fonti ufficiali e affidabili** in questo ordine di priorità:
 
-#### 1️⃣ Libreria Universitaria (Fonte Primaria)
+#### 1⃣ Libreria Universitaria (Fonte Primaria)
 - **URL**: img.libreriauniversitaria.it
 - **Dati forniti**:
   - Informazioni bibliografiche complete
@@ -187,7 +187,7 @@ Il sistema interroga **fonti ufficiali e affidabili** in questo ordine di priori
 - **Affidabilità**: ⭐⭐⭐⭐⭐ (Molto alta)
 - **Lingua**: Italiano
 
-#### 2️⃣ Open Library (Fonte Secondaria)
+#### 2⃣ Open Library (Fonte Secondaria)
 - **URL**: covers.openlibrary.org
 - **Dati forniti**:
   - Catalogo internazionale di libri
@@ -196,7 +196,7 @@ Il sistema interroga **fonti ufficiali e affidabili** in questo ordine di priori
 - **Affidabilità**: ⭐⭐⭐⭐ (Alta)
 - **Lingua**: Internazionale
 
-#### 3️⃣ Google Books (Fonte di Backup)
+#### 3⃣ Google Books (Fonte di Backup)
 - **URL**: books.google.com
 - **Dati forniti**:
   - Database mondiale
@@ -205,7 +205,7 @@ Il sistema interroga **fonti ufficiali e affidabili** in questo ordine di priori
 - **Affidabilità**: ⭐⭐⭐⭐ (Alta)
 - **Lingua**: Internazionale
 
-#### 4️⃣ Amazon (Fonte Aggiuntiva Copertine)
+#### 4⃣ Amazon (Fonte Aggiuntiva Copertine)
 - **URL**: images.amazon.com
 - **Dati forniti**:
   - Copertine ad alta definizione
@@ -213,7 +213,7 @@ Il sistema interroga **fonti ufficiali e affidabili** in questo ordine di priori
 - **Affidabilità**: ⭐⭐⭐ (Media)
 - **Lingua**: Internazionale
 
-### ⚙️ Processo di Importazione Passo-Passo
+### Processo di Importazione Passo-Passo
 
 Quando clicchi "Importa Dati", ecco cosa succede nei 3-5 secondi di attesa:
 
@@ -243,27 +243,27 @@ Quando clicchi "Importa Dati", ecco cosa succede nei 3-5 secondi di attesa:
    - Mostra un'anteprima della copertina
    - Evidenzia eventuali campi mancanti che richiedono la tua attenzione
 
-### ✅ Cosa Viene Importato Automaticamente
+### Cosa Viene Importato Automaticamente
 
 | **Campo** | **Sempre** | **Spesso** | **A Volte** | **Raramente** |
 |-----------|-----------|-----------|-------------|--------------|
-| Titolo | ✅ | | | |
-| Autore/i | ✅ | | | |
-| ISBN-13 | ✅ | | | |
-| Editore | | ✅ | | |
-| Copertina | | ✅ | | |
-| Pagine | | ✅ | | |
-| Prezzo | | ✅ | | |
-| Descrizione | | ✅ | | |
-| Data pubblicazione | | ✅ | | |
-| ISBN-10 | | | ✅ | |
-| Formato | | | ✅ | |
-| Peso | | | ✅ | |
-| Dimensioni | | | ✅ | |
-| Collana | | | ✅ | |
-| Lingua | | | | ✅ |
+| Titolo |  | | | |
+| Autore/i |  | | | |
+| ISBN-13 |  | | | |
+| Editore | |  | | |
+| Copertina | |  | | |
+| Pagine | |  | | |
+| Prezzo | |  | | |
+| Descrizione | |  | | |
+| Data pubblicazione | |  | | |
+| ISBN-10 | | |  | |
+| Formato | | |  | |
+| Peso | | |  | |
+| Dimensioni | | |  | |
+| Collana | | |  | |
+| Lingua | | | |  |
 
-### ⚠️ Gestione degli Errori
+### Gestione degli Errori
 
 #### "ISBN non trovato"
 **Causa**: Il libro non è presente in nessuna delle fonti online
@@ -294,31 +294,31 @@ Quando clicchi "Importa Dati", ecco cosa succede nei 3-5 secondi di attesa:
 - Puoi caricare la copertina manualmente dopo
 - Puoi fotografare la copertina e caricarla
 
-### 🔒 Sicurezza e Privacy
+### Sicurezza e Privacy
 
 **Il sistema è sicuro?**
-- ✅ Tutte le connessioni usano protocollo HTTPS crittografato
-- ✅ Non vengono salvate credenziali o dati sensibili
-- ✅ I dati vengono validati prima dell'inserimento nel database
-- ✅ Nessun dato della tua biblioteca viene inviato alle fonti esterne
-- ✅ Le copertine vengono salvate sul tuo server, non linkate esternamente
+-  Tutte le connessioni usano protocollo HTTPS crittografato
+-  Non vengono salvate credenziali o dati sensibili
+-  I dati vengono validati prima dell'inserimento nel database
+-  Nessun dato della tua biblioteca viene inviato alle fonti esterne
+-  Le copertine vengono salvate sul tuo server, non linkate esternamente
 
 **Conformità GDPR**
-- ✅ Non vengono raccolti dati personali durante lo scraping
-- ✅ Solo dati pubblici relativi ai libri
-- ✅ Nessun tracciamento degli utenti della biblioteca
+-  Non vengono raccolti dati personali durante lo scraping
+-  Solo dati pubblici relativi ai libri
+-  Nessun tracciamento degli utenti della biblioteca
 
 ---
 
-## 📚 Classificazione Dewey (Dewey Decimal Classification)
+## Classificazione Dewey (Dewey Decimal Classification)
 
-### 🔍 Cos'è la Classificazione Dewey?
+### Cos'è la Classificazione Dewey?
 
 La **Classificazione Decimale Dewey (DDC)** è il sistema di organizzazione biblioteconomica più usato al mondo, inventato da Melvil Dewey nel 1876.
 
 **Scopo**: Organizzare i libri per **argomento** in modo logico e universale, facilitando la ricerca e il browsing.
 
-### 🎯 Perché Usarla?
+### Perché Usarla?
 
 1. **Standard Mondiale**: Usata da milioni di biblioteche
 2. **Organizzazione Logica**: I libri dello stesso argomento stanno vicini
@@ -326,7 +326,7 @@ La **Classificazione Decimale Dewey (DDC)** è il sistema di organizzazione bibl
 4. **Ricerca Facilitata**: Gli utenti trovano libri correlati facilmente
 5. **Professionalità**: La tua biblioteca segue standard professionali
 
-### 📊 Come Funziona la Struttura
+### Come Funziona la Struttura
 
 La classificazione Dewey usa **tre livelli** di dettaglio crescente:
 
@@ -379,7 +379,7 @@ Ogni divisione si suddivide ulteriormente in **10 sezioni**:
 | **327** | Relazioni internazionali |
 | **328** | Processo legislativo |
 
-### 🎨 Come Usare Dewey nel Sistema
+### Come Usare Dewey nel Sistema
 
 Quando inserisci un libro, puoi assegnare la classificazione Dewey seguendo questi passi:
 
@@ -414,7 +414,7 @@ Il sistema mostra il percorso completo che hai selezionato:
 - **Esempio 2**: `850 > 853` = "Letteratura Italiana > Narrativa"
 - **Esempio 3**: `520` = "Astronomia"
 
-### 📖 Esempi Pratici di Classificazione
+### Esempi Pratici di Classificazione
 
 | **Libro** | **Autore** | **Classe** | **Divisione** | **Sezione** | **Codice Finale** |
 |-----------|-----------|-----------|--------------|------------|------------------|
@@ -424,20 +424,20 @@ Il sistema mostra il percorso completo che hai selezionato:
 | Cosmos | Carl Sagan | 500 - Scienze | 520 - Astronomia | 520 - Generale | **520** |
 | Il Principe | Machiavelli | 300 - Sc. Sociali | 320 - Politica | 320.1 - Stato | **320.1** |
 
-### 💡 Consigli per una Buona Classificazione
+### Consigli per una Buona Classificazione
 
-#### ✅ Best Practices
+#### Best Practices
 - **Pensa all'argomento principale**, non secondario
 - **Usa il livello di dettaglio giusto**: non serve sempre arrivare al terzo livello
 - **Mantieni coerenza**: libri simili devono avere classificazioni simili
 - **Consulta libri già classificati** della stessa categoria come riferimento
 
-#### ❌ Errori Comuni da Evitare
+#### Errori Comuni da Evitare
 - Non classificare un romanzo storico come Storia (900) → È Letteratura (800)
 - Non classificare una biografia come Letteratura → È Storia (900)
 - Non mescolare Saggistica e Narrativa nella stessa sezione
 
-### 🔗 Integrazione con la Collocazione Fisica
+### Integrazione con la Collocazione Fisica
 
 **Dewey è diverso dalla posizione fisica!**
 
@@ -449,7 +449,7 @@ Il sistema mostra il percorso completo che hai selezionato:
 - Scaffale B → 800-899 (Letteratura)
 - ecc.
 
-> 📚 Per maggiori dettagli sull'organizzazione fisica, vedi la [pagina Collocazione](/docs/collocazione.MD).
+>  Per maggiori dettagli sull'organizzazione fisica, vedi la [pagina Collocazione](/docs/collocazione.MD).
 
 ### 🆘 Quando Dewey è Opzionale
 
@@ -466,9 +466,9 @@ Il sistema mostra il percorso completo che hai selezionato:
 
 ---
 
-## 📝 Metodo 2: Inserimento Manuale
+## Metodo 2: Inserimento Manuale
 
-### 📌 Quando usarlo
+### Quando usarlo
 - **Libri antichi** senza ISBN (pubblicati prima del 1970)
 - **Pubblicazioni locali** o autoedizioni senza codice
 - **Donazioni** senza informazioni complete
@@ -476,7 +476,7 @@ Il sistema mostra il percorso completo che hai selezionato:
 - **Quaderni** o pubblicazioni non commerciali
 - Quando **l'importazione automatica fallisce** ripetutamente
 
-### 🎯 Approccio Consigliato
+### Approccio Consigliato
 
 Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possibili** dal libro stesso:
 1. Guarda la **copertina** (titolo, autore)
@@ -486,21 +486,21 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 
 ---
 
-### 📋 Guida Dettagliata ai Campi
+### Guida Dettagliata ai Campi
 
-#### 🏷️ **Informazioni Base (Obbligatorie)**
+#### **Informazioni Base (Obbligatorie)**
 
 ##### **Titolo**
 - **Cosa inserire**: Nome completo del libro come appare sulla copertina
 - **Formato**: Scrivi normalmente, non tutto MAIUSCOLO
 - **Lunghezza**: Minimo 2 caratteri, massimo 200
 - **Esempi**:
-  - ✅ Corretto: "La Divina Commedia"
-  - ✅ Corretto: "Il nome della rosa"
-  - ❌ Sbagliato: "LA DIVINA COMMEDIA" (tutto maiuscolo)
-  - ❌ Sbagliato: "divina commedia" (minuscolo iniziale)
+  -  Corretto: "La Divina Commedia"
+  -  Corretto: "Il nome della rosa"
+  -  Sbagliato: "LA DIVINA COMMEDIA" (tutto maiuscolo)
+  -  Sbagliato: "divina commedia" (minuscolo iniziale)
 
-> 💡 **Suggerimento**: Il sistema capitalizza automaticamente la prima lettera, quindi non preoccuparti troppo.
+>  **Suggerimento**: Il sistema capitalizza automaticamente la prima lettera, quindi non preoccuparti troppo.
 
 ##### **Sottotitolo**
 - **Cosa inserire**: Seconda parte del titolo se presente
@@ -527,7 +527,7 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 
 ---
 
-#### 🔢 **Codici Identificativi (Facoltativi ma Utili)**
+#### **Codici Identificativi (Facoltativi ma Utili)**
 
 ##### **ISBN-10**
 - **Cosa inserire**: Codice di 10 caratteri (9 cifre + 1 cifra o X)
@@ -548,11 +548,11 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 - **Quando compilarlo**: Se diverso dall'ISBN-13
 - **Esempio**: `9788842935780`
 
-> 💡 **Nota**: Spesso ISBN-13 ed EAN sono identici, non serve compilare entrambi.
+>  **Nota**: Spesso ISBN-13 ed EAN sono identici, non serve compilare entrambi.
 
 ---
 
-#### 🏢 **Informazioni Editoriali (Facoltative)**
+#### **Informazioni Editoriali (Facoltative)**
 
 ##### **Editore**
 - **Cosa inserire**: Nome della casa editrice
@@ -579,7 +579,7 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 
 ---
 
-#### 📐 **Dettagli Fisici (Facoltativi)**
+#### **Dettagli Fisici (Facoltativi)**
 
 ##### **Numero Pagine**
 - **Cosa inserire**: Numero totale di pagine
@@ -613,7 +613,7 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 
 ---
 
-#### 📚 **Gestione Biblioteca (Importante)**
+#### **Gestione Biblioteca (Importante)**
 
 ##### **Numero Inventario**
 - **Cosa inserire**: Codice univoco per tracciabilità interna
@@ -646,7 +646,7 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 
 ---
 
-#### 📍 **Posizione Fisica (Obbligatoria)**
+#### **Posizione Fisica (Obbligatoria)**
 
 Questa è l'informazione **più importante** perché indica **dove si trova fisicamente** il libro.
 
@@ -679,12 +679,12 @@ Questa è l'informazione **più importante** perché indica **dove si trova fisi
   - "A.2.15" = Scaffale A, Mensola 2, 15° libro
   - "B.1.03" = Scaffale B, Mensola 1, 3° libro
 
-> 📚 **Vuoi approfondire?**
+>  **Vuoi approfondire?**
 > Leggi la [Guida Collocazione](/docs/collocazione.MD) per capire come organizzare al meglio gli scaffali, come gestire la numerazione progressiva e come ottimizzare lo spazio fisico.
 
 ---
 
-#### 💰 **Dettagli Acquisizione (Facoltativi)**
+#### **Dettagli Acquisizione (Facoltativi)**
 
 ##### **Data Acquisizione**
 - **Cosa inserire**: Quando il libro è entrato in biblioteca
@@ -708,7 +708,7 @@ Questa è l'informazione **più importante** perché indica **dove si trova fisi
 
 ---
 
-#### 🏷️ **Categorie e Classificazione (Facoltative)**
+#### **Categorie e Classificazione (Facoltative)**
 
 ##### **Genere Letterario**
 - **Come funziona**: Selezione gerarchica a tre livelli
@@ -733,7 +733,7 @@ Questa è l'informazione **più importante** perché indica **dove si trova fisi
 
 ---
 
-#### 🖼️ **Copertina (Facoltativa ma Consigliata)**
+#### **Copertina (Facoltativa ma Consigliata)**
 
 ##### **Opzione 1: Carica da Computer**
 - Clicca "Sfoglia" o "Scegli file"
@@ -758,7 +758,7 @@ Questa è l'informazione **più importante** perché indica **dove si trova fisi
 
 ---
 
-#### 📝 **Note e Descrizioni (Facoltative)**
+#### **Note e Descrizioni (Facoltative)**
 
 ##### **Descrizione**
 - **Cosa inserire**: Trama, sinossi o descrizione del contenuto
@@ -785,17 +785,17 @@ Questa è l'informazione **più importante** perché indica **dove si trova fisi
 
 ---
 
-## 🎯 Workflow Completo per Inserimento Manuale
+## Workflow Completo per Inserimento Manuale
 
 Ecco una **checklist passo-passo** per guidarti nell'inserimento manuale:
 
-### ✅ Checklist Prima di Iniziare
+### Checklist Prima di Iniziare
 - [ ] Ho il libro fisicamente davanti a me?
 - [ ] Ho raccolto tutte le informazioni dal libro (copertina, colophon, retro)?
 - [ ] Ho deciso in quale scaffale/mensola metterlo?
 - [ ] Ho una foto della copertina o posso scansionarla?
 
-### ✅ Checklist Durante l'Inserimento
+### Checklist Durante l'Inserimento
 - [ ] **Titolo** inserito correttamente (non MAIUSCOLO)
 - [ ] **Autore/i** selezionati o creati
 - [ ] **ISBN** inserito se disponibile (controlla formato)
@@ -807,13 +807,13 @@ Ecco una **checklist passo-passo** per guidarti nell'inserimento manuale:
 - [ ] **Copertina** caricata (se disponibile)
 - [ ] **Descrizione** scritta (facoltativa ma utile)
 
-### ✅ Checklist Prima di Salvare
+### Checklist Prima di Salvare
 - [ ] Tutti i campi obbligatori sono compilati?
 - [ ] L'ortografia del titolo è corretta?
 - [ ] La posizione fisica è quella giusta?
 - [ ] Ho verificato che non ci siano duplicati (stesso ISBN)?
 
-### ✅ Checklist Dopo il Salvataggio
+### Checklist Dopo il Salvataggio
 - [ ] Libro salvato con successo (messaggio conferma)?
 - [ ] Stampo l'etichetta?
 - [ ] Applico l'etichetta sul libro?
@@ -821,90 +821,90 @@ Ecco una **checklist passo-passo** per guidarti nell'inserimento manuale:
 
 ---
 
-## 🎯 Consigli Pratici per l'Inserimento
+## Consigli Pratici per l'Inserimento
 
-### ✅ **Best Practices da Seguire Sempre**
+### **Best Practices da Seguire Sempre**
 
-#### 📖 Per il Titolo
+#### Per il Titolo
 - **Sempre**: Copia il titolo esattamente come appare sulla copertina
 - **Sempre**: Controlla l'ortografia (errori comuni: accenti, apostrofi)
 - **Mai**: Scrivere tutto in MAIUSCOLO o tutto in minuscolo
 - **Mai**: Abbreviare titoli lunghi (scrivi per intero)
 - **Suggerimento**: Se incerto, cerca il libro online per verificare il titolo ufficiale
 
-#### 👤 Per gli Autori
+#### Per gli Autori
 - **Sempre**: Scrivi nome e cognome completi (es. "Umberto Eco", non "U. Eco")
 - **Sempre**: Cerca prima se l'autore esiste già nel database
 - **Mai**: Usare abbreviazioni o iniziali se hai il nome completo
 - **Attenzione**: Controlla la grafia corretta (es. "García Márquez" con accenti)
 
-#### 🔢 Per ISBN/EAN
+#### Per ISBN/EAN
 - **Sempre**: Verifica che le cifre siano corrette (copia-incolla aiuta)
 - **Sempre**: Prova l'importazione automatica prima dell'inserimento manuale
 - **Prova**: Sia con che senza trattini se l'importazione fallisce
 - **Verifica**: Che non esista già un libro con quell'ISBN
 
-#### 📍 Per la Posizione Fisica
+#### Per la Posizione Fisica
 - **Sempre**: Assegna una posizione prima di salvare (campo obbligatorio!)
 - **Sempre**: Usa "Genera automaticamente" se non sei sicuro della posizione
 - **Mai**: Lasciare vuoti scaffale e mensola
 - **Suggerimento**: Raggruppa libri dello stesso genere nello stesso scaffale
 
-#### 🖼️ Per la Copertina
+#### Per la Copertina
 - **Sempre**: Carica un'immagine di buona qualità (almeno 300×400 pixel)
 - **Preferisci**: File JPG per foto, PNG per grafica
 - **Verifica**: Che l'immagine non sia troppo grande (max 5 MB)
 - **Alternativa**: Puoi sempre aggiungerla dopo con "Modifica libro"
 
-### ❌ **Errori Comuni da Evitare**
+### **Errori Comuni da Evitare**
 
 #### Errori di Formattazione
-- ❌ Titolo tutto in maiuscolo: "IL NOME DELLA ROSA"
-  - ✅ Corretto: "Il nome della rosa"
-- ❌ Autore con iniziali: "U. Eco"
-  - ✅ Corretto: "Umberto Eco"
-- ❌ ISBN con spazi o trattini sbagliati: "978 88429 35780"
-  - ✅ Corretto: "9788842935780" o "978-88-429-3578-0"
+-  Titolo tutto in maiuscolo: "IL NOME DELLA ROSA"
+  -  Corretto: "Il nome della rosa"
+-  Autore con iniziali: "U. Eco"
+  -  Corretto: "Umberto Eco"
+-  ISBN con spazi o trattini sbagliati: "978 88429 35780"
+  -  Corretto: "9788842935780" o "978-88-429-3578-0"
 
 #### Errori di Classificazione
-- ❌ Romanzo storico classificato come Storia (900)
-  - ✅ Corretto: Classificato come Letteratura (800)
-- ❌ Biografia classificata come Letteratura
-  - ✅ Corretto: Classificata come Storia (920 - Biografie)
-- ❌ Libro di cucina classificato come Scienza
-  - ✅ Corretto: Classificato come Tecnologia (640 - Economia domestica)
+-  Romanzo storico classificato come Storia (900)
+  -  Corretto: Classificato come Letteratura (800)
+-  Biografia classificata come Letteratura
+  -  Corretto: Classificata come Storia (920 - Biografie)
+-  Libro di cucina classificato come Scienza
+  -  Corretto: Classificato come Tecnologia (640 - Economia domestica)
 
 #### Errori di Posizione
-- ❌ Dimenticare di assegnare scaffale e mensola
-  - ✅ Compila sempre prima di salvare
-- ❌ Sovrascrivere una posizione già occupata
-  - ✅ Usa "Genera automaticamente"
-- ❌ Mettere libri di argomenti diversi mescolati
-  - ✅ Raggruppa per genere o Dewey
+-  Dimenticare di assegnare scaffale e mensola
+  -  Compila sempre prima di salvare
+-  Sovrascrivere una posizione già occupata
+  -  Usa "Genera automaticamente"
+-  Mettere libri di argomenti diversi mescolati
+  -  Raggruppa per genere o Dewey
 
 #### Errori di Completezza
-- ❌ Salvare senza autore
-  - ✅ Ogni libro deve avere almeno un autore (anche "Anonimo" o "AA.VV.")
-- ❌ Caricare copertine sfocate o troppo piccole
-  - ✅ Minimo 300×400 pixel per buona leggibilità
-- ❌ Non compilare la descrizione
-  - ✅ Anche solo 2 righe aiutano gli utenti a capire il contenuto
+-  Salvare senza autore
+  -  Ogni libro deve avere almeno un autore (anche "Anonimo" o "AA.VV.")
+-  Caricare copertine sfocate o troppo piccole
+  -  Minimo 300×400 pixel per buona leggibilità
+-  Non compilare la descrizione
+  -  Anche solo 2 righe aiutano gli utenti a capire il contenuto
 
-### 💡 **Trucchi e Scorciatoie**
+### **Trucchi e Scorciatoie**
 
-#### ⚡ Velocizza l'Inserimento
+#### Velocizza l'Inserimento
 1. **Usa sempre l'importazione automatica** quando possibile
 2. **Prepara in anticipo** le foto delle copertine in una cartella
 3. **Assegna posizioni in batch** per libri dello stesso scaffale
 4. **Crea autori ed editori** comuni all'inizio, poi riusali
 
-#### 🎯 Ottimizza la Qualità
+#### Ottimizza la Qualità
 1. **Verifica online** titoli e autori se incerto
 2. **Copia-incolla ISBN** invece di digitare manualmente
 3. **Usa la fotocamera** del telefono per copertine di alta qualità
 4. **Scrivi descrizioni concise** ma informative (2-3 frasi)
 
-#### 🔄 Gestione Efficiente
+#### Gestione Efficiente
 1. **Inserisci libri a gruppi** per genere o scaffale
 2. **Stampa etichette in batch** dopo aver inserito più libri
 3. **Verifica periodicamente** duplicati o errori di ortografia
@@ -912,9 +912,9 @@ Ecco una **checklist passo-passo** per guidarti nell'inserimento manuale:
 
 ---
 
-## 📊 Dopo il Salvataggio: Cosa Succede
+## Dopo il Salvataggio: Cosa Succede
 
-### ✅ Conferma di Successo
+### Conferma di Successo
 
 Quando salvi con successo, vedrai:
 
@@ -922,12 +922,12 @@ Quando salvi con successo, vedrai:
 2. **ID univoco** assegnato automaticamente (es. "Libro #1234")
 3. **Link alla scheda** completa del libro appena creato
 4. **Opzioni rapide**:
-   - 🖨️ Stampa etichetta
-   - ✏️ Modifica libro
-   - 📚 Aggiungi un'altra copia
-   - 🔙 Torna alla lista libri
+   -  Stampa etichetta
+   -  Modifica libro
+   -  Aggiungi un'altra copia
+   -  Torna alla lista libri
 
-### 🎫 Stampa dell'Etichetta
+### Stampa dell'Etichetta
 
 Dopo aver salvato, puoi stampare l'etichetta fisica:
 
@@ -948,21 +948,21 @@ Dopo aver salvato, puoi stampare l'etichetta fisica:
 3. **Applica** sul dorso del libro in basso
 4. **Allinea** bene per facilitare la lettura
 
-### 🔄 Aggiornamenti Automatici
+### Aggiornamenti Automatici
 
 Quando aggiungi un libro, il sistema aggiorna automaticamente:
-- ✅ **Contatore totale libri** nella dashboard
-- ✅ **Statistiche per genere** (se assegnato)
-- ✅ **Mappa scaffali** con occupazione
-- ✅ **Lista autori** con nuovo conteggio libri
-- ✅ **Ricerca full-text** (il libro è immediatamente ricercabile)
-- ✅ **Cache** del catalogo pubblico
+-  **Contatore totale libri** nella dashboard
+-  **Statistiche per genere** (se assegnato)
+-  **Mappa scaffali** con occupazione
+-  **Lista autori** con nuovo conteggio libri
+-  **Ricerca full-text** (il libro è immediatamente ricercabile)
+-  **Cache** del catalogo pubblico
 
 ---
 
-## ❓ Problemi Comuni e Soluzioni Dettagliate
+## Problemi Comuni e Soluzioni Dettagliate
 
-### 🔴 "Importazione ISBN non trova niente"
+### "Importazione ISBN non trova niente"
 
 **Possibili Cause**:
 - ISBN errato o con typo
@@ -979,7 +979,7 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 3. **Cerca online manualmente**: Google "ISBN 9788842935780" per verificare
 4. **Usa inserimento manuale**: Se proprio non lo trova
 
-### 🔴 "ISBN già esistente nel database"
+### "ISBN già esistente nel database"
 
 **Possibili Cause**:
 - Il libro è già stato inserito in precedenza
@@ -995,7 +995,7 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 4. **Se è un'altra copia fisica**: Aumenta il numero "Copie totali"
 5. **Se è un'edizione diversa**: Modifica leggermente il titolo (es. aggiungi "2ª ed.")
 
-### 🔴 "Non riesco a caricare la copertina"
+### "Non riesco a caricare la copertina"
 
 **Possibili Cause**:
 - File troppo grande (> 5 MB)
@@ -1013,7 +1013,7 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 3. **Riduci risoluzione**: 400×600 pixel è sufficiente
 4. **Prova drag & drop**: A volte funziona meglio dell'upload classico
 
-### 🔴 "Posizione già occupata"
+### "Posizione già occupata"
 
 **Possibili Cause**:
 - Hai inserito manualmente un numero già assegnato
@@ -1024,7 +1024,7 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 2. **Scegli manualmente** un numero diverso (prova +1, +2, etc.)
 3. **Verifica lo scaffale**: Magari c'è confusione con scaffali diversi
 
-### 🔴 "Autore non si crea automaticamente"
+### "Autore non si crea automaticamente"
 
 **Possibili Cause**:
 - Nome troppo corto (< 2 caratteri)
@@ -1039,9 +1039,9 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 
 ---
 
-## 🎓 Esempi Pratici Completi
+## Esempi Pratici Completi
 
-### 📘 Esempio 1: Romanzo Moderno con ISBN
+### Esempio 1: Romanzo Moderno con ISBN
 
 **Scenario**: Hai appena comprato "Il nome della rosa" di Umberto Eco
 
@@ -1051,10 +1051,10 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 3. **Importa**: Digita ISBN nella sezione "Importa da ISBN" → Clicca "Importa Dati"
 4. **Attendi**: 3-5 secondi, il sistema compila tutto automaticamente
 5. **Verifica dati importati**:
-   - ✅ Titolo: "Il nome della rosa"
-   - ✅ Autore: "Umberto Eco"
-   - ✅ Editore: "Bompiani"
-   - ✅ Copertina: Caricata automaticamente
+   -  Titolo: "Il nome della rosa"
+   -  Autore: "Umberto Eco"
+   -  Editore: "Bompiani"
+   -  Copertina: Caricata automaticamente
 6. **Completa**:
    - Scaffale: "B - Narrativa Italiana"
    - Mensola: "Livello 3"
@@ -1068,7 +1068,7 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 
 ---
 
-### 📕 Esempio 2: Libro Antico Senza ISBN
+### Esempio 2: Libro Antico Senza ISBN
 
 **Scenario**: Donazione di "Racconti popolari" del 1955, nessun ISBN
 
@@ -1106,7 +1106,7 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 
 ---
 
-### 📗 Esempio 3: Saggistica Scientifica con EAN
+### Esempio 3: Saggistica Scientifica con EAN
 
 **Scenario**: "Breve storia del tempo" di Stephen Hawking
 
@@ -1114,11 +1114,11 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 1. **Trova EAN** (codice a barre): `9788817056304`
 2. **Importa**: Inserisci nella sezione "Importa da ISBN o EAN"
 3. **Dati recuperati**:
-   - ✅ Titolo: "Dal big bang ai buchi neri: Breve storia del tempo"
-   - ✅ Sottotitolo: Recuperato automaticamente
-   - ✅ Autore: "Stephen Hawking"
-   - ✅ Editore: "Rizzoli"
-   - ✅ Copertina: Scaricata
+   -  Titolo: "Dal big bang ai buchi neri: Breve storia del tempo"
+   -  Sottotitolo: Recuperato automaticamente
+   -  Autore: "Stephen Hawking"
+   -  Editore: "Rizzoli"
+   -  Copertina: Scaricata
 4. **Dewey specifico**:
    - Classe: 500 - Scienze
    - Divisione: 520 - Astronomia
@@ -1135,15 +1135,15 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 
 ---
 
-### 📙 Esempio 4: Gestione Copie Multiple
+### Esempio 4: Gestione Copie Multiple
 
 **Scenario**: Hai 3 copie de "Il Signore degli Anelli"
 
-#### Strategia A: Tre Libri Separati (❌ Non consigliato)
+#### Strategia A: Tre Libri Separati ( Non consigliato)
 - Problema: Triplica il database
 - Problema: Difficile tenere traccia delle copie
 
-#### Strategia B: Un Libro con Copie Multiple (✅ Consigliato)
+#### Strategia B: Un Libro con Copie Multiple ( Consigliato)
 1. **Inserisci normalmente** la prima copia
 2. **Nel campo "Copie totali"**: Scrivi `3`
 3. **Nel campo "Copie disponibili"**: Scrivi `3` (all'inizio tutte disponibili)
@@ -1154,16 +1154,16 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 
 ---
 
-## 📞 Supporto e Documentazione Aggiuntiva
+## Supporto e Documentazione Aggiuntiva
 
-### 📚 Guide Correlate
+### Guide Correlate
 - [Guida Scheda Libro](/docs/scheda_libro.MD) - Come visualizzare i dettagli del libro
 - [Guida Modifica Libro](/docs/modifica_libro.MD) - Come modificare i dati dopo l'inserimento
 - [Guida Stampa Etichette](/docs/stampa_etichette.MD) - Come stampare l'etichetta
 - [Guida Collocazione](/docs/collocazione.MD) - Come organizzare scaffali e mensole
 - [Guida Prestiti](/docs/prestiti.MD) - Come gestire i prestiti dei libri
 
-### 💬 Se Hai Bisogno di Aiuto
+### Se Hai Bisogno di Aiuto
 
 #### 1. Consulta questa guida
 - Usa la ricerca (Ctrl+F) per trovare la tua domanda
@@ -1181,7 +1181,7 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 - Email o numero di telefono dell'amministratore di sistema
 - Descrivi il problema con screenshot se possibile
 
-### 🐛 Segnalazione Bug o Problemi Tecnici
+### Segnalazione Bug o Problemi Tecnici
 
 Se riscontri problemi tecnici:
 1. **Annota esattamente** cosa stavi facendo
@@ -1191,16 +1191,16 @@ Se riscontri problemi tecnici:
 
 ---
 
-## 🎯 Riepilogo Veloce
+## Riepilogo Veloce
 
-### ⚡ Inserimento Rapido (2 minuti)
+### Inserimento Rapido (2 minuti)
 1. Trova ISBN/EAN sul libro
 2. Dashboard → Libri → + Nuovo
 3. Importa da ISBN → Attendi
 4. Assegna Scaffale/Mensola/Posizione
 5. Salva → Stampa etichetta → Fatto!
 
-### 📝 Inserimento Completo Manuale (10 minuti)
+### Inserimento Completo Manuale (10 minuti)
 1. Raccogli tutte le info dal libro
 2. Compila: Titolo, Autore, Editore, Data
 3. Aggiungi: ISBN, Pagine, Formato, Lingua
@@ -1212,6 +1212,6 @@ Se riscontri problemi tecnici:
 
 ---
 
-**📖 Documento aggiornato: 19 Ottobre 2025**
-**📌 Versione: 3.0.0 - Guida Completa Estesa**
-**✍️ Per utenti finali della biblioteca**
+** Documento aggiornato: 19 Ottobre 2025**
+** Versione: 3.0.0 - Guida Completa Estesa**
+** Per utenti finali della biblioteca**

@@ -1,10 +1,10 @@
-# 🎛️ Impostazioni Pinakes
+# Impostazioni Pinakes
 
 > **Non serve essere tecnici!** Questa pagina contiene tutte le impostazioni della tua biblioteca, spiegate in modo semplice con esempi pratici.
 
 ---
 
-## 🚀 Quick Start: Setup in 5 Minuti
+## Quick Start: Setup in 5 Minuti
 
 ### Prima cosa (obbligatorio - 3 minuti):
 
@@ -14,7 +14,7 @@
 3. Carica il **logo** (facoltativo ma consigliato)
    - Trascinaci l'immagine del logo
 4. **Salva**
-5. ✅ Fatto! Vedrai subito il nome e logo nell'interfaccia
+5.  Fatto! Vedrai subito il nome e logo nell'interfaccia
 
 ### Seconda cosa (consigliato - 2 minuti):
 
@@ -25,15 +25,15 @@
    - SMTP personalizzato (se hai server aziendale)
 3. Riempi i dati
 4. **Testa connessione**
-5. ✅ Fatto! Sistema pronto a mandare email
+5.  Fatto! Sistema pronto a mandare email
 
-**Pronto?** Hai finito la configurazione di base. Puoi iniziare a usare il sistema! 🎉
+**Pronto?** Hai finito la configurazione di base. Puoi iniziare a usare il sistema! 
 
 ---
 
-## 🎯 Le 8 Aree Spiegate Semplice
+## Le 9 Aree Spiegate Semplice
 
-### 1. 📇 **Identità della Biblioteca** - Chi sei al pubblico
+### 1.  **Identità della Biblioteca** - Chi sei al pubblico
 
 **Dove**: Dashboard → Impostazioni → **Tab "Identità"**
 
@@ -49,25 +49,25 @@
 
 ---
 
-### 2. 📧 **Email del Sistema** - Come il sistema manda messaggi
+### 2.  **Email del Sistema** - Come il sistema manda messaggi
 
 **Dove**: Dashboard → Impostazioni → **Tab "Email"**
 
 **Cosa fa il sistema:**
-- ✅ Manda email di benvenuto ai nuovi utenti
-- ✅ Notifica quando un prestito è approvato
-- ✅ Avvisa 3 giorni prima della scadenza
-- ✅ Sollecita se un libro è in ritardo
+-  Manda email di benvenuto ai nuovi utenti
+-  Notifica quando un prestito è approvato
+-  Avvisa 3 giorni prima della scadenza
+-  Sollecita se un libro è in ritardo
 
 **Come configurare (scegli uno):**
 
-#### **Opzione 1: Gmail** (👈 Più facile)
+#### **Opzione 1: Gmail** ( Più facile)
 1. **Email mittente**: `tua-biblioteca@gmail.com`
 2. **Password**: Password Gmail speciale (vedi sotto)
 3. **Host**: `smtp.gmail.com`
 4. **Porta**: `587`
 
-⚠️ **Con Gmail devi:**
+**Con Gmail devi:**
 1. Vai su https://myaccount.google.com/security
 2. Attiva "Verifica in 2 passaggi"
 3. Torna a Security → "App passwords"
@@ -85,12 +85,12 @@ Chiedi i dati al tuo amministratore IT (se lavori in una scuola/ente).
 
 **Dopo aver riempito tutto:**
 1. Clicca **"Test Connessione"**
-2. Se ✅ **Verde**: Perfetto! Email funzioneranno
-3. Se ❌ **Rosso**: Controlla i dati e riprova
+2. Se  **Verde**: Perfetto! Email funzioneranno
+3. Se  **Rosso**: Controlla i dati e riprova
 
 ---
 
-### 3. 🎨 **Contenuti del Sito** - Cosa dici pubblicamente
+### 3.  **Contenuti del Sito** - Cosa dici pubblicamente
 
 **Dove**: Dashboard → Impostazioni → **Tab "CMS"**
 
@@ -110,7 +110,7 @@ Personalizza 2 pagine pubbliche:
 
 ---
 
-### 4. 📞 **Pagina Contatti** - Come ti trovano
+### 4.  **Pagina Contatti** - Come ti trovano
 
 **Dove**: Dashboard → Impostazioni → **Tab "Contatti"**
 
@@ -127,7 +127,7 @@ Riempi questi campi (semplice):
 
 ---
 
-### 5. 🔒 **Privacy e Cookie** - Questioni legali (semplice!)
+### 5.  **Privacy e Cookie** - Questioni legali (semplice!)
 
 **Dove**: Dashboard → Impostazioni → **Tab "Privacy"**
 
@@ -142,22 +142,22 @@ Riempi questi campi (semplice):
    - O scrivi il tuo (solo se serve davvero)
 
 3. **Lingua**
-   - Italiano ✅
+   - Italiano 
    - O Inglese se serve
 
 **Consiglio**: Lascia i default, funzionano per il 99% dei casi.
 
 ---
 
-### 6. 📧 **Template Email** - Personalizza i messaggi automatici
+### 6.  **Template Email** - Personalizza i messaggi automatici
 
 **Dove**: Dashboard → Impostazioni → **Tab "Template"**
 
 Il sistema manda automaticamente 8 tipi di email. Qui le puoi personalizzare.
 
 **Cosa puoi cambiare per ogni email:**
-- ✏️ Oggetto (il titolo dell'email)
-- 📝 Corpo (il messaggio)
+-  Oggetto (il titolo dell'email)
+-  Corpo (il messaggio)
 
 **Variabili intelligenti:**
 - `{{user_name}}` → diventa il nome vero dell'utente
@@ -178,7 +178,7 @@ Sistema manda: "Ciao Mario, il libro La Divina Commedia scade il 25/10/2025"
 
 ---
 
-### 7. 🏷️ **Etichette Libri** - Come stampare
+### 7.  **Etichette Libri** - Come stampare
 
 **Dove**: Dashboard → Impostazioni → **Tab "Etichette"**
 
@@ -186,7 +186,7 @@ Scegli il **formato delle etichette** che stamperai:
 
 | Formato | Dimensioni | Consiglio |
 |---|---|---|
-| **Standard** | 25×38mm | ✅ Usa sempre questo |
+| **Standard** | 25×38mm |  Usa sempre questo |
 | Medio | 50×25mm | Solo se libri molto grossi |
 | Grande | 70×36mm | Raramente |
 
@@ -198,36 +198,131 @@ Scegli il **formato delle etichette** che stamperai:
 
 ---
 
-### 8. ⚙️ **Impostazioni Avanzate** - Solo se serve
+### 8.  **Impostazioni Avanzate** - Personalizzazioni e funzionalità extra
 
 **Dove**: Dashboard → Impostazioni → **Tab "Avanzate"**
 
-⚠️ **Lascia tutto di default!** Funziona perfettamente per il 99% dei casi.
+>  **Per la maggior parte degli utenti**: Lascia tutto di default, funziona perfettamente!
+> Esplora questa sezione solo se hai esigenze specifiche.
 
-Modifica solo se il tuo admin IT te lo chiede. Contattalo se hai dubbi.
+#### **JavaScript e CSS Personalizzati**
+
+Puoi aggiungere codice personalizzato senza modificare i file di sistema:
+
+| Sezione | Quando viene eseguito | Utile per |
+|---------|----------------------|-----------|
+| **JS Essenziale** | Sempre, su ogni pagina | Analytics interni, widget chat |
+| **JS Analytics** | Solo se utente accetta cookie analytics | Google Analytics, Matomo |
+| **JS Marketing** | Solo se utente accetta cookie marketing | Pixel Facebook, retargeting |
+| **CSS Personalizzato** | Sempre | Stili aggiuntivi, personalizzazione colori |
+
+**Come si fa:**
+1. Incolla il tuo codice nella sezione appropriata
+2. Clicca "Salva"
+3. Ricarica il sito per vedere le modifiche
+
+#### **Sicurezza HTTPS/HSTS**
+
+| Impostazione | Cosa fa | Consiglio |
+|--------------|---------|-----------|
+| **Forza HTTPS** | Reindirizza automaticamente da http:// a https:// |  Attiva se hai certificato SSL |
+| **HSTS** | Dice ai browser di usare sempre HTTPS |  Attiva dopo aver testato HTTPS |
+
+**Attenzione**: Attiva HSTS solo se sei sicuro che HTTPS funziona correttamente!
+
+#### **Notifiche Scadenza Prestiti**
+
+**Giorni preavviso scadenza**: Quanti giorni prima della scadenza mandare l'email di promemoria.
+- Default: **3 giorni**
+- Esempio: Se un prestito scade il 30, l'email parte il 27
+
+#### **Modalità Catalogo**
+
+Attiva questa opzione per trasformare il sistema in un **catalogo consultabile**:
+-  Gli utenti possono cercare e vedere i libri
+-  Funzionalità prestiti nascoste
+-  Nessuna registrazione utenti
+
+**Utile per**: Biblioteche che vogliono solo mostrare il proprio catalogo online senza gestire prestiti.
+
+#### **Sitemap XML**
+
+Genera automaticamente una sitemap per i motori di ricerca (Google, Bing):
+
+1. **Attiva la generazione** con il toggle
+2. **Copia l'URL della sitemap** mostrato
+3. **Invialo a Google Search Console** per indicizzazione più veloce
+
+**Aggiornamento automatico**: Configura un cron job per rigenerare la sitemap:
+```bash
+# Ogni giorno alle 3:00
+0 3 * * * curl -s https://tuosito.it/sitemap/generate?key=TUA_API_KEY
+```
+
+#### **API Pubbliche**
+
+Se vuoi permettere ad altre applicazioni di accedere ai dati del catalogo:
+
+1. **Attiva le API pubbliche** con il toggle
+2. **Genera una chiave API** cliccando "Nuova Chiave"
+3. **Copia la chiave** (mostrata una sola volta!)
+4. **Usala nelle tue applicazioni** per accedere agli endpoint API
+
+**Endpoint disponibili:**
+- `GET /api/v1/books` - Lista libri
+- `GET /api/v1/books/{id}` - Dettagli libro
+- `GET /api/v1/search?q=...` - Ricerca catalogo
 
 ---
 
-## 📋 Checklist Configurazione Iniziale
+### 9.  **Messaggi di Contatto** - Gestisci le richieste ricevute
 
-### 🎯 **Obbligatorio (fai subito - 5 min):**
+**Dove**: Dashboard → Impostazioni → **Tab "Messaggi"**
+
+Qui trovi tutti i messaggi inviati dagli utenti tramite il form contatti del sito pubblico.
+
+**Cosa puoi fare:**
+
+| Azione | Icona | Descrizione |
+|--------|-------|-------------|
+| **Visualizza** |  | Apri il messaggio completo |
+| **Rispondi** | ↩ | Apre il tuo client email con l'indirizzo precompilato |
+| **Archivia** |  | Sposta il messaggio nell'archivio |
+| **Elimina** |  | Rimuove definitivamente il messaggio |
+| **Segna tutti letti** |  | Marca tutti i messaggi come letti |
+
+**Indicatori di stato:**
+-  **Nuovo** - Messaggio non ancora letto
+-  **Letto** - Già visualizzato
+-  **Archiviato** - Spostato nell'archivio
+
+**Consiglio**: Controlla regolarmente questa sezione per non perdere richieste importanti!
+
+---
+
+## Checklist Configurazione Iniziale
+
+### **Obbligatorio (fai subito - 5 min):**
 - [ ] Nome biblioteca
 - [ ] Logo caricato
 - [ ] Email SMTP configurata e testata
 
-### ✅ **Consigliato (quando hai tempo - 10 min):**
+### **Consigliato (quando hai tempo - 10 min):**
 - [ ] Testo "Chi Siamo" scritto
 - [ ] Email e telefono nella pagina contatti
 - [ ] Homepage personalizzata
 
-### 📌 **Opzionale (solo se vuoi):**
+### **Opzionale (solo se vuoi):**
 - [ ] Template email personalizzati
 - [ ] Mappa Google integrata
 - [ ] Descrizione breve della biblioteca
+- [ ] Sitemap XML attivata (per SEO)
+- [ ] API pubbliche configurate
+- [ ] HTTPS forzato e HSTS attivo
 
 ---
 
-## ❓ Problemi Comuni (Risposte Facili)
+## Problemi Comuni (Risposte Facili)
 
 ### "Non ricevo le email"
 **Soluzione:**
@@ -253,35 +348,35 @@ Modifica solo se il tuo admin IT te lo chiede. Contattalo se hai dubbi.
 
 ---
 
-## 🎓 3 Esempi Pratici di Configurazione
+## 3 Esempi Pratici di Configurazione
 
 ### Esempio 1: Biblioteca Scolastica
 ```
-✏️ Nome: "Biblioteca Scuola Media Galilei"
-📧 Email: biblioteca@galilei.edu.it
-🏷️ Formato etichette: 25×38mm Standard
-💰 Tutto gratis, nessuna sanzione
+ Nome: "Biblioteca Scuola Media Galilei"
+ Email: biblioteca@galilei.edu.it
+ Formato etichette: 25×38mm Standard
+ Tutto gratis, nessuna sanzione
 ```
 
 ### Esempio 2: Biblioteca Comunale
 ```
-✏️ Nome: "Biblioteca Comunale Borgo Antico"
-📧 Email: info@borgoantico.it
-🏷️ Formato etichette: 25×38mm Standard
-💰 Prestiti 30 giorni, sanzione €0.50/giorno
+ Nome: "Biblioteca Comunale Borgo Antico"
+ Email: info@borgoantico.it
+ Formato etichette: 25×38mm Standard
+ Prestiti 30 giorni, sanzione €0.50/giorno
 ```
 
 ### Esempio 3: Biblioteca Privata/Aziendale
 ```
-✏️ Nome: "Biblioteca Dipartimento R&D"
-📧 Email: biblioteca@azienda.it
-🏷️ Formato etichette: 25×38mm Standard
-💰 Prestiti 7 giorni, no sanzioni
+ Nome: "Biblioteca Dipartimento R&D"
+ Email: biblioteca@azienda.it
+ Formato etichette: 25×38mm Standard
+ Prestiti 7 giorni, no sanzioni
 ```
 
 ---
 
-## 🎉 Prossimi Passi Dopo la Configurazione
+## Prossimi Passi Dopo la Configurazione
 
 1. **Aggiungi i tuoi scaffali** → [Vai a Collocazione](./collocazione.MD)
 2. **Inserisci i primi libri** → [Vai a Inserimento Libri](./inserimento_libri.MD)
@@ -290,17 +385,17 @@ Modifica solo se il tuo admin IT te lo chiede. Contattalo se hai dubbi.
 
 ---
 
-**✅ Fatto!** Le impostazioni base sono complete. Il sistema è pronto all'uso! 🚀
+** Fatto!** Le impostazioni base sono complete. Il sistema è pronto all'uso! 
 
 ---
 
 *Tempo lettura: 10 minuti*
 *Tempo configurazione: 15 minuti*
-*Ultimo aggiornamento: 19 Ottobre 2025*
+*Ultimo aggiornamento: 24 Gennaio 2026*
 
 ---
 
-## 🔧 PARTE 2: DOCUMENTAZIONE TECNICA PER SVILUPPATORI
+## PARTE 2: DOCUMENTAZIONE TECNICA PER SVILUPPATORI
 
 > Questa sezione è per sviluppatori e amministratori di sistema. Utenti finali possono ignorarla.
 
@@ -480,7 +575,102 @@ Cache::remember("settings:{$category}:{$key}", 3600, function() {
 - Template variables escaped for HTML injection prevention
 - Rate limiting on test-email endpoint (5 per minute)
 
+#### Public API Configuration
+
+```php
+// API key generation and storage
+$settings->set('api', 'public_enabled', true);
+$settings->set('api', 'keys', json_encode([
+    [
+        'key' => 'pk_live_...',
+        'name' => 'My App',
+        'created_at' => '2025-01-24',
+        'last_used' => null
+    ]
+]));
+
+// Rate limiting per API key
+$settings->set('api', 'rate_limit', '1000'); // requests per hour
+```
+
+#### Sitemap Configuration
+
+```php
+// Sitemap generation settings
+$settings->set('sitemap', 'enabled', true);
+$settings->set('sitemap', 'include_books', true);
+$settings->set('sitemap', 'include_authors', true);
+$settings->set('sitemap', 'changefreq', 'weekly');
+$settings->set('sitemap', 'priority', '0.8');
+
+// Cron regeneration endpoint
+// GET /sitemap/generate?key={api_key}
+```
+
+#### Custom JavaScript/CSS Injection
+
+```php
+// JavaScript categories respect cookie consent
+$settings->set('custom', 'js_essential', '// Always executed');
+$settings->set('custom', 'js_analytics', '// Only with analytics consent');
+$settings->set('custom', 'js_marketing', '// Only with marketing consent');
+$settings->set('custom', 'css', '/* Custom styles */');
+```
+
+#### HTTPS/HSTS Configuration
+
+```php
+// Force HTTPS redirect
+$settings->set('security', 'force_https', true);
+
+// HSTS (HTTP Strict Transport Security)
+$settings->set('security', 'hsts_enabled', true);
+$settings->set('security', 'hsts_max_age', '31536000'); // 1 year in seconds
+```
+
+#### Catalogue Mode
+
+```php
+// Disable loan functionality, show only catalogue
+$settings->set('library', 'catalogue_mode', true);
+
+// When enabled:
+// - Hides loan buttons and user registration
+// - Public search and book details remain accessible
+// - Admin functions fully available
+```
+
+#### Contact Messages API
+
+**GET /admin/messages**
+- Lists all contact form messages
+- Supports filtering by read/archived status
+
+**GET /admin/messages/{id}**
+```json
+{
+  "id": 123,
+  "nome": "Mario",
+  "cognome": "Rossi",
+  "email": "mario@example.com",
+  "telefono": "123456789",
+  "messaggio": "Vorrei informazioni...",
+  "is_read": false,
+  "is_archived": false,
+  "created_at": "2025-01-24T10:30:00Z"
+}
+```
+
+**POST /admin/messages/{id}/archive**
+- Archives the message
+
+**POST /admin/messages/mark-all-read**
+- Marks all messages as read
+
+**DELETE /admin/messages/{id}**
+- Permanently deletes the message
+
 ---
 
-*Ultimo aggiornamento: 19 Ottobre 2025*
-*Versione Documentazione: 5.0.0 - User-Friendly First*
+*Ultimo aggiornamento: 24 Gennaio 2026*
+*Versione Documentazione: 6.0.0 - Complete Settings Reference*

@@ -1,12 +1,12 @@
-# 👥 Guida alla Gestione Utenti
+# Guida alla Gestione Utenti
 
-## 🎯 Introduzione
+## Introduzione
 
 Questa guida spiega come funziona la gestione degli utenti in Pinakes, sia dal punto di vista dell'**utente che si registra**, sia da quello dell'**amministratore che gestisce gli account**.
 
 ---
 
-## 🧑‍🤝‍🧑 Tipi di Utenti (Ruoli)
+## ‍‍ Tipi di Utenti (Ruoli)
 
 Nel sistema esistono principalmente due tipi di utenti:
 
@@ -17,7 +17,7 @@ Nel sistema esistono principalmente due tipi di utenti:
 
 ---
 
-## 📝 Processo di Registrazione per un Nuovo Utente
+## Processo di Registrazione per un Nuovo Utente
 
 Un nuovo utente deve seguire 4 semplici passi per ottenere un account attivo.
 
@@ -35,7 +35,7 @@ Un nuovo utente deve seguire 4 semplici passi per ottenere un account attivo.
 2.  **Apri l'email** e **clicca sul link di verifica**.
 3.  Questo conferma che l'indirizzo email è reale e appartiene a te.
 
-> ⚠️ **Importante**: Se non ricevi l'email entro 5 minuti, controlla la cartella **Spam** o Posta Indesiderata.
+>  **Importante**: Se non ricevi l'email entro 5 minuti, controlla la cartella **Spam** o Posta Indesiderata.
 
 ### Passo 3: Attesa dell'Approvazione dell'Amministratore
 1.  Una volta verificata l'email, il tuo account entra in uno stato di **"In attesa di approvazione"**.
@@ -51,7 +51,7 @@ Un nuovo utente deve seguire 4 semplici passi per ottenere un account attivo.
 
 ---
 
-## 👨‍💼 Gestione Utenti per l'Amministratore
+## ‍ Gestione Utenti per l'Amministratore
 
 ### Dove Trovare la Gestione Utenti
 1.  **Accedi** come Amministratore.
@@ -63,7 +63,7 @@ Vedrai una tabella con l'elenco di tutti gli utenti registrati.
 
 #### 1. Approvare Nuovi Utenti
 -   Nella lista utenti, vedrai i nuovi account con lo stato **"In attesa di approvazione"** (di solito evidenziati in giallo).
--   Clicca sull'icona ✅ **"Approva"** accanto al nome dell'utente.
+-   Clicca sull'icona  **"Approva"** accanto al nome dell'utente.
 -   L'utente riceverà l'email di benvenuto e potrà accedere.
 
 #### 2. Visualizzare i Dettagli di un Utente
@@ -74,7 +74,7 @@ Vedrai una tabella con l'elenco di tutti gli utenti registrati.
     -   Eventuali ritardi.
 
 #### 3. Modificare un Utente
--   Dalla lista o dalla scheda utente, clicca sull'icona ✏️ **"Modifica"**.
+-   Dalla lista o dalla scheda utente, clicca sull'icona  **"Modifica"**.
 -   Puoi cambiare:
     -   Nome e cognome.
     -   Email (con cautela, l'utente dovrà usare la nuova email per accedere).
@@ -92,14 +92,14 @@ Puoi cambiare lo stato di un account in qualsiasi momento:
 | **In attesa** | In attesa di approvazione. | Stato di default per i nuovi iscritti. |
 
 #### 5. Eliminare un Utente
--   Clicca sull'icona 🗑️ **"Elimina"**.
+-   Clicca sull'icona  **"Elimina"**.
 -   Ti verrà chiesta una **conferma**.
 
-> ⚠️ **Attenzione**: L'eliminazione di un utente è **permanente** e cancellerà anche tutto il suo storico prestiti. Usa questa opzione con estrema cautela. Non puoi eliminare un utente se ha prestiti attivi.
+>  **Attenzione**: L'eliminazione di un utente è **permanente** e cancellerà anche tutto il suo storico prestiti. Usa questa opzione con estrema cautela. Non puoi eliminare un utente se ha prestiti attivi.
 
 ---
 
-## ❓ Domande Frequenti
+## Domande Frequenti
 
 **D: Perché la mia registrazione deve essere approvata?**
 R: Per motivi di sicurezza e per garantire che solo i membri della comunità (studenti, cittadini, ecc.) possano utilizzare le risorse della biblioteca.

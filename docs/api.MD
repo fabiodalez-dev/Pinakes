@@ -1,11 +1,11 @@
-# 🔌 API Documentation - Pinakes
+# API Documentation - Pinakes
 
 > **Technical Documentation for Developers**
 > Complete reference for all REST API endpoints available in Pinakes.
 
 ---
 
-## 📋 Sommario
+## Sommario
 
 - [Overview](#overview)
 - [Authentication & Security](#authentication--security)

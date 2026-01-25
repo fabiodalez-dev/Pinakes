@@ -1,6 +1,6 @@
-# 🏷️ Stampa Etichette Libri - Guida Completa per Utenti
+# Stampa Etichette Libri - Guida Completa per Utenti
 
-## 🎯 Introduzione: Perché Serve Stampare Etichette?
+## Introduzione: Perché Serve Stampare Etichette?
 
 Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 - **Trovare rapidamente** i libri sugli scaffali
@@ -10,19 +10,19 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 
 ---
 
-## 📏 Formati Disponibili (Scegli il Tuo!)
+## Formati Disponibili (Scegli il Tuo!)
 
 | **Formato** | **Dimensioni** | **Dove si usa** | **Consigliato per** |
 |-------------|----------------|------------------|---------------------|
-| **Standard** | 25×38mm | Dorso libro | 📚 **Tutti i libri** |
-| **Medio** | 50×25mm | Dorso grande | 📖 Libri spessi |
-| **Grande** | 70×36mm | Etichetta interna | 📑 Libri antichi |
+| **Standard** | 25×38mm | Dorso libro | **Tutti i libri** |
+| **Medio** | 50×25mm | Dorso grande |  Libri spessi |
+| **Grande** | 70×36mm | Etichetta interna |  Libri antichi |
 
-> 💡 **Consiglio**: Usa il formato **25×38mm** per tutto. È lo standard universale!
+>  **Consiglio**: Usa il formato **25×38mm** per tutto. È lo standard universale!
 
 ---
 
-## 🛒 Carta Adesiva da Comprare
+## Carta Adesiva da Comprare
 
 ### Dove Comprare
 - **Cartolerie**: Più vicino a casa
@@ -38,7 +38,7 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 
 ---
 
-## 🖨️ Come Stampare un'Etichetta (Passo-Passo)
+## Come Stampare un'Etichetta (Passo-Passo)
 
 ### Passo 1: Trovare il Libro
 1. **Vai su**: Dashboard → **Libri**
@@ -47,7 +47,7 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 4. **Vedrai**: La scheda completa del libro
 
 ### Passo 2: Generare l'Etichetta
-1. **Clicca** il bottone **"Stampa Etichetta"** (icona 🏷️)
+1. **Clicca** il bottone **"Stampa Etichetta"** (icona )
 2. **Attendi**: 2-3 secondi per generare il PDF
 3. **Si apre**: PDF con l'etichetta pronta
 
@@ -60,7 +60,7 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 
 ---
 
-## 📋 Cosa Contiene l'Etichetta
+## Cosa Contiene l'Etichetta
 
 ### Formato Standard (25×38mm)
 ```
@@ -86,7 +86,7 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 
 ---
 
-## 🎯 Istruzioni Dettagliate per Stampare
+## Istruzioni Dettagliate per Stampare
 
 ### Stampante Laser (Consigliata)
 1. **Apri** il PDF generato
@@ -104,7 +104,7 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 
 ---
 
-## ✂️ Come Applicare le Etichette
+## Come Applicare le Etichette
 
 ### Preparazione
 1. **Pulisci il dorso** del libro con panno asciutto
@@ -122,30 +122,30 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 
 ---
 
-## 📊 Configurare il Formato Etichette
+## Configurare il Formato Etichette
 
-### 🎯 Guida Dettagliata alle Impostazioni
+### Guida Dettagliata alle Impostazioni
 
 #### Passo 1: Accedi alle Impostazioni
 ```
-Dashboard → ⚙️ Impostazioni (in fondo al menu)
+Dashboard →  Impostazioni (in fondo al menu)
 ```
 
 #### Passo 2: Trova la Sezione Etichette
 ```
 Cerca nella pagina Impostazioni:
-- 🏷️ "Etichette" oppure
-- 📋 "Label Settings" oppure
-- 🖨️ "Stampa"
+-  "Etichette" oppure
+-  "Label Settings" oppure
+-  "Stampa"
 ```
 
 #### Passo 3: Scegli il Formato
 ```
 Opzione 1: 25×38mm (CONSIGLIATO)
-- ✅ Standard universale
-- ✅ Perfetto per la maggior parte libri
-- ✅ Carta adesiva ampiamente disponibile
-- ✅ Usa questo per tutto
+-  Standard universale
+-  Perfetto per la maggior parte libri
+-  Carta adesiva ampiamente disponibile
+-  Usa questo per tutto
 
 Opzione 2: 50×25mm (Alternativo)
 - Per libri molto spessi
@@ -187,22 +187,22 @@ Orientamento: Verticale per 25×38mm
 
 #### Passo 6: Salva Configurazione
 ```
-Clicca: 💾 "Salva Impostazioni"
+Clicca:  "Salva Impostazioni"
         oppure "Save Settings"
-Vedrai: ✅ "Configurazione salvata con successo!"
+Vedrai:  "Configurazione salvata con successo!"
         oppure "Settings updated!"
 ```
 
 #### Passo 7: Verifica
 ```
 1. Vai a un libro
-2. Clicca 🏷️ "Stampa Etichetta"
+2. Clicca  "Stampa Etichetta"
 3. Controlla il PDF generato
 4. Verifica che il formato sia corretto
 5. Se no, ripeti i passi 1-6
 ```
 
-### ⚙️ Dettagli Tecnici delle Impostazioni
+### Dettagli Tecnici delle Impostazioni
 
 #### Campo "Formato Etichette"
 ```
@@ -233,7 +233,7 @@ Esempio etichetta:
 ...
 ```
 
-### 📋 Variazioni Comuni di Impostazioni
+### Variazioni Comuni di Impostazioni
 
 #### Per Biblioteca Scolastica
 ```
@@ -263,12 +263,12 @@ Carta: Adesiva Resistente all'Acqua
 Nome: Personalizzato
 ```
 
-### 🔧 Troubleshooting Impostazioni
+### Troubleshooting Impostazioni
 
 #### "Non trovo il menu Impostazioni"
 - Verifica di essere loggato come admin
 - Scorri in fondo al menu a sinistra
-- Cerca il simbolo ⚙️
+- Cerca il simbolo 
 
 #### "L'opzione Etichette non è visibile"
 - Potrebbe essere sotto "Stampa" o "Configurazione"
@@ -286,7 +286,7 @@ Nome: Personalizzato
 
 ---
 
-## 🎯 Workflow Completo (Checklist)
+## Workflow Completo (Checklist)
 
 ### Prima di Iniziare
 - [ ] Ho la carta adesiva 25×38mm
@@ -308,7 +308,7 @@ Nome: Personalizzato
 
 ---
 
-## 🎓 Esempi Pratici
+## Esempi Pratici
 
 ### Esempio 1: Biblioteca Scolastica
 ```
@@ -337,7 +337,7 @@ Costo: 0.15€ per etichetta
 
 ---
 
-## ❓ Problemi Comuni e Soluzioni
+## Problemi Comuni e Soluzioni
 
 ### "L'etichetta stampa troppo piccola/grande"
 - **Verifica**: Impostazioni di stampa al 100%
@@ -357,7 +357,7 @@ Costo: 0.15€ per etichetta
 
 ---
 
-## 💡 Consigli per l'Efficienza
+## Consigli per l'Efficienza
 
 ### Stampare in Batch
 1. **Raccogli** 10-20 libri nuovi
@@ -372,7 +372,7 @@ Costo: 0.15€ per etichetta
 
 ---
 
-## 🔧 Impostazioni Avanzate (Facoltativo)
+## Impostazioni Avanzate (Facoltativo)
 
 ### Cambiare Font o Dimensioni
 > Solo per utenti esperti - lasciare le impostazioni di default per risultati ottimali
@@ -382,7 +382,7 @@ Costo: 0.15€ per etichetta
 
 ---
 
-## 📞 Supporto e Aiuto
+## Supporto e Aiuto
 
 ### Se hai problemi
 1. **Fai una prova** su carta normale prima
@@ -393,13 +393,13 @@ Costo: 0.15€ per etichetta
 
 ---
 
-## 🎉 Risultato Finale
+## Risultato Finale
 
 **Dopo aver stampato e applicato le etichette**:
-- ✅ I libri sono **facilmente identificabili**
-- ✅ La biblioteca è **organizzata professionalmente**
-- ✅ I lettori trovano i libri **più rapidamente**
-- ✅ Hai un sistema **scalabile** per futuri libri
+-  I libri sono **facilmente identificabili**
+-  La biblioteca è **organizzata professionalmente**
+-  I lettori trovano i libri **più rapidamente**
+-  Hai un sistema **scalabile** per futuri libri
 
 ---
 
@@ -407,7 +407,7 @@ Costo: 0.15€ per etichetta
 
 ---
 
-## 📚 Guide Correlate
+## Guide Correlate
 
 - [Guida Scheda Libro](/docs/scheda_libro.MD) - Dove trovare il bottone "Stampa Etichetta"
 - [Guida Inserimento Libri](/docs/inserimento_libri.MD) - Come aggiungere un nuovo libro

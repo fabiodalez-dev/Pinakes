@@ -2,7 +2,7 @@
 
 Questa pagina fornisce una panoramica di tutti i documenti presenti nella cartella `docs/` e spiega come effettuare una revisione efficace della documentazione del progetto **Biblioteca**.
 
-## 📂 Struttura della cartella `docs/`
+## Struttura della cartella `docs/`
 
 | File | Descrizione |
 |------|-------------|
@@ -25,7 +25,7 @@ Questa pagina fornisce una panoramica di tutti i documenti presenti nella cartel
 | `examples/` | Esempi di utilizzo e snippet di codice. |
 | `reference/` | Riferimenti aggiuntivi e link utili. |
 
-## 🛠️ Come effettuare la revisione
+## Come effettuare la revisione
 
 1. **Leggi la descrizione** di ogni file per capire lo scopo e il pubblico di riferimento.
 2. **Verifica la coerenza**: controlla che termini, nomi di endpoint e parametri siano uniformi in tutti i documenti.
@@ -35,7 +35,7 @@ Questa pagina fornisce una panoramica di tutti i documenti presenti nella cartel
 6. **Aggiungi riferimenti incrociati**: usa link interni (`[link](#sezione)`) per collegare documenti correlati, facilitando la navigazione.
 7. **Segnala le modifiche**: utilizza le pull request con una descrizione chiara delle modifiche apportate alla documentazione.
 
-## 📋 Checklist per la revisione
+## Checklist per la revisione
 
 - [ ] Verifica la presenza di tutti i file elencati nella tabella.
 - [ ] Controlla la correttezza dei titoli e delle intestazioni.
@@ -44,7 +44,7 @@ Questa pagina fornisce una panoramica di tutti i documenti presenti nella cartel
 - [ ] Aggiungi o aggiorna i link incrociati dove necessario.
 - [ ] Documenta le modifiche nella PR di revisione.
 
-## 📚 Contributi
+## Contributi
 
 Le modifiche alla documentazione devono essere effettuate tramite **pull request** sul repository. Segui le linee guida di contribuzione presenti in `CONTRIBUTING.md` (se disponibile) o chiedi al maintainer per ulteriori dettagli.
 

@@ -1,11 +1,11 @@
-# 📚 Funzioni CMS – Documentazione Tecnica
+# Funzioni CMS – Documentazione Tecnica
 
 > **Scopo** – Questo documento descrive in dettaglio le funzioni del CMS presenti nella cartella `app/Views/cms` (attualmente `edit-home.php`) e il relativo **controller** `app/Controllers/CmsController.php`.  
 > Vengono inoltre illustrate le impostazioni dell’applicazione, le misure di sicurezza (CSRF, sanitizzazione, upload), il meccanismo di **scraping** ISBN, l’**inserimento manuale** dei contenuti e la gestione delle **copie** dei libri.
 
 ---
 
-## 📁 Struttura dei file CMS
+## Struttura dei file CMS
 
 ```
 app/
@@ -20,7 +20,7 @@ app/
 
 ---
 
-## 🛠️ Funzioni del `CmsController`
+## Funzioni del `CmsController`
 
 | Metodo | Route (esempio) | Descrizione | Principali operazioni |
 |--------|----------------|-------------|----------------------|
@@ -30,7 +30,7 @@ app/
 
 ---
 
-## 🔐 Sicurezza
+## Sicurezza
 
 ### CSRF
 - **Generazione**: `Csrf::ensureToken()` inserisce un campo hidden `_csrf` nel form.  
@@ -69,7 +69,7 @@ $validateUrl = function($url) {
 
 ---
 
-## ⚙️ Impostazioni CMS dell’app
+## Impostazioni CMS dell’app
 
 | Configurazione | File | Scopo |
 |----------------|------|-------|
@@ -84,7 +84,7 @@ $validateUrl = function($url) {
 
 ---
 
-## 📦 Scraping automatico (ISBN)
+## Scraping automatico (ISBN)
 
 Il **scraping** è gestito dal controller `app/Controllers/ScrapeController.php` (non parte del CMS ma spesso usato nella pagina di inserimento libri).
 
@@ -100,7 +100,7 @@ Il **scraping** è gestito dal controller `app/Controllers/ScrapeController.php`
 
 ---
 
-## ✍️ Inserimento manuale dei contenuti
+## Inserimento manuale dei contenuti
 
 ### 1. **CMS – Homepage**
 - Accedi a **Dashboard → CMS → Modifica Homepage** (`/admin/cms/home`).  
@@ -120,7 +120,7 @@ Il **scraping** è gestito dal controller `app/Controllers/ScrapeController.php`
 
 ---
 
-## 📚 Gestione delle copie (books)
+## Gestione delle copie (books)
 
 Il CMS non gestisce direttamente le copie dei libri; questa logica è presente nei controller `LibriController` e `LibriApiController`. Tuttavia, è possibile:
 
@@ -132,7 +132,7 @@ Il CMS non gestisce direttamente le copie dei libri; questa logica è presente n
 
 ---
 
-## 🛠️ Come aggiungere nuove sezioni al CMS
+## Come aggiungere nuove sezioni al CMS
 
 1. **Database** – Aggiungi un nuovo record in `home_content` con `section_key` univoco (es. `testimonials`).  
 2. **Controller** – `editHome()` carica automaticamente tutti i record; la nuova chiave sarà disponibile in `$sections['testimonials']`.  
@@ -142,7 +142,7 @@ Il CMS non gestisce direttamente le copie dei libri; questa logica è presente n
 
 ---
 
-## ✅ Checklist di verifica (per gli sviluppatori)
+## Checklist di verifica (per gli sviluppatori)
 
 - [ ] **CSRF**: il token è presente nel form e viene validato in `updateHome`.  
 - [ ] **Sanitizzazione**: tutti i campi testuali passano attraverso `$sanitizeText`.  
@@ -155,7 +155,7 @@ Il CMS non gestisce direttamente le copie dei libri; questa logica è presente n
 
 ---
 
-## 📖 Riferimenti incrociati
+## Riferimenti incrociati
 
 - **Home Content Table** – `docs/home_content.MD` (sezione dedicata).  
 - **Inserimento libri** – `docs/inserimento_libri.MD`.  
@@ -168,4 +168,4 @@ Il CMS non gestisce direttamente le copie dei libri; questa logica è presente n
 ---
 
 *Ultimo aggiornamento: 19 Ottobre 2025*  
-*Versione documento: 1.0.0* 🎉
+*Versione documento: 1.0.0* 
