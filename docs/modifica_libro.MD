@@ -1,6 +1,6 @@
-# 📝 Guida Completa: Come Modificare un Libro
+# Guida Completa: Come Modificare un Libro
 
-## 🎯 Introduzione per l'Utente Finale
+## Introduzione per l'Utente Finale
 
 Questa guida ti spiega **passo dopo passo** come **modificare e aggiornare le informazioni** di un libro già esistente nel sistema. La modifica è **più facile di quanto pensi** - puoi cambiare praticamente tutto e il sistema protegge i dati importanti.
 
@@ -8,12 +8,12 @@ Modifica i tuoi libri quando scopri **errori di battitura**, quando **ricevi nuo
 
 ---
 
-## 🚀 Come Accedere alla Modifica
+## Come Accedere alla Modifica
 
 ### Metodo 1: Dalla Lista Libri (Più veloce)
 1. **Vai su**: Dashboard → **Libri**
 2. **Trova** il libro nella lista
-3. **Clicca** l'icona ✏️ **Modifica** nella riga
+3. **Clicca** l'icona  **Modifica** nella riga
 4. **Vedrai** il form precompilato con i dati attuali
 
 ### Metodo 2: Dalla Scheda Libro (Più dettagliato)
@@ -28,9 +28,9 @@ Modifica i tuoi libri quando scopri **errori di battitura**, quando **ricevi nuo
 
 ---
 
-## 📋 Cosa Puoi Modificare
+## Cosa Puoi Modificare
 
-### ✅ **Sempre Modificabile** (Nessuna restrizione)
+### **Sempre Modificabile** (Nessuna restrizione)
 
 | **Campo** | **Perché cambiarlo** | **Esempio** |
 |-----------|----------------------|------------|
@@ -43,7 +43,7 @@ Modifica i tuoi libri quando scopri **errori di battitura**, quando **ricevi nuo
 | **Parole Chiave** | Aggiungere tag per ricerca | "fantasy, magia, avventura" |
 | **Note Varie** | Aggiungere informazioni particolari | "Prima edizione", "Con dedica" |
 
-### ⚠️ **Con Limitazioni** (Se ci sono prestiti attivi)
+### **Con Limitazioni** (Se ci sono prestiti attivi)
 
 | **Campo** | **Perché è limitato** | **Cosa fare** |
 |-----------|----------------------|--------------|
@@ -53,7 +53,7 @@ Modifica i tuoi libri quando scopri **errori di battitura**, quando **ricevi nuo
 
 ---
 
-## 📱 Accesso Quick Update da ISBN
+## Accesso Quick Update da ISBN
 
 ### Perché usarlo?
 
@@ -75,11 +75,11 @@ Hai inserito un libro ma ti rendi conto che:
 
 ---
 
-## 📋 Guida Passo-Passo Completa
+## Guida Passo-Passo Completa
 
 ### Passo 1: Accesso alla Form
 ```
-Dashboard → Libri → ✏️ Modifica
+Dashboard → Libri →  Modifica
 ```
 
 Vedrai:
@@ -156,7 +156,7 @@ Dopo: Scaffale B, Mensola 1, Posizione 8
    - **Automatica**: Clicca "Genera automaticamente" → il sistema trova il primo posto libero
 5. **Nota**: La "Collocazione" si aggiorna automaticamente (es. "B.1.8")
 
-> 📚 **Vuoi approfondire?**
+>  **Vuoi approfondire?**
 > Leggi la [Guida Collocazione](/docs/collocazione.MD) per comprendere scaffali, mensole e numerazione progressiva.
 
 ### Passo 5: Modifica Classificazione
@@ -175,7 +175,7 @@ Dopo: Saggistica Scientifica (500 - Scienze)
 4. **Seleziona Sezione** (opzionale): Per massima precisione → es. "523.1 - Cosmologia"
 5. **Vedrai**: Il codice finale si aggiorna (es. "523.1")
 
-> 💡 **Ricorda**: Non devi sempre arrivare al terzo livello. Anche solo la classe o divisione va bene!
+>  **Ricorda**: Non devi sempre arrivare al terzo livello. Anche solo la classe o divisione va bene!
 
 #### Genere Letterario
 
@@ -227,7 +227,7 @@ Dopo: 3 copie totali, 3 disponibili
    - Quando qualcuno prende in prestito → Copie disponibili scende a `2`
    - Se tutti in prestito → Copie disponibili = `0`
 
-> ⚠️ **Attenzione**: Se il libro è in prestito, potresti non poter cambiare questo campo!
+>  **Attenzione**: Se il libro è in prestito, potresti non poter cambiare questo campo!
 
 ### Passo 8: Gestione Copertina
 
@@ -260,12 +260,12 @@ Se vuoi tornare al placeholder:
 
 ---
 
-## 🖼️ Modifica della Copertina - Dettagli
+## Modifica della Copertina - Dettagli
 
 ### Formato File Accettati
-- ✅ JPG (foto)
-- ✅ PNG (grafica)
-- ✅ JPEG (variante JPG)
+-  JPG (foto)
+-  PNG (grafica)
+-  JPEG (variante JPG)
 
 ### Dimensioni
 - **Max**: 5 MB
@@ -286,11 +286,11 @@ Se vuoi tornare al placeholder:
 
 ---
 
-## 📍 Posizione Fisica - Guida Completa
+## Posizione Fisica - Guida Completa
 
 ### I Tre Elementi: Scaffale, Mensola, Posizione
 
-#### 🏗️ Scaffale
+#### Scaffale
 **Cosa è?** Lo scaffale vero e proprio (A, B, C, ecc.)
 
 **Esempio**:
@@ -302,7 +302,7 @@ Se vuoi tornare al placeholder:
 
 **Come cambiare**: Menu a tendina con tutti gli scaffali disponibili
 
-#### 📐 Mensola
+#### Mensola
 **Cosa è?** Il ripiano all'interno dello scaffale
 
 **Convenzione**:
@@ -316,7 +316,7 @@ Livello 5 = Ripiano più basso
 
 **Come cambia**: Dopo scegliere lo scaffale, il menu si popola automaticamente
 
-#### 📊 Posizione Progressiva
+#### Posizione Progressiva
 **Cosa è?** Il numero del libro da sinistra a destra
 
 **Esempio**:
@@ -342,15 +342,15 @@ C.3.27 = Scaffale C, Mensola 3, Posizione 27
 
 ---
 
-## 💾 Salvataggio e Conferma
+## Salvataggio e Conferma
 
 ### Passo-per-Passo Salvataggio
 
 1. **Scorri il form** fino in fondo
 2. **Verifica** che i campi obbligatori siano compilati:
-   - ✅ Titolo (sempre obbligatorio)
-   - ✅ Autore (sempre obbligatorio)
-   - ✅ Scaffale e Mensola (per posizione fisica)
+   -  Titolo (sempre obbligatorio)
+   -  Autore (sempre obbligatorio)
+   -  Scaffale e Mensola (per posizione fisica)
 3. **Clicca**: Bottone verde **"Salva Modifiche"** in basso
 4. **Attendi**: Messaggio di conferma (1-2 secondi)
 5. **Vedrai**: "Modifiche salvate con successo!"
@@ -358,16 +358,16 @@ C.3.27 = Scaffale C, Mensola 3, Posizione 27
 ### Cosa Succede Dopo il Salvataggio
 
 **Immediatamente**:
-- ✅ Le modifiche sono salvate nel database
-- ✅ Il libro aggiornato appare in lista
-- ✅ Se cerchi il libro, vedi i nuovi dati
-- ✅ Tutti gli utenti vedono gli aggiornamenti
+-  Le modifiche sono salvate nel database
+-  Il libro aggiornato appare in lista
+-  Se cerchi il libro, vedi i nuovi dati
+-  Tutti gli utenti vedono gli aggiornamenti
 
 **In automatico**:
-- ✅ Data di ultima modifica si aggiorna
-- ✅ Statistiche della biblioteca si aggiornano
-- ✅ Ricerca full-text si aggiorna
-- ✅ Cache refresh automatico
+-  Data di ultima modifica si aggiorna
+-  Statistiche della biblioteca si aggiornano
+-  Ricerca full-text si aggiorna
+-  Cache refresh automatico
 
 ### Se Qualcosa Va Storto
 
@@ -386,72 +386,72 @@ C.3.27 = Scaffale C, Mensola 3, Posizione 27
 
 ---
 
-## 🎯 Consigli Pratici per la Modifica
+## Consigli Pratici per la Modifica
 
-### ✅ **Best Practices**
+### **Best Practices**
 
-#### 📖 Per Titoli e Autori
+#### Per Titoli e Autori
 - **Sempre**: Controlla l'ortografia prima di salvare
 - **Sempre**: Verifica che i nomi siano completi e corretti
 - **Usa**: Riferimenti online se incerto (Amazon, Google Books)
 
-#### 📍 Per Posizioni Fisiche
+#### Per Posizioni Fisiche
 - **Sempre**: Genera automaticamente se non sei sicuro
 - **Verifica**: Che il libro sia effettivamente in quella posizione
 - **Nota**: Usa "Note Varie" se il libro è temporaneamente altrove
 
-#### 🖼️ Per Copertine
+#### Per Copertine
 - **Carica**: Immagini di buona qualità
 - **Verifica**: Che sia davvero la copertina giusta
 - **Salva**: Dopo ogni cambio significativo
 
-#### 🏷️ Per Classificazione
+#### Per Classificazione
 - **Rileggi**: La guida Dewey se non sei sicuro
 - **Mantieni coerenza**: Libri simili classificati allo stesso modo
 - **Non cambiare spesso**: Metti la classificazione più logica
 
-### ❌ **Errori Comuni da Evitare**
+### **Errori Comuni da Evitare**
 
 #### Errori di Formattazione
-- ❌ Titolo tutto maiuscolo: "IL NOME DELLA ROSA"
-  - ✅ Corretto: "Il nome della rosa"
-- ❌ Autore abbreviato: "D. Alighieri"
-  - ✅ Corretto: "Dante Alighieri"
+-  Titolo tutto maiuscolo: "IL NOME DELLA ROSA"
+  -  Corretto: "Il nome della rosa"
+-  Autore abbreviato: "D. Alighieri"
+  -  Corretto: "Dante Alighieri"
 
 #### Errori di Posizione
-- ❌ Dimenticare di aggiornare la posizione
-  - ✅ Aggiorna sempre se il libro si sposta
-- ❌ Inserire una posizione occupata
-  - ✅ Usa "Genera automaticamente"
+-  Dimenticare di aggiornare la posizione
+  -  Aggiorna sempre se il libro si sposta
+-  Inserire una posizione occupata
+  -  Usa "Genera automaticamente"
 
 #### Errori di Copertina
-- ❌ Copertina di edizione diversa
-  - ✅ Verifica che sia la stessa edizione
-- ❌ Foto sfocata o troppo piccola
-  - ✅ Minimo 300×400 pixel, ben nitida
+-  Copertina di edizione diversa
+  -  Verifica che sia la stessa edizione
+-  Foto sfocata o troppo piccola
+  -  Minimo 300×400 pixel, ben nitida
 
 #### Errori di Completezza
-- ❌ Dimenticare di salvare
-  - ✅ Clicca sempre "Salva Modifiche"
-- ❌ Salvare con campi obbligatori vuoti
-  - ✅ Verifica prima di salvare
+-  Dimenticare di salvare
+  -  Clicca sempre "Salva Modifiche"
+-  Salvare con campi obbligatori vuoti
+  -  Verifica prima di salvare
 
 ---
 
-## 📊 Modifche Frequenti - Casi Reali
+## Modifche Frequenti - Casi Reali
 
 ### Caso 1: Correggere Errore di Inserimento
 
 **Situazione**: Hai digitato il titolo male
 ```
-Inserito: "La Divina Comodia" ❌
-Corretto: "La Divina Commedia" ✅
+Inserito: "La Divina Comodia" 
+Corretto: "La Divina Commedia" 
 ```
 
 **Come fare**:
 1. Modifica → Correggi titolo
 2. Salva
-3. ✅ Fatto in 30 secondi
+3.  Fatto in 30 secondi
 
 ---
 
@@ -468,7 +468,7 @@ Corretto: "La Divina Commedia" ✅
 **Come fare**:
 1. Modifica → Compila i campi
 2. Salva
-3. ✅ Fatto in 2 minuti
+3.  Fatto in 2 minuti
 
 ---
 
@@ -488,7 +488,7 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 3. Cambia Mensola: 2 → 1
 4. Cambia Posizione: 15 → 5
 5. Salva
-6. ✅ Fatto in 1 minuto
+6.  Fatto in 1 minuto
 
 ---
 
@@ -500,7 +500,7 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 1. Modifica → Sezione "Copertina del Libro"
 2. Carica nuova immagine
 3. Salva
-4. ✅ Fatto in 1 minuto
+4.  Fatto in 1 minuto
 
 ---
 
@@ -513,11 +513,11 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 2. Copie Totali: 1 → 3
 3. Copie Disponibili: 1 → 3
 4. Salva
-5. ✅ Fatto in 30 secondi
+5.  Fatto in 30 secondi
 
 ---
 
-## ⚠️ Messaggi Comuni e Soluzioni
+## Messaggi Comuni e Soluzioni
 
 ### "Campo obbligatorio mancante"
 
@@ -569,7 +569,7 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 
 ---
 
-## 🎓 Guida agli Aggiornamenti Batch
+## Guida agli Aggiornamenti Batch
 
 ### Quando Modificare Più Libri
 
@@ -584,7 +584,7 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 
 ---
 
-## 📞 Supporto e Aiuto
+## Supporto e Aiuto
 
 ### Se Hai Problemi
 
@@ -603,13 +603,13 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 
 ---
 
-## 🎯 Riepilogo Veloce
+## Riepilogo Veloce
 
 ### Modifica Veloce (1 minuto)
-1. Dashboard → Libri → ✏️ Modifica
+1. Dashboard → Libri →  Modifica
 2. Cambiai un campo (es. titolo)
 3. Clicca "Salva Modifiche"
-4. ✅ Fatto!
+4.  Fatto!
 
 ### Modifica Completa (5 minuti)
 1. Accedi al form
@@ -618,7 +618,7 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 4. Cambia: Posizione fisica se necessario
 5. Aggiorna: Copertina se presente
 6. Salva
-7. ✅ Fatto!
+7.  Fatto!
 
 ### Aggiornamento da ISBN (3 minuti)
 1. Accedi al form
@@ -627,11 +627,11 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 4. Clicca "Aggiorna Dati"
 5. Verifica i dati importati
 6. Salva
-7. ✅ Fatto!
+7.  Fatto!
 
 ---
 
-## 📚 Guide Correlate
+## Guide Correlate
 
 - [Guida Scheda Libro](/docs/scheda_libro.MD) - Come visualizzare i dettagli del libro
 - [Guida Inserimento Libri](/docs/inserimento_libri.MD) - Come aggiungere un nuovo libro
@@ -641,6 +641,6 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 
 ---
 
-**📖 Documento aggiornato: 19 Ottobre 2025**
-**📌 Versione: 3.0.0 - Guida Completa Estesa**
-**✍️ Per utenti finali della biblioteca**
+** Documento aggiornato: 19 Ottobre 2025**
+** Versione: 3.0.0 - Guida Completa Estesa**
+** Per utenti finali della biblioteca**

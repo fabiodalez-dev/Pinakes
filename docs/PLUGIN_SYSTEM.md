@@ -32,12 +32,12 @@ Il sistema di plugin di Pinakes permette di:
 
 ### Caratteristiche Principali
 
-✅ **Sistema di Hook flessibile** - Filter e Action hooks per estendere ogni parte dell'applicazione
-✅ **Installazione tramite ZIP** - Upload semplice tramite interfaccia admin
-✅ **Gestione completa** - Attivazione, disattivazione, disinstallazione
-✅ **Storage dedicato** - Database e filesystem per dati plugin
-✅ **Logging integrato** - Sistema di log per debug e monitoraggio
-✅ **Sicurezza** - Validazione, CSRF protection, isolamento
+**Sistema di Hook flessibile** - Filter e Action hooks per estendere ogni parte dell'applicazione
+**Installazione tramite ZIP** - Upload semplice tramite interfaccia admin
+**Gestione completa** - Attivazione, disattivazione, disinstallazione
+**Storage dedicato** - Database e filesystem per dati plugin
+**Logging integrato** - Sistema di log per debug e monitoraggio
+**Sicurezza** - Validazione, CSRF protection, isolamento
 
 ---
 
@@ -658,7 +658,7 @@ class ImageHandler
 2. Clicca su **Disinstalla**
 3. Conferma l'operazione
 
-**⚠️ Attenzione:** La disinstallazione elimina tutti i dati del plugin!
+** Attenzione:** La disinstallazione elimina tutti i dati del plugin!
 
 ### Per gli Sviluppatori
 
@@ -679,7 +679,7 @@ my-plugin.zip
     └── ...
 ```
 
-**❌ Struttura ERRATA:**
+** Struttura ERRATA:**
 ```
 my-plugin.zip
 ├── plugin.json    # NON nella root del ZIP
@@ -715,42 +715,42 @@ VALUES ('my-plugin', 'My Plugin', '1.0.0', 'my-plugin', 'MyPlugin.php', NOW());
 #### 1. Validazione Input
 
 ```php
-// ✅ CORRETTO
+//  CORRETTO
 $bookId = filter_input(INPUT_POST, 'book_id', FILTER_VALIDATE_INT);
 if ($bookId === false || $bookId === null) {
     throw new \InvalidArgumentException('ID libro non valido');
 }
 
-// ❌ ERRATO
+//  ERRATO
 $bookId = $_POST['book_id']; // Mai usare input diretto
 ```
 
 #### 2. Query Preparate
 
 ```php
-// ✅ CORRETTO
+//  CORRETTO
 $stmt = $this->db->prepare("SELECT * FROM libri WHERE id = ?");
 $stmt->bind_param('i', $bookId);
 $stmt->execute();
 
-// ❌ ERRATO
+//  ERRATO
 $this->db->query("SELECT * FROM libri WHERE id = $bookId"); // SQL Injection!
 ```
 
 #### 3. Output Escaping
 
 ```php
-// ✅ CORRETTO
+//  CORRETTO
 echo htmlspecialchars($userInput, ENT_QUOTES, 'UTF-8');
 
-// ❌ ERRATO
+//  ERRATO
 echo $userInput; // XSS vulnerability!
 ```
 
 #### 4. Verifica Permessi
 
 ```php
-// ✅ CORRETTO
+//  CORRETTO
 if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
     throw new \Exception('Accesso negato');
 }

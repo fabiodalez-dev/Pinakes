@@ -1,12 +1,12 @@
-# 🌍 Guida a Lingue e Traduzioni
+# Guida a Lingue e Traduzioni
 
-## 🎯 Introduzione
+## Introduzione
 
 Pinakes è progettato per essere **multilingua**, il che significa che può essere facilmente tradotto in diverse lingue. Questa guida spiega come funziona il sistema di internazionalizzazione (spesso abbreviato in **i18n**).
 
 ---
 
-## 📍 Dove si Trovano le Traduzioni
+## Dove si Trovano le Traduzioni
 
 Tutti i file relativi alle lingue si trovano nella cartella `locale/`.
 
@@ -76,7 +76,7 @@ Questo permette di avere URL localizzati, come:
 
 ---
 
-## 🔧 Come Funziona nel Codice
+## Come Funziona nel Codice
 
 Per mostrare un testo tradotto, usiamo una funzione speciale chiamata `i18n()`.
 
@@ -100,7 +100,7 @@ Se l'utente cambiasse lingua in inglese, la stessa funzione `i18n('dashboard.tit
 
 ---
 
-## ➕ Come Aggiungere una Nuova Traduzione
+## Come Aggiungere una Nuova Traduzione
 
 Se vuoi aggiungere un nuovo testo traducibile, segui questi 3 semplici passi:
 
@@ -132,7 +132,7 @@ Apri **entrambi** i file `it_IT.json` e `en_US.json` e aggiungi la nuova chiave 
   ...
 }
 ```
-> ⚠️ **Importante**: Ricorda di aggiungere una virgola `,` dopo la riga precedente se non è l'ultima del file!
+>  **Importante**: Ricorda di aggiungere una virgola `,` dopo la riga precedente se non è l'ultima del file!
 
 ### Passo 3: Usa la Nuova Chiave nel Codice
 Ora, nel file della vista dove vuoi mostrare il testo, usa la funzione `i18n()` con la nuova chiave.
@@ -143,11 +143,11 @@ Ora, nel file della vista dove vuoi mostrare il testo, usa la funzione `i18n()` 
 <input type="text" name="author_search">
 ```
 
-✅ **Fatto!** Il testo ora è traducibile e cambierà automaticamente in base alla lingua dell'utente.
+**Fatto!** Il testo ora è traducibile e cambierà automaticamente in base alla lingua dell'utente.
 
 ---
 
-## 🌐 Gestire le Lingue
+## Gestire le Lingue
 
 ### Come Cambiare Lingua
 L'utente può cambiare lingua tramite un selettore presente nell'interfaccia (di solito nell'header o nel footer). Il sistema memorizza la scelta e la applica a tutte le pagine.
@@ -182,7 +182,7 @@ Per aggiungere il supporto a una nuova lingua, per esempio il francese (`fr_FR`)
 
 ---
 
-## ❓ Domande Frequenti
+## Domande Frequenti
 
 **D: Cosa succede se una chiave di traduzione non viene trovata?**
 R: Se la funzione `i18n()` non trova una chiave nel file JSON, per evitare errori mostrerà la chiave stessa. Ad esempio, `i18n('common.missing_key')` mostrerebbe `common.missing_key`.

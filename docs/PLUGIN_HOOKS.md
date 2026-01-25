@@ -4,16 +4,16 @@ Questo documento elenca tutti gli hook disponibili nel sistema di plugin di Pina
 
 ## Legenda
 
-- 🟢 **Implementato** - Hook già integrato nel codice
-- 🟡 **Documentato** - Hook pianificato, pronto per implementazione
+-  **Implementato** - Hook già integrato nel codice
+-  **Documentato** - Hook pianificato, pronto per implementazione
 - **Filter** - Hook che modifica e restituisce un valore
 - **Action** - Hook che esegue codice senza restituire un valore
 
 ---
 
-## 📖 Hook per Libri
+## Hook per Libri
 
-### 🟢 `book.data.get` (Filter)
+### `book.data.get` (Filter)
 **Status:** Implementato
 **File:** `app/Models/BookRepository.php:119`
 
@@ -35,7 +35,7 @@ Hooks::add('book.data.get', function($bookData, $bookId) {
 }, 10);
 ```
 
-### 🟢 `book.save.before` (Action)
+### `book.save.before` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/LibriController.php:403, 768`
 
@@ -58,7 +58,7 @@ Hooks::add('book.save.before', function($bookData, $bookId) {
 }, 10);
 ```
 
-### 🟢 `book.save.after` (Action)
+### `book.save.after` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/LibriController.php:408, 773`
 
@@ -82,7 +82,7 @@ Hooks::add('book.save.after', function($bookId, $bookData) {
 }, 10);
 ```
 
-### 🟢 `book.form.fields` (Action)
+### `book.form.fields` (Action)
 **Status:** Implementato
 **File:** `app/Views/libri/partials/book_form.php:499`
 
@@ -113,7 +113,7 @@ Hooks::add('book.form.fields', function($bookData, $bookId) {
 }, 10);
 ```
 
-### 🟢 `book.frontend.details` (Action)
+### `book.frontend.details` (Action)
 **Status:** Implementato
 **File:** `app/Views/frontend/book-detail.php:1593`
 
@@ -147,7 +147,7 @@ Hooks::add('book.frontend.details', function($bookData, $bookId) {
 }, 10);
 ```
 
-### 🟡 `book.delete.before` (Action)
+### `book.delete.before` (Action)
 **Status:** Documentato
 
 Eseguito prima di eliminare un libro.
@@ -166,7 +166,7 @@ Hooks::add('book.delete.before', function($bookId) {
 }, 10);
 ```
 
-### 🟡 `book.frontend.card` (Filter)
+### `book.frontend.card` (Filter)
 **Status:** Documentato
 
 Modifica l'HTML della card libro nel catalogo pubblico.
@@ -179,9 +179,9 @@ Modifica l'HTML della card libro nel catalogo pubblico.
 
 ---
 
-## 🔐 Hook per Login & Autenticazione
+## Hook per Login & Autenticazione
 
-### 🟢 `login.form.render.before` (Action)
+### `login.form.render.before` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/AuthController.php:23`
 
@@ -201,7 +201,7 @@ Hooks::add('login.form.render.before', function($request) {
 }, 10);
 ```
 
-### 🟢 `login.form.html` (Filter)
+### `login.form.html` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/AuthController.php:33`
 
@@ -222,7 +222,7 @@ Hooks::add('login.form.html', function($html, $request) {
 }, 10);
 ```
 
-### 🟢 `login.form.fields` (Action)
+### `login.form.fields` (Action)
 **Status:** Implementato
 **File:** `app/Views/auth/login.php:139`
 
@@ -243,7 +243,7 @@ Hooks::add('login.form.fields', function() {
 }, 10);
 ```
 
-### 🟢 `login.validate` (Filter)
+### `login.validate` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/AuthController.php:77`
 
@@ -272,7 +272,7 @@ Hooks::add('login.validate', function($isValid, $email, $request) {
 }, 10);
 ```
 
-### 🟢 `login.success` (Action)
+### `login.success` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/AuthController.php:146`
 
@@ -302,7 +302,7 @@ Hooks::add('login.success', function($userId, $userData, $request) {
 }, 10);
 ```
 
-### 🟢 `login.failed` (Action)
+### `login.failed` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/AuthController.php:172`
 
@@ -331,9 +331,9 @@ Hooks::add('login.failed', function($email, $request) {
 
 ---
 
-## 👤 Hook per Autori
+## Hook per Autori
 
-### 🟢 `author.data.get` (Filter)
+### `author.data.get` (Filter)
 **Status:** Implementato
 **File:** `app/Models/AuthorRepository.php:36`
 
@@ -359,7 +359,7 @@ Hooks::add('author.data.get', function($authorData, $authorId) {
 }, 10);
 ```
 
-### 🟢 `author.save.before` (Action)
+### `author.save.before` (Action)
 **Status:** Implementato
 **File:** `app/Models/AuthorRepository.php:131`
 
@@ -379,7 +379,7 @@ Hooks::add('author.save.before', function($authorData, $authorId) {
 }, 10);
 ```
 
-### 🟢 `author.save.after` (Action)
+### `author.save.after` (Action)
 **Status:** Implementato
 **File:** `app/Models/AuthorRepository.php:162`
 
@@ -400,7 +400,7 @@ Hooks::add('author.save.after', function($authorId, $authorData) {
 }, 10);
 ```
 
-### 🟡 `author.frontend.details` (Action)
+### `author.frontend.details` (Action)
 **Status:** Documentato
 
 Aggiunge contenuto nella pagina autore nel frontend.
@@ -411,9 +411,9 @@ Aggiunge contenuto nella pagina autore nel frontend.
 
 ---
 
-## 🏢 Hook per Editori
+## Hook per Editori
 
-### 🟢 `publisher.data.get` (Filter)
+### `publisher.data.get` (Filter)
 **Status:** Implementato
 **File:** `app/Models/PublisherRepository.php:35`
 
@@ -439,7 +439,7 @@ Hooks::add('publisher.data.get', function($publisherData, $publisherId) {
 }, 10);
 ```
 
-### 🟡 `publisher.save.before` (Action)
+### `publisher.save.before` (Action)
 **Status:** Documentato
 
 Eseguito prima di salvare un editore.
@@ -448,7 +448,7 @@ Eseguito prima di salvare un editore.
 - `$publisherData` (array): Dati dell'editore
 - `$publisherId` (int): ID dell'editore
 
-### 🟡 `publisher.save.after` (Action)
+### `publisher.save.after` (Action)
 **Status:** Documentato
 
 Eseguito dopo aver salvato un editore.
@@ -457,7 +457,7 @@ Eseguito dopo aver salvato un editore.
 - `$publisherId` (int): ID dell'editore
 - `$publisherData` (array): Dati dell'editore
 
-### 🟡 `publisher.frontend.details` (Action)
+### `publisher.frontend.details` (Action)
 **Status:** Documentato
 
 Aggiunge contenuto nella pagina editore nel frontend.
@@ -468,9 +468,9 @@ Aggiunge contenuto nella pagina editore nel frontend.
 
 ---
 
-## 🔍 Hook per Catalogo e Ricerca
+## Hook per Catalogo e Ricerca
 
-### 🟡 `catalog.filters.render` (Action)
+### `catalog.filters.render` (Action)
 **Status:** Documentato
 
 Aggiunge filtri personalizzati alla ricerca nel catalogo.
@@ -494,7 +494,7 @@ Hooks::add('catalog.filters.render', function($currentFilters) {
 }, 10);
 ```
 
-### 🟡 `catalog.query.modify` (Filter)
+### `catalog.query.modify` (Filter)
 **Status:** Documentato
 
 Modifica la query SQL per la ricerca libri.
@@ -517,7 +517,7 @@ Hooks::add('catalog.query.modify', function($query, $params) {
 }, 10);
 ```
 
-### 🟡 `catalog.results.modify` (Filter)
+### `catalog.results.modify` (Filter)
 **Status:** Documentato
 
 Modifica i risultati della ricerca prima della visualizzazione.
@@ -529,9 +529,9 @@ Modifica i risultati della ricerca prima della visualizzazione.
 
 ---
 
-## 🌐 Hook per Scraping
+## Hook per Scraping
 
-### 🟢 `scrape.isbn.validate` (Filter)
+### `scrape.isbn.validate` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:27`
 
@@ -558,7 +558,7 @@ Hooks::add('scrape.isbn.validate', function($isValid, $isbn, $source) {
 
 ---
 
-### 🟢 `scrape.sources` (Filter)
+### `scrape.sources` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:40`
 
@@ -599,7 +599,7 @@ Hooks::add('scrape.sources', function($sources, $isbn) {
 
 ---
 
-### 🟢 `scrape.fetch.custom` (Filter)
+### `scrape.fetch.custom` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:43`
 
@@ -632,7 +632,7 @@ Hooks::add('scrape.fetch.custom', function($default, $sources, $isbn) {
 
 ---
 
-### 🟢 `scrape.before` (Action)
+### `scrape.before` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:70`
 
@@ -658,7 +658,7 @@ Hooks::add('scrape.before', function($source, $url, $isbn) {
 
 ---
 
-### 🟢 `scrape.http.options` (Filter)
+### `scrape.http.options` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:87`
 
@@ -690,7 +690,7 @@ Hooks::add('scrape.http.options', function($options, $source, $url) {
 
 ---
 
-### 🟢 `scrape.after` (Action)
+### `scrape.after` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:107`
 
@@ -715,7 +715,7 @@ Hooks::add('scrape.after', function($rawData, $source, $isbn) {
 
 ---
 
-### 🟢 `scrape.parse` (Filter)
+### `scrape.parse` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:238`
 
@@ -750,7 +750,7 @@ Hooks::add('scrape.parse', function($parsed, $raw, $source, $isbn) {
 
 ---
 
-### 🟢 `scrape.validate.data` (Filter)
+### `scrape.validate.data` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:241`
 
@@ -796,7 +796,7 @@ Hooks::add('scrape.validate.data', function($validation, $data, $source, $isbn) 
 
 ---
 
-### 🟢 `scrape.validation.failed` (Action)
+### `scrape.validation.failed` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:248`
 
@@ -823,7 +823,7 @@ Hooks::add('scrape.validation.failed', function($errors, $source, $isbn, $data) 
 
 ---
 
-### 🟢 `scrape.data.modify` (Filter)
+### `scrape.data.modify` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:259`
 
@@ -863,7 +863,7 @@ Hooks::add('scrape.data.modify', function($payload, $isbn, $source) {
 
 ---
 
-### 🟢 `scrape.error` (Action)
+### `scrape.error` (Action)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:76`
 
@@ -899,7 +899,7 @@ Hooks::add('scrape.error', function($errorData) {
 
 ---
 
-### 🟢 `scrape.response` (Filter)
+### `scrape.response` (Filter)
 **Status:** Implementato
 **File:** `app/Controllers/ScrapeController.php:50, 262`
 
@@ -932,9 +932,9 @@ Hooks::add('scrape.response', function($payload, $isbn, $sources, $meta) {
 
 ---
 
-## 🖼️ Hook per Immagini
+## Hook per Immagini
 
-### 🟡 `image.upload.before` (Action)
+### `image.upload.before` (Action)
 **Status:** Documentato
 
 Eseguito prima del caricamento di un'immagine.
@@ -943,7 +943,7 @@ Eseguito prima del caricamento di un'immagine.
 - `$filename` (string): Nome del file
 - `$tmpPath` (string): Percorso temporaneo
 
-### 🟡 `image.upload.after` (Action)
+### `image.upload.after` (Action)
 **Status:** Documentato
 
 Eseguito dopo il caricamento di un'immagine.
@@ -964,7 +964,7 @@ Hooks::add('image.upload.after', function($filename, $path) {
 }, 10);
 ```
 
-### 🟡 `image.process` (Filter)
+### `image.process` (Filter)
 **Status:** Documentato
 
 Permette elaborazione personalizzata dell'immagine.
@@ -988,7 +988,7 @@ Hooks::add('image.process', function($imagePath, $options) {
 }, 10);
 ```
 
-### 🟡 `image.delete.before` (Action)
+### `image.delete.before` (Action)
 **Status:** Documentato
 
 Eseguito prima di eliminare un'immagine.
@@ -998,9 +998,9 @@ Eseguito prima di eliminare un'immagine.
 
 ---
 
-## 📚 Hook per Prestiti
+## Hook per Prestiti
 
-### 🟡 `loan.create.before` (Action)
+### `loan.create.before` (Action)
 **Status:** Documentato
 
 Eseguito prima di creare un prestito.
@@ -1019,7 +1019,7 @@ Hooks::add('loan.create.before', function($loanData) {
 }, 10);
 ```
 
-### 🟡 `loan.create.after` (Action)
+### `loan.create.after` (Action)
 **Status:** Documentato
 
 Eseguito dopo aver creato un prestito.
@@ -1039,7 +1039,7 @@ Hooks::add('loan.create.after', function($loanId, $loanData) {
 }, 10);
 ```
 
-### 🟡 `loan.return.after` (Action)
+### `loan.return.after` (Action)
 **Status:** Documentato
 
 Eseguito dopo la restituzione di un prestito.
@@ -1050,9 +1050,9 @@ Eseguito dopo la restituzione di un prestito.
 
 ---
 
-## 📊 Hook Generici
+## Hook Generici
 
-### 🟡 `app.init` (Action)
+### `app.init` (Action)
 **Status:** Documentato
 
 Eseguito all'inizializzazione dell'applicazione.
@@ -1068,7 +1068,7 @@ Hooks::add('app.init', function() {
 }, 10);
 ```
 
-### 🟡 `app.request.before` (Action)
+### `app.request.before` (Action)
 **Status:** Documentato
 
 Eseguito prima di processare ogni richiesta.
@@ -1076,7 +1076,7 @@ Eseguito prima di processare ogni richiesta.
 **Parametri:**
 - `$request` (ServerRequestInterface): Oggetto richiesta
 
-### 🟡 `app.response.before` (Action)
+### `app.response.before` (Action)
 **Status:** Documentato
 
 Eseguito prima di inviare la risposta.
@@ -1084,7 +1084,7 @@ Eseguito prima di inviare la risposta.
 **Parametri:**
 - `$response` (ResponseInterface): Oggetto risposta
 
-### 🟡 `admin.menu.items` (Filter)
+### `admin.menu.items` (Filter)
 **Status:** Documentato
 
 Permette di aggiungere voci al menu amministrazione.
@@ -1106,7 +1106,7 @@ Hooks::add('admin.menu.items', function($menuItems) {
 }, 10);
 ```
 
-### 🟡 `frontend.menu.items` (Filter)
+### `frontend.menu.items` (Filter)
 **Status:** Documentato
 
 Permette di aggiungere voci al menu frontend.
@@ -1118,14 +1118,14 @@ Permette di aggiungere voci al menu frontend.
 
 ---
 
-## 🔌 Plugin di Esempio
+## Plugin di Esempio
 
 Questa sezione mostra plugin completi che utilizzano gli hook del sistema.
 
 ### Plugin: Open Library Scraper
 
 **Percorso:** `app/Plugins/OpenLibrary/`
-**Stato:** ✅ Installato
+**Stato:**  Installato
 **Priorità:** 5 (alta)
 
 #### Descrizione
@@ -1351,13 +1351,13 @@ if (file_exists(__DIR__ . '/../app/Plugins/OpenLibrary/activate.php')) {
 
 #### Caratteristiche
 
-- ✅ **API-based scraping** - Usa API REST invece di HTML parsing
-- ✅ **Alta priorità** (5) - Preferito rispetto a scraping HTML
-- ✅ **Dati arricchiti** - Include opere, edizioni e autori completi
-- ✅ **Copertine HD** - Accesso diretto a immagini alta risoluzione
-- ✅ **Multilingua** - Supporta tutte le lingue disponibili su Open Library
-- ✅ **Fallback intelligente** - Se mancano dati, lascia gestire ad altri plugin
-- ✅ **Error handling** - Non blocca lo scraping in caso di errori
+-  **API-based scraping** - Usa API REST invece di HTML parsing
+-  **Alta priorità** (5) - Preferito rispetto a scraping HTML
+-  **Dati arricchiti** - Include opere, edizioni e autori completi
+-  **Copertine HD** - Accesso diretto a immagini alta risoluzione
+-  **Multilingua** - Supporta tutte le lingue disponibili su Open Library
+-  **Fallback intelligente** - Se mancano dati, lascia gestire ad altri plugin
+-  **Error handling** - Non blocca lo scraping in caso di errori
 
 #### Test
 
@@ -1401,7 +1401,7 @@ Hooks::add('scrape.sources', function($sources) {
 
 ---
 
-## 📝 Note sull'Uso degli Hook
+## Note sull'Uso degli Hook
 
 ### Priorità
 - Valori più bassi = esecuzione prima
@@ -1412,13 +1412,13 @@ Hooks::add('scrape.sources', function($sources) {
 
 1. **Always Return in Filters**
    ```php
-   // ✅ CORRETTO
+   //  CORRETTO
    Hooks::add('book.data.get', function($data, $id) {
        $data['custom'] = 'value';
        return $data; // IMPORTANTE
    }, 10);
 
-   // ❌ ERRATO
+   //  ERRATO
    Hooks::add('book.data.get', function($data, $id) {
        $data['custom'] = 'value';
        // Manca return!
@@ -1439,7 +1439,7 @@ Hooks::add('scrape.sources', function($sources) {
 
 3. **Performance**
    ```php
-   // ✅ Efficiente - cache risultati pesanti
+   //  Efficiente - cache risultati pesanti
    Hooks::add('book.data.get', function($data, $id) {
        $cacheKey = "external_rating_{$id}";
        $rating = cache()->get($cacheKey);
@@ -1456,7 +1456,7 @@ Hooks::add('scrape.sources', function($sources) {
 
 ---
 
-## 🔧 Registrazione Hook
+## Registrazione Hook
 
 ### Metodo 1: Database (Consigliato per plugin distribuiti)
 ```php

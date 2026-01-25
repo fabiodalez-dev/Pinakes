@@ -4,18 +4,18 @@ Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pi
 
 ## Indice dei Hooks per Categoria
 
-### 📚 LIBRO (Book) - 15 Hooks
-### 👤 UTENTE (User) - 10 Hooks
-### 📖 PRESTITO (Loan) - 8 Hooks
+### LIBRO (Book) - 15 Hooks
+### UTENTE (User) - 10 Hooks
+### PRESTITO (Loan) - 8 Hooks
 ### ⭐ RECENSIONE (Review) - 5 Hooks
-### 🔖 PRENOTAZIONE (Reservation) - 5 Hooks
-### 🔍 RICERCA (Search) - 5 Hooks
-### 📥 IMPORT/EXPORT - 4 Hooks
-### 🌐 API & SCRAPING - 8 Hooks
+### PRENOTAZIONE (Reservation) - 5 Hooks
+### RICERCA (Search) - 5 Hooks
+### IMPORT/EXPORT - 4 Hooks
+### API & SCRAPING - 8 Hooks
 
 ---
 
-## 📚 LIBRO (Book) - 15 Hooks
+## LIBRO (Book) - 15 Hooks
 
 ### 1. `book.create.before` (Action)
 **Quando**: Prima della creazione di un nuovo libro
@@ -101,7 +101,7 @@ Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pi
 
 ---
 
-## 👤 UTENTE (User) - 10 Hooks
+## UTENTE (User) - 10 Hooks
 
 ### 16. `user.register.before` (Action)
 **Quando**: Prima della registrazione utente
@@ -156,7 +156,7 @@ Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pi
 
 ---
 
-## 📖 PRESTITO (Loan) - 8 Hooks
+## PRESTITO (Loan) - 8 Hooks
 
 ### 26. `loan.create.before` (Action)
 **Quando**: Prima della creazione prestito
@@ -232,7 +232,7 @@ Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pi
 
 ---
 
-## 🔖 PRENOTAZIONE (Reservation) - 5 Hooks
+## PRENOTAZIONE (Reservation) - 5 Hooks
 
 ### 39. `reservation.create.before` (Action)
 **Quando**: Prima della creazione prenotazione
@@ -261,7 +261,7 @@ Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pi
 
 ---
 
-## 🔍 RICERCA (Search) - 5 Hooks
+## RICERCA (Search) - 5 Hooks
 
 ### 44. `search.query.before` (Filter)
 **Quando**: Prima della ricerca
@@ -294,7 +294,7 @@ Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pi
 
 ---
 
-## 📥 IMPORT/EXPORT - 4 Hooks
+## IMPORT/EXPORT - 4 Hooks
 
 ### 49. `import.validate` (Filter)
 **Quando**: Validazione file import
@@ -321,7 +321,7 @@ Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pi
 
 ---
 
-## 🌐 API & SCRAPING - 8 Hooks
+## API & SCRAPING - 8 Hooks
 
 ### 53. `scrape.isbn.validate` (Filter)
 **Quando**: Validazione ISBN per scraping

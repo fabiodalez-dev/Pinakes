@@ -1,22 +1,22 @@
-# 🚀 Installazione Pinakes - Guida Semplice
+# Installazione Pinakes - Guida Semplice
 
 > **Buone notizie!** L'installazione è **SEMPLICISSIMA** - Basta seguire 5 passi e il sistema funziona.
 
 ---
 
-## 🎯 Introduzione
+## Introduzione
 
 **Pinakes** viene fornito con un **installer web automatico** che fa tutto il lavoro per te. Non devi:
-- ❌ Scrivere comandi nel terminale
-- ❌ Configurare manualmente database
-- ❌ Editare file di configurazione
-- ❌ Conoscere PHP o MySQL
+-  Scrivere comandi nel terminale
+-  Configurare manualmente database
+-  Editare file di configurazione
+-  Conoscere PHP o MySQL
 
-**Tutto è automatico!** ✨
+**Tutto è automatico!** 
 
 ---
 
-## 📋 Requisiti Minimi
+## Requisiti Minimi
 
 Prima di iniziare, verifica di avere:
 
@@ -28,19 +28,19 @@ Prima di iniziare, verifica di avere:
 | **Spazio** | Almeno 100MB di spazio disco |
 | **Connessione** | Internet per scaricare il pacchetto |
 
-**Se hai hosting commerciale (Aruba, SiteGround, Bluehost, ecc.)**: ✅ HAI GIÀ TUTTO!
+**Se hai hosting commerciale (Aruba, SiteGround, Bluehost, ecc.)**:  HAI GIÀ TUTTO!
 
 ---
 
-## 🚀 Installazione in 5 Passi (15 Minuti Totali)
+## Installazione in 5 Passi (15 Minuti Totali)
 
-### 📥 Passo 1: Scarica il Pacchetto
+### Passo 1: Scarica il Pacchetto
 
 1. **Scarica** il pacchetto `biblioteca-latest.zip` dal sito del progetto
 2. **Estrai** il file ZIP sul tuo computer
 3. **Vedrai una cartella**: `biblioteca/`
 
-### 📤 Passo 2: Carica il Pacchetto sull'Hosting
+### Passo 2: Carica il Pacchetto sull'Hosting
 
 **Tramite FTP (il modo più facile):**
 
@@ -57,7 +57,7 @@ Prima di iniziare, verifica di avere:
 3. **Upload** → seleziona il file `biblioteca-latest.zip`
 4. **Extract** (estrai il file direttamente su cPanel)
 
-### 🌐 Passo 3: Accedi all'Installer Web
+### Passo 3: Accedi all'Installer Web
 
 1. **Apri il browser**
 2. **Digita**: `http://tuodominio.it/biblioteca/installer/`
@@ -66,59 +66,59 @@ Prima di iniziare, verifica di avere:
 3. **Premi Invio**
 4. **Vedrai**: Una pagina con logo e un bottone "Inizia"
 
-### ⚙️ Passo 4: Segui l'Installer Automatico (7 Step)
+### Passo 4: Segui l'Installer Automatico (7 Step)
 
 L'installer ti guiderà automaticamente. **Non devi fare nulla di tecnico!**
 
 **Step 1: Verifica Requisiti**
 ```
-✅ Il sistema controlla che il tuo hosting abbia PHP e MySQL
-✅ Se tutto è ok, vai al passo successivo
+ Il sistema controlla che il tuo hosting abbia PHP e MySQL
+ Se tutto è ok, vai al passo successivo
 ```
 
 **Step 2: Crea il Database**
 ```
-✅ Metti: Nome database (es. "biblioteca_db")
-✅ Metti: Utente database (es. "bib_user")
-✅ Metti: Password (sicura, es. "Abc123!@#")
-✅ Il sistema crea tutto automaticamente
+ Metti: Nome database (es. "biblioteca_db")
+ Metti: Utente database (es. "bib_user")
+ Metti: Password (sicura, es. "Abc123!@#")
+ Il sistema crea tutto automaticamente
 ```
 
 **Step 3: Crea l'Amministratore**
 ```
-✅ Metti: Nome (es. "Mario")
-✅ Metti: Email (es. mario@scuola.it)
-✅ Metti: Password (per l'admin)
-✅ Il sistema crea l'utente admin
+ Metti: Nome (es. "Mario")
+ Metti: Email (es. mario@scuola.it)
+ Metti: Password (per l'admin)
+ Il sistema crea l'utente admin
 ```
 
 **Step 4: Configura il Nome della Biblioteca**
 ```
-✅ Metti: Nome biblioteca (es. "Biblioteca Scuola Galilei")
-✅ Metti: Email per notifiche (es. biblioteca@scuola.it)
-✅ Metti: Logo (facoltativo, puoi farlo dopo)
+ Metti: Nome biblioteca (es. "Biblioteca Scuola Galilei")
+ Metti: Email per notifiche (es. biblioteca@scuola.it)
+ Metti: Logo (facoltativo, puoi farlo dopo)
 ```
 
 **Step 5: Email (Facoltativo per Ora)**
 ```
-✅ Puoi lasciar vuoto e configurare dopo
-✅ O inserire Gmail/Outlook se lo conosci
+ Puoi lasciar vuoto e configurare dopo
+ O inserire Gmail/Outlook se lo conosci
 ```
 
 **Step 6: Verifica Finale**
 ```
-✅ Il sistema controlla che tutto funziona
-✅ Se ok, vai al passo finale
+ Il sistema controlla che tutto funziona
+ Se ok, vai al passo finale
 ```
 
-**Step 7: ✅ Completamento**
+**Step 7:  Completamento**
 ```
-🎉 L'installer dice "Installazione completata!"
-📝 Salva le credenziali (password admin)
-🔐 Accedi alla dashboard
+ L'installer dice "Installazione completata!"
+ Salva le credenziali (password admin)
+ Accedi alla dashboard
 ```
 
-### ✅ Passo 5: Accedi e Inizia a Usare
+### Passo 5: Accedi e Inizia a Usare
 
 1. **Clicca** il link "Vai al Sistema" fornito dall'installer
 2. **Oppure digita**: `http://tuodominio.it/biblioteca/`
@@ -126,32 +126,32 @@ L'installer ti guiderà automaticamente. **Non devi fare nulla di tecnico!**
    - **Email**: Quella che hai inserito nello Step 3
    - **Password**: Quella che hai creato nello Step 3
 4. **Vedrai**: La dashboard principale
-5. **Fatto!** ✨ Il sistema è pronto
+5. **Fatto!**  Il sistema è pronto
 
 ---
 
-## 📊 Dashboard Principale
+## Dashboard Principale
 
 Dopo il login vedrai:
 
 ```
 Dashboard
-├─ 📚 Libri (155 totali)
-├─ 🎁 Prestiti Attivi (12)
+├─  Libri (155 totali)
+├─  Prestiti Attivi (12)
 ├─ ⏰ Scadenze Imminenti (5)
-├─ 👥 Utenti (45)
-└─ ⚙️ Impostazioni
+├─  Utenti (45)
+└─  Impostazioni
 ```
 
 **Prossimi passi:**
 
-1. 📍 [Vai a "Impostazioni" per personalizzare](../settings.MD)
-2. 📚 [Inizia ad aggiungere libri](../inserimento_libri.MD)
-3. 👥 Invita utenti alla biblioteca
+1.  [Vai a "Impostazioni" per personalizzare](../settings.MD)
+2.  [Inizia ad aggiungere libri](../inserimento_libri.MD)
+3.  Invita utenti alla biblioteca
 
 ---
 
-## ❓ FAQ Installazione
+## FAQ Installazione
 
 ### "Non riesco ad accedere all'installer"
 
@@ -171,9 +171,9 @@ Dashboard
 ### "Errore: 'Cannot connect to database'"
 
 **Soluzione:**
-- ❌ Controlla che il nome del database sia scritto esattamente giusto
-- ❌ Controlla che la password sia corretta
-- ❌ Chiedi al tuo hosting se il servizio MySQL è attivo
+-  Controlla che il nome del database sia scritto esattamente giusto
+-  Controlla che la password sia corretta
+-  Chiedi al tuo hosting se il servizio MySQL è attivo
 
 ### "Errore: 'Class PDO not found'"
 
@@ -200,13 +200,13 @@ Dashboard
 ### "Come cambio il dominio dopo l'installazione?"
 
 **Soluzione:**
-- ✅ Il sistema lo rileva automaticamente
+-  Il sistema lo rileva automaticamente
 - Non devi fare nulla!
 - Se hai problemi con rewriting URL, contatta il supporto del hosting
 
 ---
 
-## 🎉 Installazione Completata!
+## Installazione Completata!
 
 **Congratulazioni!** Pinakes è ora online e pronto all'uso.
 
@@ -239,7 +239,7 @@ Dashboard
 
 ---
 
-## 📞 Supporto
+## Supporto
 
 **Se hai problemi:**
 
@@ -250,7 +250,7 @@ Dashboard
 
 ---
 
-## 🎓 Struttura Dopo l'Installazione
+## Struttura Dopo l'Installazione
 
 ```
 tuodominio.it/
@@ -267,7 +267,7 @@ tuodominio.it/
 
 ---
 
-**✅ Sei pronto!** Inizia subito ad usare Pinakes! 🚀
+** Sei pronto!** Inizia subito ad usare Pinakes! 
 
 ---
 

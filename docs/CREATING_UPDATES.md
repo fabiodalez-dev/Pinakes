@@ -261,20 +261,20 @@ print_r($result);
 
 ### DO
 
-✅ Always backup before migrating
-✅ Use transactions for critical changes
-✅ Test on a copy of production data
-✅ Include rollback instructions in comments
-✅ Keep migrations focused and small
-✅ Version everything together (code + schema + migrations)
+ Always backup before migrating
+ Use transactions for critical changes
+ Test on a copy of production data
+ Include rollback instructions in comments
+ Keep migrations focused and small
+ Version everything together (code + schema + migrations)
 
 ### DON'T
 
-❌ Never modify an already-released migration
-❌ Don't delete data without confirmation
-❌ Avoid changing column types that might lose data
-❌ Don't skip version numbers in migrations
-❌ Never run migrations on production without testing
+ Never modify an already-released migration
+ Don't delete data without confirmation
+ Avoid changing column types that might lose data
+ Don't skip version numbers in migrations
+ Never run migrations on production without testing
 
 ### Handling Failed Migrations
 
