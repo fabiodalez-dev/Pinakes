@@ -98,7 +98,32 @@ chmod -R 755 public/uploads
 chown -R www-data:www-data storage public/uploads
 ```
 
-### 4. Configurazione Ambiente
+### 4. Creazione Database
+
+> **Importante**: Il database deve essere creato **prima** di eseguire l'installer e deve essere **vuoto**.
+
+L'installer importa automaticamente lo schema delle tabelle, ma non crea il database stesso.
+
+```bash
+# Accedi a MySQL
+mysql -u root -p
+
+# Crea database
+CREATE DATABASE pinakes_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+# Crea utente dedicato (consigliato)
+CREATE USER 'pinakes_user'@'localhost' IDENTIFIED BY 'password_sicura';
+
+# Assegna permessi
+GRANT ALL PRIVILEGES ON pinakes_db.* TO 'pinakes_user'@'localhost';
+FLUSH PRIVILEGES;
+
+EXIT;
+```
+
+**Nota**: Se stai usando un hosting condiviso, crea il database e l'utente dal pannello di controllo (cPanel → MySQL Databases, Plesk → Databases).
+
+### 5. Configurazione Ambiente
 
 ```bash
 # Copia template
@@ -120,7 +145,7 @@ APP_URL=https://biblioteca.example.com
 APP_DEBUG=false
 ```
 
-### 5. Wizard Installazione
+### 6. Wizard Installazione
 
 1. Apri il browser su `http://biblioteca.example.com/installer`
 2. Segui i passaggi:
@@ -198,9 +223,10 @@ APP_DEBUG=true
 
 ### Database connection failed
 
-1. Verifica credenziali in `.env`
-2. Verifica che MySQL sia in esecuzione
-3. Verifica che l'utente abbia permessi sul database
+1. Verifica che il database esista (vedi passo 4)
+2. Verifica credenziali in `.env`
+3. Verifica che MySQL sia in esecuzione
+4. Verifica che l'utente abbia permessi sul database
 
 ### Permessi insufficienti
 
