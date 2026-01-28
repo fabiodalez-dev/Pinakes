@@ -191,12 +191,24 @@
       name: 'Pinakes',
       logo: 'assets/logo.png',
       loadSidebar: true,
+      loadNavbar: true,
       coverpage: false,
       auto2top: true,
+      alias: {
+        '/en/.*/_sidebar.md': '/en/_sidebar.md',
+        '/en/.*/_navbar.md': '/_navbar.md'
+      },
       search: {
-        placeholder: 'Cerca...',
-        noData: 'Nessun risultato',
-        paths: 'auto'
+        placeholder: {
+          '/en/': 'Search...',
+          '/': 'Cerca...'
+        },
+        noData: {
+          '/en/': 'No results',
+          '/': 'Nessun risultato'
+        },
+        paths: 'auto',
+        pathNamespaces: ['/en', '/']
       }
     }
   </script>
