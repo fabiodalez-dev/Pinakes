@@ -1,2 +1,2 @@
-* [:it: Italiano](/)
-* [:gb: English](/en/)
+* [🇮🇹 Italiano](/)
+* [🇬🇧 English](/en/)
