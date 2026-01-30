@@ -1184,6 +1184,29 @@ return function (App $app): void {
         return $controller->getProgress($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
+    // LibraryThing Plugin Routes
+    $app->get('/admin/libri/import/librarything', function ($request, $response) {
+        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        return $controller->showImportPage($request, $response);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/libri/import/librarything/process', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $db = $app->getContainer()->get('db');
+        return $controller->processImport($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/libri/import/librarything/progress', function ($request, $response) {
+        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        return $controller->getProgress($request, $response);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/libri/export/librarything', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $db = $app->getContainer()->get('db');
+        return $controller->exportToLibraryThing($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
     // CSV Export route
     $app->get('/admin/libri/export/csv', function ($request, $response) use ($app) {
         $controller = new LibriController();
