@@ -352,7 +352,7 @@ class BookRepository
             $addField('stato', 's', $stato);
         }
 
-        // LibraryThing plugin fields (optional)
+        // LibraryThing plugin fields (25 unique)
         if ($this->hasColumn('review')) {
             $addField('review', 's', $data['review'] ?? null);
         }
@@ -369,18 +369,6 @@ class BookRepository
         if ($this->hasColumn('physical_description')) {
             $addField('physical_description', 's', $data['physical_description'] ?? null);
         }
-        if ($this->hasColumn('weight')) {
-            $addField('weight', 's', $data['weight'] ?? null);
-        }
-        if ($this->hasColumn('height')) {
-            $addField('height', 's', $data['height'] ?? null);
-        }
-        if ($this->hasColumn('thickness')) {
-            $addField('thickness', 's', $data['thickness'] ?? null);
-        }
-        if ($this->hasColumn('length')) {
-            $addField('length', 's', $data['length'] ?? null);
-        }
         if ($this->hasColumn('lccn')) {
             $addField('lccn', 's', $data['lccn'] ?? null);
         }
@@ -389,10 +377,6 @@ class BookRepository
         }
         if ($this->hasColumn('other_call_number')) {
             $addField('other_call_number', 's', $data['other_call_number'] ?? null);
-        }
-        if ($this->hasColumn('date_acquired')) {
-            $date_acquired = isset($data['date_acquired']) && $data['date_acquired'] !== '' ? $data['date_acquired'] : null;
-            $addField('date_acquired', 's', $date_acquired);
         }
         if ($this->hasColumn('date_started')) {
             $date_started = isset($data['date_started']) && $data['date_started'] !== '' ? $data['date_started'] : null;
@@ -436,10 +420,6 @@ class BookRepository
         if ($this->hasColumn('lending_end')) {
             $lending_end = isset($data['lending_end']) && $data['lending_end'] !== '' ? $data['lending_end'] : null;
             $addField('lending_end', 's', $lending_end);
-        }
-        if ($this->hasColumn('purchase_price')) {
-            $purchase_price = isset($data['purchase_price']) && $data['purchase_price'] !== '' ? (float)$data['purchase_price'] : null;
-            $addField('purchase_price', 'd', $purchase_price);
         }
         if ($this->hasColumn('value')) {
             $value = isset($data['value']) && $data['value'] !== '' ? (float)$data['value'] : null;
@@ -661,7 +641,7 @@ class BookRepository
             $addSet('stato', 's', $stato);
         }
 
-        // LibraryThing plugin fields (optional)
+        // LibraryThing plugin fields (25 unique)
         if ($this->hasColumn('review')) {
             $addSet('review', 's', $data['review'] ?? null);
         }
@@ -678,18 +658,6 @@ class BookRepository
         if ($this->hasColumn('physical_description')) {
             $addSet('physical_description', 's', $data['physical_description'] ?? null);
         }
-        if ($this->hasColumn('weight')) {
-            $addSet('weight', 's', $data['weight'] ?? null);
-        }
-        if ($this->hasColumn('height')) {
-            $addSet('height', 's', $data['height'] ?? null);
-        }
-        if ($this->hasColumn('thickness')) {
-            $addSet('thickness', 's', $data['thickness'] ?? null);
-        }
-        if ($this->hasColumn('length')) {
-            $addSet('length', 's', $data['length'] ?? null);
-        }
         if ($this->hasColumn('lccn')) {
             $addSet('lccn', 's', $data['lccn'] ?? null);
         }
@@ -698,10 +666,6 @@ class BookRepository
         }
         if ($this->hasColumn('other_call_number')) {
             $addSet('other_call_number', 's', $data['other_call_number'] ?? null);
-        }
-        if ($this->hasColumn('date_acquired')) {
-            $date_acquired = isset($data['date_acquired']) && $data['date_acquired'] !== '' ? $data['date_acquired'] : null;
-            $addSet('date_acquired', 's', $date_acquired);
         }
         if ($this->hasColumn('date_started')) {
             $date_started = isset($data['date_started']) && $data['date_started'] !== '' ? $data['date_started'] : null;
@@ -745,10 +709,6 @@ class BookRepository
         if ($this->hasColumn('lending_end')) {
             $lending_end = isset($data['lending_end']) && $data['lending_end'] !== '' ? $data['lending_end'] : null;
             $addSet('lending_end', 's', $lending_end);
-        }
-        if ($this->hasColumn('purchase_price')) {
-            $purchase_price = isset($data['purchase_price']) && $data['purchase_price'] !== '' ? (float)$data['purchase_price'] : null;
-            $addSet('purchase_price', 'd', $purchase_price);
         }
         if ($this->hasColumn('value')) {
             $value = isset($data['value']) && $data['value'] !== '' ? (float)$data['value'] : null;
