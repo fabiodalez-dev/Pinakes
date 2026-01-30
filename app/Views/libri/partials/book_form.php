@@ -578,6 +578,216 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         </div>
       </div>
 
+      <!-- LibraryThing Plugin Fields -->
+      <?php if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)): ?>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-cloud text-blue-600"></i>
+            <?= __("LibraryThing") ?>
+          </h2>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Campi estesi per l'integrazione con LibraryThing") ?></p>
+        </div>
+        <div class="card-body form-section">
+
+          <!-- Review & Rating -->
+          <div class="mb-6">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Recensione e Valutazione") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="rating" class="form-label"><?= __("Valutazione (1-5)") ?></label>
+                <select id="rating" name="rating" class="form-input">
+                  <option value=""><?= __("Nessuna valutazione") ?></option>
+                  <?php for ($i = 1; $i <= 5; $i++): ?>
+                    <option value="<?= $i ?>" <?= isset($book['rating']) && (int)$book['rating'] === $i ? 'selected' : '' ?>>
+                      <?= str_repeat('★', $i) . str_repeat('☆', 5 - $i) . " ($i)" ?>
+                    </option>
+                  <?php endfor; ?>
+                </select>
+              </div>
+            </div>
+            <div class="mt-3">
+              <label for="review" class="form-label"><?= __("Recensione") ?></label>
+              <textarea id="review" name="review" rows="4" class="form-input" placeholder="<?= __('La tua recensione del libro...') ?>"><?= HtmlHelper::e($book['review'] ?? '') ?></textarea>
+            </div>
+            <div class="form-grid-2 mt-3">
+              <div>
+                <label for="comment" class="form-label"><?= __("Commento Pubblico") ?></label>
+                <textarea id="comment" name="comment" rows="3" class="form-input" placeholder="<?= __('Commento pubblico...') ?>"><?= HtmlHelper::e($book['comment'] ?? '') ?></textarea>
+              </div>
+              <div>
+                <label for="private_comment" class="form-label"><?= __("Commento Privato") ?></label>
+                <textarea id="private_comment" name="private_comment" rows="3" class="form-input" placeholder="<?= __('Note private...') ?>"><?= HtmlHelper::e($book['private_comment'] ?? '') ?></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Physical Description -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Descrizione Fisica") ?></h3>
+            <div class="mb-3">
+              <label for="physical_description" class="form-label"><?= __("Descrizione Fisica") ?></label>
+              <input type="text" id="physical_description" name="physical_description" class="form-input" value="<?= HtmlHelper::e($book['physical_description'] ?? '') ?>" placeholder="<?= __('es. Hardcover, 500 pages') ?>">
+            </div>
+            <div class="form-grid-2">
+              <div>
+                <label for="weight" class="form-label"><?= __("Peso") ?></label>
+                <input type="text" id="weight" name="weight" class="form-input" value="<?= HtmlHelper::e($book['weight'] ?? '') ?>" placeholder="<?= __('es. 1.2 kg') ?>">
+              </div>
+              <div>
+                <label for="height" class="form-label"><?= __("Altezza") ?></label>
+                <input type="text" id="height" name="height" class="form-input" value="<?= HtmlHelper::e($book['height'] ?? '') ?>" placeholder="<?= __('es. 24 cm') ?>">
+              </div>
+              <div>
+                <label for="thickness" class="form-label"><?= __("Spessore") ?></label>
+                <input type="text" id="thickness" name="thickness" class="form-input" value="<?= HtmlHelper::e($book['thickness'] ?? '') ?>" placeholder="<?= __('es. 3 cm') ?>">
+              </div>
+              <div>
+                <label for="length" class="form-label"><?= __("Lunghezza") ?></label>
+                <input type="text" id="length" name="length" class="form-input" value="<?= HtmlHelper::e($book['length'] ?? '') ?>" placeholder="<?= __('es. 16 cm') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Library Classifications -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Classificazioni Bibliotecarie") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="lccn" class="form-label"><?= __("LCCN") ?></label>
+                <input type="text" id="lccn" name="lccn" class="form-input" value="<?= HtmlHelper::e($book['lccn'] ?? '') ?>" placeholder="<?= __('Library of Congress Control Number') ?>">
+              </div>
+              <div>
+                <label for="lc_classification" class="form-label"><?= __("Classificazione LC") ?></label>
+                <input type="text" id="lc_classification" name="lc_classification" class="form-input" value="<?= HtmlHelper::e($book['lc_classification'] ?? '') ?>" placeholder="<?= __('es. PS3566.A686') ?>">
+              </div>
+              <div>
+                <label for="other_call_number" class="form-label"><?= __("Altro Numero di Chiamata") ?></label>
+                <input type="text" id="other_call_number" name="other_call_number" class="form-input" value="<?= HtmlHelper::e($book['other_call_number'] ?? '') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Date Tracking -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Date") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="date_acquired" class="form-label"><?= __("Data Acquisizione") ?></label>
+                <input type="date" id="date_acquired" name="date_acquired" class="form-input" value="<?= HtmlHelper::e($book['date_acquired'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="date_started" class="form-label"><?= __("Data Inizio Lettura") ?></label>
+                <input type="date" id="date_started" name="date_started" class="form-input" value="<?= HtmlHelper::e($book['date_started'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="date_read" class="form-label"><?= __("Data Fine Lettura") ?></label>
+                <input type="date" id="date_read" name="date_read" class="form-input" value="<?= HtmlHelper::e($book['date_read'] ?? '') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Catalog IDs -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Identificatori Catalogo") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="bcid" class="form-label"><?= __("BCID") ?></label>
+                <input type="text" id="bcid" name="bcid" class="form-input" value="<?= HtmlHelper::e($book['bcid'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="oclc" class="form-label"><?= __("OCLC") ?></label>
+                <input type="text" id="oclc" name="oclc" class="form-input" value="<?= HtmlHelper::e($book['oclc'] ?? '') ?>" placeholder="<?= __('OCLC number') ?>">
+              </div>
+              <div>
+                <label for="work_id" class="form-label"><?= __("LibraryThing Work ID") ?></label>
+                <input type="text" id="work_id" name="work_id" class="form-input" value="<?= HtmlHelper::e($book['work_id'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="issn" class="form-label"><?= __("ISSN") ?></label>
+                <input type="text" id="issn" name="issn" class="form-input" value="<?= HtmlHelper::e($book['issn'] ?? '') ?>" placeholder="<?= __('Per periodici') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Language & Acquisition -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Lingua e Provenienza") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="original_languages" class="form-label"><?= __("Lingue Originali") ?></label>
+                <input type="text" id="original_languages" name="original_languages" class="form-input" value="<?= HtmlHelper::e($book['original_languages'] ?? '') ?>" placeholder="<?= __('es. English, Italian') ?>">
+              </div>
+              <div>
+                <label for="source" class="form-label"><?= __("Fonte/Venditore") ?></label>
+                <input type="text" id="source" name="source" class="form-input" value="<?= HtmlHelper::e($book['source'] ?? '') ?>" placeholder="<?= __('es. Amazon, Libreria XYZ') ?>">
+              </div>
+              <div>
+                <label for="from_where" class="form-label"><?= __("Da Dove Acquisito") ?></label>
+                <input type="text" id="from_where" name="from_where" class="form-input" value="<?= HtmlHelper::e($book['from_where'] ?? '') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Lending Tracking -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Tracciamento Prestiti") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="lending_patron" class="form-label"><?= __("Prestato A") ?></label>
+                <input type="text" id="lending_patron" name="lending_patron" class="form-input" value="<?= HtmlHelper::e($book['lending_patron'] ?? '') ?>" placeholder="<?= __('Nome del prestatore') ?>">
+              </div>
+              <div>
+                <label for="lending_status" class="form-label"><?= __("Stato Prestito") ?></label>
+                <select id="lending_status" name="lending_status" class="form-input">
+                  <option value=""><?= __("Non in prestito") ?></option>
+                  <option value="on loan" <?= isset($book['lending_status']) && $book['lending_status'] === 'on loan' ? 'selected' : '' ?>><?= __("In prestito") ?></option>
+                  <option value="returned" <?= isset($book['lending_status']) && $book['lending_status'] === 'returned' ? 'selected' : '' ?>><?= __("Restituito") ?></option>
+                  <option value="overdue" <?= isset($book['lending_status']) && $book['lending_status'] === 'overdue' ? 'selected' : '' ?>><?= __("Scaduto") ?></option>
+                </select>
+              </div>
+              <div>
+                <label for="lending_start" class="form-label"><?= __("Data Inizio Prestito") ?></label>
+                <input type="date" id="lending_start" name="lending_start" class="form-input" value="<?= HtmlHelper::e($book['lending_start'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="lending_end" class="form-label"><?= __("Data Fine Prestito") ?></label>
+                <input type="date" id="lending_end" name="lending_end" class="form-input" value="<?= HtmlHelper::e($book['lending_end'] ?? '') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Financial Fields -->
+          <div class="pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Informazioni Finanziarie e Condizioni") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="purchase_price" class="form-label"><?= __("Prezzo di Acquisto") ?></label>
+                <input type="number" step="0.01" id="purchase_price" name="purchase_price" class="form-input" value="<?= HtmlHelper::e($book['purchase_price'] ?? '') ?>" placeholder="<?= __('es. 19.99') ?>">
+              </div>
+              <div>
+                <label for="value" class="form-label"><?= __("Valore Corrente") ?></label>
+                <input type="number" step="0.01" id="value" name="value" class="form-input" value="<?= HtmlHelper::e($book['value'] ?? '') ?>" placeholder="<?= __('es. 25.00') ?>">
+              </div>
+              <div>
+                <label for="condition_lt" class="form-label"><?= __("Condizione Fisica") ?></label>
+                <select id="condition_lt" name="condition_lt" class="form-input">
+                  <option value=""><?= __("Seleziona...") ?></option>
+                  <option value="As New" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'As New' ? 'selected' : '' ?>><?= __("Come Nuovo") ?></option>
+                  <option value="Fine" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Fine' ? 'selected' : '' ?>><?= __("Ottimo") ?></option>
+                  <option value="Very Good" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Very Good' ? 'selected' : '' ?>><?= __("Molto Buono") ?></option>
+                  <option value="Good" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Good' ? 'selected' : '' ?>><?= __("Buono") ?></option>
+                  <option value="Fair" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Fair' ? 'selected' : '' ?>><?= __("Discreto") ?></option>
+                  <option value="Poor" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Poor' ? 'selected' : '' ?>><?= __("Scarso") ?></option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <?php endif; ?>
+
       <!-- Submit Section -->
       <?php
       // Plugin hook: Additional fields in book form (backend)

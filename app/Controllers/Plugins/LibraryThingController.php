@@ -541,7 +541,97 @@ class LibraryThingController
         // Copies
         $result['copie_totali'] = !empty($data['Copies']) && is_numeric($data['Copies']) ? (int)$data['Copies'] : '1';
 
+        // === LibraryThing Extended Fields (29 additional fields) ===
+
+        // Review and Rating
+        $result['review'] = !empty($data['Review']) ? trim($data['Review']) : '';
+        $result['rating'] = !empty($data['Rating']) && is_numeric($data['Rating']) ? (int)$data['Rating'] : null;
+        $result['comment'] = !empty($data['Comment']) ? trim($data['Comment']) : '';
+        $result['private_comment'] = !empty($data['Private Comment']) ? trim($data['Private Comment']) : '';
+
+        // Physical Description
+        $result['physical_description'] = !empty($data['Physical Description']) ? trim($data['Physical Description']) : '';
+        $result['weight'] = !empty($data['Weight']) ? trim($data['Weight']) : '';
+        $result['height'] = !empty($data['Height']) ? trim($data['Height']) : '';
+        $result['thickness'] = !empty($data['Thickness']) ? trim($data['Thickness']) : '';
+        $result['length'] = !empty($data['Length']) ? trim($data['Length']) : '';
+
+        // Library Classifications
+        $result['lccn'] = !empty($data['LCCN']) ? trim($data['LCCN']) : '';
+        $result['lc_classification'] = !empty($data['LC Classification']) ? trim($data['LC Classification']) : '';
+        $result['other_call_number'] = !empty($data['Other Call Number']) ? trim($data['Other Call Number']) : '';
+
+        // Date Tracking
+        $result['date_acquired'] = !empty($data['Acquired']) ? $this->parseDate($data['Acquired']) : '';
+        $result['date_started'] = !empty($data['Date Started']) ? $this->parseDate($data['Date Started']) : '';
+        $result['date_read'] = !empty($data['Date Read']) ? $this->parseDate($data['Date Read']) : '';
+
+        // Catalog Identifiers
+        $result['bcid'] = !empty($data['BCID']) ? trim($data['BCID']) : '';
+        $result['oclc'] = !empty($data['OCLC']) ? trim($data['OCLC']) : '';
+        $result['work_id'] = !empty($data['Work id']) ? trim($data['Work id']) : '';
+        $result['issn'] = !empty($data['ISSN']) ? trim($data['ISSN']) : '';
+
+        // Languages
+        $result['original_languages'] = !empty($data['Original Languages']) ? trim($data['Original Languages']) : '';
+
+        // Acquisition Info
+        $result['source'] = !empty($data['Source']) ? trim($data['Source']) : '';
+        $result['from_where'] = !empty($data['From Where']) ? trim($data['From Where']) : '';
+
+        // Lending Tracking
+        $result['lending_patron'] = !empty($data['Lending Patron']) ? trim($data['Lending Patron']) : '';
+        $result['lending_status'] = !empty($data['Lending Status']) ? trim($data['Lending Status']) : '';
+        $result['lending_start'] = !empty($data['Lending Start']) ? $this->parseDate($data['Lending Start']) : '';
+        $result['lending_end'] = !empty($data['Lending End']) ? $this->parseDate($data['Lending End']) : '';
+
+        // Financial Fields
+        if (!empty($data['Purchase Price'])) {
+            $purchasePrice = preg_replace('/[^0-9,.]/', '', $data['Purchase Price']);
+            $purchasePrice = str_replace(',', '.', $purchasePrice);
+            if (is_numeric($purchasePrice)) {
+                $result['purchase_price'] = $purchasePrice;
+            }
+        }
+
+        if (!empty($data['Value'])) {
+            $value = preg_replace('/[^0-9,.]/', '', $data['Value']);
+            $value = str_replace(',', '.', $value);
+            if (is_numeric($value)) {
+                $result['value'] = $value;
+            }
+        }
+
+        $result['condition_lt'] = !empty($data['Condition']) ? trim($data['Condition']) : '';
+
         return $result;
+    }
+
+    /**
+     * Parse date from LibraryThing format to MySQL DATE format
+     *
+     * @param string $dateString Date string in various formats
+     * @return string|null MySQL DATE format (YYYY-MM-DD) or null
+     */
+    private function parseDate(string $dateString): ?string
+    {
+        $dateString = trim($dateString);
+        if (empty($dateString)) {
+            return null;
+        }
+
+        // Try to parse with strtotime
+        $timestamp = strtotime($dateString);
+        if ($timestamp !== false) {
+            return date('Y-m-d', $timestamp);
+        }
+
+        // Try to extract year-month-day pattern
+        if (preg_match('/(\d{4})-(\d{1,2})-(\d{1,2})/', $dateString, $matches)) {
+            return sprintf('%04d-%02d-%02d', $matches[1], $matches[2], $matches[3]);
+        }
+
+        return null;
     }
 
     // Reuse methods from CsvImportController
@@ -645,42 +735,123 @@ class LibraryThingController
 
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
-        $stmt = $db->prepare("
-            UPDATE libri SET
-                isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
-                anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
-                collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
-                classificazione_dewey = ?, updated_at = NOW()
-            WHERE id = ?
-        ");
+        // Check if LibraryThing plugin is installed
+        $hasLTFields = LibraryThingInstaller::isInstalled($db);
 
-        $isbn10 = !empty($data['isbn10']) ? $data['isbn10'] : null;
-        $isbn13 = !empty($data['isbn13']) ? $data['isbn13'] : null;
-        $ean = !empty($data['ean']) ? $data['ean'] : null;
-        $titolo = $data['titolo'];
-        $sottotitolo = !empty($data['sottotitolo']) ? $data['sottotitolo'] : null;
-        $anno = !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null;
-        $lingua = !empty($data['lingua']) ? $data['lingua'] : 'italiano';
-        $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
-        $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
-        $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
-        $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null;
-        $collana = !empty($data['collana']) ? $data['collana'] : null;
-        $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
-        $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
-        $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
+        if ($hasLTFields) {
+            // Full update with all LibraryThing fields
+            $stmt = $db->prepare("
+                UPDATE libri SET
+                    isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
+                    anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
+                    genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
+                    collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
+                    classificazione_dewey = ?,
+                    review = ?, rating = ?, comment = ?, private_comment = ?,
+                    physical_description = ?, weight = ?, height = ?, thickness = ?, length = ?,
+                    lccn = ?, lc_classification = ?, other_call_number = ?,
+                    date_acquired = ?, date_started = ?, date_read = ?,
+                    bcid = ?, oclc = ?, work_id = ?, issn = ?,
+                    original_languages = ?, source = ?, from_where = ?,
+                    lending_patron = ?, lending_status = ?, lending_start = ?, lending_end = ?,
+                    purchase_price = ?, value = ?, condition_lt = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
 
-        $stmt->bind_param(
-            'sssssissiissdisssssi',
-            $isbn10, $isbn13, $ean, $titolo, $sottotitolo,
-            $anno, $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $formato, $prezzo, $editorId,
-            $collana, $numeroSerie, $traduttore, $paroleChiave,
-            $dewey, $bookId
-        );
+            $params = [
+                !empty($data['isbn10']) ? $data['isbn10'] : null,
+                !empty($data['isbn13']) ? $data['isbn13'] : null,
+                !empty($data['ean']) ? $data['ean'] : null,
+                $data['titolo'],
+                !empty($data['sottotitolo']) ? $data['sottotitolo'] : null,
+                !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null,
+                !empty($data['lingua']) ? $data['lingua'] : 'italiano',
+                !empty($data['edizione']) ? $data['edizione'] : null,
+                !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
+                $genreId,
+                !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
+                $editorId,
+                !empty($data['collana']) ? $data['collana'] : null,
+                !empty($data['numero_serie']) ? $data['numero_serie'] : null,
+                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
+                !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
+                // LibraryThing fields
+                !empty($data['review']) ? $data['review'] : null,
+                !empty($data['rating']) ? (int) $data['rating'] : null,
+                !empty($data['comment']) ? $data['comment'] : null,
+                !empty($data['private_comment']) ? $data['private_comment'] : null,
+                !empty($data['physical_description']) ? $data['physical_description'] : null,
+                !empty($data['weight']) ? $data['weight'] : null,
+                !empty($data['height']) ? $data['height'] : null,
+                !empty($data['thickness']) ? $data['thickness'] : null,
+                !empty($data['length']) ? $data['length'] : null,
+                !empty($data['lccn']) ? $data['lccn'] : null,
+                !empty($data['lc_classification']) ? $data['lc_classification'] : null,
+                !empty($data['other_call_number']) ? $data['other_call_number'] : null,
+                !empty($data['date_acquired']) ? $data['date_acquired'] : null,
+                !empty($data['date_started']) ? $data['date_started'] : null,
+                !empty($data['date_read']) ? $data['date_read'] : null,
+                !empty($data['bcid']) ? $data['bcid'] : null,
+                !empty($data['oclc']) ? $data['oclc'] : null,
+                !empty($data['work_id']) ? $data['work_id'] : null,
+                !empty($data['issn']) ? $data['issn'] : null,
+                !empty($data['original_languages']) ? $data['original_languages'] : null,
+                !empty($data['source']) ? $data['source'] : null,
+                !empty($data['from_where']) ? $data['from_where'] : null,
+                !empty($data['lending_patron']) ? $data['lending_patron'] : null,
+                !empty($data['lending_status']) ? $data['lending_status'] : null,
+                !empty($data['lending_start']) ? $data['lending_start'] : null,
+                !empty($data['lending_end']) ? $data['lending_end'] : null,
+                !empty($data['purchase_price']) ? (float) str_replace(',', '.', $data['purchase_price']) : null,
+                !empty($data['value']) ? (float) str_replace(',', '.', $data['value']) : null,
+                !empty($data['condition_lt']) ? $data['condition_lt'] : null,
+                $bookId
+            ];
+
+            $types = 'sssssissiissdisssssissssssssssssssssssssssssssddssi';
+            $stmt->bind_param($types, ...$params);
+        } else {
+            // Basic update without LibraryThing fields (plugin not installed)
+            $stmt = $db->prepare("
+                UPDATE libri SET
+                    isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
+                    anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
+                    genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
+                    collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
+                    classificazione_dewey = ?, updated_at = NOW()
+                WHERE id = ?
+            ");
+
+            $params = [
+                !empty($data['isbn10']) ? $data['isbn10'] : null,
+                !empty($data['isbn13']) ? $data['isbn13'] : null,
+                !empty($data['ean']) ? $data['ean'] : null,
+                $data['titolo'],
+                !empty($data['sottotitolo']) ? $data['sottotitolo'] : null,
+                !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null,
+                !empty($data['lingua']) ? $data['lingua'] : 'italiano',
+                !empty($data['edizione']) ? $data['edizione'] : null,
+                !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
+                $genreId,
+                !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
+                $editorId,
+                !empty($data['collana']) ? $data['collana'] : null,
+                !empty($data['numero_serie']) ? $data['numero_serie'] : null,
+                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
+                !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
+                $bookId
+            ];
+
+            $types = 'sssssissiissdisssssi';
+            $stmt->bind_param($types, ...$params);
+        }
 
         $stmt->execute();
         $stmt->close();
@@ -688,53 +859,149 @@ class LibraryThingController
 
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int
     {
-        $stmt = $db->prepare("
-            INSERT INTO libri (
-                isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                lingua, edizione, numero_pagine, genere_id, descrizione, formato,
-                prezzo, copie_totali, copie_disponibili, editore_id, collana,
-                numero_serie, traduttore, parole_chiave, classificazione_dewey,
-                stato, created_at
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
-            )
-        ");
+        // Check if LibraryThing plugin is installed
+        $hasLTFields = LibraryThingInstaller::isInstalled($db);
 
-        $isbn10 = !empty($data['isbn10']) ? $data['isbn10'] : null;
-        $isbn13 = !empty($data['isbn13']) ? $data['isbn13'] : null;
-        $ean = !empty($data['ean']) ? $data['ean'] : null;
-        $titolo = $data['titolo'];
-        $sottotitolo = !empty($data['sottotitolo']) ? $data['sottotitolo'] : null;
-        $anno = !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null;
-        $lingua = !empty($data['lingua']) ? $data['lingua'] : 'italiano';
-        $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
-        $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
-        $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
-        $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         if ($copie < 1) $copie = 1;
         elseif ($copie > 100) $copie = 100;
-        $collana = !empty($data['collana']) ? $data['collana'] : null;
-        $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
-        $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $paroleChiave = !empty($data['parole_chiave']) ? $data['parole_chiave'] : null;
-        $dewey = !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null;
 
-        $stmt->bind_param(
-            'sssssissiissdiiisssss',
-            $isbn10, $isbn13, $ean, $titolo, $sottotitolo,
-            $anno, $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $formato, $prezzo, $copie, $copie,
-            $editorId, $collana, $numeroSerie, $traduttore,
-            $paroleChiave, $dewey
-        );
+        if ($hasLTFields) {
+            // Full insert with all LibraryThing fields
+            $stmt = $db->prepare("
+                INSERT INTO libri (
+                    isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
+                    lingua, edizione, numero_pagine, genere_id, descrizione, formato,
+                    prezzo, copie_totali, copie_disponibili, editore_id, collana,
+                    numero_serie, traduttore, parole_chiave, classificazione_dewey,
+                    review, rating, comment, private_comment,
+                    physical_description, weight, height, thickness, length,
+                    lccn, lc_classification, other_call_number,
+                    date_acquired, date_started, date_read,
+                    bcid, oclc, work_id, issn,
+                    original_languages, source, from_where,
+                    lending_patron, lending_status, lending_start, lending_end,
+                    purchase_price, value, condition_lt,
+                    stato, created_at
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?,
+                    ?, ?, ?,
+                    ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?,
+                    'disponibile', NOW()
+                )
+            ");
+
+            $params = [
+                !empty($data['isbn10']) ? $data['isbn10'] : null,
+                !empty($data['isbn13']) ? $data['isbn13'] : null,
+                !empty($data['ean']) ? $data['ean'] : null,
+                $data['titolo'],
+                !empty($data['sottotitolo']) ? $data['sottotitolo'] : null,
+                !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null,
+                !empty($data['lingua']) ? $data['lingua'] : 'italiano',
+                !empty($data['edizione']) ? $data['edizione'] : null,
+                !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
+                $genreId,
+                !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
+                $copie,
+                $copie,
+                $editorId,
+                !empty($data['collana']) ? $data['collana'] : null,
+                !empty($data['numero_serie']) ? $data['numero_serie'] : null,
+                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
+                !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
+                // LibraryThing fields
+                !empty($data['review']) ? $data['review'] : null,
+                !empty($data['rating']) ? (int) $data['rating'] : null,
+                !empty($data['comment']) ? $data['comment'] : null,
+                !empty($data['private_comment']) ? $data['private_comment'] : null,
+                !empty($data['physical_description']) ? $data['physical_description'] : null,
+                !empty($data['weight']) ? $data['weight'] : null,
+                !empty($data['height']) ? $data['height'] : null,
+                !empty($data['thickness']) ? $data['thickness'] : null,
+                !empty($data['length']) ? $data['length'] : null,
+                !empty($data['lccn']) ? $data['lccn'] : null,
+                !empty($data['lc_classification']) ? $data['lc_classification'] : null,
+                !empty($data['other_call_number']) ? $data['other_call_number'] : null,
+                !empty($data['date_acquired']) ? $data['date_acquired'] : null,
+                !empty($data['date_started']) ? $data['date_started'] : null,
+                !empty($data['date_read']) ? $data['date_read'] : null,
+                !empty($data['bcid']) ? $data['bcid'] : null,
+                !empty($data['oclc']) ? $data['oclc'] : null,
+                !empty($data['work_id']) ? $data['work_id'] : null,
+                !empty($data['issn']) ? $data['issn'] : null,
+                !empty($data['original_languages']) ? $data['original_languages'] : null,
+                !empty($data['source']) ? $data['source'] : null,
+                !empty($data['from_where']) ? $data['from_where'] : null,
+                !empty($data['lending_patron']) ? $data['lending_patron'] : null,
+                !empty($data['lending_status']) ? $data['lending_status'] : null,
+                !empty($data['lending_start']) ? $data['lending_start'] : null,
+                !empty($data['lending_end']) ? $data['lending_end'] : null,
+                !empty($data['purchase_price']) ? (float) str_replace(',', '.', $data['purchase_price']) : null,
+                !empty($data['value']) ? (float) str_replace(',', '.', $data['value']) : null,
+                !empty($data['condition_lt']) ? $data['condition_lt'] : null
+            ];
+
+            $types = 'sssssissiissdiiisssssissssssssssssssssssssssssdds';
+            $stmt->bind_param($types, ...$params);
+        } else {
+            // Basic insert without LibraryThing fields (plugin not installed)
+            $stmt = $db->prepare("
+                INSERT INTO libri (
+                    isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
+                    lingua, edizione, numero_pagine, genere_id, descrizione, formato,
+                    prezzo, copie_totali, copie_disponibili, editore_id, collana,
+                    numero_serie, traduttore, parole_chiave, classificazione_dewey,
+                    stato, created_at
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
+                )
+            ");
+
+            $params = [
+                !empty($data['isbn10']) ? $data['isbn10'] : null,
+                !empty($data['isbn13']) ? $data['isbn13'] : null,
+                !empty($data['ean']) ? $data['ean'] : null,
+                $data['titolo'],
+                !empty($data['sottotitolo']) ? $data['sottotitolo'] : null,
+                !empty($data['anno_pubblicazione']) ? (int) $data['anno_pubblicazione'] : null,
+                !empty($data['lingua']) ? $data['lingua'] : 'italiano',
+                !empty($data['edizione']) ? $data['edizione'] : null,
+                !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
+                $genreId,
+                !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
+                $copie,
+                $copie,
+                $editorId,
+                !empty($data['collana']) ? $data['collana'] : null,
+                !empty($data['numero_serie']) ? $data['numero_serie'] : null,
+                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
+                !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null
+            ];
+
+            $types = 'sssssissiissdiiisssss';
+            $stmt->bind_param($types, ...$params);
+        }
 
         $stmt->execute();
         $bookId = $db->insert_id;
 
         // Create physical copies
         $copyRepo = new \App\Models\CopyRepository($db);
+        $isbn13 = !empty($data['isbn13']) ? $data['isbn13'] : null;
+        $isbn10 = !empty($data['isbn10']) ? $data['isbn10'] : null;
         $baseInventario = $isbn13 ?: ($isbn10 ?: "LIB-{$bookId}");
 
         for ($i = 1; $i <= $copie; $i++) {
@@ -1102,51 +1369,51 @@ class LibraryThingController
             '',  // Secondary Author Roles
             $publication,
             $libro['anno_pubblicazione'] ?? '',
-            '',  // Review
-            '',  // Rating
-            '',  // Comment
-            '',  // Private Comment
+            $libro['review'] ?? '',
+            $libro['rating'] ?? '',
+            $libro['comment'] ?? '',
+            $libro['private_comment'] ?? '',
             $libro['descrizione'] ?? '',
             $media,
-            '',  // Physical Description
-            '',  // Weight
-            '',  // Height
-            '',  // Thickness
-            '',  // Length
+            $libro['physical_description'] ?? '',
+            $libro['weight'] ?? '',
+            $libro['height'] ?? '',
+            $libro['thickness'] ?? '',
+            $libro['length'] ?? '',
             '',  // Dimensions
             $libro['numero_pagine'] ?? '',
-            '',  // LCCN
-            '',  // Acquired
-            '',  // Date Started
-            '',  // Date Read
+            $libro['lccn'] ?? '',
+            $libro['date_acquired'] ?? '',
+            $libro['date_started'] ?? '',
+            $libro['date_read'] ?? '',
             $libro['ean'] ?? '',
-            '',  // BCID
+            $libro['bcid'] ?? '',
             $libro['parole_chiave'] ?? '',
             $libro['collana'] ?? '',
             $language,
-            '',  // Original Languages
-            '',  // LC Classification
+            $libro['original_languages'] ?? '',
+            $libro['lc_classification'] ?? '',
             $libro['isbn13'] ?? $libro['isbn10'] ?? '',
             $isbnString,
             $libro['genere_nome'] ?? '',
             $libro['classificazione_dewey'] ?? '',
             '',  // Dewey Wording
-            '',  // Other Call Number
+            $libro['other_call_number'] ?? '',
             $libro['copie_totali'] ?? '1',
-            '',  // Source
+            $libro['source'] ?? '',
             '',  // Entry Date
-            '',  // From Where
-            '',  // OCLC
-            '',  // Work id
-            '',  // Lending Patron
-            '',  // Lending Status
-            '',  // Lending Start
-            '',  // Lending End
+            $libro['from_where'] ?? '',
+            $libro['oclc'] ?? '',
+            $libro['work_id'] ?? '',
+            $libro['lending_patron'] ?? '',
+            $libro['lending_status'] ?? '',
+            $libro['lending_start'] ?? '',
+            $libro['lending_end'] ?? '',
             $libro['prezzo'] ?? '',
-            '',  // Purchase Price
-            '',  // Value
-            '',  // Condition
-            ''   // ISSN
+            $libro['purchase_price'] ?? '',
+            $libro['value'] ?? '',
+            $libro['condition_lt'] ?? '',
+            $libro['issn'] ?? ''
         ];
     }
 }
