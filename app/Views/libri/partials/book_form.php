@@ -762,6 +762,64 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <p class="text-xs text-gray-500 mt-2"><?= __("Nota: Il prezzo di acquisto è nel campo 'Prezzo' della sezione 'Dati di Acquisizione'") ?></p>
           </div>
 
+          <!-- Frontend Visibility Preferences -->
+          <div class="pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3">
+              <i class="fas fa-eye text-blue-600 mr-2"></i>
+              <?= __("Visibilità nel Frontend") ?>
+            </h3>
+            <p class="text-sm text-gray-600 mb-4"><?= __("Seleziona quali campi LibraryThing mostrare nella pagina pubblica del libro") ?></p>
+
+            <?php
+            // Parse current visibility settings
+            $ltFieldsVisibility = [];
+            if (!empty($book['lt_fields_visibility'])) {
+                $ltFieldsVisibility = json_decode($book['lt_fields_visibility'], true) ?: [];
+            }
+
+            // Get all LibraryThing fields
+            $ltFields = \App\Controllers\Plugins\LibraryThingInstaller::getLibraryThingFields();
+
+            // Group fields by category for better UX
+            $fieldGroups = [
+                'Recensione' => ['review', 'rating', 'comment'],
+                'Date' => ['date_started', 'date_read'],
+                'Classificazioni' => ['lccn', 'lc_classification', 'other_call_number'],
+                'Identificatori' => ['bcid', 'oclc', 'work_id', 'issn'],
+                'Provenienza' => ['original_languages', 'source', 'from_where'],
+                'Prestito' => ['lending_patron', 'lending_status', 'lending_start', 'lending_end'],
+                'Altro' => ['physical_description', 'value', 'condition_lt', 'private_comment']
+            ];
+            ?>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <?php foreach ($fieldGroups as $groupName => $fields): ?>
+                <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                  <h4 class="text-sm font-semibold text-gray-700 mb-2"><?= $groupName ?></h4>
+                  <?php foreach ($fields as $fieldName): ?>
+                    <?php if (isset($ltFields[$fieldName])): ?>
+                      <label class="flex items-center space-x-2 text-sm py-1">
+                        <input
+                          type="checkbox"
+                          name="lt_visibility[<?= $fieldName ?>]"
+                          value="1"
+                          class="form-checkbox h-4 w-4 text-blue-600"
+                          <?= isset($ltFieldsVisibility[$fieldName]) && $ltFieldsVisibility[$fieldName] ? 'checked' : '' ?>
+                        >
+                        <span class="text-gray-700"><?= HtmlHelper::e($ltFields[$fieldName]) ?></span>
+                      </label>
+                    <?php endif; ?>
+                  <?php endforeach; ?>
+                </div>
+              <?php endforeach; ?>
+            </div>
+
+            <p class="text-xs text-gray-500 mt-3">
+              <i class="fas fa-info-circle mr-1"></i>
+              <?= __("I campi selezionati saranno visibili nella pagina pubblica del libro. I commenti privati sono sempre nascosti nel frontend.") ?>
+            </p>
+          </div>
+
         </div>
       </div>
       <?php endif; ?>
