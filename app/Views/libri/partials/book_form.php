@@ -625,27 +625,10 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <!-- Physical Description -->
           <div class="mb-6 pt-6 border-t border-gray-200">
             <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Descrizione Fisica") ?></h3>
-            <div class="mb-3">
+            <div>
               <label for="physical_description" class="form-label"><?= __("Descrizione Fisica") ?></label>
               <input type="text" id="physical_description" name="physical_description" class="form-input" value="<?= HtmlHelper::e($book['physical_description'] ?? '') ?>" placeholder="<?= __('es. Hardcover, 500 pages') ?>">
-            </div>
-            <div class="form-grid-2">
-              <div>
-                <label for="weight" class="form-label"><?= __("Peso") ?></label>
-                <input type="text" id="weight" name="weight" class="form-input" value="<?= HtmlHelper::e($book['weight'] ?? '') ?>" placeholder="<?= __('es. 1.2 kg') ?>">
-              </div>
-              <div>
-                <label for="height" class="form-label"><?= __("Altezza") ?></label>
-                <input type="text" id="height" name="height" class="form-input" value="<?= HtmlHelper::e($book['height'] ?? '') ?>" placeholder="<?= __('es. 24 cm') ?>">
-              </div>
-              <div>
-                <label for="thickness" class="form-label"><?= __("Spessore") ?></label>
-                <input type="text" id="thickness" name="thickness" class="form-input" value="<?= HtmlHelper::e($book['thickness'] ?? '') ?>" placeholder="<?= __('es. 3 cm') ?>">
-              </div>
-              <div>
-                <label for="length" class="form-label"><?= __("Lunghezza") ?></label>
-                <input type="text" id="length" name="length" class="form-input" value="<?= HtmlHelper::e($book['length'] ?? '') ?>" placeholder="<?= __('es. 16 cm') ?>">
-              </div>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Nota: Peso e dimensioni sono nei campi nativi dell'app (sezione Dati Fisici)") ?></p>
             </div>
           </div>
 
@@ -668,14 +651,10 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
           </div>
 
-          <!-- Date Tracking -->
+          <!-- Date Tracking (Reading) -->
           <div class="mb-6 pt-6 border-t border-gray-200">
-            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Date") ?></h3>
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Date di Lettura") ?></h3>
             <div class="form-grid-2">
-              <div>
-                <label for="date_acquired" class="form-label"><?= __("Data Acquisizione") ?></label>
-                <input type="date" id="date_acquired" name="date_acquired" class="form-input" value="<?= HtmlHelper::e($book['date_acquired'] ?? '') ?>">
-              </div>
               <div>
                 <label for="date_started" class="form-label"><?= __("Data Inizio Lettura") ?></label>
                 <input type="date" id="date_started" name="date_started" class="form-input" value="<?= HtmlHelper::e($book['date_started'] ?? '') ?>">
@@ -685,6 +664,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 <input type="date" id="date_read" name="date_read" class="form-input" value="<?= HtmlHelper::e($book['date_read'] ?? '') ?>">
               </div>
             </div>
+            <p class="text-xs text-gray-500 mt-2"><?= __("Nota: Data acquisizione è nel campo nativo 'Data Acquisizione' sopra") ?></p>
           </div>
 
           <!-- Catalog IDs -->
@@ -757,17 +737,14 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
           </div>
 
-          <!-- Financial Fields -->
+          <!-- Financial and Condition Fields -->
           <div class="pt-6 border-t border-gray-200">
-            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Informazioni Finanziarie e Condizioni") ?></h3>
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Valore e Condizione") ?></h3>
             <div class="form-grid-2">
               <div>
-                <label for="purchase_price" class="form-label"><?= __("Prezzo di Acquisto") ?></label>
-                <input type="number" step="0.01" id="purchase_price" name="purchase_price" class="form-input" value="<?= HtmlHelper::e($book['purchase_price'] ?? '') ?>" placeholder="<?= __('es. 19.99') ?>">
-              </div>
-              <div>
-                <label for="value" class="form-label"><?= __("Valore Corrente") ?></label>
+                <label for="value" class="form-label"><?= __("Valore Corrente Stimato") ?></label>
                 <input type="number" step="0.01" id="value" name="value" class="form-input" value="<?= HtmlHelper::e($book['value'] ?? '') ?>" placeholder="<?= __('es. 25.00') ?>">
+                <p class="text-xs text-gray-500 mt-1"><?= __("Valore di mercato attuale (diverso dal prezzo di acquisto)") ?></p>
               </div>
               <div>
                 <label for="condition_lt" class="form-label"><?= __("Condizione Fisica") ?></label>
@@ -782,6 +759,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 </select>
               </div>
             </div>
+            <p class="text-xs text-gray-500 mt-2"><?= __("Nota: Il prezzo di acquisto è nel campo 'Prezzo' della sezione 'Dati di Acquisizione'") ?></p>
           </div>
 
         </div>

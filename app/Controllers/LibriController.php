@@ -457,20 +457,15 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
-            // LibraryThing fields (optional, only saved if plugin installed)
+            // LibraryThing fields (25 unique, only saved if plugin installed)
             'review' => null,
             'rating' => null,
             'comment' => null,
             'private_comment' => null,
             'physical_description' => null,
-            'weight' => null,
-            'height' => null,
-            'thickness' => null,
-            'length' => null,
             'lccn' => null,
             'lc_classification' => null,
             'other_call_number' => null,
-            'date_acquired' => null,
             'date_started' => null,
             'date_read' => null,
             'bcid' => null,
@@ -484,7 +479,6 @@ class LibriController
             'lending_status' => null,
             'lending_start' => null,
             'lending_end' => null,
-            'purchase_price' => null,
             'value' => null,
             'condition_lt' => null
         ];
@@ -964,20 +958,15 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
-            // LibraryThing fields (optional, only saved if plugin installed)
+            // LibraryThing fields (25 unique, only saved if plugin installed)
             'review' => null,
             'rating' => null,
             'comment' => null,
             'private_comment' => null,
             'physical_description' => null,
-            'weight' => null,
-            'height' => null,
-            'thickness' => null,
-            'length' => null,
             'lccn' => null,
             'lc_classification' => null,
             'other_call_number' => null,
-            'date_acquired' => null,
             'date_started' => null,
             'date_read' => null,
             'bcid' => null,
@@ -991,7 +980,6 @@ class LibriController
             'lending_status' => null,
             'lending_start' => null,
             'lending_end' => null,
-            'purchase_price' => null,
             'value' => null,
             'condition_lt' => null
         ];

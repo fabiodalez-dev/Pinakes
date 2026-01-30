@@ -51,14 +51,10 @@ class LibraryThingInstaller
                     ADD COLUMN private_comment TEXT NULL COMMENT 'Private comment (LibraryThing)' AFTER comment
             ");
 
-            // Add physical description fields
+            // Add physical description field
             $this->db->query("
                 ALTER TABLE libri
-                    ADD COLUMN physical_description VARCHAR(255) NULL COMMENT 'Physical description (LibraryThing)' AFTER dimensioni,
-                    ADD COLUMN weight VARCHAR(50) NULL COMMENT 'Weight (LibraryThing)' AFTER physical_description,
-                    ADD COLUMN height VARCHAR(50) NULL COMMENT 'Height (LibraryThing)' AFTER weight,
-                    ADD COLUMN thickness VARCHAR(50) NULL COMMENT 'Thickness (LibraryThing)' AFTER height,
-                    ADD COLUMN length VARCHAR(50) NULL COMMENT 'Length (LibraryThing)' AFTER thickness
+                    ADD COLUMN physical_description VARCHAR(255) NULL COMMENT 'Physical description (LibraryThing)' AFTER dimensioni
             ");
 
             // Add library classification fields
@@ -69,11 +65,10 @@ class LibraryThingInstaller
                     ADD COLUMN other_call_number VARCHAR(100) NULL COMMENT 'Other call number (LibraryThing)' AFTER lc_classification
             ");
 
-            // Add date tracking fields
+            // Add date tracking fields for reading
             $this->db->query("
                 ALTER TABLE libri
-                    ADD COLUMN date_acquired DATE NULL COMMENT 'Date acquired (LibraryThing)' AFTER data_acquisizione,
-                    ADD COLUMN date_started DATE NULL COMMENT 'Date started reading (LibraryThing)' AFTER date_acquired,
+                    ADD COLUMN date_started DATE NULL COMMENT 'Date started reading (LibraryThing)' AFTER data_acquisizione,
                     ADD COLUMN date_read DATE NULL COMMENT 'Date finished reading (LibraryThing)' AFTER date_started
             ");
 
@@ -108,11 +103,10 @@ class LibraryThingInstaller
                     ADD COLUMN lending_end DATE NULL COMMENT 'Lending end date (LibraryThing)' AFTER lending_start
             ");
 
-            // Add financial fields
+            // Add financial and condition fields
             $this->db->query("
                 ALTER TABLE libri
-                    ADD COLUMN purchase_price DECIMAL(10,2) NULL COMMENT 'Purchase price (LibraryThing)' AFTER prezzo,
-                    ADD COLUMN value DECIMAL(10,2) NULL COMMENT 'Current value (LibraryThing)' AFTER purchase_price,
+                    ADD COLUMN value DECIMAL(10,2) NULL COMMENT 'Current value (LibraryThing)' AFTER prezzo,
                     ADD COLUMN condition_lt VARCHAR(100) NULL COMMENT 'Physical condition (LibraryThing)' AFTER value
             ");
 
@@ -120,7 +114,6 @@ class LibraryThingInstaller
             $this->db->query("
                 ALTER TABLE libri
                     ADD INDEX idx_lt_rating (rating),
-                    ADD INDEX idx_lt_date_acquired (date_acquired),
                     ADD INDEX idx_lt_date_read (date_read),
                     ADD INDEX idx_lt_lending_status (lending_status),
                     ADD INDEX idx_lt_lccn (lccn),
@@ -169,7 +162,6 @@ class LibraryThingInstaller
             $this->db->query("
                 ALTER TABLE libri
                     DROP INDEX IF EXISTS idx_lt_rating,
-                    DROP INDEX IF EXISTS idx_lt_date_acquired,
                     DROP INDEX IF EXISTS idx_lt_date_read,
                     DROP INDEX IF EXISTS idx_lt_lending_status,
                     DROP INDEX IF EXISTS idx_lt_lccn,
@@ -178,7 +170,7 @@ class LibraryThingInstaller
                     DROP INDEX IF EXISTS idx_lt_issn
             ");
 
-            // Remove all LibraryThing fields
+            // Remove all LibraryThing fields (25 unique fields)
             $this->db->query("
                 ALTER TABLE libri
                     DROP COLUMN IF EXISTS review,
@@ -186,14 +178,9 @@ class LibraryThingInstaller
                     DROP COLUMN IF EXISTS comment,
                     DROP COLUMN IF EXISTS private_comment,
                     DROP COLUMN IF EXISTS physical_description,
-                    DROP COLUMN IF EXISTS weight,
-                    DROP COLUMN IF EXISTS height,
-                    DROP COLUMN IF EXISTS thickness,
-                    DROP COLUMN IF EXISTS length,
                     DROP COLUMN IF EXISTS lccn,
                     DROP COLUMN IF EXISTS lc_classification,
                     DROP COLUMN IF EXISTS other_call_number,
-                    DROP COLUMN IF EXISTS date_acquired,
                     DROP COLUMN IF EXISTS date_started,
                     DROP COLUMN IF EXISTS date_read,
                     DROP COLUMN IF EXISTS bcid,
@@ -207,7 +194,6 @@ class LibraryThingInstaller
                     DROP COLUMN IF EXISTS lending_status,
                     DROP COLUMN IF EXISTS lending_start,
                     DROP COLUMN IF EXISTS lending_end,
-                    DROP COLUMN IF EXISTS purchase_price,
                     DROP COLUMN IF EXISTS value,
                     DROP COLUMN IF EXISTS condition_lt
             ");

@@ -551,18 +551,36 @@ class LibraryThingController
 
         // Physical Description
         $result['physical_description'] = !empty($data['Physical Description']) ? trim($data['Physical Description']) : '';
-        $result['weight'] = !empty($data['Weight']) ? trim($data['Weight']) : '';
-        $result['height'] = !empty($data['Height']) ? trim($data['Height']) : '';
-        $result['thickness'] = !empty($data['Thickness']) ? trim($data['Thickness']) : '';
-        $result['length'] = !empty($data['Length']) ? trim($data['Length']) : '';
+
+        // Weight → peso (native field)
+        if (!empty($data['Weight'])) {
+            $weight = trim($data['Weight']);
+            // Try to extract numeric value (e.g., "1.2 kg" → 1.2)
+            if (preg_match('/([0-9.]+)/', $weight, $matches)) {
+                $result['peso'] = (float)$matches[1];
+            }
+        }
+
+        // Dimensions → dimensioni (native field, combine height/thickness/length)
+        $dimensions = [];
+        if (!empty($data['Height'])) $dimensions[] = 'H: ' . trim($data['Height']);
+        if (!empty($data['Thickness'])) $dimensions[] = 'T: ' . trim($data['Thickness']);
+        if (!empty($data['Length'])) $dimensions[] = 'L: ' . trim($data['Length']);
+        if (!empty($dimensions)) {
+            $result['dimensioni'] = implode(' × ', $dimensions);
+        }
 
         // Library Classifications
         $result['lccn'] = !empty($data['LCCN']) ? trim($data['LCCN']) : '';
         $result['lc_classification'] = !empty($data['LC Classification']) ? trim($data['LC Classification']) : '';
         $result['other_call_number'] = !empty($data['Other Call Number']) ? trim($data['Other Call Number']) : '';
 
-        // Date Tracking
-        $result['date_acquired'] = !empty($data['Acquired']) ? $this->parseDate($data['Acquired']) : '';
+        // Date Acquired → data_acquisizione (native field)
+        if (!empty($data['Acquired'])) {
+            $result['data_acquisizione'] = $this->parseDate($data['Acquired']);
+        }
+
+        // Reading Date Tracking (LibraryThing only)
         $result['date_started'] = !empty($data['Date Started']) ? $this->parseDate($data['Date Started']) : '';
         $result['date_read'] = !empty($data['Date Read']) ? $this->parseDate($data['Date Read']) : '';
 
@@ -585,15 +603,10 @@ class LibraryThingController
         $result['lending_start'] = !empty($data['Lending Start']) ? $this->parseDate($data['Lending Start']) : '';
         $result['lending_end'] = !empty($data['Lending End']) ? $this->parseDate($data['Lending End']) : '';
 
-        // Financial Fields
-        if (!empty($data['Purchase Price'])) {
-            $purchasePrice = preg_replace('/[^0-9,.]/', '', $data['Purchase Price']);
-            $purchasePrice = str_replace(',', '.', $purchasePrice);
-            if (is_numeric($purchasePrice)) {
-                $result['purchase_price'] = $purchasePrice;
-            }
-        }
+        // Financial and Condition Fields
+        // Note: Purchase Price already handled above in 'prezzo' field (native)
 
+        // Current Value (LibraryThing only - different from purchase price)
         if (!empty($data['Value'])) {
             $value = preg_replace('/[^0-9,.]/', '', $data['Value']);
             $value = str_replace(',', '.', $value);
@@ -602,6 +615,7 @@ class LibraryThingController
             }
         }
 
+        // Physical Condition
         $result['condition_lt'] = !empty($data['Condition']) ? trim($data['Condition']) : '';
 
         return $result;
@@ -746,15 +760,15 @@ class LibraryThingController
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
                     genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
-                    classificazione_dewey = ?,
+                    classificazione_dewey = ?, peso = ?, dimensioni = ?, data_acquisizione = ?,
                     review = ?, rating = ?, comment = ?, private_comment = ?,
-                    physical_description = ?, weight = ?, height = ?, thickness = ?, length = ?,
+                    physical_description = ?,
                     lccn = ?, lc_classification = ?, other_call_number = ?,
-                    date_acquired = ?, date_started = ?, date_read = ?,
+                    date_started = ?, date_read = ?,
                     bcid = ?, oclc = ?, work_id = ?, issn = ?,
                     original_languages = ?, source = ?, from_where = ?,
                     lending_patron = ?, lending_status = ?, lending_start = ?, lending_end = ?,
-                    purchase_price = ?, value = ?, condition_lt = ?,
+                    value = ?, condition_lt = ?,
                     updated_at = NOW()
                 WHERE id = ?
             ");
@@ -779,20 +793,19 @@ class LibraryThingController
                 !empty($data['traduttore']) ? $data['traduttore'] : null,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
-                // LibraryThing fields
+                // Native fields from LibraryThing mapping
+                !empty($data['peso']) ? (float) $data['peso'] : null,
+                !empty($data['dimensioni']) ? $data['dimensioni'] : null,
+                !empty($data['data_acquisizione']) ? $data['data_acquisizione'] : null,
+                // LibraryThing-specific fields (25 unique fields)
                 !empty($data['review']) ? $data['review'] : null,
                 !empty($data['rating']) ? (int) $data['rating'] : null,
                 !empty($data['comment']) ? $data['comment'] : null,
                 !empty($data['private_comment']) ? $data['private_comment'] : null,
                 !empty($data['physical_description']) ? $data['physical_description'] : null,
-                !empty($data['weight']) ? $data['weight'] : null,
-                !empty($data['height']) ? $data['height'] : null,
-                !empty($data['thickness']) ? $data['thickness'] : null,
-                !empty($data['length']) ? $data['length'] : null,
                 !empty($data['lccn']) ? $data['lccn'] : null,
                 !empty($data['lc_classification']) ? $data['lc_classification'] : null,
                 !empty($data['other_call_number']) ? $data['other_call_number'] : null,
-                !empty($data['date_acquired']) ? $data['date_acquired'] : null,
                 !empty($data['date_started']) ? $data['date_started'] : null,
                 !empty($data['date_read']) ? $data['date_read'] : null,
                 !empty($data['bcid']) ? $data['bcid'] : null,
@@ -806,13 +819,12 @@ class LibraryThingController
                 !empty($data['lending_status']) ? $data['lending_status'] : null,
                 !empty($data['lending_start']) ? $data['lending_start'] : null,
                 !empty($data['lending_end']) ? $data['lending_end'] : null,
-                !empty($data['purchase_price']) ? (float) str_replace(',', '.', $data['purchase_price']) : null,
                 !empty($data['value']) ? (float) str_replace(',', '.', $data['value']) : null,
                 !empty($data['condition_lt']) ? $data['condition_lt'] : null,
                 $bookId
             ];
 
-            $types = 'sssssissiissdisssssissssssssssssssssssssssssssddssi';
+            $types = 'sssssissiissdisssssdssisssisssssssssssssssssdssi';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
@@ -867,32 +879,34 @@ class LibraryThingController
         elseif ($copie > 100) $copie = 100;
 
         if ($hasLTFields) {
-            // Full insert with all LibraryThing fields
+            // Full insert with all LibraryThing fields (25 unique LT + native fields)
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                     lingua, edizione, numero_pagine, genere_id, descrizione, formato,
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
+                    peso, dimensioni, data_acquisizione,
                     review, rating, comment, private_comment,
-                    physical_description, weight, height, thickness, length,
+                    physical_description,
                     lccn, lc_classification, other_call_number,
-                    date_acquired, date_started, date_read,
+                    date_started, date_read,
                     bcid, oclc, work_id, issn,
                     original_languages, source, from_where,
                     lending_patron, lending_status, lending_start, lending_end,
-                    purchase_price, value, condition_lt,
+                    value, condition_lt,
                     stato, created_at
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?,
-                    ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
+                    ?,
                     ?, ?, ?,
+                    ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?,
                     'disponibile', NOW()
                 )
             ");
@@ -919,20 +933,19 @@ class LibraryThingController
                 !empty($data['traduttore']) ? $data['traduttore'] : null,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
-                // LibraryThing fields
+                // Native fields from LibraryThing mapping
+                !empty($data['peso']) ? (float) $data['peso'] : null,
+                !empty($data['dimensioni']) ? $data['dimensioni'] : null,
+                !empty($data['data_acquisizione']) ? $data['data_acquisizione'] : null,
+                // LibraryThing unique fields (25)
                 !empty($data['review']) ? $data['review'] : null,
                 !empty($data['rating']) ? (int) $data['rating'] : null,
                 !empty($data['comment']) ? $data['comment'] : null,
                 !empty($data['private_comment']) ? $data['private_comment'] : null,
                 !empty($data['physical_description']) ? $data['physical_description'] : null,
-                !empty($data['weight']) ? $data['weight'] : null,
-                !empty($data['height']) ? $data['height'] : null,
-                !empty($data['thickness']) ? $data['thickness'] : null,
-                !empty($data['length']) ? $data['length'] : null,
                 !empty($data['lccn']) ? $data['lccn'] : null,
                 !empty($data['lc_classification']) ? $data['lc_classification'] : null,
                 !empty($data['other_call_number']) ? $data['other_call_number'] : null,
-                !empty($data['date_acquired']) ? $data['date_acquired'] : null,
                 !empty($data['date_started']) ? $data['date_started'] : null,
                 !empty($data['date_read']) ? $data['date_read'] : null,
                 !empty($data['bcid']) ? $data['bcid'] : null,
@@ -946,12 +959,11 @@ class LibraryThingController
                 !empty($data['lending_status']) ? $data['lending_status'] : null,
                 !empty($data['lending_start']) ? $data['lending_start'] : null,
                 !empty($data['lending_end']) ? $data['lending_end'] : null,
-                !empty($data['purchase_price']) ? (float) str_replace(',', '.', $data['purchase_price']) : null,
                 !empty($data['value']) ? (float) str_replace(',', '.', $data['value']) : null,
                 !empty($data['condition_lt']) ? $data['condition_lt'] : null
             ];
 
-            $types = 'sssssissiissdiiisssssissssssssssssssssssssssssdds';
+            $types = 'sssssissiissdiiisssssdssisssisssssssssssssssds';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
