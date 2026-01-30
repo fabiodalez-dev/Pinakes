@@ -128,6 +128,12 @@ class LibraryThingInstaller
                     ADD CONSTRAINT chk_lt_rating CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5))
             ");
 
+            // Add JSON column for frontend visibility preferences
+            $this->db->query("
+                ALTER TABLE libri
+                    ADD COLUMN lt_fields_visibility JSON NULL COMMENT 'Frontend visibility preferences for LibraryThing fields' AFTER condition_lt
+            ");
+
             $this->db->commit();
 
             return ['success' => true, 'message' => __('Plugin LibraryThing installato con successo')];
@@ -170,7 +176,7 @@ class LibraryThingInstaller
                     DROP INDEX IF EXISTS idx_lt_issn
             ");
 
-            // Remove all LibraryThing fields (25 unique fields)
+            // Remove all LibraryThing fields (25 unique fields + visibility column)
             $this->db->query("
                 ALTER TABLE libri
                     DROP COLUMN IF EXISTS review,
@@ -195,7 +201,8 @@ class LibraryThingInstaller
                     DROP COLUMN IF EXISTS lending_start,
                     DROP COLUMN IF EXISTS lending_end,
                     DROP COLUMN IF EXISTS value,
-                    DROP COLUMN IF EXISTS condition_lt
+                    DROP COLUMN IF EXISTS condition_lt,
+                    DROP COLUMN IF EXISTS lt_fields_visibility
             ");
 
             $this->db->commit();
@@ -228,13 +235,13 @@ class LibraryThingInstaller
                 AND TABLE_NAME = 'libri'
                 AND COLUMN_NAME IN (
                     'review', 'rating', 'comment', 'private_comment',
-                    'physical_description', 'weight', 'height', 'thickness', 'length',
+                    'physical_description',
                     'lccn', 'lc_classification', 'other_call_number',
-                    'date_acquired', 'date_started', 'date_read',
+                    'date_started', 'date_read',
                     'bcid', 'oclc', 'work_id', 'issn',
                     'original_languages', 'source', 'from_where',
                     'lending_patron', 'lending_status', 'lending_start', 'lending_end',
-                    'purchase_price', 'value', 'condition_lt'
+                    'value', 'condition_lt', 'lt_fields_visibility'
                 )
             ");
 
@@ -247,8 +254,59 @@ class LibraryThingInstaller
         return [
             'installed' => $installed,
             'fields_count' => $fieldsCount,
-            'expected_fields' => 29,
-            'complete' => $fieldsCount === 29
+            'expected_fields' => 26, // 25 data fields + 1 visibility field
+            'complete' => $fieldsCount === 26
+        ];
+    }
+
+    /**
+     * Get list of all LibraryThing fields with their labels (Italian)
+     *
+     * @return array Array of field_name => label
+     */
+    public static function getLibraryThingFields(): array
+    {
+        return [
+            // Review & Rating
+            'review' => 'Recensione',
+            'rating' => 'Valutazione',
+            'comment' => 'Commento Pubblico',
+            'private_comment' => 'Commento Privato',
+
+            // Physical Description
+            'physical_description' => 'Descrizione Fisica',
+
+            // Library Classifications
+            'lccn' => 'LCCN',
+            'lc_classification' => 'Classificazione LC',
+            'other_call_number' => 'Altro Numero di Chiamata',
+
+            // Reading Dates
+            'date_started' => 'Data Inizio Lettura',
+            'date_read' => 'Data Fine Lettura',
+
+            // Catalog IDs
+            'bcid' => 'BCID',
+            'oclc' => 'OCLC',
+            'work_id' => 'LibraryThing Work ID',
+            'issn' => 'ISSN',
+
+            // Language
+            'original_languages' => 'Lingue Originali',
+
+            // Acquisition
+            'source' => 'Fonte/Venditore',
+            'from_where' => 'Da Dove Acquisito',
+
+            // Lending
+            'lending_patron' => 'Prestato A',
+            'lending_status' => 'Stato Prestito',
+            'lending_start' => 'Data Inizio Prestito',
+            'lending_end' => 'Data Fine Prestito',
+
+            // Value & Condition
+            'value' => 'Valore Corrente',
+            'condition_lt' => 'Condizione Fisica'
         ];
     }
 }
