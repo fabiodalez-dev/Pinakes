@@ -1185,6 +1185,27 @@ return function (App $app): void {
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
     // LibraryThing Plugin Routes
+
+    // Plugin Administration
+    $app->get('/admin/plugins/librarything', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $db = $app->getContainer()->get('db');
+        return $controller->showAdminPage($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/plugins/librarything/install', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $db = $app->getContainer()->get('db');
+        return $controller->install($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/plugins/librarything/uninstall', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $db = $app->getContainer()->get('db');
+        return $controller->uninstall($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Import/Export
     $app->get('/admin/libri/import/librarything', function ($request, $response) {
         $controller = new \App\Controllers\Plugins\LibraryThingController();
         return $controller->showImportPage($request, $response);
