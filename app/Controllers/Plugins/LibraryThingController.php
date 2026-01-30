@@ -40,6 +40,57 @@ class LibraryThingController
     }
 
     /**
+     * Show plugin administration page
+     */
+    public function showAdminPage(Request $request, Response $response, \mysqli $db): Response
+    {
+        $installer = new LibraryThingInstaller($db);
+        $status = $installer->getStatus();
+
+        ob_start();
+        $data = ['status' => $status];
+        include __DIR__ . '/../../Views/plugins/librarything_admin.php';
+        $content = ob_get_clean();
+
+        $response->getBody()->write($content);
+        return $response->withHeader('Content-Type', 'text/html');
+    }
+
+    /**
+     * Install plugin
+     */
+    public function install(Request $request, Response $response, \mysqli $db): Response
+    {
+        $installer = new LibraryThingInstaller($db);
+        $result = $installer->install();
+
+        if ($result['success']) {
+            $_SESSION['success'] = $result['message'];
+        } else {
+            $_SESSION['error'] = $result['message'];
+        }
+
+        return $response->withHeader('Location', '/admin/plugins/librarything')->withStatus(302);
+    }
+
+    /**
+     * Uninstall plugin
+     */
+    public function uninstall(Request $request, Response $response, \mysqli $db): Response
+    {
+        $installer = new LibraryThingInstaller($db);
+        $result = $installer->uninstall();
+
+        if ($result['success']) {
+            $_SESSION['success'] = $result['message'];
+        } else {
+            $_SESSION['error'] = $result['message'];
+        }
+
+        return $response->withHeader('Location', '/admin/plugins/librarything')->withStatus(302);
+    }
+
+    /**
      * Process LibraryThing import
      */
     public function processImport(Request $request, Response $response, \mysqli $db): Response
