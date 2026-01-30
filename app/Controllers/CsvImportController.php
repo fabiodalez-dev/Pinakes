@@ -98,10 +98,10 @@ class CsvImportController
         }
         fclose($handle);
 
-        // Verifica che almeno una riga contenga il separatore CSV (;)
+        // Verifica che almeno una riga contenga il separatore CSV (;, , o tab)
         $delimiter = $this->detectDelimiterFromSample($firstLines);
         if ($delimiter === null) {
-            $_SESSION['error'] = __('File CSV non valido: usa ";" o "," come separatore.');
+            $_SESSION['error'] = __('File CSV non valido: usa ";", "," o TAB come separatore.');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
         $enableScraping = !empty($data['enable_scraping']);
@@ -323,10 +323,11 @@ class CsvImportController
 
     /**
      * Detect delimiter from sample lines
+     * Supports: semicolon (;), comma (,), and tab (\t)
      */
     private function detectDelimiterFromSample(array $lines): ?string
     {
-        $candidates = [';' => 0, ',' => 0];
+        $candidates = [';' => 0, ',' => 0, "\t" => 0];
 
         foreach ($lines as $line) {
             if (!is_string($line)) {
@@ -346,6 +347,198 @@ class CsvImportController
         }
 
         return $bestDelimiter;
+    }
+
+    /**
+     * Map column headers to canonical field names
+     * Supports multiple languages and variations (case-insensitive)
+     *
+     * @param array $headers Original CSV headers
+     * @return array Mapped headers with canonical field names
+     */
+    private function mapColumnHeaders(array $headers): array
+    {
+        // Define mapping from various column names to canonical field names
+        $columnMapping = [
+            'id' => ['id', 'book id', 'book_id', 'bookid', 'codice', 'code'],
+            'isbn10' => ['isbn10', 'isbn 10', 'isbn-10', 'isbn_10'],
+            'isbn13' => ['isbn13', 'isbn 13', 'isbn-13', 'isbn_13', 'isbn', 'isbns'],
+            'ean' => ['ean', 'ean13', 'ean-13', 'ean_13', 'barcode'],
+            'titolo' => ['titolo', 'title', 'título', 'titre', 'titel'],
+            'sottotitolo' => ['sottotitolo', 'subtitle', 'subtítulo', 'sous-titre', 'untertitel', 'sort character'],
+            'autori' => ['autori', 'autore', 'author', 'authors', 'autor', 'auteur', 'primary author', 'secondary author'],
+            'editore' => ['editore', 'publisher', 'editorial', 'éditeur', 'verlag', 'publication'],
+            'anno_pubblicazione' => ['anno_pubblicazione', 'anno', 'year', 'date', 'publication year', 'año', 'année', 'jahr'],
+            'lingua' => ['lingua', 'language', 'languages', 'idioma', 'langue', 'sprache'],
+            'edizione' => ['edizione', 'edition', 'edición', 'édition', 'ausgabe'],
+            'numero_pagine' => ['numero_pagine', 'pagine', 'pages', 'page count', 'páginas', 'seiten'],
+            'genere' => ['genere', 'genre', 'género', 'category', 'categoria'],
+            'descrizione' => ['descrizione', 'description', 'descripción', 'summary', 'riassunto', 'abstract'],
+            'formato' => ['formato', 'format', 'media', 'binding', 'physical description'],
+            'prezzo' => ['prezzo', 'price', 'precio', 'prix', 'preis', 'list price', 'purchase price'],
+            'copie_totali' => ['copie_totali', 'copie', 'copies', 'quantity', 'quantità', 'cantidad'],
+            'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
+            'numero_serie' => ['numero_serie', 'series number', 'número de serie', 'numéro de série'],
+            'traduttore' => ['traduttore', 'translator', 'traductor', 'traducteur', 'übersetzer'],
+            'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],
+            'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number']
+        ];
+
+        $mappedHeaders = [];
+
+        foreach ($headers as $index => $header) {
+            $headerLower = strtolower(trim($header));
+            $canonicalName = $header; // Default: keep original if no mapping found
+
+            // Try to find a mapping
+            foreach ($columnMapping as $canonical => $variations) {
+                foreach ($variations as $variation) {
+                    if ($headerLower === strtolower($variation)) {
+                        $canonicalName = $canonical;
+                        break 2;
+                    }
+                }
+            }
+
+            $mappedHeaders[$index] = $canonicalName;
+        }
+
+        return $mappedHeaders;
+    }
+
+    /**
+     * Detect if CSV is in LibraryThing format
+     *
+     * @param array $headers Original CSV headers
+     * @return bool True if LibraryThing format detected
+     */
+    private function isLibraryThingFormat(array $headers): bool
+    {
+        $libraryThingColumns = ['Book Id', 'Primary Author', 'Secondary Author', 'ISBNs'];
+        $foundCount = 0;
+
+        foreach ($libraryThingColumns as $ltColumn) {
+            foreach ($headers as $header) {
+                if (strtolower(trim($header)) === strtolower($ltColumn)) {
+                    $foundCount++;
+                    break;
+                }
+            }
+        }
+
+        // If we found at least 2 LibraryThing-specific columns, consider it LibraryThing format
+        return $foundCount >= 2;
+    }
+
+    /**
+     * Parse LibraryThing-specific fields and merge into standard format
+     *
+     * @param array $data Row data with original column names
+     * @param array $originalHeaders Original CSV headers before mapping
+     * @return array Processed data in standard format
+     */
+    private function parseLibraryThingFormat(array $data, array $originalHeaders): array
+    {
+        $processed = $data;
+
+        // Merge Primary Author and Secondary Author into autori
+        $authors = [];
+        if (!empty($data['Primary Author'])) {
+            $authors[] = trim($data['Primary Author']);
+        }
+        if (!empty($data['Secondary Author'])) {
+            $authors[] = trim($data['Secondary Author']);
+        }
+        if (!empty($authors)) {
+            $processed['autori'] = implode('|', $authors);
+        }
+
+        // Parse Publication field (e.g., "Milano, Mondadori, 2013")
+        if (!empty($data['Publication'])) {
+            $publication = $data['Publication'];
+            // Extract publisher (usually the last part before year)
+            // Format: "City, Publisher, Year" or "Publisher (Year)"
+            if (preg_match('/,\s*([^,]+),\s*(\d{4})/', $publication, $matches)) {
+                if (empty($processed['editore'])) {
+                    $processed['editore'] = trim($matches[1]);
+                }
+            } elseif (preg_match('/([^(]+)\s*\((\d{4})\)/', $publication, $matches)) {
+                if (empty($processed['editore'])) {
+                    $processed['editore'] = trim($matches[1]);
+                }
+            }
+        }
+
+        // Parse ISBNs field (e.g., "9788883148378, 8883148371")
+        if (!empty($data['ISBNs']) || !empty($data['ISBN'])) {
+            $isbnField = !empty($data['ISBNs']) ? $data['ISBNs'] : $data['ISBN'];
+            // Remove brackets if present
+            $isbnField = trim($isbnField, '[]');
+            // Split by comma or space
+            $isbns = preg_split('/[,\s]+/', $isbnField);
+
+            foreach ($isbns as $isbn) {
+                $isbn = trim($isbn);
+                if (empty($isbn)) continue;
+
+                // Assign to isbn13 or isbn10 based on length
+                if (strlen($isbn) === 13) {
+                    if (empty($processed['isbn13'])) {
+                        $processed['isbn13'] = $isbn;
+                    }
+                } elseif (strlen($isbn) === 10) {
+                    if (empty($processed['isbn10'])) {
+                        $processed['isbn10'] = $isbn;
+                    }
+                }
+            }
+        }
+
+        // Parse Date field (year)
+        if (!empty($data['Date']) && empty($processed['anno_pubblicazione'])) {
+            $year = preg_replace('/[^0-9]/', '', $data['Date']);
+            if (strlen($year) === 4) {
+                $processed['anno_pubblicazione'] = $year;
+            }
+        }
+
+        // Map Media to formato
+        if (!empty($data['Media']) && empty($processed['formato'])) {
+            $mediaMapping = [
+                'libro cartaceo' => 'cartaceo',
+                'copertina rigida' => 'cartaceo',
+                'brossura' => 'cartaceo',
+                'ebook' => 'ebook',
+                'audiobook' => 'audiolibro',
+                'hardcover' => 'cartaceo',
+                'paperback' => 'cartaceo',
+            ];
+
+            $mediaLower = strtolower($data['Media']);
+            foreach ($mediaMapping as $key => $value) {
+                if (str_contains($mediaLower, $key)) {
+                    $processed['formato'] = $value;
+                    break;
+                }
+            }
+        }
+
+        // Map Languages to lingua (take first language if multiple)
+        if (!empty($data['Languages']) && empty($processed['lingua'])) {
+            $languageMapping = [
+                'italian' => 'italiano',
+                'english' => 'inglese',
+                'french' => 'francese',
+                'german' => 'tedesco',
+                'spanish' => 'spagnolo',
+            ];
+
+            $langs = explode(',', strtolower($data['Languages']));
+            $firstLang = trim($langs[0]);
+            $processed['lingua'] = $languageMapping[$firstLang] ?? $firstLang;
+        }
+
+        return $processed;
     }
 
     /**
@@ -379,11 +572,14 @@ class CsvImportController
         }
 
         // Leggi intestazioni
-        $headers = fgetcsv($file, 0, $delimiter, '"');
-        if (!$headers) {
+        $originalHeaders = fgetcsv($file, 0, $delimiter, '"');
+        if (!$originalHeaders) {
             fclose($file);
             throw new \Exception(__('File CSV vuoto o formato non valido'));
         }
+
+        // Map headers to canonical field names (supports multiple languages and variations)
+        $mappedHeaders = $this->mapColumnHeaders($originalHeaders);
 
         // Count total rows for progress tracking
         $totalRows = 0;
@@ -414,12 +610,21 @@ class CsvImportController
                 break;
             }
 
-            if (count($row) !== count($headers)) {
+            if (count($row) !== count($mappedHeaders)) {
                 $errors[] = sprintf(__('Riga %d: numero di colonne non corrispondente'), $lineNumber);
                 continue;
             }
 
-            $data = array_combine($headers, $row);
+            // Combine with mapped headers
+            $data = array_combine($mappedHeaders, $row);
+
+            // Also create original data array for LibraryThing parsing
+            $originalData = array_combine($originalHeaders, $row);
+
+            // Parse LibraryThing-specific fields if detected
+            if ($this->isLibraryThingFormat($originalHeaders)) {
+                $data = array_merge($data, $this->parseLibraryThingFormat($originalData, $originalHeaders));
+            }
 
             // Sanitize data to prevent CSV injection
             $data = $this->sanitizeCsvData($data);

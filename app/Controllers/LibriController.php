@@ -2409,18 +2409,30 @@ class LibriController
 
     /**
      * Export libri to CSV in import-compatible format
+     * Supports multiple formats and delimiters
      */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
         $repo = new \App\Models\BookRepository($db);
 
-        // Get filters from query parameters
+        // Get filters and options from query parameters
         $params = $request->getQueryParams();
         $search = $params['search'] ?? '';
         $stato = $params['stato'] ?? '';
         $editoreId = isset($params['editore_id']) && is_numeric($params['editore_id']) ? (int) $params['editore_id'] : 0;
         $genereId = isset($params['genere_id']) && is_numeric($params['genere_id']) ? (int) $params['genere_id'] : 0;
         $autoreId = isset($params['autore_id']) && is_numeric($params['autore_id']) ? (int) $params['autore_id'] : 0;
+
+        // Export format options
+        $format = $params['format'] ?? 'standard'; // standard, librarything
+        $delimiter = $params['delimiter'] ?? ';'; // ;, comma, tab
+
+        // Normalize delimiter parameter
+        if ($delimiter === 'comma') {
+            $delimiter = ',';
+        } elseif ($delimiter === 'tab') {
+            $delimiter = "\t";
+        }
 
         // Build WHERE clause based on filters
         $whereClauses = [];
@@ -2516,73 +2528,83 @@ class LibriController
         // UTF-8 BOM
         fwrite($stream, "\xEF\xBB\xBF");
 
-        // CSV headers
-        $headers = [
-            'id',
-            'isbn10',
-            'isbn13',
-            'ean',
-            'titolo',
-            'sottotitolo',
-            'autori',
-            'editore',
-            'anno_pubblicazione',
-            'lingua',
-            'edizione',
-            'numero_pagine',
-            'genere',
-            'descrizione',
-            'formato',
-            'prezzo',
-            'copie_totali',
-            'collana',
-            'numero_serie',
-            'traduttore',
-            'parole_chiave'
-        ];
+        // CSV headers based on format
+        if ($format === 'librarything') {
+            $headers = $this->getLibraryThingHeaders();
+        } else {
+            // Standard format (default)
+            $headers = [
+                'id',
+                'isbn10',
+                'isbn13',
+                'ean',
+                'titolo',
+                'sottotitolo',
+                'autori',
+                'editore',
+                'anno_pubblicazione',
+                'lingua',
+                'edizione',
+                'numero_pagine',
+                'genere',
+                'descrizione',
+                'formato',
+                'prezzo',
+                'copie_totali',
+                'collana',
+                'numero_serie',
+                'traduttore',
+                'parole_chiave'
+            ];
+        }
 
-        fwrite($stream, implode(';', $headers) . "\n");
+        fwrite($stream, implode($delimiter, $headers) . "\n");
 
         $rowCount = 0;
         foreach ($libri as $libro) {
             // Use anno_pubblicazione directly (SMALLINT UNSIGNED type in DB, range 0-65535)
             $anno = $libro['anno_pubblicazione'] ?? '';
 
-            $row = [
-                $libro['id'] ?? '',
-                $libro['isbn10'] ?? '',
-                $libro['isbn13'] ?? '',
-                $libro['ean'] ?? '',
-                $libro['titolo'] ?? '',
-                $libro['sottotitolo'] ?? '',
-                $libro['autori_nomi'] ?? '',
-                $libro['editore_nome'] ?? '',
-                $anno,
-                $libro['lingua'] ?? '',
-                $libro['edizione'] ?? '',
-                $libro['numero_pagine'] ?? '',
-                $libro['genere_nome'] ?? '',
-                $libro['descrizione'] ?? '',
-                $libro['formato'] ?? '',
-                $libro['prezzo'] ?? '',
-                $libro['copie_totali'] ?? '1',
-                $libro['collana'] ?? '',
-                $libro['numero_serie'] ?? '',
-                $libro['traduttore'] ?? '',
-                $libro['parole_chiave'] ?? ''
-            ];
+            if ($format === 'librarything') {
+                $row = $this->formatLibraryThingRow($libro, $anno);
+            } else {
+                // Standard format (default)
+                $row = [
+                    $libro['id'] ?? '',
+                    $libro['isbn10'] ?? '',
+                    $libro['isbn13'] ?? '',
+                    $libro['ean'] ?? '',
+                    $libro['titolo'] ?? '',
+                    $libro['sottotitolo'] ?? '',
+                    $libro['autori_nomi'] ?? '',
+                    $libro['editore_nome'] ?? '',
+                    $anno,
+                    $libro['lingua'] ?? '',
+                    $libro['edizione'] ?? '',
+                    $libro['numero_pagine'] ?? '',
+                    $libro['genere_nome'] ?? '',
+                    $libro['descrizione'] ?? '',
+                    $libro['formato'] ?? '',
+                    $libro['prezzo'] ?? '',
+                    $libro['copie_totali'] ?? '1',
+                    $libro['collana'] ?? '',
+                    $libro['numero_serie'] ?? '',
+                    $libro['traduttore'] ?? '',
+                    $libro['parole_chiave'] ?? ''
+                ];
+            }
 
             // Escape fields for CSV
-            $escapedRow = array_map(function ($field) {
+            $escapedRow = array_map(function ($field) use ($delimiter) {
                 $field = str_replace('"', '""', (string) $field);
-                // Only quote if contains semicolon, newline, or quotes
-                if (strpos($field, ';') !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
+                // Quote if contains delimiter, newline, or quotes
+                if (strpos($field, $delimiter) !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
                     return '"' . $field . '"';
                 }
                 return $field;
             }, $row);
 
-            fwrite($stream, implode(';', $escapedRow) . "\n");
+            fwrite($stream, implode($delimiter, $escapedRow) . "\n");
 
             // OPTIMIZATION: Garbage collection every 1000 rows to prevent memory buildup
             if (++$rowCount % 1000 === 0) {
@@ -2604,6 +2626,182 @@ class LibriController
             ->withHeader('X-Frame-Options', 'DENY')
             ->withHeader('Content-Security-Policy', "default-src 'none'")
             ->withBody(new \Slim\Psr7\Stream($stream));
+    }
+
+    /**
+     * Get LibraryThing CSV headers
+     *
+     * @return array Headers in LibraryThing format
+     */
+    private function getLibraryThingHeaders(): array
+    {
+        return [
+            'Book Id',
+            'Title',
+            'Sort Character',
+            'Primary Author',
+            'Primary Author Role',
+            'Secondary Author',
+            'Secondary Author Roles',
+            'Publication',
+            'Date',
+            'Review',
+            'Rating',
+            'Comment',
+            'Private Comment',
+            'Summary',
+            'Media',
+            'Physical Description',
+            'Weight',
+            'Height',
+            'Thickness',
+            'Length',
+            'Dimensions',
+            'Page Count',
+            'LCCN',
+            'Acquired',
+            'Date Started',
+            'Date Read',
+            'Barcode',
+            'BCID',
+            'Tags',
+            'Collections',
+            'Languages',
+            'Original Languages',
+            'LC Classification',
+            'ISBN',
+            'ISBNs',
+            'Subjects',
+            'Dewey Decimal',
+            'Dewey Wording',
+            'Other Call Number',
+            'Copies',
+            'Source',
+            'Entry Date',
+            'From Where',
+            'OCLC',
+            'Work id',
+            'Lending Patron',
+            'Lending Status',
+            'Lending Start',
+            'Lending End',
+            'List Price',
+            'Purchase Price',
+            'Value',
+            'Condition',
+            'ISSN'
+        ];
+    }
+
+    /**
+     * Format book row in LibraryThing format
+     *
+     * @param array $libro Book data from database
+     * @param string $anno Publication year
+     * @return array Row data in LibraryThing format
+     */
+    private function formatLibraryThingRow(array $libro, string $anno): array
+    {
+        // Parse authors (may be semicolon-separated)
+        $autori = $libro['autori_nomi'] ?? '';
+        $autoriArray = !empty($autori) ? explode(';', $autori) : [];
+        $primaryAuthor = $autoriArray[0] ?? '';
+        $secondaryAuthor = $autoriArray[1] ?? '';
+
+        // Map formato to Media
+        $formatoMap = [
+            'cartaceo' => 'Libro cartaceo',
+            'ebook' => 'eBook',
+            'audiolibro' => 'Audiobook',
+            'rivista' => 'Magazine',
+        ];
+        $media = $formatoMap[$libro['formato'] ?? 'cartaceo'] ?? 'Libro cartaceo';
+
+        // Build publication string (City, Publisher, Year)
+        $publication = '';
+        if (!empty($libro['editore_nome'])) {
+            $publication = $libro['editore_nome'];
+            if (!empty($anno)) {
+                $publication .= ', ' . $anno;
+            }
+        }
+
+        // Map lingua to Languages
+        $linguaMap = [
+            'italiano' => 'Italian',
+            'inglese' => 'English',
+            'francese' => 'French',
+            'tedesco' => 'German',
+            'spagnolo' => 'Spanish',
+        ];
+        $language = $linguaMap[$libro['lingua'] ?? 'italiano'] ?? ucfirst($libro['lingua'] ?? 'Italian');
+
+        // Build ISBNs (combine isbn10 and isbn13)
+        $isbns = [];
+        if (!empty($libro['isbn13'])) {
+            $isbns[] = $libro['isbn13'];
+        }
+        if (!empty($libro['isbn10'])) {
+            $isbns[] = $libro['isbn10'];
+        }
+        $isbnString = !empty($isbns) ? '[' . implode(', ', $isbns) . ']' : '';
+
+        return [
+            $libro['id'] ?? '',                                    // Book Id
+            $libro['titolo'] ?? '',                                // Title
+            $libro['sottotitolo'] ?? '',                           // Sort Character
+            $primaryAuthor,                                        // Primary Author
+            '',                                                    // Primary Author Role
+            $secondaryAuthor,                                      // Secondary Author
+            '',                                                    // Secondary Author Roles
+            $publication,                                          // Publication
+            $anno,                                                 // Date
+            '',                                                    // Review
+            '',                                                    // Rating
+            '',                                                    // Comment
+            '',                                                    // Private Comment
+            $libro['descrizione'] ?? '',                           // Summary
+            $media,                                                // Media
+            '',                                                    // Physical Description
+            '',                                                    // Weight
+            '',                                                    // Height
+            '',                                                    // Thickness
+            '',                                                    // Length
+            '',                                                    // Dimensions
+            $libro['numero_pagine'] ?? '',                         // Page Count
+            '',                                                    // LCCN
+            '',                                                    // Acquired
+            '',                                                    // Date Started
+            '',                                                    // Date Read
+            $libro['ean'] ?? '',                                   // Barcode
+            '',                                                    // BCID
+            $libro['parole_chiave'] ?? '',                         // Tags
+            $libro['collana'] ?? '',                               // Collections
+            $language,                                             // Languages
+            '',                                                    // Original Languages
+            '',                                                    // LC Classification
+            $libro['isbn13'] ?? $libro['isbn10'] ?? '',            // ISBN
+            $isbnString,                                           // ISBNs
+            $libro['genere_nome'] ?? '',                           // Subjects
+            $libro['classificazione_dewey'] ?? '',                 // Dewey Decimal
+            '',                                                    // Dewey Wording
+            '',                                                    // Other Call Number
+            $libro['copie_totali'] ?? '1',                         // Copies
+            '',                                                    // Source
+            '',                                                    // Entry Date
+            '',                                                    // From Where
+            '',                                                    // OCLC
+            '',                                                    // Work id
+            '',                                                    // Lending Patron
+            '',                                                    // Lending Status
+            '',                                                    // Lending Start
+            '',                                                    // Lending End
+            $libro['prezzo'] ?? '',                                // List Price
+            '',                                                    // Purchase Price
+            '',                                                    // Value
+            '',                                                    // Condition
+            ''                                                     // ISSN
+        ];
     }
 
     /**
