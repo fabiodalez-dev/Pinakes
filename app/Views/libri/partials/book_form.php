@@ -9,6 +9,8 @@ $error_message = $error_message ?? null;
 $action = $action ?? ($mode === 'edit' ? '/admin/libri/update/' . ($book['id'] ?? '') : '/admin/libri/crea');
 $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? '');
 $scrapingAvailable = Hooks::has('scrape.fetch.custom');
+$scaffali = $scaffali ?? [];
+$mensole = $mensole ?? [];
 
 $initialAuthors = array_map(static function ($author) {
     return [
@@ -458,7 +460,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <?php
           // Hook: Allow plugins to add digital content upload fields (e.g., Uppy uploaders)
-          do_action('book.form.digital_fields', $book ?? []);
+          do_action('book.form.digital_fields', $book);
           ?>
 
           <!-- Notes -->
@@ -2095,7 +2097,7 @@ function initializeCollocationFilters() {
     return Number.isNaN(num) ? 0 : num;
   };
 
-  const MENSOLE = (<?php echo json_encode($mensole ?? [], JSON_UNESCAPED_UNICODE); ?> || []).map(m => ({
+  const MENSOLE = (<?php echo json_encode($mensole, JSON_UNESCAPED_UNICODE); ?> || []).map(m => ({
     id: normalizeNumber(m.id),
     scaffale_id: normalizeNumber(m.scaffale_id),
     numero_livello: normalizeNumber(m.numero_livello)

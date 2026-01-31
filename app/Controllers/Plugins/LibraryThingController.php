@@ -129,8 +129,8 @@ class LibraryThingController
             'current_book' => ''
         ];
 
-        $isAjax = !empty($request->getHeaderLine('X-Requested-With')) &&
-            $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
+        /** @var bool $isAjax */
+        $isAjax = $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
 
         try {
             $result = $this->importLibraryThingData($tmpFile, $db, $enableScraping);
@@ -176,6 +176,8 @@ class LibraryThingController
             $_SESSION['error'] = sprintf(__('Errore durante l\'import: %s'), $e->getMessage());
             $_SESSION['import_progress'] = ['status' => 'error'];
 
+            // phpstan incorrectly infers this condition is always true in catch block
+            /** @phpstan-ignore if.alwaysTrue */
             if ($isAjax) {
                 $response->getBody()->write(json_encode([
                     'success' => false,

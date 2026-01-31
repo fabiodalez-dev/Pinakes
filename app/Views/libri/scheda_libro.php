@@ -1,5 +1,8 @@
 <?php
 use App\Support\ConfigStore;
+
+// Variables passed from controller
+$libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
 $status = strtolower((string)($libro['stato'] ?? ''));
@@ -1471,7 +1474,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
         <div class="flex items-center justify-end gap-3 pt-2">
           <button type="button" id="close-edit-copy-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
-          <button type="submit" class="<?php echo $btnPrimary ?? 'btn-primary'; ?> justify-center">
+          <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
             <i class="fas fa-save mr-2"></i><?= __("Salva Modifiche") ?>
           </button>
         </div>
