@@ -584,7 +584,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-cloud text-blue-600"></i>
+            <i class="fas fa-cloud text-primary"></i>
             <?= __("Informazioni LibraryThing") ?>
           </h2>
         </div>
@@ -599,8 +599,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   if ($fieldName === 'rating') {
                       // Show star rating
                       $rating = (int)$field['value'];
+                      echo '<span class="text-yellow-500">';
                       echo str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
-                      echo ' (' . $rating . '/5)';
+                      echo '</span>';
+                      echo ' <span class="text-gray-600">(' . $rating . '/5)</span>';
                   } elseif ($fieldName === 'review' || $fieldName === 'comment') {
                       // Multi-line text
                       echo '<div class="prose prose-sm max-w-none">' . App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) . '</div>';
@@ -609,7 +611,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                       echo App\Support\HtmlHelper::e(format_date($field['value'], false, '/'));
                   } elseif ($fieldName === 'value') {
                       // Currency
-                      echo '€ ' . number_format((float)$field['value'], 2, ',', '.');
+                      echo '<span class="font-medium">€ ' . number_format((float)$field['value'], 2, ',', '.') . '</span>';
                   } elseif ($fieldName === 'lending_status') {
                       // Status badge
                       $statusColors = [

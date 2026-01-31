@@ -765,7 +765,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <!-- Frontend Visibility Preferences -->
           <div class="pt-6 border-t border-gray-200">
             <h3 class="text-md font-semibold text-gray-700 mb-3">
-              <i class="fas fa-eye text-blue-600 mr-2"></i>
+              <i class="fas fa-eye text-primary mr-2"></i>
               <?= __("Visibilità nel Frontend") ?>
             </h3>
             <p class="text-sm text-gray-600 mb-4"><?= __("Seleziona quali campi LibraryThing mostrare nella pagina pubblica del libro") ?></p>
@@ -798,12 +798,12 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                   <h4 class="text-sm font-semibold text-gray-700 mb-2"><?= $groupName ?></h4>
                   <?php foreach ($fields as $fieldName): ?>
                     <?php if (isset($ltFields[$fieldName])): ?>
-                      <label class="flex items-center space-x-2 text-sm py-1">
+                      <label class="flex items-center space-x-2 text-sm py-1 cursor-pointer hover:bg-gray-100 rounded px-1 transition-colors">
                         <input
                           type="checkbox"
                           name="lt_visibility[<?= $fieldName ?>]"
                           value="1"
-                          class="form-checkbox h-4 w-4 text-blue-600"
+                          class="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
                           <?= isset($ltFieldsVisibility[$fieldName]) && $ltFieldsVisibility[$fieldName] ? 'checked' : '' ?>
                         >
                         <span class="text-gray-700"><?= HtmlHelper::e($ltFields[$fieldName]) ?></span>
