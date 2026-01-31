@@ -298,6 +298,20 @@ class LibriController
         return $response;
     }
 
+    /**
+     * Display the book detail page for the given book ID.
+     *
+     * Loads the book and related data (active loan, copies, loan history, and—if the current
+     * user is admin/staff—active reservations), determines LibraryThing plugin state, renders
+     * the book detail view into the response body, and returns the response. If the book does
+     * not exist, the response is returned with a 404 status.
+     *
+     * @param Request $request PSR-7 request object.
+     * @param Response $response PSR-7 response object that will receive the rendered HTML.
+     * @param mysqli $db Active MySQLi connection used to load book-related data.
+     * @param int $id The book's database identifier.
+     * @return Response The response containing the rendered book detail page or a 404 status when not found.
+     */
     public function show(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $repo = new \App\Models\BookRepository($db);
@@ -387,6 +401,15 @@ class LibriController
         return $response;
     }
 
+    /**
+     * Render the "create book" form populated with minimal lookup data and return the HTTP response.
+     *
+     * The method loads small reference lists (publishers, authors, shelves, shelf levels, genres, subgenres)
+     * and the LibraryThing plugin flag, renders the create-book view into the application layout, writes the
+     * resulting HTML into the response body, and returns the response.
+     *
+     * @return Response The HTTP response containing the rendered create-book form HTML.
+     */
     public function createForm(Request $request, Response $response, mysqli $db): Response
     {
         // For select boxes, load minimal lists
@@ -413,6 +436,20 @@ class LibriController
         return $response;
     }
 
+    /**
+     * Create a new book from submitted form data and persist it to the database.
+     *
+     * Processes POSTed book fields (including optional scraped data and LibraryThing fields when the plugin is installed),
+     * normalizes and validates input, auto-creates related entities (authors, publisher, genres) when needed,
+     * performs an identifier duplicate check (with an advisory lock), creates the book record and physical copies,
+     * handles cover upload/URL processing, saves optional fields and LibraryThing visibility, and redirects to the new book's admin page.
+     *
+     * CSRF protection is expected to be provided by middleware.
+     *
+     * @param Request $request PSR-7 request containing POSTed form data.
+     * @param Response $response PSR-7 response used to return redirects or JSON errors.
+     * @param mysqli $db Database connection used for all persistence operations.
+     * @return Response A response redirecting to the created book's admin page on success, or a JSON error response (e.g., HTTP 409 for duplicates, HTTP 503 for lock timeouts) on failure.
     public function store(Request $request, Response $response, mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
@@ -903,6 +940,15 @@ class LibriController
         }
     }
 
+    /**
+     * Render the edit form for a book and return an HTTP response with the rendered HTML.
+     *
+     * Loads the book by ID and, if found, prepares publishers, authors, shelves, genres,
+     * subgenres and LibraryThing plugin flag for the edit view. If the book is not found,
+     * returns a 404 response.
+     *
+     * @return Response The HTTP response containing the rendered page or a 404 status. 
+     */
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $repo = new \App\Models\BookRepository($db);
@@ -933,6 +979,24 @@ class LibriController
         return $response;
     }
 
+    /**
+     * Validate and apply updates from an admin book edit form to the specified book record.
+     *
+     * Processes submitted data (including ISBN/EAN normalization, author/publisher/genre creation,
+     * cover handling, copy count adjustments, LibraryThing visibility, and hooks), performs duplicate
+     * detection under an advisory lock, updates the database, recalculates availability, and returns
+     * an appropriate HTTP response for the outcome.
+     *
+     * @param Request $request The incoming HTTP request containing the parsed form data.
+     * @param Response $response The HTTP response object to modify and return.
+     * @param mysqli $db The mysqli database connection.
+     * @param int $id The ID of the book to update.
+     * @return Response A Response object:
+     *                 - redirects to the updated book page on success;
+     *                 - 404 if the book is not found;
+     *                 - 302 redirect back to the edit page with an error on validation/lock failures;
+     *                 - 409 with a JSON payload when a duplicate identifier (ISBN/EAN) is detected.
+     */
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $data = (array) $request->getParsedBody();
@@ -1922,7 +1986,27 @@ class LibriController
     }
 
     /**
-     * Fetch cover for a book via scraping (if missing)
+     * Attempt to fetch and save a missing cover for a book by scraping its ISBN and update the book record.
+     *
+     * Performs an internal scrape for the book's ISBN, downloads and validates the found image (max 5 MB,
+     * accepts JPEG/PNG), saves it to the local covers directory, updates the libri.copertina_url field,
+     * and returns a JSON response describing the outcome.
+     *
+     * Possible JSON responses include:
+     * - success=true, fetched=true, cover_url=... when a cover was retrieved and saved.
+     * - success=true, fetched=false, reason='already_has_cover' when the book already has a cover.
+     * - success=true, fetched=false, reason='no_isbn' when the book has no ISBN to scrape.
+     * - success=true, fetched=false, reason='no_cover_found' when scraping returned no image.
+     * - success=false with an error message for scraping, download, validation, or processing failures.
+     *
+     * HTTP status codes used:
+     * - 200 on normal success responses,
+     * - 404 when the book is not found,
+     * - 400 for invalid image or size violations,
+     * - 502 for scraping or remote download failures,
+     * - 500 for internal image processing or saving errors.
+     *
+     * @return Response JSON response describing the fetch result and any error details.
      */
     public function fetchCover(Request $request, Response $response, mysqli $db, int $id): Response
     {
@@ -2496,8 +2580,13 @@ class LibriController
     }
 
     /**
-     * Export libri to CSV in import-compatible format
-     * Supports multiple formats and delimiters
+     * Export the books collection as a downloadable CSV file, optionally filtered and formatted.
+     *
+     * Supports query parameters for filtering (search, stato, editore_id, genere_id, autore_id),
+     * and export options `format` ("standard" or "librarything") and `delimiter` (";", "comma", "tab").
+     * The CSV is streamed with a UTF-8 BOM and appropriate HTTP headers to trigger a file download.
+     *
+     * @return Response PSR-7 response containing the CSV file as an attachment.
      */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
@@ -2717,9 +2806,9 @@ class LibriController
     }
 
     /**
-     * Get LibraryThing CSV headers
+     * Return the ordered CSV header row used for LibraryThing exports.
      *
-     * @return array Headers in LibraryThing format
+     * @return string[] Ordered list of column names for the LibraryThing CSV format.
      */
     private function getLibraryThingHeaders(): array
     {

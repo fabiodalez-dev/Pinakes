@@ -26,7 +26,9 @@ use Slim\Psr7\Stream;
 class LibraryThingController
 {
     /**
-     * Show LibraryThing import page
+     * Render the LibraryThing TSV import HTML page.
+     *
+     * @return Response An HTML response containing the LibraryThing import page.
      */
     public function showImportPage(Request $request, Response $response): Response
     {
@@ -40,7 +42,16 @@ class LibraryThingController
     }
 
     /**
-     * Show plugin administration page
+     * Render the LibraryThing plugin administration page.
+     *
+     * Retrieves installation status from the database, renders the administration view,
+     * writes the resulting HTML into the response body, and returns the response with
+     * a text/html Content-Type header.
+     *
+     * @param Request  $request  PSR-7 request object.
+     * @param Response $response PSR-7 response object to write the HTML into.
+     * @param \mysqli  $db       Database connection used to determine plugin status.
+     * @return Response The HTTP response containing the rendered administration page.
      */
     public function showAdminPage(Request $request, Response $response, \mysqli $db): Response
     {
@@ -57,7 +68,12 @@ class LibraryThingController
     }
 
     /**
-     * Install plugin
+     * Install the LibraryThing plugin and redirect to the plugin administration page.
+     *
+     * Stores the installer's message in $_SESSION['success'] when installation succeeds
+     * or in $_SESSION['error'] when it fails.
+     *
+     * @return Response A redirect response to /admin/plugins/librarything.
      */
     public function install(Request $request, Response $response, \mysqli $db): Response
     {
@@ -74,7 +90,11 @@ class LibraryThingController
     }
 
     /**
-     * Uninstall plugin
+     * Uninstalls the LibraryThing plugin and redirects to the plugin administration page.
+     *
+     * Stores a success or error message in the session under 'success' or 'error' depending on the outcome.
+     *
+     * @return Response A Response configured as a 302 redirect to /admin/plugins/librarything.
      */
     public function uninstall(Request $request, Response $response, \mysqli $db): Response
     {
@@ -91,8 +111,21 @@ class LibraryThingController
     }
 
     /**
-     * Process LibraryThing import
-     */
+     * Handle a LibraryThing TSV/CSV upload and import its records into the system.
+     *
+     * Validates the uploaded file (extensions .tsv, .csv, .txt), initializes import progress in
+     * session state, delegates processing to importLibraryThingData, and records results or errors
+     * in the session. For AJAX requests returns a JSON response with success or error details;
+     * for standard requests returns a redirect to the LibraryThing import admin page.
+     *
+     * Side effects:
+     * - Sets $_SESSION['import_progress'] to track status and progress.
+     * - Stores summary messages in $_SESSION['success'] or $_SESSION['error'].
+     * - Stores per-row import errors (if any) in $_SESSION['import_errors'].
+     *
+     * @param Request $request HTTP request containing the uploaded file under key 'tsv_file' and an optional 'enable_scraping' flag.
+     * @param Response $response PSR-7 response instance used to produce either a JSON response for AJAX or a redirect.
+     * @return Response A redirect response to the import admin page for normal requests, or a JSON response for AJAX requests.
     public function processImport(Request $request, Response $response, \mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
@@ -191,13 +224,22 @@ class LibraryThingController
     }
 
     /**
-     * Import LibraryThing TSV data
-     *
-     * @param string $filePath Path to TSV file
-     * @param \mysqli $db Database connection
-     * @param bool $enableScraping Enable web scraping for missing metadata
-     * @return array Import statistics
-     */
+         * Import records from a LibraryThing TSV file into the local database.
+         *
+         * Parses the provided TSV, upserts books (creating publishers/authors as needed), associates authors,
+         * updates import progress in session, and optionally enriches records via web scraping.
+         *
+         * @param string $filePath Path to the LibraryThing TSV file.
+         * @param \mysqli $db Active MySQLi database connection used for queries and transactions.
+         * @param bool $enableScraping If true, attempts to fetch missing metadata via web scraping (subject to rate limits and timeouts).
+         * @return array Associative array with import statistics:
+         *               - 'imported' (int): number of newly created books.
+         *               - 'updated' (int): number of existing books updated.
+         *               - 'authors_created' (int): number of author records created.
+         *               - 'publishers_created' (int): number of publisher records created.
+         *               - 'scraped' (int): number of records successfully enriched by scraping.
+         *               - 'errors' (string[]): array of error messages encountered during import.
+         */
     private function importLibraryThingData(string $filePath, \mysqli $db, bool $enableScraping = false): array
     {
         $imported = 0;
@@ -384,7 +426,13 @@ class LibraryThingController
     }
 
     /**
-     * Detect if file is in LibraryThing format
+     * Check whether a header row matches the LibraryThing TSV/CSV format.
+     *
+     * Requires the presence of at least two of the LibraryThing-specific columns:
+     * "Book Id", "Title", and "ISBNs".
+     *
+     * @param string[] $headers Array of header names from the input file.
+     * @return bool `true` if at least two of the required LibraryThing columns are present, `false` otherwise.
      */
     private function isLibraryThingFormat(array $headers): bool
     {
@@ -404,8 +452,19 @@ class LibraryThingController
     }
 
     /**
-     * Parse LibraryThing row to standard format
-     */
+         * Convert a single LibraryThing TSV/CSV row into the controller's standardized book data array.
+         *
+         * The input is an associative array using LibraryThing column headers (e.g., "Title", "Primary Author",
+         * "ISBNs", "Publication", "Date", etc.). The returned array contains normalized keys used by the import
+         * pipeline (for example: `id`, `titolo`, `sottotitolo`, `autori`, `editore`, `anno_pubblicazione`,
+         * `isbn13`, `isbn10`, `ean`, `lingua`, `numero_pagine`, `descrizione`, `formato`, `genere`, `parole_chiave`,
+         * `collana`, `classificazione_dewey`, `prezzo`, `copie_totali` and extended LibraryThing fields like
+         * `review`, `rating`, `peso`, `dimensioni`, `data_acquisizione`, `date_started`, `date_read`, `bcid`,
+         * `oclc`, `work_id`, `issn`, `source`, `lending_start`, `lending_end`, `value`, `condition_lt`, etc.).
+         *
+         * @param array $data Associative row from a LibraryThing export keyed by header names.
+         * @return array Associative array with normalized book fields ready for upsert/processing by the import pipeline.
+         */
     private function parseLibraryThingRow(array $data): array
     {
         $result = [];
@@ -624,10 +683,13 @@ class LibraryThingController
     }
 
     /**
-     * Parse date from LibraryThing format to MySQL DATE format
+     * Normalize a LibraryThing date string to MySQL DATE (YYYY-MM-DD).
      *
-     * @param string $dateString Date string in various formats
-     * @return string|null MySQL DATE format (YYYY-MM-DD) or null
+     * Attempts to parse common date formats and returns a normalized date string,
+     * or `null` when the input cannot be resolved to a valid date.
+     *
+     * @param string $dateString Date string in various possible formats.
+     * @return string|null MySQL date (YYYY-MM-DD) or `null` if unparseable.
      */
     private function parseDate(string $dateString): ?string
     {
@@ -650,7 +712,14 @@ class LibraryThingController
         return null;
     }
 
-    // Reuse methods from CsvImportController
+    /**
+     * Retrieve a publisher ID by name, creating a new publisher record if none exists.
+     *
+     * Creates a new publisher row when the given name is not found.
+     *
+     * @param string $name The publisher name to look up or create.
+     * @return int|string The existing publisher ID as an `int`, or the string `'created'` if a new publisher was inserted.
+     */
     private function getOrCreatePublisher(\mysqli $db, string $name): int|string
     {
         $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
@@ -669,6 +738,13 @@ class LibraryThingController
         return 'created';
     }
 
+    /**
+     * Fetches an author by name or creates a new author when none exists.
+     *
+     * @return array An associative array with keys:
+     *               - 'id': int The author's ID.
+     *               - 'created': bool `true` if a new author was inserted, `false` if an existing author was found.
+     */
     private function getOrCreateAuthor(\mysqli $db, string $name): array
     {
         $authRepo = new \App\Models\AuthorRepository($db);
@@ -690,6 +766,14 @@ class LibraryThingController
         return ['id' => $newId, 'created' => true];
     }
 
+    /**
+     * Retrieve the genre ID for the given genre name.
+     *
+     * Returns the genre's numeric id if a genre with the exact name exists in the `generi` table, or `null` if the name is empty or no match is found.
+     *
+     * @param string $name The genre name to look up (exact match).
+     * @return int|null The genre id if found, `null` otherwise.
+     */
     private function getGenreId(\mysqli $db, string $name): ?int
     {
         if (empty($name)) return null;
@@ -706,6 +790,18 @@ class LibraryThingController
         return null;
     }
 
+    /**
+     * Locate an existing book record using an internal book ID or an ISBN-13.
+     *
+     * Checks for a numeric 'id' in $data and, if present, looks up that book (ignoring deleted records).
+     * If no id is provided or not found, attempts lookup by 'isbn13'.
+     *
+     * @param \mysqli $db Database connection.
+     * @param array $data Associative array with optional keys:
+     *                    - 'id' (int|string): internal book id to search for.
+     *                    - 'isbn13' (string): ISBN-13 to search for.
+     * @return int|null The found book's id, or `null` if no matching book exists.
+     */
     private function findExistingBook(\mysqli $db, array $data): ?int
     {
         if (!empty($data['id']) && is_numeric($data['id'])) {
@@ -736,6 +832,17 @@ class LibraryThingController
         return null;
     }
 
+    /**
+     * Inserts a new book or updates an existing one based on the provided data, returning the book id and performed action.
+     *
+     * @param \mysqli $db Database connection used for lookups and modifications.
+     * @param array $data Associative array of normalized book fields (may include internal id or ISBNs to locate existing records).
+     * @param int|null $editorId Optional editor/publisher id to associate with the book if creating or updating.
+     * @param int|null $genreId Optional genre id to associate with the book if creating or updating.
+     * @return array An associative array with keys:
+     *               - `id` (int): the id of the created or updated book,
+     *               - `action` (string): either `'created'` if a new book was inserted or `'updated'` if an existing book was modified.
+     */
     private function upsertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): array
     {
         $existingBookId = $this->findExistingBook($db, $data);
@@ -749,6 +856,24 @@ class LibraryThingController
         }
     }
 
+    /**
+     * Update an existing book record with provided native and LibraryThing fields.
+     *
+     * When the LibraryThing plugin is installed, this updates an extended set of LibraryThing-specific
+     * columns in addition to the core book fields; otherwise it updates only the core fields.
+     *
+     * @param int $bookId The ID of the book to update.
+     * @param array $data Associative array of book values mapped from LibraryThing input. Expected keys include
+     *                    titolo, sottotitolo, isbn10, isbn13, ean, anno_pubblicazione, lingua, edizione,
+     *                    numero_pagine, descrizione, formato, prezzo, collana, numero_serie, traduttore,
+     *                    parole_chiave, classificazione_dewey and, when available, LibraryThing-specific keys
+     *                    such as peso, dimensioni, data_acquisizione, review, rating, comment, private_comment,
+     *                    physical_description, lccn, lc_classification, other_call_number, date_started,
+     *                    date_read, bcid, oclc, work_id, issn, original_languages, source, from_where,
+     *                    lending_patron, lending_status, lending_start, lending_end, value, condition_lt.
+     * @param int|null $editorId ID of the publisher (editore) to set, or null to leave unset.
+     * @param int|null $genreId ID of the genre (genere) to set, or null to leave unset.
+     */
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
         // Check if LibraryThing plugin is installed
@@ -871,6 +996,20 @@ class LibraryThingController
         $stmt->close();
     }
 
+    /**
+     * Insert a new book record into the database, create its physical copy records, and update availability.
+     *
+     * When the LibraryThing plugin is installed, the record includes the extended LibraryThing fields; otherwise a reduced
+     * set of core fields is stored. This method also creates one or more physical copies (inventory items) for the new
+     * book and recalculates its availability.
+     *
+     * @param \mysqli $db Database connection.
+     * @param array $data Associative array with book fields (e.g., titolo, isbn13, isbn10, ean, descrizione, numero_pagine,
+     *                    formato, prezzo, copie_totali, data_acquisizione and optional LibraryThing-specific keys).
+     * @param int|null $editorId ID of the publisher (editore) or null to leave unset.
+     * @param int|null $genreId ID of the genre (genere) or null to leave unset.
+     * @return int The newly inserted book ID.
+     */
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int
     {
         // Check if LibraryThing plugin is installed
@@ -1030,6 +1169,15 @@ class LibraryThingController
         return $bookId;
     }
 
+    /**
+     * Fetches supplementary book metadata for the given ISBN by invoking the internal scrape endpoint with retries.
+     *
+     * Attempts up to five times with exponential backoff to retrieve JSON data from the scraper and returns the decoded
+     * associative array when successful; returns an empty array if no data is available or all attempts fail.
+     *
+     * @param string $isbn The ISBN to query.
+     * @return array Associative array of scraped book data, or an empty array if scraping fails or returns no data.
+     */
     private function scrapeBookData(string $isbn): array
     {
         $scrapeController = new \App\Controllers\ScrapeController();
@@ -1072,6 +1220,16 @@ class LibraryThingController
         return [];
     }
 
+    /**
+     * Updates a book record with missing cover and description fields using scraped data.
+     *
+     * Only fills fields that are absent in the provided CSV data: it sets `copertina_url`
+     * from `$scrapedData['image']` and `descrizione` from `$scrapedData['description']` when available.
+     *
+     * @param int   $bookId     ID of the book to update.
+     * @param array $csvData    Original CSV/TSV row mapped to internal keys; checks `copertina_url` and `descrizione`.
+     * @param array $scrapedData Scraped data keyed by `image` (cover URL) and `description` (text).
+     */
     private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData): void
     {
         $updates = [];
@@ -1103,7 +1261,16 @@ class LibraryThingController
     }
 
     /**
-     * Get import progress (AJAX endpoint)
+     * Provide the current LibraryThing import progress as a JSON response.
+     *
+     * Returns a PSR-7 Response whose body is a JSON object with the current import progress.
+     * If no progress is active, defaults to `status: "idle"`, `current: 0`, `total: 0`, and `current_book: ""`.
+     *
+     * @return Response JSON body with keys:
+     *   - `status` (string): import state, e.g. "idle", "running", or "done".
+     *   - `current` (int): number of rows/books processed so far.
+     *   - `total` (int): total number of rows/books to process.
+     *   - `current_book` (string): title of the book currently being processed or empty string.
      */
     public function getProgress(Request $request, Response $response): Response
     {
@@ -1119,7 +1286,16 @@ class LibraryThingController
     }
 
     /**
-     * Export books to LibraryThing-compatible TSV format
+     * Export selected books as a LibraryThing-compatible TSV download.
+     *
+     * Builds a filtered query from request query parameters (search, stato, editore_id, genere_id, autore_id),
+     * converts matching book rows to LibraryThing TSV rows, and returns an HTTP response with the TSV file
+     * (UTF-8 BOM) as an attachment.
+     *
+     * @param Request $request HTTP request providing filter query parameters.
+     * @param Response $response PSR-7 response used to return the TSV attachment.
+     * @param \mysqli $db Database connection used to select books and related metadata.
+     * @return Response HTTP response containing the generated TSV file as a downloadable attachment.
      */
     public function exportToLibraryThing(Request $request, Response $response, \mysqli $db): Response
     {
@@ -1262,8 +1438,12 @@ class LibraryThingController
     }
 
     /**
-     * Get LibraryThing TSV headers
-     */
+         * Provide the ordered set of header names used for LibraryThing TSV export/import.
+         *
+         * The array defines the exact column sequence expected by LibraryThing-compatible TSV files.
+         *
+         * @return string[] Array of header labels in export/import column order.
+         */
     private function getLibraryThingHeaders(): array
     {
         return [
@@ -1325,8 +1505,17 @@ class LibraryThingController
     }
 
     /**
-     * Format book row for LibraryThing export
-     */
+         * Convert an internal book record into an ordered array of fields suitable for LibraryThing TSV export.
+         *
+         * The returned array contains values placed in the exact column order expected by the LibraryThing export format,
+         * including primary and secondary author fields, publication string (publisher with optional year), media and language
+         * labels, consolidated ISBN fields (single ISBN value and a combined bracketed ISBN list), and other LibraryThing-specific
+         * metadata columns. Missing values are returned as empty strings.
+         *
+         * @param array $libro Associative book record (database row) with keys like 'id', 'titolo', 'autori_nomi', 'editore_nome',
+         *                     'anno_pubblicazione', 'isbn13', 'isbn10', 'formato', 'lingua', and other metadata fields.
+         * @return array Ordered list of field values corresponding to LibraryThing TSV columns.
+         */
     private function formatLibraryThingRow(array $libro): array
     {
         // Parse authors

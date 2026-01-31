@@ -13,13 +13,21 @@ class LibraryThingInstaller
 {
     private \mysqli $db;
 
+    /**
+     * Create a LibraryThingInstaller using the provided MySQLi connection.
+     *
+     * @param \mysqli $db The MySQLi database connection used for all schema and status operations.
+     */
     public function __construct(\mysqli $db)
     {
         $this->db = $db;
     }
 
     /**
-     * Check if plugin is installed
+     * Determine whether the LibraryThing plugin has been applied to the libri table.
+     *
+     * @param \mysqli $db Database connection used to inspect the libri table.
+     * @return bool `true` if the libri table contains the `review` column, `false` otherwise.
      */
     public static function isInstalled(\mysqli $db): bool
     {
@@ -29,9 +37,11 @@ class LibraryThingInstaller
     }
 
     /**
-     * Install plugin - create all LibraryThing fields
+     * Create LibraryThing-related columns, indexes, a rating check constraint, and a visibility JSON column on the libri table.
      *
-     * @return array ['success' => bool, 'message' => string]
+     * Performs the schema changes inside a database transaction; on failure the transaction is rolled back and an error message is returned.
+     *
+     * @return array{success: bool, message: string} ['success' => true on success, false otherwise; 'message' => localized status or error message]
      */
     public function install(): array
     {
@@ -146,11 +156,11 @@ class LibraryThingInstaller
     }
 
     /**
-     * Uninstall plugin - remove all LibraryThing fields
+     * Removes all LibraryThing-related columns, indexes, and constraints from the libri table, effectively uninstalling the plugin.
      *
-     * WARNING: This will delete all data in these fields!
+     * This operation deletes any data stored in those fields.
      *
-     * @return array ['success' => bool, 'message' => string]
+     * @return array Associative array with 'success' => `true` if uninstallation completed, `false` on error, and 'message' => localized status or error message.
      */
     public function uninstall(): array
     {
@@ -217,9 +227,14 @@ class LibraryThingInstaller
     }
 
     /**
-     * Get plugin status information
+     * Retrieve the LibraryThing plugin installation status and schema completeness.
      *
-     * @return array Status information
+     * @return array{
+     *   installed: bool,          // `true` if the plugin has been installed (presence of plugin column)
+     *   fields_count: int,        // number of LibraryThing-specific columns found in `libri`
+     *   expected_fields: int,     // number of LibraryThing columns expected (26)
+     *   complete: bool            // `true` if `fields_count` equals `expected_fields`
+     * }
      */
     public function getStatus(): array
     {
@@ -260,9 +275,9 @@ class LibraryThingInstaller
     }
 
     /**
-     * Get list of all LibraryThing fields with their labels (Italian)
+     * Provide a mapping of LibraryThing field names to their Italian labels.
      *
-     * @return array Array of field_name => label
+     * @return array<string,string> Associative array mapping LibraryThing field names to their Italian labels.
      */
     public static function getLibraryThingFields(): array
     {

@@ -178,6 +178,22 @@ class BookRepository
         return $rows;
     }
 
+    /**
+     * Create a new book record from provided input data and associate its authors.
+     *
+     * Accepts an associative array of book attributes (e.g. 'titolo', 'isbn10', 'isbn13',
+     * 'genere_id', 'editore_id', 'scaffale_id', 'mensola_id', 'posizione_progressiva',
+     * 'collocazione', 'data_acquisizione', 'data_pubblicazione', 'peso', 'prezzo', etc.).
+     * Optional LibraryThing plugin fields are also supported when corresponding table
+     * columns exist. If 'collocazione' is not provided, a collocation string is built
+     * from shelf/mensola/position values when available. Empty string values for date,
+     * numeric and code fields are normalized to NULL. After inserting the record the
+     * method synchronizes authors from the 'autori_ids' key.
+     *
+     * @param array $data Associative input data for the new book. Use 'autori_ids' to pass an array of author IDs.
+     * @return int The newly inserted book ID.
+     * @throws \Throwable If the database insert fails.
+     */
     public function createBasic(array $data): int
     {
         $hasSottogenere = $this->hasColumn('sottogenere_id');
@@ -472,6 +488,19 @@ class BookRepository
         return $bookId;
     }
 
+    /**
+     * Update a book's basic fields and refresh its author associations.
+     *
+     * Accepts an associative $data array of updatable book fields (only columns present in the libri table are applied),
+     * normalizes several input values (location, dates, identifiers, numeric fields) and sets updated_at to NOW().
+     * After the update, associated authors are synced using the optional 'autori_ids' entry in $data.
+     *
+     * @param int   $id   The book ID to update.
+     * @param array $data Associative array of book fields to update; may include 'autori_ids' (array of author ids) and
+     *                    any LibraryThing plugin fields when present in the schema.
+     * @return bool True on successful execution of the UPDATE statement, false otherwise.
+     * @throws \Throwable If the database statement execution fails.
+     */
     public function updateBasic(int $id, array $data): bool
     {
         $hasSottogenere = $this->hasColumn('sottogenere_id');

@@ -45,8 +45,18 @@ class CsvImportController
     }
 
     /**
-     * Processa l'upload del CSV
-     */
+         * Handle a CSV file upload, validate and import its rows into the library, and record import progress and results in session.
+         *
+         * Performs file and MIME validation, detects the CSV delimiter, initializes import progress, and calls importCsvData()
+         * to ingest rows (optionally enabling scraping). On success or failure it stores progress, success/error messages and
+         * any import errors in the session. For AJAX requests it returns a JSON response; otherwise it redirects back to the
+         * import page.
+         *
+         * @param Request $request PSR-7 request containing the uploaded CSV file and form fields (e.g., enable_scraping).
+         * @param Response $response PSR-7 response instance used to produce the final redirect or JSON reply.
+         * @param \mysqli $db Database connection used for inserting/updating import records.
+         * @return Response A response that is either a JSON result for AJAX callers or a redirect to the import page.
+         */
     public function processImport(Request $request, Response $response, \mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
@@ -322,8 +332,14 @@ class CsvImportController
     }
 
     /**
-     * Detect delimiter from sample lines
-     * Supports: semicolon (;), comma (,), and tab (\t)
+     * Detects the most likely CSV delimiter from sample text lines.
+     *
+     * Counts occurrences of semicolon (`;`), comma (`,`) and tab (`\t`) in the provided
+     * sample lines and returns the delimiter with the highest count. Returns `null`
+     * when no supported delimiter is found in the samples.
+     *
+     * @param array $lines Sample text lines to analyze for delimiter frequency.
+     * @return string|null The detected delimiter character (`';'`, `','`, or `"\t"`) or `null` if none detected.
      */
     private function detectDelimiterFromSample(array $lines): ?string
     {
@@ -350,11 +366,14 @@ class CsvImportController
     }
 
     /**
-     * Map column headers to canonical field names
-     * Supports multiple languages and variations (case-insensitive)
+     * Map CSV column headers to canonical internal field names.
      *
-     * @param array $headers Original CSV headers
-     * @return array Mapped headers with canonical field names
+     * Matches header names (case-insensitive, trimmed) against a predefined set of multilingual/variant names
+     * and returns a mapping where each array key is the original column index and each value is the canonical field name.
+     * If a header has no known mapping, the original header string is preserved as the value.
+     *
+     * @param array $headers Original CSV header row (ordered list of column names).
+     * @return array Array keyed by original column index with values set to canonical field names or the original header when unmapped.
      */
     private function mapColumnHeaders(array $headers): array
     {
@@ -407,10 +426,10 @@ class CsvImportController
     }
 
     /**
-     * Detect if CSV is in LibraryThing format
+     * Determine whether a CSV header row appears to be in LibraryThing export format.
      *
-     * @param array $headers Original CSV headers
-     * @return bool True if LibraryThing format detected
+     * @param array $headers Original CSV headers.
+     * @return bool `true` if at least two LibraryThing-specific columns are present, `false` otherwise.
      */
     private function isLibraryThingFormat(array $headers): bool
     {
@@ -431,12 +450,15 @@ class CsvImportController
     }
 
     /**
-     * Parse LibraryThing-specific fields and merge into standard format
-     *
-     * @param array $data Row data with original column names
-     * @param array $originalHeaders Original CSV headers before mapping
-     * @return array Processed data in standard format
-     */
+         * Merge LibraryThing-format columns from a CSV row into the standard book data schema.
+         *
+         * Converts LibraryThing-specific fields (e.g., Primary/Secondary Author, Publication, ISBNs, Date, Media, Languages)
+         * into the controller's canonical keys such as `autori`, `editore`, `isbn13`, `isbn10`, `anno_pubblicazione`, `formato`, and `lingua`.
+         *
+         * @param array $data Row data keyed by original LibraryThing column names.
+         * @param array $originalHeaders Original CSV headers before mapping.
+         * @return array The row data augmented with standard-format fields where values could be derived from LibraryThing columns.
+         */
     private function parseLibraryThingFormat(array $data, array $originalHeaders): array
     {
         $processed = $data;
@@ -542,7 +564,24 @@ class CsvImportController
     }
 
     /**
-     * Importa i dati dal CSV
+     * Import CSV data into the library database and return a summary of the operation.
+     *
+     * Processes the CSV at the given path (handles optional BOM), maps headers to canonical fields,
+     * upserts books and related authors/publishers, optionally enriches records via scraping, and
+     * updates per-import progress in session.
+     *
+     * @param string   $filePath       Path to the local CSV file to import.
+     * @param \mysqli  $db             Active MySQLi connection used for queries and transactions.
+     * @param bool     $enableScraping If true, attempt to enrich records with external scraping (rate-limited and time-limited).
+     * @param string   $delimiter      Field delimiter to use (defaults to ';' if empty).
+     * @return array<string,int|array> Summary with keys:
+     *   - `imported` (int): number of newly created books,
+     *   - `updated` (int): number of existing books updated,
+     *   - `authors_created` (int): number of authors created during import,
+     *   - `publishers_created` (int): number of publishers created during import,
+     *   - `scraped` (int): number of books successfully enriched by scraping,
+     *   - `errors` (array): list of error messages encountered per row or global issues.
+     * @throws \Exception If the CSV file cannot be opened, is empty/invalid, or a required field is missing for a row.
      */
     private function importCsvData(string $filePath, \mysqli $db, bool $enableScraping = false, string $delimiter = ';'): array
     {
