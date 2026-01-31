@@ -358,6 +358,10 @@ class BookRepository
         }
         if ($this->hasColumn('rating')) {
             $rating = isset($data['rating']) && $data['rating'] !== '' ? (int)$data['rating'] : null;
+            // Validate CHECK constraint: rating IS NULL OR (rating >= 1 AND rating <= 5)
+            if ($rating !== null && ($rating < 1 || $rating > 5)) {
+                $rating = null;
+            }
             $addField('rating', 'i', $rating);
         }
         if ($this->hasColumn('comment')) {
@@ -647,6 +651,10 @@ class BookRepository
         }
         if ($this->hasColumn('rating')) {
             $rating = isset($data['rating']) && $data['rating'] !== '' ? (int)$data['rating'] : null;
+            // Validate CHECK constraint: rating IS NULL OR (rating >= 1 AND rating <= 5)
+            if ($rating !== null && ($rating < 1 || $rating > 5)) {
+                $rating = null;
+            }
             $addSet('rating', 'i', $rating);
         }
         if ($this->hasColumn('comment')) {

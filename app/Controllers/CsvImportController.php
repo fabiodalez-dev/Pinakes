@@ -481,14 +481,19 @@ class CsvImportController
                 $isbn = trim($isbn);
                 if (empty($isbn)) continue;
 
-                // Assign to isbn13 or isbn10 based on length
-                if (strlen($isbn) === 13) {
+                // Normalize ISBN: remove all non-alphanumeric except X (for ISBN-10 check digit)
+                $cleanIsbn = preg_replace('/[^0-9X]/i', '', $isbn);
+                if (empty($cleanIsbn)) continue;
+
+                $len = strlen($cleanIsbn);
+                // Assign to isbn13 or isbn10 based on length after normalization
+                if ($len === 13) {
                     if (empty($processed['isbn13'])) {
-                        $processed['isbn13'] = $isbn;
+                        $processed['isbn13'] = $cleanIsbn;
                     }
-                } elseif (strlen($isbn) === 10) {
+                } elseif ($len === 10) {
                     if (empty($processed['isbn10'])) {
-                        $processed['isbn10'] = $isbn;
+                        $processed['isbn10'] = $cleanIsbn;
                     }
                 }
             }
@@ -496,9 +501,9 @@ class CsvImportController
 
         // Parse Date field (year)
         if (!empty($data['Date']) && empty($processed['anno_pubblicazione'])) {
-            $year = preg_replace('/[^0-9]/', '', $data['Date']);
-            if (strlen($year) === 4) {
-                $processed['anno_pubblicazione'] = $year;
+            // Extract first 4-digit year (e.g., "2020-05-01" → "2020")
+            if (preg_match('/\b(\d{4})\b/', $data['Date'], $matches)) {
+                $processed['anno_pubblicazione'] = $matches[1];
             }
         }
 

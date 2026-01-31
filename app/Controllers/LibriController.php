@@ -2844,51 +2844,51 @@ class LibriController
             '',                                                    // Secondary Author Roles
             $publication,                                          // Publication
             $anno,                                                 // Date
-            '',                                                    // Review
-            '',                                                    // Rating
-            '',                                                    // Comment
-            '',                                                    // Private Comment
+            $libro['review'] ?? '',                                // Review
+            $libro['rating'] ?? '',                                // Rating
+            $libro['comment'] ?? '',                               // Comment
+            $libro['private_comment'] ?? '',                       // Private Comment
             $libro['descrizione'] ?? '',                           // Summary
             $media,                                                // Media
-            '',                                                    // Physical Description
-            '',                                                    // Weight
+            $libro['physical_description'] ?? '',                  // Physical Description
+            $libro['peso'] ?? '',                                  // Weight
             '',                                                    // Height
             '',                                                    // Thickness
             '',                                                    // Length
-            '',                                                    // Dimensions
+            $libro['dimensioni'] ?? '',                            // Dimensions
             $libro['numero_pagine'] ?? '',                         // Page Count
-            '',                                                    // LCCN
-            '',                                                    // Acquired
-            '',                                                    // Date Started
-            '',                                                    // Date Read
+            $libro['lccn'] ?? '',                                  // LCCN
+            $libro['data_acquisizione'] ?? '',                     // Acquired
+            $libro['date_started'] ?? '',                          // Date Started
+            $libro['date_read'] ?? '',                             // Date Read
             $libro['ean'] ?? '',                                   // Barcode
-            '',                                                    // BCID
+            $libro['bcid'] ?? '',                                  // BCID
             $libro['parole_chiave'] ?? '',                         // Tags
             $libro['collana'] ?? '',                               // Collections
             $language,                                             // Languages
-            '',                                                    // Original Languages
-            '',                                                    // LC Classification
+            $libro['original_languages'] ?? '',                    // Original Languages
+            $libro['lc_classification'] ?? '',                     // LC Classification
             $libro['isbn13'] ?? $libro['isbn10'] ?? '',            // ISBN
             $isbnString,                                           // ISBNs
             $libro['genere_nome'] ?? '',                           // Subjects
             $libro['classificazione_dewey'] ?? '',                 // Dewey Decimal
             '',                                                    // Dewey Wording
-            '',                                                    // Other Call Number
+            $libro['other_call_number'] ?? '',                     // Other Call Number
             $libro['copie_totali'] ?? '1',                         // Copies
-            '',                                                    // Source
+            $libro['source'] ?? '',                                // Source
             '',                                                    // Entry Date
-            '',                                                    // From Where
-            '',                                                    // OCLC
-            '',                                                    // Work id
-            '',                                                    // Lending Patron
-            '',                                                    // Lending Status
-            '',                                                    // Lending Start
-            '',                                                    // Lending End
+            $libro['from_where'] ?? '',                            // From Where
+            $libro['oclc'] ?? '',                                  // OCLC
+            $libro['work_id'] ?? '',                               // Work id
+            $libro['lending_patron'] ?? '',                        // Lending Patron
+            $libro['lending_status'] ?? '',                        // Lending Status
+            $libro['lending_start'] ?? '',                         // Lending Start
+            $libro['lending_end'] ?? '',                           // Lending End
             $libro['prezzo'] ?? '',                                // List Price
             '',                                                    // Purchase Price
-            '',                                                    // Value
-            '',                                                    // Condition
-            ''                                                     // ISSN
+            $libro['value'] ?? '',                                 // Value
+            $libro['condition_lt'] ?? '',                          // Condition
+            $libro['issn'] ?? ''                                   // ISSN
         ];
     }
 

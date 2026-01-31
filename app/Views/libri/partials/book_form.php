@@ -790,7 +790,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 'Identificatori' => ['bcid', 'oclc', 'work_id', 'issn'],
                 'Provenienza' => ['original_languages', 'source', 'from_where'],
                 'Prestito' => ['lending_patron', 'lending_status', 'lending_start', 'lending_end'],
-                'Altro' => ['physical_description', 'value', 'condition_lt', 'private_comment']
+                'Altro' => ['physical_description', 'value', 'condition_lt']
             ];
             ?>
 

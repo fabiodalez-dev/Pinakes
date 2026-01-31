@@ -571,15 +571,32 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           $ltFields = \App\Controllers\Plugins\LibraryThingInstaller::getLibraryThingFields();
           $visibleFields = [];
           foreach ($ltVisibility as $fieldName => $isVisible) {
-              if ($isVisible && !empty($libro[$fieldName]) && isset($ltFields[$fieldName])) {
-                  // Skip private_comment - never show in frontend
-                  if ($fieldName !== 'private_comment') {
-                      $visibleFields[$fieldName] = [
-                          'label' => $ltFields[$fieldName],
-                          'value' => $libro[$fieldName]
-                      ];
-                  }
+              // Skip if not visible, not a valid field, or private_comment
+              if (!$isVisible || !isset($ltFields[$fieldName]) || $fieldName === 'private_comment') {
+                  continue;
               }
+
+              // Check if field exists and has a non-null, non-empty-string value
+              if (!array_key_exists($fieldName, $libro)) {
+                  continue;
+              }
+
+              $value = $libro[$fieldName];
+
+              // Skip null values
+              if ($value === null) {
+                  continue;
+              }
+
+              // Skip empty strings, but allow numeric 0
+              if (is_string($value) && trim($value) === '') {
+                  continue;
+              }
+
+              $visibleFields[$fieldName] = [
+                  'label' => $ltFields[$fieldName],
+                  'value' => $value
+              ];
           }
 
           if (!empty($visibleFields)):

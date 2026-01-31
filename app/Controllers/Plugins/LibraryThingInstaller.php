@@ -33,6 +33,20 @@ class LibraryThingInstaller
      *
      * @return array ['success' => bool, 'message' => string]
      */
+    /**
+     * Execute a query and throw exception on failure
+     *
+     * @param string $sql SQL query to execute
+     * @throws \RuntimeException if query fails
+     */
+    private function executeOrFail(string $sql): void
+    {
+        $result = $this->db->query($sql);
+        if ($result === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+    }
+
     public function install(): array
     {
         if (self::isInstalled($this->db)) {
@@ -43,7 +57,7 @@ class LibraryThingInstaller
             $this->db->begin_transaction();
 
             // Add review and rating fields
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN review TEXT NULL COMMENT 'Book review (LibraryThing)' AFTER descrizione,
                     ADD COLUMN rating TINYINT UNSIGNED NULL COMMENT 'Rating 1-5 (LibraryThing)' AFTER review,
@@ -52,13 +66,13 @@ class LibraryThingInstaller
             ");
 
             // Add physical description field
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN physical_description VARCHAR(255) NULL COMMENT 'Physical description (LibraryThing)' AFTER dimensioni
             ");
 
             // Add library classification fields
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN lccn VARCHAR(50) NULL COMMENT 'Library of Congress Control Number (LibraryThing)' AFTER classificazione_dewey,
                     ADD COLUMN lc_classification VARCHAR(100) NULL COMMENT 'LC Classification (LibraryThing)' AFTER lccn,
@@ -66,14 +80,14 @@ class LibraryThingInstaller
             ");
 
             // Add date tracking fields for reading
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN date_started DATE NULL COMMENT 'Date started reading (LibraryThing)' AFTER data_acquisizione,
                     ADD COLUMN date_read DATE NULL COMMENT 'Date finished reading (LibraryThing)' AFTER date_started
             ");
 
             // Add catalog identifiers
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN bcid VARCHAR(50) NULL COMMENT 'BCID (LibraryThing)' AFTER ean,
                     ADD COLUMN oclc VARCHAR(50) NULL COMMENT 'OCLC number (LibraryThing)' AFTER bcid,
@@ -82,20 +96,20 @@ class LibraryThingInstaller
             ");
 
             // Add language fields
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN original_languages VARCHAR(255) NULL COMMENT 'Original languages (LibraryThing)' AFTER lingua
             ");
 
             // Add acquisition fields
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN source VARCHAR(255) NULL COMMENT 'Source/vendor (LibraryThing)' AFTER editore_id,
                     ADD COLUMN from_where VARCHAR(255) NULL COMMENT 'From where acquired (LibraryThing)' AFTER source
             ");
 
             // Add lending tracking fields
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN lending_patron VARCHAR(255) NULL COMMENT 'Current lending patron (LibraryThing)' AFTER from_where,
                     ADD COLUMN lending_status VARCHAR(50) NULL COMMENT 'Lending status (LibraryThing)' AFTER lending_patron,
@@ -104,14 +118,14 @@ class LibraryThingInstaller
             ");
 
             // Add financial and condition fields
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN value DECIMAL(10,2) NULL COMMENT 'Current value (LibraryThing)' AFTER prezzo,
                     ADD COLUMN condition_lt VARCHAR(100) NULL COMMENT 'Physical condition (LibraryThing)' AFTER value
             ");
 
             // Add indexes for commonly queried fields
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD INDEX idx_lt_rating (rating),
                     ADD INDEX idx_lt_date_read (date_read),
@@ -123,13 +137,13 @@ class LibraryThingInstaller
             ");
 
             // Add check constraint for rating (1-5 or NULL)
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD CONSTRAINT chk_lt_rating CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5))
             ");
 
             // Add JSON column for frontend visibility preferences
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN lt_fields_visibility JSON NULL COMMENT 'Frontend visibility preferences for LibraryThing fields' AFTER condition_lt
             ");
@@ -162,10 +176,10 @@ class LibraryThingInstaller
             $this->db->begin_transaction();
 
             // Remove check constraint
-            $this->db->query("ALTER TABLE libri DROP CONSTRAINT IF EXISTS chk_lt_rating");
+            $this->executeOrFail("ALTER TABLE libri DROP CONSTRAINT IF EXISTS chk_lt_rating");
 
             // Remove indexes
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     DROP INDEX IF EXISTS idx_lt_rating,
                     DROP INDEX IF EXISTS idx_lt_date_read,
@@ -177,7 +191,7 @@ class LibraryThingInstaller
             ");
 
             // Remove all LibraryThing fields (25 unique fields + visibility column)
-            $this->db->query("
+            $this->executeOrFail("
                 ALTER TABLE libri
                     DROP COLUMN IF EXISTS review,
                     DROP COLUMN IF EXISTS rating,
@@ -228,7 +242,7 @@ class LibraryThingInstaller
         $fieldsCount = 0;
         if ($installed) {
             // Count LibraryThing-specific fields
-            $result = $this->db->query("
+            $result = $this->executeOrFail("
                 SELECT COUNT(*) as count
                 FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = DATABASE()

@@ -826,7 +826,7 @@ class LibraryThingController
                 $bookId
             ];
 
-            $types = 'sssssissiissdisssssdssisssisssssssssssssssssdssi';
+            $types = 'sssssissiissdisssssdsssisssssssssssssssssssdsi';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
@@ -965,7 +965,7 @@ class LibraryThingController
                 !empty($data['condition_lt']) ? $data['condition_lt'] : null
             ];
 
-            $types = 'sssssissiissdiiisssssdssisssisssssssssssssssds';
+            $types = 'sssssissiissdiiisssssdsssisssssssssssssssssssds';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
@@ -1390,14 +1390,14 @@ class LibraryThingController
             $libro['descrizione'] ?? '',
             $media,
             $libro['physical_description'] ?? '',
-            $libro['weight'] ?? '',
-            $libro['height'] ?? '',
-            $libro['thickness'] ?? '',
-            $libro['length'] ?? '',
-            '',  // Dimensions
+            $libro['peso'] ?? '',
+            '',  // Height
+            '',  // Thickness
+            '',  // Length
+            $libro['dimensioni'] ?? '',
             $libro['numero_pagine'] ?? '',
             $libro['lccn'] ?? '',
-            $libro['date_acquired'] ?? '',
+            $libro['data_acquisizione'] ?? '',
             $libro['date_started'] ?? '',
             $libro['date_read'] ?? '',
             $libro['ean'] ?? '',
@@ -1424,7 +1424,7 @@ class LibraryThingController
             $libro['lending_start'] ?? '',
             $libro['lending_end'] ?? '',
             $libro['prezzo'] ?? '',
-            $libro['purchase_price'] ?? '',
+            '',  // Purchase Price (not stored separately)
             $libro['value'] ?? '',
             $libro['condition_lt'] ?? '',
             $libro['issn'] ?? ''

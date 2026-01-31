@@ -1,4 +1,6 @@
 <?php
+use App\Support\Csrf;
+
 $pageTitle = $title ?? __('Import LibraryThing');
 ob_start();
 ?>
@@ -108,7 +110,7 @@ ob_start();
                     </h2>
 
                     <form method="POST" action="/admin/libri/import/librarything/process" enctype="multipart/form-data" id="import-form">
-                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
 
                         <!-- File Upload -->
                         <div class="mb-4">
