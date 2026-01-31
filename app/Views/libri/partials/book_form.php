@@ -579,7 +579,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       </div>
 
       <!-- LibraryThing Plugin Fields -->
-      <?php if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)): ?>
+      <?php if (!empty($libraryThingInstalled)): ?>
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">

@@ -558,7 +558,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
       <?php
       // LibraryThing fields section - Only if plugin is installed and fields are visible
-      if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db ?? \App\Support\Database::getInstance()->getConnection())) {
+      if (!empty($libraryThingInstalled)) {
           $ltVisibility = [];
           if (!empty($libro['lt_fields_visibility'])) {
               $ltVisibility = json_decode($libro['lt_fields_visibility'], true) ?: [];

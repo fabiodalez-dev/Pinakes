@@ -369,12 +369,14 @@ class LibriController
             $resStmt->close();
         }
 
+        $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
         ob_start();
         // extract([
         //     'libro' => $libro,
         //     'activeLoan' => $activeLoan,
         //     'bookPath' => $bookPath,
         //     'loanHistory' => $loanHistory,
+        //     'libraryThingInstalled' => $libraryThingInstalled,
         // ]);
         require __DIR__ . '/../Views/libri/scheda_libro.php';
         $content = ob_get_clean();
@@ -398,9 +400,10 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
+        $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
         ob_start();
-        $data = ['editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri];
-        // extract(['editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri]); 
+        $data = ['editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri, 'libraryThingInstalled' => $libraryThingInstalled];
+        // extract(['editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri,'libraryThingInstalled'=>$libraryThingInstalled]);
         require __DIR__ . '/../Views/libri/crea_libro.php';
         $content = ob_get_clean();
         ob_start();
@@ -918,9 +921,10 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
+        $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
         ob_start();
-        $data = ['libro' => $libro, 'editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri];
-        // extract(['libro'=>$libro,'editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri]); 
+        $data = ['libro' => $libro, 'editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri, 'libraryThingInstalled' => $libraryThingInstalled];
+        // extract(['libro'=>$libro,'editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri,'libraryThingInstalled'=>$libraryThingInstalled]);
         require __DIR__ . '/../Views/libri/modifica_libro.php';
         $content = ob_get_clean();
         ob_start();
