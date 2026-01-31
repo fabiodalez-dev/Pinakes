@@ -155,7 +155,7 @@ class LibriController
                 return $url;
             }
 
-            $mimeType = $imageInfo['mime'] ?? '';
+            $mimeType = $imageInfo['mime'];
             $extension = match ($mimeType) {
                 'image/jpeg', 'image/jpg' => 'jpg',
                 'image/png' => 'png',
@@ -665,9 +665,8 @@ class LibriController
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
                     // Release lock before returning
-                    if ($lockKey) {
-                        $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
-                    }
+                    $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+
 
                     // Build location string
                     $location = '';
@@ -867,7 +866,7 @@ class LibriController
 
             // Genera copie fisiche del libro
             $copyRepo = new \App\Models\CopyRepository($db);
-            $copieTotali = (int) ($fields['copie_totali'] ?? 1);
+            $copieTotali = (int) $fields['copie_totali'];
             $baseInventario = !empty($fields['numero_inventario'])
                 ? $fields['numero_inventario']
                 : "LIB-{$id}";
@@ -1033,7 +1032,7 @@ class LibriController
 
         // Merge scraped subtitle and notes if present
         $subtitleFromScrape = trim((string) ($data['subtitle'] ?? ''));
-        if ($subtitleFromScrape !== '' && trim((string) ($fields['sottotitolo'] ?? '')) === '') {
+        if ($subtitleFromScrape !== '' && trim((string) $fields['sottotitolo']) === '') {
             $fields['sottotitolo'] = $this->normalizeText($subtitleFromScrape);
         }
 
@@ -1221,9 +1220,8 @@ class LibriController
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
                     // Release lock before returning
-                    if ($lockKey) {
-                        $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
-                    }
+                    $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+
 
                     // Build location string
                     $location = '';
@@ -1425,7 +1423,7 @@ class LibriController
             // Gestione copie: aggiorna il numero di copie se cambiato
             $copyRepo = new \App\Models\CopyRepository($db);
             $currentCopieCount = $copyRepo->countByBookId($id);
-            $newCopieCount = (int) ($fields['copie_totali'] ?? 1);
+            $newCopieCount = (int) $fields['copie_totali'];
 
             if ($newCopieCount > $currentCopieCount) {
                 // Aggiungi nuove copie
@@ -2018,7 +2016,7 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        $mimeType = $imageInfo['mime'] ?? '';
+        $mimeType = $imageInfo['mime'];
         $extension = match ($mimeType) {
             'image/jpeg', 'image/jpg' => 'jpg',
             'image/png' => 'png',
