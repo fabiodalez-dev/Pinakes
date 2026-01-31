@@ -437,7 +437,7 @@ class CsvImportController
      * @param array $originalHeaders Original CSV headers before mapping
      * @return array Processed data in standard format
      */
-    private function parseLibraryThingFormat(array $data, array $originalHeaders): array
+    private function parseLibraryThingFormat(array $data): array
     {
         $processed = $data;
 
@@ -586,6 +586,9 @@ class CsvImportController
         // Map headers to canonical field names (supports multiple languages and variations)
         $mappedHeaders = $this->mapColumnHeaders($originalHeaders);
 
+        // Check if LibraryThing format once instead of per-row
+        $isLibraryThingFormat = $this->isLibraryThingFormat($originalHeaders);
+
         // Count total rows for progress tracking
         $totalRows = 0;
         while (fgetcsv($file, 0, $delimiter, '"') !== false) {
@@ -627,8 +630,8 @@ class CsvImportController
             $originalData = array_combine($originalHeaders, $row);
 
             // Parse LibraryThing-specific fields if detected
-            if ($this->isLibraryThingFormat($originalHeaders)) {
-                $data = array_merge($data, $this->parseLibraryThingFormat($originalData, $originalHeaders));
+            if ($isLibraryThingFormat) {
+                $data = array_merge($data, $this->parseLibraryThingFormat($originalData));
             }
 
             // Sanitize data to prevent CSV injection

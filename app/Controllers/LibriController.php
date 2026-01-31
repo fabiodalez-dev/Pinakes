@@ -402,8 +402,7 @@ class LibriController
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
         ob_start();
-        $data = ['editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri, 'libraryThingInstalled' => $libraryThingInstalled];
-        // extract(['editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri,'libraryThingInstalled'=>$libraryThingInstalled]);
+        // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
         $content = ob_get_clean();
         ob_start();
@@ -922,8 +921,7 @@ class LibriController
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
         ob_start();
-        $data = ['libro' => $libro, 'editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri, 'libraryThingInstalled' => $libraryThingInstalled];
-        // extract(['libro'=>$libro,'editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri,'libraryThingInstalled'=>$libraryThingInstalled]);
+        // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
         $content = ob_get_clean();
         ob_start();
@@ -2501,8 +2499,6 @@ class LibriController
      */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
-        $repo = new \App\Models\BookRepository($db);
-
         // Get filters and options from query parameters
         $params = $request->getQueryParams();
         $search = $params['search'] ?? '';

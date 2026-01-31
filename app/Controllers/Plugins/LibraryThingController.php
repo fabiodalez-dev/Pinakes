@@ -168,7 +168,7 @@ class LibraryThingController
                     'success' => true,
                     'redirect' => '/admin/libri/import/librarything',
                     'message' => $message
-                ]));
+                ], JSON_THROW_ON_ERROR));
                 return $response->withHeader('Content-Type', 'application/json');
             }
 
@@ -182,7 +182,7 @@ class LibraryThingController
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'error' => $e->getMessage()
-                ]));
+                ], JSON_THROW_ON_ERROR));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
         }
@@ -290,10 +290,10 @@ class LibraryThingController
                 // Get or create publisher
                 $editorId = null;
                 if (!empty($data['editore'])) {
-                    $editorId = $this->getOrCreatePublisher($db, trim($data['editore']));
-                    if ($editorId === 'created') {
+                    $publisherResult = $this->getOrCreatePublisher($db, trim($data['editore']));
+                    $editorId = $publisherResult['id'];
+                    if ($publisherResult['created']) {
                         $publishersCreated++;
-                        $editorId = $db->insert_id;
                     }
                 }
 
@@ -651,7 +651,7 @@ class LibraryThingController
     }
 
     // Reuse methods from CsvImportController
-    private function getOrCreatePublisher(\mysqli $db, string $name): int|string
+    private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
         $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
         $stmt->bind_param('s', $name);
@@ -659,14 +659,18 @@ class LibraryThingController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            return (int) $row['id'];
+            $stmt->close();
+            return ['id' => (int) $row['id'], 'created' => false];
         }
+        $stmt->close();
 
         $stmt = $db->prepare("INSERT INTO editori (nome, created_at) VALUES (?, NOW())");
         $stmt->bind_param('s', $name);
         $stmt->execute();
+        $insertId = $db->insert_id;
+        $stmt->close();
 
-        return 'created';
+        return ['id' => $insertId, 'created' => true];
     }
 
     private function getOrCreateAuthor(\mysqli $db, string $name): array
@@ -877,8 +881,11 @@ class LibraryThingController
         $hasLTFields = LibraryThingInstaller::isInstalled($db);
 
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
-        if ($copie < 1) $copie = 1;
-        elseif ($copie > 100) $copie = 100;
+        if ($copie < 1) {
+            $copie = 1;
+        } elseif ($copie > 100) {
+            $copie = 100;
+        }
 
         if ($hasLTFields) {
             // Full insert with all LibraryThing fields (25 unique LT + native fields)

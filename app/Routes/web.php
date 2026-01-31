@@ -1226,7 +1226,8 @@ return function (App $app): void {
         $controller = new \App\Controllers\Plugins\LibraryThingController();
         $db = $app->getContainer()->get('db');
         return $controller->exportToLibraryThing($request, $response, $db);
-    })->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))
+      ->add(new AdminAuthMiddleware());
 
     // CSV Export route
     $app->get('/admin/libri/export/csv', function ($request, $response) use ($app) {

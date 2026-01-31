@@ -265,11 +265,13 @@ class LibraryThingInstaller
             }
         }
 
+        $expectedFields = count(self::getLibraryThingFields()) + 1; // +1 for lt_fields_visibility
+
         return [
             'installed' => $installed,
             'fields_count' => $fieldsCount,
-            'expected_fields' => 26, // 25 data fields + 1 visibility field
-            'complete' => $fieldsCount === 26
+            'expected_fields' => $expectedFields,
+            'complete' => $fieldsCount === $expectedFields
         ];
     }
 
