@@ -137,8 +137,8 @@ class LibraryThingController
 
             $_SESSION['import_progress'] = [
                 'status' => 'completed',
-                'current' => $result['imported'],
-                'total' => $result['imported']
+                'current' => $result['imported'] + $result['updated'],
+                'total' => $result['imported'] + $result['updated']
             ];
 
             $message = sprintf(
@@ -342,7 +342,7 @@ class LibraryThingController
                     $updated++;
                 }
 
-                $_SESSION['import_progress']['current'] = $imported;
+                $_SESSION['import_progress']['current'] = $imported + $updated;
                 $_SESSION['import_progress']['current_book'] = $data['titolo'];
 
                 // Scraping integration
