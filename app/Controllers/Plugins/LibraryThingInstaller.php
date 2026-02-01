@@ -37,14 +37,16 @@ class LibraryThingInstaller
      * Execute a query and throw exception on failure
      *
      * @param string $sql SQL query to execute
+     * @return \mysqli_result|bool Query result (mysqli_result for SELECT, true for DDL/DML)
      * @throws \RuntimeException if query fails
      */
-    private function executeOrFail(string $sql): void
+    private function executeOrFail(string $sql): \mysqli_result|bool
     {
         $result = $this->db->query($sql);
         if ($result === false) {
             throw new \RuntimeException($this->db->error);
         }
+        return $result;
     }
 
     public function install(): array

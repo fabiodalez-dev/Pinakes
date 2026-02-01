@@ -842,22 +842,9 @@ class LibriController
             $id = $repo->createBasic($fields);
 
             // Handle LibraryThing fields visibility preferences
-            if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)) {
-                $ltVisibility = [];
-                if (isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
-                    foreach ($data['lt_visibility'] as $field => $value) {
-                        if ($value === '1') {
-                            $ltVisibility[$field] = true;
-                        }
-                    }
-                }
-
-                // Save as JSON
-                $visibilityJson = !empty($ltVisibility) ? json_encode($ltVisibility, JSON_UNESCAPED_UNICODE) : null;
-                $stmt = $db->prepare("UPDATE libri SET lt_fields_visibility = ? WHERE id = ?");
-                $stmt->bind_param('si', $visibilityJson, $id);
-                $stmt->execute();
-                $stmt->close();
+            if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)
+                && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
+                $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
 
             // Plugin hook: After book save
@@ -1397,22 +1384,9 @@ class LibriController
             $repo->updateBasic($id, $fields);
 
             // Handle LibraryThing fields visibility preferences
-            if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)) {
-                $ltVisibility = [];
-                if (isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
-                    foreach ($data['lt_visibility'] as $field => $value) {
-                        if ($value === '1') {
-                            $ltVisibility[$field] = true;
-                        }
-                    }
-                }
-
-                // Save as JSON
-                $visibilityJson = !empty($ltVisibility) ? json_encode($ltVisibility, JSON_UNESCAPED_UNICODE) : null;
-                $stmt = $db->prepare("UPDATE libri SET lt_fields_visibility = ? WHERE id = ?");
-                $stmt->bind_param('si', $visibilityJson, $id);
-                $stmt->execute();
-                $stmt->close();
+            if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)
+                && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
+                $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
 
             // Plugin hook: After book save (update)
@@ -2830,10 +2804,19 @@ class LibriController
         }
         $isbnString = !empty($isbns) ? '[' . implode(', ', $isbns) . ']' : '';
 
+        // Calculate Sort Character from first significant character of title
+        $sortChar = '';
+        if (!empty($libro['titolo'])) {
+            $title = trim($libro['titolo']);
+            if ($title !== '') {
+                $sortChar = mb_strtoupper(mb_substr($title, 0, 1, 'UTF-8'), 'UTF-8');
+            }
+        }
+
         return [
             $libro['id'] ?? '',                                    // Book Id
             $libro['titolo'] ?? '',                                // Title
-            $libro['sottotitolo'] ?? '',                           // Sort Character
+            $sortChar,                                             // Sort Character
             $primaryAuthor,                                        // Primary Author
             '',                                                    // Primary Author Role
             $secondaryAuthor,                                      // Secondary Author
@@ -3053,5 +3036,34 @@ class LibriController
         if ($affectedRows > 0) {
             error_log("[LibriController] Updated author bio for ID $authorId from scraping");
         }
+    }
+
+    /**
+     * Save LibraryThing fields visibility preferences with whitelist validation
+     *
+     * @param \mysqli $db Database connection
+     * @param int $id Book ID
+     * @param array $ltVisibilityInput User-supplied visibility data
+     * @return void
+     */
+    private function saveLtVisibility(\mysqli $db, int $id, array $ltVisibilityInput): void
+    {
+        // Define whitelist of allowed LibraryThing field names
+        $allowedLtFields = array_keys(\App\Controllers\Plugins\LibraryThingInstaller::getLibraryThingFields());
+
+        $ltVisibility = [];
+        foreach ($ltVisibilityInput as $field => $value) {
+            // Only include fields that are in the whitelist
+            if (in_array($field, $allowedLtFields, true) && $value === '1') {
+                $ltVisibility[$field] = true;
+            }
+        }
+
+        // Save as JSON
+        $visibilityJson = !empty($ltVisibility) ? json_encode($ltVisibility, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) : null;
+        $stmt = $db->prepare("UPDATE libri SET lt_fields_visibility = ? WHERE id = ?");
+        $stmt->bind_param('si', $visibilityJson, $id);
+        $stmt->execute();
+        $stmt->close();
     }
 }

@@ -443,11 +443,10 @@ class LibraryThingController
             }
         }
 
-        // Year
+        // Year - extract first 4-digit year (handles ISO dates like "2020-05-01")
         if (!empty($data['Date'])) {
-            $year = preg_replace('/[^0-9]/', '', $data['Date']);
-            if (strlen($year) === 4) {
-                $result['anno_pubblicazione'] = $year;
+            if (preg_match('/\b(\d{4})\b/', $data['Date'], $matches)) {
+                $result['anno_pubblicazione'] = $matches[1];
             }
         }
 
