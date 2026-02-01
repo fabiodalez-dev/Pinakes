@@ -43,6 +43,36 @@ class LibriController
     private const MAX_COVER_SIZE = 5 * 1024 * 1024;
 
     /**
+     * Default values for LibraryThing fields (25 unique fields)
+     * Used by both store() and update() to avoid duplication
+     */
+    private const LIBRARYTHING_FIELDS_DEFAULTS = [
+        'review' => null,
+        'rating' => null,
+        'comment' => null,
+        'private_comment' => null,
+        'physical_description' => null,
+        'lccn' => null,
+        'lc_classification' => null,
+        'other_call_number' => null,
+        'date_started' => null,
+        'date_read' => null,
+        'bcid' => null,
+        'oclc' => null,
+        'work_id' => null,
+        'issn' => null,
+        'original_languages' => null,
+        'source' => null,
+        'from_where' => null,
+        'lending_patron' => null,
+        'lending_status' => null,
+        'lending_start' => null,
+        'lending_end' => null,
+        'value' => null,
+        'condition_lt' => null,
+    ];
+
+    /**
      * Get the storage directory path
      * Centralized configuration for storage location
      */
@@ -459,31 +489,10 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
-            // LibraryThing fields (25 unique, only saved if plugin installed)
-            'review' => null,
-            'rating' => null,
-            'comment' => null,
-            'private_comment' => null,
-            'physical_description' => null,
-            'lccn' => null,
-            'lc_classification' => null,
-            'other_call_number' => null,
-            'date_started' => null,
-            'date_read' => null,
-            'bcid' => null,
-            'oclc' => null,
-            'work_id' => null,
-            'issn' => null,
-            'original_languages' => null,
-            'source' => null,
-            'from_where' => null,
-            'lending_patron' => null,
-            'lending_status' => null,
-            'lending_start' => null,
-            'lending_end' => null,
-            'value' => null,
-            'condition_lt' => null
         ];
+
+        // Merge LibraryThing fields defaults (only saved if plugin installed)
+        $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
         foreach ($fields as $k => $v) {
             if (array_key_exists($k, $data))
                 $fields[$k] = $data[$k];
@@ -965,31 +974,10 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
-            // LibraryThing fields (25 unique, only saved if plugin installed)
-            'review' => null,
-            'rating' => null,
-            'comment' => null,
-            'private_comment' => null,
-            'physical_description' => null,
-            'lccn' => null,
-            'lc_classification' => null,
-            'other_call_number' => null,
-            'date_started' => null,
-            'date_read' => null,
-            'bcid' => null,
-            'oclc' => null,
-            'work_id' => null,
-            'issn' => null,
-            'original_languages' => null,
-            'source' => null,
-            'from_where' => null,
-            'lending_patron' => null,
-            'lending_status' => null,
-            'lending_start' => null,
-            'lending_end' => null,
-            'value' => null,
-            'condition_lt' => null
         ];
+
+        // Merge LibraryThing fields defaults (only saved if plugin installed)
+        $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
         foreach ($fields as $k => $v) {
             if (array_key_exists($k, $data))
                 $fields[$k] = $data[$k];

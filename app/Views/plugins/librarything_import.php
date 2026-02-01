@@ -221,9 +221,17 @@ ob_start();
 
 <script>
 // Simple form submission handling
-document.getElementById('import-form').addEventListener('submit', function() {
+document.getElementById('import-form').addEventListener('submit', function(e) {
     document.getElementById('submit-btn').disabled = true;
     document.getElementById('progress-indicator').classList.remove('hidden');
+
+    // Reset after timeout in case of network error
+    setTimeout(function() {
+        if (document.getElementById('progress-indicator').classList.contains('hidden') === false) {
+            // Still showing after 5 minutes - likely stuck
+            document.getElementById('submit-btn').disabled = false;
+        }
+    }, 300000);
 });
 </script>
 
