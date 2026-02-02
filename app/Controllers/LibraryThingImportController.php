@@ -359,29 +359,21 @@ class LibraryThingImportController
                     //         $isbn = $parsedData['isbn13'] ?? $parsedData['isbn10'];
                     //         $this->downloadCoverIfMissing($db, $bookId, $isbn);
                     //     } catch (\Exception $coverError) {
-                    //         error_log("[LibraryThing Import] Cover download failed: " . $coverError->getMessage());
+                    //         $this->writeLog("[LibraryThing Import] Cover download failed: " . $coverError->getMessage());
                     //     }
                     // }
 
                     // Scraping integration for additional metadata
                     if ($enableScraping && !empty($parsedData['isbn13'])) {
-                        error_log("[LibraryThing Import] Attempting scraping for ISBN: " . $parsedData['isbn13'] . " (book $processed of chunk)");
                         try {
                             $scrapedData = $this->scrapeBookData($parsedData['isbn13']);
                             if (!empty($scrapedData)) {
-                                error_log("[LibraryThing Import] Scraping returned data, enriching book ID: $bookId");
                                 $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData);
                                 $importData['scraped']++;
-                            } else {
-                                error_log("[LibraryThing Import] Scraping returned empty for ISBN: " . $parsedData['isbn13']);
                             }
                         } catch (\Exception $scrapeError) {
-                            error_log("[LibraryThing Import] Scraping exception: " . $scrapeError->getMessage());
+                            // Silent failure, continue with import
                         }
-                    } elseif (!$enableScraping) {
-                        error_log("[LibraryThing Import] Scraping disabled in import settings");
-                    } elseif (empty($parsedData['isbn13'])) {
-                        error_log("[LibraryThing Import] No ISBN13 for book, skipping scraping");
                     }
 
                 } catch (\Throwable $e) {
@@ -1193,15 +1185,6 @@ class LibraryThingImportController
 
     private function scrapeBookData(string $isbn): array
     {
-        // Debug: Check if scraping hooks are available
-        $hasHook = \App\Support\Hooks::has('scrape.fetch.custom');
-        error_log("[LibraryThing Import] Hook 'scrape.fetch.custom' available: " . ($hasHook ? 'YES' : 'NO'));
-
-        if (!$hasHook) {
-            error_log("[LibraryThing Import] WARNING: Scraping hook not available! Plugins may not be loaded.");
-            error_log("[LibraryThing Import] Make sure scraping plugins (api-book-scraper, scraping-pro, open-library) are active.");
-        }
-
         // Use centralized scraping service
         return \App\Support\ScrapingService::scrapeBookData($isbn, 3, 'LibraryThing Import');
     }
@@ -1226,10 +1209,8 @@ class LibraryThingImportController
                     $updates[] = 'copertina_url = ?';
                     $params[] = $coverData['file_url'];
                     $types .= 's';
-                    error_log("[LibraryThing] Cover downloaded successfully: " . $coverData['file_url']);
                 }
             } catch (\Exception $e) {
-                error_log("[LibraryThing] Cover download failed: " . $e->getMessage());
                 // Fallback: save URL only
                 $updates[] = 'copertina_url = ?';
                 $params[] = $scrapedData['image'];
@@ -1584,4 +1565,5 @@ class LibraryThingImportController
             $libro['issn'] ?? ''
         ];
     }
+
 }

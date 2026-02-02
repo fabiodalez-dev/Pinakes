@@ -23,7 +23,6 @@ class ScrapingService
     {
         // Check if scraping is available
         if (!\App\Support\Hooks::has('scrape.fetch.custom')) {
-            error_log("[{$context}] Scraping not available - no scrape.fetch.custom hook");
             return [];
         }
 
@@ -31,8 +30,6 @@ class ScrapingService
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
-                error_log("[{$context}] Scraping attempt {$attempt}/{$maxAttempts} for ISBN: {$isbn}");
-
                 // Get sources configuration from plugins
                 // The scrape.sources hook allows plugins to register their scraping sources
                 $sources = \App\Support\Hooks::apply('scrape.sources', [], [$isbn]);
@@ -42,13 +39,10 @@ class ScrapingService
                 $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $isbn]);
 
                 if (!empty($result) && is_array($result)) {
-                    error_log("[{$context}] Scraping successful for ISBN: {$isbn}");
                     return $result;
                 }
-
-                error_log("[{$context}] Scraping attempt {$attempt}/{$maxAttempts} returned empty for ISBN: {$isbn}");
             } catch (\Throwable $e) {
-                error_log("[{$context}] Scraping attempt {$attempt}/{$maxAttempts} failed for ISBN {$isbn}: {$e->getMessage()}");
+                // Silent failure, will retry
             }
 
             // Exponential backoff with cap at 8 seconds
@@ -58,7 +52,6 @@ class ScrapingService
             }
         }
 
-        error_log("[{$context}] All {$maxAttempts} scraping attempts failed for ISBN: {$isbn}");
         return [];
     }
 

@@ -419,13 +419,36 @@ class CoverController
     }
 
     private const ALLOWED_DOMAINS = [
+        // Google Books
         'images.google.com',
         'books.google.com',
+        'books.google.it',
+        'books.google.co.uk',
+
+        // OpenLibrary
         'covers.openlibrary.org',
+
+        // Italian bookstores
         'www.libreriauniversitaria.it',
-        'cdn.mondadoristore.it',
+        'www.ibs.it',
+        'images.ibs.it',
         'www.lafeltrinelli.it',
+        'www.ubiklibri.it',
+        'cdn.mondadoristore.it',
+
+        // Amazon CDN
         'images-na.ssl-images-amazon.com',
-        'images-eu.ssl-images-amazon.com'
+        'images-eu.ssl-images-amazon.com',
+        'm.media-amazon.com',
+        'images-amazon.com',
+
+        // Goodreads
+        'd.gr-assets.com',
+        'i.gr-assets.com',
+        's.gr-assets.com',
+
+        // Other bookstores
+        'prodimage.images-bn.com',
+        'cdn-images.bookshop.org'
     ];
 }
