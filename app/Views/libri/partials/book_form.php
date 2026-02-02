@@ -3932,6 +3932,8 @@ function initBookTinyMCE() {
         try {
             tinymce.init({
                 selector: '#descrizione',
+                base_url: '/assets/tinymce',
+                suffix: '.min',
                 license_key: 'gpl',
                 height: 250,
                 menubar: false,
