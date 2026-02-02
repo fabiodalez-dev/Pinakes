@@ -3909,50 +3909,28 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// TinyMCE DISABLED - Using plain textarea due to initialization issues
-// TODO: Re-enable after investigating why TinyMCE fails to complete init
-/*
+// Initialize TinyMCE for book description (basic editor: bold, italic, lists)
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 30;
 function initBookTinyMCE() {
     if (window.tinymce) {
         // Guard against double initialization
         if (tinymce.get('descrizione')) {
-            console.log('[TinyMCE] Editor già inizializzato');
             return;
         }
-        console.log('[TinyMCE] Inizializzazione in corso...');
         tinymce.init({
             selector: '#descrizione',
             license_key: 'gpl',
             height: 250,
             menubar: false,
-            plugins: '',  // No plugins for now - test minimal config
-            toolbar: 'bold italic | undo redo | removeformat',
+            toolbar_mode: 'wrap',
+            plugins: ['lists', 'link', 'autolink'],
+            toolbar: 'bold italic | bullist numlist | link | removeformat',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
             branding: false,
             promotion: false,
             statusbar: false,
-            init_instance_callback: function(editor) {
-                console.log('[TinyMCE] Editor inizializzato con successo:', editor.id);
-            },
-            setup: function(editor) {
-                editor.on('init', function() {
-                    console.log('[TinyMCE] Editor ready');
-                });
-                editor.on('LoadContent', function() {
-                    console.log('[TinyMCE] Content loaded');
-                });
-            }
-        }).then(function(editors) {
-            console.log('[TinyMCE] Init promise resolved:', editors.length);
-        }).catch(function(error) {
-            console.error('[TinyMCE] Errore durante inizializzazione:', error);
-            // Fallback: mostra textarea raw
-            const textarea = document.querySelector('#descrizione');
-            if (textarea) {
-                textarea.style.visibility = 'visible';
-                console.log('[TinyMCE] Fallback: textarea mostrata');
-            }
+            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
         });
     } else {
         // TinyMCE not loaded yet, retry in 100ms (with cap)
@@ -3960,22 +3938,15 @@ function initBookTinyMCE() {
             tinyMceInitAttempts += 1;
             setTimeout(initBookTinyMCE, 100);
         } else {
-            console.error('[TinyMCE] TinyMCE non disponibile dopo i retry');
-            // Fallback: mostra textarea raw
-            const textarea = document.querySelector('#descrizione');
-            if (textarea) textarea.style.visibility = 'visible';
+            console.error('TinyMCE non disponibile dopo i retry.');
         }
     }
 }
-*/
 // Wait for DOM then init TinyMCE
-/*
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initBookTinyMCE);
 } else {
     initBookTinyMCE();
 }
-*/
-console.log('[Book Form] TinyMCE disabled - using plain textarea');
 
 </script>
