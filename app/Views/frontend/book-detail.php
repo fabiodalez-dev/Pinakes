@@ -1697,18 +1697,14 @@ ob_start();
                     $ltVisibility = json_decode($book['lt_fields_visibility'], true) ?: [];
                 }
 
-                // Administrative/private fields that should NEVER be shown in frontend
+                // Privacy-sensitive fields that should NEVER be shown in frontend
+                // Administrative/metadata fields are now controlled by visibility checkboxes
                 $privateFields = [
                     'private_comment',  // Private comments
                     'lending_patron',   // Chi ha preso in prestito (privacy)
-                    'lending_status',   // Stato prestito (amministrativo)
+                    'lending_status',   // Stato prestito (dati prestiti sensibili)
                     'lending_start',    // Date prestito (privacy)
                     'lending_end',      // Date prestito (privacy)
-                    'source',           // Fonte acquisto (amministrativo)
-                    'from_where',       // Da dove acquisito (amministrativo)
-                    'bcid',             // ID catalogo (amministrativo)
-                    'oclc',             // OCLC number (amministrativo)
-                    'work_id',          // LibraryThing Work ID (amministrativo)
                 ];
 
                 // Filter to show only visible, public fields that have values
