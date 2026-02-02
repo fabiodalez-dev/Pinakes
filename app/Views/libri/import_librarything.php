@@ -267,9 +267,12 @@ document.getElementById('import-form').addEventListener('submit', async function
     progressText.textContent = '<?= __("Preparazione...") ?>';
 
     const formData = new FormData(this);
+    const csrfToken = formData.get('csrf_token');
+    console.log('[DEBUG] CSRF token from form:', csrfToken);
 
     try {
         // Step 1: Prepare import (validate and save file)
+        console.log('[DEBUG] Starting prepare request with CSRF token');
         const prepareResponse = await fetch('/admin/libri/import/librarything/prepare', {
             method: 'POST',
             body: formData
@@ -297,12 +300,15 @@ document.getElementById('import-form').addEventListener('submit', async function
 
         // Step 2: Process chunks
         while (currentRow < totalRows) {
+            console.log('[DEBUG] Processing chunk, currentRow:', currentRow);
             const chunkResponse = await fetch('/admin/libri/import/librarything/chunk', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
                 },
                 body: JSON.stringify({
+                    csrf_token: csrfToken,
                     import_id: importId,
                     start: currentRow,
                     size: chunkSize
