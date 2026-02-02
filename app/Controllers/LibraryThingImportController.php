@@ -210,7 +210,7 @@ class LibraryThingImportController
                 'success' => true,
                 'import_id' => $importId,
                 'total_rows' => $totalRows,
-                'chunk_size' => 5  // Ridotto da 10 a 5 per evitare timeout
+                'chunk_size' => 2  // Ridotto a 2 per import più veloce e meno timeout
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json');
 

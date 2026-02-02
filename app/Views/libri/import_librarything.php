@@ -301,6 +301,11 @@ document.getElementById('import-form').addEventListener('submit', async function
         // Step 2: Process chunks
         while (currentRow < totalRows) {
             console.log('[DEBUG] Processing chunk, currentRow:', currentRow);
+
+            // Update progress text to show we're working
+            const nextRow = Math.min(currentRow + chunkSize, totalRows);
+            progressText.textContent = `<?= __("Elaborazione libri") ?> ${currentRow + 1}-${nextRow} <?= __("di") ?> ${totalRows}...`;
+
             const chunkResponse = await fetch('/admin/libri/import/librarything/chunk', {
                 method: 'POST',
                 headers: {
