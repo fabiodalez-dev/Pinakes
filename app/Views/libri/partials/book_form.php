@@ -3909,97 +3909,61 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Initialize TinyMCE for book description (basic editor: bold, italic, lists)
+// Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
-const TINYMCE_MAX_RETRIES = 30;
+const TINYMCE_MAX_RETRIES = 5;
+
 function initBookTinyMCE() {
-    console.log('[DEBUG TinyMCE] initBookTinyMCE called, attempt:', tinyMceInitAttempts);
-    console.log('[DEBUG TinyMCE] window.tinymce exists:', !!window.tinymce);
-    console.log('[DEBUG TinyMCE] Textarea exists:', !!document.querySelector('#descrizione'));
-
-    if (window.tinymce) {
-        console.log('[DEBUG TinyMCE] TinyMCE loaded, version:', tinymce.majorVersion + '.' + tinymce.minorVersion);
-
-        // Guard against double initialization
-        const existing = tinymce.get('descrizione');
-        console.log('[DEBUG TinyMCE] Existing editor:', existing);
-        if (existing) {
-            console.log('[DEBUG TinyMCE] Editor already exists, skipping init');
-            return;
-        }
-
-        console.log('[DEBUG TinyMCE] Starting tinymce.init()...');
-        try {
-            tinymce.init({
-                selector: '#descrizione',
-                base_url: '/assets/tinymce',
-                suffix: '.min',
-                license_key: 'gpl',
-                height: 250,
-                menubar: false,
-                toolbar_mode: 'wrap',
-                plugins: ['lists', 'link', 'autolink'],
-                toolbar: 'bold italic | bullist numlist | link | removeformat',
-                content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
-                branding: false,
-                promotion: false,
-                statusbar: false,
-                placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>',
-                init_instance_callback: function(editor) {
-                    console.log('[DEBUG TinyMCE] ✅ init_instance_callback - Editor ID:', editor.id);
-                    console.log('[DEBUG TinyMCE] ✅ Editor initialized:', editor.initialized);
-                },
-                setup: function(editor) {
-                    console.log('[DEBUG TinyMCE] setup() called for editor:', editor.id);
-                    editor.on('init', function() {
-                        console.log('[DEBUG TinyMCE] ✅ onInit event fired');
-                    });
-                    editor.on('PostRender', function() {
-                        console.log('[DEBUG TinyMCE] ✅ PostRender event fired');
-                    });
-                }
-            }).then(function(editors) {
-                console.log('[DEBUG TinyMCE] ✅ Promise resolved, editors:', editors.length);
-                editors.forEach(function(ed) {
-                    console.log('[DEBUG TinyMCE] ✅ Editor ready:', ed.id, 'initialized:', ed.initialized);
-                });
-            }).catch(function(error) {
-                console.error('[DEBUG TinyMCE] ❌ Promise rejected:', error);
-                console.error('[DEBUG TinyMCE] ❌ Error stack:', error.stack);
-            });
-            console.log('[DEBUG TinyMCE] tinymce.init() called successfully');
-
-            // Manual check after 3 seconds to see if editor initialized silently
-            setTimeout(function() {
-                const editor = tinymce.get('descrizione');
-                console.log('[DEBUG TinyMCE] ⏰ Manual check after 3s:');
-                console.log('[DEBUG TinyMCE] ⏰ Editor exists:', !!editor);
-                if (editor) {
-                    console.log('[DEBUG TinyMCE] ⏰ Editor initialized:', editor.initialized);
-                    console.log('[DEBUG TinyMCE] ⏰ Editor id:', editor.id);
-                    console.log('[DEBUG TinyMCE] ⏰ Container visible:', editor.getContainer() ? 'YES' : 'NO');
-                }
-            }, 3000);
-        } catch (error) {
-            console.error('[DEBUG TinyMCE] ❌ Exception in tinymce.init():', error);
-            console.error('[DEBUG TinyMCE] ❌ Stack:', error.stack);
-        }
-    } else {
-        console.log('[DEBUG TinyMCE] TinyMCE not loaded yet, will retry');
-        // TinyMCE not loaded yet, retry in 100ms (with cap)
+    if (!window.tinymce) {
         if (tinyMceInitAttempts < TINYMCE_MAX_RETRIES) {
             tinyMceInitAttempts += 1;
-            setTimeout(initBookTinyMCE, 100);
-        } else {
-            console.error('[DEBUG TinyMCE] ❌ TinyMCE non disponibile dopo', TINYMCE_MAX_RETRIES, 'retry');
+            setTimeout(initBookTinyMCE, 150);
         }
+        return;
     }
+
+    const textarea = document.getElementById('descrizione');
+    if (!textarea) {
+        return;
+    }
+
+    const existing = tinymce.get('descrizione');
+    if (existing) {
+        return;
+    }
+
+    tinymce.init({
+        selector: '#descrizione',
+        base_url: '/assets/tinymce',
+        suffix: '.min',
+            license_key: 'gpl',
+            height: 360,
+            menubar: false,
+            toolbar_mode: 'wrap',
+            toolbar_sticky: true,
+            plugins: [
+                'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
+            ],
+            toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link | removeformat | code preview fullscreen',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; font-size: 15px; line-height: 1.6; }',
+            branding: false,
+            promotion: false,
+            statusbar: true,
+            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
+    });
 }
 // Wait for DOM then init TinyMCE
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initBookTinyMCE);
+    document.addEventListener('DOMContentLoaded', function() {
+        // Wait for full load to avoid other scripts mutating DOM
+        window.addEventListener('load', function() {
+            setTimeout(initBookTinyMCE, 200);
+        }, { once: true });
+    });
 } else {
-    initBookTinyMCE();
+    window.addEventListener('load', function() {
+        setTimeout(initBookTinyMCE, 200);
+    }, { once: true });
 }
 
 </script>
