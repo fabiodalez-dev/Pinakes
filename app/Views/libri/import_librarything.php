@@ -1,7 +1,19 @@
 <?php
 use App\Support\Csrf;
 
+error_log('[DEBUG VIEW] import_librarything.php: START');
+error_log('[DEBUG VIEW] Session: ' . print_r($_SESSION ?? [], true));
+
 $pageTitle = $title ?? __('Import LibraryThing');
+
+error_log('[DEBUG VIEW] About to call Csrf::ensureToken()');
+try {
+    $csrfToken = Csrf::ensureToken();
+    error_log('[DEBUG VIEW] CSRF token obtained: ' . $csrfToken);
+} catch (\Throwable $e) {
+    error_log('[DEBUG VIEW] EXCEPTION in Csrf::ensureToken(): ' . $e->getMessage());
+    throw $e;
+}
 ?>
 
 <div class="min-h-screen bg-gray-50 py-6">
@@ -109,7 +121,7 @@ $pageTitle = $title ?? __('Import LibraryThing');
                     </h2>
 
                     <form method="POST" action="/admin/libri/import/librarything/process" enctype="multipart/form-data" id="import-form">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
 
                         <!-- File Upload -->
                         <div class="mb-4">
@@ -229,8 +241,17 @@ $pageTitle = $title ?? __('Import LibraryThing');
 </div>
 
 <script>
+console.log('[DEBUG] Import page loaded successfully');
+console.log('[DEBUG] Document ready state:', document.readyState);
+
+// Add global error handler
+window.addEventListener('error', function(event) {
+    console.error('[DEBUG] Global error caught:', event.error);
+});
+
 // Chunked import processing
 document.getElementById('import-form').addEventListener('submit', async function(e) {
+    console.log('[DEBUG] Form submit handler attached');
     e.preventDefault();
 
     const submitBtn = document.getElementById('submit-btn');

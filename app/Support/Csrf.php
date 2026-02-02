@@ -11,10 +11,16 @@ final class Csrf
      */
     public static function ensureToken(): string
     {
+        error_log('[DEBUG CSRF] ensureToken: START');
+        error_log('[DEBUG CSRF] Session status: ' . session_status());
+        error_log('[DEBUG CSRF] Session ID: ' . session_id());
+        error_log('[DEBUG CSRF] Current csrf_token: ' . ($_SESSION['csrf_token'] ?? 'NOT SET'));
+
         $needsRegeneration = false;
 
         // Genera nuovo token se non esiste
         if (empty($_SESSION['csrf_token'])) {
+            error_log('[DEBUG CSRF] Token is empty, needs regeneration');
             $needsRegeneration = true;
         }
 
@@ -22,18 +28,24 @@ final class Csrf
         // Timeout lungo per permettere agli admin di compilare form complessi senza interruzioni
         if (!empty($_SESSION['csrf_token_time'])) {
             $timeout = 7200 + random_int(-600, 600); // 2 ore ± 10 minuti
-            if (time() - $_SESSION['csrf_token_time'] > $timeout) {
+            $age = time() - $_SESSION['csrf_token_time'];
+            error_log('[DEBUG CSRF] Token age: ' . $age . ' seconds, timeout: ' . $timeout);
+            if ($age > $timeout) {
+                error_log('[DEBUG CSRF] Token is too old, needs regeneration');
                 $needsRegeneration = true;
             }
         } else {
+            error_log('[DEBUG CSRF] No token time set, needs regeneration');
             $needsRegeneration = true;
         }
 
         if ($needsRegeneration) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             $_SESSION['csrf_token_time'] = time();
+            error_log('[DEBUG CSRF] Generated new token: ' . $_SESSION['csrf_token']);
         }
 
+        error_log('[DEBUG CSRF] Returning token: ' . $_SESSION['csrf_token']);
         return $_SESSION['csrf_token'];
     }
 

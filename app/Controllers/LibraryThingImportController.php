@@ -30,18 +30,34 @@ class LibraryThingImportController
      */
     public function showImportPage(Request $request, Response $response): Response
     {
-        ob_start();
-        $title = "Import LibraryThing";
-        require __DIR__ . '/../Views/libri/import_librarything.php';
-        $content = ob_get_clean();
+        error_log('[DEBUG] showImportPage: START');
+        error_log('[DEBUG] Session ID: ' . session_id());
+        error_log('[DEBUG] Session user: ' . print_r($_SESSION['user'] ?? 'NOT SET', true));
+        error_log('[DEBUG] Session csrf_token: ' . ($_SESSION['csrf_token'] ?? 'NOT SET'));
 
-        // Wrap content in admin layout
-        ob_start();
-        require __DIR__ . '/../Views/layout.php';
-        $html = ob_get_clean();
+        try {
+            ob_start();
+            $title = "Import LibraryThing";
+            error_log('[DEBUG] About to require import_librarything.php view');
+            require __DIR__ . '/../Views/libri/import_librarything.php';
+            $content = ob_get_clean();
+            error_log('[DEBUG] View loaded successfully, content length: ' . strlen($content));
 
-        $response->getBody()->write($html);
-        return $response->withHeader('Content-Type', 'text/html');
+            // Wrap content in admin layout
+            ob_start();
+            error_log('[DEBUG] About to require layout.php');
+            require __DIR__ . '/../Views/layout.php';
+            $html = ob_get_clean();
+            error_log('[DEBUG] Layout loaded successfully, html length: ' . strlen($html));
+
+            $response->getBody()->write($html);
+            error_log('[DEBUG] showImportPage: SUCCESS');
+            return $response->withHeader('Content-Type', 'text/html');
+        } catch (\Throwable $e) {
+            error_log('[DEBUG] showImportPage: EXCEPTION - ' . $e->getMessage());
+            error_log('[DEBUG] Exception trace: ' . $e->getTraceAsString());
+            throw $e;
+        }
     }
 
     /**
