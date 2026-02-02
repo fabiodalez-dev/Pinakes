@@ -3966,6 +3966,18 @@ function initBookTinyMCE() {
                 console.error('[DEBUG TinyMCE] ❌ Error stack:', error.stack);
             });
             console.log('[DEBUG TinyMCE] tinymce.init() called successfully');
+
+            // Manual check after 3 seconds to see if editor initialized silently
+            setTimeout(function() {
+                const editor = tinymce.get('descrizione');
+                console.log('[DEBUG TinyMCE] ⏰ Manual check after 3s:');
+                console.log('[DEBUG TinyMCE] ⏰ Editor exists:', !!editor);
+                if (editor) {
+                    console.log('[DEBUG TinyMCE] ⏰ Editor initialized:', editor.initialized);
+                    console.log('[DEBUG TinyMCE] ⏰ Editor id:', editor.id);
+                    console.log('[DEBUG TinyMCE] ⏰ Container visible:', editor.getContainer() ? 'YES' : 'NO');
+                }
+            }, 3000);
         } catch (error) {
             console.error('[DEBUG TinyMCE] ❌ Exception in tinymce.init():', error);
             console.error('[DEBUG TinyMCE] ❌ Stack:', error.stack);
