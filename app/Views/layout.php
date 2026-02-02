@@ -707,7 +707,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     };
   </script>
   <script src="/assets/vendor.bundle.js?v=<?= $appVersion ?>" defer></script>
-  <script src="/assets/tinymce/tinymce.min.js" defer></script>
+  <script src="/assets/tinymce/tinymce.min.js"></script>
   <script src="/assets/flatpickr-init.js?v=<?= $appVersion ?>" defer></script>
   <script src="/assets/main.bundle.js?v=<?= $appVersion ?>" defer></script>
   <script src="/assets/js/csrf-helper.js?v=<?= $appVersion ?>" defer></script>
