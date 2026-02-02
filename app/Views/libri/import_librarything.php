@@ -143,8 +143,9 @@ try {
                                     <?= __("Arricchisci dati con scraping web (copertine, descrizioni, etc.)") ?>
                                 </span>
                             </label>
-                            <p class="ml-6 mt-1 text-xs text-gray-500">
-                                <?= __("Massimo 50 libri, timeout 5 minuti") ?>
+                            <p class="ml-6 mt-1 text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                <?= __("⚠️ Lo scraping è MOLTO lento (~30-60 sec per libro). Per import veloci, lascia disabilitato.") ?>
                             </p>
                         </div>
 
