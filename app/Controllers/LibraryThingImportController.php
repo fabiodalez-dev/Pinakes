@@ -232,9 +232,11 @@ class LibraryThingImportController
      */
     public function processChunk(Request $request, Response $response, \mysqli $db): Response
     {
-        // Set timeout to 5 minutes for import processing
-        set_time_limit(300);
-        error_log('[DEBUG CHUNK] processChunk START - timeout set to 300s');
+        // Set timeout to 10 minutes for import processing (reset for EACH chunk request)
+        // This ensures each chunk gets the full timeout, not cumulative
+        @set_time_limit(600);
+        @ini_set('max_execution_time', '600');
+        error_log('[DEBUG CHUNK] processChunk START - timeout set to 600s');
 
         $data = json_decode((string) $request->getBody(), true);
         $importId = $data['import_id'] ?? '';
