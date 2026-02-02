@@ -3909,7 +3909,9 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Initialize TinyMCE for book description (basic editor: bold, italic, lists)
+// TinyMCE DISABLED - Using plain textarea due to initialization issues
+// TODO: Re-enable after investigating why TinyMCE fails to complete init
+/*
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 30;
 function initBookTinyMCE() {
@@ -3965,11 +3967,15 @@ function initBookTinyMCE() {
         }
     }
 }
+*/
 // Wait for DOM then init TinyMCE
+/*
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initBookTinyMCE);
 } else {
     initBookTinyMCE();
 }
+*/
+console.log('[Book Form] TinyMCE disabled - using plain textarea');
 
 </script>
