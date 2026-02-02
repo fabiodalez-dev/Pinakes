@@ -130,7 +130,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 <i class="fas fa-layer-group"></i>
                 <?= __("Dati alternativi disponibili") ?>
               </h4>
-              <button type="button" id="btnCloseAlternatives" class="text-blue-600 hover:text-blue-800" aria-label="<?= __('Chiudi alternative') ?>">
+              <button type="button" id="btnCloseAlternatives" class="text-gray-800 hover:text-blue-800" aria-label="<?= __('Chiudi alternative') ?>">
                 <i class="fas fa-times"></i>
               </button>
             </div>
@@ -284,7 +284,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div id="dewey_chip" class="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
               <span class="font-mono font-bold" id="dewey_chip_code"></span>
               <span class="text-sm" id="dewey_chip_name"></span>
-              <button type="button" id="dewey_chip_remove" class="text-blue-600 hover:text-blue-900">
+              <button type="button" id="dewey_chip_remove" class="text-gray-800 hover:text-blue-900">
                 <i class="fas fa-times"></i>
               </button>
             </div>
@@ -304,7 +304,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <!-- Navigazione per categorie (opzionale) -->
           <details class="mb-4">
-            <summary class="cursor-pointer text-sm font-semibold text-gray-700 hover:text-blue-600">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-700 hover:text-gray-800">
               <?= __("Oppure naviga per categorie") ?>
             </summary>
             <div class="mt-3 p-3 bg-gray-50 rounded">
@@ -585,7 +585,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-cloud text-blue-600"></i>
+            <i class="fas fa-cloud text-gray-800"></i>
             <?= __("LibraryThing") ?>
           </h2>
           <p class="text-sm text-gray-600 mt-1"><?= __("Campi estesi per l'integrazione con LibraryThing") ?></p>
@@ -780,7 +780,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             }
 
             // Get all LibraryThing fields
-            $ltFields = \App\Controllers\Plugins\LibraryThingInstaller::getLibraryThingFields();
+            $ltFields = \App\Support\LibraryThingInstaller::getLibraryThingFields();
 
             // Group fields by category for better UX
             $fieldGroups = [
@@ -2892,24 +2892,24 @@ function showAlternativesPanel(alternatives) {
         // Show key fields from this source (using data-* attributes for event delegation)
         if (sourceData.title && typeof sourceData.title === 'string') {
             html += `<div><span class="font-medium"><?= __("Titolo:") ?></span> ${escapeHtml(sourceData.title)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}"><?= __("Usa") ?></button></div>`;
         }
         if (sourceData.publisher && typeof sourceData.publisher === 'string') {
             html += `<div><span class="font-medium"><?= __("Editore:") ?></span> ${escapeHtml(sourceData.publisher)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}"><?= __("Usa") ?></button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
         // Also sanitize URL to prevent javascript: and other unsafe protocols
         const safeImage = sanitizeUrl(sourceData.image);
         if (safeImage && !safeImage.includes('librarything.com/devkey')) {
             html += `<div><span class="font-medium"><?= __("Copertina:") ?></span>
-                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline"><?= __("Vedi") ?></a>
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}"><?= __("Usa") ?></button></div>`;
+                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline"><?= __("Vedi") ?></a>
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}"><?= __("Usa") ?></button></div>`;
         }
         if (sourceData.description && typeof sourceData.description === 'string') {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
             html += `<div><span class="font-medium"><?= __("Descrizione:") ?></span> ${escapeHtml(shortDesc)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}"><?= __("Usa") ?></button></div>`;
         }
 
         html += `</div></div>`;

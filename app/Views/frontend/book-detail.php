@@ -1689,6 +1689,122 @@ ob_start();
                 </div>
                 <?php endif; ?>
 
+                <!-- LibraryThing Fields Section -->
+                <?php
+                // Parse LibraryThing visibility settings
+                $ltVisibility = [];
+                if (!empty($book['lt_fields_visibility'])) {
+                    $ltVisibility = json_decode($book['lt_fields_visibility'], true) ?: [];
+                }
+
+                // Administrative/private fields that should NEVER be shown in frontend
+                $privateFields = [
+                    'private_comment',  // Private comments
+                    'lending_patron',   // Chi ha preso in prestito (privacy)
+                    'lending_status',   // Stato prestito (amministrativo)
+                    'lending_start',    // Date prestito (privacy)
+                    'lending_end',      // Date prestito (privacy)
+                    'source',           // Fonte acquisto (amministrativo)
+                    'from_where',       // Da dove acquisito (amministrativo)
+                    'bcid',             // ID catalogo (amministrativo)
+                    'oclc',             // OCLC number (amministrativo)
+                    'work_id',          // LibraryThing Work ID (amministrativo)
+                ];
+
+                // Filter to show only visible, public fields that have values
+                $visibleLtFields = [];
+                $ltFieldLabels = \App\Support\LibraryThingInstaller::getLibraryThingFields();
+
+                foreach ($ltVisibility as $fieldName => $isVisible) {
+                    // Skip if field is private/administrative
+                    if (in_array($fieldName, $privateFields)) {
+                        continue;
+                    }
+
+                    // Show only if visible, has value, and has label
+                    if ($isVisible && !empty($book[$fieldName]) && isset($ltFieldLabels[$fieldName])) {
+                        $visibleLtFields[$fieldName] = [
+                            'label' => $ltFieldLabels[$fieldName],
+                            'value' => $book[$fieldName]
+                        ];
+                    }
+                }
+                ?>
+                <?php if (!empty($visibleLtFields)): ?>
+                <div class="book-details-section" id="librarything-fields-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-info-circle"></i>
+                        <?= __("Informazioni Aggiuntive") ?>
+                    </h2>
+                    <div class="details-grid">
+                        <?php
+                        // Split fields into two columns
+                        $half = ceil(count($visibleLtFields) / 2);
+                        $column1 = array_slice($visibleLtFields, 0, $half, true);
+                        $column2 = array_slice($visibleLtFields, $half, null, true);
+                        ?>
+                        <div class="details-column">
+                            <?php foreach ($column1 as $fieldName => $field): ?>
+                            <div class="meta-item">
+                                <div class="meta-label"><?= htmlspecialchars($field['label']) ?></div>
+                                <div class="meta-value">
+                                    <?php if (in_array($fieldName, ['rating'])): ?>
+                                        <?php
+                                        $rating = (int)$field['value'];
+                                        for ($i = 1; $i <= 5; $i++):
+                                            if ($i <= $rating):
+                                                echo '<i class="fas fa-star text-warning"></i>';
+                                            else:
+                                                echo '<i class="far fa-star text-muted"></i>';
+                                            endif;
+                                        endfor;
+                                        ?>
+                                    <?php elseif (in_array($fieldName, ['date_started', 'date_read', 'lending_start', 'lending_end'])): ?>
+                                        <?= htmlspecialchars(date('d/m/Y', strtotime($field['value']))) ?>
+                                    <?php elseif (in_array($fieldName, ['value'])): ?>
+                                        € <?= number_format((float)$field['value'], 2) ?>
+                                    <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>
+                                        <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) ?></div>
+                                    <?php else: ?>
+                                        <?= htmlspecialchars($field['value']) ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="details-column">
+                            <?php foreach ($column2 as $fieldName => $field): ?>
+                            <div class="meta-item">
+                                <div class="meta-label"><?= htmlspecialchars($field['label']) ?></div>
+                                <div class="meta-value">
+                                    <?php if (in_array($fieldName, ['rating'])): ?>
+                                        <?php
+                                        $rating = (int)$field['value'];
+                                        for ($i = 1; $i <= 5; $i++):
+                                            if ($i <= $rating):
+                                                echo '<i class="fas fa-star text-warning"></i>';
+                                            else:
+                                                echo '<i class="far fa-star text-muted"></i>';
+                                            endif;
+                                        endfor;
+                                        ?>
+                                    <?php elseif (in_array($fieldName, ['date_started', 'date_read', 'lending_start', 'lending_end'])): ?>
+                                        <?= htmlspecialchars(date('d/m/Y', strtotime($field['value']))) ?>
+                                    <?php elseif (in_array($fieldName, ['value'])): ?>
+                                        € <?= number_format((float)$field['value'], 2) ?>
+                                    <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>
+                                        <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) ?></div>
+                                    <?php else: ?>
+                                        <?= htmlspecialchars($field['value']) ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- Reviews Section -->
                 <?php if (!empty($reviews) && count($reviews) > 0): ?>
                 <div class="book-reviews-section" id="book-reviews-section">

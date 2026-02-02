@@ -334,10 +334,10 @@ $libri = $data['libri'];
           <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
-          <button id="bulk-fetch-covers" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors text-sm">
+          <button id="bulk-fetch-covers" class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
             <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
           </button>
-          <button id="bulk-delete" class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors text-sm">
+          <button id="bulk-delete" class="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors text-sm">
             <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
           </button>
         </div>
@@ -401,12 +401,19 @@ window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
   // Dropdown menus for import/export
+  const allDropdownMenus = [];
+
   const setupDropdown = (btnClass, menuClass) => {
     const btn = document.querySelector(btnClass);
     const menu = document.querySelector(menuClass);
     if (btn && menu) {
+      allDropdownMenus.push(menu);
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        // Close all other dropdowns
+        allDropdownMenus.forEach(m => {
+          if (m !== menu) m.classList.add('hidden');
+        });
         menu.classList.toggle('hidden');
       });
       document.addEventListener('click', () => {
@@ -966,7 +973,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     let fetched = 0;
-    let skipped = 0;
+    let noIsbn = 0;
+    let alreadyHasCover = 0;
+    let notFound = 0;
     let errors = 0;
 
     for (const id of ids) {
@@ -978,8 +987,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = await response.json();
 
         if (data.success) {
-          if (data.fetched) fetched++;
-          else skipped++; // Already had cover or no ISBN
+          if (data.fetched) {
+            fetched++;
+          } else {
+            // Check reason for skip
+            if (data.reason === 'no_isbn' || data.reason === 'invalid_isbn') {
+              noIsbn++;
+            } else if (data.reason === 'already_has_cover') {
+              alreadyHasCover++;
+            } else if (data.reason === 'no_cover_found') {
+              notFound++;
+            }
+          }
         } else {
           errors++;
         }
@@ -990,7 +1009,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Update progress
       const progressEl = document.getElementById('cover-progress');
       if (progressEl) {
-        progressEl.textContent = fetched + skipped + errors;
+        progressEl.textContent = fetched + noIsbn + alreadyHasCover + notFound + errors;
       }
     }
 
@@ -998,14 +1017,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.Swal) {
       let message = '';
       if (fetched > 0) message += `<?= __("Copertine scaricate:") ?> ${fetched}\n`;
-      if (skipped > 0) message += `<?= __("Già presenti o senza ISBN:") ?> ${skipped}\n`;
+      if (alreadyHasCover > 0) message += `<?= __("Già presenti:") ?> ${alreadyHasCover}\n`;
+      if (noIsbn > 0) message += `<?= __("Impossibile scaricare (libro senza ISBN):") ?> ${noIsbn}\n`;
+      if (notFound > 0) message += `<?= __("Copertina non trovata online:") ?> ${notFound}\n`;
       if (errors > 0) message += `<?= __("Errori:") ?> ${errors}`;
 
       Swal.fire({
         icon: fetched > 0 ? 'success' : 'info',
         title: '<?= __("Completato") ?>',
         text: message.trim() || '<?= __("Nessuna copertina da scaricare") ?>',
-        timer: 3000,
+        timer: 4000,
         showConfirmButton: false
       });
     }

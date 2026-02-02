@@ -1188,42 +1188,60 @@ return function (App $app): void {
 
     // Plugin Administration
     $app->get('/admin/plugins/librarything', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->showAdminPage($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
     $app->post('/admin/plugins/librarything/install', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->install($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/plugins/librarything/uninstall', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->uninstall($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Import/Export
     $app->get('/admin/libri/import/librarything', function ($request, $response) {
-        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->showImportPage($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
 
+    // Chunked import endpoints (new)
+    $app->post('/admin/libri/import/librarything/prepare', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        return $controller->prepareImport($request, $response);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/libri/import/librarything/chunk', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->processChunk($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(100, 60))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/libri/import/librarything/results', function ($request, $response) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        return $controller->getImportResults($request, $response);
+    })->add(new AdminAuthMiddleware());
+
+    // Legacy endpoint (backwards compatibility)
     $app->post('/admin/libri/import/librarything/process', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->processImport($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->get('/admin/libri/import/librarything/progress', function ($request, $response) {
-        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->getProgress($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/libri/export/librarything', function ($request, $response) use ($app) {
-        $controller = new \App\Controllers\Plugins\LibraryThingController();
+        $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->exportToLibraryThing($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(5, 60))

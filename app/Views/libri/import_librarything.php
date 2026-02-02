@@ -2,7 +2,6 @@
 use App\Support\Csrf;
 
 $pageTitle = $title ?? __('Import LibraryThing');
-ob_start();
 ?>
 
 <div class="min-h-screen bg-gray-50 py-6">
@@ -42,7 +41,7 @@ ob_start();
                         <i class="fas fa-arrow-left mr-2"></i>
                         <?= __("Torna ai Libri") ?>
                     </a>
-                    <a href="/admin/libri/import" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors inline-flex items-center">
+                    <a href="/admin/libri/import" class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors inline-flex items-center">
                         <i class="fas fa-file-csv mr-2"></i>
                         <?= __("Import CSV Standard") ?>
                     </a>
@@ -105,7 +104,7 @@ ob_start();
                 <!-- Upload Card -->
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h2 class="text-xl font-semibold mb-4 flex items-center">
-                        <i class="fas fa-upload text-blue-600 mr-2"></i>
+                        <i class="fas fa-upload text-gray-800 mr-2"></i>
                         <?= __("Carica File LibraryThing") ?>
                     </h2>
 
@@ -118,7 +117,7 @@ ob_start();
                                 <?= __("File TSV/CSV") ?>
                             </label>
                             <input type="file" name="tsv_file" id="tsv_file" accept=".tsv,.csv,.txt" required
-                                   class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                   class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-800 hover:file:bg-gray-200">
                             <p class="mt-1 text-xs text-gray-500"><?= __("Accetta file .tsv, .csv, .txt") ?></p>
                         </div>
 
@@ -126,7 +125,7 @@ ob_start();
                         <div class="mb-4">
                             <label class="flex items-center space-x-2 cursor-pointer">
                                 <input type="checkbox" name="enable_scraping" id="enable_scraping" value="1"
-                                       class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2">
+                                       class="w-4 h-4 text-gray-800 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 focus:ring-2">
                                 <span class="text-sm text-gray-700">
                                     <i class="fas fa-globe mr-1"></i>
                                     <?= __("Arricchisci dati con scraping web (copertine, descrizioni, etc.)") ?>
@@ -140,13 +139,23 @@ ob_start();
                         <!-- Submit Button -->
                         <div class="flex items-center gap-3">
                             <button type="submit" id="submit-btn"
-                                    class="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors inline-flex items-center font-medium">
+                                    class="px-6 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors inline-flex items-center font-medium">
                                 <i class="fas fa-cloud-upload-alt mr-2"></i>
                                 <?= __("Importa Libri") ?>
                             </button>
-                            <div id="progress-indicator" class="hidden">
-                                <i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i>
-                                <span class="text-sm text-gray-600"><?= __("Import in corso...") ?></span>
+                            <div id="progress-indicator" class="hidden flex items-center gap-2">
+                                <i class="fas fa-spinner fa-spin text-gray-800"></i>
+                                <span class="text-sm text-gray-600" id="progress-text"><?= __("Preparazione...") ?></span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div id="progress-bar-container" class="hidden mt-4">
+                            <div class="bg-gray-200 rounded-full h-4 overflow-hidden">
+                                <div id="progress-bar" class="bg-gray-800 h-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                            <div class="mt-2 text-sm text-gray-600 text-center" id="progress-stats">
+                                0 / 0 (0%)
                             </div>
                         </div>
                     </form>
@@ -158,36 +167,36 @@ ob_start();
             <div class="lg:col-span-1">
 
                 <!-- Instructions Card -->
-                <div class="bg-blue-50 rounded-lg border border-blue-200 p-6 sticky top-6">
-                    <h3 class="text-lg font-semibold text-blue-900 mb-3 flex items-center">
+                <div class="bg-gray-50 rounded-lg border border-gray-200 p-6 sticky top-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
                         <i class="fas fa-info-circle mr-2"></i>
                         <?= __("Come Esportare da LibraryThing") ?>
                     </h3>
-                    <ol class="space-y-3 text-sm text-blue-800">
+                    <ol class="space-y-3 text-sm text-gray-800">
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded-full text-xs font-bold mr-2 mt-0.5">1</span>
+                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-gray-800 text-white rounded-full text-xs font-bold mr-2 mt-0.5">1</span>
                             <span><?= __("Vai su <strong>LibraryThing.com</strong> → La tua biblioteca") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded-full text-xs font-bold mr-2 mt-0.5">2</span>
+                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-gray-800 text-white rounded-full text-xs font-bold mr-2 mt-0.5">2</span>
                             <span><?= __("Clicca su <strong>More</strong> → <strong>Export</strong>") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded-full text-xs font-bold mr-2 mt-0.5">3</span>
+                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-gray-800 text-white rounded-full text-xs font-bold mr-2 mt-0.5">3</span>
                             <span><?= __("Seleziona formato <strong>Tab-delimited text</strong>") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded-full text-xs font-bold mr-2 mt-0.5">4</span>
+                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-gray-800 text-white rounded-full text-xs font-bold mr-2 mt-0.5">4</span>
                             <span><?= __("Scarica il file e caricalo qui") ?></span>
                         </li>
                     </ol>
 
-                    <div class="mt-4 pt-4 border-t border-blue-200">
-                        <h4 class="font-semibold text-blue-900 mb-2">
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <h4 class="font-semibold text-gray-900 mb-2">
                             <i class="fas fa-check-circle mr-1"></i>
                             <?= __("Campi Supportati") ?>
                         </h4>
-                        <ul class="space-y-1 text-xs text-blue-700">
+                        <ul class="space-y-1 text-xs text-gray-800">
                             <li>✓ <?= __("Titolo, Sottotitolo") ?></li>
                             <li>✓ <?= __("Autore Principale e Secondario") ?></li>
                             <li>✓ <?= __("ISBN, EAN, Barcode") ?></li>
@@ -199,12 +208,12 @@ ob_start();
                         </ul>
                     </div>
 
-                    <div class="mt-4 pt-4 border-t border-blue-200">
-                        <h4 class="font-semibold text-blue-900 mb-2">
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <h4 class="font-semibold text-gray-900 mb-2">
                             <i class="fas fa-lightbulb mr-1"></i>
                             <?= __("Suggerimenti") ?>
                         </h4>
-                        <ul class="space-y-1 text-xs text-blue-700">
+                        <ul class="space-y-1 text-xs text-gray-800">
                             <li>• <?= __("Libri duplicati vengono aggiornati automaticamente (per ISBN)") ?></li>
                             <li>• <?= __("Autori ed editori vengono creati se non esistono") ?></li>
                             <li>• <?= __("Lo scraping aggiunge copertine e descrizioni mancanti") ?></li>
@@ -220,22 +229,94 @@ ob_start();
 </div>
 
 <script>
-// Simple form submission handling
-document.getElementById('import-form').addEventListener('submit', function(e) {
-    document.getElementById('submit-btn').disabled = true;
-    document.getElementById('progress-indicator').classList.remove('hidden');
+// Chunked import processing
+document.getElementById('import-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
 
-    // Reset after timeout in case of network error
-    setTimeout(function() {
-        if (document.getElementById('progress-indicator').classList.contains('hidden') === false) {
-            // Still showing after 5 minutes - likely stuck
-            document.getElementById('submit-btn').disabled = false;
+    const submitBtn = document.getElementById('submit-btn');
+    const progressIndicator = document.getElementById('progress-indicator');
+    const progressText = document.getElementById('progress-text');
+    const progressBarContainer = document.getElementById('progress-bar-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressStats = document.getElementById('progress-stats');
+
+    // Disable submit button
+    submitBtn.disabled = true;
+    progressIndicator.classList.remove('hidden');
+    progressText.textContent = '<?= __("Preparazione...") ?>';
+
+    const formData = new FormData(this);
+
+    try {
+        // Step 1: Prepare import (validate and save file)
+        const prepareResponse = await fetch('/admin/libri/import/librarything/prepare', {
+            method: 'POST',
+            body: formData
+        });
+
+        const prepareData = await prepareResponse.json();
+
+        if (!prepareData.success) {
+            throw new Error(prepareData.error || '<?= __("Errore durante la preparazione") ?>');
         }
-    }, 300000);
+
+        // Show progress bar
+        progressBarContainer.classList.remove('hidden');
+        progressText.textContent = '<?= __("Import in corso...") ?>';
+
+        const importId = prepareData.import_id;
+        const totalRows = prepareData.total_rows;
+        const chunkSize = prepareData.chunk_size || 10;
+        let currentRow = 0;
+
+        // Step 2: Process chunks
+        while (currentRow < totalRows) {
+            const chunkResponse = await fetch('/admin/libri/import/librarything/chunk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    import_id: importId,
+                    start: currentRow,
+                    size: chunkSize
+                })
+            });
+
+            const chunkData = await chunkResponse.json();
+
+            if (!chunkData.success) {
+                throw new Error(chunkData.error || '<?= __("Errore durante l\'elaborazione") ?>');
+            }
+
+            // Update progress
+            currentRow = chunkData.current;
+            const percentage = Math.round((currentRow / totalRows) * 100);
+            progressBar.style.width = percentage + '%';
+            progressStats.textContent = `${currentRow} / ${totalRows} (${percentage}%)`;
+
+            // Check if complete
+            if (chunkData.complete) {
+                break;
+            }
+        }
+
+        // Step 3: Get final results
+        const resultsResponse = await fetch('/admin/libri/import/librarything/results');
+        const resultsData = await resultsResponse.json();
+
+        if (resultsData.success && resultsData.redirect) {
+            window.location.href = resultsData.redirect;
+        } else {
+            throw new Error('<?= __("Errore durante il completamento") ?>');
+        }
+
+    } catch (error) {
+        alert('<?= __("Errore") ?>: ' + error.message);
+        submitBtn.disabled = false;
+        progressIndicator.classList.add('hidden');
+        progressBarContainer.classList.add('hidden');
+        progressBar.style.width = '0%';
+    }
 });
 </script>
-
-<?php
-$content = ob_get_clean();
-include __DIR__ . '/../layouts/main.php';
-?>

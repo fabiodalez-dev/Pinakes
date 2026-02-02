@@ -568,7 +568,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           }
 
           // Get visible fields that have values
-          $ltFields = \App\Controllers\Plugins\LibraryThingInstaller::getLibraryThingFields();
+          $ltFields = \App\Support\LibraryThingInstaller::getLibraryThingFields();
           $visibleFields = [];
           foreach ($ltVisibility as $fieldName => $isVisible) {
               // Skip if not visible, not a valid field, or private_comment

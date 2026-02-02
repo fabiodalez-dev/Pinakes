@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\Plugins;
+namespace App\Support;
 
 /**
  * LibraryThing Plugin Installer
@@ -177,22 +177,26 @@ class LibraryThingInstaller
         try {
             $this->db->begin_transaction();
 
-            // Remove check constraint
-            $this->executeOrFail("ALTER TABLE libri DROP CONSTRAINT IF EXISTS chk_lt_rating");
+            // Remove check constraint (try-catch for MySQL < 8.0.16 compatibility)
+            try {
+                $this->db->query("ALTER TABLE libri DROP CHECK chk_lt_rating");
+            } catch (\Exception $e) {
+                // Constraint doesn't exist or MySQL doesn't support CHECK - continue
+            }
 
-            // Remove indexes
-            $this->executeOrFail("
-                ALTER TABLE libri
-                    DROP INDEX IF EXISTS idx_lt_rating,
-                    DROP INDEX IF EXISTS idx_lt_date_read,
-                    DROP INDEX IF EXISTS idx_lt_lending_status,
-                    DROP INDEX IF EXISTS idx_lt_lccn,
-                    DROP INDEX IF EXISTS idx_lt_oclc,
-                    DROP INDEX IF EXISTS idx_lt_work_id,
-                    DROP INDEX IF EXISTS idx_lt_issn
-            ");
+            // Remove indexes individually (MySQL 5.7 compatible)
+            $indexes = ['idx_lt_rating', 'idx_lt_date_read', 'idx_lt_lending_status',
+                       'idx_lt_lccn', 'idx_lt_oclc', 'idx_lt_work_id', 'idx_lt_issn'];
 
-            // Remove all LibraryThing fields (25 unique fields + visibility column)
+            foreach ($indexes as $index) {
+                try {
+                    $this->db->query("ALTER TABLE libri DROP INDEX {$index}");
+                } catch (\Exception $e) {
+                    // Index doesn't exist - continue
+                }
+            }
+
+            // Remove all LibraryThing fields (24 unique fields + visibility column)
             $this->executeOrFail("
                 ALTER TABLE libri
                     DROP COLUMN IF EXISTS review,

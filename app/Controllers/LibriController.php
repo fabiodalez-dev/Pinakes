@@ -7,6 +7,7 @@ use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\SecureLogger;
+use App\Support\LibraryThingInstaller;
 
 class LibriController
 {
@@ -399,7 +400,7 @@ class LibriController
             $resStmt->close();
         }
 
-        $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
+        $libraryThingInstalled = LibraryThingInstaller::isInstalled($db);
         ob_start();
         // extract([
         //     'libro' => $libro,
@@ -430,7 +431,7 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
-        $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
+        $libraryThingInstalled = LibraryThingInstaller::isInstalled($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
@@ -851,7 +852,7 @@ class LibriController
             $id = $repo->createBasic($fields);
 
             // Handle LibraryThing fields visibility preferences
-            if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)
+            if (LibraryThingInstaller::isInstalled($db)
                 && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
                 $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
@@ -915,7 +916,7 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
-        $libraryThingInstalled = \App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db);
+        $libraryThingInstalled = LibraryThingInstaller::isInstalled($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
@@ -1372,7 +1373,7 @@ class LibriController
             $repo->updateBasic($id, $fields);
 
             // Handle LibraryThing fields visibility preferences
-            if (\App\Controllers\Plugins\LibraryThingInstaller::isInstalled($db)
+            if (LibraryThingInstaller::isInstalled($db)
                 && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
                 $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
@@ -1886,6 +1887,9 @@ class LibriController
      */
     public function fetchCover(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        // Increase execution time for bulk operations
+        set_time_limit(120);
+
         $repo = new \App\Models\BookRepository($db);
         $libro = $repo->getById($id);
 
@@ -1907,24 +1911,31 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        // Call scraping API to get book data including cover (use /api/scrape/isbn route)
-        $scrapeUrl = '/api/scrape/isbn?isbn=' . urlencode($isbn);
+        // Call scraping directly via ScrapeController (avoid auth issues with HTTP call)
+        $scrapeController = new \App\Controllers\ScrapeController();
 
-        // Internal request to scraping endpoint
-        $ch = curl_init();
-        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $baseUrl . $scrapeUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false, // Internal request
-        ]);
-        $scrapeResult = curl_exec($ch);
-        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // Create a mock request with ISBN parameter
+        $mockRequest = $request->withQueryParams(['isbn' => $isbn]);
+
+        // Create a new response object for the scraping call
+        $scrapeResponse = new \Slim\Psr7\Response();
+
+        // Call byIsbn directly
+        $scrapeResponse = $scrapeController->byIsbn($mockRequest, $scrapeResponse);
+
+        // Extract and parse the response
+        $httpCode = $scrapeResponse->getStatusCode();
+        $scrapeResult = (string) $scrapeResponse->getBody();
+
+        // Handle different response codes
+        if ($httpCode === 400) {
+            // Invalid ISBN - skip this book (not an error, just no valid ISBN)
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'invalid_isbn']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
 
         if ($httpCode !== 200 || !$scrapeResult) {
+            // Real error from scraper
             $response->getBody()->write(json_encode(['success' => false, 'error' => __('Scraping fallito')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
         }
@@ -3037,7 +3048,7 @@ class LibriController
     private function saveLtVisibility(\mysqli $db, int $id, array $ltVisibilityInput): void
     {
         // Define whitelist of allowed LibraryThing field names
-        $allowedLtFields = array_keys(\App\Controllers\Plugins\LibraryThingInstaller::getLibraryThingFields());
+        $allowedLtFields = array_keys(LibraryThingInstaller::getLibraryThingFields());
 
         $ltVisibility = [];
         foreach ($ltVisibilityInput as $field => $value) {

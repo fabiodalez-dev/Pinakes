@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\Plugins;
+namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Slim\Psr7\Stream;
+use App\Support\LibraryThingInstaller;
 
 /**
  * LibraryThing Import/Export Plugin
@@ -23,7 +23,7 @@ use Slim\Psr7\Stream;
  *
  * @see https://www.librarything.com
  */
-class LibraryThingController
+class LibraryThingImportController
 {
     /**
      * Show LibraryThing import page
@@ -32,10 +32,15 @@ class LibraryThingController
     {
         ob_start();
         $title = "Import LibraryThing";
-        include __DIR__ . '/../../Views/plugins/librarything_import.php';
+        require __DIR__ . '/../Views/libri/import_librarything.php';
         $content = ob_get_clean();
 
-        $response->getBody()->write($content);
+        // Wrap content in admin layout
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html');
     }
 
@@ -91,296 +96,362 @@ class LibraryThingController
     }
 
     /**
-     * Process LibraryThing import
+     * Prepare LibraryThing import (chunked processing)
+     * Step 1: Validate and save file, return metadata
      */
-    public function processImport(Request $request, Response $response, \mysqli $db): Response
+    public function prepareImport(Request $request, Response $response): Response
     {
         $data = (array) $request->getParsedBody();
         $uploadedFiles = $request->getUploadedFiles();
 
         if (!isset($uploadedFiles['tsv_file'])) {
-            $_SESSION['error'] = __('Nessun file caricato');
-            return $response->withHeader('Location', '/admin/libri/import/librarything')->withStatus(302);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Nessun file caricato')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
         $uploadedFile = $uploadedFiles['tsv_file'];
 
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
-            $_SESSION['error'] = __('Errore nel caricamento del file');
-            return $response->withHeader('Location', '/admin/libri/import/librarything')->withStatus(302);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore nel caricamento del file')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Validazione estensione file (TSV or CSV)
+        // Validazione estensione file
         $filename = $uploadedFile->getClientFilename();
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         if (!in_array($extension, ['tsv', 'csv', 'txt'], true)) {
-            $_SESSION['error'] = __('Il file deve avere estensione .tsv, .csv o .txt');
-            return $response->withHeader('Location', '/admin/libri/import/librarything')->withStatus(302);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Il file deve avere estensione .tsv, .csv o .txt')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        $tmpFile = $uploadedFile->getStream()->getMetadata('uri');
-        $enableScraping = !empty($data['enable_scraping']);
+        // Save to temporary location
+        $tmpDir = sys_get_temp_dir() . '/librarything_imports';
+        if (!is_dir($tmpDir)) {
+            mkdir($tmpDir, 0755, true);
+        }
 
-        // Initialize progress tracking
-        $_SESSION['import_progress'] = [
-            'status' => 'processing',
-            'current' => 0,
-            'total' => 0,
-            'current_book' => ''
-        ];
+        $importId = uniqid('lt_', true);
+        $savedPath = $tmpDir . '/' . $importId . '.tsv';
+        $uploadedFile->moveTo($savedPath);
 
-        /** @var bool $isAjax */
-        $isAjax = $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
-
+        // Validate format and count rows
         try {
-            $result = $this->importLibraryThingData($tmpFile, $db, $enableScraping);
+            $file = fopen($savedPath, 'r');
+            if (!$file) {
+                throw new \Exception(__('Impossibile aprire il file'));
+            }
 
-            $_SESSION['import_progress'] = [
-                'status' => 'completed',
-                'current' => $result['imported'] + $result['updated'],
-                'total' => $result['imported'] + $result['updated']
+            // Skip BOM
+            $bom = fread($file, 3);
+            if ($bom !== "\xEF\xBB\xBF") {
+                rewind($file);
+            }
+
+            // Read and validate headers
+            $headers = fgetcsv($file, 0, "\t", '"', "");
+            if (!$headers || !$this->isLibraryThingFormat($headers)) {
+                fclose($file);
+                unlink($savedPath);
+                throw new \Exception(__('Il file non sembra essere in formato LibraryThing'));
+            }
+
+            // Count rows
+            $totalRows = 0;
+            while (fgetcsv($file, 0, "\t", '"', "") !== false) {
+                $totalRows++;
+            }
+            fclose($file);
+
+            // Initialize session data
+            $_SESSION['librarything_import'] = [
+                'import_id' => $importId,
+                'file_path' => $savedPath,
+                'total_rows' => $totalRows,
+                'enable_scraping' => !empty($data['enable_scraping']),
+                'imported' => 0,
+                'updated' => 0,
+                'authors_created' => 0,
+                'publishers_created' => 0,
+                'scraped' => 0,
+                'errors' => [],
+                'current_row' => 0
             ];
 
-            $message = sprintf(
-                __('Import LibraryThing completato: %d libri nuovi, %d libri aggiornati, %d autori creati, %d editori creati'),
-                $result['imported'],
-                $result['updated'],
-                $result['authors_created'],
-                $result['publishers_created']
-            );
-
-            if ($enableScraping && isset($result['scraped'])) {
-                $message .= sprintf(__(', %d libri arricchiti con scraping'), $result['scraped']);
-            }
-
-            if (!empty($result['errors'])) {
-                $message .= sprintf(__(', %d errori'), count($result['errors']));
-            }
-
-            $_SESSION['success'] = $message;
-
-            if (!empty($result['errors'])) {
-                $_SESSION['import_errors'] = $result['errors'];
-            }
-
-            if ($isAjax) {
-                $response->getBody()->write(json_encode([
-                    'success' => true,
-                    'redirect' => '/admin/libri/import/librarything',
-                    'message' => $message
-                ], JSON_THROW_ON_ERROR));
-                return $response->withHeader('Content-Type', 'application/json');
-            }
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'import_id' => $importId,
+                'total_rows' => $totalRows,
+                'chunk_size' => 10
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json');
 
         } catch (\Exception $e) {
-            $_SESSION['error'] = sprintf(__('Errore durante l\'import: %s'), $e->getMessage());
-            $_SESSION['import_progress'] = ['status' => 'error'];
-
-            // phpstan incorrectly infers this condition is always true in catch block
-            /** @phpstan-ignore if.alwaysTrue */
-            if ($isAjax) {
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'error' => $e->getMessage()
-                ], JSON_THROW_ON_ERROR));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            if (file_exists($savedPath)) {
+                unlink($savedPath);
             }
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
-
-        return $response->withHeader('Location', '/admin/libri/import/librarything')->withStatus(302);
     }
 
     /**
-     * Import LibraryThing TSV data
-     *
-     * @param string $filePath Path to TSV file
-     * @param \mysqli $db Database connection
-     * @param bool $enableScraping Enable web scraping for missing metadata
-     * @return array Import statistics
+     * Process a chunk of LibraryThing import
+     * Step 2: Process rows in chunks to avoid timeout
      */
-    private function importLibraryThingData(string $filePath, \mysqli $db, bool $enableScraping = false): array
+    public function processChunk(Request $request, Response $response, \mysqli $db): Response
     {
-        $imported = 0;
-        $updated = 0;
-        $authorsCreated = 0;
-        $publishersCreated = 0;
-        $scraped = 0;
-        $errors = [];
+        $data = json_decode((string) $request->getBody(), true);
+        $importId = $data['import_id'] ?? '';
+        $chunkStart = (int) ($data['start'] ?? 0);
+        $chunkSize = (int) ($data['size'] ?? 10);
 
-        // Scraping limits
-        $maxScrapingTime = 300; // 5 minutes
-        $maxScrapeItems = 50;
-        $scrapingStartTime = time();
-
-        $file = fopen($filePath, 'r');
-        if (!$file) {
-            throw new \Exception(__('Impossibile aprire il file'));
+        if (!isset($_SESSION['librarything_import']) || $_SESSION['librarything_import']['import_id'] !== $importId) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Sessione import non valida')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Skip BOM if present
-        $bom = fread($file, 3);
-        $hasBom = ($bom === "\xEF\xBB\xBF");
-        if (!$hasBom) {
-            rewind($file);
-        }
+        $importData = &$_SESSION['librarything_import'];
+        $filePath = $importData['file_path'];
+        $enableScraping = $importData['enable_scraping'];
 
-        // Read headers (tab-separated)
-        $headers = fgetcsv($file, 0, "\t", '"');
-        if (!$headers) {
-            fclose($file);
-            throw new \Exception(__('File vuoto o formato non valido'));
-        }
-
-        // Verify it's a LibraryThing format
-        if (!$this->isLibraryThingFormat($headers)) {
-            fclose($file);
-            throw new \Exception(__('Il file non sembra essere in formato LibraryThing. Colonne richieste: Book Id, Title, Primary Author, ISBNs'));
-        }
-
-        // Count total rows
-        $totalRows = 0;
-        while (fgetcsv($file, 0, "\t", '"') !== false) {
-            $totalRows++;
-        }
-
-        rewind($file);
-        if ($hasBom) {
-            fread($file, 3);
-        }
-        fgetcsv($file, 0, "\t", '"'); // Skip headers
-
-        $_SESSION['import_progress']['total'] = $totalRows;
-
-        $lineNumber = 1;
-        $rowCount = 0;
-        $maxRows = 10000;
-
-        while (($row = fgetcsv($file, 0, "\t", '"')) !== false) {
-            $lineNumber++;
-            $rowCount++;
-
-            if ($rowCount > $maxRows) {
-                $errors[] = sprintf(__('Numero massimo di righe superato (%d)'), $maxRows);
-                break;
+        try {
+            $file = fopen($filePath, 'r');
+            if (!$file) {
+                throw new \Exception(__('Impossibile aprire il file'));
             }
 
-            // Skip empty rows
-            if (empty(array_filter($row))) {
-                continue;
+            // Skip BOM
+            $bom = fread($file, 3);
+            if ($bom !== "\xEF\xBB\xBF") {
+                rewind($file);
             }
 
-            if (count($row) !== count($headers)) {
-                $errors[] = sprintf(__('Riga %d: numero di colonne non corrispondente'), $lineNumber);
-                continue;
+            // Read headers
+            $headers = fgetcsv($file, 0, "\t", '"', "");
+            if (!$headers) {
+                fclose($file);
+                throw new \Exception(__('File vuoto o formato non valido'));
             }
 
-            $rawData = array_combine($headers, $row);
-
-            try {
-                $db->begin_transaction();
-
-                // Parse LibraryThing format to standard format
-                $data = $this->parseLibraryThingRow($rawData);
-
-                // Verify required fields
-                if (empty($data['titolo'])) {
-                    throw new \Exception(__('Titolo obbligatorio mancante'));
+            // Skip to chunk start
+            for ($i = 0; $i < $chunkStart; $i++) {
+                if (fgetcsv($file, 0, "\t", '"', "") === false) {
+                    break;
                 }
+            }
 
-                // Get or create publisher
-                $editorId = null;
-                if (!empty($data['editore'])) {
-                    $publisherResult = $this->getOrCreatePublisher($db, trim($data['editore']));
-                    $editorId = $publisherResult['id'];
-                    if ($publisherResult['created']) {
-                        $publishersCreated++;
+            // Process chunk
+            $processed = 0;
+            $lineNumber = $chunkStart + 2; // +2 because of header and 1-indexed
+
+            while ($processed < $chunkSize && ($rawData = fgetcsv($file, 0, "\t", '"', "")) !== false) {
+                try {
+                    // Map headers to data (PHPStan verified: always returns array when inputs are valid)
+                    $row = array_combine($headers, $rawData);
+
+                    $parsedData = $this->parseLibraryThingRow($row);
+
+                    if (empty($parsedData['titolo'])) {
+                        throw new \Exception(__('Titolo mancante'));
                     }
-                }
 
-                // Get genre ID
-                $genreId = $this->getGenreId($db, $data['genere'] ?? '');
+                    $db->begin_transaction();
 
-                // Upsert book
-                $upsertResult = $this->upsertBook($db, $data, $editorId, $genreId);
-                $bookId = $upsertResult['id'];
-                $action = $upsertResult['action'];
-
-                // Remove old author links if updating
-                if ($action === 'updated') {
-                    $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ?");
-                    $stmt->bind_param('i', $bookId);
-                    $stmt->execute();
-                    $stmt->close();
-                }
-
-                // Handle authors
-                if (!empty($data['autori'])) {
-                    $authors = array_map('trim', explode('|', $data['autori']));
-                    $authorOrder = 1;
-
-                    foreach ($authors as $authorName) {
-                        if (empty($authorName)) continue;
-
-                        $authorResult = $this->getOrCreateAuthor($db, $authorName);
-                        $authorId = $authorResult['id'];
-                        if ($authorResult['created']) {
-                            $authorsCreated++;
+                    // Get or create publisher
+                    $editorId = null;
+                    if (!empty($parsedData['editore'])) {
+                        $publisherResult = $this->getOrCreatePublisher($db, trim($parsedData['editore']));
+                        $editorId = $publisherResult['id'];
+                        if ($publisherResult['created']) {
+                            $importData['publishers_created']++;
                         }
-
-                        $stmt = $db->prepare("INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (?, ?, 'principale', ?)");
-                        $stmt->bind_param('iii', $bookId, $authorId, $authorOrder);
-                        $stmt->execute();
-                        $authorOrder++;
                     }
-                }
 
-                $db->commit();
+                    // Get genre ID
+                    $genreId = $this->getGenreId($db, $parsedData['genere'] ?? '');
 
-                if ($action === 'created') {
-                    $imported++;
-                } else {
-                    $updated++;
-                }
+                    // Upsert book
+                    $upsertResult = $this->upsertBook($db, $parsedData, $editorId, $genreId);
+                    $bookId = $upsertResult['id'];
+                    $action = $upsertResult['action'];
 
-                $_SESSION['import_progress']['current'] = $imported + $updated;
-                $_SESSION['import_progress']['current_book'] = $data['titolo'];
+                    // Remove old author links if updating
+                    if ($action === 'updated') {
+                        $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ?");
+                        $stmt->bind_param('i', $bookId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
 
-                // Scraping integration
-                if ($enableScraping && !empty($data['isbn13']) && $scraped < $maxScrapeItems) {
-                    if (time() - $scrapingStartTime > $maxScrapingTime) {
-                        $errors[] = sprintf(__('Scraping interrotto: timeout di %d secondi raggiunto'), $maxScrapingTime);
-                        $enableScraping = false;
-                    } else {
-                        try {
-                            $scrapedData = $this->scrapeBookData($data['isbn13']);
-                            if (!empty($scrapedData)) {
-                                $this->enrichBookWithScrapedData($db, $bookId, $data, $scrapedData);
-                                $scraped++;
+                    // Handle authors
+                    if (!empty($parsedData['autori'])) {
+                        $authors = array_map('trim', explode('|', $parsedData['autori']));
+                        $authorOrder = 1;
+
+                        foreach ($authors as $authorName) {
+                            if (empty($authorName)) continue;
+
+                            $authorResult = $this->getOrCreateAuthor($db, $authorName);
+                            $authorId = $authorResult['id'];
+                            if ($authorResult['created']) {
+                                $importData['authors_created']++;
                             }
-                            sleep(3); // Rate limiting
+
+                            $stmt = $db->prepare("INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (?, ?, 'principale', ?)");
+                            $stmt->bind_param('iii', $bookId, $authorId, $authorOrder);
+                            $stmt->execute();
+                            $stmt->close();
+                            $authorOrder++;
+                        }
+                    }
+
+                    $db->commit();
+
+                    if ($action === 'created') {
+                        $importData['imported']++;
+                    } else {
+                        $importData['updated']++;
+                    }
+
+                    // NOTE: Cover download disabled during import to avoid timeout on shared hosting
+                    // Users can download covers later via the standard enrichment system
+                    // if (!empty($parsedData['isbn13']) || !empty($parsedData['isbn10'])) {
+                    //     try {
+                    //         $isbn = $parsedData['isbn13'] ?? $parsedData['isbn10'];
+                    //         $this->downloadCoverIfMissing($db, $bookId, $isbn);
+                    //     } catch (\Exception $coverError) {
+                    //         error_log("[LibraryThing Import] Cover download failed: " . $coverError->getMessage());
+                    //     }
+                    // }
+
+                    // Scraping integration for additional metadata
+                    if ($enableScraping && !empty($parsedData['isbn13']) && $importData['scraped'] < 50) {
+                        try {
+                            $scrapedData = $this->scrapeBookData($parsedData['isbn13']);
+                            if (!empty($scrapedData)) {
+                                $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData);
+                                $importData['scraped']++;
+                            }
                         } catch (\Exception $scrapeError) {
                             error_log("[LibraryThing Import] Scraping failed: " . $scrapeError->getMessage());
                         }
                     }
+
+                } catch (\Exception $e) {
+                    $db->rollback();
+                    $title = $parsedData['titolo'] ?? $rawData[1] ?? '';
+                    $importData['errors'][] = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
                 }
 
-            } catch (\Exception $e) {
-                $db->rollback();
-                $title = $data['titolo'] ?? $rawData['Title'] ?? '';
-                $errors[] = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
+                $processed++;
+                $lineNumber++;
             }
+
+            fclose($file);
+
+            $importData['current_row'] = $chunkStart + $processed;
+            $isComplete = $importData['current_row'] >= $importData['total_rows'];
+
+            // Cleanup if complete
+            if ($isComplete && file_exists($filePath)) {
+                unlink($filePath);
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'processed' => $processed,
+                'current' => $importData['current_row'],
+                'total' => $importData['total_rows'],
+                'imported' => $importData['imported'],
+                'updated' => $importData['updated'],
+                'authors_created' => $importData['authors_created'],
+                'publishers_created' => $importData['publishers_created'],
+                'scraped' => $importData['scraped'],
+                'errors' => count($importData['errors']),
+                'complete' => $isComplete
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json');
+
+        } catch (\Exception $e) {
+            $importData['errors'][] = $e->getMessage();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Get final import results
+     */
+    public function getImportResults(Request $request, Response $response): Response
+    {
+        if (!isset($_SESSION['librarything_import'])) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Nessun import in corso')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        fclose($file);
+        $importData = $_SESSION['librarything_import'];
 
-        return [
-            'imported' => $imported,
-            'updated' => $updated,
-            'authors_created' => $authorsCreated,
-            'publishers_created' => $publishersCreated,
-            'scraped' => $scraped,
-            'errors' => $errors
-        ];
+        $message = sprintf(
+            __('Import LibraryThing completato: %d libri nuovi, %d libri aggiornati, %d autori creati, %d editori creati'),
+            $importData['imported'],
+            $importData['updated'],
+            $importData['authors_created'],
+            $importData['publishers_created']
+        );
+
+        if ($importData['enable_scraping'] && $importData['scraped'] > 0) {
+            $message .= sprintf(__(', %d libri arricchiti con scraping'), $importData['scraped']);
+        }
+
+        if (!empty($importData['errors'])) {
+            $message .= sprintf(__(', %d errori'), count($importData['errors']));
+        }
+
+        $_SESSION['success'] = $message;
+        if (!empty($importData['errors'])) {
+            $_SESSION['import_errors'] = $importData['errors'];
+        }
+
+        // Clear import session
+        unset($_SESSION['librarything_import']);
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'message' => $message,
+            'redirect' => '/admin/libri/import/librarything'
+        ], JSON_THROW_ON_ERROR));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Legacy process import (kept for backwards compatibility)
+     * @deprecated Use prepareImport + processChunk instead
+     */
+    public function processImport(Request $request, Response $response, \mysqli $db): Response
+    {
+        // Redirect to new chunked processing
+        return $this->prepareImport($request, $response);
     }
 
     /**
@@ -404,10 +475,52 @@ class LibraryThingController
     }
 
     /**
+     * Fix common UTF-8 encoding issues from LibraryThing export
+     * Converts corrupted characters back to their correct form
+     */
+    private function fixUtf8Encoding(string $text): string
+    {
+        if (empty($text)) {
+            return $text;
+        }
+
+        // Common replacements for double-encoded or corrupted UTF-8
+        $replacements = [
+            // ©♭ → é (e with acute accent)
+            "\xC2\xA9\xE2\x99\xAD" => "\xC3\xA9",  // Pappé
+            // ©¨ → è (e with grave accent)
+            "\xC2\xA9\xC2\xA8" => "\xC3\xA8",
+            // ©† → à (a with grave)
+            "\xC2\xA9\xE2\x80\xA0" => "\xC3\xA0",
+            // More common double-encoded patterns
+            "Ã©" => "é",
+            "Ã¨" => "è",
+            "Ã " => "à",
+            "Ã¹" => "ù",
+            "Ã²" => "ò",
+            "Ã¬" => "ì",
+        ];
+
+        $fixed = str_replace(array_keys($replacements), array_values($replacements), $text);
+
+        // Ensure valid UTF-8
+        if (!mb_check_encoding($fixed, 'UTF-8')) {
+            $fixed = mb_convert_encoding($fixed, 'UTF-8', 'UTF-8');
+        }
+
+        return $fixed;
+    }
+
+    /**
      * Parse LibraryThing row to standard format
      */
     private function parseLibraryThingRow(array $data): array
     {
+        // Fix UTF-8 encoding issues in all string values
+        $data = array_map(function ($value) {
+            return is_string($value) ? $this->fixUtf8Encoding($value) : $value;
+        }, $data);
+
         $result = [];
 
         // Book ID
@@ -755,7 +868,7 @@ class LibraryThingController
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
         // Check if LibraryThing plugin is installed
-        $hasLTFields = LibraryThingInstaller::isInstalled($db);
+        $hasLTFields = \App\Support\LibraryThingInstaller::isInstalled($db);
 
         if ($hasLTFields) {
             // Full update with all LibraryThing fields
@@ -877,7 +990,7 @@ class LibraryThingController
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int
     {
         // Check if LibraryThing plugin is installed
-        $hasLTFields = LibraryThingInstaller::isInstalled($db);
+        $hasLTFields = \App\Support\LibraryThingInstaller::isInstalled($db);
 
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         if ($copie < 1) {
@@ -971,7 +1084,7 @@ class LibraryThingController
                 !empty($data['condition_lt']) ? $data['condition_lt'] : null
             ];
 
-            $types = 'sssssissiissdiiisssssdsssisssssssssssssssssssds';
+            $types = 'sssssississsdiiisssssdsssisssssssssssssssssssds';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
@@ -1078,16 +1191,61 @@ class LibraryThingController
         return [];
     }
 
+    /**
+     * Download cover image if book doesn't have one
+     * Uses the existing scrapeBookData method
+     */
     private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData): void
     {
         $updates = [];
         $params = [];
         $types = '';
 
+        // Download and save cover image if available
         if (empty($csvData['copertina_url']) && !empty($scrapedData['image'])) {
-            $updates[] = 'copertina_url = ?';
-            $params[] = $scrapedData['image'];
-            $types .= 's';
+            try {
+                $coverController = new \App\Controllers\CoverController();
+
+                // Create a mock request with the cover URL
+                $coverRequest = new \Slim\Psr7\Request(
+                    'POST',
+                    new \Slim\Psr7\Uri('http', 'localhost'),
+                    new \Slim\Psr7\Headers(),
+                    [],
+                    [],
+                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
+                );
+
+                // Set the cover URL in the request body
+                $bodyStream = fopen('php://temp', 'r+');
+                fwrite($bodyStream, json_encode(['cover_url' => $scrapedData['image']]));
+                rewind($bodyStream);
+                $coverRequest = $coverRequest->withBody(new \Slim\Psr7\Stream($bodyStream));
+
+                $coverResponse = new \Slim\Psr7\Response();
+                $result = $coverController->download($coverRequest, $coverResponse);
+
+                if ($result->getStatusCode() === 200) {
+                    $coverData = json_decode((string)$result->getBody(), true);
+                    if (!empty($coverData['filename'])) {
+                        $updates[] = 'copertina_url = ?';
+                        $params[] = $coverData['filename'];
+                        $types .= 's';
+                        error_log("[LibraryThing] Cover downloaded successfully: " . $coverData['filename']);
+                    }
+                } else {
+                    // Fallback: save URL only
+                    $updates[] = 'copertina_url = ?';
+                    $params[] = $scrapedData['image'];
+                    $types .= 's';
+                }
+            } catch (\Exception $e) {
+                error_log("[LibraryThing] Cover download failed: " . $e->getMessage());
+                // Fallback: save URL only
+                $updates[] = 'copertina_url = ?';
+                $params[] = $scrapedData['image'];
+                $types .= 's';
+            }
         }
 
         if (empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
@@ -1113,11 +1271,12 @@ class LibraryThingController
      */
     public function getProgress(Request $request, Response $response): Response
     {
-        $progress = $_SESSION['import_progress'] ?? [
+        $progress = $_SESSION['librarything_import'] ?? [
             'status' => 'idle',
-            'current' => 0,
-            'total' => 0,
-            'current_book' => ''
+            'current_row' => 0,
+            'total_rows' => 0,
+            'imported' => 0,
+            'updated' => 0
         ];
 
         $response->getBody()->write(json_encode($progress));

@@ -6,7 +6,7 @@ $status = $data['status'] ?? [];
 $installed = $status['installed'] ?? false;
 $complete = $status['complete'] ?? false;
 $fieldsCount = $status['fields_count'] ?? 0;
-$expectedFields = $status['expected_fields'] ?? 29;
+$expectedFields = $status['expected_fields'] ?? 24;
 ?>
 
 <div class="min-h-screen bg-gray-50 py-6">
@@ -30,7 +30,7 @@ $expectedFields = $status['expected_fields'] ?? 29;
         <!-- Header -->
         <div class="mb-6">
             <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-                <i class="fas fa-cloud text-blue-600 mr-3"></i>
+                <i class="fas fa-cloud text-gray-800 mr-3"></i>
                 <?= __("Plugin LibraryThing") ?>
             </h1>
             <p class="text-sm text-gray-600 mt-1">
@@ -68,7 +68,7 @@ $expectedFields = $status['expected_fields'] ?? 29;
         <!-- Status Card -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h2 class="text-xl font-semibold mb-4 flex items-center">
-                <i class="fas fa-info-circle text-blue-600 mr-2"></i>
+                <i class="fas fa-info-circle text-gray-800 mr-2"></i>
                 <?= __("Stato Plugin") ?>
             </h2>
 
@@ -109,7 +109,7 @@ $expectedFields = $status['expected_fields'] ?? 29;
         <!-- Actions Card -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h2 class="text-xl font-semibold mb-4 flex items-center">
-                <i class="fas fa-cogs text-blue-600 mr-2"></i>
+                <i class="fas fa-cogs text-gray-800 mr-2"></i>
                 <?= __("Azioni") ?>
             </h2>
 
@@ -120,15 +120,15 @@ $expectedFields = $status['expected_fields'] ?? 29;
 
                     <div class="mb-4">
                         <p class="text-gray-700 mb-4">
-                            <?= __("L'installazione del plugin aggiungerà 29 nuovi campi alla tabella 'libri' per supportare tutte le funzionalità di LibraryThing.") ?>
+                            <?= __("L'installazione del plugin aggiungerà 24 nuovi campi alla tabella 'libri' per supportare tutte le funzionalità di LibraryThing.") ?>
                         </p>
 
-                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                            <h4 class="font-semibold text-blue-900 mb-2">
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                            <h4 class="font-semibold text-gray-900 mb-2">
                                 <i class="fas fa-database mr-2"></i>
                                 <?= __("Campi che verranno aggiunti:") ?>
                             </h4>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-blue-800">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-800">
                                 <div>• <?= __("Review, Rating, Comments") ?></div>
                                 <div>• <?= __("Physical Description (Weight, Height, etc.)") ?></div>
                                 <div>• <?= __("Library Classifications (LCCN, LC, Dewey)") ?></div>
@@ -149,7 +149,7 @@ $expectedFields = $status['expected_fields'] ?? 29;
                         </div>
                     </div>
 
-                    <button type="submit" class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors font-medium inline-flex items-center">
+                    <button type="submit" class="px-6 py-3 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors font-medium inline-flex items-center">
                         <i class="fas fa-download mr-2"></i>
                         <?= __("Installa Plugin") ?>
                     </button>
@@ -171,7 +171,7 @@ $expectedFields = $status['expected_fields'] ?? 29;
                                 <?= __("ATTENZIONE: Disinstallazione Irreversibile") ?>
                             </h4>
                             <p class="text-red-800 text-sm mb-2">
-                                <?= __("La disinstallazione rimuoverà tutti i 29 campi LibraryThing dal database.") ?>
+                                <?= __("La disinstallazione rimuoverà tutti i 24 campi LibraryThing dal database.") ?>
                             </p>
                             <p class="text-red-800 text-sm font-semibold">
                                 <?= __("TUTTI I DATI IN QUESTI CAMPI VERRANNO ELIMINATI PERMANENTEMENTE!") ?>
@@ -258,7 +258,7 @@ $expectedFields = $status['expected_fields'] ?? 29;
                 <div class="mt-6 pt-6 border-t border-gray-200">
                     <div class="flex gap-3">
                         <a href="/admin/libri/import/librarything"
-                           class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors inline-flex items-center text-sm">
+                           class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors inline-flex items-center text-sm">
                             <i class="fas fa-cloud-upload-alt mr-2"></i>
                             <?= __("Import da LibraryThing") ?>
                         </a>
@@ -296,5 +296,5 @@ document.getElementById('uninstall-form')?.addEventListener('submit', function(e
 
 <?php
 $content = ob_get_clean();
-include __DIR__ . '/../layouts/main.php';
+include __DIR__ . '/../layout.php';
 ?>
