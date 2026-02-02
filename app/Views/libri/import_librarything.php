@@ -315,7 +315,24 @@ document.getElementById('import-form').addEventListener('submit', async function
                 })
             });
 
-            const chunkData = await chunkResponse.json();
+            console.log('[DEBUG] Chunk response status:', chunkResponse.status);
+            console.log('[DEBUG] Chunk response content-type:', chunkResponse.headers.get('content-type'));
+
+            if (!chunkResponse.ok) {
+                const errorText = await chunkResponse.text();
+                console.error('[DEBUG] Chunk request failed:', errorText.substring(0, 200));
+                throw new Error('HTTP ' + chunkResponse.status + ': ' + errorText.substring(0, 200));
+            }
+
+            let chunkData;
+            try {
+                const responseText = await chunkResponse.text();
+                console.log('[DEBUG] Raw response (first 200 chars):', responseText.substring(0, 200));
+                chunkData = JSON.parse(responseText);
+            } catch (jsonError) {
+                console.error('[DEBUG] Failed to parse JSON response');
+                throw new Error('<?= __("Risposta non valida dal server (timeout o errore)") ?>');
+            }
 
             if (!chunkData.success) {
                 throw new Error(chunkData.error || '<?= __("Errore durante l\'elaborazione") ?>');

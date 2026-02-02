@@ -117,6 +117,10 @@ class LibraryThingImportController
      */
     public function prepareImport(Request $request, Response $response): Response
     {
+        // Set timeout to 5 minutes for file upload and preparation
+        set_time_limit(300);
+        error_log('[DEBUG PREPARE] prepareImport START - timeout set to 300s');
+
         $data = (array) $request->getParsedBody();
         $uploadedFiles = $request->getUploadedFiles();
 
@@ -206,7 +210,7 @@ class LibraryThingImportController
                 'success' => true,
                 'import_id' => $importId,
                 'total_rows' => $totalRows,
-                'chunk_size' => 10
+                'chunk_size' => 5  // Ridotto da 10 a 5 per evitare timeout
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json');
 
@@ -228,10 +232,16 @@ class LibraryThingImportController
      */
     public function processChunk(Request $request, Response $response, \mysqli $db): Response
     {
+        // Set timeout to 5 minutes for import processing
+        set_time_limit(300);
+        error_log('[DEBUG CHUNK] processChunk START - timeout set to 300s');
+
         $data = json_decode((string) $request->getBody(), true);
         $importId = $data['import_id'] ?? '';
         $chunkStart = (int) ($data['start'] ?? 0);
         $chunkSize = (int) ($data['size'] ?? 10);
+
+        error_log('[DEBUG CHUNK] Import ID: ' . $importId . ', Start: ' . $chunkStart . ', Size: ' . $chunkSize);
 
         if (!isset($_SESSION['librarything_import']) || $_SESSION['librarything_import']['import_id'] !== $importId) {
             $response->getBody()->write(json_encode([
