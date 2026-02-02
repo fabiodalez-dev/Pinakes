@@ -343,12 +343,12 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
     $response = $handler->handle($request);
 
     // Content Security Policy - restrictive but allows inline scripts/styles (required by app)
-    // Tutti gli asset (font inclusi) sono self-hosted: nessuna dipendenza esterna
+    // Permette asset da CDN esterni (cdnjs, Google Fonts) per funzionalità estese
     $csp = "default-src 'self'; " .
-           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; " .
-           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com http://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
+           "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; " .
+           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
            "img-src 'self' data: blob: http: https:; " .
-           "font-src 'self' data: https://fonts.gstatic.com http://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
+           "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
            "connect-src 'self' data: blob:; " .
            "object-src 'none'; " .
            "base-uri 'self'; " .

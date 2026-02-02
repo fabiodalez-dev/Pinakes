@@ -224,11 +224,22 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ============================================================
--- 10. VISIBILITY CONTROL (JSON)
+-- 10. VISIBILITY CONTROL (JSON/LONGTEXT)
 -- ============================================================
+-- JSON type is only available in MariaDB 10.2.7+ and MySQL 5.7.8+
+-- For older versions, we use LONGTEXT as a fallback
 
 SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'lt_fields_visibility');
-SET @sql = IF(@col_exists = 0, 'ALTER TABLE `libri` ADD COLUMN `lt_fields_visibility` JSON NULL COMMENT ''Frontend visibility preferences for LibraryThing fields'' AFTER `condition_lt`', 'SELECT 1');
+
+-- Detect if we're on MariaDB 10.0/10.1 or MySQL < 5.7.8
+SET @is_old_mariadb = (@@version REGEXP '^(MariaDB )?10\\.(0|1)\\.' OR @@version REGEXP '^5\\.');
+SET @col_type = IF(@is_old_mariadb, 'LONGTEXT', 'JSON');
+
+-- Build ALTER statement with version-appropriate column type
+SET @sql = IF(@col_exists = 0,
+              CONCAT('ALTER TABLE `libri` ADD COLUMN `lt_fields_visibility` ', @col_type,
+                     ' NULL COMMENT ''Frontend visibility preferences for LibraryThing fields'' AFTER `condition_lt`'),
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

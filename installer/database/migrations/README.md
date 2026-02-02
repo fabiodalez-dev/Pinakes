@@ -15,7 +15,7 @@ The migration system is managed by `app/Support/Updater.php` and automatically e
 
 ### Migration File Format
 
-```
+```text
 migrate_X.Y.Z.sql
 ```
 
