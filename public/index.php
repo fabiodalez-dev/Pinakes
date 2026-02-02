@@ -172,7 +172,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     ini_set('session.use_only_cookies', '1');
     ini_set('session.use_strict_mode', '1'); // Previene session fixation
     ini_set('session.cookie_lifetime', '0'); // Session cookies only
-    ini_set('session.gc_maxlifetime', '3600'); // Timeout sessione: 1 ora
+    ini_set('session.gc_maxlifetime', '10800'); // Timeout sessione: 3 ore (per import lunghi)
     ini_set('session.gc_probability', '1');
     ini_set('session.gc_divisor', '100');
 

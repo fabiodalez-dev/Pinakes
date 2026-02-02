@@ -245,6 +245,10 @@ class LibraryThingImportController
 
         error_log('[DEBUG CHUNK] Import ID: ' . $importId . ', Start: ' . $chunkStart . ', Size: ' . $chunkSize);
 
+        // Keep session alive during long imports by updating last_regeneration timestamp
+        $_SESSION['last_regeneration'] = time();
+        error_log('[DEBUG CHUNK] Session keep-alive: updated last_regeneration timestamp');
+
         if (!isset($_SESSION['librarything_import']) || $_SESSION['librarything_import']['import_id'] !== $importId) {
             $response->getBody()->write(json_encode([
                 'success' => false,
