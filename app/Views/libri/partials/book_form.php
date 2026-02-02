@@ -3916,8 +3916,10 @@ function initBookTinyMCE() {
     if (window.tinymce) {
         // Guard against double initialization
         if (tinymce.get('descrizione')) {
+            console.log('[TinyMCE] Editor già inizializzato');
             return;
         }
+        console.log('[TinyMCE] Inizializzazione in corso...');
         tinymce.init({
             selector: '#descrizione',
             license_key: 'gpl',
@@ -3930,7 +3932,20 @@ function initBookTinyMCE() {
             branding: false,
             promotion: false,
             statusbar: false,
-            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
+            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>',
+            init_instance_callback: function(editor) {
+                console.log('[TinyMCE] Editor inizializzato con successo:', editor.id);
+            },
+            setup: function(editor) {
+                editor.on('init', function() {
+                    console.log('[TinyMCE] Editor ready');
+                });
+            }
+        }).catch(function(error) {
+            console.error('[TinyMCE] Errore durante inizializzazione:', error);
+            // Fallback: mostra textarea raw
+            const textarea = document.querySelector('#descrizione');
+            if (textarea) textarea.style.visibility = 'visible';
         });
     } else {
         // TinyMCE not loaded yet, retry in 100ms (with cap)
@@ -3938,7 +3953,10 @@ function initBookTinyMCE() {
             tinyMceInitAttempts += 1;
             setTimeout(initBookTinyMCE, 100);
         } else {
-            console.error('TinyMCE non disponibile dopo i retry.');
+            console.error('[TinyMCE] TinyMCE non disponibile dopo i retry');
+            // Fallback: mostra textarea raw
+            const textarea = document.querySelector('#descrizione');
+            if (textarea) textarea.style.visibility = 'visible';
         }
     }
 }
