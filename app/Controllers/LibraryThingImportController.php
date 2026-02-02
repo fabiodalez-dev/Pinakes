@@ -30,32 +30,21 @@ class LibraryThingImportController
      */
     public function showImportPage(Request $request, Response $response): Response
     {
-        error_log('[DEBUG] showImportPage: START');
-        error_log('[DEBUG] Session ID: ' . session_id());
-        error_log('[DEBUG] Session user: ' . print_r($_SESSION['user'] ?? 'NOT SET', true));
-        error_log('[DEBUG] Session csrf_token: ' . ($_SESSION['csrf_token'] ?? 'NOT SET'));
 
         try {
             ob_start();
             $title = "Import LibraryThing";
-            error_log('[DEBUG] About to require import_librarything.php view');
             require __DIR__ . '/../Views/libri/import_librarything.php';
             $content = ob_get_clean();
-            error_log('[DEBUG] View loaded successfully, content length: ' . strlen($content));
 
             // Wrap content in admin layout
             ob_start();
-            error_log('[DEBUG] About to require layout.php');
             require __DIR__ . '/../Views/layout.php';
             $html = ob_get_clean();
-            error_log('[DEBUG] Layout loaded successfully, html length: ' . strlen($html));
 
             $response->getBody()->write($html);
-            error_log('[DEBUG] showImportPage: SUCCESS');
             return $response->withHeader('Content-Type', 'text/html');
         } catch (\Throwable $e) {
-            error_log('[DEBUG] showImportPage: EXCEPTION - ' . $e->getMessage());
-            error_log('[DEBUG] Exception trace: ' . $e->getTraceAsString());
             throw $e;
         }
     }
@@ -119,7 +108,6 @@ class LibraryThingImportController
     {
         // Set timeout to 5 minutes for file upload and preparation
         set_time_limit(300);
-        error_log('[DEBUG PREPARE] prepareImport START - timeout set to 300s');
 
         $data = (array) $request->getParsedBody();
         $uploadedFiles = $request->getUploadedFiles();
@@ -236,18 +224,15 @@ class LibraryThingImportController
         // This ensures each chunk gets the full timeout, not cumulative
         @set_time_limit(600);
         @ini_set('max_execution_time', '600');
-        error_log('[DEBUG CHUNK] processChunk START - timeout set to 600s');
 
         $data = json_decode((string) $request->getBody(), true);
         $importId = $data['import_id'] ?? '';
         $chunkStart = (int) ($data['start'] ?? 0);
         $chunkSize = (int) ($data['size'] ?? 10);
 
-        error_log('[DEBUG CHUNK] Import ID: ' . $importId . ', Start: ' . $chunkStart . ', Size: ' . $chunkSize);
 
         // Keep session alive during long imports by updating last_regeneration timestamp
         $_SESSION['last_regeneration'] = time();
-        error_log('[DEBUG CHUNK] Session keep-alive: updated last_regeneration timestamp');
 
         if (!isset($_SESSION['librarything_import']) || $_SESSION['librarything_import']['import_id'] !== $importId) {
             $response->getBody()->write(json_encode([
@@ -260,6 +245,7 @@ class LibraryThingImportController
         $importData = &$_SESSION['librarything_import'];
         $filePath = $importData['file_path'];
         $enableScraping = $importData['enable_scraping'];
+
 
         try {
             $file = fopen($filePath, 'r');
@@ -378,16 +364,24 @@ class LibraryThingImportController
                     // }
 
                     // Scraping integration for additional metadata
-                    if ($enableScraping && !empty($parsedData['isbn13']) && $importData['scraped'] < 50) {
+                    if ($enableScraping && !empty($parsedData['isbn13'])) {
+                        error_log("[LibraryThing Import] Attempting scraping for ISBN: " . $parsedData['isbn13'] . " (book $processed of chunk)");
                         try {
                             $scrapedData = $this->scrapeBookData($parsedData['isbn13']);
                             if (!empty($scrapedData)) {
+                                error_log("[LibraryThing Import] Scraping returned data, enriching book ID: $bookId");
                                 $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData);
                                 $importData['scraped']++;
+                            } else {
+                                error_log("[LibraryThing Import] Scraping returned empty for ISBN: " . $parsedData['isbn13']);
                             }
                         } catch (\Exception $scrapeError) {
-                            error_log("[LibraryThing Import] Scraping failed: " . $scrapeError->getMessage());
+                            error_log("[LibraryThing Import] Scraping exception: " . $scrapeError->getMessage());
                         }
+                    } elseif (!$enableScraping) {
+                        error_log("[LibraryThing Import] Scraping disabled in import settings");
+                    } elseif (empty($parsedData['isbn13'])) {
+                        error_log("[LibraryThing Import] No ISBN13 for book, skipping scraping");
                     }
 
                 } catch (\Throwable $e) {
@@ -1199,40 +1193,8 @@ class LibraryThingImportController
 
     private function scrapeBookData(string $isbn): array
     {
-        // Use hooks system for scraping, same as book form
-        if (!\App\Support\Hooks::has('scrape.fetch.custom')) {
-            error_log('[LibraryThing Import] Scraping not available - no scrape.fetch.custom hook');
-            return [];
-        }
-
-        $maxAttempts = 3;
-        $delaySeconds = 1;
-
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                error_log("[LibraryThing Import] Scraping attempt $attempt for ISBN: $isbn");
-
-                // Call scraping hook with ISBN
-                $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, ['isbn' => $isbn]);
-
-                if (!empty($result) && is_array($result)) {
-                    error_log('[LibraryThing Import] Scraping successful for ISBN: ' . $isbn);
-                    return $result;
-                }
-
-                error_log('[LibraryThing Import] Scraping returned empty result for ISBN: ' . $isbn);
-            } catch (\Throwable $e) {
-                error_log("[LibraryThing Import] Scraping attempt $attempt failed: " . $e->getMessage());
-            }
-
-            if ($attempt < $maxAttempts) {
-                sleep($delaySeconds);
-                $delaySeconds = min($delaySeconds * 2, 8);
-            }
-        }
-
-        error_log('[LibraryThing Import] All scraping attempts failed for ISBN: ' . $isbn);
-        return [];
+        // Use centralized scraping service
+        return \App\Support\ScrapingService::scrapeBookData($isbn, 3, 'LibraryThing Import');
     }
 
     /**
@@ -1249,39 +1211,13 @@ class LibraryThingImportController
         if (empty($csvData['copertina_url']) && !empty($scrapedData['image'])) {
             try {
                 $coverController = new \App\Controllers\CoverController();
+                $coverData = $coverController->downloadFromUrl($scrapedData['image']);
 
-                // Create a mock request with the cover URL
-                $coverRequest = new \Slim\Psr7\Request(
-                    'POST',
-                    new \Slim\Psr7\Uri('http', 'localhost'),
-                    new \Slim\Psr7\Headers(),
-                    [],
-                    [],
-                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
-                );
-
-                // Set the cover URL in the request body
-                $bodyStream = fopen('php://temp', 'r+');
-                fwrite($bodyStream, json_encode(['cover_url' => $scrapedData['image']]));
-                rewind($bodyStream);
-                $coverRequest = $coverRequest->withBody(new \Slim\Psr7\Stream($bodyStream));
-
-                $coverResponse = new \Slim\Psr7\Response();
-                $result = $coverController->download($coverRequest, $coverResponse);
-
-                if ($result->getStatusCode() === 200) {
-                    $coverData = json_decode((string)$result->getBody(), true);
-                    if (!empty($coverData['filename'])) {
-                        $updates[] = 'copertina_url = ?';
-                        $params[] = $coverData['filename'];
-                        $types .= 's';
-                        error_log("[LibraryThing] Cover downloaded successfully: " . $coverData['filename']);
-                    }
-                } else {
-                    // Fallback: save URL only
+                if (!empty($coverData['file_url'])) {
                     $updates[] = 'copertina_url = ?';
-                    $params[] = $scrapedData['image'];
+                    $params[] = $coverData['file_url'];
                     $types .= 's';
+                    error_log("[LibraryThing] Cover downloaded successfully: " . $coverData['file_url']);
                 }
             } catch (\Exception $e) {
                 error_log("[LibraryThing] Cover download failed: " . $e->getMessage());

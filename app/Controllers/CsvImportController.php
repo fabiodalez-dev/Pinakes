@@ -1095,62 +1095,12 @@ class CsvImportController
 
     /**
      * Scrape book data from online services
+     * Uses hooks system for scraping to avoid hardcoded localhost dependencies
      */
     private function scrapeBookData(string $isbn): array
     {
-        $scrapeController = new \App\Controllers\ScrapeController();
-        $maxAttempts = 5;
-        $delaySeconds = 1;
-
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                // Build a fresh request for every attempt so streams/params are clean
-                $serverParams = ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/scrape/isbn'];
-                $queryParams = ['isbn' => $isbn];
-
-                $request = new \Slim\Psr7\Request(
-                    'GET',
-                    new \Slim\Psr7\Uri('http', 'localhost', null, '/scrape/isbn'),
-                    new \Slim\Psr7\Headers(),
-                    [],
-                    $serverParams,
-                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
-                );
-
-                $request = $request->withQueryParams($queryParams);
-                $response = new \Slim\Psr7\Response();
-                $response = $scrapeController->byIsbn($request, $response);
-
-                if ($response->getStatusCode() === 200) {
-                    $body = (string) $response->getBody();
-                    $data = json_decode($body, true);
-                    return $data ?: [];
-                }
-
-                error_log(sprintf(
-                    'Scraping attempt %d/%d failed for ISBN %s with status %d',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $response->getStatusCode()
-                ));
-            } catch (\Throwable $scrapeException) {
-                error_log(sprintf(
-                    'Scraping attempt %d/%d threw for ISBN %s: %s',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $scrapeException->getMessage()
-                ));
-            }
-
-            if ($attempt < $maxAttempts) {
-                sleep($delaySeconds);
-                $delaySeconds = min($delaySeconds * 2, 8); // exponential backoff with cap
-            }
-        }
-
-        return [];
+        // Use centralized scraping service (5 attempts for CSV import)
+        return \App\Support\ScrapingService::scrapeBookData($isbn, 5, 'CSV Import');
     }
 
     /**

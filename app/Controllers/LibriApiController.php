@@ -252,9 +252,18 @@ class LibriApiController
                 }
                 // Convert relative URLs to absolute for consistent display (same as catalog)
                 if ($cover !== '' && strpos($cover, 'http') !== 0) {
-                    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
-                    $cover = $protocol . '://' . $host . $cover;
+                    // Priority 1: Use APP_CANONICAL_URL from .env if configured
+                    $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
+                    if ($canonicalUrl !== false && trim((string)$canonicalUrl) !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
+                        $baseUrl = rtrim((string)$canonicalUrl, '/');
+                        $cover = $baseUrl . $cover;
+                    } elseif (isset($_SERVER['HTTP_HOST'])) {
+                        // Priority 2: Fallback to HTTP_HOST
+                        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+                        $host = $_SERVER['HTTP_HOST'];
+                        $cover = $protocol . '://' . $host . $cover;
+                    }
+                    // If neither is available, leave cover as relative URL
                 }
                 $row['copertina_url'] = $cover;
 

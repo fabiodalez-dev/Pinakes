@@ -2949,65 +2949,12 @@ class LibriController
 
     /**
      * Scrape book cover from online services
+     * Uses centralized scraping service with hooks system
      */
     private function scrapeBookCover(string $isbn): array
     {
-        $scrapeController = new \App\Controllers\ScrapeController();
-        $maxAttempts = 3;
-        $delaySeconds = 1;
-
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                // Build a fresh request for every attempt
-                $serverParams = ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/scrape/isbn'];
-                $queryParams = ['isbn' => $isbn];
-
-                $request = new \Slim\Psr7\Request(
-                    'GET',
-                    new \Slim\Psr7\Uri('http', 'localhost', null, '/scrape/isbn'),
-                    new \Slim\Psr7\Headers(),
-                    [],
-                    $serverParams,
-                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
-                );
-
-                $request = $request->withQueryParams($queryParams);
-                $response = new \Slim\Psr7\Response();
-                $response = $scrapeController->byIsbn($request, $response);
-
-                if ($response->getStatusCode() === 200) {
-                    $body = (string) $response->getBody();
-                    $data = json_decode($body, true);
-
-                    // Return only image data
-                    return [
-                        'image' => $data['image'] ?? null
-                    ];
-                }
-
-                error_log(sprintf(
-                    '[Cover Sync] Scraping attempt %d/%d failed for ISBN %s with status %d',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $response->getStatusCode()
-                ));
-            } catch (\Throwable $scrapeException) {
-                error_log(sprintf(
-                    '[Cover Sync] Scraping attempt %d/%d threw for ISBN %s: %s',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $scrapeException->getMessage()
-                ));
-            }
-
-            if ($attempt < $maxAttempts) {
-                sleep($delaySeconds);
-            }
-        }
-
-        return [];
+        // Use centralized scraping service for cover only
+        return \App\Support\ScrapingService::scrapeBookCover($isbn, 3);
     }
 
     /**

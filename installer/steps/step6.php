@@ -78,8 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $appName = $_SESSION['app_settings']['name'] ?? 'Pinakes';
 $driver = $_POST['email_driver'] ?? 'mail';
 // Extract domain without port for email generation
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$domain = preg_replace('/:\d+$/', '', $host); // Remove port if present
+$host = $_SERVER['HTTP_HOST'] ?? null;
+if ($host !== null) {
+    $domain = preg_replace('/:\d+$/', '', $host); // Remove port if present
+} else {
+    // If HTTP_HOST is not available, use a generic placeholder that user must configure
+    $domain = 'example.com';
+}
 $fromEmail = $_POST['from_email'] ?? "no-reply@{$domain}";
 $fromName = $_POST['from_name'] ?? $appName;
 $smtpHost = $_POST['smtp_host'] ?? $domain;

@@ -156,6 +156,112 @@ class CoverController
     }
 
     /**
+     * Download cover from URL without PSR-7 dependencies
+     * Can be called directly from other controllers
+     *
+     * @param string $coverUrl The URL of the cover to download
+     * @return array{filename: string, file_url: string} The saved cover filename and URL
+     * @throws \RuntimeException If download or processing fails
+     */
+    public function downloadFromUrl(string $coverUrl): array
+    {
+        // Validation
+        if (empty($coverUrl)) {
+            throw new \RuntimeException(__('Parametro cover_url mancante.'));
+        }
+
+        if (!filter_var($coverUrl, FILTER_VALIDATE_URL)) {
+            throw new \RuntimeException(__('URL non valido.'));
+        }
+
+        $initialUrl = $this->assertUrlAllowed($coverUrl);
+
+        // Log sanitized request data once URL validated
+        $parsedUrl = parse_url($initialUrl);
+        \App\Support\SecureLogger::info('Cover download request', [
+            'url' => $initialUrl,
+            'domain' => $parsedUrl['host'] ?? ''
+        ]);
+
+        // Set upload directory (consistent with LibriController)
+        $uploadDir = $this->getCoversUploadPath() . '/';
+        if (!is_dir($uploadDir)) {
+            if (!mkdir($uploadDir, 0755, true)) {
+                throw new \RuntimeException(__('Impossibile creare la cartella di upload.'));
+            }
+        }
+
+        [$imageData, $effectiveUrl] = $this->downloadCover($initialUrl);
+
+        if (strlen($imageData) > 5 * 1024 * 1024) {
+            throw new \RuntimeException(__('File troppo grande. Dimensione massima 5MB.'));
+        }
+
+        $imageInfo = @getimagesizefromstring($imageData);
+        if ($imageInfo === false) {
+            throw new \RuntimeException(__('File non valido o corrotto.'));
+        }
+
+        $mimeType = $imageInfo['mime'] ?? '';
+        $extension = match ($mimeType) {
+            'image/jpeg', 'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            default => null,
+        };
+
+        if ($extension === null) {
+            throw new \RuntimeException(__('Tipo di file non supportato. Solo JPEG e PNG sono consentiti.'));
+        }
+
+        $image = imagecreatefromstring($imageData);
+        if ($image === false) {
+            throw new \RuntimeException(__('Impossibile processare l\'immagine.'));
+        }
+
+        $maxWidth = 2000;
+        $maxHeight = 2000;
+        $width = (int) $imageInfo[0];
+        $height = (int) $imageInfo[1];
+        $targetResource = $image;
+        if ($width > $maxWidth || $height > $maxHeight) {
+            $ratio = min($maxWidth / $width, $maxHeight / $height);
+            $newWidth = max(1, (int) round($width * $ratio));
+            $newHeight = max(1, (int) round($height * $ratio));
+            $resized = imagecreatetruecolor($newWidth, $newHeight);
+            imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+            imagedestroy($image);
+            $targetResource = $resized;
+        }
+
+        $filename = uniqid('copertina_', true) . '.' . $extension;
+        // Sanitize filename to prevent null byte injection
+        $filename = str_replace("\\0", '', $filename);
+        $filepath = $uploadDir . $filename;
+
+        $saveResult = match ($extension) {
+            'png' => imagepng($targetResource, $filepath, 9),
+            default => imagejpeg($targetResource, $filepath, 85),
+        };
+
+        imagedestroy($targetResource);
+
+        if (!$saveResult) {
+            throw new \RuntimeException(__('Errore nel salvataggio dell\'immagine.'));
+        }
+
+        // Set proper file permissions
+        chmod($filepath, 0644);
+
+        // Build relative URL of the saved file (consistent with LibriController)
+        $fileUrl = $this->getCoversUrlPath() . '/' . $filename;
+
+        return [
+            'filename' => $filename,
+            'file_url' => $fileUrl
+        ];
+    }
+
+    /**
      * Ensure the URL uses HTTPS, belongs to the whitelist and resolves to public IPs.
      */
     private function assertUrlAllowed(string $url): string

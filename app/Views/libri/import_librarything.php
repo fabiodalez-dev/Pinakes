@@ -1,19 +1,8 @@
 <?php
 use App\Support\Csrf;
 
-error_log('[DEBUG VIEW] import_librarything.php: START');
-error_log('[DEBUG VIEW] Session: ' . print_r($_SESSION ?? [], true));
-
 $pageTitle = $title ?? __('Import LibraryThing');
-
-error_log('[DEBUG VIEW] About to call Csrf::ensureToken()');
-try {
-    $csrfToken = Csrf::ensureToken();
-    error_log('[DEBUG VIEW] CSRF token obtained: ' . $csrfToken);
-} catch (\Throwable $e) {
-    error_log('[DEBUG VIEW] EXCEPTION in Csrf::ensureToken(): ' . $e->getMessage());
-    throw $e;
-}
+$csrfToken = Csrf::ensureToken();
 ?>
 
 <div class="min-h-screen bg-gray-50 py-6">
@@ -242,17 +231,8 @@ try {
 </div>
 
 <script>
-console.log('[DEBUG] Import page loaded successfully');
-console.log('[DEBUG] Document ready state:', document.readyState);
-
-// Add global error handler
-window.addEventListener('error', function(event) {
-    console.error('[DEBUG] Global error caught:', event.error);
-});
-
 // Chunked import processing
 document.getElementById('import-form').addEventListener('submit', async function(e) {
-    console.log('[DEBUG] Form submit handler attached');
     e.preventDefault();
 
     const submitBtn = document.getElementById('submit-btn');
@@ -269,11 +249,9 @@ document.getElementById('import-form').addEventListener('submit', async function
 
     const formData = new FormData(this);
     const csrfToken = formData.get('csrf_token');
-    console.log('[DEBUG] CSRF token from form:', csrfToken);
 
     try {
         // Step 1: Prepare import (validate and save file)
-        console.log('[DEBUG] Starting prepare request with CSRF token');
         const prepareResponse = await fetch('/admin/libri/import/librarything/prepare', {
             method: 'POST',
             body: formData
@@ -301,8 +279,6 @@ document.getElementById('import-form').addEventListener('submit', async function
 
         // Step 2: Process chunks
         while (currentRow < totalRows) {
-            console.log('[DEBUG] Processing chunk, currentRow:', currentRow);
-
             // Update progress text to show we're working
             const nextRow = Math.min(currentRow + chunkSize, totalRows);
             progressText.textContent = `<?= __("Elaborazione libri") ?> ${currentRow + 1}-${nextRow} <?= __("di") ?> ${totalRows}...`;
@@ -321,22 +297,16 @@ document.getElementById('import-form').addEventListener('submit', async function
                 })
             });
 
-            console.log('[DEBUG] Chunk response status:', chunkResponse.status);
-            console.log('[DEBUG] Chunk response content-type:', chunkResponse.headers.get('content-type'));
-
             if (!chunkResponse.ok) {
                 const errorText = await chunkResponse.text();
-                console.error('[DEBUG] Chunk request failed:', errorText.substring(0, 200));
                 throw new Error('HTTP ' + chunkResponse.status + ': ' + errorText.substring(0, 200));
             }
 
             let chunkData;
             try {
                 const responseText = await chunkResponse.text();
-                console.log('[DEBUG] Raw response (first 200 chars):', responseText.substring(0, 200));
                 chunkData = JSON.parse(responseText);
             } catch (jsonError) {
-                console.error('[DEBUG] Failed to parse JSON response');
                 throw new Error('<?= __("Risposta non valida dal server (timeout o errore)") ?>');
             }
 
