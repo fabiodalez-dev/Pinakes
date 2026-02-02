@@ -1199,35 +1199,30 @@ class LibraryThingImportController
 
     private function scrapeBookData(string $isbn): array
     {
-        $scrapeController = new \App\Controllers\ScrapeController();
-        $maxAttempts = 5;
+        // Use hooks system for scraping, same as book form
+        if (!\App\Support\Hooks::has('scrape.fetch.custom')) {
+            error_log('[LibraryThing Import] Scraping not available - no scrape.fetch.custom hook');
+            return [];
+        }
+
+        $maxAttempts = 3;
         $delaySeconds = 1;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
-                $serverParams = ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/scrape/isbn'];
-                $queryParams = ['isbn' => $isbn];
+                error_log("[LibraryThing Import] Scraping attempt $attempt for ISBN: $isbn");
 
-                $request = new \Slim\Psr7\Request(
-                    'GET',
-                    new \Slim\Psr7\Uri('http', 'localhost', null, '/scrape/isbn'),
-                    new \Slim\Psr7\Headers(),
-                    [],
-                    $serverParams,
-                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
-                );
+                // Call scraping hook with ISBN
+                $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, ['isbn' => $isbn]);
 
-                $request = $request->withQueryParams($queryParams);
-                $response = new \Slim\Psr7\Response();
-                $response = $scrapeController->byIsbn($request, $response);
-
-                if ($response->getStatusCode() === 200) {
-                    $body = (string) $response->getBody();
-                    $data = json_decode($body, true);
-                    return $data ?: [];
+                if (!empty($result) && is_array($result)) {
+                    error_log('[LibraryThing Import] Scraping successful for ISBN: ' . $isbn);
+                    return $result;
                 }
+
+                error_log('[LibraryThing Import] Scraping returned empty result for ISBN: ' . $isbn);
             } catch (\Throwable $e) {
-                error_log("Scraping attempt $attempt failed: " . $e->getMessage());
+                error_log("[LibraryThing Import] Scraping attempt $attempt failed: " . $e->getMessage());
             }
 
             if ($attempt < $maxAttempts) {
@@ -1236,6 +1231,7 @@ class LibraryThingImportController
             }
         }
 
+        error_log('[LibraryThing Import] All scraping attempts failed for ISBN: ' . $isbn);
         return [];
     }
 
