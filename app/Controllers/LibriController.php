@@ -44,7 +44,7 @@ class LibriController
     private const MAX_COVER_SIZE = 5 * 1024 * 1024;
 
     /**
-     * Default values for LibraryThing fields (25 unique fields)
+     * Default values for LibraryThing fields (27 unique fields)
      * Used by both store() and update() to avoid duplication
      */
     private const LIBRARYTHING_FIELDS_DEFAULTS = [
@@ -53,12 +53,15 @@ class LibriController
         'comment' => null,
         'private_comment' => null,
         'physical_description' => null,
+        'dewey_wording' => null,
         'lccn' => null,
         'lc_classification' => null,
         'other_call_number' => null,
+        'entry_date' => null,
         'date_started' => null,
         'date_read' => null,
         'bcid' => null,
+        'barcode' => null,
         'oclc' => null,
         'work_id' => null,
         'issn' => null,

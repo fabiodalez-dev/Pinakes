@@ -639,6 +639,10 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           <div class="mb-6 pt-6 border-t border-gray-200">
             <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Classificazioni Bibliotecarie") ?></h3>
             <div class="form-grid-2">
+              <div class="col-span-2">
+                <label for="dewey_wording" class="form-label"><?= __("Descrizione Dewey") ?></label>
+                <input type="text" id="dewey_wording" name="dewey_wording" class="form-input" value="<?= HtmlHelper::e($book['dewey_wording'] ?? '') ?>" placeholder="<?= __('es. History & geography > History of Asia > ...') ?>">
+              </div>
               <div>
                 <label for="lccn" class="form-label"><?= __("LCCN") ?></label>
                 <input type="text" id="lccn" name="lccn" class="form-input" value="<?= HtmlHelper::e($book['lccn'] ?? '') ?>" placeholder="<?= __('Library of Congress Control Number') ?>">
@@ -659,6 +663,10 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Date di Lettura") ?></h3>
             <div class="form-grid-2">
               <div>
+                <label for="entry_date" class="form-label"><?= __("Data Inserimento LibraryThing") ?></label>
+                <input type="date" id="entry_date" name="entry_date" class="form-input" value="<?= HtmlHelper::e($book['entry_date'] ?? '') ?>">
+              </div>
+              <div>
                 <label for="date_started" class="form-label"><?= __("Data Inizio Lettura") ?></label>
                 <input type="date" id="date_started" name="date_started" class="form-input" value="<?= HtmlHelper::e($book['date_started'] ?? '') ?>">
               </div>
@@ -677,6 +685,10 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <div>
                 <label for="bcid" class="form-label"><?= __("BCID") ?></label>
                 <input type="text" id="bcid" name="bcid" class="form-input" value="<?= HtmlHelper::e($book['bcid'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="barcode" class="form-label"><?= __("Codice a Barre") ?></label>
+                <input type="text" id="barcode" name="barcode" class="form-input" value="<?= HtmlHelper::e($book['barcode'] ?? '') ?>" placeholder="<?= __('Barcode fisico') ?>">
               </div>
               <div>
                 <label for="oclc" class="form-label"><?= __("OCLC") ?></label>
@@ -786,9 +798,9 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             // Group fields by category for better UX
             $fieldGroups = [
                 'Recensione' => ['review', 'rating', 'comment'],
-                'Date' => ['date_started', 'date_read'],
-                'Classificazioni' => ['lccn', 'lc_classification', 'other_call_number'],
-                'Identificatori' => ['bcid', 'oclc', 'work_id', 'issn'],
+                'Date' => ['entry_date', 'date_started', 'date_read'],
+                'Classificazioni' => ['dewey_wording', 'lccn', 'lc_classification', 'other_call_number'],
+                'Identificatori' => ['bcid', 'barcode', 'oclc', 'work_id', 'issn'],
                 'Provenienza' => ['original_languages', 'source', 'from_where'],
                 'Prestito' => ['lending_patron', 'lending_status', 'lending_start', 'lending_end'],
                 'Altro' => ['physical_description', 'value', 'condition_lt']
