@@ -2,6 +2,23 @@
 use App\Support\HtmlHelper;
 use App\Support\ConfigStore;
 
+/**
+ * Book Detail View
+ *
+ * Variables passed from controller:
+ * @var array $book Book data with all fields
+ * @var array $authors List of book authors
+ * @var array $categories Book categories
+ * @var array $serie Book series information
+ * @var array $publishers Book publishers
+ * @var array|null $reviewStats Review statistics (optional)
+ * @var array $availableCopies Available copies data
+ * @var array $userLoanStatus Current user's loan status
+ * @var array $bookCopies All book copies
+ * @var bool $canBorrow Whether user can borrow this book
+ * @var bool $userHasActiveWish Whether user has active wishlist item
+ */
+
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
