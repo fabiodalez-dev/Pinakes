@@ -3932,13 +3932,11 @@ function initBookTinyMCE() {
         try {
             tinymce.init({
                 selector: '#descrizione',
-                base_url: '/assets/tinymce',
-                suffix: '.min',
                 license_key: 'gpl',
                 height: 250,
                 menubar: false,
                 toolbar_mode: 'wrap',
-                plugins: 'lists link autolink',
+                plugins: ['lists', 'link', 'autolink'],
                 toolbar: 'bold italic | bullist numlist | link | removeformat',
                 content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
                 branding: false,
