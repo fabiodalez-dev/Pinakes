@@ -609,12 +609,12 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Recensione e Valutazione") ?></h3>
             <div class="form-grid-2">
               <div>
-                <label for="rating" class="form-label"><?= __("Valutazione (1-5)") ?></label>
-                <select id="rating" name="rating" class="form-input">
+                <label for="rating" class="form-label"><?= __("Valutazione") ?></label>
+                <select id="book-rating" name="rating" data-star-rating>
                   <option value=""><?= __("Nessuna valutazione") ?></option>
                   <?php for ($i = 1; $i <= 5; $i++): ?>
                     <option value="<?= $i ?>" <?= isset($book['rating']) && (int)$book['rating'] === $i ? 'selected' : '' ?>>
-                      <?= str_repeat('★', $i) . str_repeat('☆', 5 - $i) . " ($i)" ?>
+                      <?= $i ?> <?= $i === 1 ? __('stella') : __('stelle') ?>
                     </option>
                   <?php endfor; ?>
                 </select>
@@ -873,7 +873,9 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 </div>
 <!-- CSS and JavaScript Libraries - LOCAL NPM PACKAGES VIA WEBPACK -->
 <link rel="stylesheet" href="/assets/vendor.css">
+<link rel="stylesheet" href="/assets/star-rating/dist/star-rating.min.css">
 <script src="/assets/vendor.bundle.js"></script>
+<script src="/assets/star-rating/dist/star-rating.min.js"></script>
 
 <script>
 const FORM_MODE = <?php echo json_encode($mode); ?>;
@@ -4008,6 +4010,23 @@ if (document.readyState === 'loading') {
     window.addEventListener('load', function() {
         setTimeout(initBookTinyMCE, 200);
     }, { once: true });
+}
+
+// Initialize star rating
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStarRating);
+} else {
+    initStarRating();
+}
+
+function initStarRating() {
+    const ratingSelect = document.getElementById('book-rating');
+    if (ratingSelect && typeof StarRating !== 'undefined') {
+        new StarRating(ratingSelect, {
+            clearable: true,
+            maxStars: 5
+        });
+    }
 }
 
 </script>
