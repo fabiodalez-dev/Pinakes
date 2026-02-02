@@ -584,14 +584,24 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       <!-- LibraryThing Plugin Fields -->
       <?php if (!empty($libraryThingInstalled)): ?>
       <div class="card">
-        <div class="card-header">
-          <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-cloud text-gray-800"></i>
-            <?= __("LibraryThing") ?>
-          </h2>
-          <p class="text-sm text-gray-600 mt-1"><?= __("Campi estesi per l'integrazione con LibraryThing") ?></p>
-        </div>
-        <div class="card-body form-section">
+        <button type="button"
+                class="w-full card-header flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors text-left"
+                onclick="toggleLibraryThingAccordion()"
+                aria-expanded="false"
+                aria-controls="librarything-accordion-content">
+          <div>
+            <h2 class="form-section-title flex items-center gap-2">
+              <i class="fas fa-cloud text-gray-800"></i>
+              <?= __("LibraryThing") ?>
+            </h2>
+            <p class="text-sm text-gray-600 mt-1"><?= __("Campi estesi per l'integrazione con LibraryThing") ?></p>
+          </div>
+          <i id="librarything-accordion-icon" class="fas fa-chevron-down text-gray-600 transition-transform duration-200"></i>
+        </button>
+        <div id="librarything-accordion-content"
+             class="card-body form-section overflow-hidden transition-all duration-300"
+             style="max-height: 0; opacity: 0; padding: 0;"
+             aria-hidden="true">
 
           <!-- Review & Rating -->
           <div class="mb-6">
@@ -914,6 +924,39 @@ const i18nTranslations = Object.assign({}, window.i18nTranslations || {}, <?= js
     'ISBN Mancante' => __("ISBN Mancante"),
     'Inserisci un codice ISBN per continuare.' => __("Inserisci un codice ISBN per continuare.")
 ], JSON_UNESCAPED_UNICODE) ?>);
+
+// LibraryThing accordion toggle
+function toggleLibraryThingAccordion() {
+    const content = document.getElementById('librarything-accordion-content');
+    const icon = document.getElementById('librarything-accordion-icon');
+    const button = content.previousElementSibling;
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+
+    if (isExpanded) {
+        // Collapse
+        content.style.maxHeight = '0';
+        content.style.opacity = '0';
+        content.style.padding = '0';
+        content.setAttribute('aria-hidden', 'true');
+        button.setAttribute('aria-expanded', 'false');
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        // Expand
+        content.style.maxHeight = content.scrollHeight + 'px';
+        content.style.opacity = '1';
+        content.style.padding = '';
+        content.setAttribute('aria-hidden', 'false');
+        button.setAttribute('aria-expanded', 'true');
+        icon.style.transform = 'rotate(180deg)';
+
+        // Auto-adjust height after transition
+        setTimeout(() => {
+            if (button.getAttribute('aria-expanded') === 'true') {
+                content.style.maxHeight = 'none';
+            }
+        }, 300);
+    }
+}
 
 // Global translation function for JavaScript
 window.__ = function(key) {
