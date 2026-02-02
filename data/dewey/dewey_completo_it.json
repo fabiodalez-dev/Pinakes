@@ -2501,6 +2501,33 @@
                                 "name": "Corano",
                                 "level": 4,
                                 "children": []
+                            },
+                            {
+                                "code": "297.8",
+                                "name": "",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "297.82",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "297.825",
+                                                "name": "",
+                                                "level": 6,
+                                                "children": [
+                                                    {
+                                                        "code": "297.8251",
+                                                        "name": "Sette E Movimenti Di Riforma Islamici. Sciiti. Settimani (Ismailiti). ʻAlawi (Alawiti)",
+                                                        "level": 7,
+                                                        "children": []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -6099,7 +6126,28 @@
                                 "code": "741.5",
                                 "name": "Fumetti",
                                 "level": 4,
-                                "children": []
+                                "children": [
+                                    {
+                                        "code": "741.59",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "741.594",
+                                                "name": "",
+                                                "level": 6,
+                                                "children": [
+                                                    {
+                                                        "code": "741.5945",
+                                                        "name": "FUMETTI, ROMANZI A FUMETTI, FOTOROMANZI, VIGNETTE, CARICATURE, STRISCE A FUMETTI. Italia",
+                                                        "level": 7,
+                                                        "children": []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -6514,6 +6562,12 @@
                                 "level": 4,
                                 "children": [
                                     {
+                                        "code": "796.51",
+                                        "name": "Vita All'aperto. Camminata",
+                                        "level": 5,
+                                        "children": []
+                                    },
+                                    {
                                         "code": "796.52",
                                         "name": "Alpinismo",
                                         "level": 5,
@@ -6657,7 +6711,14 @@
                         "code": "813",
                         "name": "Narrativa americana",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "813.6",
+                                "name": "Narrativa Americana. 2000-",
+                                "level": 4,
+                                "children": []
+                            }
+                        ]
                     },
                     {
                         "code": "814",
@@ -6856,7 +6917,28 @@
                         "code": "841",
                         "name": "Poesia francese",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "841.9",
+                                "name": "",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "841.91",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "841.914",
+                                                "name": "Poesia Francese, 1945-1999",
+                                                "level": 6,
+                                                "children": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "842",
@@ -6954,6 +7036,12 @@
                                                 "children": []
                                             }
                                         ]
+                                    },
+                                    {
+                                        "code": "853.92",
+                                        "name": "Narrativa Italiana, 2000-",
+                                        "level": 5,
+                                        "children": []
                                     }
                                 ]
                             }
@@ -7362,6 +7450,33 @@
                                 "name": "Italia (Geografia)",
                                 "level": 4,
                                 "children": []
+                            },
+                            {
+                                "code": "914.9",
+                                "name": "",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "914.96",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "914.960",
+                                                "name": "",
+                                                "level": 6,
+                                                "children": [
+                                                    {
+                                                        "code": "914.9604",
+                                                        "name": "GEOGRAFIA. PENISOLA BALCANICA. Viaggi",
+                                                        "level": 7,
+                                                        "children": []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -7668,7 +7783,35 @@
                         "code": "956",
                         "name": "Medio Oriente",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "956.9",
+                                "name": "",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "956.94",
+                                        "name": "Storia. Palestina Israele",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "956.944",
+                                                "name": "",
+                                                "level": 6,
+                                                "children": [
+                                                    {
+                                                        "code": "956.9442",
+                                                        "name": "STORIA. PALESTINA ISRAELE. Gerusalemme",
+                                                        "level": 7,
+                                                        "children": []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "957",

@@ -431,6 +431,7 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
+        $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
@@ -915,6 +916,7 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
+        $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
