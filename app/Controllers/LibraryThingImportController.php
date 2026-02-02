@@ -1193,6 +1193,15 @@ class LibraryThingImportController
 
     private function scrapeBookData(string $isbn): array
     {
+        // Debug: Check if scraping hooks are available
+        $hasHook = \App\Support\Hooks::has('scrape.fetch.custom');
+        error_log("[LibraryThing Import] Hook 'scrape.fetch.custom' available: " . ($hasHook ? 'YES' : 'NO'));
+
+        if (!$hasHook) {
+            error_log("[LibraryThing Import] WARNING: Scraping hook not available! Plugins may not be loaded.");
+            error_log("[LibraryThing Import] Make sure scraping plugins (api-book-scraper, scraping-pro, open-library) are active.");
+        }
+
         // Use centralized scraping service
         return \App\Support\ScrapingService::scrapeBookData($isbn, 3, 'LibraryThing Import');
     }
