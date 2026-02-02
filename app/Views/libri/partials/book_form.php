@@ -11,6 +11,7 @@ $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? '');
 $scrapingAvailable = Hooks::has('scrape.fetch.custom');
 $scaffali = $scaffali ?? [];
 $mensole = $mensole ?? [];
+$libraryThingInstalled = $libraryThingInstalled ?? false;
 
 $initialAuthors = array_map(static function ($author) {
     return [

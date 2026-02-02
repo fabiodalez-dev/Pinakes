@@ -1760,7 +1760,12 @@ ob_start();
                                         endfor;
                                         ?>
                                     <?php elseif (in_array($fieldName, ['date_started', 'date_read', 'lending_start', 'lending_end'])): ?>
-                                        <?= htmlspecialchars(date('d/m/Y', strtotime($field['value']))) ?>
+                                        <?php
+                                        $timestamp = strtotime($field['value']);
+                                        echo ($timestamp && $timestamp > 0)
+                                            ? htmlspecialchars(date('d/m/Y', $timestamp))
+                                            : '-';
+                                        ?>
                                     <?php elseif (in_array($fieldName, ['value'])): ?>
                                         € <?= number_format((float)$field['value'], 2) ?>
                                     <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>
@@ -1789,7 +1794,12 @@ ob_start();
                                         endfor;
                                         ?>
                                     <?php elseif (in_array($fieldName, ['date_started', 'date_read', 'lending_start', 'lending_end'])): ?>
-                                        <?= htmlspecialchars(date('d/m/Y', strtotime($field['value']))) ?>
+                                        <?php
+                                        $timestamp = strtotime($field['value']);
+                                        echo ($timestamp && $timestamp > 0)
+                                            ? htmlspecialchars(date('d/m/Y', $timestamp))
+                                            : '-';
+                                        ?>
                                     <?php elseif (in_array($fieldName, ['value'])): ?>
                                         € <?= number_format((float)$field['value'], 2) ?>
                                     <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>

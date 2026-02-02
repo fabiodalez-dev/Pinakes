@@ -254,6 +254,11 @@ document.getElementById('import-form').addEventListener('submit', async function
             body: formData
         });
 
+        if (!prepareResponse.ok) {
+            const errorText = await prepareResponse.text();
+            throw new Error(errorText || '<?= __("Errore HTTP durante la preparazione") ?>');
+        }
+
         const prepareData = await prepareResponse.json();
 
         if (!prepareData.success) {
@@ -303,6 +308,9 @@ document.getElementById('import-form').addEventListener('submit', async function
 
         // Step 3: Get final results
         const resultsResponse = await fetch('/admin/libri/import/librarything/results');
+        if (!resultsResponse.ok) {
+            throw new Error('<?= __("Errore nel recupero dei risultati") ?>');
+        }
         const resultsData = await resultsResponse.json();
 
         if (resultsData.success && resultsData.redirect) {

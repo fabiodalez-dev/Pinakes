@@ -1221,7 +1221,9 @@ return function (App $app): void {
         $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->processChunk($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(100, 60))->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())
+      ->add(new \App\Middleware\RateLimitMiddleware(100, 60))
+      ->add(new AdminAuthMiddleware());
 
     $app->get('/admin/libri/import/librarything/results', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();

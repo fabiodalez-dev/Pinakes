@@ -197,33 +197,38 @@ class LibraryThingInstaller
             }
 
             // Remove all LibraryThing fields (24 unique fields + visibility column)
-            $this->executeOrFail("
-                ALTER TABLE libri
-                    DROP COLUMN IF EXISTS review,
-                    DROP COLUMN IF EXISTS rating,
-                    DROP COLUMN IF EXISTS comment,
-                    DROP COLUMN IF EXISTS private_comment,
-                    DROP COLUMN IF EXISTS physical_description,
-                    DROP COLUMN IF EXISTS lccn,
-                    DROP COLUMN IF EXISTS lc_classification,
-                    DROP COLUMN IF EXISTS other_call_number,
-                    DROP COLUMN IF EXISTS date_started,
-                    DROP COLUMN IF EXISTS date_read,
-                    DROP COLUMN IF EXISTS bcid,
-                    DROP COLUMN IF EXISTS oclc,
-                    DROP COLUMN IF EXISTS work_id,
-                    DROP COLUMN IF EXISTS issn,
-                    DROP COLUMN IF EXISTS original_languages,
-                    DROP COLUMN IF EXISTS source,
-                    DROP COLUMN IF EXISTS from_where,
-                    DROP COLUMN IF EXISTS lending_patron,
-                    DROP COLUMN IF EXISTS lending_status,
-                    DROP COLUMN IF EXISTS lending_start,
-                    DROP COLUMN IF EXISTS lending_end,
-                    DROP COLUMN IF EXISTS value,
-                    DROP COLUMN IF EXISTS condition_lt,
-                    DROP COLUMN IF EXISTS lt_fields_visibility
+            // MySQL 5.7 compatible: check existence first
+            $columns = [
+                'review', 'rating', 'comment', 'private_comment',
+                'physical_description',
+                'lccn', 'lc_classification', 'other_call_number',
+                'date_started', 'date_read',
+                'bcid', 'oclc', 'work_id', 'issn',
+                'original_languages', 'source', 'from_where',
+                'lending_patron', 'lending_status', 'lending_start', 'lending_end',
+                'value', 'condition_lt', 'lt_fields_visibility'
+            ];
+
+            $in = "'" . implode("','", $columns) . "'";
+            $result = $this->executeOrFail("
+                SELECT COLUMN_NAME
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'libri'
+                  AND COLUMN_NAME IN ($in)
             ");
+
+            $existing = [];
+            while ($row = $result->fetch_assoc()) {
+                $existing[] = $row['COLUMN_NAME'];
+            }
+
+            if (!empty($existing)) {
+                $drops = implode(",\n                    ", array_map(function ($col) {
+                    return "DROP COLUMN `{$col}`";
+                }, $existing));
+                $this->executeOrFail("ALTER TABLE libri\n                    {$drops}");
+            }
 
             $this->db->commit();
 

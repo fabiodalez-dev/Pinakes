@@ -260,8 +260,14 @@ class LibraryThingImportController
             $lineNumber = $chunkStart + 2; // +2 because of header and 1-indexed
 
             while ($processed < $chunkSize && ($rawData = fgetcsv($file, 0, "\t", '"', "")) !== false) {
+                $parsedData = [];
                 try {
-                    // Map headers to data (PHPStan verified: always returns array when inputs are valid)
+                    // Validate column count
+                    if (count($rawData) !== count($headers)) {
+                        throw new \RuntimeException(__('Numero colonne non valido'));
+                    }
+
+                    // Map headers to data (PHPStan verified: count check guarantees success)
                     $row = array_combine($headers, $rawData);
 
                     $parsedData = $this->parseLibraryThingRow($row);
@@ -352,9 +358,9 @@ class LibraryThingImportController
                         }
                     }
 
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $db->rollback();
-                    $title = $parsedData['titolo'] ?? $rawData[1] ?? '';
+                    $title = $parsedData['titolo'] ?? ($rawData[1] ?? '');
                     $importData['errors'][] = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
                 }
 
@@ -659,7 +665,8 @@ class LibraryThingImportController
 
         // Review and Rating
         $result['review'] = !empty($data['Review']) ? trim($data['Review']) : '';
-        $result['rating'] = !empty($data['Rating']) && is_numeric($data['Rating']) ? (int)$data['Rating'] : null;
+        $rating = !empty($data['Rating']) && is_numeric($data['Rating']) ? (int) $data['Rating'] : null;
+        $result['rating'] = ($rating !== null && $rating >= 1 && $rating <= 5) ? $rating : null;
         $result['comment'] = !empty($data['Comment']) ? trim($data['Comment']) : '';
         $result['private_comment'] = !empty($data['Private Comment']) ? trim($data['Private Comment']) : '';
 

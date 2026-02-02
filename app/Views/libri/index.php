@@ -997,6 +997,9 @@ document.addEventListener('DOMContentLoaded', function() {
               alreadyHasCover++;
             } else if (data.reason === 'no_cover_found') {
               notFound++;
+            } else {
+              // Unknown reason - count as error
+              errors++;
             }
           }
         } else {
