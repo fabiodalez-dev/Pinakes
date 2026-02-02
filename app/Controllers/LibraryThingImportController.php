@@ -642,11 +642,16 @@ class LibraryThingImportController
         // Tags/Keywords
         $result['parole_chiave'] = !empty($data['Tags']) ? trim($data['Tags']) : '';
 
-        // Collections (can be used as collana)
-        $result['collana'] = !empty($data['Collections']) ? trim($data['Collections']) : '';
+        // Collections (LibraryThing categories, not actual book series - ignore or append to keywords)
+        // Note: Collections like "Your library" are not useful, so we skip this field
+        // If you want to import Collections, uncomment and map to parole_chiave:
+        // if (!empty($data['Collections'])) {
+        //     $result['parole_chiave'] .= (!empty($result['parole_chiave']) ? ', ' : '') . trim($data['Collections']);
+        // }
 
-        // Dewey Decimal
+        // Dewey Decimal and Description
         $result['classificazione_dewey'] = !empty($data['Dewey Decimal']) ? trim($data['Dewey Decimal']) : '';
+        $result['dewey_wording'] = !empty($data['Dewey Wording']) ? trim($data['Dewey Wording']) : '';
 
         // Price
         if (!empty($data['List Price']) || !empty($data['Purchase Price'])) {
@@ -701,12 +706,16 @@ class LibraryThingImportController
             $result['data_acquisizione'] = $this->parseDate($data['Acquired']);
         }
 
+        // LibraryThing Entry Date
+        $result['entry_date'] = !empty($data['Entry Date']) ? $this->parseDate($data['Entry Date']) : '';
+
         // Reading Date Tracking (LibraryThing only)
         $result['date_started'] = !empty($data['Date Started']) ? $this->parseDate($data['Date Started']) : '';
         $result['date_read'] = !empty($data['Date Read']) ? $this->parseDate($data['Date Read']) : '';
 
         // Catalog Identifiers
         $result['bcid'] = !empty($data['BCID']) ? trim($data['BCID']) : '';
+        $result['barcode'] = !empty($data['Barcode']) ? trim($data['Barcode']) : '';
         $result['oclc'] = !empty($data['OCLC']) ? trim($data['OCLC']) : '';
         $result['work_id'] = !empty($data['Work id']) ? trim($data['Work id']) : '';
         $result['issn'] = !empty($data['ISSN']) ? trim($data['ISSN']) : '';
@@ -1572,7 +1581,7 @@ class LibraryThingImportController
             $libro['data_acquisizione'] ?? '',
             $libro['date_started'] ?? '',
             $libro['date_read'] ?? '',
-            $libro['ean'] ?? '',
+            $libro['barcode'] ?? '',
             $libro['bcid'] ?? '',
             $libro['parole_chiave'] ?? '',
             $libro['collana'] ?? '',
@@ -1583,11 +1592,11 @@ class LibraryThingImportController
             $isbnString,
             $libro['genere_nome'] ?? '',
             $libro['classificazione_dewey'] ?? '',
-            '',  // Dewey Wording
+            $libro['dewey_wording'] ?? '',
             $libro['other_call_number'] ?? '',
             $libro['copie_totali'] ?? '1',
             $libro['source'] ?? '',
-            '',  // Entry Date
+            $libro['entry_date'] ?? '',
             $libro['from_where'] ?? '',
             $libro['oclc'] ?? '',
             $libro['work_id'] ?? '',

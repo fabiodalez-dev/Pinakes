@@ -120,7 +120,7 @@ $expectedFields = $status['expected_fields'] ?? 24;
 
                     <div class="mb-4">
                         <p class="text-gray-700 mb-4">
-                            <?= __("L'installazione del plugin aggiungerà 24 nuovi campi alla tabella 'libri' per supportare tutte le funzionalità di LibraryThing.") ?>
+                            <?= __("L'installazione del plugin aggiungerà 27 nuovi campi alla tabella 'libri' per supportare tutte le funzionalità di LibraryThing.") ?>
                         </p>
 
                         <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
@@ -171,7 +171,7 @@ $expectedFields = $status['expected_fields'] ?? 24;
                                 <?= __("ATTENZIONE: Disinstallazione Irreversibile") ?>
                             </h4>
                             <p class="text-red-800 text-sm mb-2">
-                                <?= __("La disinstallazione rimuoverà tutti i 24 campi LibraryThing dal database.") ?>
+                                <?= __("La disinstallazione rimuoverà tutti i 27 campi LibraryThing dal database.") ?>
                             </p>
                             <p class="text-red-800 text-sm font-semibold">
                                 <?= __("TUTTI I DATI IN QUESTI CAMPI VERRANNO ELIMINATI PERMANENTEMENTE!") ?>

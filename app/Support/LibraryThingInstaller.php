@@ -76,7 +76,8 @@ class LibraryThingInstaller
             // Add library classification fields
             $this->executeOrFail("
                 ALTER TABLE libri
-                    ADD COLUMN lccn VARCHAR(50) NULL COMMENT 'Library of Congress Control Number (LibraryThing)' AFTER classificazione_dewey,
+                    ADD COLUMN dewey_wording TEXT NULL COMMENT 'Dewey classification description (LibraryThing)' AFTER classificazione_dewey,
+                    ADD COLUMN lccn VARCHAR(50) NULL COMMENT 'Library of Congress Control Number (LibraryThing)' AFTER dewey_wording,
                     ADD COLUMN lc_classification VARCHAR(100) NULL COMMENT 'LC Classification (LibraryThing)' AFTER lccn,
                     ADD COLUMN other_call_number VARCHAR(100) NULL COMMENT 'Other call number (LibraryThing)' AFTER lc_classification
             ");
@@ -84,7 +85,8 @@ class LibraryThingInstaller
             // Add date tracking fields for reading
             $this->executeOrFail("
                 ALTER TABLE libri
-                    ADD COLUMN date_started DATE NULL COMMENT 'Date started reading (LibraryThing)' AFTER data_acquisizione,
+                    ADD COLUMN entry_date DATE NULL COMMENT 'LibraryThing entry date' AFTER data_acquisizione,
+                    ADD COLUMN date_started DATE NULL COMMENT 'Date started reading (LibraryThing)' AFTER entry_date,
                     ADD COLUMN date_read DATE NULL COMMENT 'Date finished reading (LibraryThing)' AFTER date_started
             ");
 
@@ -92,7 +94,8 @@ class LibraryThingInstaller
             $this->executeOrFail("
                 ALTER TABLE libri
                     ADD COLUMN bcid VARCHAR(50) NULL COMMENT 'BCID (LibraryThing)' AFTER ean,
-                    ADD COLUMN oclc VARCHAR(50) NULL COMMENT 'OCLC number (LibraryThing)' AFTER bcid,
+                    ADD COLUMN barcode VARCHAR(50) NULL COMMENT 'Physical barcode (LibraryThing)' AFTER bcid,
+                    ADD COLUMN oclc VARCHAR(50) NULL COMMENT 'OCLC number (LibraryThing)' AFTER barcode,
                     ADD COLUMN work_id VARCHAR(50) NULL COMMENT 'LibraryThing Work ID' AFTER oclc,
                     ADD COLUMN issn VARCHAR(20) NULL COMMENT 'ISSN for periodicals (LibraryThing)' AFTER isbn13
             ");
@@ -133,6 +136,7 @@ class LibraryThingInstaller
                     ADD INDEX idx_lt_date_read (date_read),
                     ADD INDEX idx_lt_lending_status (lending_status),
                     ADD INDEX idx_lt_lccn (lccn),
+                    ADD INDEX idx_lt_barcode (barcode),
                     ADD INDEX idx_lt_oclc (oclc),
                     ADD INDEX idx_lt_work_id (work_id),
                     ADD INDEX idx_lt_issn (issn)
@@ -186,7 +190,7 @@ class LibraryThingInstaller
 
             // Remove indexes individually (MySQL 5.7 compatible)
             $indexes = ['idx_lt_rating', 'idx_lt_date_read', 'idx_lt_lending_status',
-                       'idx_lt_lccn', 'idx_lt_oclc', 'idx_lt_work_id', 'idx_lt_issn'];
+                       'idx_lt_lccn', 'idx_lt_barcode', 'idx_lt_oclc', 'idx_lt_work_id', 'idx_lt_issn'];
 
             foreach ($indexes as $index) {
                 try {
@@ -196,14 +200,14 @@ class LibraryThingInstaller
                 }
             }
 
-            // Remove all LibraryThing fields (24 unique fields + visibility column)
+            // Remove all LibraryThing fields (27 unique fields + visibility column)
             // MySQL 5.7 compatible: check existence first
             $columns = [
                 'review', 'rating', 'comment', 'private_comment',
                 'physical_description',
-                'lccn', 'lc_classification', 'other_call_number',
-                'date_started', 'date_read',
-                'bcid', 'oclc', 'work_id', 'issn',
+                'dewey_wording', 'lccn', 'lc_classification', 'other_call_number',
+                'entry_date', 'date_started', 'date_read',
+                'bcid', 'barcode', 'oclc', 'work_id', 'issn',
                 'original_languages', 'source', 'from_where',
                 'lending_patron', 'lending_status', 'lending_start', 'lending_end',
                 'value', 'condition_lt', 'lt_fields_visibility'
@@ -304,16 +308,19 @@ class LibraryThingInstaller
             'physical_description' => 'Descrizione Fisica',
 
             // Library Classifications
+            'dewey_wording' => 'Descrizione Dewey',
             'lccn' => 'LCCN',
             'lc_classification' => 'Classificazione LC',
             'other_call_number' => 'Altro Numero di Chiamata',
 
             // Reading Dates
+            'entry_date' => 'Data Inserimento LibraryThing',
             'date_started' => 'Data Inizio Lettura',
             'date_read' => 'Data Fine Lettura',
 
             // Catalog IDs
             'bcid' => 'BCID',
+            'barcode' => 'Codice a Barre',
             'oclc' => 'OCLC',
             'work_id' => 'LibraryThing Work ID',
             'issn' => 'ISSN',
