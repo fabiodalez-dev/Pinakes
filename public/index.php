@@ -345,16 +345,17 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
     // Content Security Policy - restrictive but allows inline scripts/styles (required by app)
     // Tutti gli asset (font inclusi) sono self-hosted: nessuna dipendenza esterna
     $csp = "default-src 'self'; " .
-           "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " .
-           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com http://fonts.googleapis.com; " .
+           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; " .
+           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com http://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
            "img-src 'self' data: blob: http: https:; " .
-           "font-src 'self' data: https://fonts.gstatic.com http://fonts.gstatic.com; " .
+           "font-src 'self' data: https://fonts.gstatic.com http://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
            "connect-src 'self' data: blob:; " .
            "object-src 'none'; " .
            "base-uri 'self'; " .
            "form-action 'self'; " .
-           "frame-src 'self' https://www.google.com https://www.google.it https://maps.google.com https://www.openstreetmap.org; " .
-           "frame-ancestors 'none'";
+           "frame-src 'self' data: blob: about: https://www.google.com https://www.google.it https://maps.google.com https://www.openstreetmap.org; " .
+           "child-src 'self' data: blob: about:; " .
+           "frame-ancestors 'self'";
 
     // Add upgrade-insecure-requests only in production with HTTPS
     if (getenv('APP_ENV') === 'production' && $httpsDetected) {
