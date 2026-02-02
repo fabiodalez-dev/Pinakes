@@ -76,7 +76,7 @@ class CoverController
             }
         }
         try {
-            [$imageData, $effectiveUrl] = $this->downloadCover($initialUrl);
+            [$imageData] = $this->downloadCover($initialUrl);
         } catch (\RuntimeException $e) {
             // Log detailed error internally but don't expose to client
             error_log("Cover download failed: " . $e->getMessage());
@@ -191,7 +191,7 @@ class CoverController
             }
         }
 
-        [$imageData, $effectiveUrl] = $this->downloadCover($initialUrl);
+        [$imageData] = $this->downloadCover($initialUrl);
 
         if (strlen($imageData) > 5 * 1024 * 1024) {
             throw new \RuntimeException(__('File troppo grande. Dimensione massima 5MB.'));

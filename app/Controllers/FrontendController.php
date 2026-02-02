@@ -243,6 +243,10 @@ class FrontendController
                 $baseUrlNormalized = '';
             }
         }
+
+        // Set $baseUrl for later use (e.g., $seoCanonical)
+        $baseUrl = $baseUrlNormalized;
+
         $makeAbsolute = static function (string $path) use ($baseUrlNormalized): string {
             if ($path === '') {
                 return '';

@@ -265,9 +265,9 @@ class LibraryThingInstaller
                 AND COLUMN_NAME IN (
                     'review', 'rating', 'comment', 'private_comment',
                     'physical_description',
-                    'lccn', 'lc_classification', 'other_call_number',
-                    'date_started', 'date_read',
-                    'bcid', 'oclc', 'work_id', 'issn',
+                    'dewey_wording', 'lccn', 'lc_classification', 'other_call_number',
+                    'entry_date', 'date_started', 'date_read',
+                    'bcid', 'barcode', 'oclc', 'work_id', 'issn',
                     'original_languages', 'source', 'from_where',
                     'lending_patron', 'lending_status', 'lending_start', 'lending_end',
                     'value', 'condition_lt', 'lt_fields_visibility'

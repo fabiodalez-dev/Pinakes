@@ -59,7 +59,11 @@ class PasswordController
             $stmt->close();
 
             // Use validated base URL to prevent Host Header Injection
-            $baseUrl = $this->getValidatedBaseUrl();
+            try {
+                $baseUrl = $this->getValidatedBaseUrl();
+            } catch (\RuntimeException $e) {
+                return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=config')->withStatus(302);
+            }
             $resetUrl = $baseUrl . RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
             $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
             $subject = 'Recupera la tua password';
