@@ -3913,32 +3913,71 @@ document.head.appendChild(style);
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 30;
 function initBookTinyMCE() {
+    console.log('[DEBUG TinyMCE] initBookTinyMCE called, attempt:', tinyMceInitAttempts);
+    console.log('[DEBUG TinyMCE] window.tinymce exists:', !!window.tinymce);
+    console.log('[DEBUG TinyMCE] Textarea exists:', !!document.querySelector('#descrizione'));
+
     if (window.tinymce) {
+        console.log('[DEBUG TinyMCE] TinyMCE loaded, version:', tinymce.majorVersion + '.' + tinymce.minorVersion);
+
         // Guard against double initialization
-        if (tinymce.get('descrizione')) {
+        const existing = tinymce.get('descrizione');
+        console.log('[DEBUG TinyMCE] Existing editor:', existing);
+        if (existing) {
+            console.log('[DEBUG TinyMCE] Editor already exists, skipping init');
             return;
         }
-        tinymce.init({
-            selector: '#descrizione',
-            license_key: 'gpl',
-            height: 250,
-            menubar: false,
-            toolbar_mode: 'wrap',
-            plugins: ['lists', 'link', 'autolink'],
-            toolbar: 'bold italic | bullist numlist | link | removeformat',
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
-            branding: false,
-            promotion: false,
-            statusbar: false,
-            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
-        });
+
+        console.log('[DEBUG TinyMCE] Starting tinymce.init()...');
+        try {
+            tinymce.init({
+                selector: '#descrizione',
+                license_key: 'gpl',
+                height: 250,
+                menubar: false,
+                toolbar_mode: 'wrap',
+                plugins: ['lists', 'link', 'autolink'],
+                toolbar: 'bold italic | bullist numlist | link | removeformat',
+                content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
+                branding: false,
+                promotion: false,
+                statusbar: false,
+                placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>',
+                init_instance_callback: function(editor) {
+                    console.log('[DEBUG TinyMCE] ✅ init_instance_callback - Editor ID:', editor.id);
+                    console.log('[DEBUG TinyMCE] ✅ Editor initialized:', editor.initialized);
+                },
+                setup: function(editor) {
+                    console.log('[DEBUG TinyMCE] setup() called for editor:', editor.id);
+                    editor.on('init', function() {
+                        console.log('[DEBUG TinyMCE] ✅ onInit event fired');
+                    });
+                    editor.on('PostRender', function() {
+                        console.log('[DEBUG TinyMCE] ✅ PostRender event fired');
+                    });
+                }
+            }).then(function(editors) {
+                console.log('[DEBUG TinyMCE] ✅ Promise resolved, editors:', editors.length);
+                editors.forEach(function(ed) {
+                    console.log('[DEBUG TinyMCE] ✅ Editor ready:', ed.id, 'initialized:', ed.initialized);
+                });
+            }).catch(function(error) {
+                console.error('[DEBUG TinyMCE] ❌ Promise rejected:', error);
+                console.error('[DEBUG TinyMCE] ❌ Error stack:', error.stack);
+            });
+            console.log('[DEBUG TinyMCE] tinymce.init() called successfully');
+        } catch (error) {
+            console.error('[DEBUG TinyMCE] ❌ Exception in tinymce.init():', error);
+            console.error('[DEBUG TinyMCE] ❌ Stack:', error.stack);
+        }
     } else {
+        console.log('[DEBUG TinyMCE] TinyMCE not loaded yet, will retry');
         // TinyMCE not loaded yet, retry in 100ms (with cap)
         if (tinyMceInitAttempts < TINYMCE_MAX_RETRIES) {
             tinyMceInitAttempts += 1;
             setTimeout(initBookTinyMCE, 100);
         } else {
-            console.error('TinyMCE non disponibile dopo i retry.');
+            console.error('[DEBUG TinyMCE] ❌ TinyMCE non disponibile dopo', TINYMCE_MAX_RETRIES, 'retry');
         }
     }
 }
