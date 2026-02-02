@@ -810,7 +810,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <?php foreach ($fieldGroups as $groupName => $fields): ?>
                 <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                  <h4 class="text-sm font-semibold text-gray-700 mb-2"><?= $groupName ?></h4>
+                  <h4 class="text-sm font-semibold text-gray-700 mb-2"><?= HtmlHelper::e($groupName) ?></h4>
                   <?php foreach ($fields as $fieldName): ?>
                     <?php if (isset($ltFields[$fieldName])): ?>
                       <label class="flex items-center space-x-2 text-sm py-1 cursor-pointer hover:bg-gray-100 rounded px-1 transition-colors">
