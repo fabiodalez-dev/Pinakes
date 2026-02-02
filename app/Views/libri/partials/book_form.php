@@ -3925,14 +3925,11 @@ function initBookTinyMCE() {
             license_key: 'gpl',
             height: 250,
             menubar: false,
-            toolbar_mode: 'wrap',
-            plugins: ['lists', 'link', 'autolink'],
-            toolbar: 'bold italic | bullist numlist | link | removeformat',
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
+            plugins: '',  // No plugins for now - test minimal config
+            toolbar: 'bold italic | undo redo | removeformat',
             branding: false,
             promotion: false,
             statusbar: false,
-            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>',
             init_instance_callback: function(editor) {
                 console.log('[TinyMCE] Editor inizializzato con successo:', editor.id);
             },
@@ -3940,12 +3937,20 @@ function initBookTinyMCE() {
                 editor.on('init', function() {
                     console.log('[TinyMCE] Editor ready');
                 });
+                editor.on('LoadContent', function() {
+                    console.log('[TinyMCE] Content loaded');
+                });
             }
+        }).then(function(editors) {
+            console.log('[TinyMCE] Init promise resolved:', editors.length);
         }).catch(function(error) {
             console.error('[TinyMCE] Errore durante inizializzazione:', error);
             // Fallback: mostra textarea raw
             const textarea = document.querySelector('#descrizione');
-            if (textarea) textarea.style.visibility = 'visible';
+            if (textarea) {
+                textarea.style.visibility = 'visible';
+                console.log('[TinyMCE] Fallback: textarea mostrata');
+            }
         });
     } else {
         // TinyMCE not loaded yet, retry in 100ms (with cap)
