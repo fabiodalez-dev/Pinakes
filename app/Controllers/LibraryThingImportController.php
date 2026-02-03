@@ -553,8 +553,8 @@ class LibraryThingImportController
         // Title
         $result['titolo'] = !empty($data['Title']) ? trim($data['Title']) : '';
 
-        // Subtitle
-        $result['sottotitolo'] = !empty($data['Sort Character']) ? trim($data['Sort Character']) : '';
+        // Subtitle (note: 'Sort Character' is for alphabetical sorting, not subtitle)
+        $result['sottotitolo'] = '';
 
         // Authors (combine primary and secondary)
         $authors = [];

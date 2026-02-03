@@ -582,7 +582,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       </div>
 
       <!-- LibraryThing Plugin Fields -->
-      <?php if (!empty($libraryThingInstalled)): ?>
+      <?php if (!empty($libraryThingInstalled ?? false)): ?>
       <div class="card">
         <button type="button"
                 class="w-full card-header flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors text-left border-0 bg-transparent"
