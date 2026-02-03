@@ -49,20 +49,26 @@ class CsvImportController
      */
     public function processImport(Request $request, Response $response, \mysqli $db): Response
     {
+        error_log("=== CSV Import START ===");
         $data = (array) $request->getParsedBody();
+        error_log("POST data: " . print_r($data, true));
 
         // CSRF validated by CsrfMiddleware
 
         $uploadedFiles = $request->getUploadedFiles();
+        error_log("Uploaded files: " . print_r(array_keys($uploadedFiles), true));
 
         if (!isset($uploadedFiles['csv_file'])) {
+            error_log("ERROR: No csv_file in uploaded files");
             $_SESSION['error'] = __('Nessun file caricato');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
         $uploadedFile = $uploadedFiles['csv_file'];
+        error_log("File uploaded: " . $uploadedFile->getClientFilename());
 
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
+            error_log("ERROR: Upload error code: " . $uploadedFile->getError());
             $_SESSION['error'] = __('Errore nel caricamento del file');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
@@ -100,11 +106,14 @@ class CsvImportController
 
         // Verifica che almeno una riga contenga il separatore CSV (;, , o tab)
         $delimiter = $this->detectDelimiterFromSample($firstLines);
+        error_log("Detected delimiter: " . ($delimiter === null ? 'NULL' : json_encode($delimiter)));
         if ($delimiter === null) {
+            error_log("ERROR: Invalid CSV - no valid delimiter found");
             $_SESSION['error'] = __('File CSV non valido: usa ";", "," o TAB come separatore.');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
         $enableScraping = !empty($data['enable_scraping']);
+        error_log("Scraping enabled: " . ($enableScraping ? 'YES' : 'NO'));
 
         // Initialize progress tracking
         $_SESSION['import_progress'] = [
@@ -118,7 +127,9 @@ class CsvImportController
             $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
 
         try {
+            error_log("Starting importCsvData with file: $tmpFile, delimiter: " . json_encode($delimiter));
             $result = $this->importCsvData($tmpFile, $db, $enableScraping, $delimiter);
+            error_log("Import completed successfully");
 
             $_SESSION['import_progress'] = [
                 'status' => 'completed',
@@ -159,6 +170,13 @@ class CsvImportController
             }
 
         } catch (\Exception $e) {
+            error_log("=== EXCEPTION CAUGHT ===");
+            error_log("Exception class: " . get_class($e));
+            error_log("Exception message: " . $e->getMessage());
+            error_log("Exception file: " . $e->getFile());
+            error_log("Exception line: " . $e->getLine());
+            error_log("Exception trace: " . $e->getTraceAsString());
+
             $_SESSION['error'] = sprintf(__('Errore durante l\'import: %s'), $e->getMessage());
             $_SESSION['import_progress'] = ['status' => 'error'];
 
@@ -554,6 +572,11 @@ class CsvImportController
      */
     private function importCsvData(string $filePath, \mysqli $db, bool $enableScraping = false, string $delimiter = ';'): array
     {
+        error_log("=== importCsvData START ===");
+        error_log("File path: $filePath");
+        error_log("Delimiter: " . json_encode($delimiter));
+        error_log("Scraping: " . ($enableScraping ? 'YES' : 'NO'));
+
         $delimiter = $delimiter !== '' ? $delimiter : ';';
         $imported = 0;
         $updated = 0;
@@ -581,16 +604,20 @@ class CsvImportController
 
         // Leggi intestazioni
         $originalHeaders = fgetcsv($file, 0, $delimiter, '"');
+        error_log("Original headers: " . json_encode($originalHeaders));
         if (!$originalHeaders) {
+            error_log("ERROR: No headers found in CSV");
             fclose($file);
             throw new \Exception(__('File CSV vuoto o formato non valido'));
         }
 
         // Map headers to canonical field names (supports multiple languages and variations)
         $mappedHeaders = $this->mapColumnHeaders($originalHeaders);
+        error_log("Mapped headers: " . json_encode($mappedHeaders));
 
         // Check if LibraryThing format once instead of per-row
         $isLibraryThingFormat = $this->isLibraryThingFormat($originalHeaders);
+        error_log("LibraryThing format detected: " . ($isLibraryThingFormat ? 'YES' : 'NO'));
 
         // Count total rows for progress tracking
         $totalRows = 0;
