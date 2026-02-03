@@ -27,6 +27,7 @@ class ScrapingService
         }
 
         $delaySeconds = 1;
+        $lastError = null;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
@@ -43,6 +44,7 @@ class ScrapingService
                 }
             } catch (\Throwable $e) {
                 // Silent failure, will retry
+                $lastError = $e;
             }
 
             // Exponential backoff with cap at 8 seconds
@@ -50,6 +52,16 @@ class ScrapingService
                 sleep($delaySeconds);
                 $delaySeconds = min($delaySeconds * 2, 8);
             }
+        }
+
+        // Log failure after all attempts exhausted
+        if ($lastError !== null || $context) {
+            \App\Support\SecureLogger::warning('Scraping fallito dopo tutti i tentativi', [
+                'context' => $context,
+                'isbn' => $isbn,
+                'maxAttempts' => $maxAttempts,
+                'error' => $lastError ? $lastError->getMessage() : 'Hook non ha restituito risultati'
+            ]);
         }
 
         return [];

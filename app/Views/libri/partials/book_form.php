@@ -609,7 +609,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Recensione e Valutazione") ?></h3>
             <div class="form-grid-2">
               <div>
-                <label for="rating" class="form-label"><?= __("Valutazione") ?></label>
+                <label for="book-rating" class="form-label"><?= __("Valutazione") ?></label>
                 <select id="book-rating" name="rating" data-star-rating>
                   <option value=""><?= __("Nessuna valutazione") ?></option>
                   <?php for ($i = 1; $i <= 5; $i++): ?>

@@ -1901,8 +1901,8 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
 
-        // Check if already has cover
-        if (!empty($libro['copertina_url'])) {
+        // Check if already has cover (but not placeholder)
+        if (!empty($libro['copertina_url']) && strpos($libro['copertina_url'], 'placeholder.jpg') === false) {
             $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
             return $response->withHeader('Content-Type', 'application/json');
         }
@@ -2842,7 +2842,7 @@ class LibriController
             $libro['data_acquisizione'] ?? '',                     // Acquired
             $libro['date_started'] ?? '',                          // Date Started
             $libro['date_read'] ?? '',                             // Date Read
-            $libro['ean'] ?? '',                                   // Barcode
+            $libro['barcode'] ?? $libro['ean'] ?? '',              // Barcode
             $libro['bcid'] ?? '',                                  // BCID
             $libro['parole_chiave'] ?? '',                         // Tags
             $libro['collana'] ?? '',                               // Collections
@@ -2884,11 +2884,11 @@ class LibriController
         $skipped = 0;
         $errors = 0;
 
-        // Find all books with ISBN but without cover
+        // Find all books with ISBN but without cover (or only placeholder)
         $query = "SELECT id, isbn13, isbn10, titolo
                   FROM libri
                   WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
-                    AND (copertina_url IS NULL OR copertina_url = '')
+                    AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg')
                   ORDER BY id DESC";
 
         $result = $db->query($query);
