@@ -10,6 +10,16 @@ use Slim\Psr7\Stream;
 class CsvImportController
 {
     /**
+     * Log a message to file
+     */
+    private function log(string $message): void
+    {
+        $logFile = __DIR__ . '/../../writable/logs/import.log';
+        $timestamp = date('Y-m-d H:i:s');
+        file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
+    }
+
+    /**
      * Mostra la pagina di import CSV
      */
     public function showImportPage(Request $request, Response $response): Response
@@ -49,26 +59,26 @@ class CsvImportController
      */
     public function processImport(Request $request, Response $response, \mysqli $db): Response
     {
-        error_log("=== CSV Import START ===");
+        $this->log("=== CSV Import START ===");
         $data = (array) $request->getParsedBody();
-        error_log("POST data: " . print_r($data, true));
+        $this->log("POST data: " . print_r($data, true));
 
         // CSRF validated by CsrfMiddleware
 
         $uploadedFiles = $request->getUploadedFiles();
-        error_log("Uploaded files: " . print_r(array_keys($uploadedFiles), true));
+        $this->log("Uploaded files: " . print_r(array_keys($uploadedFiles), true));
 
         if (!isset($uploadedFiles['csv_file'])) {
-            error_log("ERROR: No csv_file in uploaded files");
+            $this->log("ERROR: No csv_file in uploaded files");
             $_SESSION['error'] = __('Nessun file caricato');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
         $uploadedFile = $uploadedFiles['csv_file'];
-        error_log("File uploaded: " . $uploadedFile->getClientFilename());
+        $this->log("File uploaded: " . $uploadedFile->getClientFilename());
 
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
-            error_log("ERROR: Upload error code: " . $uploadedFile->getError());
+            $this->log("ERROR: Upload error code: " . $uploadedFile->getError());
             $_SESSION['error'] = __('Errore nel caricamento del file');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
@@ -106,14 +116,14 @@ class CsvImportController
 
         // Verifica che almeno una riga contenga il separatore CSV (;, , o tab)
         $delimiter = $this->detectDelimiterFromSample($firstLines);
-        error_log("Detected delimiter: " . ($delimiter === null ? 'NULL' : json_encode($delimiter)));
+        $this->log("Detected delimiter: " . ($delimiter === null ? 'NULL' : json_encode($delimiter)));
         if ($delimiter === null) {
-            error_log("ERROR: Invalid CSV - no valid delimiter found");
+            $this->log("ERROR: Invalid CSV - no valid delimiter found");
             $_SESSION['error'] = __('File CSV non valido: usa ";", "," o TAB come separatore.');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
         $enableScraping = !empty($data['enable_scraping']);
-        error_log("Scraping enabled: " . ($enableScraping ? 'YES' : 'NO'));
+        $this->log("Scraping enabled: " . ($enableScraping ? 'YES' : 'NO'));
 
         // Initialize progress tracking
         $_SESSION['import_progress'] = [
@@ -127,9 +137,9 @@ class CsvImportController
             $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
 
         try {
-            error_log("Starting importCsvData with file: $tmpFile, delimiter: " . json_encode($delimiter));
+            $this->log("Starting importCsvData with file: $tmpFile, delimiter: " . json_encode($delimiter));
             $result = $this->importCsvData($tmpFile, $db, $enableScraping, $delimiter);
-            error_log("Import completed successfully");
+            $this->log("Import completed successfully");
 
             $_SESSION['import_progress'] = [
                 'status' => 'completed',
@@ -170,12 +180,12 @@ class CsvImportController
             }
 
         } catch (\Exception $e) {
-            error_log("=== EXCEPTION CAUGHT ===");
-            error_log("Exception class: " . get_class($e));
-            error_log("Exception message: " . $e->getMessage());
-            error_log("Exception file: " . $e->getFile());
-            error_log("Exception line: " . $e->getLine());
-            error_log("Exception trace: " . $e->getTraceAsString());
+            $this->log("=== EXCEPTION CAUGHT ===");
+            $this->log("Exception class: " . get_class($e));
+            $this->log("Exception message: " . $e->getMessage());
+            $this->log("Exception file: " . $e->getFile());
+            $this->log("Exception line: " . $e->getLine());
+            $this->log("Exception trace: " . $e->getTraceAsString());
 
             $_SESSION['error'] = sprintf(__('Errore durante l\'import: %s'), $e->getMessage());
             $_SESSION['import_progress'] = ['status' => 'error'];
@@ -572,10 +582,10 @@ class CsvImportController
      */
     private function importCsvData(string $filePath, \mysqli $db, bool $enableScraping = false, string $delimiter = ';'): array
     {
-        error_log("=== importCsvData START ===");
-        error_log("File path: $filePath");
-        error_log("Delimiter: " . json_encode($delimiter));
-        error_log("Scraping: " . ($enableScraping ? 'YES' : 'NO'));
+        $this->log("=== importCsvData START ===");
+        $this->log("File path: $filePath");
+        $this->log("Delimiter: " . json_encode($delimiter));
+        $this->log("Scraping: " . ($enableScraping ? 'YES' : 'NO'));
 
         $delimiter = $delimiter !== '' ? $delimiter : ';';
         $imported = 0;
@@ -604,20 +614,20 @@ class CsvImportController
 
         // Leggi intestazioni
         $originalHeaders = fgetcsv($file, 0, $delimiter, '"');
-        error_log("Original headers: " . json_encode($originalHeaders));
+        $this->log("Original headers: " . json_encode($originalHeaders));
         if (!$originalHeaders) {
-            error_log("ERROR: No headers found in CSV");
+            $this->log("ERROR: No headers found in CSV");
             fclose($file);
             throw new \Exception(__('File CSV vuoto o formato non valido'));
         }
 
         // Map headers to canonical field names (supports multiple languages and variations)
         $mappedHeaders = $this->mapColumnHeaders($originalHeaders);
-        error_log("Mapped headers: " . json_encode($mappedHeaders));
+        $this->log("Mapped headers: " . json_encode($mappedHeaders));
 
         // Check if LibraryThing format once instead of per-row
         $isLibraryThingFormat = $this->isLibraryThingFormat($originalHeaders);
-        error_log("LibraryThing format detected: " . ($isLibraryThingFormat ? 'YES' : 'NO'));
+        $this->log("LibraryThing format detected: " . ($isLibraryThingFormat ? 'YES' : 'NO'));
 
         // Count total rows for progress tracking
         $totalRows = 0;
@@ -749,22 +759,22 @@ class CsvImportController
                         // Always try scraping when enabled - enrichBookWithScrapedData will only add missing data
                         // without overwriting CSV data (CSV has priority)
                         try {
-                            error_log("[CSV Import] Attempting scraping for ISBN {$data['isbn13']}, book ID $bookId");
+                            $this->log("[CSV Import] Attempting scraping for ISBN {$data['isbn13']}, book ID $bookId");
                             $scrapedData = $this->scrapeBookData($data['isbn13']);
 
                             if (!empty($scrapedData)) {
-                                error_log("[CSV Import] Scraped data received: " . json_encode(array_keys($scrapedData)));
+                                $this->log("[CSV Import] Scraped data received: " . json_encode(array_keys($scrapedData)));
                                 $this->enrichBookWithScrapedData($db, $bookId, $data, $scrapedData);
                                 $scraped++;
                             } else {
-                                error_log("[CSV Import] No scraped data returned for ISBN {$data['isbn13']}");
+                                $this->log("[CSV Import] No scraped data returned for ISBN {$data['isbn13']}");
                             }
 
                             // Rate limiting: wait 3 seconds between scraping requests
                             sleep(3);
                         } catch (\Exception $scrapeError) {
                             // Log but don't fail the import
-                            error_log("[CSV Import] Scraping failed for ISBN {$data['isbn13']}: " . $scrapeError->getMessage());
+                            $this->log("[CSV Import] Scraping failed for ISBN {$data['isbn13']}: " . $scrapeError->getMessage());
                         }
                     }
                 }
@@ -1144,7 +1154,7 @@ class CsvImportController
 
         // Copertina
         if (empty($csvData['copertina_url']) && !empty($scrapedData['image'])) {
-            error_log("[CSV Import] Adding cover image for book $bookId: {$scrapedData['image']}");
+            $this->log("[CSV Import] Adding cover image for book $bookId: {$scrapedData['image']}");
             $updates[] = 'copertina_url = ?';
             $params[] = $scrapedData['image'];
             $types .= 's';
@@ -1190,7 +1200,7 @@ class CsvImportController
             // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
             $deweyCode = trim((string) $scrapedData['classificazione_dewey']);
             if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
-                error_log("[CSV Import] Adding Dewey classification for book $bookId: $deweyCode");
+                $this->log("[CSV Import] Adding Dewey classification for book $bookId: $deweyCode");
                 $updates[] = 'classificazione_dewey = ?';
                 $params[] = $deweyCode;
                 $types .= 's';
@@ -1225,7 +1235,7 @@ class CsvImportController
 
         // Update libro if we have data
         if (!empty($updates)) {
-            error_log("[CSV Import] Enriching book $bookId with " . count($updates) . " fields: " . implode(', ', $updates));
+            $this->log("[CSV Import] Enriching book $bookId with " . count($updates) . " fields: " . implode(', ', $updates));
             $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ?";
             $params[] = $bookId;
             $types .= 'i';
@@ -1235,7 +1245,7 @@ class CsvImportController
             $stmt->execute();
             $stmt->close();
         } else {
-            error_log("[CSV Import] No fields to enrich for book $bookId (CSV has all data or scraping returned no usable data)");
+            $this->log("[CSV Import] No fields to enrich for book $bookId (CSV has all data or scraping returned no usable data)");
         }
 
         // Add authors if missing
