@@ -3975,16 +3975,30 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+</script>
 
+<!-- Load TinyMCE -->
+<script src="/assets/tinymce/tinymce.min.js"></script>
+
+<script>
 // Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
-const TINYMCE_MAX_RETRIES = 5;
+const TINYMCE_MAX_RETRIES = 8;
+const TINYMCE_BASE = '/assets/tinymce';
 
 function initBookTinyMCE() {
     if (!window.tinymce) {
+        if (!document.getElementById('tinymce-fallback-loader')) {
+            const s = document.createElement('script');
+            s.id = 'tinymce-fallback-loader';
+            s.src = `${TINYMCE_BASE}/tinymce.min.js`;
+            document.head.appendChild(s);
+        }
         if (tinyMceInitAttempts < TINYMCE_MAX_RETRIES) {
             tinyMceInitAttempts += 1;
-            setTimeout(initBookTinyMCE, 150);
+            setTimeout(initBookTinyMCE, 200);
+        } else {
+            console.error('TinyMCE non disponibile dopo i tentativi di caricamento');
         }
         return;
     }
@@ -4001,22 +4015,25 @@ function initBookTinyMCE() {
 
     tinymce.init({
         selector: '#descrizione',
-        base_url: '/assets/tinymce',
+        base_url: TINYMCE_BASE,
         suffix: '.min',
-            license_key: 'gpl',
-            height: 360,
-            menubar: false,
-            toolbar_mode: 'wrap',
-            toolbar_sticky: true,
-            plugins: [
-                'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
-            ],
-            toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link | removeformat | code preview fullscreen',
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; font-size: 15px; line-height: 1.6; }',
-            branding: false,
-            promotion: false,
-            statusbar: true,
-            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
+        license_key: 'gpl',
+        height: 360,
+        menubar: false,
+        toolbar_mode: 'wrap',
+        toolbar_sticky: true,
+        plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
+        ],
+        toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link | removeformat | code preview fullscreen',
+        content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; font-size: 15px; line-height: 1.6; }',
+        branding: false,
+        promotion: false,
+        statusbar: true,
+        placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>',
+        setup: function (editor) {
+            editor.on('change keyup setcontent', () => {});
+        }
     });
 }
 // Wait for DOM then init TinyMCE
