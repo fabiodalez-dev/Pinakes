@@ -231,7 +231,40 @@ class CsvImportController
 
                 // Map data
                 $row = array_combine($mappedHeaders, $rawData);
+                if ($row === false || !is_array($row)) {
+                    $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                    $debugMsg = sprintf(
+                        "[%s] DEBUG array_combine failed:\nHeaders: %s\nData: %s\nResult: %s\n\n",
+                        date('Y-m-d H:i:s'),
+                        json_encode($mappedHeaders),
+                        json_encode($rawData),
+                        var_export($row, true)
+                    );
+                    file_put_contents($logFile, $debugMsg, FILE_APPEND);
+
+                    throw new \RuntimeException(sprintf(
+                        __('Errore mappatura colonne: headers=%d, data=%d'),
+                        count($mappedHeaders),
+                        count($rawData)
+                    ));
+                }
+
                 $parsedData = $this->parseCsvRow($row);
+
+                // Debug: verify parsedData is an array
+                if (!is_array($parsedData)) {
+                    $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                    $debugMsg = sprintf(
+                        "[%s] ERROR: parseCsvRow returned non-array!\nType: %s\nValue: %s\nInput row type: %s\nInput row: %s\n\n",
+                        date('Y-m-d H:i:s'),
+                        gettype($parsedData),
+                        var_export($parsedData, true),
+                        gettype($row),
+                        json_encode($row)
+                    );
+                    file_put_contents($logFile, $debugMsg, FILE_APPEND);
+                    throw new \RuntimeException('parseCsvRow returned non-array: ' . gettype($parsedData));
+                }
 
                 if (empty($parsedData['titolo'])) {
                     throw new \Exception(__('Titolo mancante'));
@@ -317,6 +350,19 @@ class CsvImportController
                 $title = $parsedData['titolo'] ?? ($rawData[0] ?? '');
                 $errorMsg = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
                 $importData['errors'][] = $errorMsg;
+
+                // Log to file
+                $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                $logMsg = sprintf(
+                    "[%s] ERROR Riga %d (%s): %s\nFile: %s:%d\n\n",
+                    date('Y-m-d H:i:s'),
+                    $lineNumber,
+                    $title,
+                    $e->getMessage(),
+                    $e->getFile(),
+                    $e->getLine()
+                );
+                file_put_contents($logFile, $logMsg, FILE_APPEND);
             }
 
             $processed++;
@@ -548,7 +594,7 @@ class CsvImportController
             'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
             'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
-            'prezzo' => !empty($row['prezzo']) ? (float)str_replace(',', '.', (string)$row['prezzo']) : null,
+            'prezzo' => !empty($row['prezzo']) ? (float)str_replace(',', '.', strval($row['prezzo'])) : null,
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
             'numero_serie' => !empty($row['numero_serie']) ? trim($row['numero_serie']) : null,
@@ -970,7 +1016,7 @@ class CsvImportController
     /**
      * Ottieni o crea editore
      */
-    private function getOrCreatePublisher(\mysqli $db, string $name): int|string
+    private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
         $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
         $stmt->bind_param('s', $name);
@@ -978,7 +1024,7 @@ class CsvImportController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            return (int) $row['id'];
+            return ['id' => (int) $row['id'], 'created' => false];
         }
 
         // Crea nuovo editore
@@ -986,7 +1032,7 @@ class CsvImportController
         $stmt->bind_param('s', $name);
         $stmt->execute();
 
-        return 'created';
+        return ['id' => $db->insert_id, 'created' => true];
     }
 
     /**
@@ -1135,7 +1181,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', (string)$data['prezzo']) : null;
+        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', strval($data['prezzo'])) : null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
@@ -1222,7 +1268,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', (string)$data['prezzo']) : null;
+        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', strval($data['prezzo'])) : null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
         if ($copie < 1) {

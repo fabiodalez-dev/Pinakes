@@ -500,22 +500,36 @@ class LibraryThingImportController
 
     /**
      * Detect if file is in LibraryThing format
+     * Validates that all required columns used by the importer are present
      */
     private function isLibraryThingFormat(array $headers): bool
     {
-        $required = ['Book Id', 'Title', 'ISBNs'];
-        $foundCount = 0;
+        // Required columns that the importer expects
+        $required = ['Book Id', 'Title', 'ISBNs', 'Primary Author'];
 
+        // Normalize headers for case-insensitive comparison
+        $normalizedHeaders = array_map(function($h) {
+            return strtolower(trim($h));
+        }, $headers);
+
+        // Check that all required columns exist
         foreach ($required as $col) {
-            foreach ($headers as $header) {
-                if (strtolower(trim($header)) === strtolower($col)) {
-                    $foundCount++;
+            $found = false;
+            $normalizedCol = strtolower($col);
+
+            foreach ($normalizedHeaders as $header) {
+                if ($header === $normalizedCol) {
+                    $found = true;
                     break;
                 }
             }
+
+            if (!$found) {
+                return false;
+            }
         }
 
-        return $foundCount >= 2;
+        return true;
     }
 
     /**
