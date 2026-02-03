@@ -471,7 +471,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (xhr.status === 200) {
                 try {
                     const response = JSON.parse(xhr.responseText);
-                    if (response.redirect) {
+                    if (response.success && response.total_rows !== undefined) {
+                        // Chunked processing mode
+                        updateProgress(20, '<?= addslashes(__("File caricato, inizio processing...")) ?>', '');
+                        processChunks(response.total_rows, response.chunk_size || 10, response.enable_scraping);
+                    } else if (response.redirect) {
                         updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
                         window.location.href = response.redirect;
                     } else if (response.error) {
@@ -494,11 +498,86 @@ document.addEventListener('DOMContentLoaded', function() {
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         xhr.send(formData);
 
-        // Start polling for progress if scraping is enabled
-        if (document.getElementById('enable_scraping').checked) {
-            setTimeout(() => pollProgress(), 1000);
-        }
     });
+
+    // Process CSV in chunks (10 rows at a time)
+    function processChunks(totalRows, chunkSize, enableScraping) {
+        let currentRow = 0;
+        let stats = {
+            imported: 0,
+            updated: 0,
+            scraped: 0,
+            authors_created: 0,
+            publishers_created: 0,
+            errors: []
+        };
+
+        function processNextChunk() {
+            if (currentRow >= totalRows) {
+                // Complete!
+                updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
+                setTimeout(() => {
+                    let message = `Import completato: ${stats.imported} nuovi, ${stats.updated} aggiornati`;
+                    if (stats.authors_created > 0) message += `, ${stats.authors_created} autori creati`;
+                    if (stats.publishers_created > 0) message += `, ${stats.publishers_created} editori creati`;
+                    if (stats.scraped > 0) message += `, ${stats.scraped} arricchiti con scraping`;
+                    if (stats.errors.length > 0) message += `, ${stats.errors.length} errori`;
+
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: stats.errors.length > 0 ? 'warning' : 'success',
+                            title: '<?= addslashes(__("Import Completato")) ?>',
+                            html: message.replace(/\n/g, '<br>'),
+                            confirmButtonText: '<?= addslashes(__("OK")) ?>'
+                        }).then(() => window.location.reload());
+                    } else {
+                        alert(message);
+                        window.location.reload();
+                    }
+                }, 500);
+                return;
+            }
+
+            const percent = 20 + Math.round((currentRow / totalRows) * 80);
+            updateProgress(percent, `<?= addslashes(__("Processing righe")) ?> ${currentRow}-${Math.min(currentRow + chunkSize, totalRows)}...`, '');
+
+            fetch('/admin/libri/import/chunk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('input[name="csrf_token"]').value
+                },
+                body: JSON.stringify({
+                    start: currentRow,
+                    size: chunkSize
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    stats.imported += data.imported || 0;
+                    stats.updated += data.updated || 0;
+                    stats.scraped += data.scraped || 0;
+                    stats.authors_created += data.authors_created || 0;
+                    stats.publishers_created += data.publishers_created || 0;
+                    if (data.errors && data.errors.length > 0) {
+                        stats.errors = stats.errors.concat(data.errors);
+                    }
+
+                    currentRow += chunkSize;
+                    processNextChunk();
+                } else {
+                    showError(data.error || '<?= addslashes(__("Errore durante il processing")) ?>');
+                }
+            })
+            .catch(err => {
+                console.error('Chunk processing error:', err);
+                showError('<?= addslashes(__("Errore di connessione durante il processing")) ?>');
+            });
+        }
+
+        processNextChunk();
+    }
 
     // Poll for import progress
     let pollInterval;

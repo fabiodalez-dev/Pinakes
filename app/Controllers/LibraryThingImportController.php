@@ -26,6 +26,16 @@ use App\Support\LibraryThingInstaller;
 class LibraryThingImportController
 {
     /**
+     * Write log message to import log file
+     */
+    private function log(string $message): void
+    {
+        $logFile = __DIR__ . '/../../writable/logs/import.log';
+        $timestamp = date('Y-m-d H:i:s');
+        file_put_contents($logFile, "[$timestamp] [LT] $message\n", FILE_APPEND);
+    }
+
+    /**
      * Show LibraryThing import page
      */
     public function showImportPage(Request $request, Response $response): Response
@@ -385,7 +395,11 @@ class LibraryThingImportController
                 } catch (\Throwable $e) {
                     $db->rollback();
                     $title = $parsedData['titolo'] ?? ($rawData[1] ?? '');
-                    $importData['errors'][] = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
+                    $errorMsg = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
+                    $importData['errors'][] = $errorMsg;
+                    $this->log("[processChunk] ERROR: $errorMsg");
+                    $this->log("[processChunk] ERROR Class: " . get_class($e));
+                    $this->log("[processChunk] ERROR Trace: " . $e->getTraceAsString());
                 }
 
                 $processed++;
@@ -865,6 +879,13 @@ class LibraryThingImportController
 
     private function findExistingBook(\mysqli $db, array $data): ?int
     {
+        $this->log("[findExistingBook] Searching for book: " . json_encode([
+            'id' => $data['id'] ?? null,
+            'isbn13' => $data['isbn13'] ?? null,
+            'isbn10' => $data['isbn10'] ?? null,
+            'titolo' => $data['titolo'] ?? null
+        ]));
+
         if (!empty($data['id']) && is_numeric($data['id'])) {
             $stmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
             $id = (int) $data['id'];
@@ -873,19 +894,24 @@ class LibraryThingImportController
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
                 $stmt->close();
+                $this->log("[findExistingBook] Found by ID: {$row['id']}");
                 return (int) $row['id'];
             }
             $stmt->close();
         }
 
         if (!empty($data['isbn13'])) {
+            $this->log("[findExistingBook] Searching by ISBN13: '{$data['isbn13']}'");
             $stmt = $db->prepare("SELECT id FROM libri WHERE isbn13 = ? AND deleted_at IS NULL LIMIT 1");
             $stmt->bind_param('s', $data['isbn13']);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
                 $stmt->close();
+                $this->log("[findExistingBook] Found by ISBN13: {$row['id']}");
                 return (int) $row['id'];
+            } else {
+                $this->log("[findExistingBook] NOT found by ISBN13");
             }
             $stmt->close();
         }
@@ -911,9 +937,34 @@ class LibraryThingImportController
         $existingBookId = $this->findExistingBook($db, $data);
 
         if ($existingBookId !== null) {
+            $this->log("[upsertBook] UPDATING existing book ID: $existingBookId");
+
+            // Clear ISBNs from other books if they conflict (TSV data is authoritative)
+            if (!empty($data['isbn13'])) {
+                $stmt = $db->prepare("UPDATE libri SET isbn13 = NULL WHERE isbn13 = ? AND id != ? AND deleted_at IS NULL");
+                $stmt->bind_param('si', $data['isbn13'], $existingBookId);
+                $stmt->execute();
+                $conflictsCleared = $stmt->affected_rows;
+                $stmt->close();
+                if ($conflictsCleared > 0) {
+                    $this->log("[upsertBook] Cleared ISBN13 '{$data['isbn13']}' from $conflictsCleared conflicting book(s)");
+                }
+            }
+            if (!empty($data['isbn10'])) {
+                $stmt = $db->prepare("UPDATE libri SET isbn10 = NULL WHERE isbn10 = ? AND id != ? AND deleted_at IS NULL");
+                $stmt->bind_param('si', $data['isbn10'], $existingBookId);
+                $stmt->execute();
+                $conflictsCleared = $stmt->affected_rows;
+                $stmt->close();
+                if ($conflictsCleared > 0) {
+                    $this->log("[upsertBook] Cleared ISBN10 '{$data['isbn10']}' from $conflictsCleared conflicting book(s)");
+                }
+            }
+
             $this->updateBook($db, $existingBookId, $data, $editorId, $genreId);
             return ['id' => $existingBookId, 'action' => 'updated'];
         } else {
+            $this->log("[upsertBook] INSERTING new book: {$data['titolo']}");
             $newBookId = $this->insertBook($db, $data, $editorId, $genreId);
             return ['id' => $newBookId, 'action' => 'created'];
         }

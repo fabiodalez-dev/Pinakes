@@ -1184,6 +1184,15 @@ return function (App $app): void {
         return $controller->getProgress($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
+    // CSV Import Chunk Processing (AJAX)
+    $app->post('/admin/libri/import/chunk', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CsvImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->processChunk($request, $response, $db);
+    })->add(new CsrfMiddleware())
+      ->add(new \App\Middleware\RateLimitMiddleware(100, 60))
+      ->add(new AdminAuthMiddleware());
+
     // LibraryThing Plugin Routes
 
     // Plugin Administration
