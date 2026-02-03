@@ -760,7 +760,15 @@ class CsvImportController
                         // without overwriting CSV data (CSV has priority)
                         try {
                             $this->log("[CSV Import] Attempting scraping for ISBN {$data['isbn13']}, book ID $bookId");
+
+                            // Set strict timeout to prevent hanging
+                            $oldTimeout = ini_get('max_execution_time');
+                            set_time_limit(30); // 30 seconds max for scraping
+
                             $scrapedData = $this->scrapeBookData($data['isbn13']);
+
+                            // Restore timeout
+                            set_time_limit((int)$oldTimeout);
 
                             if (!empty($scrapedData)) {
                                 $this->log("[CSV Import] Scraped data received: " . json_encode(array_keys($scrapedData)));
@@ -770,11 +778,13 @@ class CsvImportController
                                 $this->log("[CSV Import] No scraped data returned for ISBN {$data['isbn13']}");
                             }
 
-                            // Rate limiting: wait 3 seconds between scraping requests
-                            sleep(3);
-                        } catch (\Exception $scrapeError) {
-                            // Log but don't fail the import
-                            $this->log("[CSV Import] Scraping failed for ISBN {$data['isbn13']}: " . $scrapeError->getMessage());
+                            // Rate limiting: wait 1 second between scraping requests (reduced from 3)
+                            sleep(1);
+                        } catch (\Throwable $scrapeError) {
+                            // Catch ALL errors including Fatal Errors - don't fail the import
+                            $this->log("[CSV Import] Scraping FAILED for ISBN {$data['isbn13']}: " . get_class($scrapeError) . " - " . $scrapeError->getMessage());
+                            $this->log("[CSV Import] Scraping error trace: " . $scrapeError->getTraceAsString());
+                            // Continue with import even if scraping fails
                         }
                     }
                 }
