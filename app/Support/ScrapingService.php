@@ -55,12 +55,12 @@ class ScrapingService
         }
 
         // Log failure after all attempts exhausted
-        if ($lastError !== null || $context) {
+        if ($lastError !== null) {
             \App\Support\SecureLogger::warning('Scraping fallito dopo tutti i tentativi', [
                 'context' => $context,
                 'isbn' => $isbn,
                 'maxAttempts' => $maxAttempts,
-                'error' => $lastError ? $lastError->getMessage() : 'Hook non ha restituito risultati'
+                'error' => $lastError->getMessage()
             ]);
         }
 

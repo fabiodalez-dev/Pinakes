@@ -1735,7 +1735,8 @@ ob_start();
                     }
 
                     // Show only if visible, has value, and has label
-                    if ($isVisible && !empty($book[$fieldName]) && isset($ltFieldLabels[$fieldName])) {
+                    // Note: Don't use empty() as it excludes numeric zero values
+                    if ($isVisible && isset($book[$fieldName]) && $book[$fieldName] !== '' && $book[$fieldName] !== null && isset($ltFieldLabels[$fieldName])) {
                         $visibleLtFields[$fieldName] = [
                             'label' => $ltFieldLabels[$fieldName],
                             'value' => $book[$fieldName]

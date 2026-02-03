@@ -495,8 +495,10 @@ class LibriController
             'traduttore' => '',
         ];
 
-        // Merge LibraryThing fields defaults (only saved if plugin installed)
-        $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
+        // Merge LibraryThing fields defaults only if plugin installed
+        if (LibraryThingInstaller::isInstalled($db)) {
+            $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
+        }
         foreach ($fields as $k => $v) {
             if (array_key_exists($k, $data))
                 $fields[$k] = $data[$k];
@@ -980,8 +982,10 @@ class LibriController
             'traduttore' => '',
         ];
 
-        // Merge LibraryThing fields defaults (only saved if plugin installed)
-        $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
+        // Merge LibraryThing fields defaults only if plugin installed
+        if (LibraryThingInstaller::isInstalled($db)) {
+            $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
+        }
         foreach ($fields as $k => $v) {
             if (array_key_exists($k, $data))
                 $fields[$k] = $data[$k];
@@ -3009,7 +3013,16 @@ class LibriController
         }
 
         // Save as JSON
-        $visibilityJson = !empty($ltVisibility) ? json_encode($ltVisibility, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) : null;
+        try {
+            $visibilityJson = !empty($ltVisibility) ? json_encode($ltVisibility, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) : null;
+        } catch (\JsonException $e) {
+            SecureLogger::error('JSON encoding failed for LibraryThing visibility', [
+                'book_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            throw new \RuntimeException('Failed to save LibraryThing field visibility', 0, $e);
+        }
+
         $stmt = $db->prepare("UPDATE libri SET lt_fields_visibility = ? WHERE id = ?");
         $stmt->bind_param('si', $visibilityJson, $id);
         $stmt->execute();

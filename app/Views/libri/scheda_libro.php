@@ -617,8 +617,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <?php
                   // Special formatting for different field types
                   if ($fieldName === 'rating') {
-                      // Show star rating
-                      $rating = (int)$field['value'];
+                      // Show star rating (clamp to 1-5 range)
+                      $rating = max(1, min(5, (int)$field['value']));
                       echo '<span class="text-yellow-500">';
                       echo str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
                       echo '</span>';
@@ -626,7 +626,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   } elseif ($fieldName === 'review' || $fieldName === 'comment') {
                       // Multi-line text
                       echo '<div class="prose prose-sm max-w-none">' . App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) . '</div>';
-                  } elseif (in_array($fieldName, ['date_started', 'date_read', 'lending_start', 'lending_end'])) {
+                  } elseif (in_array($fieldName, ['entry_date', 'date_started', 'date_read', 'lending_start', 'lending_end'])) {
                       // Date formatting
                       echo App\Support\HtmlHelper::e(format_date($field['value'], false, '/'));
                   } elseif ($fieldName === 'value') {

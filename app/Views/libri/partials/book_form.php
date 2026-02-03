@@ -285,7 +285,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div id="dewey_chip" class="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
               <span class="font-mono font-bold" id="dewey_chip_code"></span>
               <span class="text-sm" id="dewey_chip_name"></span>
-              <button type="button" id="dewey_chip_remove" class="text-gray-800 hover:text-blue-900">
+              <button type="button" id="dewey_chip_remove" class="text-gray-800 hover:text-blue-900" aria-label="<?= __('Rimuovi classificazione Dewey') ?>">
                 <i class="fas fa-times"></i>
               </button>
             </div>
@@ -808,13 +808,13 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
             // Group fields by category for better UX
             $fieldGroups = [
-                'Recensione' => ['review', 'rating', 'comment'],
-                'Date' => ['entry_date', 'date_started', 'date_read'],
-                'Classificazioni' => ['dewey_wording', 'lccn', 'lc_classification', 'other_call_number'],
-                'Identificatori' => ['bcid', 'barcode', 'oclc', 'work_id', 'issn'],
-                'Provenienza' => ['original_languages', 'source', 'from_where'],
-                'Prestito' => ['lending_patron', 'lending_status', 'lending_start', 'lending_end'],
-                'Altro' => ['physical_description', 'value', 'condition_lt']
+                __('Recensione') => ['review', 'rating', 'comment'],
+                __('Date') => ['entry_date', 'date_started', 'date_read'],
+                __('Classificazioni') => ['dewey_wording', 'lccn', 'lc_classification', 'other_call_number'],
+                __('Identificatori') => ['bcid', 'barcode', 'oclc', 'work_id', 'issn'],
+                __('Provenienza') => ['original_languages', 'source', 'from_where'],
+                __('Prestito') => ['lending_patron', 'lending_status', 'lending_start', 'lending_end'],
+                __('Altro') => ['physical_description', 'value', 'condition_lt']
             ];
             ?>
 
@@ -3048,6 +3048,13 @@ function applyAlternativeValue(fieldName, value) {
     const input = document.querySelector(`[name="${fieldName}"]`);
     if (input) {
         input.value = value;
+        // Sync TinyMCE if applying to description field
+        if (fieldName === 'descrizione' && typeof tinymce !== 'undefined') {
+            const editor = tinymce.get('descrizione');
+            if (editor) {
+                editor.setContent(value);
+            }
+        }
         if (window.Toast) {
             window.Toast.fire({ icon: 'success', title: __('Valore applicato') });
         }

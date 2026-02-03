@@ -116,7 +116,7 @@ $expectedFields = $status['expected_fields'] ?? 24;
             <?php if (!$installed): ?>
                 <!-- Install Form -->
                 <form method="POST" action="/admin/plugins/librarything/install" id="install-form">
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                    <input type="hidden" name="csrf_token" value="<?= \App\Support\HtmlHelper::e(\App\Support\Csrf::ensureToken()) ?>">
 
                     <div class="mb-4">
                         <p class="text-gray-700 mb-4">
@@ -158,7 +158,7 @@ $expectedFields = $status['expected_fields'] ?? 24;
             <?php else: ?>
                 <!-- Uninstall Form -->
                 <form method="POST" action="/admin/plugins/librarything/uninstall" id="uninstall-form">
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                    <input type="hidden" name="csrf_token" value="<?= \App\Support\HtmlHelper::e(\App\Support\Csrf::ensureToken()) ?>">
 
                     <div class="mb-4">
                         <p class="text-gray-700 mb-4">

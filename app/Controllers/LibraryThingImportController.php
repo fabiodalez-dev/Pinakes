@@ -977,7 +977,7 @@ class LibraryThingImportController
                 $bookId
             ];
 
-            $types = 'ssssisiisiissdissssdsssisssssssssssssssssssdssi';
+            $types = 'sssssiissiissdisssssdssssissssssssssssssssssssdssi';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)

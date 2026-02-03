@@ -45,11 +45,10 @@ class RateLimitMiddleware implements MiddlewareInterface
             ]);
 
             if ($jsonData === false) {
-                // Fallback: use plain text if JSON encoding fails
-                fwrite($body, 'Too many requests. Rate limit exceeded.');
-            } else {
-                fwrite($body, $jsonData);
+                // Fallback: use hardcoded JSON if encoding fails
+                $jsonData = '{"error":"Too many requests","message":"Rate limit exceeded. Please try again later."}';
             }
+            fwrite($body, $jsonData);
 
             rewind($body);
             return $response

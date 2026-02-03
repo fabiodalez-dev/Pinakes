@@ -129,8 +129,8 @@ class CoverController
         }
 
         $filename = uniqid('copertina_', true) . '.' . $extension;
-        // Sanitize filename to prevent null byte injection
-        $filename = str_replace("\\0", '', $filename);
+        // Sanitize filename to prevent null byte injection (uniqid() is safe, but defensive check)
+        $filename = str_replace("\0", '', $filename);
         $filepath = $uploadDir . $filename;
 
         $saveResult = match ($extension) {
@@ -234,8 +234,8 @@ class CoverController
         }
 
         $filename = uniqid('copertina_', true) . '.' . $extension;
-        // Sanitize filename to prevent null byte injection
-        $filename = str_replace("\\0", '', $filename);
+        // Sanitize filename to prevent null byte injection (uniqid() is safe, but defensive check)
+        $filename = str_replace("\0", '', $filename);
         $filepath = $uploadDir . $filename;
 
         $saveResult = match ($extension) {
