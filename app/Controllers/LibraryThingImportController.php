@@ -977,7 +977,11 @@ class LibraryThingImportController
                 $bookId
             ];
 
-            $types = 'sssssiissiissdisssssdssssissssssssssssssssssssdssi';
+            // Type string: 47 characters matching params (s=string, i=int, d=double)
+            // isbn10,isbn13,ean,titolo,sottotitolo,anno_pubblicazione,lingua,edizione,numero_pagine,genreId,
+            // descrizione,formato,prezzo,editoreId,collana,numero_serie,traduttore,parole_chiave,classificazione_dewey,
+            // peso,dimensioni,data_acquisizione,review,rating,comment...lending_end(19),value,condition_lt,entry_date,bookId
+            $types = 'sssssissiissdisssssdsssisssssssssssssssssdssi';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
@@ -1120,7 +1124,12 @@ class LibraryThingImportController
                 !empty($data['entry_date']) ? $data['entry_date'] : null
             ];
 
-            $types = 'sssssississsdiiisssssdsssisssssssssssssssssssdss';
+            // Type string: 48 characters matching params (s=string, i=int, d=double)
+            // isbn10,isbn13,ean,titolo,sottotitolo,anno_pubblicazione,lingua,edizione,numero_pagine,genreId,
+            // descrizione,formato,prezzo,copie,copie_disponibili,editoreId,collana,numero_serie,traduttore,
+            // parole_chiave,classificazione_dewey,peso,dimensioni,data_acquisizione,review,rating,
+            // comment...lending_end(19),value,condition_lt,entry_date
+            $types = 'sssssissiissdiiisssssdsssissssssssssssssssssdss';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)

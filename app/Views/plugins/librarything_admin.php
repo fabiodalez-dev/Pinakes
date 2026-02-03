@@ -288,7 +288,7 @@ document.getElementById('confirm-uninstall')?.addEventListener('change', functio
 
 // Confirmation dialog for uninstall
 document.getElementById('uninstall-form')?.addEventListener('submit', function(e) {
-    if (!confirm('<?= __("Sei assolutamente sicuro? Tutti i dati LibraryThing verranno eliminati!") ?>')) {
+    if (!confirm(<?= json_encode(__("Sei assolutamente sicuro? Tutti i dati LibraryThing verranno eliminati!")) ?>)) {
         e.preventDefault();
     }
 });

@@ -2170,7 +2170,7 @@ function initializeCollocationFilters() {
     return Number.isNaN(num) ? 0 : num;
   };
 
-  const MENSOLE = (<?php echo json_encode($mensole, JSON_UNESCAPED_UNICODE); ?> || []).map(m => ({
+  const MENSOLE = (<?php echo json_encode($mensole, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?> || []).map(m => ({
     id: normalizeNumber(m.id),
     scaffale_id: normalizeNumber(m.scaffale_id),
     numero_livello: normalizeNumber(m.numero_livello)
