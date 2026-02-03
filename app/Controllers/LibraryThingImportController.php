@@ -739,7 +739,6 @@ class LibraryThingImportController
 
         // Catalog Identifiers
         $result['bcid'] = !empty($data['BCID']) ? trim($data['BCID']) : '';
-        $result['barcode'] = !empty($data['Barcode']) ? trim($data['Barcode']) : '';
         $result['oclc'] = !empty($data['OCLC']) ? trim($data['OCLC']) : '';
         $result['work_id'] = !empty($data['Work id']) ? trim($data['Work id']) : '';
         $result['issn'] = !empty($data['ISSN']) ? trim($data['ISSN']) : '';
@@ -1002,7 +1001,7 @@ class LibraryThingImportController
             // isbn10,isbn13,ean,titolo,sottotitolo,anno_pubblicazione,lingua,edizione,numero_pagine,genreId,
             // descrizione,formato,prezzo,editoreId,collana,numero_serie,traduttore,parole_chiave,classificazione_dewey,
             // peso,dimensioni,data_acquisizione,review,rating,comment...lending_end(19),value,condition_lt,entry_date,bookId
-            $types = 'sssssissiissdisssssdsssisssssssssssssssssdssi';
+            $types = 'sssssissiissdisssssdsssisssssssssssssssssssdssi';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
@@ -1150,7 +1149,7 @@ class LibraryThingImportController
             // descrizione,formato,prezzo,copie,copie_disponibili,editoreId,collana,numero_serie,traduttore,
             // parole_chiave,classificazione_dewey,peso,dimensioni,data_acquisizione,review,rating,
             // comment...lending_end(19),value,condition_lt,entry_date
-            $types = 'sssssissiissdiiisssssdsssisssssssssssssssssdss';
+            $types = 'sssssissiissdiiisssssdsssisssssssssssssssssssdss';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
@@ -1567,7 +1566,7 @@ class LibraryThingImportController
             $libro['data_acquisizione'] ?? '',
             $libro['date_started'] ?? '',
             $libro['date_read'] ?? '',
-            $libro['barcode'] ?? '',
+            $libro['ean'] ?? '',  // Barcode value is stored in 'ean' field
             $libro['bcid'] ?? '',
             $libro['parole_chiave'] ?? '',
             $libro['collana'] ?? '',
