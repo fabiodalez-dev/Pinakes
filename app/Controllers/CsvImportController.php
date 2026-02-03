@@ -414,7 +414,9 @@ class CsvImportController
      */
     private function isLibraryThingFormat(array $headers): bool
     {
-        $libraryThingColumns = ['Book Id', 'Primary Author', 'Secondary Author', 'ISBNs'];
+        // Use same validation as LibraryThingImportController for consistency
+        // 'Book Id', 'Title', 'ISBNs' are the essential LibraryThing columns
+        $libraryThingColumns = ['Book Id', 'Title', 'ISBNs'];
         $foundCount = 0;
 
         foreach ($libraryThingColumns as $ltColumn) {
@@ -426,7 +428,7 @@ class CsvImportController
             }
         }
 
-        // If we found at least 2 LibraryThing-specific columns, consider it LibraryThing format
+        // Require at least 2 of the 3 essential LibraryThing columns
         return $foundCount >= 2;
     }
 

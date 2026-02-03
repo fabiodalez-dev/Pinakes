@@ -181,11 +181,11 @@ class LibraryThingInstaller
         try {
             $this->db->begin_transaction();
 
-            // Remove check constraint (try-catch for MySQL < 8.0.16 compatibility)
-            try {
-                $this->db->query("ALTER TABLE libri DROP CHECK chk_lt_rating");
-            } catch (\Exception $e) {
-                // Constraint doesn't exist or MySQL doesn't support CHECK - continue
+            // Remove check constraint (MySQL < 8.0.16 may not support CHECK)
+            $result = $this->db->query("ALTER TABLE libri DROP CHECK chk_lt_rating");
+            if ($result === false && $this->db->errno !== 1091) {
+                // Error other than "Can't DROP 'constraint'; check that it exists"
+                throw new \RuntimeException("Failed to drop CHECK constraint: " . $this->db->error);
             }
 
             // Remove indexes individually (MySQL 5.7 compatible)
@@ -193,10 +193,10 @@ class LibraryThingInstaller
                        'idx_lt_lccn', 'idx_lt_barcode', 'idx_lt_oclc', 'idx_lt_work_id', 'idx_lt_issn'];
 
             foreach ($indexes as $index) {
-                try {
-                    $this->db->query("ALTER TABLE libri DROP INDEX {$index}");
-                } catch (\Exception $e) {
-                    // Index doesn't exist - continue
+                $result = $this->db->query("ALTER TABLE libri DROP INDEX {$index}");
+                if ($result === false && $this->db->errno !== 1091) {
+                    // Error other than "Can't DROP 'index'; check that it exists"
+                    throw new \RuntimeException("Failed to drop index {$index}: " . $this->db->error);
                 }
             }
 

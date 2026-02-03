@@ -59,7 +59,7 @@ class LibraryThingImportController
 
         ob_start();
         $data = ['status' => $status];
-        include __DIR__ . '/../../Views/plugins/librarything_admin.php';
+        include __DIR__ . '/../Views/plugins/librarything_admin.php';
         $content = ob_get_clean();
 
         $response->getBody()->write($content);
@@ -488,7 +488,7 @@ class LibraryThingImportController
 
         foreach ($required as $col) {
             foreach ($headers as $header) {
-                if (trim($header) === $col) {
+                if (strtolower(trim($header)) === strtolower($col)) {
                     $foundCount++;
                     break;
                 }

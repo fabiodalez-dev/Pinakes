@@ -2853,11 +2853,11 @@ class LibriController
             $isbnString,                                           // ISBNs
             $libro['genere_nome'] ?? '',                           // Subjects
             $libro['classificazione_dewey'] ?? '',                 // Dewey Decimal
-            '',                                                    // Dewey Wording
+            $libro['dewey_wording'] ?? '',                         // Dewey Wording
             $libro['other_call_number'] ?? '',                     // Other Call Number
             $libro['copie_totali'] ?? '1',                         // Copies
             $libro['source'] ?? '',                                // Source
-            '',                                                    // Entry Date
+            $libro['entry_date'] ?? '',                            // Entry Date
             $libro['from_where'] ?? '',                            // From Where
             $libro['oclc'] ?? '',                                  // OCLC
             $libro['work_id'] ?? '',                               // Work id
