@@ -28,6 +28,9 @@ class MergeHelper
         \mysqli $db,
         string $entityType
     ): Response {
+        // Log merge request for debugging
+        error_log("[MergeHelper] Processing merge request for entity: $entityType");
+
         // Parse request body
         $data = $request->getParsedBody();
         if (!$data) {
@@ -73,10 +76,14 @@ class MergeHelper
         }
 
         try {
+            error_log("[MergeHelper] Starting merge for " . count($ids) . " entities");
+
             // Get the appropriate repository
             $repo = self::getRepository($db, $entityType);
             $mergeMethod = $entityType === 'autori' ? 'mergeAuthors' : 'mergePublishers';
             $primaryId = $repo->$mergeMethod($ids, $requestedPrimaryId);
+
+            error_log("[MergeHelper] Merge completed, primary_id: $primaryId");
 
             if ($primaryId) {
                 // Rename if requested
