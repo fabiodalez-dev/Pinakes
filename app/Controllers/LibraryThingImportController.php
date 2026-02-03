@@ -226,6 +226,16 @@ class LibraryThingImportController
         @ini_set('max_execution_time', '600');
 
         $data = json_decode((string) $request->getBody(), true);
+
+        // Validate JSON decode result before accessing array keys
+        if (!is_array($data)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Payload JSON non valido')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
         $importId = $data['import_id'] ?? '';
         $chunkStart = (int) ($data['start'] ?? 0);
         $chunkSize = (int) ($data['size'] ?? 10);
@@ -874,6 +884,19 @@ class LibraryThingImportController
         if (!empty($data['isbn13'])) {
             $stmt = $db->prepare("SELECT id FROM libri WHERE isbn13 = ? AND deleted_at IS NULL LIMIT 1");
             $stmt->bind_param('s', $data['isbn13']);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $stmt->close();
+                return (int) $row['id'];
+            }
+            $stmt->close();
+        }
+
+        // Fallback to ISBN-10 to avoid duplicates
+        if (!empty($data['isbn10'])) {
+            $stmt = $db->prepare("SELECT id FROM libri WHERE isbn10 = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->bind_param('s', $data['isbn10']);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
