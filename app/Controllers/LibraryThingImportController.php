@@ -31,22 +31,18 @@ class LibraryThingImportController
     public function showImportPage(Request $request, Response $response): Response
     {
 
-        try {
-            ob_start();
-            $title = "Import LibraryThing";
-            require __DIR__ . '/../Views/libri/import_librarything.php';
-            $content = ob_get_clean();
+        ob_start();
+        $title = "Import LibraryThing";
+        require __DIR__ . '/../Views/libri/import_librarything.php';
+        $content = ob_get_clean();
 
-            // Wrap content in admin layout
-            ob_start();
-            require __DIR__ . '/../Views/layout.php';
-            $html = ob_get_clean();
+        // Wrap content in admin layout
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
 
-            $response->getBody()->write($html);
-            return $response->withHeader('Content-Type', 'text/html');
-        } catch (\Throwable $e) {
-            throw $e;
-        }
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html');
     }
 
     /**
@@ -860,9 +856,11 @@ class LibraryThingImportController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
+            $stmt->close();
             return (int) $row['id'];
         }
 
+        $stmt->close();
         return null;
     }
 
@@ -1152,7 +1150,7 @@ class LibraryThingImportController
             // descrizione,formato,prezzo,copie,copie_disponibili,editoreId,collana,numero_serie,traduttore,
             // parole_chiave,classificazione_dewey,peso,dimensioni,data_acquisizione,review,rating,
             // comment...lending_end(19),value,condition_lt,entry_date
-            $types = 'sssssissiissdiiisssssdsssissssssssssssssssssdss';
+            $types = 'sssssissiissdiiisssssdsssisssssssssssssssssdss';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
@@ -1283,7 +1281,7 @@ class LibraryThingImportController
             'updated' => 0
         ];
 
-        $response->getBody()->write(json_encode($progress));
+        $response->getBody()->write(json_encode($progress, JSON_THROW_ON_ERROR));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
