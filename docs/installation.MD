@@ -267,7 +267,7 @@ tuodominio.it/
 
 ---
 
-**Sei pronto!** Inizia subito ad usare Pinakes! 
+**Sei pronto!** Inizia subito a usare Pinakes! 
 
 ---
 

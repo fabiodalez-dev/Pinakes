@@ -258,10 +258,14 @@ class LibriApiController
                         $baseUrl = rtrim((string)$canonicalUrl, '/');
                         $cover = $baseUrl . $cover;
                     } elseif (isset($_SERVER['HTTP_HOST'])) {
-                        // Priority 2: Fallback to HTTP_HOST
-                        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+                        // Priority 2: Fallback to HTTP_HOST (with validation to prevent Host header poisoning)
                         $host = $_SERVER['HTTP_HOST'];
-                        $cover = $protocol . '://' . $host . $cover;
+                        // Validate Host header: allow only alphanumeric, dots, hyphens, colons (for ports)
+                        if (preg_match('/^[a-zA-Z0-9.\-:]+$/', $host)) {
+                            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+                            $cover = $protocol . '://' . $host . $cover;
+                        }
+                        // If validation fails, leave cover as relative URL
                     }
                     // If neither is available, leave cover as relative URL
                 }

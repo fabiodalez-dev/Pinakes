@@ -32,10 +32,25 @@ class RateLimitMiddleware implements MiddlewareInterface
         if (RateLimiter::isLimited($identifier)) {
             $response = new \Slim\Psr7\Response();
             $body = fopen('php://temp', 'r+');
-            fwrite($body, json_encode([
+            if ($body === false) {
+                // Fallback: return response without body if stream creation fails
+                return $response
+                    ->withStatus(429)
+                    ->withHeader('Retry-After', (string)$this->window);
+            }
+
+            $jsonData = json_encode([
                 'error' => __('Too many requests'),
                 'message' => __('Rate limit exceeded. Please try again later.')
-            ]));
+            ]);
+
+            if ($jsonData === false) {
+                // Fallback: use plain text if JSON encoding fails
+                fwrite($body, 'Too many requests. Rate limit exceeded.');
+            } else {
+                fwrite($body, $jsonData);
+            }
+
             rewind($body);
             return $response
                 ->withStatus(429)

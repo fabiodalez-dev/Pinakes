@@ -32,7 +32,7 @@ Questo plugin **non modifica** il sistema di import/export CSV esistente, ma lo 
 ### Import LibraryThing → Pinakes
 
 | Campo LibraryThing | Campo Pinakes | Note |
-|-------------------|---------------|------|
+| --- | --- | --- |
 | Book Id | id | ID univoco |
 | Title | titolo | **Obbligatorio** |
 | Sort Character | sottotitolo | Sottotitolo/carattere ordinamento |
@@ -111,7 +111,7 @@ Il plugin supporta lo **scraping automatico** per arricchire i dati mancanti:
 
 Il plugin è completamente **separato** dal sistema di import/export esistente:
 
-```
+```text
 app/Controllers/Plugins/
   └── LibraryThingController.php    # Controller principale del plugin
 

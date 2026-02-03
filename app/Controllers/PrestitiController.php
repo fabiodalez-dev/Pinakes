@@ -404,7 +404,10 @@ class PrestitiController
                 $attivo,
                 $pickupDeadline
             );
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $db->rollback();
+                throw new Exception(__('Errore durante la creazione del prestito: ') . $stmt->error);
+            }
             $newLoanId = (int) $db->insert_id;
             $stmt->close();
 

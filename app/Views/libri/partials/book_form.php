@@ -952,6 +952,20 @@ function toggleLibraryThingAccordion() {
         button.setAttribute('aria-expanded', 'true');
         icon.style.transform = 'rotate(180deg)';
 
+        // Focus management: move focus to first focusable element after expansion
+        setTimeout(() => {
+            const focusableElements = content.querySelectorAll(
+                'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+            );
+            if (focusableElements.length > 0) {
+                focusableElements[0].focus();
+            } else {
+                // If no focusable elements, focus the content itself
+                content.setAttribute('tabindex', '-1');
+                content.focus();
+            }
+        }, 50);
+
         // Auto-adjust height after transition
         setTimeout(() => {
             if (button.getAttribute('aria-expanded') === 'true') {

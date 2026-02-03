@@ -438,7 +438,7 @@ C.3.27 = Scaffale C, Mensola 3, Posizione 27
 
 ---
 
-## Modifche Frequenti - Casi Reali
+## Modifiche Frequenti - Casi Reali
 
 ### Caso 1: Correggere Errore di Inserimento
 
@@ -641,6 +641,6 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 
 ---
 
-** Documento aggiornato: 19 Ottobre 2025**
-** Versione: 3.0.0 - Guida Completa Estesa**
-** Per utenti finali della biblioteca**
+**Documento aggiornato: 19 Ottobre 2025**
+**Versione: 3.0.0 - Guida Completa Estesa**
+**Per utenti finali della biblioteca**

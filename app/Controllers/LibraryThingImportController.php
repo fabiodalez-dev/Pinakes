@@ -553,7 +553,7 @@ class LibraryThingImportController
         // Title
         $result['titolo'] = !empty($data['Title']) ? trim($data['Title']) : '';
 
-        // Subtitle (note: 'Sort Character' is for alphabetical sorting, not subtitle)
+        // Subtitle (LibraryThing doesn't export subtitles, leave empty)
         $result['sottotitolo'] = '';
 
         // Authors (combine primary and secondary)
@@ -920,7 +920,7 @@ class LibraryThingImportController
                     bcid = ?, oclc = ?, work_id = ?, issn = ?,
                     original_languages = ?, source = ?, from_where = ?,
                     lending_patron = ?, lending_status = ?, lending_start = ?, lending_end = ?,
-                    value = ?, condition_lt = ?,
+                    value = ?, condition_lt = ?, entry_date = ?,
                     updated_at = NOW()
                 WHERE id = ?
             ");
@@ -973,10 +973,11 @@ class LibraryThingImportController
                 !empty($data['lending_end']) ? $data['lending_end'] : null,
                 !empty($data['value']) ? (float) str_replace(',', '.', $data['value']) : null,
                 !empty($data['condition_lt']) ? $data['condition_lt'] : null,
+                !empty($data['entry_date']) ? $data['entry_date'] : null,
                 $bookId
             ];
 
-            $types = 'sssssissiissdisssssdsssisssssssssssssssssssdsi';
+            $types = 'ssssisiisiissdissssdsssisssssssssssssssssssdssi';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
@@ -1049,7 +1050,7 @@ class LibraryThingImportController
                     bcid, oclc, work_id, issn,
                     original_languages, source, from_where,
                     lending_patron, lending_status, lending_start, lending_end,
-                    value, condition_lt,
+                    value, condition_lt, entry_date,
                     stato, created_at
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -1061,7 +1062,7 @@ class LibraryThingImportController
                     ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
-                    ?, ?,
+                    ?, ?, ?,
                     'disponibile', NOW()
                 )
             ");
@@ -1115,10 +1116,11 @@ class LibraryThingImportController
                 !empty($data['lending_start']) ? $data['lending_start'] : null,
                 !empty($data['lending_end']) ? $data['lending_end'] : null,
                 !empty($data['value']) ? (float) str_replace(',', '.', $data['value']) : null,
-                !empty($data['condition_lt']) ? $data['condition_lt'] : null
+                !empty($data['condition_lt']) ? $data['condition_lt'] : null,
+                !empty($data['entry_date']) ? $data['entry_date'] : null
             ];
 
-            $types = 'sssssississsdiiisssssdsssisssssssssssssssssssds';
+            $types = 'sssssississsdiiisssssdsssisssssssssssssssssssdss';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
