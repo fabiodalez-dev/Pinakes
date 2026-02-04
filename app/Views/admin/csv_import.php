@@ -566,7 +566,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     stats.publishers_created = data.publishers_created || 0;
                     // Backend returns cumulative error list, so assign directly (not concat)
                     stats.errors = data.errors || [];
-                }
 
                     currentRow += size;
                     processNextChunk();
