@@ -13,7 +13,7 @@ La pagina **prenotazioni** è il **tuo centro di controllo** per gestire:
 
 Quando richiedi un libro, il prestito passa attraverso diversi stati:
 
-```
+```text
 ┌─────────────┐     Admin        ┌─────────────┐     Data          ┌─────────────┐
 │  PENDENTE   │ ──approva───────>│  PRENOTATO  │ ──raggiunta──────>│ DA RITIRARE │
 │  (attesa)   │                  │ (confermato)│                   │ (pronto!)   │

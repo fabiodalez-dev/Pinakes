@@ -53,7 +53,7 @@ export default [
             'node_modules/**',
             'dist/**',
             'build/**',
-            '*.min.js',
+            '**/*.min.js',
         ]
     }
 ];

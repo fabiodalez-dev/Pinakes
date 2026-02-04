@@ -7,6 +7,7 @@ use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\SecureLogger;
+use App\Support\LibraryThingInstaller;
 
 class LibriController
 {
@@ -41,6 +42,39 @@ class LibriController
      * Maximum file size for cover downloads (5MB)
      */
     private const MAX_COVER_SIZE = 5 * 1024 * 1024;
+
+    /**
+     * Default values for LibraryThing fields (27 unique fields)
+     * Used by both store() and update() to avoid duplication
+     */
+    private const LIBRARYTHING_FIELDS_DEFAULTS = [
+        'review' => null,
+        'rating' => null,
+        'comment' => null,
+        'private_comment' => null,
+        'physical_description' => null,
+        'dewey_wording' => null,
+        'lccn' => null,
+        'lc_classification' => null,
+        'other_call_number' => null,
+        'entry_date' => null,
+        'date_started' => null,
+        'date_read' => null,
+        'bcid' => null,
+        'barcode' => null,
+        'oclc' => null,
+        'work_id' => null,
+        'issn' => null,
+        'original_languages' => null,
+        'source' => null,
+        'from_where' => null,
+        'lending_patron' => null,
+        'lending_status' => null,
+        'lending_start' => null,
+        'lending_end' => null,
+        'value' => null,
+        'condition_lt' => null,
+    ];
 
     /**
      * Get the storage directory path
@@ -155,7 +189,7 @@ class LibriController
                 return $url;
             }
 
-            $mimeType = $imageInfo['mime'] ?? '';
+            $mimeType = $imageInfo['mime'];
             $extension = match ($mimeType) {
                 'image/jpeg', 'image/jpg' => 'jpg',
                 'image/png' => 'png',
@@ -369,12 +403,14 @@ class LibriController
             $resStmt->close();
         }
 
+        $libraryThingInstalled = LibraryThingInstaller::isInstalled($db);
         ob_start();
         // extract([
         //     'libro' => $libro,
         //     'activeLoan' => $activeLoan,
         //     'bookPath' => $bookPath,
         //     'loanHistory' => $loanHistory,
+        //     'libraryThingInstalled' => $libraryThingInstalled,
         // ]);
         require __DIR__ . '/../Views/libri/scheda_libro.php';
         $content = ob_get_clean();
@@ -398,9 +434,9 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
+        $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         ob_start();
-        $data = ['editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri];
-        // extract(['editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri]); 
+        // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
         $content = ob_get_clean();
         ob_start();
@@ -456,8 +492,13 @@ class LibriController
             'anno_pubblicazione' => null,
             'edizione' => '',
             'data_pubblicazione' => '',
-            'traduttore' => ''
+            'traduttore' => '',
         ];
+
+        // Merge LibraryThing fields defaults only if plugin installed
+        if (LibraryThingInstaller::isInstalled($db)) {
+            $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
+        }
         foreach ($fields as $k => $v) {
             if (array_key_exists($k, $data))
                 $fields[$k] = $data[$k];
@@ -638,9 +679,8 @@ class LibriController
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
                     // Release lock before returning
-                    if ($lockKey) {
-                        $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
-                    }
+                    $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+
 
                     // Build location string
                     $location = '';
@@ -816,12 +856,18 @@ class LibriController
 
             $id = $repo->createBasic($fields);
 
+            // Handle LibraryThing fields visibility preferences
+            if (LibraryThingInstaller::isInstalled($db)
+                && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
+                $this->saveLtVisibility($db, $id, $data['lt_visibility']);
+            }
+
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
             // Genera copie fisiche del libro
             $copyRepo = new \App\Models\CopyRepository($db);
-            $copieTotali = (int) ($fields['copie_totali'] ?? 1);
+            $copieTotali = (int) $fields['copie_totali'];
             $baseInventario = !empty($fields['numero_inventario'])
                 ? $fields['numero_inventario']
                 : "LIB-{$id}";
@@ -875,9 +921,9 @@ class LibriController
         $mensole = $colRepo->getMensole();
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
+        $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         ob_start();
-        $data = ['libro' => $libro, 'editori' => $editori, 'autori' => $autori, 'scaffali' => $scaffali, 'mensole' => $mensole, 'generi' => $generi, 'sottogeneri' => $sottogeneri];
-        // extract(['libro'=>$libro,'editori'=>$editori,'autori'=>$autori,'scaffali'=>$scaffali,'mensole'=>$mensole,'generi'=>$generi,'sottogeneri'=>$sottogeneri]); 
+        // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
         $content = ob_get_clean();
         ob_start();
@@ -933,8 +979,13 @@ class LibriController
             'anno_pubblicazione' => null,
             'edizione' => '',
             'data_pubblicazione' => '',
-            'traduttore' => ''
+            'traduttore' => '',
         ];
+
+        // Merge LibraryThing fields defaults only if plugin installed
+        if (LibraryThingInstaller::isInstalled($db)) {
+            $fields = array_merge($fields, self::LIBRARYTHING_FIELDS_DEFAULTS);
+        }
         foreach ($fields as $k => $v) {
             if (array_key_exists($k, $data))
                 $fields[$k] = $data[$k];
@@ -962,7 +1013,7 @@ class LibriController
 
         // Merge scraped subtitle and notes if present
         $subtitleFromScrape = trim((string) ($data['subtitle'] ?? ''));
-        if ($subtitleFromScrape !== '' && trim((string) ($fields['sottotitolo'] ?? '')) === '') {
+        if ($subtitleFromScrape !== '' && trim((string) $fields['sottotitolo']) === '') {
             $fields['sottotitolo'] = $this->normalizeText($subtitleFromScrape);
         }
 
@@ -1150,9 +1201,8 @@ class LibriController
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
                     // Release lock before returning
-                    if ($lockKey) {
-                        $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
-                    }
+                    $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+
 
                     // Build location string
                     $location = '';
@@ -1329,13 +1379,19 @@ class LibriController
 
             $repo->updateBasic($id, $fields);
 
+            // Handle LibraryThing fields visibility preferences
+            if (LibraryThingInstaller::isInstalled($db)
+                && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
+                $this->saveLtVisibility($db, $id, $data['lt_visibility']);
+            }
+
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
             // Gestione copie: aggiorna il numero di copie se cambiato
             $copyRepo = new \App\Models\CopyRepository($db);
             $currentCopieCount = $copyRepo->countByBookId($id);
-            $newCopieCount = (int) ($fields['copie_totali'] ?? 1);
+            $newCopieCount = (int) $fields['copie_totali'];
 
             if ($newCopieCount > $currentCopieCount) {
                 // Aggiungi nuove copie
@@ -1838,6 +1894,9 @@ class LibriController
      */
     public function fetchCover(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        // Increase execution time for bulk operations
+        set_time_limit(120);
+
         $repo = new \App\Models\BookRepository($db);
         $libro = $repo->getById($id);
 
@@ -1846,8 +1905,8 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
 
-        // Check if already has cover
-        if (!empty($libro['copertina_url'])) {
+        // Check if already has cover (but not placeholder)
+        if (!empty($libro['copertina_url']) && strpos($libro['copertina_url'], 'placeholder.jpg') === false) {
             $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
             return $response->withHeader('Content-Type', 'application/json');
         }
@@ -1859,24 +1918,31 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        // Call scraping API to get book data including cover (use /api/scrape/isbn route)
-        $scrapeUrl = '/api/scrape/isbn?isbn=' . urlencode($isbn);
+        // Call scraping directly via ScrapeController (avoid auth issues with HTTP call)
+        $scrapeController = new \App\Controllers\ScrapeController();
 
-        // Internal request to scraping endpoint
-        $ch = curl_init();
-        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $baseUrl . $scrapeUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false, // Internal request
-        ]);
-        $scrapeResult = curl_exec($ch);
-        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // Create a mock request with ISBN parameter
+        $mockRequest = $request->withQueryParams(['isbn' => $isbn]);
+
+        // Create a new response object for the scraping call
+        $scrapeResponse = new \Slim\Psr7\Response();
+
+        // Call byIsbn directly
+        $scrapeResponse = $scrapeController->byIsbn($mockRequest, $scrapeResponse);
+
+        // Extract and parse the response
+        $httpCode = $scrapeResponse->getStatusCode();
+        $scrapeResult = (string) $scrapeResponse->getBody();
+
+        // Handle different response codes
+        if ($httpCode === 400) {
+            // Invalid ISBN - skip this book (not an error, just no valid ISBN)
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'invalid_isbn']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
 
         if ($httpCode !== 200 || !$scrapeResult) {
+            // Real error from scraper
             $response->getBody()->write(json_encode(['success' => false, 'error' => __('Scraping fallito')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
         }
@@ -1928,7 +1994,7 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        $mimeType = $imageInfo['mime'] ?? '';
+        $mimeType = $imageInfo['mime'];
         $extension = match ($mimeType) {
             'image/jpeg', 'image/jpg' => 'jpg',
             'image/png' => 'png',
@@ -2409,18 +2475,28 @@ class LibriController
 
     /**
      * Export libri to CSV in import-compatible format
+     * Supports multiple formats and delimiters
      */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
-        $repo = new \App\Models\BookRepository($db);
-
-        // Get filters from query parameters
+        // Get filters and options from query parameters
         $params = $request->getQueryParams();
         $search = $params['search'] ?? '';
         $stato = $params['stato'] ?? '';
         $editoreId = isset($params['editore_id']) && is_numeric($params['editore_id']) ? (int) $params['editore_id'] : 0;
         $genereId = isset($params['genere_id']) && is_numeric($params['genere_id']) ? (int) $params['genere_id'] : 0;
         $autoreId = isset($params['autore_id']) && is_numeric($params['autore_id']) ? (int) $params['autore_id'] : 0;
+
+        // Export format options
+        $format = $params['format'] ?? 'standard'; // standard, librarything
+        $delimiter = $params['delimiter'] ?? ';'; // ;, comma, tab
+
+        // Normalize delimiter parameter
+        if ($delimiter === 'comma') {
+            $delimiter = ',';
+        } elseif ($delimiter === 'tab') {
+            $delimiter = "\t";
+        }
 
         // Build WHERE clause based on filters
         $whereClauses = [];
@@ -2516,73 +2592,83 @@ class LibriController
         // UTF-8 BOM
         fwrite($stream, "\xEF\xBB\xBF");
 
-        // CSV headers
-        $headers = [
-            'id',
-            'isbn10',
-            'isbn13',
-            'ean',
-            'titolo',
-            'sottotitolo',
-            'autori',
-            'editore',
-            'anno_pubblicazione',
-            'lingua',
-            'edizione',
-            'numero_pagine',
-            'genere',
-            'descrizione',
-            'formato',
-            'prezzo',
-            'copie_totali',
-            'collana',
-            'numero_serie',
-            'traduttore',
-            'parole_chiave'
-        ];
+        // CSV headers based on format
+        if ($format === 'librarything') {
+            $headers = $this->getLibraryThingHeaders();
+        } else {
+            // Standard format (default)
+            $headers = [
+                'id',
+                'isbn10',
+                'isbn13',
+                'ean',
+                'titolo',
+                'sottotitolo',
+                'autori',
+                'editore',
+                'anno_pubblicazione',
+                'lingua',
+                'edizione',
+                'numero_pagine',
+                'genere',
+                'descrizione',
+                'formato',
+                'prezzo',
+                'copie_totali',
+                'collana',
+                'numero_serie',
+                'traduttore',
+                'parole_chiave'
+            ];
+        }
 
-        fwrite($stream, implode(';', $headers) . "\n");
+        fwrite($stream, implode($delimiter, $headers) . "\n");
 
         $rowCount = 0;
         foreach ($libri as $libro) {
             // Use anno_pubblicazione directly (SMALLINT UNSIGNED type in DB, range 0-65535)
             $anno = $libro['anno_pubblicazione'] ?? '';
 
-            $row = [
-                $libro['id'] ?? '',
-                $libro['isbn10'] ?? '',
-                $libro['isbn13'] ?? '',
-                $libro['ean'] ?? '',
-                $libro['titolo'] ?? '',
-                $libro['sottotitolo'] ?? '',
-                $libro['autori_nomi'] ?? '',
-                $libro['editore_nome'] ?? '',
-                $anno,
-                $libro['lingua'] ?? '',
-                $libro['edizione'] ?? '',
-                $libro['numero_pagine'] ?? '',
-                $libro['genere_nome'] ?? '',
-                $libro['descrizione'] ?? '',
-                $libro['formato'] ?? '',
-                $libro['prezzo'] ?? '',
-                $libro['copie_totali'] ?? '1',
-                $libro['collana'] ?? '',
-                $libro['numero_serie'] ?? '',
-                $libro['traduttore'] ?? '',
-                $libro['parole_chiave'] ?? ''
-            ];
+            if ($format === 'librarything') {
+                $row = $this->formatLibraryThingRow($libro, $anno);
+            } else {
+                // Standard format (default)
+                $row = [
+                    $libro['id'] ?? '',
+                    $libro['isbn10'] ?? '',
+                    $libro['isbn13'] ?? '',
+                    $libro['ean'] ?? '',
+                    $libro['titolo'] ?? '',
+                    $libro['sottotitolo'] ?? '',
+                    $libro['autori_nomi'] ?? '',
+                    $libro['editore_nome'] ?? '',
+                    $anno,
+                    $libro['lingua'] ?? '',
+                    $libro['edizione'] ?? '',
+                    $libro['numero_pagine'] ?? '',
+                    $libro['genere_nome'] ?? '',
+                    $libro['descrizione'] ?? '',
+                    $libro['formato'] ?? '',
+                    $libro['prezzo'] ?? '',
+                    $libro['copie_totali'] ?? '1',
+                    $libro['collana'] ?? '',
+                    $libro['numero_serie'] ?? '',
+                    $libro['traduttore'] ?? '',
+                    $libro['parole_chiave'] ?? ''
+                ];
+            }
 
             // Escape fields for CSV
-            $escapedRow = array_map(function ($field) {
+            $escapedRow = array_map(function ($field) use ($delimiter) {
                 $field = str_replace('"', '""', (string) $field);
-                // Only quote if contains semicolon, newline, or quotes
-                if (strpos($field, ';') !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
+                // Quote if contains delimiter, newline, or quotes
+                if (strpos($field, $delimiter) !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
                     return '"' . $field . '"';
                 }
                 return $field;
             }, $row);
 
-            fwrite($stream, implode(';', $escapedRow) . "\n");
+            fwrite($stream, implode($delimiter, $escapedRow) . "\n");
 
             // OPTIMIZATION: Garbage collection every 1000 rows to prevent memory buildup
             if (++$rowCount % 1000 === 0) {
@@ -2607,6 +2693,191 @@ class LibriController
     }
 
     /**
+     * Get LibraryThing CSV headers
+     *
+     * @return array Headers in LibraryThing format
+     */
+    private function getLibraryThingHeaders(): array
+    {
+        return [
+            'Book Id',
+            'Title',
+            'Sort Character',
+            'Primary Author',
+            'Primary Author Role',
+            'Secondary Author',
+            'Secondary Author Roles',
+            'Publication',
+            'Date',
+            'Review',
+            'Rating',
+            'Comment',
+            'Private Comment',
+            'Summary',
+            'Media',
+            'Physical Description',
+            'Weight',
+            'Height',
+            'Thickness',
+            'Length',
+            'Dimensions',
+            'Page Count',
+            'LCCN',
+            'Acquired',
+            'Date Started',
+            'Date Read',
+            'Barcode',
+            'BCID',
+            'Tags',
+            'Collections',
+            'Languages',
+            'Original Languages',
+            'LC Classification',
+            'ISBN',
+            'ISBNs',
+            'Subjects',
+            'Dewey Decimal',
+            'Dewey Wording',
+            'Other Call Number',
+            'Copies',
+            'Source',
+            'Entry Date',
+            'From Where',
+            'OCLC',
+            'Work id',
+            'Lending Patron',
+            'Lending Status',
+            'Lending Start',
+            'Lending End',
+            'List Price',
+            'Purchase Price',
+            'Value',
+            'Condition',
+            'ISSN'
+        ];
+    }
+
+    /**
+     * Format book row in LibraryThing format
+     *
+     * @param array $libro Book data from database
+     * @param string $anno Publication year
+     * @return array Row data in LibraryThing format
+     */
+    private function formatLibraryThingRow(array $libro, string $anno): array
+    {
+        // Parse authors (may be semicolon-separated)
+        $autori = $libro['autori_nomi'] ?? '';
+        $autoriArray = !empty($autori) ? explode(';', $autori) : [];
+        $primaryAuthor = $autoriArray[0] ?? '';
+        $secondaryAuthor = $autoriArray[1] ?? '';
+
+        // Map formato to Media
+        $formatoMap = [
+            'cartaceo' => 'Libro cartaceo',
+            'ebook' => 'eBook',
+            'audiolibro' => 'Audiobook',
+            'rivista' => 'Magazine',
+        ];
+        $media = $formatoMap[$libro['formato'] ?? 'cartaceo'] ?? 'Libro cartaceo';
+
+        // Build publication string (City, Publisher, Year)
+        $publication = '';
+        if (!empty($libro['editore_nome'])) {
+            $publication = $libro['editore_nome'];
+            if (!empty($anno)) {
+                $publication .= ', ' . $anno;
+            }
+        }
+
+        // Map lingua to Languages
+        $linguaMap = [
+            'italiano' => 'Italian',
+            'inglese' => 'English',
+            'francese' => 'French',
+            'tedesco' => 'German',
+            'spagnolo' => 'Spanish',
+        ];
+        $language = $linguaMap[$libro['lingua'] ?? 'italiano'] ?? ucfirst($libro['lingua'] ?? 'Italian');
+
+        // Build ISBNs (combine isbn10 and isbn13)
+        $isbns = [];
+        if (!empty($libro['isbn13'])) {
+            $isbns[] = $libro['isbn13'];
+        }
+        if (!empty($libro['isbn10'])) {
+            $isbns[] = $libro['isbn10'];
+        }
+        $isbnString = !empty($isbns) ? '[' . implode(', ', $isbns) . ']' : '';
+
+        // Calculate Sort Character from first significant character of title
+        $sortChar = '';
+        if (!empty($libro['titolo'])) {
+            $title = trim($libro['titolo']);
+            if ($title !== '') {
+                $sortChar = mb_strtoupper(mb_substr($title, 0, 1, 'UTF-8'), 'UTF-8');
+            }
+        }
+
+        return [
+            $libro['id'] ?? '',                                    // Book Id
+            $libro['titolo'] ?? '',                                // Title
+            $sortChar,                                             // Sort Character
+            $primaryAuthor,                                        // Primary Author
+            '',                                                    // Primary Author Role
+            $secondaryAuthor,                                      // Secondary Author
+            '',                                                    // Secondary Author Roles
+            $publication,                                          // Publication
+            $anno,                                                 // Date
+            $libro['review'] ?? '',                                // Review
+            $libro['rating'] ?? '',                                // Rating
+            $libro['comment'] ?? '',                               // Comment
+            $libro['private_comment'] ?? '',                       // Private Comment
+            $libro['descrizione'] ?? '',                           // Summary
+            $media,                                                // Media
+            $libro['physical_description'] ?? '',                  // Physical Description
+            $libro['peso'] ?? '',                                  // Weight
+            '',                                                    // Height
+            '',                                                    // Thickness
+            '',                                                    // Length
+            $libro['dimensioni'] ?? '',                            // Dimensions
+            $libro['numero_pagine'] ?? '',                         // Page Count
+            $libro['lccn'] ?? '',                                  // LCCN
+            $libro['data_acquisizione'] ?? '',                     // Acquired
+            $libro['date_started'] ?? '',                          // Date Started
+            $libro['date_read'] ?? '',                             // Date Read
+            $libro['barcode'] ?? $libro['ean'] ?? '',              // Barcode
+            $libro['bcid'] ?? '',                                  // BCID
+            $libro['parole_chiave'] ?? '',                         // Tags
+            $libro['collana'] ?? '',                               // Collections
+            $language,                                             // Languages
+            $libro['original_languages'] ?? '',                    // Original Languages
+            $libro['lc_classification'] ?? '',                     // LC Classification
+            $libro['isbn13'] ?? $libro['isbn10'] ?? '',            // ISBN
+            $isbnString,                                           // ISBNs
+            $libro['genere_nome'] ?? '',                           // Subjects
+            $libro['classificazione_dewey'] ?? '',                 // Dewey Decimal
+            $libro['dewey_wording'] ?? '',                         // Dewey Wording
+            $libro['other_call_number'] ?? '',                     // Other Call Number
+            $libro['copie_totali'] ?? '1',                         // Copies
+            $libro['source'] ?? '',                                // Source
+            $libro['entry_date'] ?? '',                            // Entry Date
+            $libro['from_where'] ?? '',                            // From Where
+            $libro['oclc'] ?? '',                                  // OCLC
+            $libro['work_id'] ?? '',                               // Work id
+            $libro['lending_patron'] ?? '',                        // Lending Patron
+            $libro['lending_status'] ?? '',                        // Lending Status
+            $libro['lending_start'] ?? '',                         // Lending Start
+            $libro['lending_end'] ?? '',                           // Lending End
+            $libro['prezzo'] ?? '',                                // List Price
+            '',                                                    // Purchase Price
+            $libro['value'] ?? '',                                 // Value
+            $libro['condition_lt'] ?? '',                          // Condition
+            $libro['issn'] ?? ''                                   // ISSN
+        ];
+    }
+
+    /**
      * Sync book covers using scraping plugins (Open Library, Scraper Pro, Scraper API)
      */
     public function syncCovers(Request $request, Response $response, mysqli $db): Response
@@ -2617,11 +2888,11 @@ class LibriController
         $skipped = 0;
         $errors = 0;
 
-        // Find all books with ISBN but without cover
+        // Find all books with ISBN but without cover (or only placeholder)
         $query = "SELECT id, isbn13, isbn10, titolo
                   FROM libri
                   WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
-                    AND (copertina_url IS NULL OR copertina_url = '')
+                    AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg')
                   ORDER BY id DESC";
 
         $result = $db->query($query);
@@ -2682,65 +2953,12 @@ class LibriController
 
     /**
      * Scrape book cover from online services
+     * Uses centralized scraping service with hooks system
      */
     private function scrapeBookCover(string $isbn): array
     {
-        $scrapeController = new \App\Controllers\ScrapeController();
-        $maxAttempts = 3;
-        $delaySeconds = 1;
-
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                // Build a fresh request for every attempt
-                $serverParams = ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/scrape/isbn'];
-                $queryParams = ['isbn' => $isbn];
-
-                $request = new \Slim\Psr7\Request(
-                    'GET',
-                    new \Slim\Psr7\Uri('http', 'localhost', null, '/scrape/isbn'),
-                    new \Slim\Psr7\Headers(),
-                    [],
-                    $serverParams,
-                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
-                );
-
-                $request = $request->withQueryParams($queryParams);
-                $response = new \Slim\Psr7\Response();
-                $response = $scrapeController->byIsbn($request, $response);
-
-                if ($response->getStatusCode() === 200) {
-                    $body = (string) $response->getBody();
-                    $data = json_decode($body, true);
-
-                    // Return only image data
-                    return [
-                        'image' => $data['image'] ?? null
-                    ];
-                }
-
-                error_log(sprintf(
-                    '[Cover Sync] Scraping attempt %d/%d failed for ISBN %s with status %d',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $response->getStatusCode()
-                ));
-            } catch (\Throwable $scrapeException) {
-                error_log(sprintf(
-                    '[Cover Sync] Scraping attempt %d/%d threw for ISBN %s: %s',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $scrapeException->getMessage()
-                ));
-            }
-
-            if ($attempt < $maxAttempts) {
-                sleep($delaySeconds);
-            }
-        }
-
-        return [];
+        // Use centralized scraping service for cover only
+        return \App\Support\ScrapingService::scrapeBookCover($isbn, 3);
     }
 
     /**
@@ -2771,5 +2989,43 @@ class LibriController
         if ($affectedRows > 0) {
             error_log("[LibriController] Updated author bio for ID $authorId from scraping");
         }
+    }
+
+    /**
+     * Save LibraryThing fields visibility preferences with whitelist validation
+     *
+     * @param \mysqli $db Database connection
+     * @param int $id Book ID
+     * @param array $ltVisibilityInput User-supplied visibility data
+     * @return void
+     */
+    private function saveLtVisibility(\mysqli $db, int $id, array $ltVisibilityInput): void
+    {
+        // Define whitelist of allowed LibraryThing field names
+        $allowedLtFields = array_keys(LibraryThingInstaller::getLibraryThingFields());
+
+        $ltVisibility = [];
+        foreach ($ltVisibilityInput as $field => $value) {
+            // Only include fields that are in the whitelist
+            if (in_array($field, $allowedLtFields, true) && $value === '1') {
+                $ltVisibility[$field] = true;
+            }
+        }
+
+        // Save as JSON
+        try {
+            $visibilityJson = !empty($ltVisibility) ? json_encode($ltVisibility, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) : null;
+        } catch (\JsonException $e) {
+            SecureLogger::error('JSON encoding failed for LibraryThing visibility', [
+                'book_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            throw new \RuntimeException('Failed to save LibraryThing field visibility', 0, $e);
+        }
+
+        $stmt = $db->prepare("UPDATE libri SET lt_fields_visibility = ? WHERE id = ?");
+        $stmt->bind_param('si', $visibilityJson, $id);
+        $stmt->execute();
+        $stmt->close();
     }
 }

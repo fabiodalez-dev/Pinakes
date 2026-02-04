@@ -533,9 +533,13 @@ class ReservationReassignmentService
 
     /**
      * Ottiene la URL base dell'applicazione.
+     *
+     * @throws \RuntimeException Se non è possibile determinare l'URL base
      */
     private function getBaseUrl(): string
     {
+        // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
+        // This is the recommended approach for production environments
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         if ($canonicalUrl !== false) {
             $canonicalUrl = trim((string)$canonicalUrl);
@@ -544,13 +548,22 @@ class ReservationReassignmentService
             }
         }
 
+        // PRIORITY 2: Fallback to HTTP_HOST with security validation
         $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $host = $_SERVER['HTTP_HOST'] ?? null;
 
-        if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
+        // Validate hostname format to prevent Host Header Injection attacks
+        // Accepts: domain.com, subdomain.domain.com, localhost, localhost:8000, IP:port
+        if ($host !== null && preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
             return $protocol . '://' . $host;
         }
 
-        return $protocol . '://localhost';
+        // CRITICAL: Cannot determine base URL - configuration required
+        // This prevents the application from using hardcoded localhost on production
+        throw new \RuntimeException(
+            'Cannot determine application base URL. ' .
+            'Please configure APP_CANONICAL_URL in your .env file. ' .
+            'Example: APP_CANONICAL_URL=https://yourdomain.com'
+        );
     }
 }

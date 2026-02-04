@@ -21,6 +21,9 @@
 
 declare(strict_types=1);
 
+use Dotenv\Dotenv;
+use App\Support\MaintenanceService;
+
 // ============================================================
 // PROCESS LOCK - Prevent concurrent cron executions
 // ============================================================
@@ -69,7 +72,6 @@ register_shutdown_function(function () use ($lockHandle, $lockFile) {
 require_once __DIR__ . '/../vendor/autoload.php';
 
 // Load environment variables from .env file
-use Dotenv\Dotenv;
 $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
 try {
     $dotenv->load();
@@ -80,8 +82,6 @@ try {
 
 // Include settings
 $settings = require __DIR__ . '/../config/settings.php';
-
-use App\Support\MaintenanceService;
 
 // Funzione per logging
 function logMessage(string $message): void {

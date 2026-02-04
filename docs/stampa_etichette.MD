@@ -47,7 +47,7 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 4. **Vedrai**: La scheda completa del libro
 
 ### Passo 2: Generare l'Etichetta
-1. **Clicca** il bottone **"Stampa Etichetta"** (icona )
+1. **Clicca** il bottone **"Stampa Etichetta"**
 2. **Attendi**: 2-3 secondi per generare il PDF
 3. **Si apre**: PDF con l'etichetta pronta
 
@@ -167,7 +167,7 @@ Tipo di Carta:
 
 □ Adesiva Resistente all'Acqua
   - Per ambienti umidi
-  - Per bibilioteche con problemi umidità
+  - Per biblioteche con problemi umidità
   - Leggermente più costosa
 
 □ Carta Normale (solo prova)
@@ -298,7 +298,7 @@ Nome: Personalizzato
 - [ ] Impostazioni stampa corrette (100%, no margini)
 - [ ] Carta adesiva posizionata correttamente nel vassoio
 - [ ] Qualità stampa impostata su "Alta"
-- [ ] Una etichetta alla volta per precisione
+- [ ] Un'etichetta alla volta per precisione
 
 ### Dopo la Stampa
 - [ ] Etichette tagliate con precisione

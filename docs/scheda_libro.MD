@@ -385,7 +385,7 @@ Vedrai:  "Configurazione salvata!"
 #### Passo 5: Stampa le Etichette
 ```
 Vai alla scheda libro →  "Stampa Etichetta"
-Le nuove etichette userannno il formato configurato
+Le nuove etichette useranno il formato configurato
 ```
 
 ---
@@ -494,6 +494,6 @@ A.2.15
 
 ---
 
-** Documento aggiornato: 19 Ottobre 2025**
-** Versione: 1.0.0 - Guida Scheda Libro**
-** Per utenti finali della biblioteca**
+**Documento aggiornato: 19 Ottobre 2025**
+**Versione: 1.0.0 - Guida Scheda Libro**
+**Per utenti finali della biblioteca**

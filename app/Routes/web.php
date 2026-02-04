@@ -1184,6 +1184,80 @@ return function (App $app): void {
         return $controller->getProgress($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
+    // CSV Import Chunk Processing (AJAX)
+    $app->post('/admin/libri/import/chunk', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CsvImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->processChunk($request, $response, $db);
+    })->add(new CsrfMiddleware())
+      ->add(new \App\Middleware\RateLimitMiddleware(100, 60))
+      ->add(new AdminAuthMiddleware());
+
+    // LibraryThing Plugin Routes
+
+    // Plugin Administration
+    $app->get('/admin/plugins/librarything', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->showAdminPage($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/plugins/librarything/install', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->install($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/plugins/librarything/uninstall', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->uninstall($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Import/Export
+    $app->get('/admin/libri/import/librarything', function ($request, $response) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        return $controller->showImportPage($request, $response);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    // Chunked import endpoints (new)
+    $app->post('/admin/libri/import/librarything/prepare', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        return $controller->prepareImport($request, $response);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/libri/import/librarything/chunk', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->processChunk($request, $response, $db);
+    })->add(new CsrfMiddleware())
+      ->add(new \App\Middleware\RateLimitMiddleware(100, 60))
+      ->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/libri/import/librarything/results', function ($request, $response) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        return $controller->getImportResults($request, $response);
+    })->add(new AdminAuthMiddleware());
+
+    // Legacy endpoint (backwards compatibility)
+    $app->post('/admin/libri/import/librarything/process', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->processImport($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/libri/import/librarything/progress', function ($request, $response) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        return $controller->getProgress($request, $response);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/libri/export/librarything', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibraryThingImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->exportToLibraryThing($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))
+      ->add(new AdminAuthMiddleware());
+
     // CSV Export route
     $app->get('/admin/libri/export/csv', function ($request, $response) use ($app) {
         $controller = new LibriController();
@@ -2511,7 +2585,16 @@ return function (App $app): void {
         // Re-validate final URL after redirects to prevent SSRF via redirect
         if ($finalUrl && $finalUrl !== $url) {
             $finalParts = parse_url($finalUrl);
-            $finalHost = strtolower($finalParts['host'] ?? '');
+            if (!$finalParts || !isset($finalParts['scheme'], $finalParts['host'])) {
+                return $response->withStatus(403);
+            }
+
+            // Ensure redirect stayed on HTTPS
+            if (strtolower($finalParts['scheme']) !== 'https') {
+                return $response->withStatus(403);
+            }
+
+            $finalHost = strtolower($finalParts['host']);
 
             // Check if redirect went to private network
             if (in_array($finalHost, $blockedHosts, true)) {
@@ -2520,6 +2603,28 @@ return function (App $app): void {
 
             foreach ($privatePatterns as $pattern) {
                 if (preg_match($pattern, $finalHost)) {
+                    return $response->withStatus(403);
+                }
+            }
+
+            // DNS resolution check for redirect target
+            $finalIps = @gethostbynamel($finalHost) ?: [];
+            $finalAAAA = @dns_get_record($finalHost, DNS_AAAA) ?: [];
+
+            if (!$finalIps && !$finalAAAA) {
+                return $response->withStatus(403);
+            }
+
+            // Validate redirect target resolves to public IPs only
+            foreach ($finalIps as $ip) {
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                    return $response->withStatus(403);
+                }
+            }
+
+            foreach ($finalAAAA as $record) {
+                $ipv6 = $record['ipv6'] ?? null;
+                if ($ipv6 && filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
                     return $response->withStatus(403);
                 }
             }

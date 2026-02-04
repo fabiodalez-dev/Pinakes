@@ -98,80 +98,277 @@ class CsvImportController
         }
         fclose($handle);
 
-        // Verifica che almeno una riga contenga il separatore CSV (;)
+        // Verifica che almeno una riga contenga il separatore CSV (;, , o tab)
         $delimiter = $this->detectDelimiterFromSample($firstLines);
         if ($delimiter === null) {
-            $_SESSION['error'] = __('File CSV non valido: usa ";" o "," come separatore.');
+            $_SESSION['error'] = __('File CSV non valido: usa ";", "," o TAB come separatore.');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
-        $enableScraping = !empty($data['enable_scraping']);
+        // Save CSV file for chunked processing (like LibraryThing)
+        $uploadDir = __DIR__ . '/../../writable/uploads';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        $savedFilePath = $uploadDir . '/csv_import_' . session_id() . '_' . uniqid('', true) . '.csv';
+        copy($tmpFile, $savedFilePath);
 
-        // Initialize progress tracking
-        $_SESSION['import_progress'] = [
-            'status' => 'processing',
-            'current' => 0,
-            'total' => 0,
-            'current_book' => ''
+        // Count total rows for chunked processing
+        $file = fopen($savedFilePath, 'r');
+        if ($file === false) {
+            throw new \Exception(__('Impossibile aprire il file CSV salvato'));
+        }
+
+        // Skip BOM if present
+        $bom = fread($file, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($file);
+        }
+
+        // Skip header
+        fgetcsv($file, 0, $delimiter, '"');
+
+        // Count rows
+        $totalRows = 0;
+        while (fgetcsv($file, 0, $delimiter, '"') !== false) {
+            $totalRows++;
+        }
+        fclose($file);
+
+        // Store import metadata in session
+        $_SESSION['csv_import_data'] = [
+            'file_path' => $savedFilePath,
+            'delimiter' => $delimiter,
+            'total_rows' => $totalRows,
+            'enable_scraping' => !empty($data['enable_scraping']),
+            'imported' => 0,
+            'updated' => 0,
+            'scraped' => 0,
+            'authors_created' => 0,
+            'publishers_created' => 0,
+            'errors' => []
         ];
 
-        $isAjax = !empty($request->getHeaderLine('X-Requested-With')) &&
-            $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
+        // Return JSON response for chunked processing
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'total_rows' => $totalRows,
+            'chunk_size' => 10,
+            'enable_scraping' => !empty($data['enable_scraping'])
+        ]));
 
-        try {
-            $result = $this->importCsvData($tmpFile, $db, $enableScraping, $delimiter);
+        return $response->withHeader('Content-Type', 'application/json');
+    }
 
-            $_SESSION['import_progress'] = [
-                'status' => 'completed',
-                'current' => $result['imported'],
-                'total' => $result['imported']
-            ];
+    /**
+     * Process a chunk of CSV rows (10 at a time, like LibraryThing)
+     */
+    public function processChunk(Request $request, Response $response, \mysqli $db): Response
+    {
+        @set_time_limit(600);
+        @ini_set('max_execution_time', '600');
 
-            $message = sprintf(
-                __('Import completato: %d libri nuovi, %d libri aggiornati, %d autori creati, %d editori creati'),
-                $result['imported'],
-                $result['updated'],
-                $result['authors_created'],
-                $result['publishers_created']
-            );
+        $data = json_decode((string) $request->getBody(), true);
 
-            if ($enableScraping && isset($result['scraped'])) {
-                $message .= sprintf(__(', %d libri arricchiti con scraping'), $result['scraped']);
-            }
+        if (!is_array($data) || !isset($_SESSION['csv_import_data'])) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Sessione import scaduta o dati non validi')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
 
-            if (!empty($result['errors'])) {
-                $message .= sprintf(__(', %d errori'), count($result['errors']));
-            }
+        $importData = $_SESSION['csv_import_data'];
+        $chunkStart = (int) ($data['start'] ?? 0);
+        $chunkSize = (int) ($data['size'] ?? 10);
 
-            $_SESSION['success'] = $message;
+        // Validate and cap chunk parameters to prevent DoS
+        $chunkStart = max(0, $chunkStart); // Must be >= 0
+        $chunkSize = max(1, min($chunkSize, 50)); // Capped at 50 books per chunk
 
-            if (!empty($result['errors'])) {
-                $_SESSION['import_errors'] = $result['errors'];
-            }
+        $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
 
-            // Return JSON for AJAX requests
-            if ($isAjax) {
-                $response->getBody()->write(json_encode([
-                    'success' => true,
-                    'redirect' => '/admin/libri/import',
-                    'message' => $message
-                ]));
-                return $response->withHeader('Content-Type', 'application/json');
-            }
+        $file = fopen($importData['file_path'], 'r');
+        if ($file === false) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Impossibile aprire il file CSV')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
 
-        } catch (\Exception $e) {
-            $_SESSION['error'] = sprintf(__('Errore durante l\'import: %s'), $e->getMessage());
-            $_SESSION['import_progress'] = ['status' => 'error'];
+        // Skip BOM
+        $bom = fread($file, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($file);
+        }
 
-            if ($isAjax) {
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'error' => $e->getMessage()
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        // Read headers
+        $headers = fgetcsv($file, 0, $importData['delimiter'], '"');
+        if (!$headers) {
+            fclose($file);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('File CSV vuoto o formato non valido')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Map headers
+        $mappedHeaders = $this->mapColumnHeaders($headers);
+
+        // Skip to chunk start
+        for ($i = 0; $i < $chunkStart; $i++) {
+            if (fgetcsv($file, 0, $importData['delimiter'], '"') === false) {
+                break;
             }
         }
 
-        return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+        // Process chunk
+        $processed = 0;
+        $lineNumber = $chunkStart + 2; // +2 for header and 1-indexed
+
+        while ($processed < $chunkSize && ($rawData = fgetcsv($file, 0, $importData['delimiter'], '"')) !== false) {
+            $parsedData = []; // Initialize to avoid undefined variable in catch block
+            try {
+                // Validate column count
+                if (count($rawData) !== count($headers)) {
+                    throw new \RuntimeException(__('Numero colonne non valido'));
+                }
+
+                // Map data
+                $row = array_combine($mappedHeaders, $rawData);
+                $parsedData = $this->parseCsvRow($row);
+
+                if (empty($parsedData['titolo'])) {
+                    throw new \Exception(__('Titolo mancante'));
+                }
+
+                $db->begin_transaction();
+
+                // Get or create publisher
+                $editorId = null;
+                if (!empty($parsedData['editore'])) {
+                    $publisherResult = $this->getOrCreatePublisher($db, trim($parsedData['editore']));
+                    $editorId = $publisherResult['id'];
+                    if ($publisherResult['created']) {
+                        $importData['publishers_created']++;
+                    }
+                }
+
+                // Get genre ID
+                $genreId = $this->getGenreId($db, $parsedData['genere'] ?? '');
+
+                // Upsert book
+                $upsertResult = $this->upsertBook($db, $parsedData, $editorId, $genreId);
+                $bookId = $upsertResult['id'];
+                $action = $upsertResult['action'];
+
+                // Remove old author links if updating
+                if ($action === 'updated') {
+                    $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ?");
+                    $stmt->bind_param('i', $bookId);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+
+                // Handle authors
+                if (!empty($parsedData['autori'])) {
+                    $separator = strpos($parsedData['autori'], ';') !== false ? ';' : '|';
+                    $authors = array_map('trim', explode($separator, $parsedData['autori']));
+                    $authorOrder = 1;
+
+                    foreach ($authors as $authorName) {
+                        if (empty($authorName)) continue;
+
+                        $authorResult = $this->getOrCreateAuthor($db, $authorName);
+                        $authorId = $authorResult['id'];
+                        if ($authorResult['created']) {
+                            $importData['authors_created']++;
+                        }
+
+                        $stmt = $db->prepare("INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (?, ?, 'principale', ?)");
+                        $stmt->bind_param('iii', $bookId, $authorId, $authorOrder);
+                        $stmt->execute();
+                        $stmt->close();
+                        $authorOrder++;
+                    }
+                }
+
+                $db->commit();
+
+                if ($action === 'created') {
+                    $importData['imported']++;
+                } else {
+                    $importData['updated']++;
+                }
+
+                // Scraping (if enabled and ISBN exists)
+                if ($enableScraping && !empty($parsedData['isbn13'])) {
+                    try {
+                        $scrapedData = $this->scrapeBookData($parsedData['isbn13']);
+
+                        if (!empty($scrapedData)) {
+                            $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData);
+                            $importData['scraped']++;
+                        }
+
+                        sleep(1); // Rate limiting
+                    } catch (\Throwable $scrapeError) {
+                        // Silent failure - continue with import
+                    }
+                }
+
+            } catch (\Throwable $e) {
+                $db->rollback();
+                $title = $parsedData['titolo'] ?? ($rawData[0] ?? '');
+                $errorMsg = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
+                $importData['errors'][] = $errorMsg;
+
+                // Log to file
+                $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                $logMsg = sprintf(
+                    "[%s] ERROR Riga %d (%s): %s\nFile: %s:%d\n\n",
+                    date('Y-m-d H:i:s'),
+                    $lineNumber,
+                    $title,
+                    $e->getMessage(),
+                    $e->getFile(),
+                    $e->getLine()
+                );
+                file_put_contents($logFile, $logMsg, FILE_APPEND);
+            }
+
+            $processed++;
+            $lineNumber++;
+        }
+
+        fclose($file);
+
+        // Update session data
+        $_SESSION['csv_import_data'] = $importData;
+
+        // Check if complete
+        $isComplete = ($chunkStart + $processed) >= $importData['total_rows'];
+
+        if ($isComplete) {
+            // Cleanup
+            @unlink($importData['file_path']);
+            unset($_SESSION['csv_import_data']);
+        }
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'processed' => $processed,
+            'imported' => $importData['imported'],
+            'updated' => $importData['updated'],
+            'scraped' => $importData['scraped'],
+            'authors_created' => $importData['authors_created'],
+            'publishers_created' => $importData['publishers_created'],
+            'errors' => $importData['errors'],
+            'complete' => $isComplete
+        ]));
+
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
@@ -323,10 +520,11 @@ class CsvImportController
 
     /**
      * Detect delimiter from sample lines
+     * Supports: semicolon (;), comma (,), and tab (\t)
      */
     private function detectDelimiterFromSample(array $lines): ?string
     {
-        $candidates = [';' => 0, ',' => 0];
+        $candidates = [';' => 0, ',' => 0, "\t" => 0];
 
         foreach ($lines as $line) {
             if (!is_string($line)) {
@@ -341,7 +539,8 @@ class CsvImportController
         arsort($candidates);
         $bestDelimiter = array_key_first($candidates);
 
-        if ($bestDelimiter === null || $candidates[$bestDelimiter] === 0) {
+        // $candidates always has 3 elements, so $bestDelimiter is never null
+        if ($candidates[$bestDelimiter] === 0) {
             return null;
         }
 
@@ -349,206 +548,123 @@ class CsvImportController
     }
 
     /**
-     * Importa i dati dal CSV
+     * Parse a single CSV row into normalized book data
      */
-    private function importCsvData(string $filePath, \mysqli $db, bool $enableScraping = false, string $delimiter = ';'): array
+    private function parseCsvRow(array $row): array
     {
-        $delimiter = $delimiter !== '' ? $delimiter : ';';
-        $imported = 0;
-        $updated = 0;
-        $authorsCreated = 0;
-        $publishersCreated = 0;
-        $scraped = 0;
-        $errors = [];
-
-        // Scraping limits to prevent timeout
-        $maxScrapingTime = 300; // 5 minutes max for scraping operations
-        $maxScrapeItems = 50;   // Max 50 books with scraping enabled
-        $scrapingStartTime = time();
-
-        $file = fopen($filePath, 'r');
-        if (!$file) {
-            throw new \Exception(__('Impossibile aprire il file CSV'));
+        // Combine primary_author, secondary_author, and autori fields to prevent data loss
+        $authors = [];
+        if (!empty($row['primary_author'])) {
+            $authors[] = trim($row['primary_author']);
         }
-
-        // Skip BOM if present
-        $bom = fread($file, 3);
-        $hasBom = ($bom === "\xEF\xBB\xBF");
-        if (!$hasBom) {
-            rewind($file);
+        if (!empty($row['secondary_author'])) {
+            $authors[] = trim($row['secondary_author']);
         }
-
-        // Leggi intestazioni
-        $headers = fgetcsv($file, 0, $delimiter, '"');
-        if (!$headers) {
-            fclose($file);
-            throw new \Exception(__('File CSV vuoto o formato non valido'));
+        if (!empty($row['autori'])) {
+            // autori might already contain multiple authors separated by ;
+            $existingAuthors = array_map('trim', explode(';', $row['autori']));
+            $authors = array_merge($authors, $existingAuthors);
         }
-
-        // Count total rows for progress tracking
-        $totalRows = 0;
-        while (fgetcsv($file, 0, $delimiter, '"') !== false) {
-            $totalRows++;
-        }
-
-        rewind($file);
-        if ($hasBom) {
-            fread($file, 3);
-        }
-        fgetcsv($file, 0, $delimiter, '"'); // Skip headers
-
-        // Update progress with total
-        $_SESSION['import_progress']['total'] = $totalRows;
-
-        $lineNumber = 1;
-        $rowCount = 0;
-        $maxRows = 10000; // Limit to prevent DoS
-
-        while (($row = fgetcsv($file, 0, $delimiter, '"')) !== false) {
-            $lineNumber++;
-            $rowCount++;
-
-            // Prevent DoS from extremely large CSV files
-            if ($rowCount > $maxRows) {
-                $errors[] = sprintf(__('Numero massimo di righe superato (%d). Dividi il file in parti più piccole.'), $maxRows);
-                break;
-            }
-
-            if (count($row) !== count($headers)) {
-                $errors[] = sprintf(__('Riga %d: numero di colonne non corrispondente'), $lineNumber);
-                continue;
-            }
-
-            $data = array_combine($headers, $row);
-
-            // Sanitize data to prevent CSV injection
-            $data = $this->sanitizeCsvData($data);
-
-            try {
-                $db->begin_transaction();
-
-                // Verifica campi obbligatori
-                if (empty($data['titolo'])) {
-                    throw new \Exception(__('Titolo obbligatorio mancante'));
-                }
-
-                // Gestione editore
-                $editorId = null;
-                if (!empty($data['editore'])) {
-                    $editorId = $this->getOrCreatePublisher($db, trim($data['editore']));
-                    if ($editorId === 'created') {
-                        $publishersCreated++;
-                        $editorId = $db->insert_id;
-                    }
-                }
-
-                // Gestione genere
-                $genreId = $this->getGenreId($db, $data['genere'] ?? '');
-
-                // Upsert libro (UPDATE se esiste, INSERT altrimenti)
-                $upsertResult = $this->upsertBook($db, $data, $editorId, $genreId);
-                $bookId = $upsertResult['id'];
-                $action = $upsertResult['action'];
-
-                // Se è un UPDATE, rimuovi vecchi collegamenti autori
-                if ($action === 'updated') {
-                    $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ?");
-                    $stmt->bind_param('i', $bookId);
-                    $stmt->execute();
-                    $stmt->close();
-                }
-
-                // Gestione autori (possono essere multipli separati da ; o | per retrocompatibilità)
-                if (!empty($data['autori'])) {
-                    // Usa ; come separatore principale (usato dall'export), fallback su | per vecchi CSV
-                    $separator = strpos($data['autori'], ';') !== false ? ';' : '|';
-                    $authors = array_map('trim', explode($separator, $data['autori']));
-                    $authorOrder = 1;
-
-                    foreach ($authors as $authorName) {
-                        if (empty($authorName))
-                            continue;
-
-                        $authorResult = $this->getOrCreateAuthor($db, $authorName);
-                        $authorId = $authorResult['id'];
-                        if ($authorResult['created']) {
-                            $authorsCreated++;
-                        }
-
-                        // Collega autore al libro
-                        $stmt = $db->prepare("INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (?, ?, 'principale', ?)");
-                        $stmt->bind_param('iii', $bookId, $authorId, $authorOrder);
-                        $stmt->execute();
-                        $authorOrder++;
-                    }
-                }
-
-                $db->commit();
-
-                // Aggiorna contatori
-                if ($action === 'created') {
-                    $imported++;
-                } else {
-                    $updated++;
-                }
-
-                // Update progress
-                $_SESSION['import_progress']['current'] = $imported;
-                $_SESSION['import_progress']['current_book'] = $data['titolo'];
-
-                // Try scraping if enabled and book has ISBN
-                if ($enableScraping && !empty($data['isbn13']) && $scraped < $maxScrapeItems) {
-                    // Check timeout before scraping
-                    if (time() - $scrapingStartTime > $maxScrapingTime) {
-                        $errors[] = sprintf(__('Scraping interrotto: timeout di %d secondi raggiunto. Importati %d libri con scraping.'), $maxScrapingTime, $scraped);
-                        $enableScraping = false; // Disable for remaining books
-                    } else {
-                        // Always try scraping when enabled - enrichBookWithScrapedData will only add missing data
-                        // without overwriting CSV data (CSV has priority)
-                        try {
-                            error_log("[CSV Import] Attempting scraping for ISBN {$data['isbn13']}, book ID $bookId");
-                            $scrapedData = $this->scrapeBookData($data['isbn13']);
-
-                            if (!empty($scrapedData)) {
-                                error_log("[CSV Import] Scraped data received: " . json_encode(array_keys($scrapedData)));
-                                $this->enrichBookWithScrapedData($db, $bookId, $data, $scrapedData);
-                                $scraped++;
-                            } else {
-                                error_log("[CSV Import] No scraped data returned for ISBN {$data['isbn13']}");
-                            }
-
-                            // Rate limiting: wait 3 seconds between scraping requests
-                            sleep(3);
-                        } catch (\Exception $scrapeError) {
-                            // Log but don't fail the import
-                            error_log("[CSV Import] Scraping failed for ISBN {$data['isbn13']}: " . $scrapeError->getMessage());
-                        }
-                    }
-                }
-
-            } catch (\Exception $e) {
-                $db->rollback();
-                $title = $data['titolo'] ?? '';
-                $errors[] = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
-            }
-        }
-
-        fclose($file);
+        // Remove duplicates and empty values
+        $authors = array_filter(array_unique($authors));
+        $autoriCombined = !empty($authors) ? implode(';', $authors) : null;
 
         return [
-            'imported' => $imported,
-            'updated' => $updated,
-            'authors_created' => $authorsCreated,
-            'publishers_created' => $publishersCreated,
-            'scraped' => $scraped,
-            'errors' => $errors
+            'id' => !empty($row['id']) ? trim($row['id']) : null,
+            'isbn10' => !empty($row['isbn10']) ? trim($row['isbn10']) : null,
+            'isbn13' => !empty($row['isbn13']) ? trim($row['isbn13']) : null,
+            'ean' => !empty($row['ean']) ? trim($row['ean']) : null,
+            'titolo' => !empty($row['titolo']) ? trim($row['titolo']) : '',
+            'sottotitolo' => !empty($row['sottotitolo']) ? trim($row['sottotitolo']) : null,
+            'autori' => $autoriCombined,
+            'editore' => !empty($row['editore']) ? trim($row['editore']) : null,
+            'anno_pubblicazione' => !empty($row['anno_pubblicazione']) ? (int)$row['anno_pubblicazione'] : null,
+            'lingua' => !empty($row['lingua']) ? trim($row['lingua']) : 'italiano',
+            'edizione' => !empty($row['edizione']) ? trim($row['edizione']) : null,
+            'numero_pagine' => !empty($row['numero_pagine']) ? (int)$row['numero_pagine'] : null,
+            'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
+            'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
+            'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
+            'prezzo' => !empty($row['prezzo']) ? (float)str_replace(',', '.', strval($row['prezzo'])) : null,
+            'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
+            'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
+            'numero_serie' => !empty($row['numero_serie']) ? trim($row['numero_serie']) : null,
+            'traduttore' => !empty($row['traduttore']) ? trim($row['traduttore']) : null,
+            'parole_chiave' => !empty($row['parole_chiave']) ? trim($row['parole_chiave']) : null,
+            'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
+            'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null
         ];
     }
 
     /**
+     * Map column headers to canonical field names
+     * Supports multiple languages and variations (case-insensitive)
+     *
+     * @param array $headers Original CSV headers
+     * @return array Mapped headers with canonical field names
+     */
+    private function mapColumnHeaders(array $headers): array
+    {
+        // Define mapping from various column names to canonical field names
+        $columnMapping = [
+            'id' => ['id', 'book id', 'book_id', 'bookid', 'codice', 'code'],
+            'isbn10' => ['isbn10', 'isbn 10', 'isbn-10', 'isbn_10'],
+            'isbn13' => ['isbn13', 'isbn 13', 'isbn-13', 'isbn_13', 'isbn', 'isbns'],
+            'ean' => ['ean', 'ean13', 'ean-13', 'ean_13', 'barcode'],
+            'titolo' => ['titolo', 'title', 'título', 'titre', 'titel'],
+            'sottotitolo' => ['sottotitolo', 'subtitle', 'subtítulo', 'sous-titre', 'untertitel'],
+            'sort_character' => ['sort character', 'sort_char', 'sortchar', 'sort key'],
+            // Separate LibraryThing-specific author fields to avoid data loss
+            'primary_author' => ['primary author', 'primary_author'],
+            'secondary_author' => ['secondary author', 'secondary_author', 'other authors'],
+            // Generic author field (removed primary/secondary to prevent overwrite)
+            'autori' => ['autori', 'autore', 'author', 'authors', 'autor', 'auteur'],
+            'editore' => ['editore', 'publisher', 'editorial', 'éditeur', 'verlag'],
+            'anno_pubblicazione' => ['anno_pubblicazione', 'anno', 'year', 'date', 'publication year', 'año', 'année', 'jahr'],
+            'lingua' => ['lingua', 'language', 'languages', 'idioma', 'langue', 'sprache'],
+            'edizione' => ['edizione', 'edition', 'edición', 'édition', 'ausgabe'],
+            'numero_pagine' => ['numero_pagine', 'pagine', 'pages', 'page count', 'páginas', 'seiten'],
+            'genere' => ['genere', 'genre', 'género', 'category', 'categoria'],
+            'descrizione' => ['descrizione', 'description', 'descripción', 'summary', 'riassunto', 'abstract'],
+            'formato' => ['formato', 'format', 'media', 'binding', 'physical description'],
+            'prezzo' => ['prezzo', 'price', 'precio', 'prix', 'preis', 'list price', 'purchase price'],
+            'copie_totali' => ['copie_totali', 'copie', 'copies', 'quantity', 'quantità', 'cantidad'],
+            'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
+            'numero_serie' => ['numero_serie', 'series number', 'número de serie', 'numéro de série'],
+            'traduttore' => ['traduttore', 'translator', 'traductor', 'traducteur', 'übersetzer'],
+            'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],
+            'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number']
+        ];
+
+        $mappedHeaders = [];
+
+        foreach ($headers as $index => $header) {
+            $headerLower = strtolower(trim($header));
+            $canonicalName = $header; // Default: keep original if no mapping found
+
+            // Try to find a mapping
+            foreach ($columnMapping as $canonical => $variations) {
+                foreach ($variations as $variation) {
+                    if ($headerLower === strtolower($variation)) {
+                        $canonicalName = $canonical;
+                        break 2;
+                    }
+                }
+            }
+
+            $mappedHeaders[$index] = $canonicalName;
+        }
+
+        return $mappedHeaders;
+    }
+
+
+
+
+    /**
      * Ottieni o crea editore
      */
-    private function getOrCreatePublisher(\mysqli $db, string $name): int|string
+    private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
         $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
         $stmt->bind_param('s', $name);
@@ -556,15 +672,20 @@ class CsvImportController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            return (int) $row['id'];
+            $publisherId = (int) $row['id'];
+            $stmt->close();
+            return ['id' => $publisherId, 'created' => false];
         }
+        $stmt->close();
 
         // Crea nuovo editore
         $stmt = $db->prepare("INSERT INTO editori (nome, created_at) VALUES (?, NOW())");
         $stmt->bind_param('s', $name);
         $stmt->execute();
+        $newId = $db->insert_id;
+        $stmt->close();
 
-        return 'created';
+        return ['id' => $newId, 'created' => true];
     }
 
     /**
@@ -713,7 +834,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null;
+        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', strval($data['prezzo'])) : null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
@@ -800,7 +921,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null;
+        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', strval($data['prezzo'])) : null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
         if ($copie < 1) {
@@ -841,6 +962,7 @@ class CsvImportController
 
         $stmt->execute();
         $bookId = $db->insert_id;
+        $stmt->close();
 
         // Genera copie fisiche nella tabella copie
         $copyRepo = new \App\Models\CopyRepository($db);
@@ -865,79 +987,15 @@ class CsvImportController
         return $bookId;
     }
 
-    /**
-     * Sanitize CSV data to prevent formula injection
-     */
-    private function sanitizeCsvData(array $data): array
-    {
-        foreach ($data as $key => $value) {
-            // Prevent CSV injection by prefixing dangerous characters with a single quote
-            // Fix: escape the dash to avoid creating a character range that includes digits
-            if (is_string($value) && preg_match('/^[=+\-@].*/', $value)) {
-                $data[$key] = "'" . $value;
-            }
-        }
-        return $data;
-    }
 
     /**
      * Scrape book data from online services
+     * Uses hooks system for scraping to avoid hardcoded localhost dependencies
      */
     private function scrapeBookData(string $isbn): array
     {
-        $scrapeController = new \App\Controllers\ScrapeController();
-        $maxAttempts = 5;
-        $delaySeconds = 1;
-
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                // Build a fresh request for every attempt so streams/params are clean
-                $serverParams = ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/scrape/isbn'];
-                $queryParams = ['isbn' => $isbn];
-
-                $request = new \Slim\Psr7\Request(
-                    'GET',
-                    new \Slim\Psr7\Uri('http', 'localhost', null, '/scrape/isbn'),
-                    new \Slim\Psr7\Headers(),
-                    [],
-                    $serverParams,
-                    new \Slim\Psr7\Stream(fopen('php://temp', 'r+'))
-                );
-
-                $request = $request->withQueryParams($queryParams);
-                $response = new \Slim\Psr7\Response();
-                $response = $scrapeController->byIsbn($request, $response);
-
-                if ($response->getStatusCode() === 200) {
-                    $body = (string) $response->getBody();
-                    $data = json_decode($body, true);
-                    return $data ?: [];
-                }
-
-                error_log(sprintf(
-                    'Scraping attempt %d/%d failed for ISBN %s with status %d',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $response->getStatusCode()
-                ));
-            } catch (\Throwable $scrapeException) {
-                error_log(sprintf(
-                    'Scraping attempt %d/%d threw for ISBN %s: %s',
-                    $attempt,
-                    $maxAttempts,
-                    $isbn,
-                    $scrapeException->getMessage()
-                ));
-            }
-
-            if ($attempt < $maxAttempts) {
-                sleep($delaySeconds);
-                $delaySeconds = min($delaySeconds * 2, 8); // exponential backoff with cap
-            }
-        }
-
-        return [];
+        // Use centralized scraping service (same as LibraryThing: 3 attempts)
+        return \App\Support\ScrapingService::scrapeBookData($isbn, 3, 'CSV Import');
     }
 
     /**
@@ -951,7 +1009,6 @@ class CsvImportController
 
         // Copertina
         if (empty($csvData['copertina_url']) && !empty($scrapedData['image'])) {
-            error_log("[CSV Import] Adding cover image for book $bookId: {$scrapedData['image']}");
             $updates[] = 'copertina_url = ?';
             $params[] = $scrapedData['image'];
             $types .= 's';
@@ -997,7 +1054,6 @@ class CsvImportController
             // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
             $deweyCode = trim((string) $scrapedData['classificazione_dewey']);
             if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
-                error_log("[CSV Import] Adding Dewey classification for book $bookId: $deweyCode");
                 $updates[] = 'classificazione_dewey = ?';
                 $params[] = $deweyCode;
                 $types .= 's';
@@ -1032,7 +1088,6 @@ class CsvImportController
 
         // Update libro if we have data
         if (!empty($updates)) {
-            error_log("[CSV Import] Enriching book $bookId with " . count($updates) . " fields: " . implode(', ', $updates));
             $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ?";
             $params[] = $bookId;
             $types .= 'i';
@@ -1041,8 +1096,6 @@ class CsvImportController
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $stmt->close();
-        } else {
-            error_log("[CSV Import] No fields to enrich for book $bookId (CSV has all data or scraping returned no usable data)");
         }
 
         // Add authors if missing
@@ -1073,10 +1126,8 @@ class CsvImportController
 
         // Add publisher if missing
         if (empty($csvData['editore']) && !empty($scrapedData['publisher'])) {
-            $editorId = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
-            if ($editorId === 'created') {
-                $editorId = $db->insert_id;
-            }
+            $publisherResult = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
+            $editorId = $publisherResult['id'];
 
             $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ?");
             $stmt->bind_param('ii', $editorId, $bookId);

@@ -160,6 +160,14 @@ yarn-debug.log*
 yarn-error.log*
 
 # ========================================
+# Data Files (CSV/TSV exports)
+# ========================================
+*.tsv
+*.csv
+!installer/data/*.csv
+!docs/*.csv
+
+# ========================================
 # Operating System Files
 # ========================================
 .DS_Store

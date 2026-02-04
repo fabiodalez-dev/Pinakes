@@ -35,7 +35,7 @@ Un nuovo utente deve seguire 4 semplici passi per ottenere un account attivo.
 2.  **Apri l'email** e **clicca sul link di verifica**.
 3.  Questo conferma che l'indirizzo email è reale e appartiene a te.
 
->  **Importante**: Se non ricevi l'email entro 5 minuti, controlla la cartella **Spam** o Posta Indesiderata.
+> **Importante**: Se non ricevi l'email entro 5 minuti, controlla la cartella **Spam** o Posta Indesiderata.
 
 ### Passo 3: Attesa dell'Approvazione dell'Amministratore
 1.  Una volta verificata l'email, il tuo account entra in uno stato di **"In attesa di approvazione"**.
@@ -95,7 +95,7 @@ Puoi cambiare lo stato di un account in qualsiasi momento:
 -   Clicca sull'icona  **"Elimina"**.
 -   Ti verrà chiesta una **conferma**.
 
->  **Attenzione**: L'eliminazione di un utente è **permanente** e cancellerà anche tutto il suo storico prestiti. Usa questa opzione con estrema cautela. Non puoi eliminare un utente se ha prestiti attivi.
+> **Attenzione**: L'eliminazione di un utente è **permanente** e cancellerà anche tutto il suo storico prestiti. Usa questa opzione con estrema cautela. Non puoi eliminare un utente se ha prestiti attivi.
 
 ---
 

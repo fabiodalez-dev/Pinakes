@@ -50,12 +50,35 @@ $libri = $data['libri'];
               <i class="fas fa-th-large"></i>
             </button>
           </div>
-          <a href="/admin/libri/export/csv" class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm" title="<?= __("Esporta CSV") ?>">
-            <i class="fas fa-download mr-2"></i><?= __("Export") ?>
-          </a>
-          <a href="/admin/libri/import" class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm" title="<?= __("Import CSV") ?>">
-            <i class="fas fa-upload mr-2"></i><?= __("Import") ?>
-          </a>
+          <!-- Export Dropdown -->
+          <div class="relative export-dropdown">
+            <button class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm export-btn" title="<?= __("Esporta") ?>">
+              <i class="fas fa-download mr-2"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
+            </button>
+            <div class="export-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+              <a href="/admin/libri/export/csv" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+                <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
+              </a>
+              <a href="/admin/libri/export/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+                <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing TSV") ?>
+              </a>
+            </div>
+          </div>
+
+          <!-- Import Dropdown -->
+          <div class="relative import-dropdown">
+            <button class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm import-btn" title="<?= __("Importa") ?>">
+              <i class="fas fa-upload mr-2"></i><?= __("Import") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
+            </button>
+            <div class="import-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+              <a href="/admin/libri/import" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+                <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
+              </a>
+              <a href="/admin/libri/import/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+                <i class="fas fa-cloud-upload-alt mr-2"></i><?= __("LibraryThing TSV") ?>
+              </a>
+            </div>
+          </div>
           <a href="/admin/libri/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Libro") ?>
           </a>
@@ -75,9 +98,20 @@ $libri = $data['libri'];
             <i class="fas fa-th-large"></i>
           </button>
         </div>
-        <a href="/admin/libri/export/csv" class="flex-1 px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300 text-sm">
-          <i class="fas fa-download mr-1"></i><?= __("Export") ?>
-        </a>
+        <!-- Mobile Export Dropdown -->
+        <div class="relative export-dropdown-mobile flex-1">
+          <button class="w-full px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300 text-sm export-btn-mobile">
+            <i class="fas fa-download mr-1"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-1 text-xs"></i>
+          </button>
+          <div class="export-menu-mobile hidden absolute left-0 mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+            <a href="/admin/libri/export/csv" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+              <i class="fas fa-file-csv mr-2"></i><?= __("CSV") ?>
+            </a>
+            <a href="/admin/libri/export/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing") ?>
+            </a>
+          </div>
+        </div>
         <a href="/admin/libri/crea" class="flex-1 px-3 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center text-sm">
           <i class="fas fa-plus mr-1"></i><?= __("Nuovo") ?>
         </a>
@@ -300,10 +334,10 @@ $libri = $data['libri'];
           <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
-          <button id="bulk-fetch-covers" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors text-sm">
+          <button id="bulk-fetch-covers" class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
             <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
           </button>
-          <button id="bulk-delete" class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors text-sm">
+          <button id="bulk-delete" class="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors text-sm">
             <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
           </button>
         </div>
@@ -366,6 +400,32 @@ $libri = $data['libri'];
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
+  // Dropdown menus for import/export
+  const allDropdownMenus = [];
+
+  const setupDropdown = (btnClass, menuClass) => {
+    const btn = document.querySelector(btnClass);
+    const menu = document.querySelector(menuClass);
+    if (btn && menu) {
+      allDropdownMenus.push(menu);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Close all other dropdowns
+        allDropdownMenus.forEach(m => {
+          if (m !== menu) m.classList.add('hidden');
+        });
+        menu.classList.toggle('hidden');
+      });
+      document.addEventListener('click', () => {
+        menu.classList.add('hidden');
+      });
+    }
+  };
+
+  setupDropdown('.export-btn', '.export-menu');
+  setupDropdown('.import-btn', '.import-menu');
+  setupDropdown('.export-btn-mobile', '.export-menu-mobile');
+
   const urlParams = new URLSearchParams(window.location.search);
   const initialGenere = parseInt(urlParams.get('genere') || urlParams.get('genere_filter') || '0', 10) || 0;
   const initialSottogenere = parseInt(urlParams.get('sottogenere') || urlParams.get('sottogenere_filter') || '0', 10) || 0;
@@ -913,7 +973,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     let fetched = 0;
-    let skipped = 0;
+    let noIsbn = 0;
+    let alreadyHasCover = 0;
+    let notFound = 0;
     let errors = 0;
 
     for (const id of ids) {
@@ -925,8 +987,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = await response.json();
 
         if (data.success) {
-          if (data.fetched) fetched++;
-          else skipped++; // Already had cover or no ISBN
+          if (data.fetched) {
+            fetched++;
+          } else {
+            // Check reason for skip
+            if (data.reason === 'no_isbn' || data.reason === 'invalid_isbn') {
+              noIsbn++;
+            } else if (data.reason === 'already_has_cover') {
+              alreadyHasCover++;
+            } else if (data.reason === 'no_cover_found') {
+              notFound++;
+            } else {
+              // Unknown reason - count as error
+              errors++;
+            }
+          }
         } else {
           errors++;
         }
@@ -937,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Update progress
       const progressEl = document.getElementById('cover-progress');
       if (progressEl) {
-        progressEl.textContent = fetched + skipped + errors;
+        progressEl.textContent = fetched + noIsbn + alreadyHasCover + notFound + errors;
       }
     }
 
@@ -945,14 +1020,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.Swal) {
       let message = '';
       if (fetched > 0) message += `<?= __("Copertine scaricate:") ?> ${fetched}\n`;
-      if (skipped > 0) message += `<?= __("Già presenti o senza ISBN:") ?> ${skipped}\n`;
+      if (alreadyHasCover > 0) message += `<?= __("Già presenti:") ?> ${alreadyHasCover}\n`;
+      if (noIsbn > 0) message += `<?= __("Impossibile scaricare (libro senza ISBN):") ?> ${noIsbn}\n`;
+      if (notFound > 0) message += `<?= __("Copertina non trovata online:") ?> ${notFound}\n`;
       if (errors > 0) message += `<?= __("Errori:") ?> ${errors}`;
 
       Swal.fire({
         icon: fetched > 0 ? 'success' : 'info',
         title: '<?= __("Completato") ?>',
         text: message.trim() || '<?= __("Nessuna copertina da scaricare") ?>',
-        timer: 3000,
+        timer: 4000,
         showConfirmButton: false
       });
     }
