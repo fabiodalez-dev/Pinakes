@@ -555,14 +555,15 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    stats.imported += data.imported || 0;
-                    stats.updated += data.updated || 0;
-                    stats.scraped += data.scraped || 0;
-                    stats.authors_created += data.authors_created || 0;
-                    stats.publishers_created += data.publishers_created || 0;
-                    if (data.errors && data.errors.length > 0) {
-                        stats.errors = stats.errors.concat(data.errors);
-                    }
+                    // Backend returns cumulative stats, so assign directly (not +=)
+                    stats.imported = data.imported || 0;
+                    stats.updated = data.updated || 0;
+                    stats.scraped = data.scraped || 0;
+                    stats.authors_created = data.authors_created || 0;
+                    stats.publishers_created = data.publishers_created || 0;
+                    // Backend returns cumulative error list, so assign directly (not concat)
+                    stats.errors = data.errors || [];
+                }
 
                     currentRow += chunkSize;
                     processNextChunk();

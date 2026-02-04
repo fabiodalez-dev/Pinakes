@@ -109,7 +109,7 @@ class CsvImportController
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
-        $savedFilePath = $uploadDir . '/csv_import_' . session_id() . '_' . time() . '.csv';
+        $savedFilePath = $uploadDir . '/csv_import_' . session_id() . '_' . uniqid('', true) . '.csv';
         copy($tmpFile, $savedFilePath);
 
         // Count total rows for chunked processing
@@ -180,6 +180,11 @@ class CsvImportController
         $importData = $_SESSION['csv_import_data'];
         $chunkStart = (int) ($data['start'] ?? 0);
         $chunkSize = (int) ($data['size'] ?? 10);
+
+        // Validate and cap chunk parameters to prevent DoS
+        $chunkStart = max(0, $chunkStart); // Must be >= 0
+        $chunkSize = max(1, min($chunkSize, 50)); // Capped at 50 books per chunk
+
         $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
 
         $file = fopen($importData['file_path'], 'r');
@@ -223,6 +228,7 @@ class CsvImportController
         $lineNumber = $chunkStart + 2; // +2 for header and 1-indexed
 
         while ($processed < $chunkSize && ($rawData = fgetcsv($file, 0, $importData['delimiter'], '"')) !== false) {
+            $parsedData = []; // Initialize to avoid undefined variable in catch block
             try {
                 // Validate column count
                 if (count($rawData) !== count($headers)) {
@@ -546,6 +552,23 @@ class CsvImportController
      */
     private function parseCsvRow(array $row): array
     {
+        // Combine primary_author, secondary_author, and autori fields to prevent data loss
+        $authors = [];
+        if (!empty($row['primary_author'])) {
+            $authors[] = trim($row['primary_author']);
+        }
+        if (!empty($row['secondary_author'])) {
+            $authors[] = trim($row['secondary_author']);
+        }
+        if (!empty($row['autori'])) {
+            // autori might already contain multiple authors separated by ;
+            $existingAuthors = array_map('trim', explode(';', $row['autori']));
+            $authors = array_merge($authors, $existingAuthors);
+        }
+        // Remove duplicates and empty values
+        $authors = array_filter(array_unique($authors));
+        $autoriCombined = !empty($authors) ? implode(';', $authors) : null;
+
         return [
             'id' => !empty($row['id']) ? trim($row['id']) : null,
             'isbn10' => !empty($row['isbn10']) ? trim($row['isbn10']) : null,
@@ -553,7 +576,7 @@ class CsvImportController
             'ean' => !empty($row['ean']) ? trim($row['ean']) : null,
             'titolo' => !empty($row['titolo']) ? trim($row['titolo']) : '',
             'sottotitolo' => !empty($row['sottotitolo']) ? trim($row['sottotitolo']) : null,
-            'autori' => !empty($row['autori']) ? trim($row['autori']) : null,
+            'autori' => $autoriCombined,
             'editore' => !empty($row['editore']) ? trim($row['editore']) : null,
             'anno_pubblicazione' => !empty($row['anno_pubblicazione']) ? (int)$row['anno_pubblicazione'] : null,
             'lingua' => !empty($row['lingua']) ? trim($row['lingua']) : 'italiano',
@@ -591,7 +614,11 @@ class CsvImportController
             'titolo' => ['titolo', 'title', 'título', 'titre', 'titel'],
             'sottotitolo' => ['sottotitolo', 'subtitle', 'subtítulo', 'sous-titre', 'untertitel'],
             'sort_character' => ['sort character', 'sort_char', 'sortchar', 'sort key'],
-            'autori' => ['autori', 'autore', 'author', 'authors', 'autor', 'auteur', 'primary author', 'secondary author'],
+            // Separate LibraryThing-specific author fields to avoid data loss
+            'primary_author' => ['primary author', 'primary_author'],
+            'secondary_author' => ['secondary author', 'secondary_author', 'other authors'],
+            // Generic author field (removed primary/secondary to prevent overwrite)
+            'autori' => ['autori', 'autore', 'author', 'authors', 'autor', 'auteur'],
             'editore' => ['editore', 'publisher', 'editorial', 'éditeur', 'verlag'],
             'anno_pubblicazione' => ['anno_pubblicazione', 'anno', 'year', 'date', 'publication year', 'año', 'année', 'jahr'],
             'lingua' => ['lingua', 'language', 'languages', 'idioma', 'langue', 'sprache'],
@@ -645,15 +672,20 @@ class CsvImportController
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            return ['id' => (int) $row['id'], 'created' => false];
+            $publisherId = (int) $row['id'];
+            $stmt->close();
+            return ['id' => $publisherId, 'created' => false];
         }
+        $stmt->close();
 
         // Crea nuovo editore
         $stmt = $db->prepare("INSERT INTO editori (nome, created_at) VALUES (?, NOW())");
         $stmt->bind_param('s', $name);
         $stmt->execute();
+        $newId = $db->insert_id;
+        $stmt->close();
 
-        return ['id' => $db->insert_id, 'created' => true];
+        return ['id' => $newId, 'created' => true];
     }
 
     /**
@@ -930,6 +962,7 @@ class CsvImportController
 
         $stmt->execute();
         $bookId = $db->insert_id;
+        $stmt->close();
 
         // Genera copie fisiche nella tabella copie
         $copyRepo = new \App\Models\CopyRepository($db);

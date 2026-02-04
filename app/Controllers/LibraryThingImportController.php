@@ -246,6 +246,9 @@ class LibraryThingImportController
         $chunkStart = (int) ($data['start'] ?? 0);
         $chunkSize = (int) ($data['size'] ?? 10);
 
+        // Validate and cap chunk parameters to prevent DoS
+        $chunkStart = max(0, $chunkStart); // Must be >= 0
+        $chunkSize = max(1, min($chunkSize, 50)); // Capped at 50 books per chunk
 
         // Keep session alive during long imports by updating last_regeneration timestamp
         $_SESSION['last_regeneration'] = time();
