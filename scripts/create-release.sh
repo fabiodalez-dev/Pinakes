@@ -94,6 +94,23 @@ echo -e "${GREEN}✓ PHPStan removed from vendor/${NC}"
 echo ""
 
 # ============================================================================
+# STEP 4.5: Commit production vendor/composer to git
+# ============================================================================
+echo -e "${YELLOW}[4.5/9] Committing production vendor/composer to git...${NC}"
+
+# Check if vendor/composer has changes
+if git diff --quiet vendor/composer/; then
+    echo -e "${GREEN}✓ vendor/composer already up to date${NC}"
+else
+    git add vendor/composer/
+    git commit -m "chore: update vendor/composer with production autoloader (no PHPStan)" --no-verify
+    git push origin main
+    echo -e "${GREEN}✓ Production vendor/composer committed and pushed${NC}"
+fi
+
+echo ""
+
+# ============================================================================
 # STEP 5: Create release ZIP with git archive
 # ============================================================================
 echo -e "${YELLOW}[5/9] Creating release ZIP...${NC}"
