@@ -3052,7 +3052,15 @@ function applyAlternativeValue(fieldName, value) {
         if (fieldName === 'descrizione' && typeof tinymce !== 'undefined') {
             const editor = tinymce.get('descrizione');
             if (editor) {
-                editor.setContent(value);
+                // Sanitize external content before inserting into TinyMCE (XSS prevention)
+                let safeValue = value;
+                if (window.DOMPurify) {
+                    safeValue = DOMPurify.sanitize(value, {
+                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'b', 'i'],
+                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel']
+                    });
+                }
+                editor.setContent(safeValue);
             }
         }
         if (window.Toast) {

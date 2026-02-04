@@ -123,6 +123,10 @@ class CoverController
             $newWidth = max(1, (int) round($width * $ratio));
             $newHeight = max(1, (int) round($height * $ratio));
             $resized = imagecreatetruecolor($newWidth, $newHeight);
+            if ($resized === false) {
+                imagedestroy($image);
+                throw new \RuntimeException(__('Impossibile creare l\'immagine ridimensionata.'));
+            }
             imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
             imagedestroy($image);
             $targetResource = $resized;
@@ -228,6 +232,10 @@ class CoverController
             $newWidth = max(1, (int) round($width * $ratio));
             $newHeight = max(1, (int) round($height * $ratio));
             $resized = imagecreatetruecolor($newWidth, $newHeight);
+            if ($resized === false) {
+                imagedestroy($image);
+                throw new \RuntimeException(__('Impossibile creare l\'immagine ridimensionata.'));
+            }
             imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
             imagedestroy($image);
             $targetResource = $resized;

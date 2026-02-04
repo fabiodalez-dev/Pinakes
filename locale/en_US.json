@@ -3951,7 +3951,7 @@
   "Il file non sembra essere in formato LibraryThing. Colonne richieste: Book Id, Title, Primary Author, ISBNs": "File does not appear to be in LibraryThing format. Required columns: Book Id, Title, Primary Author, ISBNs",
   "Impossibile aprire il file": "Unable to open file",
   "Numero massimo di righe superato (%d)": "Maximum number of rows exceeded (%d)",
-  "Copertine scaricate (LibraryThing):": "Covers downloaded:",
+  "Copertine scaricate (LibraryThing):": "Covers downloaded (LibraryThing):",
   "Già presenti:": "Already present:",
   "Impossibile scaricare (libro senza ISBN):": "Cannot download (book has no ISBN):",
   "Copertina non trovata online:": "Cover not found online:",

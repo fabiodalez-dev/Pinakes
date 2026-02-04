@@ -538,8 +538,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // Calculate actual size for this chunk (avoid overshoot on last chunk)
+            const remaining = Math.max(0, totalRows - currentRow);
+            const size = Math.min(chunkSize, remaining);
             const percent = 20 + Math.round((currentRow / totalRows) * 80);
-            updateProgress(percent, `<?= addslashes(__("Processing righe")) ?> ${currentRow}-${Math.min(currentRow + chunkSize, totalRows)}...`, '');
+            updateProgress(percent, `<?= addslashes(__("Processing righe")) ?> ${currentRow}-${Math.min(currentRow + size, totalRows)}...`, '');
 
             fetch('/admin/libri/import/chunk', {
                 method: 'POST',
@@ -549,7 +552,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     start: currentRow,
-                    size: chunkSize
+                    size: size
                 })
             })
             .then(res => res.json())
@@ -565,7 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     stats.errors = data.errors || [];
                 }
 
-                    currentRow += chunkSize;
+                    currentRow += size;
                     processNextChunk();
                 } else {
                     showError(data.error || '<?= addslashes(__("Errore durante il processing")) ?>');
