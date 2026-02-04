@@ -190,6 +190,85 @@ $changelog ??= [];
         </div>
     </div>
 
+    <!-- Manual Upload Section -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900"><?= __("Aggiornamento Manuale") ?></h2>
+                    <p class="text-sm text-gray-500 mt-1"><?= __("Carica un pacchetto di aggiornamento scaricato manualmente da GitHub") ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Upload Section -->
+                <div>
+                    <h3 class="font-medium text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-cloud-upload-alt text-gray-600 mr-2"></i>
+                        <?= __("Carica Pacchetto") ?>
+                    </h3>
+                    <div id="uppy-manual-update" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors bg-gray-50"></div>
+                    <div class="mt-4">
+                        <button id="manual-update-submit-btn" onclick="submitManualUpdate()" disabled
+                            class="w-full px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600">
+                            <i class="fas fa-upload mr-2"></i>
+                            <span id="manual-update-btn-text"><?= __("Avvia Aggiornamento") ?></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div>
+                    <h3 class="font-medium text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-info-circle text-gray-600 mr-2"></i>
+                        <?= __("Istruzioni") ?>
+                    </h3>
+                    <div class="space-y-4 text-sm text-gray-600">
+                        <div class="flex items-start gap-3">
+                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-xs font-medium text-gray-600">1</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900"><?= __("Scarica il pacchetto da GitHub") ?></p>
+                                <p class="mt-1"><?= __("Vai alla") ?> <a href="https://github.com/fabiodalez-dev/Pinakes/releases" target="_blank" class="text-green-600 hover:text-green-700 underline">pagina releases</a> <?= __("e scarica il file") ?> <code class="bg-gray-100 px-1 rounded text-xs">pinakes-vX.X.X.zip</code></p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-xs font-medium text-gray-600">2</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900"><?= __("Carica il file ZIP") ?></p>
+                                <p class="mt-1"><?= __("Trascina il file nell'area di upload o clicca per selezionarlo") ?></p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-xs font-medium text-gray-600">3</span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900"><?= __("Avvia l'aggiornamento") ?></p>
+                                <p class="mt-1"><?= __("Verrà creato automaticamente un backup prima dell'installazione") ?></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5"></i>
+                            <div>
+                                <p class="font-medium text-yellow-800"><?= __("Nota Importante") ?></p>
+                                <p class="text-xs text-yellow-700 mt-1">
+                                    <?= __("Usa questa funzione solo se l'aggiornamento automatico non funziona a causa dei limiti di rate della GitHub API. Il pacchetto deve essere lo stesso generato per le release di GitHub.") ?>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Backup List -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
         <div class="p-6 border-b border-gray-200">
@@ -849,4 +928,162 @@ document.addEventListener('click', (e) => {
         return;
     }
 });
+
+// Manual Update - Uppy Initialization
+let uppyManualUpdate = null;
+let uploadedFile = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Uppy for manual update
+    uppyManualUpdate = new Uppy({
+        restrictions: {
+            maxFileSize: 50 * 1024 * 1024, // 50MB
+            maxNumberOfFiles: 1,
+            allowedFileTypes: ['.zip']
+        },
+        autoProceed: false
+    });
+
+    uppyManualUpdate.use(UppyDragDrop, {
+        target: '#uppy-manual-update',
+        note: '<?= addslashes(__("File ZIP del pacchetto di aggiornamento (max 50MB)")) ?>'
+    });
+
+    uppyManualUpdate.on('file-added', (file) => {
+        uploadedFile = file;
+        document.getElementById('manual-update-submit-btn').disabled = false;
+        console.log('File added:', file.name);
+    });
+
+    uppyManualUpdate.on('file-removed', () => {
+        uploadedFile = null;
+        document.getElementById('manual-update-submit-btn').disabled = true;
+    });
+});
+
+async function submitManualUpdate() {
+    if (!uploadedFile) {
+        Swal.fire({
+            icon: 'error',
+            title: '<?= __("Errore") ?>',
+            text: '<?= __("Seleziona un file ZIP da caricare") ?>'
+        });
+        return;
+    }
+
+    const result = await Swal.fire({
+        title: '<?= __("Avviare l\'aggiornamento manuale?") ?>',
+        html: `<?= __("Verrà installato il pacchetto:") ?><br><code class="text-sm bg-gray-100 px-2 py-1 rounded">${uploadedFile.name}</code><br><br><?= __("Prima dell'installazione verrà creato automaticamente un backup del database.") ?>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<?= __("Avvia Aggiornamento") ?>',
+        cancelButtonText: '<?= __("Annulla") ?>',
+        confirmButtonColor: '#16a34a'
+    });
+
+    if (!result.isConfirmed) return;
+
+    const submitBtn = document.getElementById('manual-update-submit-btn');
+    const btnText = document.getElementById('manual-update-btn-text');
+    const originalText = btnText.textContent;
+
+    submitBtn.disabled = true;
+    btnText.textContent = '<?= __("Caricamento...") ?>';
+
+    try {
+        // Upload the file
+        const formData = new FormData();
+        formData.append('update_package', uploadedFile.data);
+        formData.append('csrf_token', csrfToken);
+
+        Swal.fire({
+            title: '<?= __("Caricamento pacchetto...") ?>',
+            html: '<div class="swal2-progress-bar"><div></div></div>',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const uploadResponse = await fetch('/admin/updates/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const uploadData = await uploadResponse.json();
+
+        if (!uploadData.success) {
+            throw new Error(uploadData.error || '<?= __("Errore durante il caricamento") ?>');
+        }
+
+        // Start update process
+        btnText.textContent = '<?= __("Installazione...") ?>';
+
+        Swal.fire({
+            title: '<?= __("Installazione in corso...") ?>',
+            html: `
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600 mb-2"><?= __("L'aggiornamento può richiedere alcuni minuti. Non chiudere questa pagina.") ?></p>
+                    <div class="bg-gray-100 rounded-lg p-4 space-y-2 text-sm text-left">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-spinner fa-spin text-green-600"></i>
+                            <span><?= __("Creazione backup database...") ?></span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-400">
+                            <i class="far fa-circle"></i>
+                            <span><?= __("Estrazione pacchetto...") ?></span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-400">
+                            <i class="far fa-circle"></i>
+                            <span><?= __("Installazione file...") ?></span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-400">
+                            <i class="far fa-circle"></i>
+                            <span><?= __("Completamento...") ?></span>
+                        </div>
+                    </div>
+                </div>
+            `,
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const installResponse = await fetch('/admin/updates/install-manual', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&temp_path=${encodeURIComponent(uploadData.temp_path)}`
+        });
+
+        const installData = await installResponse.json();
+
+        if (installData.success) {
+            Swal.fire({
+                icon: 'success',
+                title: '<?= __("Aggiornamento completato!") ?>',
+                html: `<p>${installData.message}</p><p class="text-sm text-gray-600 mt-2"><?= __("La pagina verrà ricaricata automaticamente...") ?></p>`,
+                timer: 3000,
+                showConfirmButton: false
+            }).then(() => {
+                location.reload();
+            });
+
+            // Reset uppy
+            uppyManualUpdate.cancelAll();
+            uploadedFile = null;
+        } else {
+            throw new Error(installData.error || '<?= __("Errore durante l\'installazione") ?>');
+        }
+
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: '<?= __("Errore") ?>',
+            text: error.message
+        });
+        btnText.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+}
 </script>

@@ -341,6 +341,140 @@ class UpdateController
     }
 
     /**
+     * API: Upload manual update package
+     */
+    public function uploadUpdate(Request $request, Response $response, mysqli $db): Response
+    {
+        // Verify CSRF token
+        $data = (array) $request->getParsedBody();
+        $csrfToken = $data['csrf_token'] ?? '';
+
+        if (!Csrf::validate($csrfToken)) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $uploadedFiles = $request->getUploadedFiles();
+
+        if (!isset($uploadedFiles['update_package'])) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Nessun file caricato')
+            ], 400);
+        }
+
+        $uploadedFile = $uploadedFiles['update_package'];
+
+        if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Errore durante il caricamento del file')
+            ], 400);
+        }
+
+        // Validate file type
+        $filename = $uploadedFile->getClientFilename();
+        if (!str_ends_with(strtolower($filename), '.zip')) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Il file deve essere un archivio ZIP')
+            ], 400);
+        }
+
+        // Validate file size (max 50MB)
+        if ($uploadedFile->getSize() > 50 * 1024 * 1024) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Il file è troppo grande (max 50MB)')
+            ], 400);
+        }
+
+        try {
+            $updater = new Updater($db);
+            $result = $updater->saveUploadedPackage($uploadedFile);
+
+            if ($result['success']) {
+                return $this->jsonResponse($response, [
+                    'success' => true,
+                    'message' => __('Pacchetto caricato con successo'),
+                    'temp_path' => $result['path']
+                ]);
+            }
+
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $result['error']
+            ], 500);
+
+        } catch (\Exception $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Install manually uploaded update package
+     */
+    public function installManualUpdate(Request $request, Response $response, mysqli $db): Response
+    {
+        // Verify CSRF token
+        $data = (array) $request->getParsedBody();
+        $csrfToken = $data['csrf_token'] ?? '';
+
+        if (!Csrf::validate($csrfToken)) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $tempPath = $data['temp_path'] ?? '';
+
+        if (empty($tempPath)) {
+            return $this->jsonResponse($response, ['error' => __('Path pacchetto non specificato')], 400);
+        }
+
+        // Security: validate that temp_path is actually in our temp directory
+        $rootPath = dirname(__DIR__, 2);
+        $storageTmp = $rootPath . '/storage/tmp';
+        $realTempPath = realpath($tempPath);
+        $realStorageTmp = realpath($storageTmp);
+
+        if (!$realTempPath || !$realStorageTmp || !str_starts_with($realTempPath, $realStorageTmp)) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Path pacchetto non valido')
+            ], 400);
+        }
+
+        $updater = new Updater($db);
+
+        // Check requirements first
+        $requirements = $updater->checkRequirements();
+        if (!$requirements['met']) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Requisiti di sistema non soddisfatti'),
+                'requirements' => $requirements['requirements']
+            ], 400);
+        }
+
+        // Perform the update from uploaded file
+        $result = $updater->performUpdateFromFile($tempPath);
+
+        if ($result['success']) {
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => __('Aggiornamento completato con successo'),
+                'backup_path' => $result['backup_path']
+            ]);
+        }
+
+        return $this->jsonResponse($response, [
+            'success' => false,
+            'error' => $result['error']
+        ], 500);
+    }
+
+    /**
      * Helper: Send JSON response
      */
     private function jsonResponse(Response $response, array $data, int $status = 200): Response

@@ -920,6 +920,335 @@ class Updater
     }
 
     /**
+     * Save uploaded update package to temp directory
+     * @return array{success: bool, path: string|null, error: string|null}
+     */
+    public function saveUploadedPackage($uploadedFile): array
+    {
+        $this->debugLog('INFO', '=== SALVATAGGIO PACCHETTO MANUALE ===');
+
+        try {
+            // Create temp directory for uploaded package
+            $uploadTempPath = $this->rootPath . '/storage/tmp/manual_update_' . uniqid('', true);
+
+            if (!mkdir($uploadTempPath, 0755, true)) {
+                throw new Exception(__('Impossibile creare directory temporanea per upload'));
+            }
+
+            $this->debugLog('DEBUG', 'Directory temporanea creata', ['path' => $uploadTempPath]);
+
+            // Save uploaded file
+            $zipPath = $uploadTempPath . '/update.zip';
+            $uploadedFile->moveTo($zipPath);
+
+            $this->debugLog('INFO', 'File caricato salvato', [
+                'path' => $zipPath,
+                'size' => filesize($zipPath)
+            ]);
+
+            // Verify it's a valid ZIP
+            $zip = new ZipArchive();
+            $zipOpenResult = $zip->open($zipPath);
+
+            if ($zipOpenResult !== true) {
+                $this->debugLog('ERROR', 'File ZIP non valido', ['error_code' => $zipOpenResult]);
+                $this->deleteDirectory($uploadTempPath);
+                throw new Exception(__('Il file caricato non è un archivio ZIP valido'));
+            }
+
+            $fileCount = $zip->numFiles;
+            $zip->close();
+
+            $this->debugLog('INFO', 'Verifica ZIP completata', [
+                'file_count' => $fileCount
+            ]);
+
+            if ($fileCount === 0) {
+                $this->deleteDirectory($uploadTempPath);
+                throw new Exception(__('L\'archivio ZIP è vuoto'));
+            }
+
+            return [
+                'success' => true,
+                'path' => $uploadTempPath,
+                'error' => null
+            ];
+
+        } catch (Exception $e) {
+            $this->debugLog('ERROR', 'Errore salvataggio pacchetto', [
+                'error' => $e->getMessage()
+            ]);
+            return [
+                'success' => false,
+                'path' => null,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Perform update from manually uploaded package
+     * This method bypasses GitHub API and uses a local ZIP file
+     * @return array{success: bool, error: string|null, backup_path: string|null}
+     */
+    public function performUpdateFromFile(string $uploadTempPath): array
+    {
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        $lockHandle = null;
+
+        $this->debugLog('INFO', '========================================');
+        $this->debugLog('INFO', '=== PERFORM UPDATE FROM FILE - INIZIO ===');
+        $this->debugLog('INFO', '========================================', [
+            'current_version' => $this->getCurrentVersion(),
+            'upload_temp_path' => $uploadTempPath,
+            'php_version' => PHP_VERSION
+        ]);
+
+        $maintenanceFile = $this->rootPath . '/storage/.maintenance';
+        register_shutdown_function(function () use ($maintenanceFile, $lockFile) {
+            $error = error_get_last();
+            if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                error_log("[Updater DEBUG] FATAL ERROR during manual update: " . json_encode($error));
+
+                if (file_exists($maintenanceFile)) {
+                    @unlink($maintenanceFile);
+                }
+
+                if (file_exists($lockFile)) {
+                    @unlink($lockFile);
+                }
+            }
+        });
+
+        set_time_limit(0);
+
+        $currentMemory = ini_get('memory_limit');
+        if ($currentMemory !== '-1') {
+            $memoryBytes = $this->parseMemoryLimit($currentMemory);
+            $minMemory = 256 * 1024 * 1024;
+            if ($memoryBytes < $minMemory) {
+                @ini_set('memory_limit', '256M');
+                $this->debugLog('INFO', 'Memory limit aumentato', [
+                    'from' => $currentMemory,
+                    'to' => '256M'
+                ]);
+            }
+        }
+
+        // Acquire lock
+        $lockDir = dirname($lockFile);
+        if (!is_dir($lockDir)) {
+            @mkdir($lockDir, 0755, true);
+        }
+
+        $lockHandle = @fopen($lockFile, 'c');
+        if (!$lockHandle) {
+            $this->debugLog('ERROR', 'Impossibile creare lock file', ['path' => $lockFile]);
+            return [
+                'success' => false,
+                'error' => __('Impossibile creare il file di lock per l\'aggiornamento'),
+                'backup_path' => null
+            ];
+        }
+
+        if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            fclose($lockHandle);
+            $this->debugLog('WARNING', 'Aggiornamento già in corso');
+            return [
+                'success' => false,
+                'error' => __('Un altro aggiornamento è già in corso. Riprova più tardi.'),
+                'backup_path' => null
+            ];
+        }
+
+        ftruncate($lockHandle, 0);
+        fwrite($lockHandle, (string)getmypid());
+        fflush($lockHandle);
+
+        $this->enableMaintenanceMode();
+
+        $backupResult = ['path' => null, 'success' => false, 'error' => null];
+        $result = null;
+
+        try {
+            // Step 1: Backup
+            $this->debugLog('INFO', '>>> STEP 1: Creazione backup <<<');
+            $backupResult = $this->createBackup();
+            if (!$backupResult['success']) {
+                throw new Exception(__('Backup fallito') . ': ' . $backupResult['error']);
+            }
+            $this->debugLog('INFO', 'Backup completato', ['path' => $backupResult['path']]);
+
+            // Step 2: Extract uploaded ZIP
+            $this->debugLog('INFO', '>>> STEP 2: Estrazione pacchetto caricato <<<');
+            $zipPath = $uploadTempPath . '/update.zip';
+
+            if (!file_exists($zipPath)) {
+                throw new Exception(__('Pacchetto caricato non trovato'));
+            }
+
+            $extractPath = $uploadTempPath . '/extracted';
+            if (!mkdir($extractPath, 0755, true)) {
+                throw new Exception(__('Impossibile creare directory di estrazione'));
+            }
+
+            $zip = new ZipArchive();
+            if ($zip->open($zipPath) !== true) {
+                throw new Exception(__('Impossibile aprire il pacchetto ZIP'));
+            }
+
+            if (!$zip->extractTo($extractPath)) {
+                $zip->close();
+                throw new Exception(__('Estrazione del pacchetto fallita'));
+            }
+            $zip->close();
+
+            $this->debugLog('INFO', 'Estrazione completata', ['path' => $extractPath]);
+
+            // Find the actual source directory (handle GitHub ZIP structure)
+            $sourcePath = $this->findSourceDirectory($extractPath);
+            if ($sourcePath === null) {
+                throw new Exception(__('Struttura pacchetto non valida'));
+            }
+
+            // Detect version from package
+            $targetVersion = $this->detectVersionFromPackage($sourcePath);
+            $this->debugLog('INFO', 'Versione rilevata dal pacchetto', ['version' => $targetVersion]);
+
+            // Step 3: Install
+            $this->debugLog('INFO', '>>> STEP 3: Installazione aggiornamento <<<');
+            $installResult = $this->installUpdate($sourcePath, $targetVersion);
+            if (!$installResult['success']) {
+                throw new Exception(__('Installazione fallita') . ': ' . $installResult['error']);
+            }
+            $this->debugLog('INFO', 'Installazione completata');
+
+            // Step 4: Apply post-install patch (if available)
+            $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
+            $postPatchResult = $this->applyPostInstallPatch($targetVersion);
+            if ($postPatchResult['applied']) {
+                $this->debugLog('INFO', 'Post-install patch applicato', [
+                    'patches' => $postPatchResult['patches']
+                ]);
+            }
+
+            // Cleanup uploaded files
+            $this->deleteDirectory($uploadTempPath);
+
+            $result = [
+                'success' => true,
+                'error' => null,
+                'backup_path' => $backupResult['path']
+            ];
+
+            $this->debugLog('INFO', '========================================');
+            $this->debugLog('INFO', '=== AGGIORNAMENTO MANUALE COMPLETATO ===');
+            $this->debugLog('INFO', '========================================');
+
+        } catch (Exception $e) {
+            $this->debugLog('ERROR', 'AGGIORNAMENTO MANUALE FALLITO', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+
+            // Cleanup on failure
+            if (file_exists($uploadTempPath)) {
+                $this->deleteDirectory($uploadTempPath);
+            }
+
+            $result = [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'backup_path' => $backupResult['path'] ?? null
+            ];
+        } finally {
+            $this->cleanup();
+
+            if ($lockHandle !== null && \is_resource($lockHandle)) {
+                flock($lockHandle, LOCK_UN);
+                fclose($lockHandle);
+            }
+
+            if (file_exists($lockFile)) {
+                @unlink($lockFile);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Find the source directory in extracted package (handles GitHub ZIP structure)
+     */
+    private function findSourceDirectory(string $extractPath): ?string
+    {
+        // GitHub releases create a top-level directory like "Pinakes-0.4.8" or "fabiodalez-dev-Pinakes-abc123"
+        // We need to find it
+        $items = @scandir($extractPath);
+        if ($items === false) {
+            return null;
+        }
+
+        $items = array_diff($items, ['.', '..']);
+
+        // If there's only one directory, that's our source
+        if (count($items) === 1) {
+            $firstItem = $extractPath . '/' . reset($items);
+            if (is_dir($firstItem)) {
+                $this->debugLog('DEBUG', 'Source directory trovata (single dir)', ['path' => $firstItem]);
+                return $firstItem;
+            }
+        }
+
+        // Look for directory with common patterns
+        foreach ($items as $item) {
+            $itemPath = $extractPath . '/' . $item;
+            if (is_dir($itemPath)) {
+                // Check if it looks like a Pinakes directory (has app/, public/, etc.)
+                if (is_dir($itemPath . '/app') && is_dir($itemPath . '/public')) {
+                    $this->debugLog('DEBUG', 'Source directory trovata (pattern match)', ['path' => $itemPath]);
+                    return $itemPath;
+                }
+            }
+        }
+
+        $this->debugLog('ERROR', 'Source directory non trovata', [
+            'extract_path' => $extractPath,
+            'items' => $items
+        ]);
+        return null;
+    }
+
+    /**
+     * Detect version from package by reading version.txt or composer.json
+     */
+    private function detectVersionFromPackage(string $sourcePath): string
+    {
+        // Try version.txt first
+        $versionFile = $sourcePath . '/version.txt';
+        if (file_exists($versionFile)) {
+            $version = trim((string)file_get_contents($versionFile));
+            if (!empty($version)) {
+                return $version;
+            }
+        }
+
+        // Try composer.json
+        $composerFile = $sourcePath . '/composer.json';
+        if (file_exists($composerFile)) {
+            $composer = json_decode((string)file_get_contents($composerFile), true);
+            if (isset($composer['version'])) {
+                return ltrim($composer['version'], 'v');
+            }
+        }
+
+        // Default to "manual" if can't detect
+        return 'manual-' . date('Y-m-d-His');
+    }
+
+    /**
      * Create backup before update
      * @return array{success: bool, path: string|null, error: string|null}
      */

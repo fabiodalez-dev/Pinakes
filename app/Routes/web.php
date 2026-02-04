@@ -2893,4 +2893,18 @@ return function (App $app): void {
         return $controller->getLogs($request, $response);
     })->add(new AdminAuthMiddleware());
 
+    // Manual update - Upload package
+    $app->post('/admin/updates/upload', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->uploadUpdate($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    // Manual update - Install uploaded package
+    $app->post('/admin/updates/install-manual', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->installManualUpdate($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
 };
