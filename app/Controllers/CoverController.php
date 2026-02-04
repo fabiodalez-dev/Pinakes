@@ -95,6 +95,15 @@ class CoverController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        // Validate dimensions/pixel count BEFORE decoding to prevent OOM/DoS
+        $width = (int) $imageInfo[0];
+        $height = (int) $imageInfo[1];
+        $maxPixels = 20_000_000; // ~20MP - adjust based on server memory limits
+        if ($width <= 0 || $height <= 0 || ($width * $height) > $maxPixels) {
+            $response->getBody()->write(json_encode(['error' => __('Immagine troppo grande da processare.')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
         $mimeType = $imageInfo['mime'] ?? '';
         $extension = match ($mimeType) {
             'image/jpeg', 'image/jpg' => 'jpg',
@@ -115,8 +124,7 @@ class CoverController
 
         $maxWidth = 2000;
         $maxHeight = 2000;
-        $width = (int) $imageInfo[0];
-        $height = (int) $imageInfo[1];
+        // width and height already extracted and validated above
         $targetResource = $image;
         if ($width > $maxWidth || $height > $maxHeight) {
             $ratio = min($maxWidth / $width, $maxHeight / $height);
@@ -206,6 +214,14 @@ class CoverController
             throw new \RuntimeException(__('File non valido o corrotto.'));
         }
 
+        // Validate dimensions/pixel count BEFORE decoding to prevent OOM/DoS
+        $width = (int) $imageInfo[0];
+        $height = (int) $imageInfo[1];
+        $maxPixels = 20_000_000; // ~20MP - adjust based on server memory limits
+        if ($width <= 0 || $height <= 0 || ($width * $height) > $maxPixels) {
+            throw new \RuntimeException(__('Immagine troppo grande da processare.'));
+        }
+
         $mimeType = $imageInfo['mime'] ?? '';
         $extension = match ($mimeType) {
             'image/jpeg', 'image/jpg' => 'jpg',
@@ -224,8 +240,7 @@ class CoverController
 
         $maxWidth = 2000;
         $maxHeight = 2000;
-        $width = (int) $imageInfo[0];
-        $height = (int) $imageInfo[1];
+        // width and height already extracted and validated above
         $targetResource = $image;
         if ($width > $maxWidth || $height > $maxHeight) {
             $ratio = min($maxWidth / $width, $maxHeight / $height);

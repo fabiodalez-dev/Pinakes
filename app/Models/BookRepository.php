@@ -352,9 +352,12 @@ class BookRepository
             $addField('stato', 's', $stato);
         }
 
-        // LibraryThing plugin fields (25 unique)
+        // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
         if ($this->hasColumn('review')) {
             $addField('review', 's', $data['review'] ?? null);
+        }
+        if ($this->hasColumn('dewey_wording')) {
+            $addField('dewey_wording', 's', $data['dewey_wording'] ?? null);
         }
         if ($this->hasColumn('rating')) {
             $rating = isset($data['rating']) && $data['rating'] !== '' ? (int)$data['rating'] : null;
@@ -383,6 +386,10 @@ class BookRepository
         if ($this->hasColumn('other_call_number')) {
             $addField('other_call_number', 's', $data['other_call_number'] ?? null);
         }
+        if ($this->hasColumn('entry_date')) {
+            $entry_date = isset($data['entry_date']) && $data['entry_date'] !== '' ? $data['entry_date'] : null;
+            $addField('entry_date', 's', $entry_date);
+        }
         if ($this->hasColumn('date_started')) {
             $date_started = isset($data['date_started']) && $data['date_started'] !== '' ? $data['date_started'] : null;
             $addField('date_started', 's', $date_started);
@@ -393,6 +400,9 @@ class BookRepository
         }
         if ($this->hasColumn('bcid')) {
             $addField('bcid', 's', $data['bcid'] ?? null);
+        }
+        if ($this->hasColumn('barcode')) {
+            $addField('barcode', 's', $data['barcode'] ?? null);
         }
         if ($this->hasColumn('oclc')) {
             $addField('oclc', 's', $data['oclc'] ?? null);
@@ -646,9 +656,12 @@ class BookRepository
             $addSet('stato', 's', $stato);
         }
 
-        // LibraryThing plugin fields (25 unique)
+        // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
         if ($this->hasColumn('review')) {
             $addSet('review', 's', $data['review'] ?? null);
+        }
+        if ($this->hasColumn('dewey_wording')) {
+            $addSet('dewey_wording', 's', $data['dewey_wording'] ?? null);
         }
         if ($this->hasColumn('rating')) {
             $rating = isset($data['rating']) && $data['rating'] !== '' ? (int)$data['rating'] : null;
@@ -677,6 +690,10 @@ class BookRepository
         if ($this->hasColumn('other_call_number')) {
             $addSet('other_call_number', 's', $data['other_call_number'] ?? null);
         }
+        if ($this->hasColumn('entry_date')) {
+            $entry_date = isset($data['entry_date']) && $data['entry_date'] !== '' ? $data['entry_date'] : null;
+            $addSet('entry_date', 's', $entry_date);
+        }
         if ($this->hasColumn('date_started')) {
             $date_started = isset($data['date_started']) && $data['date_started'] !== '' ? $data['date_started'] : null;
             $addSet('date_started', 's', $date_started);
@@ -687,6 +704,9 @@ class BookRepository
         }
         if ($this->hasColumn('bcid')) {
             $addSet('bcid', 's', $data['bcid'] ?? null);
+        }
+        if ($this->hasColumn('barcode')) {
+            $addSet('barcode', 's', $data['barcode'] ?? null);
         }
         if ($this->hasColumn('oclc')) {
             $addSet('oclc', 's', $data['oclc'] ?? null);
