@@ -952,7 +952,6 @@ document.addEventListener('DOMContentLoaded', function() {
     uppyManualUpdate.on('file-added', (file) => {
         uploadedFile = file;
         document.getElementById('manual-update-submit-btn').disabled = false;
-        console.log('File added:', file.name);
     });
 
     uppyManualUpdate.on('file-removed', () => {
@@ -971,9 +970,10 @@ async function submitManualUpdate() {
         return;
     }
 
+    const sanitizedName = escapeHtml(uploadedFile.name);
     const result = await Swal.fire({
         title: '<?= __("Avviare l\'aggiornamento manuale?") ?>',
-        html: `<?= __("Verrà installato il pacchetto:") ?><br><code class="text-sm bg-gray-100 px-2 py-1 rounded">${uploadedFile.name}</code><br><br><?= __("Prima dell'installazione verrà creato automaticamente un backup del database.") ?>`,
+        html: `<?= __("Verrà installato il pacchetto:") ?><br><code class="text-sm bg-gray-100 px-2 py-1 rounded">${sanitizedName}</code><br><br><?= __("Prima dell'installazione verrà creato automaticamente un backup del database.") ?>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: '<?= __("Avvia Aggiornamento") ?>',

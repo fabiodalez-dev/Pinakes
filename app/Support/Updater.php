@@ -1115,6 +1115,15 @@ class Updater
             $targetVersion = $this->detectVersionFromPackage($sourcePath);
             $this->debugLog('INFO', 'Versione rilevata dal pacchetto', ['version' => $targetVersion]);
 
+            // Step 2.5: Apply pre-update patch (if available)
+            $this->debugLog('INFO', '>>> STEP 2.5: Pre-update patch check <<<');
+            $patchResult = $this->applyPreUpdatePatch($targetVersion);
+            if ($patchResult['applied']) {
+                $this->debugLog('INFO', 'Pre-update patch applicato', [
+                    'patches' => $patchResult['patches']
+                ]);
+            }
+
             // Step 3: Install
             $this->debugLog('INFO', '>>> STEP 3: Installazione aggiornamento <<<');
             $installResult = $this->installUpdate($sourcePath, $targetVersion);
@@ -1184,6 +1193,12 @@ class Updater
      */
     private function findSourceDirectory(string $extractPath): ?string
     {
+        // Check if root directory already has the expected structure (flat package)
+        if (is_dir($extractPath . '/app') && is_dir($extractPath . '/public')) {
+            $this->debugLog('DEBUG', 'Source directory trovata (root)', ['path' => $extractPath]);
+            return $extractPath;
+        }
+
         // GitHub releases create a top-level directory like "Pinakes-0.4.8" or "fabiodalez-dev-Pinakes-abc123"
         // We need to find it
         $items = @scandir($extractPath);
@@ -1222,11 +1237,20 @@ class Updater
     }
 
     /**
-     * Detect version from package by reading version.txt or composer.json
+     * Detect version from package by reading version.json, version.txt or composer.json
      */
     private function detectVersionFromPackage(string $sourcePath): string
     {
-        // Try version.txt first
+        // Try version.json first
+        $versionJsonFile = $sourcePath . '/version.json';
+        if (file_exists($versionJsonFile)) {
+            $versionData = json_decode((string)file_get_contents($versionJsonFile), true);
+            if (isset($versionData['version']) && !empty($versionData['version'])) {
+                return ltrim($versionData['version'], 'v');
+            }
+        }
+
+        // Try version.txt
         $versionFile = $sourcePath . '/version.txt';
         if (file_exists($versionFile)) {
             $version = trim((string)file_get_contents($versionFile));
