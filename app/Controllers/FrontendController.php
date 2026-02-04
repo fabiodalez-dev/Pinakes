@@ -227,10 +227,26 @@ class FrontendController
         $appLogo = Branding::logo();
 
         // Build base URL and protocol
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $baseUrl = $protocol . '://' . $host;
-        $baseUrlNormalized = rtrim($baseUrl, '/');
+        // Priority 1: Use APP_CANONICAL_URL from .env if configured
+        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
+        if ($canonicalUrl !== false && trim((string)$canonicalUrl) !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
+            $baseUrlNormalized = rtrim((string)$canonicalUrl, '/');
+        } else {
+            // Priority 2: Fallback to HTTP_HOST
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? null;
+            if ($host !== null) {
+                $baseUrl = $protocol . '://' . $host;
+                $baseUrlNormalized = rtrim($baseUrl, '/');
+            } else {
+                // Cannot determine base URL - use empty string to force relative URLs
+                $baseUrlNormalized = '';
+            }
+        }
+
+        // Set $baseUrl for later use (e.g., $seoCanonical)
+        $baseUrl = $baseUrlNormalized;
+
         $makeAbsolute = static function (string $path) use ($baseUrlNormalized): string {
             if ($path === '') {
                 return '';

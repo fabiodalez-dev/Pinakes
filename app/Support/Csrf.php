@@ -22,7 +22,8 @@ final class Csrf
         // Timeout lungo per permettere agli admin di compilare form complessi senza interruzioni
         if (!empty($_SESSION['csrf_token_time'])) {
             $timeout = 7200 + random_int(-600, 600); // 2 ore ± 10 minuti
-            if (time() - $_SESSION['csrf_token_time'] > $timeout) {
+            $age = time() - $_SESSION['csrf_token_time'];
+            if ($age > $timeout) {
                 $needsRegeneration = true;
             }
         } else {

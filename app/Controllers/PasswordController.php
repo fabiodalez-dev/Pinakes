@@ -59,7 +59,11 @@ class PasswordController
             $stmt->close();
 
             // Use validated base URL to prevent Host Header Injection
-            $baseUrl = $this->getValidatedBaseUrl();
+            try {
+                $baseUrl = $this->getValidatedBaseUrl();
+            } catch (\RuntimeException $e) {
+                return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=config')->withStatus(302);
+            }
             $resetUrl = $baseUrl . RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
             $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
             $subject = 'Recupera la tua password';
@@ -171,11 +175,14 @@ class PasswordController
 
     /**
      * Get validated base URL to prevent Host Header Injection attacks
+     *
+     * @throws \RuntimeException If unable to determine base URL
      */
     private function getValidatedBaseUrl(): string
     {
         // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
         // This ensures emails always use the production URL even when sent from CLI/localhost
+        // This is the recommended approach for production environments
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         if ($canonicalUrl !== false) {
             $canonicalUrl = trim((string) $canonicalUrl);
@@ -186,16 +193,21 @@ class PasswordController
 
         // PRIORITY 2: Fallback to HTTP_HOST with security validation
         $protocol = (($_SERVER['HTTPS'] ?? 'off') === 'on') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $host = $_SERVER['HTTP_HOST'] ?? null;
 
         // Validate hostname format to prevent Host Header Injection attacks
         // Accepts: domain.com, subdomain.domain.com, localhost, localhost:8000, IP:port
-        if (preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
+        if ($host !== null && preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
             return $protocol . '://' . $host;
         }
 
-        // Invalid hostname format - fallback to localhost
-        return $protocol . '://localhost';
+        // CRITICAL: Cannot determine base URL - configuration required
+        // This prevents the application from using hardcoded localhost on production
+        throw new \RuntimeException(
+            'Cannot determine application base URL. ' .
+            'Please configure APP_CANONICAL_URL in your .env file. ' .
+            'Example: APP_CANONICAL_URL=https://yourdomain.com'
+        );
     }
 
 }

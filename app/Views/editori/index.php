@@ -565,6 +565,18 @@ document.addEventListener('DOMContentLoaded', function() {
           new_name: formValues.newName
         })
       });
+
+      // Check for HTTP errors
+      if (!mergeResponse.ok) {
+        const errorData = await mergeResponse.json().catch(() => ({ message: 'HTTP ' + mergeResponse.status }));
+        Swal.fire({
+          icon: 'error',
+          title: '<?= __("Errore") ?>',
+          text: errorData.message || errorData.error || '<?= __("Errore del server") ?>'
+        });
+        return;
+      }
+
       const mergeResult = await mergeResponse.json();
 
       if (mergeResult.success) {
@@ -579,11 +591,11 @@ document.addEventListener('DOMContentLoaded', function() {
         updateBulkActionsBar();
         table.ajax.reload();
       } else {
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: mergeResult.error });
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: mergeResult.error || mergeResult.message || '<?= __("Errore sconosciuto") ?>' });
       }
     } catch (err) {
       console.error(err);
-      Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Errore di connessione") ?>' });
+      Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: err.message || '<?= __("Errore di connessione") ?>' });
     }
   });
 

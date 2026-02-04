@@ -352,6 +352,98 @@ class BookRepository
             $addField('stato', 's', $stato);
         }
 
+        // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
+        if ($this->hasColumn('review')) {
+            $addField('review', 's', $data['review'] ?? null);
+        }
+        if ($this->hasColumn('dewey_wording')) {
+            $addField('dewey_wording', 's', $data['dewey_wording'] ?? null);
+        }
+        if ($this->hasColumn('rating')) {
+            $rating = isset($data['rating']) && $data['rating'] !== '' ? (int)$data['rating'] : null;
+            // Validate CHECK constraint: rating IS NULL OR (rating >= 1 AND rating <= 5)
+            // Set to NULL if out of range (don't clamp, as 0 often means "not rated")
+            if ($rating !== null && ($rating < 1 || $rating > 5)) {
+                $rating = null;
+            }
+            $addField('rating', 'i', $rating);
+        }
+        if ($this->hasColumn('comment')) {
+            $addField('comment', 's', $data['comment'] ?? null);
+        }
+        if ($this->hasColumn('private_comment')) {
+            $addField('private_comment', 's', $data['private_comment'] ?? null);
+        }
+        if ($this->hasColumn('physical_description')) {
+            $addField('physical_description', 's', $data['physical_description'] ?? null);
+        }
+        if ($this->hasColumn('lccn')) {
+            $addField('lccn', 's', $data['lccn'] ?? null);
+        }
+        if ($this->hasColumn('lc_classification')) {
+            $addField('lc_classification', 's', $data['lc_classification'] ?? null);
+        }
+        if ($this->hasColumn('other_call_number')) {
+            $addField('other_call_number', 's', $data['other_call_number'] ?? null);
+        }
+        if ($this->hasColumn('entry_date')) {
+            $entry_date = isset($data['entry_date']) && $data['entry_date'] !== '' ? $data['entry_date'] : null;
+            $addField('entry_date', 's', $entry_date);
+        }
+        if ($this->hasColumn('date_started')) {
+            $date_started = isset($data['date_started']) && $data['date_started'] !== '' ? $data['date_started'] : null;
+            $addField('date_started', 's', $date_started);
+        }
+        if ($this->hasColumn('date_read')) {
+            $date_read = isset($data['date_read']) && $data['date_read'] !== '' ? $data['date_read'] : null;
+            $addField('date_read', 's', $date_read);
+        }
+        if ($this->hasColumn('bcid')) {
+            $addField('bcid', 's', $data['bcid'] ?? null);
+        }
+        if ($this->hasColumn('barcode')) {
+            $addField('barcode', 's', $data['barcode'] ?? null);
+        }
+        if ($this->hasColumn('oclc')) {
+            $addField('oclc', 's', $data['oclc'] ?? null);
+        }
+        if ($this->hasColumn('work_id')) {
+            $addField('work_id', 's', $data['work_id'] ?? null);
+        }
+        if ($this->hasColumn('issn')) {
+            $addField('issn', 's', $data['issn'] ?? null);
+        }
+        if ($this->hasColumn('original_languages')) {
+            $addField('original_languages', 's', $data['original_languages'] ?? null);
+        }
+        if ($this->hasColumn('source')) {
+            $addField('source', 's', $data['source'] ?? null);
+        }
+        if ($this->hasColumn('from_where')) {
+            $addField('from_where', 's', $data['from_where'] ?? null);
+        }
+        if ($this->hasColumn('lending_patron')) {
+            $addField('lending_patron', 's', $data['lending_patron'] ?? null);
+        }
+        if ($this->hasColumn('lending_status')) {
+            $addField('lending_status', 's', $data['lending_status'] ?? null);
+        }
+        if ($this->hasColumn('lending_start')) {
+            $lending_start = isset($data['lending_start']) && $data['lending_start'] !== '' ? $data['lending_start'] : null;
+            $addField('lending_start', 's', $lending_start);
+        }
+        if ($this->hasColumn('lending_end')) {
+            $lending_end = isset($data['lending_end']) && $data['lending_end'] !== '' ? $data['lending_end'] : null;
+            $addField('lending_end', 's', $lending_end);
+        }
+        if ($this->hasColumn('value')) {
+            $value = isset($data['value']) && $data['value'] !== '' ? (float)$data['value'] : null;
+            $addField('value', 'd', $value);
+        }
+        if ($this->hasColumn('condition_lt')) {
+            $addField('condition_lt', 's', $data['condition_lt'] ?? null);
+        }
+
         $sql = 'INSERT INTO libri (' . implode(', ', $fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
         $stmt = $this->db->prepare($sql);
         $bindTypes = implode('', $typeParts);
@@ -562,6 +654,98 @@ class BookRepository
         }
         if ($this->hasColumn('stato')) {
             $addSet('stato', 's', $stato);
+        }
+
+        // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
+        if ($this->hasColumn('review')) {
+            $addSet('review', 's', $data['review'] ?? null);
+        }
+        if ($this->hasColumn('dewey_wording')) {
+            $addSet('dewey_wording', 's', $data['dewey_wording'] ?? null);
+        }
+        if ($this->hasColumn('rating')) {
+            $rating = isset($data['rating']) && $data['rating'] !== '' ? (int)$data['rating'] : null;
+            // Validate CHECK constraint: rating IS NULL OR (rating >= 1 AND rating <= 5)
+            // Set to NULL if out of range (don't clamp, as 0 often means "not rated")
+            if ($rating !== null && ($rating < 1 || $rating > 5)) {
+                $rating = null;
+            }
+            $addSet('rating', 'i', $rating);
+        }
+        if ($this->hasColumn('comment')) {
+            $addSet('comment', 's', $data['comment'] ?? null);
+        }
+        if ($this->hasColumn('private_comment')) {
+            $addSet('private_comment', 's', $data['private_comment'] ?? null);
+        }
+        if ($this->hasColumn('physical_description')) {
+            $addSet('physical_description', 's', $data['physical_description'] ?? null);
+        }
+        if ($this->hasColumn('lccn')) {
+            $addSet('lccn', 's', $data['lccn'] ?? null);
+        }
+        if ($this->hasColumn('lc_classification')) {
+            $addSet('lc_classification', 's', $data['lc_classification'] ?? null);
+        }
+        if ($this->hasColumn('other_call_number')) {
+            $addSet('other_call_number', 's', $data['other_call_number'] ?? null);
+        }
+        if ($this->hasColumn('entry_date')) {
+            $entry_date = isset($data['entry_date']) && $data['entry_date'] !== '' ? $data['entry_date'] : null;
+            $addSet('entry_date', 's', $entry_date);
+        }
+        if ($this->hasColumn('date_started')) {
+            $date_started = isset($data['date_started']) && $data['date_started'] !== '' ? $data['date_started'] : null;
+            $addSet('date_started', 's', $date_started);
+        }
+        if ($this->hasColumn('date_read')) {
+            $date_read = isset($data['date_read']) && $data['date_read'] !== '' ? $data['date_read'] : null;
+            $addSet('date_read', 's', $date_read);
+        }
+        if ($this->hasColumn('bcid')) {
+            $addSet('bcid', 's', $data['bcid'] ?? null);
+        }
+        if ($this->hasColumn('barcode')) {
+            $addSet('barcode', 's', $data['barcode'] ?? null);
+        }
+        if ($this->hasColumn('oclc')) {
+            $addSet('oclc', 's', $data['oclc'] ?? null);
+        }
+        if ($this->hasColumn('work_id')) {
+            $addSet('work_id', 's', $data['work_id'] ?? null);
+        }
+        if ($this->hasColumn('issn')) {
+            $addSet('issn', 's', $data['issn'] ?? null);
+        }
+        if ($this->hasColumn('original_languages')) {
+            $addSet('original_languages', 's', $data['original_languages'] ?? null);
+        }
+        if ($this->hasColumn('source')) {
+            $addSet('source', 's', $data['source'] ?? null);
+        }
+        if ($this->hasColumn('from_where')) {
+            $addSet('from_where', 's', $data['from_where'] ?? null);
+        }
+        if ($this->hasColumn('lending_patron')) {
+            $addSet('lending_patron', 's', $data['lending_patron'] ?? null);
+        }
+        if ($this->hasColumn('lending_status')) {
+            $addSet('lending_status', 's', $data['lending_status'] ?? null);
+        }
+        if ($this->hasColumn('lending_start')) {
+            $lending_start = isset($data['lending_start']) && $data['lending_start'] !== '' ? $data['lending_start'] : null;
+            $addSet('lending_start', 's', $lending_start);
+        }
+        if ($this->hasColumn('lending_end')) {
+            $lending_end = isset($data['lending_end']) && $data['lending_end'] !== '' ? $data['lending_end'] : null;
+            $addSet('lending_end', 's', $lending_end);
+        }
+        if ($this->hasColumn('value')) {
+            $value = isset($data['value']) && $data['value'] !== '' ? (float)$data['value'] : null;
+            $addSet('value', 'd', $value);
+        }
+        if ($this->hasColumn('condition_lt')) {
+            $addSet('condition_lt', 's', $data['condition_lt'] ?? null);
         }
 
         $sql = 'UPDATE libri SET ' . implode(', ', $setParts) . ', updated_at=NOW() WHERE id=?';

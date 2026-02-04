@@ -9,6 +9,9 @@ $error_message = $error_message ?? null;
 $action = $action ?? ($mode === 'edit' ? '/admin/libri/update/' . ($book['id'] ?? '') : '/admin/libri/crea');
 $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? '');
 $scrapingAvailable = Hooks::has('scrape.fetch.custom');
+$scaffali = $scaffali ?? [];
+$mensole = $mensole ?? [];
+$libraryThingInstalled = $libraryThingInstalled ?? false;
 
 $initialAuthors = array_map(static function ($author) {
     return [
@@ -128,7 +131,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 <i class="fas fa-layer-group"></i>
                 <?= __("Dati alternativi disponibili") ?>
               </h4>
-              <button type="button" id="btnCloseAlternatives" class="text-blue-600 hover:text-blue-800" aria-label="<?= __('Chiudi alternative') ?>">
+              <button type="button" id="btnCloseAlternatives" class="text-gray-800 hover:text-blue-800" aria-label="<?= __('Chiudi alternative') ?>">
                 <i class="fas fa-times"></i>
               </button>
             </div>
@@ -282,7 +285,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             <div id="dewey_chip" class="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
               <span class="font-mono font-bold" id="dewey_chip_code"></span>
               <span class="text-sm" id="dewey_chip_name"></span>
-              <button type="button" id="dewey_chip_remove" class="text-blue-600 hover:text-blue-900">
+              <button type="button" id="dewey_chip_remove" class="text-gray-800 hover:text-blue-900" aria-label="<?= __('Rimuovi classificazione Dewey') ?>">
                 <i class="fas fa-times"></i>
               </button>
             </div>
@@ -302,7 +305,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <!-- Navigazione per categorie (opzionale) -->
           <details class="mb-4">
-            <summary class="cursor-pointer text-sm font-semibold text-gray-700 hover:text-blue-600">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-700 hover:text-gray-800">
               <?= __("Oppure naviga per categorie") ?>
             </summary>
             <div class="mt-3 p-3 bg-gray-50 rounded">
@@ -458,7 +461,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 
           <?php
           // Hook: Allow plugins to add digital content upload fields (e.g., Uppy uploaders)
-          do_action('book.form.digital_fields', $book ?? []);
+          do_action('book.form.digital_fields', $book);
           ?>
 
           <!-- Notes -->
@@ -578,6 +581,275 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         </div>
       </div>
 
+      <!-- LibraryThing Plugin Fields -->
+      <?php if (!empty($libraryThingInstalled ?? false)): ?>
+      <div class="card">
+        <button type="button"
+                class="w-full card-header flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors text-left border-0 bg-transparent"
+                style="display: flex; width: 100%;"
+                onclick="toggleLibraryThingAccordion()"
+                aria-expanded="false"
+                aria-controls="librarything-accordion-content">
+          <div>
+            <h2 class="form-section-title flex items-center gap-2">
+              <i class="fas fa-cloud text-gray-800"></i>
+              <?= __("LibraryThing") ?>
+            </h2>
+            <p class="text-sm text-gray-600 mt-1"><?= __("Campi estesi per l'integrazione con LibraryThing") ?></p>
+          </div>
+          <i id="librarything-accordion-icon" class="fas fa-chevron-down text-gray-600 transition-transform duration-200"></i>
+        </button>
+        <div id="librarything-accordion-content"
+             class="card-body form-section overflow-hidden transition-all duration-300"
+             style="max-height: 0; opacity: 0; padding: 0;"
+             aria-hidden="true">
+
+          <!-- Review & Rating -->
+          <div class="mb-6">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Recensione e Valutazione") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="book-rating" class="form-label"><?= __("Valutazione") ?></label>
+                <select id="book-rating" name="rating" data-star-rating>
+                  <option value=""><?= __("Nessuna valutazione") ?></option>
+                  <?php for ($i = 1; $i <= 5; $i++): ?>
+                    <option value="<?= $i ?>" <?= isset($book['rating']) && (int)$book['rating'] === $i ? 'selected' : '' ?>>
+                      <?= $i ?> <?= $i === 1 ? __('stella') : __('stelle') ?>
+                    </option>
+                  <?php endfor; ?>
+                </select>
+              </div>
+            </div>
+            <div class="mt-3">
+              <label for="review" class="form-label"><?= __("Recensione") ?></label>
+              <textarea id="review" name="review" rows="4" class="form-input" placeholder="<?= __('La tua recensione del libro...') ?>"><?= HtmlHelper::e($book['review'] ?? '') ?></textarea>
+            </div>
+            <div class="form-grid-2 mt-3">
+              <div>
+                <label for="comment" class="form-label"><?= __("Commento Pubblico") ?></label>
+                <textarea id="comment" name="comment" rows="3" class="form-input" placeholder="<?= __('Commento pubblico...') ?>"><?= HtmlHelper::e($book['comment'] ?? '') ?></textarea>
+              </div>
+              <div>
+                <label for="private_comment" class="form-label"><?= __("Commento Privato") ?></label>
+                <textarea id="private_comment" name="private_comment" rows="3" class="form-input" placeholder="<?= __('Note private...') ?>"><?= HtmlHelper::e($book['private_comment'] ?? '') ?></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Physical Description -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Descrizione Fisica") ?></h3>
+            <div>
+              <label for="physical_description" class="form-label"><?= __("Descrizione Fisica") ?></label>
+              <input type="text" id="physical_description" name="physical_description" class="form-input" value="<?= HtmlHelper::e($book['physical_description'] ?? '') ?>" placeholder="<?= __('es. Hardcover, 500 pages') ?>">
+              <p class="text-xs text-gray-500 mt-1"><?= __("Nota: Peso e dimensioni sono nei campi nativi dell'app (sezione Dati Fisici)") ?></p>
+            </div>
+          </div>
+
+          <!-- Library Classifications -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Classificazioni Bibliotecarie") ?></h3>
+            <div class="form-grid-2">
+              <div class="col-span-2">
+                <label for="dewey_wording" class="form-label"><?= __("Descrizione Dewey") ?></label>
+                <input type="text" id="dewey_wording" name="dewey_wording" class="form-input" value="<?= HtmlHelper::e($book['dewey_wording'] ?? '') ?>" placeholder="<?= __('es. History & geography > History of Asia > ...') ?>">
+              </div>
+              <div>
+                <label for="lccn" class="form-label"><?= __("LCCN") ?></label>
+                <input type="text" id="lccn" name="lccn" class="form-input" value="<?= HtmlHelper::e($book['lccn'] ?? '') ?>" placeholder="<?= __('Library of Congress Control Number') ?>">
+              </div>
+              <div>
+                <label for="lc_classification" class="form-label"><?= __("Classificazione LC") ?></label>
+                <input type="text" id="lc_classification" name="lc_classification" class="form-input" value="<?= HtmlHelper::e($book['lc_classification'] ?? '') ?>" placeholder="<?= __('es. PS3566.A686') ?>">
+              </div>
+              <div>
+                <label for="other_call_number" class="form-label"><?= __("Altro Numero di Chiamata") ?></label>
+                <input type="text" id="other_call_number" name="other_call_number" class="form-input" value="<?= HtmlHelper::e($book['other_call_number'] ?? '') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Date Tracking (Reading) -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Date di Lettura") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="entry_date" class="form-label"><?= __("Data Inserimento LibraryThing") ?></label>
+                <input type="date" id="entry_date" name="entry_date" class="form-input" value="<?= HtmlHelper::e($book['entry_date'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="date_started" class="form-label"><?= __("Data Inizio Lettura") ?></label>
+                <input type="date" id="date_started" name="date_started" class="form-input" value="<?= HtmlHelper::e($book['date_started'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="date_read" class="form-label"><?= __("Data Fine Lettura") ?></label>
+                <input type="date" id="date_read" name="date_read" class="form-input" value="<?= HtmlHelper::e($book['date_read'] ?? '') ?>">
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2"><?= __("Nota: Data acquisizione è nel campo nativo 'Data Acquisizione' sopra") ?></p>
+          </div>
+
+          <!-- Catalog IDs -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Identificatori Catalogo") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="bcid" class="form-label"><?= __("BCID") ?></label>
+                <input type="text" id="bcid" name="bcid" class="form-input" value="<?= HtmlHelper::e($book['bcid'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="barcode" class="form-label"><?= __("Codice a Barre") ?></label>
+                <input type="text" id="barcode" name="barcode" class="form-input" value="<?= HtmlHelper::e($book['barcode'] ?? '') ?>" placeholder="<?= __('Barcode fisico') ?>">
+              </div>
+              <div>
+                <label for="oclc" class="form-label"><?= __("OCLC") ?></label>
+                <input type="text" id="oclc" name="oclc" class="form-input" value="<?= HtmlHelper::e($book['oclc'] ?? '') ?>" placeholder="<?= __('OCLC number') ?>">
+              </div>
+              <div>
+                <label for="work_id" class="form-label"><?= __("LibraryThing Work ID") ?></label>
+                <input type="text" id="work_id" name="work_id" class="form-input" value="<?= HtmlHelper::e($book['work_id'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="issn" class="form-label"><?= __("ISSN") ?></label>
+                <input type="text" id="issn" name="issn" class="form-input" value="<?= HtmlHelper::e($book['issn'] ?? '') ?>" placeholder="<?= __('Per periodici') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Language & Acquisition -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Lingua e Provenienza") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="original_languages" class="form-label"><?= __("Lingue Originali") ?></label>
+                <input type="text" id="original_languages" name="original_languages" class="form-input" value="<?= HtmlHelper::e($book['original_languages'] ?? '') ?>" placeholder="<?= __('es. English, Italian') ?>">
+              </div>
+              <div>
+                <label for="source" class="form-label"><?= __("Fonte/Venditore") ?></label>
+                <input type="text" id="source" name="source" class="form-input" value="<?= HtmlHelper::e($book['source'] ?? '') ?>" placeholder="<?= __('es. Amazon, Libreria XYZ') ?>">
+              </div>
+              <div>
+                <label for="from_where" class="form-label"><?= __("Da Dove Acquisito") ?></label>
+                <input type="text" id="from_where" name="from_where" class="form-input" value="<?= HtmlHelper::e($book['from_where'] ?? '') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Lending Tracking -->
+          <div class="mb-6 pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Tracciamento Prestiti") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="lending_patron" class="form-label"><?= __("Prestato A") ?></label>
+                <input type="text" id="lending_patron" name="lending_patron" class="form-input" value="<?= HtmlHelper::e($book['lending_patron'] ?? '') ?>" placeholder="<?= __('Nome del prestatore') ?>">
+              </div>
+              <div>
+                <label for="lending_status" class="form-label"><?= __("Stato Prestito") ?></label>
+                <select id="lending_status" name="lending_status" class="form-input">
+                  <option value=""><?= __("Non in prestito") ?></option>
+                  <option value="on loan" <?= isset($book['lending_status']) && $book['lending_status'] === 'on loan' ? 'selected' : '' ?>><?= __("In prestito") ?></option>
+                  <option value="returned" <?= isset($book['lending_status']) && $book['lending_status'] === 'returned' ? 'selected' : '' ?>><?= __("Restituito") ?></option>
+                  <option value="overdue" <?= isset($book['lending_status']) && $book['lending_status'] === 'overdue' ? 'selected' : '' ?>><?= __("Scaduto") ?></option>
+                </select>
+              </div>
+              <div>
+                <label for="lending_start" class="form-label"><?= __("Data Inizio Prestito") ?></label>
+                <input type="date" id="lending_start" name="lending_start" class="form-input" value="<?= HtmlHelper::e($book['lending_start'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="lending_end" class="form-label"><?= __("Data Fine Prestito") ?></label>
+                <input type="date" id="lending_end" name="lending_end" class="form-input" value="<?= HtmlHelper::e($book['lending_end'] ?? '') ?>">
+              </div>
+            </div>
+          </div>
+
+          <!-- Financial and Condition Fields -->
+          <div class="pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Valore e Condizione") ?></h3>
+            <div class="form-grid-2">
+              <div>
+                <label for="value" class="form-label"><?= __("Valore Corrente Stimato") ?></label>
+                <input type="number" step="0.01" id="value" name="value" class="form-input" value="<?= HtmlHelper::e($book['value'] ?? '') ?>" placeholder="<?= __('es. 25.00') ?>">
+                <p class="text-xs text-gray-500 mt-1"><?= __("Valore di mercato attuale (diverso dal prezzo di acquisto)") ?></p>
+              </div>
+              <div>
+                <label for="condition_lt" class="form-label"><?= __("Condizione Fisica") ?></label>
+                <select id="condition_lt" name="condition_lt" class="form-input">
+                  <option value=""><?= __("Seleziona...") ?></option>
+                  <option value="As New" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'As New' ? 'selected' : '' ?>><?= __("Come Nuovo") ?></option>
+                  <option value="Fine" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Fine' ? 'selected' : '' ?>><?= __("Ottimo") ?></option>
+                  <option value="Very Good" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Very Good' ? 'selected' : '' ?>><?= __("Molto Buono") ?></option>
+                  <option value="Good" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Good' ? 'selected' : '' ?>><?= __("Buono") ?></option>
+                  <option value="Fair" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Fair' ? 'selected' : '' ?>><?= __("Discreto") ?></option>
+                  <option value="Poor" <?= isset($book['condition_lt']) && $book['condition_lt'] === 'Poor' ? 'selected' : '' ?>><?= __("Scarso") ?></option>
+                </select>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2"><?= __("Nota: Il prezzo di acquisto è nel campo 'Prezzo' della sezione 'Dati di Acquisizione'") ?></p>
+          </div>
+
+          <!-- Frontend Visibility Preferences -->
+          <div class="pt-6 border-t border-gray-200">
+            <h3 class="text-md font-semibold text-gray-700 mb-3">
+              <i class="fas fa-eye text-primary mr-2"></i>
+              <?= __("Visibilità nel Frontend") ?>
+            </h3>
+            <p class="text-sm text-gray-600 mb-4"><?= __("Seleziona quali campi LibraryThing mostrare nella pagina pubblica del libro") ?></p>
+
+            <?php
+            // Parse current visibility settings
+            $ltFieldsVisibility = [];
+            if (!empty($book['lt_fields_visibility'])) {
+                $ltFieldsVisibility = json_decode($book['lt_fields_visibility'], true) ?: [];
+            }
+
+            // Get all LibraryThing fields
+            $ltFields = \App\Support\LibraryThingInstaller::getLibraryThingFields();
+
+            // Group fields by category for better UX
+            $fieldGroups = [
+                __('Recensione') => ['review', 'rating', 'comment'],
+                __('Date') => ['entry_date', 'date_started', 'date_read'],
+                __('Classificazioni') => ['dewey_wording', 'lccn', 'lc_classification', 'other_call_number'],
+                __('Identificatori') => ['bcid', 'barcode', 'oclc', 'work_id', 'issn'],
+                __('Provenienza') => ['original_languages', 'source', 'from_where'],
+                __('Prestito') => ['lending_patron', 'lending_status', 'lending_start', 'lending_end'],
+                __('Altro') => ['physical_description', 'value', 'condition_lt']
+            ];
+            ?>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <?php foreach ($fieldGroups as $groupName => $fields): ?>
+                <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                  <h4 class="text-sm font-semibold text-gray-700 mb-2"><?= HtmlHelper::e($groupName) ?></h4>
+                  <?php foreach ($fields as $fieldName): ?>
+                    <?php if (isset($ltFields[$fieldName])): ?>
+                      <label class="flex items-center space-x-2 text-sm py-1 cursor-pointer hover:bg-gray-100 rounded px-1 transition-colors">
+                        <input
+                          type="checkbox"
+                          name="lt_visibility[<?= $fieldName ?>]"
+                          value="1"
+                          class="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+                          <?= isset($ltFieldsVisibility[$fieldName]) && $ltFieldsVisibility[$fieldName] ? 'checked' : '' ?>
+                        >
+                        <span class="text-gray-700"><?= HtmlHelper::e($ltFields[$fieldName]) ?></span>
+                      </label>
+                    <?php endif; ?>
+                  <?php endforeach; ?>
+                </div>
+              <?php endforeach; ?>
+            </div>
+
+            <p class="text-xs text-gray-500 mt-3">
+              <i class="fas fa-info-circle mr-1"></i>
+              <?= __("I campi selezionati saranno visibili nella pagina pubblica del libro. I commenti privati sono sempre nascosti nel frontend.") ?>
+            </p>
+          </div>
+
+        </div>
+      </div>
+      <?php endif; ?>
+
       <!-- Submit Section -->
       <?php
       // Plugin hook: Additional fields in book form (backend)
@@ -601,7 +873,9 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 </div>
 <!-- CSS and JavaScript Libraries - LOCAL NPM PACKAGES VIA WEBPACK -->
 <link rel="stylesheet" href="/assets/vendor.css">
+<link rel="stylesheet" href="/assets/star-rating/dist/star-rating.min.css">
 <script src="/assets/vendor.bundle.js"></script>
+<script src="/assets/star-rating/dist/star-rating.min.js"></script>
 
 <script>
 const FORM_MODE = <?php echo json_encode($mode); ?>;
@@ -653,6 +927,53 @@ const i18nTranslations = Object.assign({}, window.i18nTranslations || {}, <?= js
     'ISBN Mancante' => __("ISBN Mancante"),
     'Inserisci un codice ISBN per continuare.' => __("Inserisci un codice ISBN per continuare.")
 ], JSON_UNESCAPED_UNICODE) ?>);
+
+// LibraryThing accordion toggle
+function toggleLibraryThingAccordion() {
+    const content = document.getElementById('librarything-accordion-content');
+    const icon = document.getElementById('librarything-accordion-icon');
+    const button = content.previousElementSibling;
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+
+    if (isExpanded) {
+        // Collapse
+        content.style.maxHeight = '0';
+        content.style.opacity = '0';
+        content.style.padding = '0';
+        content.setAttribute('aria-hidden', 'true');
+        button.setAttribute('aria-expanded', 'false');
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        // Expand
+        content.style.maxHeight = content.scrollHeight + 'px';
+        content.style.opacity = '1';
+        content.style.padding = '';
+        content.setAttribute('aria-hidden', 'false');
+        button.setAttribute('aria-expanded', 'true');
+        icon.style.transform = 'rotate(180deg)';
+
+        // Focus management: move focus to first focusable element after expansion
+        setTimeout(() => {
+            const focusableElements = content.querySelectorAll(
+                'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+            );
+            if (focusableElements.length > 0) {
+                focusableElements[0].focus();
+            } else {
+                // If no focusable elements, focus the content itself
+                content.setAttribute('tabindex', '-1');
+                content.focus();
+            }
+        }, 50);
+
+        // Auto-adjust height after transition
+        setTimeout(() => {
+            if (button.getAttribute('aria-expanded') === 'true') {
+                content.style.maxHeight = 'none';
+            }
+        }, 300);
+    }
+}
 
 // Global translation function for JavaScript
 window.__ = function(key) {
@@ -1849,7 +2170,7 @@ function initializeCollocationFilters() {
     return Number.isNaN(num) ? 0 : num;
   };
 
-  const MENSOLE = (<?php echo json_encode($mensole ?? [], JSON_UNESCAPED_UNICODE); ?> || []).map(m => ({
+  const MENSOLE = (<?php echo json_encode($mensole, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?> || []).map(m => ({
     id: normalizeNumber(m.id),
     scaffale_id: normalizeNumber(m.scaffale_id),
     numero_livello: normalizeNumber(m.numero_livello)
@@ -2644,24 +2965,24 @@ function showAlternativesPanel(alternatives) {
         // Show key fields from this source (using data-* attributes for event delegation)
         if (sourceData.title && typeof sourceData.title === 'string') {
             html += `<div><span class="font-medium"><?= __("Titolo:") ?></span> ${escapeHtml(sourceData.title)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}"><?= __("Usa") ?></button></div>`;
         }
         if (sourceData.publisher && typeof sourceData.publisher === 'string') {
             html += `<div><span class="font-medium"><?= __("Editore:") ?></span> ${escapeHtml(sourceData.publisher)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}"><?= __("Usa") ?></button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
         // Also sanitize URL to prevent javascript: and other unsafe protocols
         const safeImage = sanitizeUrl(sourceData.image);
         if (safeImage && !safeImage.includes('librarything.com/devkey')) {
             html += `<div><span class="font-medium"><?= __("Copertina:") ?></span>
-                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline"><?= __("Vedi") ?></a>
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}"><?= __("Usa") ?></button></div>`;
+                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline"><?= __("Vedi") ?></a>
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}"><?= __("Usa") ?></button></div>`;
         }
         if (sourceData.description && typeof sourceData.description === 'string') {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
             html += `<div><span class="font-medium"><?= __("Descrizione:") ?></span> ${escapeHtml(shortDesc)}
-                <button type="button" class="ml-2 text-blue-600 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}"><?= __("Usa") ?></button></div>`;
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}"><?= __("Usa") ?></button></div>`;
         }
 
         html += `</div></div>`;
@@ -2727,6 +3048,21 @@ function applyAlternativeValue(fieldName, value) {
     const input = document.querySelector(`[name="${fieldName}"]`);
     if (input) {
         input.value = value;
+        // Sync TinyMCE if applying to description field
+        if (fieldName === 'descrizione' && typeof tinymce !== 'undefined') {
+            const editor = tinymce.get('descrizione');
+            if (editor) {
+                // Sanitize external content before inserting into TinyMCE (XSS prevention)
+                let safeValue = value;
+                if (window.DOMPurify) {
+                    safeValue = DOMPurify.sanitize(value, {
+                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'b', 'i'],
+                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel']
+                    });
+                }
+                editor.setContent(safeValue);
+            }
+        }
         if (window.Toast) {
             window.Toast.fire({ icon: 'success', title: __('Valore applicato') });
         }
@@ -3647,45 +3983,96 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+</script>
 
-// Initialize TinyMCE for book description (basic editor: bold, italic, lists)
+<!-- Load TinyMCE -->
+<script src="/assets/tinymce/tinymce.min.js"></script>
+
+<script>
+// Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
-const TINYMCE_MAX_RETRIES = 30;
+const TINYMCE_MAX_RETRIES = 8;
+const TINYMCE_BASE = '/assets/tinymce';
+
 function initBookTinyMCE() {
-    if (window.tinymce) {
-        // Guard against double initialization
-        if (tinymce.get('descrizione')) {
-            return;
+    if (!window.tinymce) {
+        if (!document.getElementById('tinymce-fallback-loader')) {
+            const s = document.createElement('script');
+            s.id = 'tinymce-fallback-loader';
+            s.src = `${TINYMCE_BASE}/tinymce.min.js`;
+            document.head.appendChild(s);
         }
-        tinymce.init({
-            selector: '#descrizione',
-            license_key: 'gpl',
-            height: 250,
-            menubar: false,
-            toolbar_mode: 'wrap',
-            plugins: ['lists', 'link', 'autolink'],
-            toolbar: 'bold italic | bullist numlist | link | removeformat',
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }',
-            branding: false,
-            promotion: false,
-            statusbar: false,
-            placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>'
-        });
-    } else {
-        // TinyMCE not loaded yet, retry in 100ms (with cap)
         if (tinyMceInitAttempts < TINYMCE_MAX_RETRIES) {
             tinyMceInitAttempts += 1;
-            setTimeout(initBookTinyMCE, 100);
+            setTimeout(initBookTinyMCE, 200);
         } else {
-            console.error('TinyMCE non disponibile dopo i retry.');
+            console.error('TinyMCE non disponibile dopo i tentativi di caricamento');
         }
+        return;
     }
+
+    const textarea = document.getElementById('descrizione');
+    if (!textarea) {
+        return;
+    }
+
+    const existing = tinymce.get('descrizione');
+    if (existing) {
+        return;
+    }
+
+    tinymce.init({
+        selector: '#descrizione',
+        base_url: TINYMCE_BASE,
+        suffix: '.min',
+        license_key: 'gpl',
+        height: 360,
+        menubar: false,
+        toolbar_mode: 'wrap',
+        toolbar_sticky: true,
+        plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
+        ],
+        toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link | removeformat | code preview fullscreen',
+        content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; font-size: 15px; line-height: 1.6; }',
+        branding: false,
+        promotion: false,
+        statusbar: true,
+        placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>',
+        setup: function (editor) {
+            editor.on('change keyup setcontent', () => {});
+        }
+    });
 }
 // Wait for DOM then init TinyMCE
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initBookTinyMCE);
+    document.addEventListener('DOMContentLoaded', function() {
+        // Wait for full load to avoid other scripts mutating DOM
+        window.addEventListener('load', function() {
+            setTimeout(initBookTinyMCE, 200);
+        }, { once: true });
+    });
 } else {
-    initBookTinyMCE();
+    window.addEventListener('load', function() {
+        setTimeout(initBookTinyMCE, 200);
+    }, { once: true });
+}
+
+// Initialize star rating
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStarRating);
+} else {
+    initStarRating();
+}
+
+function initStarRating() {
+    const ratingSelect = document.getElementById('book-rating');
+    if (ratingSelect && typeof StarRating !== 'undefined') {
+        new StarRating(ratingSelect, {
+            clearable: true,
+            maxStars: 5
+        });
+    }
 }
 
 </script>

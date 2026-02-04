@@ -30,5 +30,8 @@
     "post-autoload-dump": [
       "php -r \"file_exists('public/.htaccess') || copy('public/.htaccess.dist','public/.htaccess');\""
     ]
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^2.1"
   }
 }

@@ -57,6 +57,5 @@
     "pdfmake": "^0.2.20",
     "sortablejs": "^1.15.6",
     "sweetalert2": "^11.26.3"
-  },
-  "type": "module"
+  }
 }

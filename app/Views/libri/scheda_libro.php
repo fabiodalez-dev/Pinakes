@@ -1,5 +1,8 @@
 <?php
 use App\Support\ConfigStore;
+
+// Variables passed from controller
+$libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
 $status = strtolower((string)($libro['stato'] ?? ''));
@@ -555,6 +558,106 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
       </div>
       <?php endif; ?>
+
+      <?php
+      // LibraryThing fields section - Only if plugin is installed and fields are visible
+      if (!empty($libraryThingInstalled)) {
+          $ltVisibility = [];
+          if (!empty($libro['lt_fields_visibility'])) {
+              $ltVisibility = json_decode($libro['lt_fields_visibility'], true) ?: [];
+          }
+
+          // Get visible fields that have values
+          $ltFields = \App\Support\LibraryThingInstaller::getLibraryThingFields();
+          $visibleFields = [];
+          foreach ($ltVisibility as $fieldName => $isVisible) {
+              // Skip if not visible, not a valid field, or private_comment
+              if (!$isVisible || !isset($ltFields[$fieldName]) || $fieldName === 'private_comment') {
+                  continue;
+              }
+
+              // Check if field exists and has a non-null, non-empty-string value
+              if (!array_key_exists($fieldName, $libro)) {
+                  continue;
+              }
+
+              $value = $libro[$fieldName];
+
+              // Skip null values
+              if ($value === null) {
+                  continue;
+              }
+
+              // Skip empty strings, but allow numeric 0
+              if (is_string($value) && trim($value) === '') {
+                  continue;
+              }
+
+              $visibleFields[$fieldName] = [
+                  'label' => $ltFields[$fieldName],
+                  'value' => $value
+              ];
+          }
+
+          if (!empty($visibleFields)):
+      ?>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-cloud text-primary"></i>
+            <?= __("Informazioni LibraryThing") ?>
+          </h2>
+        </div>
+        <div class="card-body">
+          <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <?php foreach ($visibleFields as $fieldName => $field): ?>
+              <div>
+                <dt class="text-xs uppercase text-gray-500 mb-1"><?= App\Support\HtmlHelper::e($field['label']) ?></dt>
+                <dd class="text-gray-900">
+                  <?php
+                  // Special formatting for different field types
+                  if ($fieldName === 'rating') {
+                      // Show star rating (clamp to 1-5 range)
+                      $rating = max(1, min(5, (int)$field['value']));
+                      echo '<span class="text-yellow-500">';
+                      echo str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
+                      echo '</span>';
+                      echo ' <span class="text-gray-600">(' . $rating . '/5)</span>';
+                  } elseif ($fieldName === 'review' || $fieldName === 'comment') {
+                      // Multi-line text
+                      echo '<div class="prose prose-sm max-w-none">' . App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) . '</div>';
+                  } elseif (in_array($fieldName, ['entry_date', 'date_started', 'date_read', 'lending_start', 'lending_end'])) {
+                      // Date formatting
+                      echo App\Support\HtmlHelper::e(format_date($field['value'], false, '/'));
+                  } elseif ($fieldName === 'value') {
+                      // Currency
+                      echo '<span class="font-medium">€ ' . number_format((float)$field['value'], 2, ',', '.') . '</span>';
+                  } elseif ($fieldName === 'lending_status') {
+                      // Status badge
+                      $statusColors = [
+                          'on loan' => 'bg-red-100 text-red-800',
+                          'returned' => 'bg-green-100 text-green-800',
+                          'overdue' => 'bg-orange-100 text-orange-800'
+                      ];
+                      $colorClass = $statusColors[$field['value']] ?? 'bg-gray-100 text-gray-800';
+                      echo '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' . $colorClass . '">';
+                      echo App\Support\HtmlHelper::e($field['value']);
+                      echo '</span>';
+                  } else {
+                      // Default: simple text
+                      echo App\Support\HtmlHelper::e($field['value']);
+                  }
+                  ?>
+                </dd>
+              </div>
+            <?php endforeach; ?>
+          </dl>
+        </div>
+      </div>
+      <?php
+          endif;
+      }
+      ?>
     </div>
   </div>
 
@@ -1388,7 +1491,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
         <div class="flex items-center justify-end gap-3 pt-2">
           <button type="button" id="close-edit-copy-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
-          <button type="submit" class="<?php echo $btnPrimary ?? 'btn-primary'; ?> justify-center">
+          <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
             <i class="fas fa-save mr-2"></i><?= __("Salva Modifiche") ?>
           </button>
         </div>
