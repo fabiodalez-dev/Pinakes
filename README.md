@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.7.2-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.8-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,38 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.7.2
+## What's New in v0.4.8
+
+### 🔒 Security & Data Integrity Release
+
+**LibraryThing Import/Export Plugin** — Complete CSV/TSV import with flexible column mapping for LibraryThing data (29 custom fields)
+
+**Critical Security Fixes:**
+- **Image upload protection** — Pre-decode validation prevents OOM/DoS attacks (20MP pixel limit)
+- **XSS prevention** — DOMPurify sanitization for TinyMCE content
+
+**Critical Bug Fixes:**
+- **Data loss fix** — Three LibraryThing fields (entry_date, dewey_wording, barcode) now properly saved
+- **CSV import fixes** — Author data loss, statement leaks, chunk validation, JavaScript control flow
+- **Rating validation** — Invalid ratings set to NULL instead of clamping
+
+**Features:**
+- Flexible column mapping with automatic detection for Primary Author, Secondary Author, etc.
+- Star rating widget integration
+- Chunked CSV processing with session state
+- Comprehensive error handling and logging
+
+**Automated Release System:**
+- New `scripts/create-release.sh` prevents production errors
+- Automatic vendor/ cleanup (removes dev dependencies)
+- Built-in testing and verification
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.7.2</strong> - Minor Bug Fixes</summary>
 
 ### Minor Bug Fixes
 
@@ -31,9 +62,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Version display fix** — Footer now correctly shows version from `version.json`
 - **Documentation improvements** — Cleanup and linting fixes across documentation files
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.7.1</strong> - Code Quality & Plugin Compatibility</summary>
