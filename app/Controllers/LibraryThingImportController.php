@@ -426,7 +426,7 @@ class LibraryThingImportController
             if ($isComplete) {
                 try {
                     $userId = $_SESSION['user_id'] ?? null;
-                    $fileName = basename($filePath ?? 'unknown.tsv');
+                    $fileName = basename($filePath);
 
                     $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
 

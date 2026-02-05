@@ -15,7 +15,6 @@ class ImportLogger
     private string $importId;
     private array $stats;
     private array $errors;
-    private string $importType;
     private bool $completed = false;
 
     /**
@@ -29,7 +28,6 @@ class ImportLogger
     public function __construct(\mysqli $db, string $importType, string $fileName, ?int $userId = null)
     {
         $this->db = $db;
-        $this->importType = $importType;
         $this->importId = bin2hex(random_bytes(18)); // Generates 36-char hex string (UUID-like)
         $this->stats = [
             'imported' => 0,

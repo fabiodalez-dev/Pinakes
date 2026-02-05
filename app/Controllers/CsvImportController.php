@@ -323,7 +323,7 @@ class CsvImportController
                         sleep(1); // Rate limiting
                     } catch (\Throwable $scrapeError) {
                         // Log scraping error but continue with import
-                        $title = $parsedData['titolo'] ?? 'Unknown';
+                        $title = $parsedData['titolo'];
                         $scrapingErrorMsg = sprintf(
                             __('Riga %d (%s): Scraping fallito - %s'),
                             $lineNumber,
@@ -1022,9 +1022,9 @@ class CsvImportController
         if (!empty($data['titolo']) && !empty($data['autori'])) {
             // Estrai il primo autore dalla stringa separata da ";"
             $authorsArray = array_map('trim', explode(';', $data['autori']));
-            $firstAuthor = $authorsArray[0] ?? null;
+            $firstAuthor = $authorsArray[0];
 
-            if ($firstAuthor !== null) {
+            if ($firstAuthor !== '') {
                 $stmt = $db->prepare("
                     SELECT DISTINCT l.id
                     FROM libri l
