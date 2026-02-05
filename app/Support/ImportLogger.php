@@ -78,15 +78,33 @@ class ImportLogger
     }
 
     /**
+     * Set multiple statistics at once (more efficient than multiple incrementStat calls)
+     *
+     * @param array<string, int> $stats Statistics to set
+     * @return void
+     */
+    public function setStats(array $stats): void
+    {
+        foreach ($stats as $key => $value) {
+            if (array_key_exists($key, $this->stats)) {
+                $this->stats[$key] = (int)$value;
+            } else {
+                error_log("[ImportLogger] Unknown stat key in setStats: {$key}");
+            }
+        }
+    }
+
+    /**
      * Add an error for a specific row
      *
      * @param int $lineNumber Line number in CSV (1-indexed)
      * @param string $title Book title (for identification)
      * @param string $message Error message
      * @param string $type Error type: validation, duplicate, database, scraping
+     * @param bool $incrementFailed Whether to increment the failed counter (false if already counted)
      * @return void
      */
-    public function addError(int $lineNumber, string $title, string $message, string $type = 'validation'): void
+    public function addError(int $lineNumber, string $title, string $message, string $type = 'validation', bool $incrementFailed = false): void
     {
         $this->errors[] = [
             'line' => $lineNumber,
@@ -94,19 +112,21 @@ class ImportLogger
             'message' => $message,
             'type' => $type
         ];
-        $this->stats['failed']++;
+        if ($incrementFailed) {
+            $this->stats['failed']++;
+        }
     }
 
     /**
      * Mark import as completed and persist final stats
      *
      * @param int $totalRows Total rows processed in CSV
-     * @return void
+     * @return bool True if persisted successfully, false on failure
      */
-    public function complete(int $totalRows): void
+    public function complete(int $totalRows): bool
     {
         if ($this->completed) {
-            return; // Prevent double completion
+            return true; // Already completed
         }
 
         $this->completed = true;
@@ -142,7 +162,7 @@ class ImportLogger
 
         if ($stmt === false) {
             error_log("[ImportLogger] Failed to prepare complete statement: " . $this->db->error);
-            return;
+            return false;
         }
 
         $stmt->bind_param(
@@ -157,20 +177,27 @@ class ImportLogger
             $errorsJson,
             $this->importId
         );
-        $stmt->execute();
+
+        if (!$stmt->execute()) {
+            error_log("[ImportLogger] Failed to execute complete: " . ($stmt->error ?: $this->db->error));
+            $stmt->close();
+            return false;
+        }
+
         $stmt->close();
+        return true;
     }
 
     /**
      * Mark import as failed (for critical errors that stop the entire import)
      *
      * @param string $errorMessage Fatal error message
-     * @return void
+     * @return bool True if persisted successfully, false on failure
      */
-    public function fail(string $errorMessage): void
+    public function fail(string $errorMessage): bool
     {
         if ($this->completed) {
-            return;
+            return true; // Already completed
         }
 
         $this->completed = true;
@@ -188,13 +215,20 @@ class ImportLogger
 
         if ($stmt === false) {
             error_log("[ImportLogger] Failed to prepare fail statement: " . $this->db->error);
-            return;
+            return false;
         }
 
         $failed = $this->stats['failed'];
         $stmt->bind_param('iss', $failed, $errorsJson, $this->importId);
-        $stmt->execute();
+
+        if (!$stmt->execute()) {
+            error_log("[ImportLogger] Failed to execute fail: " . ($stmt->error ?: $this->db->error));
+            $stmt->close();
+            return false;
+        }
+
         $stmt->close();
+        return true;
     }
 
     /**

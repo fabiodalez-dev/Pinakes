@@ -11,19 +11,30 @@
 -- 1. COMPOSITE INDEX ON (import_type, status)
 -- ============================================================
 
--- Check if index already exists
-SET @index_exists = (
+-- Check if table exists first
+SET @table_exists = (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'import_logs'
+);
+
+-- Check if index already exists (only if table exists)
+SET @index_exists = IF(@table_exists = 1, (
     SELECT COUNT(*)
     FROM INFORMATION_SCHEMA.STATISTICS
     WHERE TABLE_SCHEMA = DATABASE()
     AND TABLE_NAME = 'import_logs'
     AND INDEX_NAME = 'idx_type_status'
-);
+), 0);
 
--- Create index only if it doesn't exist
-SET @sql = IF(@index_exists = 0,
-    'CREATE INDEX idx_type_status ON import_logs (import_type, status)',
-    'SELECT "Index idx_type_status already exists" AS message'
+-- Create index only if table exists and index doesn't exist
+SET @sql = IF(@table_exists = 0,
+    'SELECT "Table import_logs not found - skipping index creation" AS message',
+    IF(@index_exists = 0,
+        'CREATE INDEX idx_type_status ON import_logs (import_type, status)',
+        'SELECT "Index idx_type_status already exists" AS message'
+    )
 );
 
 PREPARE stmt FROM @sql;

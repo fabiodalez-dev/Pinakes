@@ -385,24 +385,17 @@ class CsvImportController
 
                 $importLogger = new \App\Support\ImportLogger($db, 'csv', $fileName, $userId);
 
-                // Transfer stats from session to logger
-                for ($i = 0; $i < $importData['imported']; $i++) {
-                    $importLogger->incrementStat('imported');
-                }
-                for ($i = 0; $i < $importData['updated']; $i++) {
-                    $importLogger->incrementStat('updated');
-                }
-                for ($i = 0; $i < $importData['authors_created']; $i++) {
-                    $importLogger->incrementStat('authors_created');
-                }
-                for ($i = 0; $i < $importData['publishers_created']; $i++) {
-                    $importLogger->incrementStat('publishers_created');
-                }
-                for ($i = 0; $i < $importData['scraped']; $i++) {
-                    $importLogger->incrementStat('scraped');
-                }
+                // Transfer stats from session to logger (efficient batch update)
+                $importLogger->setStats([
+                    'imported' => $importData['imported'],
+                    'updated' => $importData['updated'],
+                    'failed' => $importData['failed'],
+                    'authors_created' => $importData['authors_created'],
+                    'publishers_created' => $importData['publishers_created'],
+                    'scraped' => $importData['scraped'],
+                ]);
 
-                // Transfer errors
+                // Transfer errors (failed count already set above, don't increment again)
                 foreach ($importData['errors'] as $errorMsg) {
                     // Parse error message to extract line number and title
                     // Format: "Riga X (Title): Message"
@@ -410,10 +403,10 @@ class CsvImportController
                         $lineNum = (int)$matches[1];
                         $title = $matches[2];
                         $message = $matches[3];
-                        $importLogger->addError($lineNum, $title, $message, 'validation');
+                        $importLogger->addError($lineNum, $title, $message, 'validation', false);
                     } else {
                         // Fallback if format doesn't match
-                        $importLogger->addError(0, 'Unknown', $errorMsg, 'validation');
+                        $importLogger->addError(0, 'Unknown', $errorMsg, 'validation', false);
                     }
                 }
 

@@ -996,6 +996,22 @@ class Updater
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
         $lockHandle = null;
 
+        // Validate and canonicalize upload path to prevent path traversal
+        $expectedRoot = realpath($this->rootPath . '/storage/tmp');
+        $realUploadPath = realpath($uploadTempPath);
+
+        if ($expectedRoot === false || $realUploadPath === false ||
+            strpos($realUploadPath, $expectedRoot . DIRECTORY_SEPARATOR) !== 0 ||
+            !str_starts_with(basename($realUploadPath), 'manual_update_')) {
+            $this->debugLog('ERROR', 'Percorso upload non valido', ['path' => $uploadTempPath]);
+            return [
+                'success' => false,
+                'error' => __('Percorso upload non valido'),
+                'backup_path' => null
+            ];
+        }
+        $uploadTempPath = $realUploadPath;
+
         $this->debugLog('INFO', '========================================');
         $this->debugLog('INFO', '=== PERFORM UPDATE FROM FILE - INIZIO ===');
         $this->debugLog('INFO', '========================================', [
@@ -1096,6 +1112,19 @@ class Updater
             $zip = new ZipArchive();
             if ($zip->open($zipPath) !== true) {
                 throw new Exception(__('Impossibile aprire il pacchetto ZIP'));
+            }
+
+            // Validate ZIP entries to prevent Zip Slip vulnerability
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = $zip->getNameIndex($i);
+                if ($entry === false ||
+                    str_contains($entry, '..') ||
+                    str_starts_with($entry, '/') ||
+                    str_starts_with($entry, '\\') ||
+                    preg_match('/^[A-Za-z]:[\\\\\\/]/', $entry)) {
+                    $zip->close();
+                    throw new Exception(__('Percorso non valido nel pacchetto'));
+                }
             }
 
             if (!$zip->extractTo($extractPath)) {
