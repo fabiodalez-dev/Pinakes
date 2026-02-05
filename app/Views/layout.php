@@ -589,6 +589,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <span class="text-sm"><?= __("Impostazioni") ?></span>
                       </a>
                       <?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
+                        <a href="/admin/imports-history"
+                          class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
+                          <i class="fas fa-history w-4 h-4 text-blue-600"></i>
+                          <span class="text-sm"><?= __("Storico Import") ?></span>
+                        </a>
                         <a href="/admin/security-logs"
                           class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-shield-alt w-4 h-4 text-red-600"></i>

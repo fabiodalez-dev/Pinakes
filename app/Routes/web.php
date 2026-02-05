@@ -1251,6 +1251,25 @@ return function (App $app): void {
         return $controller->getProgress($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
 
+    // Import History routes (Sprint 3)
+    $app->get('/admin/imports-history', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\ImportHistoryController();
+        $db = $app->getContainer()->get('db');
+        return $controller->index($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/imports/download-errors', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\ImportHistoryController();
+        $db = $app->getContainer()->get('db');
+        return $controller->downloadErrors($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/imports/delete-old-logs', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\ImportHistoryController();
+        $db = $app->getContainer()->get('db');
+        return $controller->deleteOldLogs($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->get('/admin/libri/export/librarything', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
