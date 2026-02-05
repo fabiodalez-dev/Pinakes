@@ -168,10 +168,8 @@ class ImportHistoryController
         $data = $request->getParsedBody();
         $daysOld = (int)($data['days'] ?? 90);
 
-        // Safety: minimum 7 days
-        if ($daysOld < 7) {
-            $daysOld = 7;
-        }
+        // Safety: bounds checking (min 7 days, max 365 days)
+        $daysOld = max(7, min($daysOld, 365));
 
         $stmt = $db->prepare("
             DELETE FROM import_logs

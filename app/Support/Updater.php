@@ -1021,6 +1021,7 @@ class Updater
         });
 
         set_time_limit(0);
+        ignore_user_abort(true); // Prevent interruption if user closes browser
 
         $currentMemory = ini_get('memory_limit');
         if ($currentMemory !== '-1') {
@@ -2550,6 +2551,7 @@ class Updater
         });
 
         set_time_limit(0);
+        ignore_user_abort(true); // Prevent interruption if user closes browser
 
         $currentMemory = ini_get('memory_limit');
         if ($currentMemory !== '-1') {
