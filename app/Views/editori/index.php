@@ -627,7 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }));
 
       if (!result.success) {
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: result.error });
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: result.error || result.message || '<?= __("Errore sconosciuto") ?>' });
         return;
       }
 

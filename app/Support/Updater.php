@@ -346,10 +346,9 @@ class Updater
         $responseHeaders = [];
         $response = @file_get_contents($url, false, $context);
 
-        // Get response headers from $http_response_header (magic variable)
-        if (isset($http_response_header)) {
-            $responseHeaders = $http_response_header;
-        }
+        // Get response headers from $http_response_header (magic variable set by file_get_contents)
+        /** @var array<int, string> $http_response_header */
+        $responseHeaders = $http_response_header;
 
         $this->debugLog('DEBUG', 'Risposta HTTP ricevuta', [
             'response_length' => $response !== false ? strlen($response) : 0,
@@ -488,8 +487,8 @@ class Updater
 
             $this->debugLog('DEBUG', 'cURL test result', [
                 'success' => $curlResult !== false,
-                'http_code' => $curlInfo['http_code'] ?? 0,
-                'total_time' => $curlInfo['total_time'] ?? 0,
+                'http_code' => is_array($curlInfo) ? $curlInfo['http_code'] : 0,
+                'total_time' => is_array($curlInfo) ? $curlInfo['total_time'] : 0,
                 'error' => $curlError ?: 'none'
             ]);
         }
@@ -636,18 +635,19 @@ class Updater
                 $curlErrno = curl_errno($ch);
                 curl_close($ch);
 
+                $httpCode = is_array($curlInfo) ? $curlInfo['http_code'] : 0;
                 $this->debugLog('DEBUG', 'Risultato cURL', [
-                    'http_code' => $curlInfo['http_code'] ?? 0,
-                    'size_download' => $curlInfo['size_download'] ?? 0,
-                    'total_time' => $curlInfo['total_time'] ?? 0,
+                    'http_code' => $httpCode,
+                    'size_download' => is_array($curlInfo) ? $curlInfo['size_download'] : 0,
+                    'total_time' => is_array($curlInfo) ? $curlInfo['total_time'] : 0,
                     'error' => $curlError ?: 'none',
                     'errno' => $curlErrno
                 ]);
 
-                if ($curlErrno !== 0 || ($curlInfo['http_code'] ?? 0) >= 400) {
+                if ($curlErrno !== 0 || $httpCode >= 400) {
                     $this->debugLog('WARNING', 'cURL fallito, tentativo con file_get_contents', [
                         'error' => $curlError,
-                        'http_code' => $curlInfo['http_code'] ?? 0
+                        'http_code' => $httpCode
                     ]);
                     $fileContent = false;
                 }
@@ -673,8 +673,9 @@ class Updater
 
                 $fileContent = @file_get_contents($downloadUrl, false, $context);
 
-                // Log response headers
-                if (isset($http_response_header)) {
+                // Log response headers (magic variable set by file_get_contents)
+                /** @var array<int, string> $http_response_header */
+                if (!empty($http_response_header)) {
                     $this->debugLog('DEBUG', 'Response headers download', [
                         'headers' => $http_response_header
                     ]);
@@ -1205,7 +1206,7 @@ class Updater
         } finally {
             $this->cleanup();
 
-            if ($lockHandle !== null && \is_resource($lockHandle)) {
+            if (\is_resource($lockHandle)) {
                 flock($lockHandle, LOCK_UN);
                 fclose($lockHandle);
             }
@@ -1661,7 +1662,7 @@ class Updater
 
             // Cleanup
             $this->cleanup();
-            if ($appBackupPath !== null && is_dir($appBackupPath)) {
+            if ($appBackupPath !== '' && is_dir($appBackupPath)) {
                 $this->deleteDirectory($appBackupPath);
             }
 
@@ -2704,7 +2705,7 @@ class Updater
         } finally {
             $this->cleanup();
 
-            if ($lockHandle !== null && \is_resource($lockHandle)) {
+            if (\is_resource($lockHandle)) {
                 flock($lockHandle, LOCK_UN);
                 fclose($lockHandle);
             }
@@ -2956,8 +2957,9 @@ class Updater
 
         $content = @file_get_contents($url, false, $context);
 
-        // Check HTTP status from response headers
-        if (isset($http_response_header)) {
+        // Check HTTP status from response headers (magic variable set by file_get_contents)
+        /** @var array<int, string> $http_response_header */
+        if (!empty($http_response_header)) {
             foreach ($http_response_header as $header) {
                 if (preg_match('/HTTP\/\d\.\d\s+(\d+)/', $header, $matches)) {
                     $httpCode = (int) $matches[1];
@@ -2979,7 +2981,7 @@ class Updater
     /**
      * Apply a single file patch
      *
-     * @param array{file: string, search: string, replace: string, description?: string} $patch
+     * @param array{file?: string, search?: string, replace?: string, description?: string} $patch
      * @return array{success: bool, error: string|null}
      */
     private function applySinglePatch(array $patch): array
