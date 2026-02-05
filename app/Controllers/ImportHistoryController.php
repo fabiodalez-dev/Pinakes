@@ -116,6 +116,18 @@ class ImportHistoryController
 
         $errors = json_decode($row['errors_json'] ?? '[]', true) ?: [];
 
+        // CSV injection prevention: sanitize cells that start with formula characters
+        $sanitizeCsv = static function (string $value): string {
+            $value = trim($value);
+            // Escape double quotes first
+            $value = str_replace('"', '""', $value);
+            // Prefix with single quote if starts with formula character
+            if ($value !== '' && preg_match('/^[=+\-@]/', $value)) {
+                $value = "'" . $value;
+            }
+            return $value;
+        };
+
         // Generate CSV
         $csv = "\xEF\xBB\xBF"; // UTF-8 BOM for Excel compatibility
         $csv .= "Riga,Titolo,Tipo Errore,Messaggio\n";
@@ -123,10 +135,10 @@ class ImportHistoryController
         foreach ($errors as $error) {
             $csv .= sprintf(
                 '"%d","%s","%s","%s"' . "\n",
-                $error['line'] ?? 0,
-                str_replace('"', '""', $error['title'] ?? ''),
-                str_replace('"', '""', $error['type'] ?? 'unknown'),
-                str_replace('"', '""', $error['message'] ?? '')
+                (int)($error['line'] ?? 0),
+                $sanitizeCsv((string)($error['title'] ?? '')),
+                $sanitizeCsv((string)($error['type'] ?? 'unknown')),
+                $sanitizeCsv((string)($error['message'] ?? ''))
             );
         }
 
@@ -193,6 +205,6 @@ class ImportHistoryController
      */
     private function isAdmin(): bool
     {
-        return ($_SESSION['ruolo'] ?? '') === 'admin';
+        return ($_SESSION['user']['tipo_utente'] ?? '') === 'admin';
     }
 }

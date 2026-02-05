@@ -52,7 +52,14 @@ class ImportLogger
         }
 
         $stmt->bind_param('sssi', $this->importId, $importType, $fileName, $userId);
-        $stmt->execute();
+
+        if (!$stmt->execute()) {
+            $error = $stmt->error ?: $db->error;
+            $stmt->close();
+            error_log("[ImportLogger] Failed to execute INSERT: " . $error);
+            throw new \RuntimeException("[ImportLogger] Failed to create import log: " . $error);
+        }
+
         $stmt->close();
     }
 
