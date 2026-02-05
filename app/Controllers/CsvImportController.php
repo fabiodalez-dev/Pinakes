@@ -674,11 +674,23 @@ class CsvImportController
             return null;
         }
 
-        // Normalize: replace comma with dot
-        $normalized = str_replace(',', '.', trim($price));
+        // Normalize: strip currency symbols and whitespace, keeping only digits, dot, comma, minus
+        $normalized = trim($price);
+        $normalized = preg_replace('/[^0-9,.\-]/', '', $normalized);
 
-        // Validate: must be numeric
-        if (!is_numeric($normalized)) {
+        // Handle thousands/decimal separator ambiguity
+        // If both '.' and ',' exist, assume European format (1.234,56)
+        if (strpos($normalized, '.') !== false && strpos($normalized, ',') !== false) {
+            // Remove thousand separator (dot), keep decimal (comma)
+            $normalized = str_replace('.', '', $normalized);
+            $normalized = str_replace(',', '.', $normalized);
+        } else {
+            // Simple case: replace comma with dot
+            $normalized = str_replace(',', '.', $normalized);
+        }
+
+        // Validate: must be numeric after normalization
+        if ($normalized === '' || !is_numeric($normalized)) {
             throw new \Exception(__('Prezzo non valido: deve essere un numero') . " ('{$price}')");
         }
 
@@ -702,6 +714,62 @@ class CsvImportController
             'turco', 'ebraico', 'hindi', 'coreano', 'thai'
         ];
 
+        // Language aliases: ISO codes and English names
+        $aliases = [
+            // ISO 639-1 codes
+            'it' => 'italiano',
+            'en' => 'inglese',
+            'fr' => 'francese',
+            'de' => 'tedesco',
+            'es' => 'spagnolo',
+            'pt' => 'portoghese',
+            'ru' => 'russo',
+            'zh' => 'cinese',
+            'ja' => 'giapponese',
+            'ar' => 'arabo',
+            'nl' => 'olandese',
+            'sv' => 'svedese',
+            'no' => 'norvegese',
+            'da' => 'danese',
+            'fi' => 'finlandese',
+            'pl' => 'polacco',
+            'cs' => 'ceco',
+            'hu' => 'ungherese',
+            'ro' => 'rumeno',
+            'el' => 'greco',
+            'tr' => 'turco',
+            'he' => 'ebraico',
+            'hi' => 'hindi',
+            'ko' => 'coreano',
+            'th' => 'thai',
+            // English names
+            'italian' => 'italiano',
+            'english' => 'inglese',
+            'french' => 'francese',
+            'german' => 'tedesco',
+            'spanish' => 'spagnolo',
+            'portuguese' => 'portoghese',
+            'russian' => 'russo',
+            'chinese' => 'cinese',
+            'japanese' => 'giapponese',
+            'arabic' => 'arabo',
+            'dutch' => 'olandese',
+            'swedish' => 'svedese',
+            'norwegian' => 'norvegese',
+            'danish' => 'danese',
+            'finnish' => 'finlandese',
+            'polish' => 'polacco',
+            'czech' => 'ceco',
+            'hungarian' => 'ungherese',
+            'romanian' => 'rumeno',
+            'greek' => 'greco',
+            'turkish' => 'turco',
+            'hebrew' => 'ebraico',
+            'hindi' => 'hindi',
+            'korean' => 'coreano',
+            'thai' => 'thai',
+        ];
+
         // Default to Italian if empty
         if (empty($language)) {
             return 'italiano';
@@ -709,10 +777,16 @@ class CsvImportController
 
         $normalized = trim(strtolower($language));
 
+        // Map aliases to canonical names
+        if (isset($aliases[$normalized])) {
+            $normalized = $aliases[$normalized];
+        }
+
         // Check if language is supported
         if (!in_array($normalized, $validLanguages, true)) {
             throw new \Exception(__('Lingua non supportata') . ": '{$language}'. " .
-                __('Lingue valide') . ': ' . implode(', ', array_slice($validLanguages, 0, 10)) . '...');
+                __('Lingue valide') . ': ' . implode(', ', array_slice($validLanguages, 0, 10)) . '... ' .
+                __('(codici ISO e nomi inglesi accettati)'));
         }
 
         return $normalized;
