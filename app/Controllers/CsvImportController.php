@@ -314,7 +314,26 @@ class CsvImportController
 
                         sleep(1); // Rate limiting
                     } catch (\Throwable $scrapeError) {
-                        // Silent failure - continue with import
+                        // Log scraping error but continue with import
+                        $title = $parsedData['titolo'] ?? 'Unknown';
+                        $scrapingErrorMsg = sprintf(
+                            __('Riga %d (%s): Scraping fallito - %s'),
+                            $lineNumber,
+                            $title,
+                            $scrapeError->getMessage()
+                        );
+                        $importData['errors'][] = $scrapingErrorMsg;
+
+                        // Also log to file for debugging
+                        $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                        $logMsg = sprintf(
+                            "[%s] SCRAPING ERROR Riga %d (%s): %s\n",
+                            date('Y-m-d H:i:s'),
+                            $lineNumber,
+                            $title,
+                            $scrapeError->getMessage()
+                        );
+                        file_put_contents($logFile, $logMsg, FILE_APPEND);
                     }
                 }
 
@@ -571,21 +590,21 @@ class CsvImportController
 
         return [
             'id' => !empty($row['id']) ? trim($row['id']) : null,
-            'isbn10' => !empty($row['isbn10']) ? trim($row['isbn10']) : null,
-            'isbn13' => !empty($row['isbn13']) ? trim($row['isbn13']) : null,
-            'ean' => !empty($row['ean']) ? trim($row['ean']) : null,
+            'isbn10' => !empty($row['isbn10']) ? $this->normalizeIsbn($row['isbn10']) : null,
+            'isbn13' => !empty($row['isbn13']) ? $this->normalizeIsbn($row['isbn13']) : null,
+            'ean' => !empty($row['ean']) ? $this->normalizeIsbn($row['ean']) : null,
             'titolo' => !empty($row['titolo']) ? trim($row['titolo']) : '',
             'sottotitolo' => !empty($row['sottotitolo']) ? trim($row['sottotitolo']) : null,
             'autori' => $autoriCombined,
             'editore' => !empty($row['editore']) ? trim($row['editore']) : null,
             'anno_pubblicazione' => !empty($row['anno_pubblicazione']) ? (int)$row['anno_pubblicazione'] : null,
-            'lingua' => !empty($row['lingua']) ? trim($row['lingua']) : 'italiano',
+            'lingua' => $this->validateLanguage($row['lingua'] ?? ''),
             'edizione' => !empty($row['edizione']) ? trim($row['edizione']) : null,
             'numero_pagine' => !empty($row['numero_pagine']) ? (int)$row['numero_pagine'] : null,
             'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
             'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
-            'prezzo' => !empty($row['prezzo']) ? (float)str_replace(',', '.', strval($row['prezzo'])) : null,
+            'prezzo' => $this->validatePrice($row['prezzo'] ?? ''),
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
             'numero_serie' => !empty($row['numero_serie']) ? trim($row['numero_serie']) : null,
@@ -594,6 +613,87 @@ class CsvImportController
             'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
             'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null
         ];
+    }
+
+    /**
+     * Validate and normalize price value
+     *
+     * @param string $price Raw price value from CSV
+     * @return float|null Validated price or null
+     * @throws \Exception If price is invalid
+     */
+    private function validatePrice(string $price): ?float
+    {
+        if (empty($price)) {
+            return null;
+        }
+
+        // Normalize: replace comma with dot
+        $normalized = str_replace(',', '.', trim($price));
+
+        // Validate: must be numeric
+        if (!is_numeric($normalized)) {
+            throw new \Exception(__('Prezzo non valido: deve essere un numero') . " ('{$price}')");
+        }
+
+        return (float)$normalized;
+    }
+
+    /**
+     * Validate and normalize language value
+     *
+     * @param string $language Raw language value from CSV
+     * @return string Validated language
+     * @throws \Exception If language is not supported
+     */
+    private function validateLanguage(string $language): string
+    {
+        $validLanguages = [
+            'italiano', 'inglese', 'francese', 'tedesco', 'spagnolo',
+            'portoghese', 'russo', 'cinese', 'giapponese', 'arabo',
+            'olandese', 'svedese', 'norvegese', 'danese', 'finlandese',
+            'polacco', 'ceco', 'ungherese', 'rumeno', 'greco',
+            'turco', 'ebraico', 'hindi', 'coreano', 'thai'
+        ];
+
+        // Default to Italian if empty
+        if (empty($language)) {
+            return 'italiano';
+        }
+
+        $normalized = trim(strtolower($language));
+
+        // Check if language is supported
+        if (!in_array($normalized, $validLanguages, true)) {
+            throw new \Exception(__('Lingua non supportata') . ": '{$language}'. " .
+                __('Lingue valide') . ': ' . implode(', ', array_slice($validLanguages, 0, 10)) . '...');
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Normalize ISBN by removing dashes, spaces, and non-alphanumeric characters
+     * Preserves only digits and 'X' (valid in ISBN-10 check digit)
+     *
+     * @param string $isbn Raw ISBN value from CSV
+     * @return string|null Normalized ISBN or null if empty
+     */
+    private function normalizeIsbn(string $isbn): ?string
+    {
+        if (empty($isbn)) {
+            return null;
+        }
+
+        // Remove all characters except digits and X
+        $normalized = preg_replace('/[^0-9X]/i', '', trim($isbn));
+
+        // Return null if nothing left after normalization
+        if (empty($normalized)) {
+            return null;
+        }
+
+        return strtoupper($normalized);
     }
 
     /**
@@ -788,6 +888,34 @@ class CsvImportController
                 return (int) $row['id'];
             }
             $stmt->close();
+        }
+
+        // Strategia 4: Fallback per titolo + primo autore (per libri senza ISBN)
+        if (!empty($data['titolo']) && !empty($data['autori'])) {
+            // Estrai il primo autore dalla stringa separata da ";"
+            $authorsArray = array_map('trim', explode(';', $data['autori']));
+            $firstAuthor = $authorsArray[0] ?? null;
+
+            if ($firstAuthor !== null) {
+                $stmt = $db->prepare("
+                    SELECT DISTINCT l.id
+                    FROM libri l
+                    JOIN autore_libro al ON l.id = al.libro_id
+                    JOIN autori a ON al.autore_id = a.id
+                    WHERE l.titolo = ?
+                    AND a.nome = ?
+                    AND l.deleted_at IS NULL
+                    LIMIT 1
+                ");
+                $stmt->bind_param('ss', $data['titolo'], $firstAuthor);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($row = $result->fetch_assoc()) {
+                    $stmt->close();
+                    return (int) $row['id'];
+                }
+                $stmt->close();
+            }
         }
 
         return null;
