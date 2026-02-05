@@ -464,7 +464,10 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({
+        success: false,
+        message: '<?= __("Errore nel parsing della risposta") ?>'
+      }));
 
       if (data.success) {
         Swal.fire({ icon: 'success', title: '<?= __("Eliminati") ?>', text: data.message, timer: 2000, showConfirmButton: false });
@@ -501,7 +504,10 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
       });
-      const result = await response.json();
+      const result = await response.json().catch(() => ({
+        success: false,
+        error: '<?= __("Risposta del server non valida") ?>'
+      }));
 
       if (!result.success || !result.data) {
         Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Impossibile recuperare i dati degli autori") ?>' });
@@ -569,7 +575,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      const mergeResult = await mergeResponse.json();
+      const mergeResult = await mergeResponse.json().catch(() => ({
+        success: false,
+        error: '<?= __("Risposta del server non valida") ?>'
+      }));
 
       if (mergeResult.success) {
         Swal.fire({
@@ -604,7 +613,10 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
       });
-      const result = await response.json();
+      const result = await response.json().catch(() => ({
+        success: false,
+        error: '<?= __("Errore nel parsing della risposta") ?>'
+      }));
 
       if (!result.success) {
         Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: result.error });
