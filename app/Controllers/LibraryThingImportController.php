@@ -26,6 +26,14 @@ use App\Support\LibraryThingInstaller;
 class LibraryThingImportController
 {
     /**
+     * Number of LibraryThing rows to process per chunk
+     * LibraryThing imports are typically larger and more complex than CSV
+     * Lower chunk size (2) reduces timeout risk and provides more frequent progress updates
+     * Recommended: 2-5 rows per chunk for LibraryThing TSV files
+     */
+    private const CHUNK_SIZE = 2;
+
+    /**
      * Write log message to import log file
      */
     private function log(string $message): void
@@ -204,7 +212,7 @@ class LibraryThingImportController
                 'success' => true,
                 'import_id' => $importId,
                 'total_rows' => $totalRows,
-                'chunk_size' => 2  // Ridotto a 2 per import più veloce e meno timeout
+                'chunk_size' => self::CHUNK_SIZE
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json');
 

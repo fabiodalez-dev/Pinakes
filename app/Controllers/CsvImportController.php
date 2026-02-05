@@ -10,6 +10,14 @@ use Slim\Psr7\Stream;
 class CsvImportController
 {
     /**
+     * Number of CSV rows to process per chunk
+     * Lower values = more frequent progress updates but more HTTP overhead
+     * Higher values = faster overall import but less granular progress
+     * Recommended: 10-50 rows per chunk
+     */
+    private const CHUNK_SIZE = 10;
+
+    /**
      * Mostra la pagina di import CSV
      */
     public function showImportPage(Request $request, Response $response): Response
@@ -152,7 +160,7 @@ class CsvImportController
         $response->getBody()->write(json_encode([
             'success' => true,
             'total_rows' => $totalRows,
-            'chunk_size' => 10,
+            'chunk_size' => self::CHUNK_SIZE,
             'enable_scraping' => !empty($data['enable_scraping'])
         ]));
 
