@@ -48,7 +48,7 @@ class ImportLogger
         ");
         if ($stmt === false) {
             error_log("[ImportLogger] Failed to prepare statement: " . $db->error);
-            return;
+            throw new \RuntimeException("[ImportLogger] Failed to initialize: " . $db->error);
         }
 
         $stmt->bind_param('sssi', $this->importId, $importType, $fileName, $userId);

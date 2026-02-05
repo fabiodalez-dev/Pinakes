@@ -371,45 +371,50 @@ class CsvImportController
 
         if ($isComplete) {
             // Persist import history to database
-            $userId = $_SESSION['user_id'] ?? null;
-            $fileName = basename($importData['file_path'] ?? 'unknown.csv');
+            try {
+                $userId = $_SESSION['user_id'] ?? null;
+                $fileName = basename($importData['file_path'] ?? 'unknown.csv');
 
-            $importLogger = new \App\Support\ImportLogger($db, 'csv', $fileName, $userId);
+                $importLogger = new \App\Support\ImportLogger($db, 'csv', $fileName, $userId);
 
-            // Transfer stats from session to logger
-            for ($i = 0; $i < $importData['imported']; $i++) {
-                $importLogger->incrementStat('imported');
-            }
-            for ($i = 0; $i < $importData['updated']; $i++) {
-                $importLogger->incrementStat('updated');
-            }
-            for ($i = 0; $i < $importData['authors_created']; $i++) {
-                $importLogger->incrementStat('authors_created');
-            }
-            for ($i = 0; $i < $importData['publishers_created']; $i++) {
-                $importLogger->incrementStat('publishers_created');
-            }
-            for ($i = 0; $i < $importData['scraped']; $i++) {
-                $importLogger->incrementStat('scraped');
-            }
-
-            // Transfer errors
-            foreach ($importData['errors'] as $errorMsg) {
-                // Parse error message to extract line number and title
-                // Format: "Riga X (Title): Message"
-                if (preg_match('/Riga (\d+) \(([^)]+)\): (.+)/', $errorMsg, $matches)) {
-                    $lineNum = (int)$matches[1];
-                    $title = $matches[2];
-                    $message = $matches[3];
-                    $importLogger->addError($lineNum, $title, $message, 'validation');
-                } else {
-                    // Fallback if format doesn't match
-                    $importLogger->addError(0, 'Unknown', $errorMsg, 'validation');
+                // Transfer stats from session to logger
+                for ($i = 0; $i < $importData['imported']; $i++) {
+                    $importLogger->incrementStat('imported');
                 }
-            }
+                for ($i = 0; $i < $importData['updated']; $i++) {
+                    $importLogger->incrementStat('updated');
+                }
+                for ($i = 0; $i < $importData['authors_created']; $i++) {
+                    $importLogger->incrementStat('authors_created');
+                }
+                for ($i = 0; $i < $importData['publishers_created']; $i++) {
+                    $importLogger->incrementStat('publishers_created');
+                }
+                for ($i = 0; $i < $importData['scraped']; $i++) {
+                    $importLogger->incrementStat('scraped');
+                }
 
-            // Complete and persist
-            $importLogger->complete($importData['total_rows']);
+                // Transfer errors
+                foreach ($importData['errors'] as $errorMsg) {
+                    // Parse error message to extract line number and title
+                    // Format: "Riga X (Title): Message"
+                    if (preg_match('/Riga (\d+) \(([^)]+)\): (.+)/', $errorMsg, $matches)) {
+                        $lineNum = (int)$matches[1];
+                        $title = $matches[2];
+                        $message = $matches[3];
+                        $importLogger->addError($lineNum, $title, $message, 'validation');
+                    } else {
+                        // Fallback if format doesn't match
+                        $importLogger->addError(0, 'Unknown', $errorMsg, 'validation');
+                    }
+                }
+
+                // Complete and persist
+                $importLogger->complete($importData['total_rows']);
+            } catch (\Exception $e) {
+                // Log error but don't fail the import (already completed)
+                error_log("[CsvImportController] Failed to persist import history: " . $e->getMessage());
+            }
 
             // Cleanup
             @unlink($importData['file_path']);
@@ -941,7 +946,7 @@ class CsvImportController
                 $stmt = $db->prepare("
                     SELECT DISTINCT l.id
                     FROM libri l
-                    JOIN autore_libro al ON l.id = al.libro_id
+                    JOIN libri_autori al ON l.id = al.libro_id
                     JOIN autori a ON al.autore_id = a.id
                     WHERE l.titolo = ?
                     AND a.nome = ?

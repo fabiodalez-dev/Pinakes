@@ -416,42 +416,47 @@ class LibraryThingImportController
 
             // Persist import history to database when complete
             if ($isComplete) {
-                $userId = $_SESSION['user_id'] ?? null;
-                $fileName = basename($filePath ?? 'unknown.tsv');
+                try {
+                    $userId = $_SESSION['user_id'] ?? null;
+                    $fileName = basename($filePath ?? 'unknown.tsv');
 
-                $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
+                    $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
 
-                // Transfer stats from session to logger
-                for ($i = 0; $i < $importData['imported']; $i++) {
-                    $importLogger->incrementStat('imported');
-                }
-                for ($i = 0; $i < $importData['updated']; $i++) {
-                    $importLogger->incrementStat('updated');
-                }
-                for ($i = 0; $i < $importData['authors_created']; $i++) {
-                    $importLogger->incrementStat('authors_created');
-                }
-                for ($i = 0; $i < $importData['publishers_created']; $i++) {
-                    $importLogger->incrementStat('publishers_created');
-                }
-                for ($i = 0; $i < $importData['scraped']; $i++) {
-                    $importLogger->incrementStat('scraped');
-                }
-
-                // Transfer errors
-                foreach ($importData['errors'] as $errorMsg) {
-                    // Try to parse error message to extract details
-                    if (preg_match('/Riga (\d+).*?: (.+)/', $errorMsg, $matches)) {
-                        $lineNum = (int)$matches[1];
-                        $message = $matches[2];
-                        $importLogger->addError($lineNum, 'LibraryThing', $message, 'validation');
-                    } else {
-                        $importLogger->addError(0, 'LibraryThing', $errorMsg, 'validation');
+                    // Transfer stats from session to logger
+                    for ($i = 0; $i < $importData['imported']; $i++) {
+                        $importLogger->incrementStat('imported');
                     }
-                }
+                    for ($i = 0; $i < $importData['updated']; $i++) {
+                        $importLogger->incrementStat('updated');
+                    }
+                    for ($i = 0; $i < $importData['authors_created']; $i++) {
+                        $importLogger->incrementStat('authors_created');
+                    }
+                    for ($i = 0; $i < $importData['publishers_created']; $i++) {
+                        $importLogger->incrementStat('publishers_created');
+                    }
+                    for ($i = 0; $i < $importData['scraped']; $i++) {
+                        $importLogger->incrementStat('scraped');
+                    }
 
-                // Complete and persist
-                $importLogger->complete($importData['total_rows']);
+                    // Transfer errors
+                    foreach ($importData['errors'] as $errorMsg) {
+                        // Try to parse error message to extract details
+                        if (preg_match('/Riga (\d+).*?: (.+)/', $errorMsg, $matches)) {
+                            $lineNum = (int)$matches[1];
+                            $message = $matches[2];
+                            $importLogger->addError($lineNum, 'LibraryThing', $message, 'validation');
+                        } else {
+                            $importLogger->addError(0, 'LibraryThing', $errorMsg, 'validation');
+                        }
+                    }
+
+                    // Complete and persist
+                    $importLogger->complete($importData['total_rows']);
+                } catch (\Exception $e) {
+                    // Log error but don't fail the import (already completed)
+                    error_log("[LibraryThingImportController] Failed to persist import history: " . $e->getMessage());
+                }
 
                 // Cleanup file
                 if (file_exists($filePath)) {

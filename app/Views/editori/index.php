@@ -474,7 +474,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       const data = await response.json().catch(() => ({
         success: false,
-        message: '<?= __("Errore nel parsing della risposta") ?>'
+        error: '<?= __("Errore nel parsing della risposta") ?>'
       }));
 
       if (data.success) {
@@ -483,7 +483,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateBulkActionsBar();
         table.ajax.reload();
       } else {
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: data.error });
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: data.error || data.message });
       }
     } catch (err) {
       console.error(err);
