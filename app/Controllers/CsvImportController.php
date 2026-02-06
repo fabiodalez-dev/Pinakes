@@ -897,6 +897,16 @@ class CsvImportController
             return null;
         }
 
+        // Validate EAN-13 checksum (mod 10, weights 1-3)
+        $sum = 0;
+        for ($i = 0; $i < 12; $i++) {
+            $sum += (int) $normalized[$i] * ($i % 2 === 0 ? 1 : 3);
+        }
+        $checkDigit = (10 - ($sum % 10)) % 10;
+        if ($checkDigit !== (int) $normalized[12]) {
+            return null;
+        }
+
         return $normalized;
     }
 
@@ -1168,7 +1178,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? $data['prezzo'] : null;
+        $prezzo = $data['prezzo'] ?? null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
@@ -1255,7 +1265,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? $data['prezzo'] : null;
+        $prezzo = $data['prezzo'] ?? null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
         if ($copie < 1) {

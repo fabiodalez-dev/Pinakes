@@ -25,7 +25,7 @@ class UserActionsController
                        l.titolo, l.copertina_url
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.stato = 'pendente'
+                WHERE pr.utente_id = ? AND pr.stato = 'pendente' AND l.deleted_at IS NULL
                 ORDER BY pr.created_at DESC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $uid);
@@ -43,7 +43,7 @@ class UserActionsController
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
+                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo') AND l.deleted_at IS NULL
                 ORDER BY pr.data_prestito ASC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ii', $uid, $uid);
@@ -59,7 +59,7 @@ class UserActionsController
         $sql = "SELECT p.id, p.libro_id, p.data_prenotazione, p.data_scadenza_prenotazione, p.queue_position, p.stato,
                        l.titolo, l.copertina_url
                 FROM prenotazioni p JOIN libri l ON l.id=p.libro_id
-                WHERE p.utente_id=? AND p.stato='attiva' ORDER BY p.data_prenotazione DESC";
+                WHERE p.utente_id=? AND p.stato='attiva' AND l.deleted_at IS NULL ORDER BY p.data_prenotazione DESC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $uid);
         $stmt->execute();

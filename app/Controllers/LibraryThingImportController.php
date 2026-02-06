@@ -561,9 +561,14 @@ class LibraryThingImportController
             // Convert structured errors to display strings for the view
             $_SESSION['import_errors'] = array_map(function ($err) {
                 if (is_array($err)) {
-                    return sprintf('Riga %d (%s): %s', $err['line'] ?? 0, $err['title'] ?? 'LibraryThing', $err['message'] ?? '');
+                    return sprintf(
+                        'Riga %d (%s): %s',
+                        $err['line'] ?? 0,
+                        htmlspecialchars($err['title'] ?? 'LibraryThing', ENT_QUOTES, 'UTF-8'),
+                        htmlspecialchars($err['message'] ?? '', ENT_QUOTES, 'UTF-8')
+                    );
                 }
-                return (string)$err;
+                return htmlspecialchars((string)$err, ENT_QUOTES, 'UTF-8');
             }, $importData['errors']);
         }
 

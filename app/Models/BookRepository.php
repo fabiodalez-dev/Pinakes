@@ -845,14 +845,17 @@ class BookRepository
         }
 
         // Handle new author format from Choices.js (new_timestamp)
+        // Note: new authors should be resolved to numeric IDs in LibriController::store()
+        // before reaching syncAuthors(). If we get here, it indicates a frontend bug.
         if (is_string($authorData) && strpos($authorData, 'new_') === 0) {
-            // This is a new author that needs to be created
-            // For now, just skip it - this would need additional handling
-            // based on your form submission logic
+            error_log("[BookRepository] Unresolved new_* author ID received: {$authorData} — this indicates a frontend sync issue");
             return 0;
         }
 
         // Fallback: unexpected formats (arrays, objects, non-numeric strings) are ignored
+        if ($authorData !== null) {
+            error_log("[BookRepository] Unexpected author ID format: " . gettype($authorData));
+        }
         return 0;
     }
 

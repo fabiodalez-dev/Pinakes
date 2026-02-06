@@ -45,7 +45,7 @@ class PrestitiController
             FROM prestiti p
             JOIN libri l ON p.libro_id = l.id
             JOIN utenti u ON p.utente_id = u.id
-            WHERE p.stato = 'pendente'
+            WHERE p.stato = 'pendente' AND l.deleted_at IS NULL
             ORDER BY p.created_at DESC
             LIMIT 10
         ");

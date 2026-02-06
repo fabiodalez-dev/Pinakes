@@ -508,6 +508,15 @@ class LibriController
         $fields['titolo'] = $this->normalizeText($fields['titolo']);
         $fields['sottotitolo'] = $this->normalizeText($fields['sottotitolo']);
 
+        // Validate title is not empty after normalization
+        if (trim($fields['titolo']) === '') {
+            $response->getBody()->write(json_encode([
+                'error' => true,
+                'message' => __('Il titolo del libro è obbligatorio.'),
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
+        }
+
         // Merge scraped subtitle and notes if present
         $subtitleFromScrape = trim((string) ($data['subtitle'] ?? ''));
         if ($subtitleFromScrape !== '') {
@@ -792,6 +801,12 @@ class LibriController
                 // Fall back to scraped data
                 elseif (!empty($data['scraped_publisher'])) {
                     $publisherName = trim((string) $data['scraped_publisher']);
+                }
+
+                // Sanitize: strip HTML tags and limit length to prevent XSS and overflow
+                $publisherName = trim(strip_tags($publisherName));
+                if (mb_strlen($publisherName) > 255) {
+                    $publisherName = mb_substr($publisherName, 0, 255);
                 }
 
                 if ($publisherName !== '') {
@@ -1328,6 +1343,12 @@ class LibriController
                 // Fall back to scraped data
                 elseif (!empty($data['scraped_publisher'])) {
                     $publisherName = trim((string) $data['scraped_publisher']);
+                }
+
+                // Sanitize: strip HTML tags and limit length to prevent XSS and overflow
+                $publisherName = trim(strip_tags($publisherName));
+                if (mb_strlen($publisherName) > 255) {
+                    $publisherName = mb_substr($publisherName, 0, 255);
                 }
 
                 if ($publisherName !== '') {

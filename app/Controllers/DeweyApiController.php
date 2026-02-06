@@ -408,7 +408,7 @@ class DeweyApiController
      */
     private function getCodePath(string $code): array
     {
-        if (!preg_match('/^\d{3}(\.\d+)?$/', $code)) {
+        if (!preg_match('/^\d{3}(\.\d{1,4})?$/', $code)) {
             return [$code];
         }
 
