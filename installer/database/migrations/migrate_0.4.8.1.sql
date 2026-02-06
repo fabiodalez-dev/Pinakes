@@ -1,4 +1,4 @@
--- Migration script for Pinakes 0.4.8.2
+-- Migration script for Pinakes 0.4.8.1
 -- Description: Import logs tracking system for CSV and LibraryThing imports
 -- Date: 2026-02-06
 -- Compatibility: MySQL 5.7+, MariaDB 10.0+
