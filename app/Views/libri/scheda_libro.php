@@ -393,52 +393,33 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <div class="sm:col-span-2">
               <dt class="text-xs uppercase text-gray-500"><?= __("Classificazione Dewey") ?></dt>
               <dd class="text-gray-900 font-medium">
-                <span class="font-mono"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dewey'] ?? ''); ?></span>
+                <span id="dewey_code_display" class="font-mono"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dewey'] ?? ''); ?></span>
                 <span id="dewey_name_display" class="text-sm text-gray-600 italic ml-2"></span>
                 <script>
                 (async function() {
-                  const displayEl = document.getElementById('dewey_name_display');
+                  const codeEl = document.getElementById('dewey_code_display');
+                  const nameEl = document.getElementById('dewey_name_display');
                   const code = <?php echo json_encode($libro['classificazione_dewey'] ?? ''); ?>;
-                  if (!displayEl || !code) return;
+                  if (!codeEl || !nameEl || !code) return;
 
                   // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
                   const parts = code.split('-');
                   const finalCode = parts.length > 1 ? parts[parts.length - 1] : code;
 
-                  // Funzione per ottenere il parent code
-                  const getParentCode = (c) => {
-                    if (!c.includes('.')) return null;
-                    const p = c.split('.');
-                    const intPart = p[0];
-                    const decPart = p[1];
-                    if (decPart.length === 1) return intPart;
-                    return `${intPart}.${decPart.substring(0, decPart.length - 1)}`;
-                  };
-
                   try {
-                    const response = await fetch(`/api/dewey/search?code=${encodeURIComponent(finalCode)}`, {
+                    const response = await fetch(`/api/dewey/path?code=${encodeURIComponent(finalCode)}`, {
                       credentials: 'same-origin'
                     });
-                    const result = response.ok ? await response.json() : null;
-
-                    if (result && result.name) {
-                      displayEl.textContent = `— ${result.name}`;
-                    } else {
-                      // Non trovato o 404, cerca parent
-                      const parentCode = getParentCode(finalCode);
-                      if (parentCode) {
-                        const parentResponse = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
-                          credentials: 'same-origin'
-                        });
-                        const parentResult = parentResponse.ok ? await parentResponse.json() : null;
-
-                        if (parentResult && parentResult.name) {
-                          displayEl.textContent = `— ${parentResult.name} > ${finalCode}`;
-                        }
+                    if (response.ok) {
+                      const pathItems = await response.json();
+                      if (Array.isArray(pathItems) && pathItems.length > 0) {
+                        codeEl.textContent = pathItems.map(item => item.code).join(' > ');
+                        nameEl.textContent = '— ' + pathItems.map(item => item.name).join(' > ');
+                        return;
                       }
                     }
                   } catch (e) {
-                    console.error('Dewey name fetch error:', e);
+                    console.error('Dewey path fetch error:', e);
                   }
                 })();
                 </script>

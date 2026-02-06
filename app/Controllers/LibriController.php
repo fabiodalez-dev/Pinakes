@@ -669,9 +669,10 @@ class LibriController
                         FROM libri l
                         LEFT JOIN scaffali s ON l.scaffale_id = s.id
                         LEFT JOIN mensole m ON l.mensola_id = m.id
-                        WHERE l.isbn10 IN (' . $placeholders . ')
+                        WHERE (l.isbn10 IN (' . $placeholders . ')
                            OR l.isbn13 IN (' . $placeholders . ')
-                           OR l.ean IN (' . $placeholders . ')
+                           OR l.ean IN (' . $placeholders . '))
+                          AND l.deleted_at IS NULL
                         LIMIT 1';
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
@@ -1194,6 +1195,7 @@ class LibriController
                            OR l.isbn13 IN (' . $placeholders . ')
                            OR l.ean IN (' . $placeholders . '))
                           AND l.id <> ?
+                          AND l.deleted_at IS NULL
                         LIMIT 1';
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
@@ -2555,9 +2557,9 @@ class LibriController
             LEFT JOIN generi g ON l.genere_id = g.id
         ";
 
-        if (!empty($whereClauses)) {
-            $query .= " WHERE " . implode(' AND ', $whereClauses);
-        }
+        $whereClauses[] = "l.deleted_at IS NULL";
+
+        $query .= " WHERE " . implode(' AND ', $whereClauses);
 
         $query .= " GROUP BY l.id ORDER BY l.id DESC";
 
@@ -2893,6 +2895,7 @@ class LibriController
                   FROM libri
                   WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
                     AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg')
+                    AND deleted_at IS NULL
                   ORDER BY id DESC";
 
         $result = $db->query($query);

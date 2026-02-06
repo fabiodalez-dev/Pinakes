@@ -107,7 +107,7 @@ class ReservationManager
 
         try {
             // Lock the book row first to serialize all reservation processing for this book
-            $lockBookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockBookStmt->bind_param('i', $bookId);
             $lockBookStmt->execute();
             $lockBookStmt->close();
@@ -397,7 +397,7 @@ class ReservationManager
                 FROM libri l
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE l.id = ?
+                WHERE l.id = ? AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $reservation['libro_id']);

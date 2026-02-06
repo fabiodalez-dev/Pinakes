@@ -206,7 +206,7 @@ class CollocazioneController
 
         $existingPosition = null;
         if ($bookId) {
-            $stmt = $db->prepare('SELECT scaffale_id, mensola_id, posizione_progressiva FROM libri WHERE id=? LIMIT 1');
+            $stmt = $db->prepare('SELECT scaffale_id, mensola_id, posizione_progressiva FROM libri WHERE id=? AND deleted_at IS NULL LIMIT 1');
             if ($stmt) {
                 $stmt->bind_param('i', $bookId);
                 $stmt->execute();

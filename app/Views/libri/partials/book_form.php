@@ -1410,6 +1410,27 @@ async function initializeDewey() {
     }
   };
 
+  // Fetch the full hierarchical path for a Dewey code via API
+  // Returns { codes: "100 > 110 > 116", names: "Filosofia > Metafisica > Cambiamento" } or null
+  const fetchDeweyPath = async (code) => {
+    try {
+      const response = await fetch(`/api/dewey/path?code=${encodeURIComponent(code)}`, {
+        credentials: 'same-origin'
+      });
+      if (!response.ok) return null;
+      const pathItems = await response.json();
+      if (Array.isArray(pathItems) && pathItems.length > 0) {
+        return {
+          codes: pathItems.map(item => item.code).join(' > '),
+          names: pathItems.map(item => item.name).join(' > ')
+        };
+      }
+    } catch (e) {
+      // Silently fail
+    }
+    return null;
+  };
+
   // Imposta il codice Dewey corrente
   const setDeweyCode = async (code, name = null) => {
     if (!code) {
@@ -1418,40 +1439,22 @@ async function initializeDewey() {
     }
 
     currentDeweyCode = code;
-    currentDeweyName = name || '';
+    currentDeweyName = '';
 
-    // Se non abbiamo il nome, prova a cercarlo
-    if (!currentDeweyName) {
-      try {
-        const response = await fetch(`/api/dewey/search?code=${encodeURIComponent(code)}`, {
-          credentials: 'same-origin'
-        });
-        const result = response.ok ? await response.json() : null;
-
-        if (result && result.name) {
-          currentDeweyName = result.name;
-        } else {
-          // Non trovato, cerca il parent
-          const parentCode = getParentCode(code);
-          if (parentCode) {
-            const parentResponse = await fetch(`/api/dewey/search?code=${encodeURIComponent(parentCode)}`, {
-              credentials: 'same-origin'
-            });
-            const parentResult = parentResponse.ok ? await parentResponse.json() : null;
-
-            if (parentResult && parentResult.name) {
-              currentDeweyName = `${parentResult.name} > ${code}`;
-            }
-          }
-        }
-      } catch (e) {
-        // Silently fail - code will be set without name
-      }
+    // Fetch full hierarchy (codes + names) from API
+    const pathData = await fetchDeweyPath(code);
+    let chipCodeText = code;
+    if (pathData) {
+      chipCodeText = pathData.codes;
+      currentDeweyName = pathData.names;
+    } else if (name) {
+      // Fallback: use the provided leaf name only
+      currentDeweyName = name;
     }
 
-    // Aggiorna UI
+    // Aggiorna UI - hidden field saves only the leaf code
     hidden.value = currentDeweyCode;
-    chipCode.textContent = currentDeweyCode;
+    chipCode.textContent = chipCodeText;
     chipName.textContent = currentDeweyName ? `— ${currentDeweyName}` : '';
     chipContainer.style.display = 'block';
     manualInput.value = '';
@@ -1517,6 +1520,41 @@ async function initializeDewey() {
     }
   });
 
+  // Build breadcrumb from all currently selected dropdowns
+  const updateBreadcrumbFromDropdowns = () => {
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-home';
+    breadcrumb.textContent = '';
+    breadcrumb.appendChild(icon);
+    breadcrumb.appendChild(document.createTextNode(' '));
+
+    const selects = container.querySelectorAll('select');
+    let hasSelection = false;
+    selects.forEach((sel, i) => {
+      if (!sel.value) return;
+      const opt = sel.selectedOptions[0];
+      if (!opt) return;
+      hasSelection = true;
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'text-gray-400 mx-1';
+        sep.textContent = '>';
+        breadcrumb.appendChild(sep);
+      }
+      const span = document.createElement('span');
+      span.className = 'text-gray-500';
+      span.textContent = sel.value;
+      span.title = opt.dataset.name || '';
+      breadcrumb.appendChild(span);
+    });
+
+    if (!hasSelection) {
+      const noSel = document.createElement('span');
+      noSel.textContent = '<?= __("Nessuna selezione") ?>';
+      breadcrumb.appendChild(noSel);
+    }
+  };
+
   // Carica livelli Dewey per navigazione
   const loadLevel = async (parentCode = null, levelIndex = 0) => {
     try {
@@ -1567,30 +1605,27 @@ async function initializeDewey() {
           while (container.children.length > levelIndex + 1) {
             container.removeChild(container.lastChild);
           }
-          breadcrumb.innerHTML = '<i class="fas fa-home"></i> <span><?= __("Nessuna selezione") ?></span>';
+          updateBreadcrumbFromDropdowns();
           return;
         }
 
         const name = selectedOption.dataset.name;
         const hasChildren = selectedOption.dataset.hasChildren === 'true';
 
-        // Aggiorna breadcrumb in modo sicuro (XSS prevention)
-        breadcrumb.innerHTML = '<i class="fas fa-home"></i> ';
-        const breadcrumbSpan = document.createElement('span');
-        breadcrumbSpan.className = 'text-gray-500';
-        breadcrumbSpan.textContent = code;
-        breadcrumb.appendChild(breadcrumbSpan);
+        // Rimuovi select successivi
+        while (container.children.length > levelIndex + 1) {
+          container.removeChild(container.lastChild);
+        }
 
-        // Se ha figli, carica il livello successivo
+        // Aggiorna breadcrumb con tutto il percorso selezionato
+        updateBreadcrumbFromDropdowns();
+
+        // Imposta sempre il chip al livello corrente
+        await setDeweyCode(code, name);
+
+        // Se ha figli, carica anche il livello successivo
         if (hasChildren) {
           await loadLevel(code, levelIndex + 1);
-        } else {
-          // Rimuovi select successivi (non ci sono più figli)
-          while (container.children.length > levelIndex + 1) {
-            container.removeChild(container.lastChild);
-          }
-          // Imposta questo codice come selezionato
-          await setDeweyCode(code, name);
         }
       });
 
@@ -1677,12 +1712,8 @@ async function initializeDewey() {
           if (hasChildren && !isLast) {
             await loadLevel(code, i + 1);
           } else if (isLast) {
-            // Ultimo elemento: aggiorna breadcrumb e chip (XSS prevention)
-            breadcrumb.innerHTML = '<i class="fas fa-home"></i> ';
-            const breadcrumbSpan = document.createElement('span');
-            breadcrumbSpan.className = 'text-gray-500';
-            breadcrumbSpan.textContent = code;
-            breadcrumb.appendChild(breadcrumbSpan);
+            // Ultimo elemento: aggiorna breadcrumb con percorso completo
+            updateBreadcrumbFromDropdowns();
             await setDeweyCode(code, option.dataset.name);
             return; // Successfully navigated to target
           }
@@ -1696,14 +1727,18 @@ async function initializeDewey() {
     // Se non abbiamo raggiunto il targetCode, mostra comunque il chip
     // Questo gestisce i codici personalizzati non presenti nel JSON (es. 708.2)
     if (targetCode !== lastFoundCode) {
-      // Aggiorna breadcrumb in modo sicuro senza inserire HTML non sanificato (XSS prevention)
-      breadcrumb.innerHTML = '<i class="fas fa-home"></i> ';
-      const span = document.createElement('span');
-      span.className = 'text-gray-500';
-      const prefix = lastFoundCode ? `${lastFoundCode} > ` : '';
-      span.textContent = prefix + targetCode;
-      breadcrumb.appendChild(span);
-      // setDeweyCode cercherà il nome tramite API (o mostrerà il nome del parent)
+      // Aggiorna breadcrumb con percorso dai dropdown + codice custom
+      updateBreadcrumbFromDropdowns();
+      // Aggiungi il codice custom al breadcrumb
+      const sep = document.createElement('span');
+      sep.className = 'text-gray-400 mx-1';
+      sep.textContent = '>';
+      breadcrumb.appendChild(sep);
+      const codeSpan = document.createElement('span');
+      codeSpan.className = 'text-gray-500';
+      codeSpan.textContent = targetCode;
+      breadcrumb.appendChild(codeSpan);
+      // setDeweyCode fetch full hierarchy name via /api/dewey/path
       await setDeweyCode(targetCode, null);
     }
   };
@@ -2650,20 +2685,29 @@ async function increaseCopies(book) {
             const data = await response.json();
 
             // Check for CSRF/session errors
-            if (data.error || data.code) {
+            if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
                 await Swal.fire({
                     icon: 'error',
                     title: __('Errore di sicurezza'),
                     text: data.error || __('Errore di sicurezza'),
                     confirmButtonText: __('OK')
                 });
-                if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
-                    setTimeout(() => window.location.reload(), 2000);
-                }
+                setTimeout(() => window.location.reload(), 2000);
                 return;
             }
 
-            if (response.ok && data.success) {
+            // Check for API errors
+            if (!response.ok || data.error) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: __('Errore'),
+                    text: data.message || __('Errore durante l\'aggiornamento delle copie'),
+                    confirmButtonText: __('OK')
+                });
+                return;
+            }
+
+            if (data.success) {
                 await Swal.fire({
                     icon: 'success',
                     title: __('Copie Aggiunte!'),

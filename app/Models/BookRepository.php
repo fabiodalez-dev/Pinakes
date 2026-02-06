@@ -905,8 +905,9 @@ class BookRepository
     public function delete(int $id): bool
     {
         // Internal SOFT DELETE
+        // Nullify unique identifiers to avoid blocking new books with the same ISBN/EAN
         // Does not delete related records (kept for history/integrity)
-        $stmt = $this->db->prepare('UPDATE libri SET deleted_at = NOW() WHERE id=?');
+        $stmt = $this->db->prepare('UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL WHERE id=?');
         $stmt->bind_param('i', $id);
         return $stmt->execute();
     }

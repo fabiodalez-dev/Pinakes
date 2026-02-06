@@ -176,7 +176,7 @@ class DataIntegrity {
         }
 
         // Conta totale libri (prepared statement for consistency)
-        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM libri");
+        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM libri WHERE deleted_at IS NULL");
         if ($stmt === false) {
             $error = "Failed to count books: " . $this->db->error;
             error_log("[DataIntegrity] " . $error);
@@ -199,7 +199,7 @@ class DataIntegrity {
         do {
             $stmt = $this->db->prepare("
                 SELECT id FROM libri
-                WHERE id > ?
+                WHERE id > ? AND deleted_at IS NULL
                 ORDER BY id
                 LIMIT ?
             ");
@@ -376,7 +376,7 @@ class DataIntegrity {
         $issues = [];
 
         // 1. Verifica libri con copie disponibili negative
-        $stmt = $this->db->prepare("SELECT id, titolo, copie_totali, copie_disponibili FROM libri WHERE copie_disponibili < 0");
+        $stmt = $this->db->prepare("SELECT id, titolo, copie_totali, copie_disponibili FROM libri WHERE copie_disponibili < 0 AND deleted_at IS NULL");
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result && $result->num_rows > 0) {
@@ -390,7 +390,7 @@ class DataIntegrity {
         $stmt->close();
 
         // 2. Verifica libri con più copie disponibili che totali
-        $stmt = $this->db->prepare("SELECT id, titolo, copie_totali, copie_disponibili FROM libri WHERE copie_disponibili > copie_totali");
+        $stmt = $this->db->prepare("SELECT id, titolo, copie_totali, copie_disponibili FROM libri WHERE copie_disponibili > copie_totali AND deleted_at IS NULL");
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result && $result->num_rows > 0) {
@@ -447,8 +447,9 @@ class DataIntegrity {
         $stmt = $this->db->prepare("
             SELECT id, titolo, stato, copie_disponibili
             FROM libri
-            WHERE (stato = 'disponibile' AND copie_disponibili = 0)
-               OR (stato = 'prestato' AND copie_disponibili > 0)
+            WHERE ((stato = 'disponibile' AND copie_disponibili = 0)
+               OR (stato = 'prestato' AND copie_disponibili > 0))
+              AND deleted_at IS NULL
         ");
         $stmt->execute();
         $result = $stmt->get_result();

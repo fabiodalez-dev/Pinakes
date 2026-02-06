@@ -482,9 +482,10 @@ class LibraryThingImportController
                     if (!$persisted) {
                         error_log("[LibraryThingImportController] Failed to persist import history to database");
                     }
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     // Log error but don't fail the import (already completed)
-                    error_log("[LibraryThingImportController] Failed to persist import history: " . $e->getMessage());
+                    // Catches \Error/TypeError too (strict_types=1 can throw TypeError)
+                    error_log("[LibraryThingImportController] Failed to persist import history (" . get_class($e) . "): " . $e->getMessage());
                 }
 
                 // Cleanup file only after successful persistence
@@ -1502,9 +1503,9 @@ class LibraryThingImportController
             LEFT JOIN generi g ON l.genere_id = g.id
         ";
 
-        if (!empty($whereClauses)) {
-            $query .= " WHERE " . implode(' AND ', $whereClauses);
-        }
+        $whereClauses[] = "l.deleted_at IS NULL";
+
+        $query .= " WHERE " . implode(' AND ', $whereClauses);
 
         $query .= " GROUP BY l.id ORDER BY l.id DESC";
 

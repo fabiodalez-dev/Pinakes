@@ -95,7 +95,7 @@ class PublicApiController
             return [];
         }
 
-        $whereClause = implode(' OR ', $conditions);
+        $whereClause = '(' . implode(' OR ', $conditions) . ') AND l.deleted_at IS NULL';
 
         // Main query to get books with all related data
         $sql = "

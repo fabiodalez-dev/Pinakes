@@ -178,7 +178,7 @@ class ReservationsAdminController
     {
         // Get all books for dropdown
         $libri = [];
-        $result = $db->query("SELECT id, titolo FROM libri ORDER BY titolo");
+        $result = $db->query("SELECT id, titolo FROM libri WHERE deleted_at IS NULL ORDER BY titolo");
         if ($result) {
             while ($row = $result->fetch_assoc()) {
                 $libri[] = $row;

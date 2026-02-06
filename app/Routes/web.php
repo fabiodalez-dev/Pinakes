@@ -929,7 +929,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $count = 0;
         if ($db) {
-            $res = $db->query("SELECT COUNT(*) AS c FROM libri");
+            $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL");
             if ($res) {
                 $count = (int) ($res->fetch_assoc()['c'] ?? 0);
             }
@@ -1706,6 +1706,7 @@ return function (App $app): void {
     // Nuovi endpoint per formato completo con decimali (fino a livello 7)
     $app->get('/api/dewey/children', [DeweyApiController::class, 'getChildren'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/search', [DeweyApiController::class, 'search'])->add(new AdminAuthMiddleware());
+    $app->get('/api/dewey/path', [DeweyApiController::class, 'getPath'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
     $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/api/cover/download', function ($request, $response) {

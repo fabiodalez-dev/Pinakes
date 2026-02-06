@@ -186,6 +186,9 @@ class ImportHistoryController
         }
 
         $data = $request->getParsedBody();
+        if (empty($data)) {
+            $data = json_decode((string) $request->getBody(), true) ?? [];
+        }
         $daysOld = (int)($data['days'] ?? 90);
 
         // Safety: bounds checking (min 7 days, max 365 days)

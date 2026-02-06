@@ -145,7 +145,7 @@ class EditoriApiController
         // If we have a HAVING clause, we need to count from a subquery
         if ($having_clause !== '') {
             $count_sql = "SELECT COUNT(*) AS c FROM (
-                SELECT e.id, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id) AS libri_count
+                SELECT e.id, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL) AS libri_count
                 FROM editori e
                 $where_prepared
                 $having_clause
@@ -174,7 +174,7 @@ class EditoriApiController
         $subOrderColumn = str_replace('e.', '', $orderColumn); // Remove table alias for subquery
         if ($having_clause !== '') {
             $sql_prepared = "SELECT * FROM (
-                    SELECT e.*, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id) AS libri_count
+                    SELECT e.*, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL) AS libri_count
                     FROM editori e
                     $where_prepared
                     $having_clause
@@ -369,7 +369,7 @@ class EditoriApiController
         $types = str_repeat('i', count($cleanIds));
 
         $sql = "SELECT e.id, e.nome, e.sito_web, e.citta, e.indirizzo, e.telefono, e.email,
-                       (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id) AS libri_count
+                       (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL) AS libri_count
                 FROM editori e
                 WHERE e.id IN ($placeholders)
                 ORDER BY e.nome ASC";

@@ -432,9 +432,10 @@ class CsvImportController
                 if (!$persisted) {
                     error_log("[CsvImportController] Failed to persist import history to database");
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 // Log error but don't fail the import (already completed)
-                error_log("[CsvImportController] Failed to persist import history: " . $e->getMessage());
+                // Catches \Error/TypeError too (strict_types=1 can throw TypeError)
+                error_log("[CsvImportController] Failed to persist import history (" . get_class($e) . "): " . $e->getMessage());
             }
 
             // Cleanup file only after successful persistence
@@ -1164,7 +1165,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) $data['prezzo'] : null;
+        $prezzo = !empty($data['prezzo']) ? $data['prezzo'] : null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
@@ -1251,7 +1252,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) $data['prezzo'] : null;
+        $prezzo = !empty($data['prezzo']) ? $data['prezzo'] : null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
         if ($copie < 1) {

@@ -354,6 +354,96 @@ class DeweyApiController
         }
     }
 
+    /**
+     * Returns the full ancestor path for a Dewey code with names
+     * GET /api/dewey/path?code=135
+     * Response: [{"code":"100","name":"Filosofia e psicologia"},{"code":"130","name":"Parapsicologia e occultismo"},{"code":"135","name":"Sogni e misteri"}]
+     */
+    public function getPath(Request $request, Response $response): Response
+    {
+        try {
+            $params = $request->getQueryParams();
+            $code = $params['code'] ?? '';
+
+            if (empty($code)) {
+                $response->getBody()->write(json_encode(['error' => __('Parametro code obbligatorio.')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $data = $this->loadDeweyData();
+
+            if (!$this->isNewFormat($data)) {
+                $response->getBody()->write(json_encode(['error' => __('Usa gli endpoint specifici per il formato legacy.')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Build hierarchical path codes (mirrors JS getCodePath logic)
+            $codeParts = $this->getCodePath($code);
+
+            // Resolve names for each code in the path
+            $path = [];
+            foreach ($codeParts as $pathCode) {
+                $node = $this->findNodeByCode($data, $pathCode);
+                $path[] = [
+                    'code' => $pathCode,
+                    'name' => $node ? $node['name'] : $pathCode,
+                ];
+            }
+
+            $response->getBody()->write(json_encode($path, JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            error_log("Dewey API path error: " . $e->getMessage());
+            $response->getBody()->write(json_encode(['error' => __('Errore nel recupero del percorso.')], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Compute the hierarchical code path for a Dewey code
+     * e.g. "135" => ["100", "130", "135"]
+     * e.g. "599.93" => ["500", "590", "599", "599.9", "599.93"]
+     *
+     * @return string[]
+     */
+    private function getCodePath(string $code): array
+    {
+        $path = [];
+
+        // Main class (X00)
+        $mainClass = $code[0] . '00';
+        $path[] = $mainClass;
+
+        if ($code === $mainClass) {
+            return $path;
+        }
+
+        // Division (XX0) if different from main class
+        $division = substr($code, 0, 2) . '0';
+        if ($division !== $mainClass) {
+            $path[] = $division;
+        }
+
+        // Section (XXX) if different from division and main class
+        $intPart = explode('.', $code)[0];
+        if (strlen($intPart) === 3 && $intPart !== $division && $intPart !== $mainClass) {
+            $path[] = $intPart;
+        }
+
+        // Decimal parts (XXX.X, XXX.XX, etc.)
+        if (str_contains($code, '.')) {
+            [$base, $decimal] = explode('.', $code);
+            if (!in_array($base, $path, true)) {
+                $path[] = $base;
+            }
+            for ($i = 1; $i <= strlen($decimal); $i++) {
+                $path[] = $base . '.' . substr($decimal, 0, $i);
+            }
+        }
+
+        return $path;
+    }
+
     public function reseed(Request $request, Response $response): Response
     {
         // CSRF validated by CsrfMiddleware
