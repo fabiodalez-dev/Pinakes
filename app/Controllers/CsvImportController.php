@@ -659,7 +659,7 @@ class CsvImportController
             'id' => !empty($row['id']) ? trim($row['id']) : null,
             'isbn10' => !empty($row['isbn10']) ? $this->normalizeIsbn($row['isbn10']) : null,
             'isbn13' => !empty($row['isbn13']) ? $this->normalizeIsbn($row['isbn13']) : null,
-            'ean' => !empty($row['ean']) ? $this->normalizeIsbn($row['ean']) : null,
+            'ean' => !empty($row['ean']) ? $this->normalizeEan($row['ean']) : null,
             'titolo' => !empty($row['titolo']) ? trim($row['titolo']) : '',
             'sottotitolo' => !empty($row['sottotitolo']) ? trim($row['sottotitolo']) : null,
             'autori' => $autoriCombined,
@@ -857,6 +857,36 @@ class CsvImportController
         // Validate check digit using existing IsbnFormatter
         if (!\App\Support\IsbnFormatter::isValid($normalized)) {
             return null; // Invalid checksum, skip silently
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Validate and normalize EAN-13 barcode value
+     *
+     * Unlike normalizeIsbn(), this only validates format and length (13 digits)
+     * without ISBN checksum checks, since valid EAN-13 barcodes may not be ISBNs.
+     *
+     * @param string $ean Raw EAN value from CSV
+     * @return string|null Normalized EAN or null if invalid
+     */
+    private function normalizeEan(string $ean): ?string
+    {
+        if (empty($ean)) {
+            return null;
+        }
+
+        // Remove all non-digit characters
+        $normalized = preg_replace('/[^0-9]/', '', trim($ean));
+
+        if (empty($normalized)) {
+            return null;
+        }
+
+        // EAN-13 must be exactly 13 digits
+        if (strlen($normalized) !== 13) {
+            return null;
         }
 
         return $normalized;

@@ -1013,6 +1013,13 @@ async function submitManualUpdate() {
             body: formData
         });
 
+        const uploadContentType = uploadResponse.headers.get('content-type') || '';
+        if (!uploadContentType.includes('application/json')) {
+            const text = await uploadResponse.text();
+            console.error('Server returned non-JSON response:', text.substring(0, 500));
+            throw new Error('<?= __("Il server ha restituito una risposta non valida. Controlla i log per dettagli.") ?>');
+        }
+
         const uploadData = await uploadResponse.json();
 
         if (!uploadData.success) {
@@ -1060,13 +1067,20 @@ async function submitManualUpdate() {
             body: `csrf_token=${encodeURIComponent(csrfToken)}`
         });
 
+        const installContentType = installResponse.headers.get('content-type') || '';
+        if (!installContentType.includes('application/json')) {
+            const text = await installResponse.text();
+            console.error('Server returned non-JSON response:', text.substring(0, 500));
+            throw new Error('<?= __("Il server ha restituito una risposta non valida. Controlla i log per dettagli.") ?>');
+        }
+
         const installData = await installResponse.json();
 
         if (installData.success) {
             Swal.fire({
                 icon: 'success',
                 title: '<?= __("Aggiornamento completato!") ?>',
-                html: `<p>${installData.message}</p><p class="text-sm text-gray-600 mt-2"><?= __("La pagina verrà ricaricata automaticamente...") ?></p>`,
+                html: `<p>${escapeHtml(installData.message)}</p><p class="text-sm text-gray-600 mt-2"><?= __("La pagina verrà ricaricata automaticamente...") ?></p>`,
                 timer: 3000,
                 showConfirmButton: false
             }).then(() => {

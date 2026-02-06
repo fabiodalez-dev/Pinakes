@@ -66,10 +66,15 @@ class ImportHistoryController
         while ($row = $result->fetch_assoc()) {
             $imports[] = $row;
         }
+        $stmt->close();
 
-        // Render view
+        // Render view wrapped in admin layout
         ob_start();
         include __DIR__ . '/../Views/admin/imports_history.php';
+        $content = ob_get_clean();
+
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
         $html = ob_get_clean();
 
         $response->getBody()->write($html);
@@ -87,7 +92,7 @@ class ImportHistoryController
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => __('ID import mancante')
-            ]));
+            ], JSON_THROW_ON_ERROR));
             return $response
                 ->withHeader('Content-Type', 'application/json')
                 ->withStatus(400);
@@ -102,6 +107,7 @@ class ImportHistoryController
         $stmt->bind_param('s', $importId);
         $stmt->execute();
         $result = $stmt->get_result();
+        $stmt->close();
 
         if (!($row = $result->fetch_assoc())) {
             $response->getBody()->write('Import non trovato');
@@ -172,7 +178,7 @@ class ImportHistoryController
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => __('Non autorizzato')
-            ]));
+            ], JSON_THROW_ON_ERROR));
             return $response
                 ->withHeader('Content-Type', 'application/json')
                 ->withStatus(403);
@@ -192,12 +198,13 @@ class ImportHistoryController
         $stmt->bind_param('i', $daysOld);
         $stmt->execute();
         $deleted = $stmt->affected_rows;
+        $stmt->close();
 
         $response->getBody()->write(json_encode([
             'success' => true,
             'deleted' => $deleted,
             'message' => sprintf(__('%d import logs eliminati (più vecchi di %d giorni)'), $deleted, $daysOld)
-        ]));
+        ], JSON_THROW_ON_ERROR));
 
         return $response->withHeader('Content-Type', 'application/json');
     }

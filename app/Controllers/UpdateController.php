@@ -408,9 +408,10 @@ class UpdateController
             ], 500);
 
         } catch (\Exception $e) {
+            error_log('[UpdateController] Upload failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return $this->jsonResponse($response, [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => __('Errore durante il caricamento del pacchetto')
             ], 500);
         }
     }
