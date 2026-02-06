@@ -26,7 +26,7 @@ CREATE TABLE import_logs (
     authors_created INT NOT NULL DEFAULT 0 COMMENT ''New authors created'',
     publishers_created INT NOT NULL DEFAULT 0 COMMENT ''New publishers created'',
     scraped INT NOT NULL DEFAULT 0 COMMENT ''Books enriched via scraping'',
-    errors_json TEXT NULL COMMENT ''JSON array of errors with line numbers and messages'',
+    errors_json MEDIUMTEXT NULL COMMENT ''JSON array of errors with line numbers and messages'',
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT ''When import started'',
     completed_at TIMESTAMP NULL COMMENT ''When import completed or failed'',
     status ENUM(''processing'', ''completed'', ''failed'') DEFAULT ''processing'' COMMENT ''Current import status'',

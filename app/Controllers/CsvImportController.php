@@ -385,8 +385,8 @@ class CsvImportController
 
                 $importLogger = new \App\Support\ImportLogger($db, 'csv', $fileName, $userId);
 
-                // Ensure failed count is set (fallback to error count)
-                $failedCount = $importData['failed'] ?? count($importData['errors'] ?? []);
+                // Calculate failed count excluding scraping errors
+                $failedCount = $importData['failed'] ?? max(0, count($importData['errors'] ?? []) - ($importData['scraped'] ?? 0));
 
                 // Transfer stats from session to logger (efficient batch update)
                 $importLogger->setStats([
@@ -398,7 +398,7 @@ class CsvImportController
                     'scraped' => $importData['scraped'],
                 ]);
 
-                // Transfer errors (failed count already set above, don't increment again)
+                // Transfer errors — categorize scraping vs validation
                 foreach ($importData['errors'] as $errorMsg) {
                     // Parse error message to extract line number and title
                     // Format: "Riga X (Title): Message"
@@ -406,7 +406,8 @@ class CsvImportController
                         $lineNum = (int)$matches[1];
                         $title = $matches[2];
                         $message = $matches[3];
-                        $importLogger->addError($lineNum, $title, $message, 'validation', false);
+                        $isScraping = stripos($message, 'scraping') !== false || stripos($message, 'scrap') !== false;
+                        $importLogger->addError($lineNum, $title, $message, $isScraping ? 'scraping' : 'validation', false);
                     } else {
                         // Fallback if format doesn't match
                         $importLogger->addError(0, 'Unknown', $errorMsg, 'validation', false);
@@ -685,13 +686,20 @@ class CsvImportController
         $normalized = preg_replace('/[^0-9,.\-]/', '', $normalized);
 
         // Handle thousands/decimal separator ambiguity
-        // If both '.' and ',' exist, assume European format (1.234,56)
-        if (strpos($normalized, '.') !== false && strpos($normalized, ',') !== false) {
-            // Remove thousand separator (dot), keep decimal (comma)
-            $normalized = str_replace('.', '', $normalized);
-            $normalized = str_replace(',', '.', $normalized);
+        // Use last-occurring separator as decimal: handles both US (1,234.56) and EU (1.234,56)
+        $lastComma = strrpos($normalized, ',');
+        $lastDot = strrpos($normalized, '.');
+        if ($lastComma !== false && $lastDot !== false) {
+            if ($lastComma > $lastDot) {
+                // EU format: dot is thousands, comma is decimal (1.234,56)
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                // US format: comma is thousands, dot is decimal (1,234.56)
+                $normalized = str_replace(',', '', $normalized);
+            }
         } else {
-            // Simple case: replace comma with dot
+            // Only one separator type: replace comma with dot
             $normalized = str_replace(',', '.', $normalized);
         }
 

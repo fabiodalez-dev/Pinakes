@@ -399,16 +399,24 @@ class LibraryThingImportController
                                 $importData['scraped']++;
                             }
                         } catch (\Exception $scrapeError) {
-                            // Silent failure, continue with import
+                            $this->log("[processChunk] Scraping failed for ISBN {$parsedData['isbn13']}: " . $scrapeError->getMessage());
+                            $importData['errors'][] = [
+                                'line' => $lineNumber,
+                                'title' => $parsedData['titolo'],
+                                'message' => 'Scraping fallito - ' . $scrapeError->getMessage(),
+                            ];
                         }
                     }
 
                 } catch (\Throwable $e) {
                     $db->rollback();
                     $title = $parsedData['titolo'] ?? ($rawData[1] ?? '');
-                    $errorMsg = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
-                    $importData['errors'][] = $errorMsg;
-                    $this->log("[processChunk] ERROR: $errorMsg");
+                    $importData['errors'][] = [
+                        'line' => $lineNumber,
+                        'title' => $title,
+                        'message' => $e->getMessage(),
+                    ];
+                    $this->log("[processChunk] ERROR Riga $lineNumber ($title): " . $e->getMessage());
                     $this->log("[processChunk] ERROR Class: " . get_class($e));
                     $this->log("[processChunk] ERROR Trace: " . $e->getTraceAsString());
                 }
@@ -430,8 +438,8 @@ class LibraryThingImportController
 
                     $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
 
-                    // Ensure failed count is set (fallback to error count)
-                    $failedCount = $importData['failed'] ?? count($importData['errors'] ?? []);
+                    // Calculate failed count excluding scraping errors
+                    $failedCount = $importData['failed'] ?? max(0, count($importData['errors'] ?? []) - ($importData['scraped'] ?? 0));
 
                     // Transfer stats from session to logger (efficient batch update)
                     $importLogger->setStats([
@@ -443,15 +451,14 @@ class LibraryThingImportController
                         'scraped' => $importData['scraped'],
                     ]);
 
-                    // Transfer errors (failed count already set above, don't increment again)
-                    foreach ($importData['errors'] as $errorMsg) {
-                        // Try to parse error message to extract details
-                        if (preg_match('/Riga (\d+).*?: (.+)/', $errorMsg, $matches)) {
-                            $lineNum = (int)$matches[1];
-                            $message = $matches[2];
-                            $importLogger->addError($lineNum, 'LibraryThing', $message, 'validation', false);
+                    // Transfer errors — structured arrays from this controller
+                    foreach ($importData['errors'] as $err) {
+                        if (is_array($err)) {
+                            $isScraping = stripos($err['message'] ?? '', 'scraping') !== false || stripos($err['message'] ?? '', 'scrap') !== false;
+                            $importLogger->addError($err['line'] ?? 0, $err['title'] ?? 'LibraryThing', $err['message'] ?? '', $isScraping ? 'scraping' : 'validation', false);
                         } else {
-                            $importLogger->addError(0, 'LibraryThing', $errorMsg, 'validation', false);
+                            // Legacy string format fallback
+                            $importLogger->addError(0, 'LibraryThing', (string)$err, 'validation', false);
                         }
                     }
 
@@ -486,7 +493,11 @@ class LibraryThingImportController
             return $response->withHeader('Content-Type', 'application/json');
 
         } catch (\Exception $e) {
-            $importData['errors'][] = $e->getMessage();
+            $importData['errors'][] = [
+                'line' => 0,
+                'title' => 'LibraryThing',
+                'message' => $e->getMessage(),
+            ];
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => $e->getMessage()
@@ -528,7 +539,13 @@ class LibraryThingImportController
 
         $_SESSION['success'] = $message;
         if (!empty($importData['errors'])) {
-            $_SESSION['import_errors'] = $importData['errors'];
+            // Convert structured errors to display strings for the view
+            $_SESSION['import_errors'] = array_map(function ($err) {
+                if (is_array($err)) {
+                    return sprintf('Riga %d (%s): %s', $err['line'] ?? 0, $err['title'] ?? 'LibraryThing', $err['message'] ?? '');
+                }
+                return (string)$err;
+            }, $importData['errors']);
         }
 
         // Clear import session

@@ -264,7 +264,7 @@ CREATE TABLE `import_logs` (
   `authors_created` int NOT NULL DEFAULT '0' COMMENT 'New authors created',
   `publishers_created` int NOT NULL DEFAULT '0' COMMENT 'New publishers created',
   `scraped` int NOT NULL DEFAULT '0' COMMENT 'Books enriched via scraping',
-  `errors_json` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON array of errors with line numbers and messages',
+  `errors_json` mediumtext COLLATE utf8mb4_unicode_ci COMMENT 'JSON array of errors with line numbers and messages',
   `started_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When import started',
   `completed_at` timestamp NULL DEFAULT NULL COMMENT 'When import completed or failed',
   `status` enum('processing','completed','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'processing' COMMENT 'Current import status',

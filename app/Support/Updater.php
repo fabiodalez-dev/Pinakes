@@ -882,7 +882,14 @@ class Updater
             $dirs = glob($extractPath . '/*', GLOB_ONLYDIR) ?: [];
             $this->debugLog('DEBUG', 'Directory estratte', ['dirs' => $dirs]);
 
-            $contentPath = count($dirs) === 1 ? $dirs[0] : $extractPath;
+            $contentPath = $this->findSourceDirectory($extractPath);
+            if ($contentPath === null) {
+                $this->debugLog('ERROR', 'Struttura pacchetto non valida: impossibile trovare directory sorgente', [
+                    'extract_path' => $extractPath,
+                    'dirs_found' => $dirs
+                ]);
+                throw new Exception(__('Struttura pacchetto non valida: directory sorgente non trovata'));
+            }
 
             // Verify package structure
             $this->debugLog('DEBUG', 'Verifica struttura pacchetto', ['path' => $contentPath]);

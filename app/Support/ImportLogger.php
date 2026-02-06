@@ -130,6 +130,10 @@ class ImportLogger
         }
 
         $errorsJson = json_encode($this->errors, JSON_UNESCAPED_UNICODE);
+        if ($errorsJson === false) {
+            error_log("[ImportLogger] Failed to encode errors JSON: " . json_last_error_msg());
+            $errorsJson = '[]';
+        }
 
         // Compress if errors JSON is too large (> 1MB)
         if (strlen($errorsJson) > 1024 * 1024) {
@@ -141,7 +145,7 @@ class ImportLogger
                 'message' => 'Error list truncated. Total errors: ' . count($this->errors),
                 'type' => 'system'
             ];
-            $errorsJson = json_encode($truncatedErrors, JSON_UNESCAPED_UNICODE);
+            $errorsJson = json_encode($truncatedErrors, JSON_UNESCAPED_UNICODE) ?: '[]';
         }
 
         $stmt = $this->db->prepare("
@@ -203,6 +207,10 @@ class ImportLogger
         // Add fatal error and increment failed counter
         $this->addError(0, 'FATAL', $errorMessage, 'system', true);
         $errorsJson = json_encode($this->errors, JSON_UNESCAPED_UNICODE);
+        if ($errorsJson === false) {
+            error_log("[ImportLogger] Failed to encode errors JSON in fail(): " . json_last_error_msg());
+            $errorsJson = json_encode([['line' => 0, 'title' => 'FATAL', 'message' => $errorMessage, 'type' => 'system']], JSON_UNESCAPED_UNICODE) ?: '[]';
+        }
 
         $stmt = $this->db->prepare("
             UPDATE import_logs
