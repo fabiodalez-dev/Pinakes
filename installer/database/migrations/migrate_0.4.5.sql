@@ -34,8 +34,8 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 
 -- ============================================================
 -- 5. ADD EMAIL TEMPLATES (ON DUPLICATE KEY = idempotent)
--- NOTE: HTML templates use simple formatting without CSS semicolons
--- because Updater.php uses explode(';') to parse SQL statements
+-- NOTE: HTML templates use simple formatting with HTML attributes (cellpadding, bgcolor)
+-- instead of CSS inline styles for better email client compatibility
 -- ============================================================
 INSERT INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('loan_pickup_ready', 'it_IT', '📦 Libro pronto per il ritiro!', '<h2>Libro pronto per il ritiro!</h2><p>Ciao {{utente_nome}},</p><p>Siamo lieti di informarti che il tuo libro è pronto per essere ritirato!</p><table cellpadding="15" bgcolor="#f0f9ff"><tr><td><h3>{{libro_titolo}}</h3><p><strong>Periodo prestito:</strong> {{data_inizio}} - {{data_fine}}</p><p><strong>Scadenza ritiro:</strong> {{scadenza_ritiro}}</p></td></tr></table><table cellpadding="15" bgcolor="#ecfdf5"><tr><td><p><strong>📦 Come ritirare</strong></p><p>{{pickup_instructions}}</p></td></tr></table><p>Buona lettura!</p>', 'Inviata quando un prestito è stato approvato e il libro è pronto per il ritiro.', 1, NOW(), NOW()) ON DUPLICATE KEY UPDATE `updated_at` = NOW();
 

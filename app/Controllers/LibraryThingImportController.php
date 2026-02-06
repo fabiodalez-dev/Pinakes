@@ -430,11 +430,14 @@ class LibraryThingImportController
 
                     $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
 
+                    // Ensure failed count is set (fallback to error count)
+                    $failedCount = $importData['failed'] ?? count($importData['errors'] ?? []);
+
                     // Transfer stats from session to logger (efficient batch update)
                     $importLogger->setStats([
                         'imported' => $importData['imported'],
                         'updated' => $importData['updated'],
-                        'failed' => $importData['failed'],
+                        'failed' => $failedCount,
                         'authors_created' => $importData['authors_created'],
                         'publishers_created' => $importData['publishers_created'],
                         'scraped' => $importData['scraped'],
@@ -453,7 +456,9 @@ class LibraryThingImportController
                     }
 
                     // Complete and persist
-                    $importLogger->complete($importData['total_rows']);
+                    if (!$importLogger->complete($importData['total_rows'])) {
+                        error_log("[LibraryThingImportController] Failed to persist import history to database");
+                    }
                 } catch (\Exception $e) {
                     // Log error but don't fail the import (already completed)
                     error_log("[LibraryThingImportController] Failed to persist import history: " . $e->getMessage());

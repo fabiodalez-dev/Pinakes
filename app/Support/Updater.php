@@ -348,7 +348,9 @@ class Updater
 
         // Get response headers from $http_response_header (magic variable set by file_get_contents)
         /** @var array<int, string> $http_response_header */
-        $responseHeaders = $http_response_header;
+        if (!empty($http_response_header)) {
+            $responseHeaders = $http_response_header;
+        }
 
         $this->debugLog('DEBUG', 'Risposta HTTP ricevuta', [
             'response_length' => $response !== false ? strlen($response) : 0,
@@ -504,28 +506,62 @@ class Updater
 
         $this->debugLog('INFO', 'Recupero tutte le releases', ['url' => $url, 'limit' => $limit]);
 
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => [
-                    'User-Agent: Pinakes-Updater/1.0',
-                    'Accept: application/vnd.github.v3+json'
-                ],
-                'timeout' => 30,
-                'ignore_errors' => true
-            ]
-        ]);
+        $response = null;
 
-        $response = @file_get_contents($url, false, $context);
+        // Try cURL first (consistent with other API methods)
+        if (extension_loaded('curl')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                CURLOPT_HTTPHEADER => ['Accept: application/vnd.github.v3+json'],
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
 
-        if ($response === false) {
+            $curlResult = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($curlResult !== false && $httpCode >= 200 && $httpCode < 400) {
+                $response = $curlResult;
+            }
+        }
+
+        // Fallback to file_get_contents
+        if ($response === null) {
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'header' => [
+                        'User-Agent: Pinakes-Updater/1.0',
+                        'Accept: application/vnd.github.v3+json'
+                    ],
+                    'timeout' => 30,
+                    'ignore_errors' => true
+                ]
+            ]);
+
+            $response = @file_get_contents($url, false, $context);
+        }
+
+        if (!is_string($response)) {
             $this->debugLog('ERROR', 'Impossibile recuperare releases', [
                 'error' => error_get_last()
             ]);
             return [];
         }
 
-        $releases = json_decode($response, true) ?? [];
+        $releases = json_decode($response, true);
+
+        if (!is_array($releases)) {
+            $this->debugLog('ERROR', 'Risposta releases non valida', [
+                'json_error' => json_last_error_msg()
+            ]);
+            return [];
+        }
 
         $this->debugLog('INFO', 'Releases recuperate', [
             'count' => count($releases),
@@ -609,12 +645,10 @@ class Updater
 
             $startTime = microtime(true);
             $fileContent = false;
-            $downloadMethod = 'unknown';
 
             // Try cURL first (more reliable on shared hosting)
             if (extension_loaded('curl')) {
                 $this->debugLog('DEBUG', 'Tentativo download con cURL');
-                $downloadMethod = 'curl';
 
                 $ch = curl_init($downloadUrl);
                 curl_setopt_array($ch, [
@@ -656,7 +690,6 @@ class Updater
             // Fallback to file_get_contents
             if ($fileContent === false) {
                 $this->debugLog('DEBUG', 'Tentativo download con file_get_contents');
-                $downloadMethod = 'file_get_contents';
 
                 $context = stream_context_create([
                     'http' => [
@@ -846,7 +879,7 @@ class Updater
             $this->debugLog('INFO', 'Estrazione completata', ['path' => $extractPath]);
 
             // Find the actual content directory (GitHub adds a prefix)
-            $dirs = glob($extractPath . '/*', GLOB_ONLYDIR);
+            $dirs = glob($extractPath . '/*', GLOB_ONLYDIR) ?: [];
             $this->debugLog('DEBUG', 'Directory estratte', ['dirs' => $dirs]);
 
             $contentPath = count($dirs) === 1 ? $dirs[0] : $extractPath;
@@ -924,7 +957,7 @@ class Updater
      * Save uploaded update package to temp directory
      * @return array{success: bool, path: string|null, error: string|null}
      */
-    public function saveUploadedPackage($uploadedFile): array
+    public function saveUploadedPackage(\Psr\Http\Message\UploadedFileInterface $uploadedFile): array
     {
         $this->debugLog('INFO', '=== SALVATAGGIO PACCHETTO MANUALE ===');
 
@@ -1385,7 +1418,7 @@ class Updater
             return $backups;
         }
 
-        $dirs = glob($this->backupPath . '/update_*', GLOB_ONLYDIR);
+        $dirs = glob($this->backupPath . '/update_*', GLOB_ONLYDIR) ?: [];
 
         foreach ($dirs as $dir) {
             $name = basename($dir);
@@ -1660,8 +1693,7 @@ class Updater
             // Mark update as complete
             $this->logUpdateComplete($logId, true);
 
-            // Cleanup
-            $this->cleanup();
+            // Cleanup app backup (temp files cleanup handled by caller's finally block)
             if ($appBackupPath !== '' && is_dir($appBackupPath)) {
                 $this->deleteDirectory($appBackupPath);
             }
@@ -1939,7 +1971,7 @@ class Updater
                 return ['success' => true, 'executed' => [], 'error' => null];
             }
 
-            $files = glob($migrationsPath . '/migrate_*.sql');
+            $files = glob($migrationsPath . '/migrate_*.sql') ?: [];
             sort($files);
 
             $this->debugLog('DEBUG', 'File migrazioni trovati', [
@@ -2268,6 +2300,13 @@ class Updater
      */
     public function getUpdateHistory(int $limit = 20): array
     {
+        // Check if update_logs table exists
+        $tableCheck = $this->db->query("SHOW TABLES LIKE 'update_logs'");
+        if ($tableCheck === false || $tableCheck->num_rows === 0) {
+            return [];
+        }
+        $tableCheck->free();
+
         $stmt = $this->db->prepare("
             SELECT ul.*, CONCAT(u.nome, ' ', u.cognome) as executed_by_name
             FROM update_logs ul

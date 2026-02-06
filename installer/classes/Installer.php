@@ -21,6 +21,7 @@ class Installer {
         'gdpr_requests',
         'generi',
         'home_content',
+        'import_logs',
         'languages',
         'libri',
         'libri_autori',

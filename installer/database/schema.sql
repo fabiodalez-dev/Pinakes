@@ -244,6 +244,41 @@ CREATE TABLE `home_content` (
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contenuti editabili homepage';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `import_logs`
+-- Import tracking system for CSV and LibraryThing imports
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `import_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `import_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique identifier for this import session',
+  `import_type` enum('csv','librarything') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import',
+  `file_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original filename uploaded',
+  `user_id` int DEFAULT NULL COMMENT 'User who initiated the import',
+  `total_rows` int NOT NULL DEFAULT '0' COMMENT 'Total rows in CSV',
+  `imported` int NOT NULL DEFAULT '0' COMMENT 'Successfully imported books (new)',
+  `updated` int NOT NULL DEFAULT '0' COMMENT 'Updated existing books',
+  `failed` int NOT NULL DEFAULT '0' COMMENT 'Failed rows',
+  `authors_created` int NOT NULL DEFAULT '0' COMMENT 'New authors created',
+  `publishers_created` int NOT NULL DEFAULT '0' COMMENT 'New publishers created',
+  `scraped` int NOT NULL DEFAULT '0' COMMENT 'Books enriched via scraping',
+  `errors_json` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON array of errors with line numbers and messages',
+  `started_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When import started',
+  `completed_at` timestamp NULL DEFAULT NULL COMMENT 'When import completed or failed',
+  `status` enum('processing','completed','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'processing' COMMENT 'Current import status',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `import_id` (`import_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_import_type` (`import_type`),
+  KEY `idx_started_at` (`started_at`),
+  KEY `idx_status` (`status`),
+  KEY `idx_type_status` (`import_type`,`status`),
+  CONSTRAINT `import_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Import tracking and error logging';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `events` (
@@ -303,10 +338,12 @@ CREATE TABLE `libri` (
   `id` int NOT NULL AUTO_INCREMENT,
   `isbn10` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `isbn13` varchar(13) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `issn` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ISSN for periodicals (LibraryThing)',
   `titolo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `sottotitolo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `anno_pubblicazione` smallint unsigned DEFAULT NULL,
   `lingua` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `original_languages` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original languages (LibraryThing)',
   `edizione` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `numero_pagine` int DEFAULT NULL,
   `genere_id` int DEFAULT NULL,
@@ -318,19 +355,40 @@ CREATE TABLE `libri` (
   `posizione_id` int DEFAULT NULL,
   `stato` enum('disponibile','prestato','prenotato','perso','danneggiato') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'disponibile',
   `data_acquisizione` date DEFAULT NULL,
+  `entry_date` date DEFAULT NULL COMMENT 'LibraryThing entry date',
+  `date_started` date DEFAULT NULL COMMENT 'Date started reading (LibraryThing)',
+  `date_read` date DEFAULT NULL COMMENT 'Date finished reading (LibraryThing)',
   `tipo_acquisizione` enum('acquisto','donazione') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'acquisto',
   `copertina_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `descrizione` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `review` text COLLATE utf8mb4_unicode_ci COMMENT 'Book review (LibraryThing)',
+  `rating` tinyint unsigned DEFAULT NULL COMMENT 'Rating 1-5 (LibraryThing)',
+  `comment` text COLLATE utf8mb4_unicode_ci COMMENT 'Public comment (LibraryThing)',
+  `private_comment` text COLLATE utf8mb4_unicode_ci COMMENT 'Private comment (LibraryThing)',
   `parole_chiave` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `formato` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cartaceo',
   `peso` float DEFAULT NULL,
   `dimensioni` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `physical_description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical description (LibraryThing)',
   `prezzo` decimal(10,2) DEFAULT NULL,
+  `value` decimal(10,2) DEFAULT NULL COMMENT 'Current value (LibraryThing)',
+  `condition_lt` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical condition (LibraryThing)',
+  `lt_fields_visibility` json DEFAULT NULL COMMENT 'Frontend visibility preferences for LibraryThing fields',
   `copie_totali` int DEFAULT '1',
   `copie_disponibili` int DEFAULT '1',
   `editore_id` int DEFAULT NULL,
+  `source` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Source/vendor (LibraryThing)',
+  `from_where` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'From where acquired (LibraryThing)',
+  `lending_patron` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Current lending patron (LibraryThing)',
+  `lending_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Lending status (LibraryThing)',
+  `lending_start` date DEFAULT NULL COMMENT 'Lending start date (LibraryThing)',
+  `lending_end` date DEFAULT NULL COMMENT 'Lending end date (LibraryThing)',
   `numero_inventario` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `classificazione_dewey` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `dewey_wording` text COLLATE utf8mb4_unicode_ci COMMENT 'Dewey classification description (LibraryThing)',
+  `lccn` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Library of Congress Control Number (LibraryThing)',
+  `lc_classification` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'LC Classification (LibraryThing)',
+  `other_call_number` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Other call number (LibraryThing)',
   `collana` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `numero_serie` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `note_varie` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -340,6 +398,10 @@ CREATE TABLE `libri` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `traduttore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ean` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '' COMMENT 'European Article Number',
+  `bcid` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'BCID (LibraryThing)',
+  `barcode` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical barcode (LibraryThing)',
+  `oclc` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'OCLC number (LibraryThing)',
+  `work_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'LibraryThing Work ID',
   `data_pubblicazione` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '' COMMENT 'Original publication date in Italian format',
   `deleted_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -354,13 +416,22 @@ CREATE TABLE `libri` (
   KEY `idx_libri_scaffale_mensola` (`scaffale_id`,`mensola_id`),
   KEY `idx_libri_posizione_progressiva` (`posizione_progressiva`),
   KEY `idx_libri_deleted_at` (`deleted_at`),
+  KEY `idx_lt_rating` (`rating`),
+  KEY `idx_lt_date_read` (`date_read`),
+  KEY `idx_lt_lending_status` (`lending_status`),
+  KEY `idx_lt_lccn` (`lccn`),
+  KEY `idx_lt_barcode` (`barcode`),
+  KEY `idx_lt_oclc` (`oclc`),
+  KEY `idx_lt_work_id` (`work_id`),
+  KEY `idx_lt_issn` (`issn`),
   FULLTEXT KEY `ft_libri_search` (`titolo`,`sottotitolo`,`descrizione`,`parole_chiave`),
   CONSTRAINT `fk_libri_mensola` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_libri_scaffale` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_1` FOREIGN KEY (`editore_id`) REFERENCES `editori` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_libri_sottogenere` FOREIGN KEY (`sottogenere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `libri_ibfk_5` FOREIGN KEY (`posizione_id`) REFERENCES `posizioni` (`id`) ON DELETE SET NULL
+  CONSTRAINT `libri_ibfk_5` FOREIGN KEY (`posizione_id`) REFERENCES `posizioni` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `chk_lt_rating` CHECK ((`rating` is null or (`rating` between 1 and 5)))
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

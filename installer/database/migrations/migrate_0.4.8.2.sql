@@ -1,8 +1,8 @@
--- Migration script for Pinakes 0.4.9
+-- Migration script for Pinakes 0.4.8.2
 -- Description: Import logs tracking system for CSV and LibraryThing imports
--- Date: 2026-02-05
+-- Date: 2026-02-06
 -- Compatibility: MySQL 5.7+, MariaDB 10.0+
--- FULLY IDEMPOTENT: Uses prepared statements to check before creating
+-- FULLY IDEMPOTENT: Checks before creating table and indexes
 
 -- This migration adds comprehensive import tracking and error logging
 -- for better monitoring and debugging of CSV/LibraryThing imports
@@ -34,6 +34,7 @@ CREATE TABLE import_logs (
     INDEX idx_import_type (import_type),
     INDEX idx_started_at (started_at),
     INDEX idx_status (status),
+    INDEX idx_type_status (import_type, status),
     FOREIGN KEY (user_id) REFERENCES utenti(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT=''Import tracking and error logging''
 ', 'SELECT 1');
@@ -42,13 +43,32 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ============================================================
--- 2. CLEANUP OLD LOGS (Optional: 90 days retention policy)
+-- 2. COMPOSITE INDEX (if table exists but index doesn't)
 -- ============================================================
--- Add event scheduler to auto-delete logs older than 90 days
--- Uncomment to enable automatic cleanup
 
--- SET GLOBAL event_scheduler = ON;
--- DROP EVENT IF EXISTS cleanup_old_import_logs;
--- CREATE EVENT cleanup_old_import_logs
--- ON SCHEDULE EVERY 1 DAY
--- DO DELETE FROM import_logs WHERE started_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
+SET @table_exists = (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'import_logs'
+);
+
+SET @index_exists = IF(@table_exists = 1, (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'import_logs'
+    AND INDEX_NAME = 'idx_type_status'
+), 0);
+
+SET @sql = IF(@table_exists = 0,
+    'SELECT "Table import_logs not found - skipping index creation" AS message',
+    IF(@index_exists = 0,
+        'CREATE INDEX idx_type_status ON import_logs (import_type, status)',
+        'SELECT "Index idx_type_status already exists" AS message'
+    )
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

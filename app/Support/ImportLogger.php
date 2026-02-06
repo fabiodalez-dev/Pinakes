@@ -129,7 +129,6 @@ class ImportLogger
             return true; // Already completed
         }
 
-        $this->completed = true;
         $errorsJson = json_encode($this->errors, JSON_UNESCAPED_UNICODE);
 
         // Compress if errors JSON is too large (> 1MB)
@@ -185,6 +184,7 @@ class ImportLogger
         }
 
         $stmt->close();
+        $this->completed = true;
         return true;
     }
 
@@ -200,8 +200,8 @@ class ImportLogger
             return true; // Already completed
         }
 
-        $this->completed = true;
-        $this->addError(0, 'FATAL', $errorMessage, 'system');
+        // Add fatal error and increment failed counter
+        $this->addError(0, 'FATAL', $errorMessage, 'system', true);
         $errorsJson = json_encode($this->errors, JSON_UNESCAPED_UNICODE);
 
         $stmt = $this->db->prepare("
@@ -228,6 +228,7 @@ class ImportLogger
         }
 
         $stmt->close();
+        $this->completed = true;
         return true;
     }
 
