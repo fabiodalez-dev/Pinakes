@@ -49,7 +49,7 @@ class DataIntegrity {
             $stmt->execute();
             $stmt->close();
 
-            // Ricalcola copie_disponibili e stato per tutti i libri dalla tabella copie
+            // Ricalcola copie_disponibili e stato per tutti i libri non soft-deleted
             // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, da_ritirare, o prenotato già iniziato)
             // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
             // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora 'disponibile'
@@ -111,6 +111,7 @@ class DataIntegrity {
                     ) > 0 THEN 'disponibile'
                     ELSE 'prestato'
                 END
+                WHERE l.deleted_at IS NULL
             ");
             $stmt->execute();
             $results['updated'] = $this->db->affected_rows;

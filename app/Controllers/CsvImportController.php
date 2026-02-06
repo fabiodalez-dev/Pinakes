@@ -122,7 +122,10 @@ class CsvImportController
             mkdir($uploadDir, 0755, true);
         }
         $savedFilePath = $uploadDir . '/csv_import_' . session_id() . '_' . uniqid('', true) . '.csv';
-        copy($tmpFile, $savedFilePath);
+        if (!@copy($tmpFile, $savedFilePath)) {
+            $_SESSION['error'] = __('Impossibile salvare il file CSV caricato');
+            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+        }
 
         // Count total rows for chunked processing
         $file = fopen($savedFilePath, 'r');

@@ -408,6 +408,10 @@ class DeweyApiController
      */
     private function getCodePath(string $code): array
     {
+        if (!preg_match('/^\d{3}(\.\d+)?$/', $code)) {
+            return [$code];
+        }
+
         $path = [];
 
         // Main class (X00)

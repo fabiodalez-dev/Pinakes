@@ -183,7 +183,7 @@ class EditoriApiController
                 LIMIT ?, ?";
         } else {
             $sql_prepared = "SELECT e.*, (
-                        SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id
+                        SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL
                     ) AS libri_count
                     FROM editori e
                     $where_prepared

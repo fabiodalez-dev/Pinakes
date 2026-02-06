@@ -1440,9 +1440,11 @@ async function initializeDewey() {
 
     currentDeweyCode = code;
     currentDeweyName = '';
+    const requestCode = code;
 
     // Fetch full hierarchy (codes + names) from API
     const pathData = await fetchDeweyPath(code);
+    if (requestCode !== currentDeweyCode) return; // stale response
     let chipCodeText = code;
     if (pathData) {
       chipCodeText = pathData.codes;
@@ -2701,7 +2703,7 @@ async function increaseCopies(book) {
                 await Swal.fire({
                     icon: 'error',
                     title: __('Errore'),
-                    text: data.message || __('Errore durante l\'aggiornamento delle copie'),
+                    text: data.error || data.message || __('Errore durante l\'aggiornamento delle copie'),
                     confirmButtonText: __('OK')
                 });
                 return;

@@ -28,10 +28,9 @@ class LibraryThingImportController
     /**
      * Number of LibraryThing rows to process per chunk
      * LibraryThing imports are typically larger and more complex than CSV
-     * Lower chunk size (2) reduces timeout risk and provides more frequent progress updates
-     * Recommended: 2-5 rows per chunk for LibraryThing TSV files
+     * Recommended: 5-10 rows per chunk for LibraryThing TSV files
      */
-    private const CHUNK_SIZE = 2;
+    private const CHUNK_SIZE = 5;
 
     /**
      * Write log message to import log file
@@ -437,7 +436,9 @@ class LibraryThingImportController
             if ($isComplete) {
                 $persisted = false;
                 try {
-                    $userId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : null;
+                    $userId = isset($_SESSION['user']) && is_array($_SESSION['user']) && isset($_SESSION['user']['id'])
+                        ? (int)$_SESSION['user']['id']
+                        : null;
                     $fileName = $importData['original_filename'] ?? basename($filePath);
 
                     $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
@@ -509,7 +510,7 @@ class LibraryThingImportController
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $importData['errors'][] = [
                 'line' => 0,
                 'title' => 'LibraryThing',
