@@ -107,12 +107,13 @@ class ImportHistoryController
         $stmt->bind_param('s', $importId);
         $stmt->execute();
         $result = $stmt->get_result();
-        $stmt->close();
 
         if (!($row = $result->fetch_assoc())) {
+            $stmt->close();
             $response->getBody()->write('Import non trovato');
             return $response->withStatus(404);
         }
+        $stmt->close();
 
         // Check permissions (users can only download their own imports, unless admin)
         $sessionUserId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : 0;
@@ -156,7 +157,7 @@ class ImportHistoryController
 
         $fileName = sprintf(
             'import_errors_%s_%s.csv',
-            $row['import_type'],
+            preg_replace('/[^a-zA-Z0-9_-]/', '', $row['import_type'] ?? 'unknown'),
             date('Y-m-d_His', strtotime($row['started_at']))
         );
 

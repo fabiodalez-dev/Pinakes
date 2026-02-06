@@ -91,6 +91,10 @@ class CsvImportController
         }
 
         $tmpFile = $uploadedFile->getStream()->getMetadata('uri');
+        if (!$tmpFile || !is_file($tmpFile)) {
+            $_SESSION['error'] = __('Impossibile leggere il file caricato');
+            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+        }
 
         // Validazione contenuto CSV: verifica che contenga separatori validi
         $handle = fopen($tmpFile, 'r');
@@ -188,11 +192,11 @@ class CsvImportController
 
         $importData = $_SESSION['csv_import_data'];
         $chunkStart = (int) ($data['start'] ?? 0);
-        $chunkSize = (int) ($data['size'] ?? 10);
+        $chunkSize = (int) ($data['size'] ?? self::CHUNK_SIZE);
 
         // Validate and cap chunk parameters to prevent DoS
         $chunkStart = max(0, $chunkStart); // Must be >= 0
-        $chunkSize = max(1, min($chunkSize, 50)); // Capped at 50 books per chunk
+        $chunkSize = max(1, min($chunkSize, self::CHUNK_SIZE)); // Capped at CHUNK_SIZE
 
         $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
 
@@ -358,13 +362,11 @@ class CsvImportController
                 // Log to file
                 $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
                 $logMsg = sprintf(
-                    "[%s] ERROR Riga %d (%s): %s\nFile: %s:%d\n\n",
+                    "[%s] ERROR Riga %d (%s): %s\n\n",
                     date('Y-m-d H:i:s'),
                     $lineNumber,
                     $title,
-                    $e->getMessage(),
-                    $e->getFile(),
-                    $e->getLine()
+                    $e->getMessage()
                 );
                 file_put_contents($logFile, $logMsg, FILE_APPEND);
             }
@@ -438,6 +440,8 @@ class CsvImportController
             // Cleanup file only after successful persistence
             if ($persisted) {
                 @unlink($importData['file_path']);
+            } else {
+                error_log("[CsvImportController] Orphaned import file (persistence failed): " . ($importData['file_path'] ?? 'unknown'));
             }
             unset($_SESSION['csv_import_data']);
         }

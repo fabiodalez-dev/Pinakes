@@ -99,7 +99,7 @@ class UpdateController
             return $this->jsonResponse($response, [
                 'success' => true,
                 'message' => sprintf(__('Aggiornamento alla versione %s completato'), $targetVersion),
-                'backup_path' => $result['backup_path']
+                'backup_path' => basename($result['backup_path'] ?? '')
             ]);
         }
 
@@ -469,7 +469,7 @@ class UpdateController
             return $this->jsonResponse($response, [
                 'success' => true,
                 'message' => __('Aggiornamento completato con successo'),
-                'backup_path' => $result['backup_path']
+                'backup_path' => basename($result['backup_path'] ?? '')
             ]);
         }
 
