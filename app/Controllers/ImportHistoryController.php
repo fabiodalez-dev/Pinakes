@@ -109,7 +109,7 @@ class ImportHistoryController
         }
 
         // Check permissions (users can only download their own imports, unless admin)
-        if (!$this->isAdmin() && $row['user_id'] !== ($_SESSION['user_id'] ?? null)) {
+        if (!$this->isAdmin() && (int)($row['user_id'] ?? 0) !== (int)($_SESSION['user_id'] ?? 0)) {
             $response->getBody()->write('Non autorizzato');
             return $response->withStatus(403);
         }
@@ -186,6 +186,7 @@ class ImportHistoryController
         $stmt = $db->prepare("
             DELETE FROM import_logs
             WHERE started_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+               OR (status = 'processing' AND started_at < DATE_SUB(NOW(), INTERVAL 1 DAY))
         ");
         $stmt->bind_param('i', $daysOld);
         $stmt->execute();

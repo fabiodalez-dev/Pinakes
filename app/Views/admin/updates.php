@@ -1053,7 +1053,7 @@ async function submitManualUpdate() {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}&temp_path=${encodeURIComponent(uploadData.temp_path)}`
+            body: `csrf_token=${encodeURIComponent(csrfToken)}`
         });
 
         const installData = await installResponse.json();

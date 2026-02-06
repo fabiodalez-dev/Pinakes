@@ -393,10 +393,11 @@ class UpdateController
             $result = $updater->saveUploadedPackage($uploadedFile);
 
             if ($result['success']) {
+                // Store path in session to avoid leaking filesystem paths to client
+                $_SESSION['manual_update_path'] = $result['path'];
                 return $this->jsonResponse($response, [
                     'success' => true,
-                    'message' => __('Pacchetto caricato con successo'),
-                    'temp_path' => $result['path']
+                    'message' => __('Pacchetto caricato con successo')
                 ]);
             }
 
@@ -426,7 +427,9 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
         }
 
-        $tempPath = $data['temp_path'] ?? '';
+        // Retrieve path from session (not from client) to prevent path manipulation
+        $tempPath = $_SESSION['manual_update_path'] ?? '';
+        unset($_SESSION['manual_update_path']);
 
         if (empty($tempPath)) {
             return $this->jsonResponse($response, ['error' => __('Path pacchetto non specificato')], 400);
@@ -457,8 +460,8 @@ class UpdateController
             ], 400);
         }
 
-        // Perform the update from uploaded file
-        $result = $updater->performUpdateFromFile($tempPath);
+        // Perform the update from uploaded file (use resolved path to prevent TOCTOU)
+        $result = $updater->performUpdateFromFile($realTempPath);
 
         if ($result['success']) {
             return $this->jsonResponse($response, [

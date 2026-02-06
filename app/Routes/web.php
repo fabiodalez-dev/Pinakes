@@ -2917,13 +2917,13 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->uploadUpdate($request, $response, $db);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Manual update - Install uploaded package
     $app->post('/admin/updates/install-manual', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->installManualUpdate($request, $response, $db);
-    })->add(new AdminAuthMiddleware());
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
 };

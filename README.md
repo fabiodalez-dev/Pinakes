@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.8-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.8.1-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,41 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.8
+## What's New in v0.4.8.1
+
+### 📊 Import Logging & Auto-Update System
+
+**Import History & Error Tracking:**
+- **Import logs database** — New `import_logs` table tracks every CSV/LibraryThing import with stats, errors, and timing
+- **Import history UI** — Admin panel to view past imports, filter by type/status, and download error reports as CSV
+- **Structured error handling** — Both import controllers now use typed error arrays (`scraping`/`validation`) instead of fragile string parsing
+- **Type-safe session handling** — `$_SESSION['user_id']` properly cast to `int` to prevent `TypeError` with `strict_types`
+
+**Auto-Update System:**
+- **GitHub release integration** — Check for updates, download, and install directly from admin panel
+- **Manual update upload** — Upload `.zip` packages for air-gapped environments
+- **Zip Slip protection** — Path traversal validation on all archive extraction
+- **Backup system** — Automatic backup before update with rollback capability
+- **Database migrations** — Automatic execution of versioned SQL migrations during updates
+
+**Security Fixes:**
+- **CSRF protection** — Added `CsrfMiddleware` to manual update upload/install routes
+- **No filesystem path leaks** — Update temp paths stored in session, not exposed to client
+- **Cryptographic temp directories** — `random_bytes()` instead of predictable `uniqid()`
+- **Orphan cleanup** — `deleteOldLogs()` now removes stale `'processing'` records older than 1 day
+
+**Code Quality:**
+- **PHPStan level 4 compliant** — All new code passes static analysis
+- **Consistent error structure** — CSV and LibraryThing controllers aligned on `['line', 'title', 'message', 'type']` format
+- **ISBN length validation** — `normalizeIsbn()` now rejects values that aren't 10 or 13 characters
+- **Negative price rejection** — `validatePrice()` throws on negative values
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.8</strong> - Security & Data Integrity</summary>
 
 ### 🔒 Security & Data Integrity Release
 
@@ -49,9 +83,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - Automatic vendor/ cleanup (removes dev dependencies)
 - Built-in testing and verification
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.7.2</strong> - Minor Bug Fixes</summary>

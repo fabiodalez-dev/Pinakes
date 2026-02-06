@@ -49,7 +49,13 @@ class ImportLogger
             throw new \RuntimeException("[ImportLogger] Failed to initialize: " . $db->error);
         }
 
-        $stmt->bind_param('sssi', $this->importId, $importType, $fileName, $userId);
+        if ($userId !== null) {
+            $stmt->bind_param('sssi', $this->importId, $importType, $fileName, $userId);
+        } else {
+            // Bind NULL explicitly: use 'ssss' with null string to avoid FK violation (0 instead of NULL)
+            $nullVal = null;
+            $stmt->bind_param('ssss', $this->importId, $importType, $fileName, $nullVal);
+        }
 
         if (!$stmt->execute()) {
             $error = $stmt->error ?: $db->error;

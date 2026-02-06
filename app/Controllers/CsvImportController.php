@@ -446,7 +446,7 @@ class CsvImportController
             'scraped' => $importData['scraped'],
             'authors_created' => $importData['authors_created'],
             'publishers_created' => $importData['publishers_created'],
-            'errors' => $importData['errors'],
+            'errors' => count($importData['errors']),
             'complete' => $isComplete
         ]));
 
@@ -718,7 +718,12 @@ class CsvImportController
             throw new \Exception(__('Prezzo non valido: deve essere un numero') . " ('{$price}')");
         }
 
-        return (float)$normalized;
+        $result = (float)$normalized;
+        if ($result < 0) {
+            throw new \Exception(__('Prezzo non valido: non può essere negativo') . " ('{$price}')");
+        }
+
+        return $result;
     }
 
     /**
@@ -837,7 +842,20 @@ class CsvImportController
             return null;
         }
 
-        return strtoupper($normalized);
+        $normalized = strtoupper($normalized);
+        $len = strlen($normalized);
+
+        // Validate length: ISBN-10 (10 chars) or ISBN-13/EAN (13 chars)
+        if ($len !== 10 && $len !== 13) {
+            return null; // Invalid length, skip silently (not a valid ISBN)
+        }
+
+        // Validate check digit using existing IsbnFormatter
+        if (!\App\Support\IsbnFormatter::isValid($normalized)) {
+            return null; // Invalid checksum, skip silently
+        }
+
+        return $normalized;
     }
 
     /**

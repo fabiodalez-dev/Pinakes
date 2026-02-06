@@ -511,6 +511,7 @@ class LibraryThingImportController
                 'line' => 0,
                 'title' => 'LibraryThing',
                 'message' => $e->getMessage(),
+                'type' => 'validation',
             ];
             $response->getBody()->write(json_encode([
                 'success' => false,

@@ -970,7 +970,7 @@ class Updater
 
         try {
             // Create temp directory for uploaded package
-            $uploadTempPath = $this->rootPath . '/storage/tmp/manual_update_' . uniqid('', true);
+            $uploadTempPath = $this->rootPath . '/storage/tmp/manual_update_' . bin2hex(random_bytes(16));
 
             if (!mkdir($uploadTempPath, 0755, true)) {
                 throw new Exception(__('Impossibile creare directory temporanea per upload'));

@@ -509,7 +509,7 @@ document.addEventListener('DOMContentLoaded', function() {
             scraped: 0,
             authors_created: 0,
             publishers_created: 0,
-            errors: []
+            errors: 0
         };
 
         function processNextChunk() {
@@ -521,11 +521,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (stats.authors_created > 0) message += `, ${stats.authors_created} autori creati`;
                     if (stats.publishers_created > 0) message += `, ${stats.publishers_created} editori creati`;
                     if (stats.scraped > 0) message += `, ${stats.scraped} arricchiti con scraping`;
-                    if (stats.errors.length > 0) message += `, ${stats.errors.length} errori`;
+                    if (stats.errors > 0) message += `, ${stats.errors} errori`;
 
                     if (window.Swal) {
                         Swal.fire({
-                            icon: stats.errors.length > 0 ? 'warning' : 'success',
+                            icon: stats.errors > 0 ? 'warning' : 'success',
                             title: '<?= addslashes(__("Import Completato")) ?>',
                             html: message.replace(/\n/g, '<br>'),
                             confirmButtonText: '<?= addslashes(__("OK")) ?>'
@@ -564,8 +564,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     stats.scraped = data.scraped || 0;
                     stats.authors_created = data.authors_created || 0;
                     stats.publishers_created = data.publishers_created || 0;
-                    // Backend returns cumulative error list, so assign directly (not concat)
-                    stats.errors = data.errors || [];
+                    // Backend returns cumulative error count
+                    stats.errors = data.errors || 0;
 
                     currentRow += size;
                     processNextChunk();
