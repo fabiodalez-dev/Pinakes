@@ -196,9 +196,10 @@ class ImportLogger
      * Mark import as failed (for critical errors that stop the entire import)
      *
      * @param string $errorMessage Fatal error message
+     * @param int|null $totalRows Total rows in file (null = calculate from stats)
      * @return bool True if persisted successfully, false on failure
      */
-    public function fail(string $errorMessage): bool
+    public function fail(string $errorMessage, ?int $totalRows = null): bool
     {
         if ($this->completed) {
             return true; // Already completed
@@ -233,7 +234,7 @@ class ImportLogger
         }
 
         // Persist partial stats so failure records are informative
-        $totalRows = $this->stats['imported'] + $this->stats['updated'] + $this->stats['failed'];
+        $totalRows = $totalRows ?? ($this->stats['imported'] + $this->stats['updated'] + $this->stats['failed']);
         $stmt->bind_param(
             'iiiiiiiss',
             $totalRows,

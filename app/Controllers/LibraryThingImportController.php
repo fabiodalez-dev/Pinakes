@@ -197,6 +197,7 @@ class LibraryThingImportController
             $_SESSION['librarything_import'] = [
                 'import_id' => $importId,
                 'file_path' => $savedPath,
+                'original_filename' => $filename,
                 'total_rows' => $totalRows,
                 'enable_scraping' => !empty($data['enable_scraping']),
                 'imported' => 0,
@@ -404,6 +405,7 @@ class LibraryThingImportController
                                 'line' => $lineNumber,
                                 'title' => $parsedData['titolo'],
                                 'message' => 'Scraping fallito - ' . $scrapeError->getMessage(),
+                                'type' => 'scraping',
                             ];
                         }
                     }
@@ -415,6 +417,7 @@ class LibraryThingImportController
                         'line' => $lineNumber,
                         'title' => $title,
                         'message' => $e->getMessage(),
+                        'type' => 'validation',
                     ];
                     $this->log("[processChunk] ERROR Riga $lineNumber ($title): " . $e->getMessage());
                     $this->log("[processChunk] ERROR Class: " . get_class($e));
@@ -433,20 +436,19 @@ class LibraryThingImportController
             // Persist import history to database when complete
             if ($isComplete) {
                 try {
-                    $userId = $_SESSION['user_id'] ?? null;
-                    $fileName = basename($filePath);
+                    $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+                    $fileName = $importData['original_filename'] ?? basename($filePath);
 
                     $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
 
-                    // Calculate failed count: only non-scraping errors
-                    $scrapeErrorCount = 0;
-                    foreach ($importData['errors'] ?? [] as $err) {
-                        $msg = is_array($err) ? ($err['message'] ?? '') : (string)$err;
-                        if (stripos($msg, 'scrap') !== false) {
-                            $scrapeErrorCount++;
+                    // Calculate failed count: only non-scraping errors (using type field)
+                    $failedCount = 0;
+                    foreach ($importData['errors'] as $err) {
+                        $type = is_array($err) ? ($err['type'] ?? 'validation') : 'validation';
+                        if ($type !== 'scraping') {
+                            $failedCount++;
                         }
                     }
-                    $failedCount = max(0, count($importData['errors'] ?? []) - $scrapeErrorCount);
 
                     // Transfer stats from session to logger (efficient batch update)
                     $importLogger->setStats([
@@ -458,11 +460,16 @@ class LibraryThingImportController
                         'scraped' => $importData['scraped'],
                     ]);
 
-                    // Transfer errors — structured arrays from this controller
+                    // Transfer errors — consume structured arrays directly
                     foreach ($importData['errors'] as $err) {
                         if (is_array($err)) {
-                            $isScraping = stripos($err['message'] ?? '', 'scraping') !== false || stripos($err['message'] ?? '', 'scrap') !== false;
-                            $importLogger->addError($err['line'] ?? 0, $err['title'] ?? 'LibraryThing', $err['message'] ?? '', $isScraping ? 'scraping' : 'validation', false);
+                            $importLogger->addError(
+                                $err['line'] ?? 0,
+                                $err['title'] ?? 'LibraryThing',
+                                $err['message'] ?? '',
+                                $err['type'] ?? 'validation',
+                                false
+                            );
                         } else {
                             // Legacy string format fallback
                             $importLogger->addError(0, 'LibraryThing', (string)$err, 'validation', false);

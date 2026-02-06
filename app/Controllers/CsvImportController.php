@@ -145,6 +145,7 @@ class CsvImportController
         // Store import metadata in session
         $_SESSION['csv_import_data'] = [
             'file_path' => $savedFilePath,
+            'original_filename' => $filename,
             'delimiter' => $delimiter,
             'total_rows' => $totalRows,
             'enable_scraping' => !empty($data['enable_scraping']),
@@ -324,13 +325,12 @@ class CsvImportController
                     } catch (\Throwable $scrapeError) {
                         // Log scraping error but continue with import
                         $title = $parsedData['titolo'];
-                        $scrapingErrorMsg = sprintf(
-                            __('Riga %d (%s): Scraping fallito - %s'),
-                            $lineNumber,
-                            $title,
-                            $scrapeError->getMessage()
-                        );
-                        $importData['errors'][] = $scrapingErrorMsg;
+                        $importData['errors'][] = [
+                            'line' => $lineNumber,
+                            'title' => $title,
+                            'message' => 'Scraping fallito - ' . $scrapeError->getMessage(),
+                            'type' => 'scraping',
+                        ];
 
                         // Also log to file for debugging
                         $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
@@ -348,8 +348,12 @@ class CsvImportController
             } catch (\Throwable $e) {
                 $db->rollback();
                 $title = $parsedData['titolo'] ?? ($rawData[0] ?? '');
-                $errorMsg = sprintf(__('Riga %d (%s): %s'), $lineNumber, $title, $e->getMessage());
-                $importData['errors'][] = $errorMsg;
+                $importData['errors'][] = [
+                    'line' => $lineNumber,
+                    'title' => $title,
+                    'message' => $e->getMessage(),
+                    'type' => 'validation',
+                ];
 
                 // Log to file
                 $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
@@ -380,15 +384,16 @@ class CsvImportController
         if ($isComplete) {
             // Persist import history to database
             try {
-                $userId = $_SESSION['user_id'] ?? null;
-                $fileName = basename($importData['file_path'] ?? 'unknown.csv');
+                $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+                $fileName = $importData['original_filename'] ?? basename($importData['file_path'] ?? 'unknown.csv');
 
                 $importLogger = new \App\Support\ImportLogger($db, 'csv', $fileName, $userId);
 
-                // Calculate failed count: only non-scraping errors
+                // Calculate failed count: only non-scraping errors (using type field)
                 $failedCount = 0;
-                foreach ($importData['errors'] ?? [] as $errorMsg) {
-                    if (stripos($errorMsg, 'scrap') === false) {
+                foreach ($importData['errors'] as $err) {
+                    $type = is_array($err) ? ($err['type'] ?? 'validation') : 'validation';
+                    if ($type !== 'scraping') {
                         $failedCount++;
                     }
                 }
@@ -403,19 +408,19 @@ class CsvImportController
                     'scraped' => $importData['scraped'],
                 ]);
 
-                // Transfer errors — categorize scraping vs validation
-                foreach ($importData['errors'] as $errorMsg) {
-                    // Parse error message to extract line number and title
-                    // Format: "Riga X (Title): Message"
-                    if (preg_match('/Riga (\d+) \(([^)]+)\): (.+)/', $errorMsg, $matches)) {
-                        $lineNum = (int)$matches[1];
-                        $title = $matches[2];
-                        $message = $matches[3];
-                        $isScraping = stripos($message, 'scraping') !== false || stripos($message, 'scrap') !== false;
-                        $importLogger->addError($lineNum, $title, $message, $isScraping ? 'scraping' : 'validation', false);
+                // Transfer errors — consume structured arrays directly
+                foreach ($importData['errors'] as $err) {
+                    if (is_array($err)) {
+                        $importLogger->addError(
+                            $err['line'] ?? 0,
+                            $err['title'] ?? 'Unknown',
+                            $err['message'] ?? '',
+                            $err['type'] ?? 'validation',
+                            false
+                        );
                     } else {
-                        // Fallback if format doesn't match
-                        $importLogger->addError(0, 'Unknown', $errorMsg, 'validation', false);
+                        // Legacy string format fallback
+                        $importLogger->addError(0, 'Unknown', (string)$err, 'validation', false);
                     }
                 }
 
