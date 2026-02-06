@@ -383,8 +383,9 @@ class CsvImportController
 
         if ($isComplete) {
             // Persist import history to database
+            $persisted = false;
             try {
-                $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+                $userId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : null;
                 $fileName = $importData['original_filename'] ?? basename($importData['file_path'] ?? 'unknown.csv');
 
                 $importLogger = new \App\Support\ImportLogger($db, 'csv', $fileName, $userId);
@@ -425,7 +426,8 @@ class CsvImportController
                 }
 
                 // Complete and persist
-                if (!$importLogger->complete($importData['total_rows'])) {
+                $persisted = $importLogger->complete($importData['total_rows']);
+                if (!$persisted) {
                     error_log("[CsvImportController] Failed to persist import history to database");
                 }
             } catch (\Exception $e) {
@@ -433,8 +435,10 @@ class CsvImportController
                 error_log("[CsvImportController] Failed to persist import history: " . $e->getMessage());
             }
 
-            // Cleanup
-            @unlink($importData['file_path']);
+            // Cleanup file only after successful persistence
+            if ($persisted) {
+                @unlink($importData['file_path']);
+            }
             unset($_SESSION['csv_import_data']);
         }
 
@@ -1059,6 +1063,8 @@ class CsvImportController
             $firstAuthor = $authorsArray[0];
 
             if ($firstAuthor !== '') {
+                // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi")
+                $normalizedAuthor = \App\Support\AuthorNormalizer::normalize($firstAuthor);
                 $stmt = $db->prepare("
                     SELECT DISTINCT l.id
                     FROM libri l
@@ -1069,7 +1075,7 @@ class CsvImportController
                     AND l.deleted_at IS NULL
                     LIMIT 1
                 ");
-                $stmt->bind_param('ss', $data['titolo'], $firstAuthor);
+                $stmt->bind_param('ss', $data['titolo'], $normalizedAuthor);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 if ($row = $result->fetch_assoc()) {
@@ -1124,7 +1130,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', strval($data['prezzo'])) : null;
+        $prezzo = !empty($data['prezzo']) ? (float) $data['prezzo'] : null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
@@ -1211,7 +1217,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $prezzo = !empty($data['prezzo']) ? (float) str_replace(',', '.', strval($data['prezzo'])) : null;
+        $prezzo = !empty($data['prezzo']) ? (float) $data['prezzo'] : null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
         if ($copie < 1) {

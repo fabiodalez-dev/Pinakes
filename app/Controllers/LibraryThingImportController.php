@@ -435,8 +435,9 @@ class LibraryThingImportController
 
             // Persist import history to database when complete
             if ($isComplete) {
+                $persisted = false;
                 try {
-                    $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+                    $userId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : null;
                     $fileName = $importData['original_filename'] ?? basename($filePath);
 
                     $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
@@ -477,7 +478,8 @@ class LibraryThingImportController
                     }
 
                     // Complete and persist
-                    if (!$importLogger->complete($importData['total_rows'])) {
+                    $persisted = $importLogger->complete($importData['total_rows']);
+                    if (!$persisted) {
                         error_log("[LibraryThingImportController] Failed to persist import history to database");
                     }
                 } catch (\Exception $e) {
@@ -485,8 +487,8 @@ class LibraryThingImportController
                     error_log("[LibraryThingImportController] Failed to persist import history: " . $e->getMessage());
                 }
 
-                // Cleanup file
-                if (file_exists($filePath)) {
+                // Cleanup file only after successful persistence
+                if ($persisted && file_exists($filePath)) {
                     unlink($filePath);
                 }
             }

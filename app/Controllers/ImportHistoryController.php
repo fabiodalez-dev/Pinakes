@@ -18,8 +18,8 @@ class ImportHistoryController
      */
     public function index(Request $request, Response $response, \mysqli $db): Response
     {
-        // Get user ID from session
-        $userId = $_SESSION['user_id'] ?? null;
+        // Get user ID from session (canonical key is $_SESSION['user']['id'])
+        $userId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : null;
 
         // Build query
         $query = "
@@ -109,7 +109,8 @@ class ImportHistoryController
         }
 
         // Check permissions (users can only download their own imports, unless admin)
-        if (!$this->isAdmin() && (int)($row['user_id'] ?? 0) !== (int)($_SESSION['user_id'] ?? 0)) {
+        $sessionUserId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : 0;
+        if (!$this->isAdmin() && (int)($row['user_id'] ?? 0) !== $sessionUserId) {
             $response->getBody()->write('Non autorizzato');
             return $response->withStatus(403);
         }

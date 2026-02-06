@@ -934,6 +934,10 @@ let uppyManualUpdate = null;
 let uploadedFile = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+    if (typeof Uppy === 'undefined' || typeof UppyDragDrop === 'undefined') {
+        console.error('Uppy non caricato: verifica vendor bundle');
+        return;
+    }
     // Initialize Uppy for manual update
     uppyManualUpdate = new Uppy({
         restrictions: {

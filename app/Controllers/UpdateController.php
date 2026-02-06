@@ -371,17 +371,18 @@ class UpdateController
             ], 400);
         }
 
-        // Validate file type
+        // Validate file type (PSR-7: getClientFilename() can return null)
         $filename = $uploadedFile->getClientFilename();
-        if (!str_ends_with(strtolower($filename), '.zip')) {
+        if ($filename === null || !str_ends_with(strtolower($filename), '.zip')) {
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Il file deve essere un archivio ZIP')
             ], 400);
         }
 
-        // Validate file size (max 50MB)
-        if ($uploadedFile->getSize() > 50 * 1024 * 1024) {
+        // Validate file size (max 50MB) (PSR-7: getSize() can return null)
+        $size = $uploadedFile->getSize();
+        if ($size === null || $size > 50 * 1024 * 1024) {
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Il file è troppo grande (max 50MB)')
