@@ -438,8 +438,15 @@ class LibraryThingImportController
 
                     $importLogger = new \App\Support\ImportLogger($db, 'librarything', $fileName, $userId);
 
-                    // Calculate failed count excluding scraping errors
-                    $failedCount = $importData['failed'] ?? max(0, count($importData['errors'] ?? []) - ($importData['scraped'] ?? 0));
+                    // Calculate failed count: only non-scraping errors
+                    $scrapeErrorCount = 0;
+                    foreach ($importData['errors'] ?? [] as $err) {
+                        $msg = is_array($err) ? ($err['message'] ?? '') : (string)$err;
+                        if (stripos($msg, 'scrap') !== false) {
+                            $scrapeErrorCount++;
+                        }
+                    }
+                    $failedCount = max(0, count($importData['errors'] ?? []) - $scrapeErrorCount);
 
                     // Transfer stats from session to logger (efficient batch update)
                     $importLogger->setStats([

@@ -214,7 +214,13 @@ class ImportLogger
 
         $stmt = $this->db->prepare("
             UPDATE import_logs
-            SET failed = ?,
+            SET total_rows = ?,
+                imported = ?,
+                updated = ?,
+                failed = ?,
+                authors_created = ?,
+                publishers_created = ?,
+                scraped = ?,
                 errors_json = ?,
                 completed_at = NOW(),
                 status = 'failed'
@@ -226,8 +232,20 @@ class ImportLogger
             return false;
         }
 
-        $failed = $this->stats['failed'];
-        $stmt->bind_param('iss', $failed, $errorsJson, $this->importId);
+        // Persist partial stats so failure records are informative
+        $totalRows = $this->stats['imported'] + $this->stats['updated'] + $this->stats['failed'];
+        $stmt->bind_param(
+            'iiiiiiiss',
+            $totalRows,
+            $this->stats['imported'],
+            $this->stats['updated'],
+            $this->stats['failed'],
+            $this->stats['authors_created'],
+            $this->stats['publishers_created'],
+            $this->stats['scraped'],
+            $errorsJson,
+            $this->importId
+        );
 
         if (!$stmt->execute()) {
             error_log("[ImportLogger] Failed to execute fail: " . ($stmt->error ?: $this->db->error));
