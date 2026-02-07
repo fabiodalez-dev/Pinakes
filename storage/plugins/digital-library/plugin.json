@@ -9,7 +9,7 @@
   "main_file": "wrapper.php",
   "requires_php": "8.0",
   "requires_app": "0.4.0",
-  "max_app_version": "0.4.8",
+  "max_app_version": "1.0.0",
   "metadata": {
     "category": "media",
     "priority": 10,

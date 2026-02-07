@@ -30,6 +30,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 **Import History & Error Tracking:**
 - **Import logs database** — New `import_logs` table tracks every CSV/LibraryThing import with stats, errors, and timing
 - **Import history UI** — Admin panel to view past imports, filter by type/status, and download error reports as CSV
+- **Import statistics** — Per-import success/failure/skipped counters with duration tracking and detailed error breakdown
 - **Structured error handling** — Both import controllers now use typed error arrays (`scraping`/`validation`) instead of fragile string parsing
 - **Type-safe session handling** — `$_SESSION['user_id']` properly cast to `int` to prevent `TypeError` with `strict_types`
 
@@ -45,6 +46,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **No filesystem path leaks** — Update temp paths stored in session, not exposed to client
 - **Cryptographic temp directories** — `random_bytes()` instead of predictable `uniqid()`
 - **Orphan cleanup** — `deleteOldLogs()` now removes stale `'processing'` records older than 1 day
+
+**Bug Fixes:**
+- **Batch cover download** — Fixed HTTP 502 errors during bulk cover fetching with proper error handling and retry
+- **Dewey classification display** — Hierarchy breadcrumb now renders correctly at all classification levels
+- **Soft-delete consistency** — All queries on `libri` table now properly filter deleted records (`deleted_at IS NULL`)
+- **Dashboard counters** — Statistics aligned with soft-delete, excluded deleted books from all counts
+- **Loan status badges** — Fixed badge rendering for all loan states in history views
 
 **Code Quality:**
 - **PHPStan level 4 compliant** — All new code passes static analysis
