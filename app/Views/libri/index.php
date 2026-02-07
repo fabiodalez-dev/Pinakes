@@ -74,8 +74,12 @@ $libri = $data['libri'];
               <a href="/admin/libri/import" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
                 <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
               </a>
-              <a href="/admin/libri/import/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <a href="/admin/libri/import/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-cloud-upload-alt mr-2"></i><?= __("LibraryThing TSV") ?>
+              </a>
+              <hr class="border-gray-200">
+              <a href="/admin/imports-history" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+                <i class="fas fa-history mr-2"></i><?= __("Storico Import") ?>
               </a>
             </div>
           </div>
