@@ -130,6 +130,7 @@ class CsvImportController
         // Count total rows for chunked processing
         $file = fopen($savedFilePath, 'r');
         if ($file === false) {
+            @unlink($savedFilePath);
             $_SESSION['error'] = __('Impossibile aprire il file CSV salvato');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
@@ -435,11 +436,19 @@ class CsvImportController
                 $persisted = $importLogger->complete($importData['total_rows']);
                 if (!$persisted) {
                     error_log("[CsvImportController] Failed to persist import history to database");
+                    // Mark as failed so the record doesn't stay stuck in 'processing'
+                    $importLogger->fail('Failed to persist import history', $importData['total_rows']);
                 }
             } catch (\Throwable $e) {
                 // Log error but don't fail the import (already completed)
                 // Catches \Error/TypeError too (strict_types=1 can throw TypeError)
                 error_log("[CsvImportController] Failed to persist import history (" . get_class($e) . "): " . $e->getMessage());
+                // Mark as failed so the record doesn't stay stuck in 'processing'
+                try {
+                    $importLogger->fail($e->getMessage(), $importData['total_rows']);
+                } catch (\Throwable $inner) {
+                    error_log("[CsvImportController] Also failed to mark import as failed: " . $inner->getMessage());
+                }
             }
 
             // Cleanup file only after successful persistence

@@ -188,7 +188,7 @@ class UserDashboardController
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) AS has_review
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato != 'prestato'
+                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato != 'prestato' AND l.deleted_at IS NULL
                 ORDER BY pr.data_restituzione DESC, pr.data_prestito DESC
                 LIMIT 50
             ");
@@ -205,7 +205,7 @@ class UserDashboardController
                 SELECT r.*, l.titolo AS libro_titolo, l.copertina_url AS libro_copertina
                 FROM recensioni r
                 JOIN libri l ON l.id = r.libro_id
-                WHERE r.utente_id = ?
+                WHERE r.utente_id = ? AND l.deleted_at IS NULL
                 ORDER BY r.created_at DESC
             ");
             $stmt->bind_param('i', $userId);
