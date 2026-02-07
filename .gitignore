@@ -55,6 +55,7 @@ old.sql
 # ========================================
 # Runtime Data (user-generated)
 # ========================================
+public/assets/logo_*
 public/uploads/settings/
 public/uploads/*
 !public/uploads/.gitkeep
