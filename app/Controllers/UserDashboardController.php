@@ -29,8 +29,8 @@ class UserDashboardController
             $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL");
             $stats['libri'] = (int)($res->fetch_assoc()['c'] ?? 0);
             
-            // Count user active loans
-            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE utente_id = ? AND attivo = 1");
+            // Count user active loans (exclude soft-deleted books)
+            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti p JOIN libri l ON p.libro_id = l.id WHERE p.utente_id = ? AND p.attivo = 1 AND l.deleted_at IS NULL");
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -45,8 +45,8 @@ class UserDashboardController
             $stats['preferiti'] = (int)($res->fetch_assoc()['c'] ?? 0);
             $stmt->close();
             
-            // Count user loan history
-            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE utente_id = ?");
+            // Count user loan history (exclude soft-deleted books)
+            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti p JOIN libri l ON p.libro_id = l.id WHERE p.utente_id = ? AND l.deleted_at IS NULL");
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $res = $stmt->get_result();

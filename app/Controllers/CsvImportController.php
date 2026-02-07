@@ -444,10 +444,12 @@ class CsvImportController
                 // Catches \Error/TypeError too (strict_types=1 can throw TypeError)
                 error_log("[CsvImportController] Failed to persist import history (" . get_class($e) . "): " . $e->getMessage());
                 // Mark as failed so the record doesn't stay stuck in 'processing'
-                try {
-                    $importLogger->fail($e->getMessage(), $importData['total_rows']);
-                } catch (\Throwable $inner) {
-                    error_log("[CsvImportController] Also failed to mark import as failed: " . $inner->getMessage());
+                if (isset($importLogger)) {
+                    try {
+                        $importLogger->fail($e->getMessage(), $importData['total_rows']);
+                    } catch (\Throwable $inner) {
+                        error_log("[CsvImportController] Also failed to mark import as failed: " . $inner->getMessage());
+                    }
                 }
             }
 
@@ -709,7 +711,7 @@ class CsvImportController
      */
     private function validatePrice(string $price): ?float
     {
-        if (empty($price)) {
+        if (trim($price) === '') {
             return null;
         }
 
