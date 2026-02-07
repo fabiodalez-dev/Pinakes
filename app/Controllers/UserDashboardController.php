@@ -81,7 +81,7 @@ class UserDashboardController
                        l.titolo AS titolo_libro, l.copertina_url
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id
-                WHERE p.utente_id = ? AND p.attivo = 1
+                WHERE p.utente_id = ? AND p.attivo = 1 AND l.deleted_at IS NULL
                 ORDER BY p.data_scadenza ASC
                 LIMIT 5
             ");

@@ -130,7 +130,8 @@ class CsvImportController
         // Count total rows for chunked processing
         $file = fopen($savedFilePath, 'r');
         if ($file === false) {
-            throw new \Exception(__('Impossibile aprire il file CSV salvato'));
+            $_SESSION['error'] = __('Impossibile aprire il file CSV salvato');
+            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
         // Skip BOM if present
@@ -1372,8 +1373,8 @@ class CsvImportController
             $types .= 's';
         }
 
-        // Prezzo
-        if (empty($csvData['prezzo']) && !empty($scrapedData['price'])) {
+        // Prezzo — don't use empty() as it discards valid 0.00 prices
+        if (($csvData['prezzo'] === null || $csvData['prezzo'] === '') && !empty($scrapedData['price'])) {
             $priceClean = preg_replace('/[^0-9,.]/', '', $scrapedData['price']);
             $priceClean = str_replace(',', '.', $priceClean);
             if (is_numeric($priceClean)) {

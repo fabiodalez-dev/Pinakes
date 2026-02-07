@@ -313,6 +313,19 @@ class LibriController
             file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
         }
     }
+
+    /**
+     * Strip HTML tags and limit publisher name length.
+     */
+    private function sanitizePublisherName(string $name): string
+    {
+        $name = trim(strip_tags($name));
+        if (mb_strlen($name) > 255) {
+            $name = mb_substr($name, 0, 255);
+        }
+        return $name;
+    }
+
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         $repo = new \App\Models\BookRepository($db);
@@ -803,11 +816,7 @@ class LibriController
                     $publisherName = trim((string) $data['scraped_publisher']);
                 }
 
-                // Sanitize: strip HTML tags and limit length to prevent XSS and overflow
-                $publisherName = trim(strip_tags($publisherName));
-                if (mb_strlen($publisherName) > 255) {
-                    $publisherName = mb_substr($publisherName, 0, 255);
-                }
+                $publisherName = $this->sanitizePublisherName($publisherName);
 
                 if ($publisherName !== '') {
                     $found = $pubRepo->findByName($publisherName);
@@ -1345,11 +1354,7 @@ class LibriController
                     $publisherName = trim((string) $data['scraped_publisher']);
                 }
 
-                // Sanitize: strip HTML tags and limit length to prevent XSS and overflow
-                $publisherName = trim(strip_tags($publisherName));
-                if (mb_strlen($publisherName) > 255) {
-                    $publisherName = mb_substr($publisherName, 0, 255);
-                }
+                $publisherName = $this->sanitizePublisherName($publisherName);
 
                 if ($publisherName !== '') {
                     $found = $pubRepo->findByName($publisherName);
