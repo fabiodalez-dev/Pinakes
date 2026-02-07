@@ -543,10 +543,23 @@ function reservationBookUrl(array $item): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
-                  <i class="fas fa-calendar" aria-hidden="true"></i>
-                  <span><?= $isOverdue ? __('In ritardo') : __('Scadenza'); ?>: <?= $scadenza ? format_date($scadenza, false, '/') : __('N/D'); ?></span>
-                </div>
+                <?php
+                $stato = $loan['stato'] ?? 'in_corso';
+                $statoBadges = [
+                    'da_ritirare' => ['icon' => 'fa-box-open', 'label' => __('Da ritirare'), 'style' => 'background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;'],
+                    'prenotato' => ['icon' => 'fa-bookmark', 'label' => __('Prenotato'), 'style' => 'background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;'],
+                ];
+                if (isset($statoBadges[$stato])): ?>
+                  <div class="badge" style="<?= $statoBadges[$stato]['style'] ?>">
+                    <i class="fas <?= $statoBadges[$stato]['icon'] ?>" aria-hidden="true"></i>
+                    <span><?= $statoBadges[$stato]['label'] ?></span>
+                  </div>
+                <?php else: ?>
+                  <div class="badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
+                    <i class="fas fa-calendar" aria-hidden="true"></i>
+                    <span><?= $isOverdue ? __('In ritardo') : __('Scadenza'); ?>: <?= $scadenza ? format_date($scadenza, false, '/') : __('N/D'); ?></span>
+                  </div>
+                <?php endif; ?>
                 <?php if ($startDate): ?>
                   <div class="badge badge-date">
                     <i class="fas fa-clock" aria-hidden="true"></i>

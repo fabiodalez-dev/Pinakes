@@ -733,7 +733,7 @@ class LibraryThingImportController
             $isbns = preg_split('/[,\s]+/', $isbnField);
 
             foreach ($isbns as $isbn) {
-                $isbn = preg_replace('/[^0-9X]/', '', trim($isbn));
+                $isbn = strtoupper(preg_replace('/[^0-9Xx]/', '', trim($isbn)));
                 if (empty($isbn)) continue;
 
                 if (strlen($isbn) === 13) {
@@ -1528,12 +1528,7 @@ class LibraryThingImportController
         // Execute query
         if (!empty($bindValues)) {
             $stmt = $db->prepare($query);
-            $refs = [];
-            foreach ($bindValues as $key => $value) {
-                $refs[$key] = &$bindValues[$key];
-            }
-            array_unshift($refs, $bindTypes);
-            call_user_func_array([$stmt, 'bind_param'], $refs);
+            $stmt->bind_param($bindTypes, ...$bindValues);
             $stmt->execute();
             $result = $stmt->get_result();
         } else {

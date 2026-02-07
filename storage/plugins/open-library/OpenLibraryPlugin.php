@@ -944,6 +944,9 @@ class OpenLibraryPlugin
         $pluginId = $this->pluginId;
         if ($pluginId === null) {
             $stmt2 = $this->db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
+            if ($stmt2 === false) {
+                return null;
+            }
             $pluginName = 'open-library';
             $stmt2->bind_param('s', $pluginName);
             $stmt2->execute();
@@ -953,6 +956,7 @@ class OpenLibraryPlugin
                 $pluginId = $row['id'] ?? null;
                 $result->free();
             }
+            $stmt2->close();
         }
 
         if ($pluginId === null) {
