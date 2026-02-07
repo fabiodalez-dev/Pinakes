@@ -19,6 +19,7 @@ class OpenLibraryPlugin
     private const GOODREADS_COVERS_BASE = 'https://bookcover.longitood.com/bookcover';
     private const TIMEOUT = 15;
     private const USER_AGENT = 'Mozilla/5.0 (compatible; BibliotecaBot/1.0) Safari/537.36';
+    private const MIN_COVER_SIZE_BYTES = 1000;
 
     private ?\mysqli $db = null;
     private ?object $hookManager = null;
@@ -639,7 +640,7 @@ class OpenLibraryPlugin
         // so we must verify actual content size.
         $urlPath = parse_url($url, PHP_URL_PATH);
         if (empty($contentType) && is_string($urlPath) && preg_match('/\.(jpe?g|png|gif|webp)$/i', $urlPath)) {
-            if ($contentLength > 1000) {
+            if ($contentLength > self::MIN_COVER_SIZE_BYTES) {
                 return true;
             }
             // Content-Length unknown (-1) or too small: do a GET to check actual size
@@ -654,8 +655,10 @@ class OpenLibraryPlugin
                     CURLOPT_RANGE => '0-1023',
                 ]);
                 $partial = curl_exec($ch2);
+                $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
                 curl_close($ch2);
-                return is_string($partial) && strlen($partial) > 1000;
+                return in_array($httpCode2, [200, 206], true)
+                    && is_string($partial) && strlen($partial) > self::MIN_COVER_SIZE_BYTES;
             }
             return false;
         }
@@ -940,7 +943,11 @@ class OpenLibraryPlugin
         // Get plugin ID if not set
         $pluginId = $this->pluginId;
         if ($pluginId === null) {
-            $result = $this->db->query("SELECT id FROM plugins WHERE name = 'open-library' LIMIT 1");
+            $stmt2 = $this->db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
+            $pluginName = 'open-library';
+            $stmt2->bind_param('s', $pluginName);
+            $stmt2->execute();
+            $result = $stmt2->get_result();
             if ($result) {
                 $row = $result->fetch_assoc();
                 $pluginId = $row['id'] ?? null;
@@ -991,6 +998,10 @@ class OpenLibraryPlugin
             ?? $_ENV['APP_KEY']
             ?? getenv('APP_KEY')
             ?? null;
+
+        if ($rawKey !== null && empty($_ENV['PLUGIN_ENCRYPTION_KEY']) && !getenv('PLUGIN_ENCRYPTION_KEY')) {
+            error_log('[OpenLibrary] WARNING: Using APP_KEY as fallback for plugin encryption. Set PLUGIN_ENCRYPTION_KEY for isolation.');
+        }
 
         if (!$rawKey || $rawKey === '') {
             error_log('[OpenLibrary] Encryption key not found, cannot decrypt setting');
@@ -1252,7 +1263,7 @@ class OpenLibraryPlugin
      */
     public function registerRoutes($app): void
     {
-        // Register test endpoint for Open Library plugin
+        // Register test endpoint for Open Library plugin (admin-only)
         $app->get('/api/open-library/test', function ($request, $response) use ($app) {
             $queryParams = $request->getQueryParams();
             $isbn = $queryParams['isbn'] ?? '9788804666592'; // Default ISBN for testing
@@ -1281,7 +1292,7 @@ class OpenLibraryPlugin
                 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
             }
-        });
+        })->add(new \App\Middleware\AdminAuthMiddleware());
 
         error_log('[OpenLibrary Plugin] Test route registered at /api/open-library/test');
     }

@@ -525,7 +525,7 @@ class LibraryThingImportController
                 'line' => 0,
                 'title' => 'LibraryThing',
                 'message' => $e->getMessage(),
-                'type' => 'validation',
+                'type' => 'system',
             ];
             $response->getBody()->write(json_encode([
                 'success' => false,

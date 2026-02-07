@@ -46,7 +46,7 @@ class UserDashboardController
             $stmt->close();
             
             // Count user loan history (exclude soft-deleted books)
-            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti p JOIN libri l ON p.libro_id = l.id WHERE p.utente_id = ? AND l.deleted_at IS NULL");
+            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti p JOIN libri l ON p.libro_id = l.id WHERE p.utente_id = ? AND p.attivo = 0 AND l.deleted_at IS NULL");
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $res = $stmt->get_result();

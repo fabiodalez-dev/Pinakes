@@ -366,12 +366,6 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <dd class="text-gray-900 font-medium"><?php echo htmlspecialchars((string)$libro['peso'], ENT_QUOTES, 'UTF-8'); ?> <?= __("kg") ?></dd>
             </div>
             <?php endif; ?>
-            <?php if (!empty($libro['prezzo'])): ?>
-            <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Prezzo") ?></dt>
-              <dd class="text-gray-900 font-medium">€ <?php echo htmlspecialchars(number_format((float)$libro['prezzo'], 2, ',', '.'), ENT_QUOTES, 'UTF-8'); ?></dd>
-            </div>
-            <?php endif; ?>
             <?php if (!empty($libro['data_acquisizione'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Data acquisizione") ?></dt>
