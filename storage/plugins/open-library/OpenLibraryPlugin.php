@@ -621,10 +621,46 @@ class OpenLibraryPlugin
         curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
         curl_close($ch);
 
-        // Check if it's an actual image and not a placeholder
-        return $httpCode === 200 && strpos($contentType, 'image/') === 0;
+        if ($httpCode !== 200) {
+            return false;
+        }
+
+        // Check Content-Type if available
+        if (!empty($contentType) && strpos($contentType, 'image/') === 0) {
+            return true;
+        }
+
+        // Some servers (e.g. covers.openlibrary.org) omit Content-Type;
+        // accept if URL has an image extension and response is non-trivial.
+        // Open Library returns a tiny 1x1 GIF placeholder (43 bytes) instead of 404,
+        // so we must verify actual content size.
+        $urlPath = parse_url($url, PHP_URL_PATH);
+        if (empty($contentType) && is_string($urlPath) && preg_match('/\.(jpe?g|png|gif|webp)$/i', $urlPath)) {
+            if ($contentLength > 1000) {
+                return true;
+            }
+            // Content-Length unknown (-1) or too small: do a GET to check actual size
+            if ($contentLength === -1.0) {
+                $ch2 = curl_init();
+                curl_setopt_array($ch2, [
+                    CURLOPT_URL => $url,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_TIMEOUT => 5,
+                    CURLOPT_USERAGENT => self::USER_AGENT,
+                    CURLOPT_RANGE => '0-1023',
+                ]);
+                $partial = curl_exec($ch2);
+                curl_close($ch2);
+                return is_string($partial) && strlen($partial) > 1000;
+            }
+            return false;
+        }
+
+        return false;
     }
 
     /**

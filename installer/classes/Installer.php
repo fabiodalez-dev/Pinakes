@@ -1256,7 +1256,12 @@ HTACCESS;
 
             foreach ($hooks as $hook) {
                 $hookName = $hook['name'];
-                $callbackMethod = $hook['callback_method'] ?? ('handle' . ucfirst(str_replace('.', '', $hookName)));
+                if (empty($hook['callback_method'])) {
+                    // Skip hooks without explicit callback_method — auto-generated names
+                    // like "handleScrapefetchcustom" don't match real plugin methods
+                    continue;
+                }
+                $callbackMethod = $hook['callback_method'];
                 $priority = $hook['priority'] ?? 10;
                 $key = $hookName . '|' . $callbackMethod;
                 if (isset($existingMap[$key])) {

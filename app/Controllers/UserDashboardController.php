@@ -37,8 +37,8 @@ class UserDashboardController
             $stats['prestiti_in_corso'] = (int)($res->fetch_assoc()['c'] ?? 0);
             $stmt->close();
             
-            // Count user favorites
-            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM wishlist WHERE utente_id = ?");
+            // Count user favorites (exclude soft-deleted books)
+            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM wishlist w JOIN libri l ON w.libro_id = l.id WHERE w.utente_id = ? AND l.deleted_at IS NULL");
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $res = $stmt->get_result();

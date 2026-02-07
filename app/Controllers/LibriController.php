@@ -1969,8 +1969,14 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
+        if ($httpCode === 404) {
+            // Book not found in any scraping source - not an error
+            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'no_cover_found']));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
         if ($httpCode !== 200 || !$scrapeResult) {
-            // Real error from scraper
+            // Real error from scraper (500, 503, etc.)
             $response->getBody()->write(json_encode(['success' => false, 'error' => __('Scraping fallito')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
         }

@@ -29,16 +29,19 @@
     "hooks": [
       {
         "name": "scrape.sources",
+        "callback_method": "addOpenLibrarySource",
         "description": "Aggiunge Open Library come fonte di scraping",
         "priority": 5
       },
       {
         "name": "scrape.fetch.custom",
+        "callback_method": "fetchFromOpenLibrary",
         "description": "Implementa la logica di scraping via API",
         "priority": 5
       },
       {
         "name": "scrape.data.modify",
+        "callback_method": "enrichWithOpenLibraryData",
         "description": "Arricchisce i dati con copertine Open Library",
         "priority": 10
       }
