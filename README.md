@@ -126,92 +126,6 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 </details>
 
-<details>
-<summary><strong>v0.4.6</strong> - Updater Symlink Fix</summary>
-
-### Updater Symlink Fix
-
-- **Symlink exclusion** — Release packages no longer include `public/installer/assets` symlink that caused update failures
-- **Package integrity** — Verified clean extraction on shared hosting environments
-
-</details>
-
-<details>
-<summary><strong>v0.4.5</strong> - Pickup Confirmation System</summary>
-
-### Pickup Confirmation System (ready_for_pickup)
-
-Complete workflow enhancement for loan management with physical pickup verification:
-
-- **New loan state `ready_for_pickup`** — Approved loans now enter "Ready for Pickup" state before becoming active
-- **Two-step approval workflow** — Admin approves request → Patron picks up book → Admin confirms pickup
-- **Configurable pickup deadline** — Set days allowed for pickup in Settings → Loans (default: 3 days)
-- **Cancel pickup option** — Admin can cancel uncollected loans, automatically advancing reservation queue
-- **Visual indicators** — Orange badge for "Ready for Pickup" status in loan lists and dashboard
-
-**Loan State Flow:**
-```
-Request → [pending] → Approval → [ready_for_pickup] → Confirm Pickup → [active]
-                                        ↓
-                              (Cancel or Expire) → [cancelled/expired]
-```
-
-*Database values: pendente, da_ritirare, in_corso, annullato, scaduto*
-
-**For future-dated loans:**
-```
-[pending] → [reserved] → (date reached) → [ready_for_pickup] → Confirm → [active]
-```
-
-*Database values: pendente, prenotato, da_ritirare, in_corso*
-
-### Calendar Integration
-
-- **Visual distinction** — `ready_for_pickup` periods shown in orange/amber on dashboard calendar
-- **Availability blocking** — Pickup-pending loans correctly block the period for other reservations
-- **ICS export** — Ready-for-pickup events included in calendar subscriptions
-
-### Reservation Queue Improvements
-
-- **Automatic queue advancement** — When a pickup is cancelled, next patron in queue is automatically notified
-- **Works without cron** — Queue advancement happens in real-time when admin cancels pickup
-- **Copy liberation** — Cancelled pickups immediately free the copy for reassignment
-
-### Data Integrity
-
-- **Copy protection** — Loans without assigned copies are blocked from pickup confirmation
-- **Transaction safety** — All state transitions use database transactions with proper locking
-- **Availability recalculation** — Book availability correctly accounts for `ready_for_pickup` state
-
-</details>
-
-<details>
-<summary><strong>v0.4.4</strong> - Robust Auto-Updater</summary>
-
-### Robust Auto-Updater
-
-Complete rewrite of the update system for reliable operation on shared hosting:
-
-- **Always uses `storage/tmp`** — No longer relies on system `/tmp` directory
-- **Pre-flight checks** — Verifies permissions, disk space (200MB minimum), and required extensions before starting
-- **cURL primary download** — More reliable than `file_get_contents`, with automatic fallback
-- **Automatic retry** — 3 attempts for ZIP extraction with memory increase between retries
-- **Old temp cleanup** — Automatically removes stale temporary directories older than 1 hour
-- **Idempotent migrations** — Ignores 8 common SQL errors for safe re-running
-- **Detailed logging** — New `/admin/updates/logs` endpoint for troubleshooting
-
-### Smaller Release Package
-
-- **Excluded `node_modules/`** — Not needed in production (compiled assets in `public/assets/`)
-- **Package size reduced** from ~95MB to ~15-20MB
-- **Faster updates** — Smaller download, faster extraction
-
-### Manual Update Files Included
-
-- **`test-updater/` folder** — Contains patched files for users stuck on broken updater versions
-- **`manual-update.php`** — Standalone emergency update script
-
-</details>
 
 ---
 
@@ -287,7 +201,9 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 - **Unified records** for physical books, eBooks, and audiobooks
 - **Dewey Decimal Classification** with 1,200+ preset categories (IT/EN), hierarchical browsing, manual entry for custom codes, and auto-population from SBN scraping
 - **CSV bulk import** with field mapping, validation, automatic ISBN enrichment, and Dewey classification from scraping
-- **Automatic duplicate detection** by ID, ISBN13, or EAN (updates existing records without modifying physical copies)
+- **LibraryThing TSV import** with flexible column mapping for 29 custom fields and automatic metadata enrichment
+- **Import history** — Admin panel with per-import statistics, error reports downloadable as CSV, and log retention management
+- **Automatic duplicate detection** by ID, ISBN13, EAN, or title+author (updates existing records without modifying physical copies)
 - **Author and publisher management** with dedicated profiles and bibliography views
 - **Genre/category system** with custom taxonomies and multi-category assignment
 - **Series and collections** tracking with sequential numbering
@@ -362,13 +278,14 @@ Automatic emails for:
 
 ### Auto-Updater
 - **Built-in update system** — Check, download, and install updates from Admin → Updates
+- **Manual ZIP upload** — Upload `.zip` release packages for air-gapped or rate-limited environments
 - **Automatic database backup** — Full MySQL dump before every update
 - **Safe file updates** — Protected paths (.env, uploads, storage) are never overwritten
 - **Database migrations** — Automatic execution of SQL migrations for version jumps
 - **Atomic rollback** — Automatic restore on error with pre-update backup
 - **Orphan cleanup** — Files removed in new versions are deleted from installation
 - **OpCache reset** — Automatic cache invalidation after file updates
-- **Security** — CSRF validation, admin-only access, path traversal protection
+- **Security** — CSRF validation, admin-only access, path traversal protection, Zip Slip prevention
 
 ### Physical Inventory
 - **Hierarchical location model**: shelf, aisle, position
