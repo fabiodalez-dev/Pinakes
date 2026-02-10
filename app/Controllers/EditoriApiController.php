@@ -368,7 +368,7 @@ class EditoriApiController
         $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
         $types = str_repeat('i', count($cleanIds));
 
-        $sql = "SELECT e.id, e.nome, e.sito_web, e.citta, e.indirizzo, e.telefono, e.email,
+        $sql = "SELECT e.id, e.nome, e.sito_web, e.indirizzo, e.telefono, e.email,
                        (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL) AS libri_count
                 FROM editori e
                 WHERE e.id IN ($placeholders)
