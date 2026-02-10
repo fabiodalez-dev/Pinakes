@@ -242,7 +242,8 @@ class LoanPdfGenerator
         // Generation timestamp (centered, small, gray)
         $pdf->SetFont('helvetica', 'I', 8);
         $pdf->SetTextColor(128, 128, 128);
-        $generatedAt = __('Documento generato il %s alle %s', date('d/m/Y'), date('H:i'));
+        $now = new \DateTime('now', new \DateTimeZone('Europe/Rome'));
+        $generatedAt = __('Documento generato il %s alle %s', $now->format('d/m/Y'), $now->format('H:i'));
         $pdf->Cell(0, 5, $generatedAt, 0, 1, 'C');
     }
 
