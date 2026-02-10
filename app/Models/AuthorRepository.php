@@ -316,14 +316,17 @@ class AuthorRepository
     {
         // Normalize to integers and deduplicate to prevent type-safety issues
         // and deleting primary when duplicate IDs are passed
-        $authorIds = array_values(array_unique(array_map('intval', $authorIds)));
+        $authorIds = array_values(array_unique(array_filter(
+            array_map('intval', $authorIds),
+            fn($id) => $id > 0
+        )));
 
         if (count($authorIds) < 2) {
             return null;
         }
 
         // Use specified primary ID or default to lowest ID
-        if ($primaryId !== null && in_array($primaryId, $authorIds, true)) {
+        if ($primaryId !== null && $primaryId > 0 && in_array($primaryId, $authorIds, true)) {
             // Create separate array of IDs to delete (excluding primary)
             $duplicateIds = array_values(array_filter($authorIds, fn($id) => $id !== $primaryId));
         } else {
@@ -382,7 +385,7 @@ class AuthorRepository
 
             $this->db->commit();
             return $primaryId;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log("[AuthorRepository] Merge failed: " . $e->getMessage());
             return null;

@@ -30,7 +30,7 @@ $csrf = Csrf::ensureToken();
             <h1 class="text-2xl font-bold text-gray-900"><?= sprintf(__("Modifica prestito #%s"), (int)($prestito['id'] ?? 0)) ?></h1>
         </div>
         <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
-            <i class="fas fa-arrow-left"></i><?= __("Torna all\'elenco") ?></a>
+            <i class="fas fa-arrow-left"></i><?= __("Torna all'elenco") ?></a>
     </header>
 
     <form method="post" action="/admin/prestiti/update/<?= (int)($prestito['id'] ?? 0); ?>" class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

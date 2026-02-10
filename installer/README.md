@@ -135,7 +135,7 @@ Then access the application again to trigger the installer.
 
 ## Directory Structure
 
-```
+```text
 installer/
 ├── classes/
 │   ├── Installer.php        # Core installation logic

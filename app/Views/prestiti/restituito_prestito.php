@@ -35,7 +35,7 @@ $csrfToken = Csrf::ensureToken();
         </div>
         <a href="/admin/prestiti" class="inline-flex items-center gap-2 rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 whitespace-nowrap">
             <i class="fas fa-arrow-left"></i>
-            <span><?= __("Torna all\'elenco") ?></span>
+            <span><?= __("Torna all'elenco") ?></span>
         </a>
     </header>
 

@@ -108,23 +108,29 @@ class LoanPdfGenerator
     {
         // Logo (scaled to fit max 60x25mm)
         if ($logoPath) {
-            list($width, $height) = getimagesize($logoPath);
-            $aspectRatio = $width / $height;
+            $imageInfo = getimagesize($logoPath);
+            if ($imageInfo && $imageInfo[0] > 0 && $imageInfo[1] > 0) {
+                $width = $imageInfo[0];
+                $height = $imageInfo[1];
+                $aspectRatio = $width / $height;
 
-            // Calculate scaled dimensions
-            if ($aspectRatio > 2.4) {
-                // Wide logo
-                $logoWidth = 60;
-                $logoHeight = 60 / $aspectRatio;
+                // Calculate scaled dimensions
+                if ($aspectRatio > 2.4) {
+                    // Wide logo
+                    $logoWidth = 60;
+                    $logoHeight = 60 / $aspectRatio;
+                } else {
+                    // Square/tall logo
+                    $logoHeight = 25;
+                    $logoWidth = 25 * $aspectRatio;
+                }
+
+                $logoX = (210 - $logoWidth) / 2; // Center on A4 page
+                $pdf->Image($logoPath, $logoX, 15, $logoWidth, $logoHeight, '', '', '', false, 300, '', false, false, 0);
+                $pdf->SetY(15 + $logoHeight + 5);
             } else {
-                // Square/tall logo
-                $logoHeight = 25;
-                $logoWidth = 25 * $aspectRatio;
+                $pdf->SetY(15);
             }
-
-            $logoX = (210 - $logoWidth) / 2; // Center on A4 page
-            $pdf->Image($logoPath, $logoX, 15, $logoWidth, $logoHeight, '', '', '', false, 300, '', false, false, 0);
-            $pdf->SetY(15 + $logoHeight + 5);
         } else {
             $pdf->SetY(15);
         }
@@ -171,10 +177,20 @@ class LoanPdfGenerator
         $pdf->Ln(3);
 
         // Section 3: User Information
-        $this->renderSection($pdf, __('Dati Utente'), [
+        $userFields = [
             __('Nome:') => $loan['utente'] ?? __('Non disponibile'),
-            __('Email:') => $loan['utente_email'] ?? '',
-        ]);
+        ];
+        if (!empty($loan['utente_tessera'])) {
+            $userFields[__('Codice Tessera:')] = $loan['utente_tessera'];
+        }
+        $userFields[__('Email:')] = $loan['utente_email'] ?? '';
+        if (!empty($loan['utente_telefono'])) {
+            $userFields[__('Telefono:')] = $loan['utente_telefono'];
+        }
+        if (!empty($loan['utente_indirizzo'])) {
+            $userFields[__('Indirizzo:')] = $loan['utente_indirizzo'];
+        }
+        $this->renderSection($pdf, __('Dati Utente'), $userFields);
 
         $pdf->Ln(3);
 

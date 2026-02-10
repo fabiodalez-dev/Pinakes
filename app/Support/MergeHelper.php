@@ -15,13 +15,14 @@ use App\Support\Log as AppLog;
 class MergeHelper
 {
     /**
-     * Handle a merge request for any entity type
+     * Process a merge request for authors or publishers and return a JSON HTTP response.
      *
-     * @param Request $request The HTTP request
-     * @param Response $response The HTTP response
-     * @param \mysqli $db Database connection
-     * @param string $entityType 'autori' or 'editori'
-     * @return Response
+     * Parses and validates the request payload, performs the merge using the appropriate repository,
+     * optionally updates the merged primary entity's name, and returns a JSON response describing
+     * success or failure.
+     *
+     * @param string $entityType 'autori' for authors or 'editori' for publishers; selects repository and localized messages.
+     * @return Response HTTP response whose JSON body contains the outcome. Uses status 200 for successful merges (and merge_error responses), 400 for validation/JSON errors, and 500 for unexpected server errors.
      */
     public static function handleMergeRequest(
         Request $request,

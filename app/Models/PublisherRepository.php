@@ -199,14 +199,17 @@ class PublisherRepository
     {
         // Normalize to integers and deduplicate to prevent type-safety issues
         // and deleting primary when duplicate IDs are passed
-        $publisherIds = array_values(array_unique(array_map('intval', $publisherIds)));
+        $publisherIds = array_values(array_unique(array_filter(
+            array_map('intval', $publisherIds),
+            fn($id) => $id > 0
+        )));
 
         if (count($publisherIds) < 2) {
             return null;
         }
 
         // Use specified primary ID or default to lowest ID
-        if ($primaryId !== null && \in_array($primaryId, $publisherIds, true)) {
+        if ($primaryId !== null && $primaryId > 0 && \in_array($primaryId, $publisherIds, true)) {
             // Create separate array of IDs to delete (excluding primary)
             $duplicateIds = array_values(array_filter($publisherIds, fn($id) => $id !== $primaryId));
         } else {
@@ -251,7 +254,7 @@ class PublisherRepository
 
             $this->db->commit();
             return $primaryId;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log("[PublisherRepository] Merge failed: " . $e->getMessage());
             return null;
