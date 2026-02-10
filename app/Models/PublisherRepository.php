@@ -186,14 +186,13 @@ class PublisherRepository
     }
 
     /**
-     * Merge duplicate publishers into one
+     * Merge multiple publisher records into a single primary publisher.
      *
-     * Keeps the specified primary publisher (or the one with lowest ID if not specified)
-     * and reassigns all books from other publishers to the primary one.
+     * Reassigns all books from the specified duplicate publishers to the primary publisher and removes the duplicate publisher records.
      *
-     * @param array $publisherIds Array of publisher IDs to merge
-     * @param int|null $primaryId Optional specific ID to use as primary (must be in $publisherIds)
-     * @return int|null The ID of the merged publisher, or null on error
+     * @param int[] $publisherIds Array of publisher IDs to merge.
+     * @param int|null $primaryId Optional ID to retain as primary; if provided it must be one of $publisherIds. If omitted, the smallest ID is used.
+     * @return int|null The ID of the primary publisher after merging, or null if the merge did not occur or failed.
      */
     public function mergePublishers(array $publisherIds, ?int $primaryId = null): ?int
     {

@@ -303,14 +303,15 @@ class AuthorRepository
     }
 
     /**
-     * Merge duplicate authors into one
+     * Merge multiple author records into a single primary author and reassign their book links.
      *
-     * Keeps the specified primary author (or the one with lowest ID if not specified)
-     * and reassigns all books from other authors to the primary one.
+     * If $primaryId is provided and present in $authorIds it is kept as the primary; otherwise the lowest
+     * ID from $authorIds is chosen as the primary. All other authors in $authorIds will be merged into the
+     * primary author and removed.
      *
-     * @param array $authorIds Array of author IDs to merge
-     * @param int|null $primaryId Optional specific ID to use as primary (must be in $authorIds)
-     * @return int|null The ID of the merged author, or null on error
+     * @param int[] $authorIds Array of author IDs to merge
+     * @param int|null $primaryId Optional specific ID to use as primary (must be one of $authorIds)
+     * @return int|null `int` the ID of the primary author after merge, `null` if the merge did not occur or failed
      */
     public function mergeAuthors(array $authorIds, ?int $primaryId = null): ?int
     {

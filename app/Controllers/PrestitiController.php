@@ -82,6 +82,37 @@ class PrestitiController
         return $response;
     }
 
+    /**
+     * Create a new loan (prestito) for a user and a book, assign a copy, update copy and loan states,
+     * and perform related post-processing (availability recalculation, notification). The operation
+     * enforces staff access, validates input, uses row-level locks within a transaction to prevent
+     * races, and either redirects on success/errors or streams a loan PDF when immediate delivery and
+     * download were requested.
+     *
+     * Expected request body fields:
+     * - `utente_id` (int): user id.
+     * - `libro_id` (int): book id.
+     * - `data_prestito` (string, YYYY-MM-DD): loan start date (defaults to today).
+     * - `data_scadenza` (string, YYYY-MM-DD): loan due date (defaults to one month after start).
+     * - `note` (string, optional): administrative note.
+     * - `consegna_immediata` ('1'|'0', optional): if '1', mark as delivered immediately.
+     * - `scarica_pdf` ('1'|'0', optional): if '1' and delivery is immediate, return a PDF attachment.
+     *
+     * Behavior highlights:
+     * - Validates required fields and date logic; redirects to the creation form with error codes on validation failure.
+     * - Prevents duplicate active reservations/loans for the same user and book.
+     * - Selects and locks an appropriate copy (copia) considering overlapping loans and reservations.
+     * - Inserts the prestito, updates the copy status, commits the transaction, recalculates availability,
+     *   and creates an in-app notification.
+     * - If delivery is immediate and `scarica_pdf` is requested, returns a PDF attachment for the new loan;
+     *   otherwise redirects to the loans list on success.
+     *
+     * @param Request $request Incoming HTTP request (parsed body used as described above).
+     * @param Response $response Response instance used to produce redirects or a PDF attachment.
+     * @param mysqli $db Database connection used for transactional operations and locking.
+     * @return Response HTTP response: a redirect to the admin loans pages on success or error, or an
+     *         `application/pdf` response with an attachment when immediate delivery with PDF download is requested.
+     */
     public function store(Request $request, Response $response, mysqli $db): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
@@ -705,6 +736,17 @@ class PrestitiController
         }
     }
 
+    /**
+     * Render the details page for a loan (prestito), enforcing staff/admin access.
+     *
+     * Renders the loan details view wrapped in the application layout and returns the HTTP response containing the rendered HTML. If the loan id is not found the response will have status 404; if the current user is not staff/admin the method returns a 403 response from the access guard.
+     *
+     * @param Request $request HTTP request object.
+     * @param Response $response HTTP response object to write output into.
+     * @param mysqli $db Database connection used to load the loan.
+     * @param int $id The loan (prestito) identifier to display.
+     * @return Response The response containing the rendered HTML or an error status (404/403).
+     */
     public function details(Request $request, Response $response, mysqli $db, int $id): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
@@ -741,13 +783,15 @@ class PrestitiController
     }
 
     /**
-     * Generate and download PDF receipt for a loan
+     * Generate a PDF receipt for the specified loan and return it as a downloadable response.
      *
-     * @param Request $request PSR-7 request
-     * @param Response $response PSR-7 response
+     * Requires staff or admin access; returns a 403 response if the current user is not authorized.
+     *
+     * @param Request $request PSR-7 request object
+     * @param Response $response PSR-7 response object used as the download container
      * @param mysqli $db Database connection
-     * @param int $id Loan ID
-     * @return Response PDF file download
+     * @param int $id Loan ID to generate the PDF for
+     * @return Response A PSR-7 response containing the PDF as an attachment, or a 403/500 response on error
      */
     public function downloadPdf(Request $request, Response $response, mysqli $db, int $id): Response
     {
@@ -777,6 +821,17 @@ class PrestitiController
         }
     }
 
+    /**
+     * Attempts to renew a loan by extending its due date by 14 days while enforcing renewal rules and consistency checks.
+     *
+     * Validations include: staff access, loan exists and is active, not overdue, renewal limit, and conflict checks against overlapping loans/reservations and available copies. On success the loan's due date and renewal count are updated and the user is redirected to the admin loans page; on failure the user is redirected with an error code in the query string.
+     *
+     * @param Request $request HTTP request object (parsed form data used for redirect target).
+     * @param Response $response HTTP response object used to produce a redirect.
+     * @param mysqli $db Database connection used for transactional checks and updates.
+     * @param int $id The identifier of the loan to renew.
+     * @return Response A redirect Response to the admin loans page (query parameters indicate success `renewed=1` or an `error=...` code).
+     */
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {

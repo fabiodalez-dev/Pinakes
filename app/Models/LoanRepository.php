@@ -31,6 +31,18 @@ class LoanRepository
         return $rows;
     }
 
+    /**
+     * Retrieve a loan record by its ID, including related book, user and authors information.
+     *
+     * @param int $id The loan record ID.
+     * @return array|null Associative array containing prestiti fields plus:
+     *                   - 'libro': book title,
+     *                   - 'isbn13', 'isbn10': book ISBNs,
+     *                   - 'utente': user's full name,
+     *                   - 'utente_email': user's email,
+     *                   - 'autori': comma-separated list of authors;
+     *                   Returns null if no matching loan is found.
+     */
     public function getById(int $id): ?array
     {
         $sql = "SELECT p.*, l.titolo AS libro, l.isbn13, l.isbn10,
