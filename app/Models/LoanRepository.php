@@ -33,7 +33,13 @@ class LoanRepository
 
     public function getById(int $id): ?array
     {
-        $sql = "SELECT p.*, l.titolo AS libro, CONCAT(u.nome,' ',u.cognome) AS utente
+        $sql = "SELECT p.*, l.titolo AS libro, l.isbn13, l.isbn10,
+                       CONCAT(u.nome,' ',u.cognome) AS utente,
+                       u.email AS utente_email,
+                       (SELECT GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ')
+                        FROM libri_autori la
+                        JOIN autori a ON la.autore_id = a.id
+                        WHERE la.libro_id = p.libro_id) AS autori
                 FROM prestiti p
                 LEFT JOIN libri l ON p.libro_id = l.id
                 LEFT JOIN utenti u ON p.utente_id = u.id

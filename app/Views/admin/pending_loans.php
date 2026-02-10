@@ -102,7 +102,7 @@
                                 </div>
                             </div>
                             <div class="mt-3 flex gap-2">
-                                <a href="/admin/prestiti/<?= $loan['id'] ?>/edit" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="/admin/prestiti/modifica/<?= $loan['id'] ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
                                 <button type="button" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">
@@ -305,7 +305,7 @@
                                 </div>
                             </div>
                             <div class="mt-3">
-                                <a href="/admin/prestiti/<?= $loan['id'] ?>/edit" class="block w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="/admin/prestiti/modifica/<?= $loan['id'] ?>" class="block w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
                             </div>
@@ -368,7 +368,7 @@
                                 </div>
                             </div>
                             <div class="mt-3 flex gap-2">
-                                <a href="/admin/prestiti/<?= $loan['id'] ?>/edit" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="/admin/prestiti/modifica/<?= $loan['id'] ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
                                 <button type="button" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">

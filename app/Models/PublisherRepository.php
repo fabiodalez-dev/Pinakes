@@ -228,13 +228,25 @@ class PublisherRepository
             foreach ($duplicateIds as $duplicateId) {
                 // Update books to point to primary publisher
                 $stmt = $this->db->prepare("UPDATE libri SET editore_id = ? WHERE editore_id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare UPDATE libri: " . $this->db->error);
+                }
                 $stmt->bind_param('ii', $primaryId, $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute UPDATE libri: " . $stmt->error);
+                }
+                $stmt->close();
 
                 // Delete the duplicate publisher
                 $stmt = $this->db->prepare("DELETE FROM editori WHERE id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare DELETE editori: " . $this->db->error);
+                }
                 $stmt->bind_param('i', $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute DELETE editori: " . $stmt->error);
+                }
+                $stmt->close();
             }
 
             $this->db->commit();

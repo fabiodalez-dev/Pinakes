@@ -348,18 +348,36 @@ class AuthorRepository
                 $stmt = $this->db->prepare(
                     "UPDATE IGNORE libri_autori SET autore_id = ? WHERE autore_id = ?"
                 );
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare UPDATE IGNORE: " . $this->db->error);
+                }
                 $stmt->bind_param('ii', $primaryId, $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute UPDATE IGNORE: " . $stmt->error);
+                }
+                $stmt->close();
 
                 // Delete any remaining duplicate links (where book was already linked to primary)
                 $stmt = $this->db->prepare("DELETE FROM libri_autori WHERE autore_id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare DELETE libri_autori: " . $this->db->error);
+                }
                 $stmt->bind_param('i', $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute DELETE libri_autori: " . $stmt->error);
+                }
+                $stmt->close();
 
                 // Delete the duplicate author
                 $stmt = $this->db->prepare("DELETE FROM autori WHERE id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare DELETE autori: " . $this->db->error);
+                }
                 $stmt->bind_param('i', $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute DELETE autori: " . $stmt->error);
+                }
+                $stmt->close();
             }
 
             $this->db->commit();

@@ -1094,6 +1094,11 @@ return function (App $app): void {
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Alias inglese
+    $app->get('/admin/prestiti/{id:\d+}/edit', function ($request, $response, $args) {
+        return $response->withHeader('Location', '/admin/prestiti/modifica/' . $args['id'])->withStatus(301);
+    })->add(new AdminAuthMiddleware());
+
     $app->get('/admin/prestiti/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
@@ -1563,6 +1568,13 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->details($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+
+    // PDF prestito
+    $app->get('/admin/prestiti/{id:\d+}/pdf', function ($request, $response, $args) use ($app) {
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->downloadPdf($request, $response, $db, (int) $args['id']);
+    })->add(new AdminAuthMiddleware())->add(new CsrfMiddleware());
 
     // API prestiti per DataTables
     $app->get('/api/prestiti', function ($request, $response) use ($app) {

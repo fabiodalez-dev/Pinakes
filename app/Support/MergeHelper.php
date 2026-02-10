@@ -5,6 +5,7 @@ namespace App\Support;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\Log as AppLog;
 
 /**
  * Helper class for handling entity merge operations
@@ -79,6 +80,13 @@ class MergeHelper
             $primaryId = $repo->$mergeMethod($ids, $requestedPrimaryId);
 
             if ($primaryId) {
+                // Log successful merge
+                AppLog::info("merge.{$entityType}.success", [
+                    'primary_id' => $primaryId,
+                    'merged_ids' => $ids,
+                    'entity_type' => $entityType
+                ]);
+
                 // Rename if requested
                 if ($newName !== '') {
                     $current = $repo->getById($primaryId);

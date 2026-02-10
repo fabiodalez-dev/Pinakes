@@ -462,6 +462,31 @@ class PrestitiController
                 }
             }
 
+            // Generate PDF automatically if immediate delivery and user opted in
+            $scaricaPdf = isset($data['scarica_pdf']) && $data['scarica_pdf'] === '1';
+            if ($consegnaImmediata && $scaricaPdf && isset($newLoanId)) {
+                try {
+                    $generator = new \App\Support\LoanPdfGenerator($db);
+                    $pdfContent = $generator->generate($newLoanId);
+
+                    $filename = 'prestito_' . $newLoanId . '_' . date('Ymd') . '.pdf';
+
+                    $response->getBody()->write($pdfContent);
+                    return $response
+                        ->withHeader('Content-Type', 'application/pdf')
+                        ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                        ->withHeader('Cache-Control', 'no-cache, must-revalidate');
+
+                } catch (\Throwable $e) {
+                    SecureLogger::warning(__('PDF prestito non generato'), [
+                        'loan_id' => $newLoanId,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Fallback to redirect if PDF fails
+                    return $response->withHeader('Location', '/admin/prestiti?created=1')->withStatus(302);
+                }
+            }
+
             return $response->withHeader('Location', '/admin/prestiti?created=1')->withStatus(302);
 
         } catch (Exception $e) {
@@ -713,6 +738,43 @@ class PrestitiController
         $html = ob_get_clean();
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /**
+     * Generate and download PDF receipt for a loan
+     *
+     * @param Request $request PSR-7 request
+     * @param Response $response PSR-7 response
+     * @param mysqli $db Database connection
+     * @param int $id Loan ID
+     * @return Response PDF file download
+     */
+    public function downloadPdf(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+
+        try {
+            $generator = new \App\Support\LoanPdfGenerator($db);
+            $pdfContent = $generator->generate($id);
+
+            $filename = 'prestito_' . $id . '_' . date('Ymd') . '.pdf';
+
+            $response->getBody()->write($pdfContent);
+            return $response
+                ->withHeader('Content-Type', 'application/pdf')
+                ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                ->withHeader('Cache-Control', 'no-cache, must-revalidate')
+                ->withHeader('Pragma', 'no-cache');
+
+        } catch (\Throwable $e) {
+            SecureLogger::error(__('Errore generazione PDF prestito'), [
+                'loan_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            return $response->withStatus(500);
+        }
     }
 
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response
