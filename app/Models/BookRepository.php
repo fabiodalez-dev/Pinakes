@@ -918,7 +918,7 @@ class BookRepository
     public function updateOptionals(int $bookId, array $data): void
     {
         $cols = [];
-        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'collana', 'edizione'] as $c) {
+        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'collana', 'edizione'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
                 $cols[$c] = $data[$c];
             }
@@ -938,6 +938,9 @@ class BookRepository
         }
         if ($this->hasColumn('traduttore') && !isset($cols['traduttore']) && !empty($data['scraped_translator'])) {
             $cols['traduttore'] = (string) $data['scraped_translator'];
+        }
+        if ($this->hasColumn('illustratore') && !isset($cols['illustratore']) && !empty($data['scraped_illustrator'])) {
+            $cols['illustratore'] = (string) $data['scraped_illustrator'];
         }
         if (!$cols)
             return;

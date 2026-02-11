@@ -54,6 +54,26 @@ class Z39ServerPlugin
         'sru_timeout' => '15'
     ];
 
+    // Pre-configured Nordic SRU servers (publicly accessible, no authentication required)
+    private const NORDIC_SERVERS = [
+        [
+            'name' => 'BIBSYS - Norwegian Union Catalogue',
+            'url' => 'https://bibsys.alma.exlibrisgroup.com/view/sru/47BIBSYS_NETWORK',
+            'version' => '1.2',
+            'syntax' => 'marcxml',
+            'enabled' => true,
+            'indexes' => ['isbn' => 'alma.isbn'],
+        ],
+        [
+            'name' => 'LIBRIS - Swedish Union Catalogue',
+            'url' => 'https://libris.kb.se/sru/libris',
+            'version' => '1.1',
+            'syntax' => 'marcxml',
+            'enabled' => true,
+            'indexes' => ['isbn' => 'bath.isbn'],
+        ],
+    ];
+
     /**
      * Constructor - Initialize when plugin is loaded
      *
@@ -126,10 +146,14 @@ class Z39ServerPlugin
             $this->setSetting($key, $value);
         }
 
+        // Set pre-configured Nordic SRU servers
+        $this->setSetting('servers', json_encode(self::NORDIC_SERVERS, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
         // Log installation
         $this->log('info', 'Z39.50/SRU Server Plugin installed successfully', [
             'tables_created' => ['z39_access_logs', 'z39_rate_limits'],
-            'default_settings' => count(self::DEFAULT_SETTINGS)
+            'default_settings' => count(self::DEFAULT_SETTINGS),
+            'nordic_servers' => count(self::NORDIC_SERVERS),
         ]);
     }
 
@@ -141,6 +165,9 @@ class Z39ServerPlugin
     {
         // Register hooks
         $this->registerHooks();
+
+        // Auto-upgrade: add Nordic servers if not already configured
+        $this->ensureNordicServers();
 
         // Log activation
         $this->log('info', 'Z39.50/SRU Server Plugin activated', [
@@ -173,6 +200,40 @@ class Z39ServerPlugin
         $this->log('info', 'Z39.50/SRU Server Plugin uninstalled', [
             'tables_dropped' => ['z39_access_logs', 'z39_rate_limits']
         ]);
+    }
+
+    /**
+     * Ensure Nordic SRU servers are present in configuration.
+     * Adds any missing Nordic servers without overwriting user customizations.
+     */
+    private function ensureNordicServers(): void
+    {
+        $serversJson = $this->getSetting('servers', '[]');
+        $servers = json_decode($serversJson, true);
+        if (!is_array($servers)) {
+            $servers = [];
+        }
+
+        // Index existing servers by URL for deduplication
+        $existingUrls = [];
+        foreach ($servers as $s) {
+            if (!empty($s['url'])) {
+                $existingUrls[] = $s['url'];
+            }
+        }
+
+        $added = 0;
+        foreach (self::NORDIC_SERVERS as $nordic) {
+            if (!in_array($nordic['url'], $existingUrls, true)) {
+                $servers[] = $nordic;
+                $added++;
+            }
+        }
+
+        if ($added > 0) {
+            $this->setSetting('servers', json_encode($servers, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $this->log('info', 'Nordic SRU servers added during upgrade', ['added' => $added]);
+        }
     }
 
     /**

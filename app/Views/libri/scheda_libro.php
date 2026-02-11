@@ -384,6 +384,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['traduttore']); ?></dd>
             </div>
             <?php endif; ?>
+            <?php if (!empty($libro['illustratore'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Illustratore") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['illustratore']); ?></dd>
+            </div>
+            <?php endif; ?>
             <div class="sm:col-span-2">
               <dt class="text-xs uppercase text-gray-500"><?= __("Classificazione Dewey") ?></dt>
               <dd class="text-gray-900 font-medium">

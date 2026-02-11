@@ -506,6 +506,7 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
+            'illustratore' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -1005,6 +1006,7 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
+            'illustratore' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed

@@ -751,7 +751,7 @@ class LibraryThingImportController
         // EAN/Barcode
         $result['ean'] = !empty($data['Barcode']) ? trim($data['Barcode']) : '';
 
-        // Language
+        // Language (supports multi-language: "English, German" → "inglese, tedesco")
         if (!empty($data['Languages'])) {
             $langMap = [
                 'italian' => 'italiano',
@@ -759,9 +759,37 @@ class LibraryThingImportController
                 'french' => 'francese',
                 'german' => 'tedesco',
                 'spanish' => 'spagnolo',
+                'portuguese' => 'portoghese',
+                'russian' => 'russo',
+                'chinese' => 'cinese',
+                'japanese' => 'giapponese',
+                'arabic' => 'arabo',
+                'dutch' => 'olandese',
+                'swedish' => 'svedese',
+                'norwegian' => 'norvegese',
+                'danish' => 'danese',
+                'finnish' => 'finlandese',
+                'polish' => 'polacco',
+                'czech' => 'ceco',
+                'hungarian' => 'ungherese',
+                'romanian' => 'rumeno',
+                'greek' => 'greco',
+                'turkish' => 'turco',
+                'hebrew' => 'ebraico',
+                'hindi' => 'hindi',
+                'korean' => 'coreano',
+                'thai' => 'thai',
             ];
-            $lang = strtolower(trim(explode(',', $data['Languages'])[0]));
-            $result['lingua'] = $langMap[$lang] ?? $lang;
+            $parts = array_map('trim', explode(',', $data['Languages']));
+            $mapped = [];
+            foreach ($parts as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lower = strtolower($part);
+                $mapped[] = $langMap[$lower] ?? $lower;
+            }
+            $result['lingua'] = implode(', ', array_unique($mapped)) ?: null;
         }
 
         // Pages
@@ -1684,15 +1712,41 @@ class LibraryThingImportController
             }
         }
 
-        // Map lingua to Languages
+        // Map lingua to Languages (supports multi-language: "inglese, tedesco" → "English, German")
         $linguaMap = [
             'italiano' => 'Italian',
             'inglese' => 'English',
             'francese' => 'French',
             'tedesco' => 'German',
             'spagnolo' => 'Spanish',
+            'portoghese' => 'Portuguese',
+            'russo' => 'Russian',
+            'cinese' => 'Chinese',
+            'giapponese' => 'Japanese',
+            'arabo' => 'Arabic',
+            'olandese' => 'Dutch',
+            'svedese' => 'Swedish',
+            'norvegese' => 'Norwegian',
+            'danese' => 'Danish',
+            'finlandese' => 'Finnish',
+            'polacco' => 'Polish',
+            'ceco' => 'Czech',
+            'ungherese' => 'Hungarian',
+            'rumeno' => 'Romanian',
+            'greco' => 'Greek',
+            'turco' => 'Turkish',
+            'ebraico' => 'Hebrew',
+            'hindi' => 'Hindi',
+            'coreano' => 'Korean',
+            'thai' => 'Thai',
         ];
-        $language = $linguaMap[$libro['lingua'] ?? 'italiano'] ?? ucfirst($libro['lingua'] ?? 'Italian');
+        $linguaValue = $libro['lingua'] ?? 'italiano';
+        $parts = array_map('trim', explode(',', $linguaValue));
+        $mappedParts = [];
+        foreach ($parts as $part) {
+            $mappedParts[] = $linguaMap[$part] ?? ucfirst($part);
+        }
+        $language = implode(', ', $mappedParts);
 
         // Build ISBNs
         $isbns = [];

@@ -44,6 +44,8 @@ class ScrapeController
             'series', 'collana',  // Series/collection name
             'keywords', 'language',
             'author',  // Single author string
+            'translator',
+            'illustrator',
             'source', 'notes',
             'edition', 'format',
             'place', 'country',  // Publication place

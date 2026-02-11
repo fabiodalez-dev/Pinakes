@@ -506,6 +506,7 @@ class CsvImportController
             'collana',
             'numero_serie',
             'traduttore',
+            'illustratore',
             'parole_chiave',
             'classificazione_dewey'
         ];
@@ -532,6 +533,7 @@ class CsvImportController
                 'Oscar Bestsellers',
                 '1',
                 '',
+                '',
                 'medioevo, giallo, monastero',
                 '853'  // Dewey: Narrativa italiana
             ],
@@ -556,6 +558,7 @@ class CsvImportController
                 '',
                 '',
                 'Gabriele Baldini',
+                '',
                 'distopia, controllo, totalitarismo',
                 ''  // Dewey vuoto - verrà popolato dallo scraping se abilitato
             ],
@@ -578,6 +581,7 @@ class CsvImportController
                 '15.00',
                 '3',
                 'BUR Classici',
+                '',
                 '',
                 '',
                 'dante, medioevo, poesia, inferno, paradiso',
@@ -696,6 +700,7 @@ class CsvImportController
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
             'numero_serie' => !empty($row['numero_serie']) ? trim($row['numero_serie']) : null,
             'traduttore' => !empty($row['traduttore']) ? trim($row['traduttore']) : null,
+            'illustratore' => !empty($row['illustratore']) ? trim($row['illustratore']) : null,
             'parole_chiave' => !empty($row['parole_chiave']) ? trim($row['parole_chiave']) : null,
             'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
             'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null
@@ -828,21 +833,33 @@ class CsvImportController
             return 'italiano';
         }
 
-        $normalized = trim(strtolower($language));
+        // Split on commas to support multi-language values like "English, German"
+        $parts = array_map('trim', explode(',', $language));
+        $normalized = [];
 
-        // Map aliases to canonical names
-        if (isset($aliases[$normalized])) {
-            $normalized = $aliases[$normalized];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $lower = strtolower($part);
+
+            // Map aliases to canonical names
+            if (isset($aliases[$lower])) {
+                $lower = $aliases[$lower];
+            }
+
+            // Check if language is supported
+            if (!in_array($lower, $validLanguages, true)) {
+                throw new \Exception(__('Lingua non supportata') . ": '{$part}'. " .
+                    __('Lingue valide') . ': ' . implode(', ', array_slice($validLanguages, 0, 10)) . '... ' .
+                    __('(codici ISO e nomi inglesi accettati)'));
+            }
+
+            $normalized[] = $lower;
         }
 
-        // Check if language is supported
-        if (!in_array($normalized, $validLanguages, true)) {
-            throw new \Exception(__('Lingua non supportata') . ": '{$language}'. " .
-                __('Lingue valide') . ': ' . implode(', ', array_slice($validLanguages, 0, 10)) . '... ' .
-                __('(codici ISO e nomi inglesi accettati)'));
-        }
-
-        return $normalized;
+        // Remove duplicates and rejoin
+        return implode(', ', array_unique($normalized)) ?: 'italiano';
     }
 
     /**
@@ -958,6 +975,7 @@ class CsvImportController
             'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
             'numero_serie' => ['numero_serie', 'series number', 'número de serie', 'numéro de série'],
             'traduttore' => ['traduttore', 'translator', 'traductor', 'traducteur', 'übersetzer'],
+            'illustratore' => ['illustratore', 'illustrator', 'ilustrador', 'illustrateur', 'zeichner'],
             'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],
             'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number']
         ];
@@ -1173,6 +1191,7 @@ class CsvImportController
                 collana = ?,
                 numero_serie = ?,
                 traduttore = ?,
+                illustratore = ?,
                 parole_chiave = ?,
                 classificazione_dewey = ?,
                 updated_at = NOW()
@@ -1194,11 +1213,12 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
+        $illustratore = !empty($data['illustratore']) ? $data['illustratore'] : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssissiissdisssssi',
+            'sssssissiissdissssssi',
             $isbn10,
             $isbn13,
             $ean,
@@ -1216,6 +1236,7 @@ class CsvImportController
             $collana,
             $numeroSerie,
             $traduttore,
+            $illustratore,
             $paroleChiave,
             $dewey,
             $bookId
@@ -1255,13 +1276,13 @@ class CsvImportController
                 isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                 lingua, edizione, numero_pagine, genere_id,
                 descrizione, formato, prezzo, copie_totali, copie_disponibili,
-                editore_id, collana, numero_serie, traduttore, parole_chiave,
+                editore_id, collana, numero_serie, traduttore, illustratore, parole_chiave,
                 classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
                 ?, 'disponibile', NOW()
             )
         ");
@@ -1288,11 +1309,12 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
+        $illustratore = !empty($data['illustratore']) ? $data['illustratore'] : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssissiissdiiisssss',
+            'sssssissiissdiiissssss',
             $isbn10,
             $isbn13,
             $ean,
@@ -1312,6 +1334,7 @@ class CsvImportController
             $collana,
             $numeroSerie,
             $traduttore,
+            $illustratore,
             $paroleChiave,
             $dewey
         );
