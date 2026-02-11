@@ -773,7 +773,9 @@ class PrestitiController
                 'loan_id' => $id,
                 'error' => $e->getMessage()
             ]);
-            return $response->withStatus(500);
+            return $response
+                ->withHeader('Location', '/admin/prestiti/' . $id . '?error=pdf_failed')
+                ->withStatus(302);
         }
     }
 
@@ -1100,19 +1102,7 @@ class PrestitiController
             __('Note')
         ], ',', '"', '');
 
-        // Status translations
-        $statusLabels = [
-            'pendente' => __('Pendente'),
-            'prenotato' => __('Prenotato'),
-            'da_ritirare' => __('Da Ritirare'),
-            'in_corso' => __('In Corso'),
-            'in_ritardo' => __('In Ritardo'),
-            'restituito' => __('Restituito'),
-            'perso' => __('Perso'),
-            'danneggiato' => __('Danneggiato'),
-            'annullato' => __('Annullato'),
-            'scaduto' => __('Scaduto'),
-        ];
+        // Status translations (shared helper in helpers.php)
 
         // Sanitize CSV values to prevent formula injection (CSV injection)
         // Characters =, +, -, @, tab, carriage return can trigger formula execution in Excel/LibreOffice
@@ -1129,7 +1119,7 @@ class PrestitiController
 
         // CSV data rows
         foreach ($loans as $loan) {
-            $stato = $statusLabels[$loan['stato']] ?? $loan['stato'];
+            $stato = translate_loan_status($loan['stato']);
             fputcsv($output, [
                 $loan['id'],
                 $sanitizeCsv($loan['libro_titolo'] ?? ''),

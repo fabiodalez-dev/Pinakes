@@ -84,7 +84,7 @@ class MergeHelper
                 // Log successful merge
                 AppLog::info("merge.{$entityType}.success", [
                     'primary_id' => $primaryId,
-                    'merged_ids' => $ids,
+                    'merged_ids' => array_values(array_filter($ids, fn($id) => $id !== $primaryId)),
                     'entity_type' => $entityType
                 ]);
 

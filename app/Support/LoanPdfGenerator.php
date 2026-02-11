@@ -88,8 +88,14 @@ class LoanPdfGenerator
      */
     private function resolveLogoPath(): ?string
     {
-        $publicDir = realpath(__DIR__ . '/../../public');
         $logoRelative = Branding::fullLogo(); // e.g., '/assets/brand/logo.png'
+
+        // Handle absolute URLs (TCPDF supports them directly)
+        if ($logoRelative && preg_match('/^https?:\/\//i', $logoRelative)) {
+            return $logoRelative;
+        }
+
+        $publicDir = realpath(__DIR__ . '/../../public');
 
         if ($logoRelative && $publicDir) {
             $logoAbsolute = $publicDir . $logoRelative;
@@ -242,8 +248,9 @@ class LoanPdfGenerator
         // Generation timestamp (centered, small, gray)
         $pdf->SetFont('helvetica', 'I', 8);
         $pdf->SetTextColor(128, 128, 128);
-        $now = new \DateTime('now', new \DateTimeZone('Europe/Rome'));
-        $generatedAt = __('Documento generato il %s alle %s', $now->format('d/m/Y'), $now->format('H:i'));
+        $tz = ConfigStore::get('app.timezone', 'Europe/Rome');
+        $now = new \DateTime('now', new \DateTimeZone($tz));
+        $generatedAt = __('Documento generato il %s alle %s', format_date($now->format('Y-m-d'), false, '/'), $now->format('H:i'));
         $pdf->Cell(0, 5, $generatedAt, 0, 1, 'C');
     }
 
@@ -252,18 +259,6 @@ class LoanPdfGenerator
      */
     private function translateStatus(string $status): string
     {
-        return match ($status) {
-            'pendente' => __('Pendente'),
-            'prenotato' => __('Prenotato'),
-            'da_ritirare' => __('Da Ritirare'),
-            'in_corso' => __('In Corso'),
-            'in_ritardo' => __('In Ritardo'),
-            'restituito' => __('Restituito'),
-            'perso' => __('Perso'),
-            'danneggiato' => __('Danneggiato'),
-            'annullato' => __('Annullato'),
-            'scaduto' => __('Scaduto'),
-            default => $status
-        };
+        return translate_loan_status($status);
     }
 }

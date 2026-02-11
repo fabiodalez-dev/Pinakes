@@ -113,7 +113,7 @@ For development environments, set `APP_ENV=development`, `APP_DEBUG=true`, and `
 After completing the installer:
 
 1. **Delete the `installer/` directory** for security (or use the built-in option in Step 7)
-2. Verify the `.env` file is not accessible from the web
+2. Verify the `.env` file is inaccessible from the web
 3. Configure your web server to point to the `public/` directory as document root
 4. Set up a daily cron job for automated maintenance (see `docs/cron.md`)
 

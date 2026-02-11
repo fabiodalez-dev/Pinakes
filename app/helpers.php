@@ -249,6 +249,31 @@ if (!function_exists('format_date_short')) {
     }
 }
 
+if (!function_exists('translate_loan_status')) {
+    /**
+     * Translate a loan status code to its localized label
+     *
+     * @param string $status Status code from database (e.g., 'in_corso', 'restituito')
+     * @return string Localized status label
+     */
+    function translate_loan_status(string $status): string
+    {
+        return match ($status) {
+            'pendente' => __('Pendente'),
+            'prenotato' => __('Prenotato'),
+            'da_ritirare' => __('Da Ritirare'),
+            'in_corso' => __('In Corso'),
+            'in_ritardo' => __('In Ritardo'),
+            'restituito' => __('Restituito'),
+            'perso' => __('Perso'),
+            'danneggiato' => __('Danneggiato'),
+            'annullato' => __('Annullato'),
+            'scaduto' => __('Scaduto'),
+            default => $status
+        };
+    }
+}
+
 if (!function_exists('do_action')) {
     /**
      * Execute an action hook
