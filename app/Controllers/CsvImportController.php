@@ -515,7 +515,9 @@ class CsvImportController
             unset($_SESSION['csv_import_data']);
         }
 
-        // Build error_details for frontend display
+        // Build error_details for frontend display (limit to 50 to keep payload small)
+        $maxErrorDetails = 50;
+        $errorsForUi = array_slice($importData['errors'], 0, $maxErrorDetails);
         $errorDetails = array_map(function ($err) {
             if (is_array($err)) {
                 return sprintf(
@@ -526,7 +528,7 @@ class CsvImportController
                 );
             }
             return (string)$err;
-        }, $importData['errors']);
+        }, $errorsForUi);
 
         $response->getBody()->write(json_encode([
             'success' => true,
@@ -1402,9 +1404,13 @@ class CsvImportController
             // Ensure unique numero_inventario (may collide with previous imports)
             $numeroInventario = $candidato;
             $suffix = 2;
-            while ($this->inventoryNumberExists($db, $numeroInventario)) {
+            $maxAttempts = 1000;
+            while ($this->inventoryNumberExists($db, $numeroInventario) && $suffix <= $maxAttempts) {
                 $numeroInventario = "{$candidato}-{$suffix}";
                 $suffix++;
+            }
+            if ($suffix > $maxAttempts) {
+                throw new \RuntimeException("Impossibile generare numero inventario unico per: {$candidato}");
             }
 
             $note = $copie > 1 ? sprintf(__("Copia %d di %d"), $i, $copie) : null;

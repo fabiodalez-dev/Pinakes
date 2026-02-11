@@ -1073,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', function() {
               error: '<?= __("Errore nel parsing della risposta") ?>'
             }));
 
-            if (data.success) {
+            if (response.ok && data.success) {
               Swal.fire({ icon: 'success', title: '<?= __("Eliminati") ?>', text: data.message || `${ids.length} <?= __("libri eliminati") ?>`, timer: 2000, showConfirmButton: false });
               selectedBooks.clear();
               table.ajax.reload();

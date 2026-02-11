@@ -1395,9 +1395,13 @@ class LibraryThingImportController
             // Ensure unique numero_inventario (may collide with previous imports)
             $numeroInventario = $candidato;
             $suffix = 2;
-            while ($this->inventoryNumberExists($db, $numeroInventario)) {
+            $maxAttempts = 1000;
+            while ($this->inventoryNumberExists($db, $numeroInventario) && $suffix <= $maxAttempts) {
                 $numeroInventario = "{$candidato}-{$suffix}";
                 $suffix++;
+            }
+            if ($suffix > $maxAttempts) {
+                throw new \RuntimeException("Impossibile generare numero inventario unico per: {$candidato}");
             }
 
             $note = $copie > 1 ? sprintf(__("Copia %d di %d"), $i, $copie) : null;
@@ -1753,7 +1757,7 @@ class LibraryThingImportController
         foreach ($parts as $part) {
             $mappedParts[] = $linguaMap[$part] ?? ucfirst($part);
         }
-        $language = implode(', ', $mappedParts);
+        $language = implode(', ', array_unique($mappedParts));
 
         // Build ISBNs
         $isbns = [];

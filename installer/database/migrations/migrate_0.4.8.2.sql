@@ -73,32 +73,32 @@ DEALLOCATE PREPARE stmt;
 --    (idempotent: only updates rows that still have Italian names)
 -- ============================================================
 
-UPDATE libri SET lingua = REPLACE(lingua, 'italiano', 'Italiano') WHERE lingua LIKE '%italiano%';
-UPDATE libri SET lingua = REPLACE(lingua, 'inglese', 'English') WHERE lingua LIKE '%inglese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'francese', 'Français') WHERE lingua LIKE '%francese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'tedesco', 'Deutsch') WHERE lingua LIKE '%tedesco%';
-UPDATE libri SET lingua = REPLACE(lingua, 'spagnolo', 'Español') WHERE lingua LIKE '%spagnolo%';
-UPDATE libri SET lingua = REPLACE(lingua, 'portoghese', 'Português') WHERE lingua LIKE '%portoghese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'russo', 'Русский') WHERE lingua LIKE '%russo%';
-UPDATE libri SET lingua = REPLACE(lingua, 'cinese', '中文') WHERE lingua LIKE '%cinese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'giapponese', '日本語') WHERE lingua LIKE '%giapponese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'arabo', 'العربية') WHERE lingua LIKE '%arabo%';
-UPDATE libri SET lingua = REPLACE(lingua, 'olandese', 'Nederlands') WHERE lingua LIKE '%olandese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'svedese', 'Svenska') WHERE lingua LIKE '%svedese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'norvegese', 'Norsk') WHERE lingua LIKE '%norvegese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'danese', 'Dansk') WHERE lingua LIKE '%danese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'finlandese', 'Suomi') WHERE lingua LIKE '%finlandese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'polacco', 'Polski') WHERE lingua LIKE '%polacco%';
-UPDATE libri SET lingua = REPLACE(lingua, 'ceco', 'Čeština') WHERE lingua LIKE '%ceco%';
-UPDATE libri SET lingua = REPLACE(lingua, 'ungherese', 'Magyar') WHERE lingua LIKE '%ungherese%';
-UPDATE libri SET lingua = REPLACE(lingua, 'rumeno', 'Română') WHERE lingua LIKE '%rumeno%';
-UPDATE libri SET lingua = REPLACE(lingua, 'greco', 'Ελληνικά') WHERE lingua LIKE '%greco%';
-UPDATE libri SET lingua = REPLACE(lingua, 'turco', 'Türkçe') WHERE lingua LIKE '%turco%';
-UPDATE libri SET lingua = REPLACE(lingua, 'ebraico', 'עברית') WHERE lingua LIKE '%ebraico%';
-UPDATE libri SET lingua = REPLACE(lingua, 'hindi', 'हिन्दी') WHERE lingua LIKE '%hindi%';
-UPDATE libri SET lingua = REPLACE(lingua, 'coreano', '한국어') WHERE lingua LIKE '%coreano%';
-UPDATE libri SET lingua = REPLACE(lingua, 'thai', 'ไทย') WHERE lingua LIKE '%thai%';
-UPDATE libri SET lingua = REPLACE(lingua, 'latino', 'Latina') WHERE lingua LIKE '%latino%';
+UPDATE libri SET lingua = REPLACE(lingua, 'italiano', 'Italiano') WHERE BINARY lingua LIKE '%italiano%';
+UPDATE libri SET lingua = REPLACE(lingua, 'inglese', 'English') WHERE BINARY lingua LIKE '%inglese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'francese', 'Français') WHERE BINARY lingua LIKE '%francese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'tedesco', 'Deutsch') WHERE BINARY lingua LIKE '%tedesco%';
+UPDATE libri SET lingua = REPLACE(lingua, 'spagnolo', 'Español') WHERE BINARY lingua LIKE '%spagnolo%';
+UPDATE libri SET lingua = REPLACE(lingua, 'portoghese', 'Português') WHERE BINARY lingua LIKE '%portoghese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'russo', 'Русский') WHERE BINARY lingua LIKE '%russo%';
+UPDATE libri SET lingua = REPLACE(lingua, 'cinese', '中文') WHERE BINARY lingua LIKE '%cinese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'giapponese', '日本語') WHERE BINARY lingua LIKE '%giapponese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'arabo', 'العربية') WHERE BINARY lingua LIKE '%arabo%';
+UPDATE libri SET lingua = REPLACE(lingua, 'olandese', 'Nederlands') WHERE BINARY lingua LIKE '%olandese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'svedese', 'Svenska') WHERE BINARY lingua LIKE '%svedese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'norvegese', 'Norsk') WHERE BINARY lingua LIKE '%norvegese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'danese', 'Dansk') WHERE BINARY lingua LIKE '%danese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'finlandese', 'Suomi') WHERE BINARY lingua LIKE '%finlandese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'polacco', 'Polski') WHERE BINARY lingua LIKE '%polacco%';
+UPDATE libri SET lingua = REPLACE(lingua, 'ceco', 'Čeština') WHERE BINARY lingua LIKE '%ceco%';
+UPDATE libri SET lingua = REPLACE(lingua, 'ungherese', 'Magyar') WHERE BINARY lingua LIKE '%ungherese%';
+UPDATE libri SET lingua = REPLACE(lingua, 'rumeno', 'Română') WHERE BINARY lingua LIKE '%rumeno%';
+UPDATE libri SET lingua = REPLACE(lingua, 'greco', 'Ελληνικά') WHERE BINARY lingua LIKE '%greco%';
+UPDATE libri SET lingua = REPLACE(lingua, 'turco', 'Türkçe') WHERE BINARY lingua LIKE '%turco%';
+UPDATE libri SET lingua = REPLACE(lingua, 'ebraico', 'עברית') WHERE BINARY lingua LIKE '%ebraico%';
+UPDATE libri SET lingua = REPLACE(lingua, 'hindi', 'हिन्दी') WHERE BINARY lingua LIKE '%hindi%';
+UPDATE libri SET lingua = REPLACE(lingua, 'coreano', '한국어') WHERE BINARY lingua LIKE '%coreano%';
+UPDATE libri SET lingua = REPLACE(lingua, 'thai', 'ไทย') WHERE BINARY lingua LIKE '%thai%';
+UPDATE libri SET lingua = REPLACE(lingua, 'latino', 'Latina') WHERE BINARY lingua LIKE '%latino%';
 
 -- ============================================================
 -- 5. CHANGE anno_pubblicazione TO SIGNED (support BCE dates)

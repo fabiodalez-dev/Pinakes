@@ -525,11 +525,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (stats.errors > 0) message += `, ${stats.errors} errori`;
 
                     // Append error details if available
+                    const escapeHtml = (value) => String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+
                     if (stats.error_details.length > 0) {
                         const maxShow = 10;
                         const shown = stats.error_details.slice(0, maxShow);
                         message += '<br><br><strong><?= addslashes(__("Errori durante l\'import")) ?>:</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
-                        shown.forEach(e => { message += `<li>${e}</li>`; });
+                        shown.forEach(e => { message += `<li>${escapeHtml(e)}</li>`; });
                         if (stats.error_details.length > maxShow) {
                             message += `<li><em>... <?= addslashes(__("e altri")) ?> ${stats.error_details.length - maxShow} <?= addslashes(__("errori")) ?></em></li>`;
                         }
