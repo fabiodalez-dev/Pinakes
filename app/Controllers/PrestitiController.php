@@ -474,8 +474,9 @@ class PrestitiController
                     $response->getBody()->write($pdfContent);
                     return $response
                         ->withHeader('Content-Type', 'application/pdf')
-                        ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
-                        ->withHeader('Cache-Control', 'no-cache, must-revalidate');
+                        ->withHeader('Content-Disposition', "attachment; filename=\"{$filename}\"; filename*=UTF-8''" . rawurlencode($filename))
+                        ->withHeader('Cache-Control', 'no-cache, must-revalidate')
+                        ->withHeader('Pragma', 'no-cache');
 
                 } catch (\Throwable $e) {
                     SecureLogger::warning(__('PDF prestito non generato'), [

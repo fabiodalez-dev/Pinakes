@@ -104,7 +104,7 @@ For development environments, set `APP_ENV=development`, `APP_DEBUG=true`, and `
 - **Input validation** — all form fields validated server-side
 - **File upload security** — type, size, and extension validation
 - **Session hardening** — httpOnly, secure, samesite=Strict
-- **Security headers** — CSP, X-XSS-Protection, X-Frame-Options
+- **Security headers** — CSP, X-Frame-Options
 
 ---
 

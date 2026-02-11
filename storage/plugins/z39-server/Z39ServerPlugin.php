@@ -222,7 +222,7 @@ class Z39ServerPlugin
             ");
 
             if ($stmt === false) {
-                error_log('[Z39 Server Plugin] Failed to prepare hook registration statement: ' . $this->db->error);
+                \App\Support\SecureLogger::error('[Z39 Server Plugin] Failed to prepare hook registration', ['error' => $this->db->error]);
                 continue;
             }
 
@@ -236,7 +236,7 @@ class Z39ServerPlugin
             );
 
             if (!$stmt->execute()) {
-                error_log('[Z39 Server Plugin] Failed to register hook ' . $hook['hook_name'] . ': ' . $stmt->error);
+                \App\Support\SecureLogger::error('[Z39 Server Plugin] Failed to register hook', ['hook' => $hook['hook_name'], 'error' => $stmt->error]);
             }
 
             $stmt->close();
@@ -383,7 +383,7 @@ class Z39ServerPlugin
             // Load SBN Client
             $clientFile = __DIR__ . '/classes/SbnClient.php';
             if (!file_exists($clientFile)) {
-                error_log('[SBN Search API] Client file not found: ' . $clientFile);
+                \App\Support\SecureLogger::error('[SBN Search API] Client file not found', ['path' => $clientFile]);
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'error' => 'SBN client not available'
@@ -436,7 +436,7 @@ class Z39ServerPlugin
                 return $response->withHeader('Content-Type', 'application/json');
 
             } catch (\Throwable $e) {
-                error_log('[SBN Search API] Error: ' . $e->getMessage());
+                \App\Support\SecureLogger::error('[SBN Search API] Error', ['error' => $e->getMessage()]);
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'error' => 'Search failed: ' . $e->getMessage()
@@ -644,7 +644,7 @@ class Z39ServerPlugin
 
         // Add error handling for execute() - may fail on connection issues
         if (!$stmt->execute()) {
-            error_log('[Z39 Server Plugin] Failed to check plugin status: ' . $stmt->error);
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Failed to check plugin status', ['error' => $stmt->error]);
             $stmt->close();
             return false;
         }
@@ -721,7 +721,7 @@ class Z39ServerPlugin
     {
         // Validate ENC: prefix
         if (!str_starts_with($encrypted, 'ENC:')) {
-            error_log('[Z39 Server Plugin] Invalid encrypted value: missing ENC: prefix');
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Invalid encrypted value: missing ENC: prefix');
             return null;
         }
 
@@ -730,7 +730,7 @@ class Z39ServerPlugin
         $decoded = base64_decode($payload);
 
         if ($decoded === false || strlen($decoded) < 28) {
-            error_log('[Z39 Server Plugin] Invalid encrypted payload: decode failed or too short');
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Invalid encrypted payload: decode failed or too short');
             return null;
         }
 
@@ -742,7 +742,7 @@ class Z39ServerPlugin
             ?? null;
         if ($rawKey === null || $rawKey === '') {
             // No key available, cannot decrypt
-            error_log('[Z39 Server Plugin] Cannot decrypt setting: PLUGIN_ENCRYPTION_KEY not available');
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Cannot decrypt setting: PLUGIN_ENCRYPTION_KEY not available');
             return null;
         }
 
@@ -759,7 +759,7 @@ class Z39ServerPlugin
 
             return $decrypted !== false ? $decrypted : null;
         } catch (\Throwable $e) {
-            error_log('[Z39 Server Plugin] Decryption error: ' . $e->getMessage());
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Decryption error', ['error' => $e->getMessage()]);
             return null;
         }
     }

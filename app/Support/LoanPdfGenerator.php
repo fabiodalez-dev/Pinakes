@@ -114,7 +114,9 @@ class LoanPdfGenerator
     {
         // Logo (scaled to fit max 60x25mm)
         if ($logoPath) {
-            $imageInfo = @getimagesize($logoPath);
+            // Only use getimagesize on local files to avoid HTTP blocking
+            $isLocal = !preg_match('/^https?:\/\//i', $logoPath);
+            $imageInfo = $isLocal ? @getimagesize($logoPath) : false;
             if ($imageInfo && $imageInfo[0] > 0 && $imageInfo[1] > 0) {
                 $width = $imageInfo[0];
                 $height = $imageInfo[1];
@@ -249,7 +251,12 @@ class LoanPdfGenerator
         $pdf->SetFont('helvetica', 'I', 8);
         $pdf->SetTextColor(128, 128, 128);
         $tz = ConfigStore::get('app.timezone', 'Europe/Rome');
-        $now = new \DateTime('now', new \DateTimeZone($tz));
+        try {
+            $timezone = new \DateTimeZone($tz);
+        } catch (\Exception $e) {
+            $timezone = new \DateTimeZone('Europe/Rome');
+        }
+        $now = new \DateTime('now', $timezone);
         $generatedAt = __('Documento generato il %s alle %s', format_date($now->format('Y-m-d'), false, '/'), $now->format('H:i'));
         $pdf->Cell(0, 5, $generatedAt, 0, 1, 'C');
     }
