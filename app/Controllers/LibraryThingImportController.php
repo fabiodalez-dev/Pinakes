@@ -719,10 +719,15 @@ class LibraryThingImportController
             }
         }
 
-        // Year - extract first 4-digit year (handles ISO dates like "2020-05-01")
-        if (!empty($data['Date'])) {
-            if (preg_match('/\b(\d{4})\b/', $data['Date'], $matches)) {
-                $result['anno_pubblicazione'] = $matches[1];
+        // Year - extract year (supports negative/BCE dates like "-500" and ISO dates like "2020-05-01")
+        if (!empty($data['Date']) || (isset($data['Date']) && $data['Date'] === '0')) {
+            $dateStr = trim($data['Date']);
+            if (preg_match('/^-?\d+$/', $dateStr)) {
+                // Plain year (positive or negative)
+                $result['anno_pubblicazione'] = (int) $dateStr;
+            } elseif (preg_match('/(-?\d{1,4})/', $dateStr, $matches)) {
+                // Extract year from date string
+                $result['anno_pubblicazione'] = (int) $matches[1];
             }
         }
 
@@ -751,34 +756,18 @@ class LibraryThingImportController
         // EAN/Barcode
         $result['ean'] = !empty($data['Barcode']) ? trim($data['Barcode']) : '';
 
-        // Language (supports multi-language: "English, German" → "inglese, tedesco")
+        // Language (supports multi-language: "English, German" → "English, Deutsch")
         if (!empty($data['Languages'])) {
             $langMap = [
-                'italian' => 'italiano',
-                'english' => 'inglese',
-                'french' => 'francese',
-                'german' => 'tedesco',
-                'spanish' => 'spagnolo',
-                'portuguese' => 'portoghese',
-                'russian' => 'russo',
-                'chinese' => 'cinese',
-                'japanese' => 'giapponese',
-                'arabic' => 'arabo',
-                'dutch' => 'olandese',
-                'swedish' => 'svedese',
-                'norwegian' => 'norvegese',
-                'danish' => 'danese',
-                'finnish' => 'finlandese',
-                'polish' => 'polacco',
-                'czech' => 'ceco',
-                'hungarian' => 'ungherese',
-                'romanian' => 'rumeno',
-                'greek' => 'greco',
-                'turkish' => 'turco',
-                'hebrew' => 'ebraico',
-                'hindi' => 'hindi',
-                'korean' => 'coreano',
-                'thai' => 'thai',
+                'italian' => 'Italiano', 'english' => 'English', 'french' => 'Français',
+                'german' => 'Deutsch', 'spanish' => 'Español', 'portuguese' => 'Português',
+                'russian' => 'Русский', 'chinese' => '中文', 'japanese' => '日本語',
+                'arabic' => 'العربية', 'dutch' => 'Nederlands', 'swedish' => 'Svenska',
+                'norwegian' => 'Norsk', 'danish' => 'Dansk', 'finnish' => 'Suomi',
+                'polish' => 'Polski', 'czech' => 'Čeština', 'hungarian' => 'Magyar',
+                'romanian' => 'Română', 'greek' => 'Ελληνικά', 'turkish' => 'Türkçe',
+                'hebrew' => 'עברית', 'hindi' => 'हिन्दी', 'korean' => '한국어',
+                'thai' => 'ไทย', 'latin' => 'Latina',
             ];
             $parts = array_map('trim', explode(',', $data['Languages']));
             $mapped = [];
@@ -1401,7 +1390,16 @@ class LibraryThingImportController
         $baseInventario = $isbn13 ?: ($isbn10 ?: "LIB-{$bookId}");
 
         for ($i = 1; $i <= $copie; $i++) {
-            $numeroInventario = $copie > 1 ? "{$baseInventario}-C{$i}" : $baseInventario;
+            $candidato = $copie > 1 ? "{$baseInventario}-C{$i}" : $baseInventario;
+
+            // Ensure unique numero_inventario (may collide with previous imports)
+            $numeroInventario = $candidato;
+            $suffix = 2;
+            while ($this->inventoryNumberExists($db, $numeroInventario)) {
+                $numeroInventario = "{$candidato}-{$suffix}";
+                $suffix++;
+            }
+
             $note = $copie > 1 ? sprintf(__("Copia %d di %d"), $i, $copie) : null;
             $copyRepo->create($bookId, $numeroInventario, 'disponibile', $note);
         }
@@ -1410,6 +1408,20 @@ class LibraryThingImportController
         $integrity->recalculateBookAvailability($bookId);
 
         return $bookId;
+    }
+
+    /**
+     * Check if a numero_inventario already exists in the copie table.
+     */
+    private function inventoryNumberExists(\mysqli $db, string $numero): bool
+    {
+        $stmt = $db->prepare("SELECT 1 FROM copie WHERE numero_inventario = ? LIMIT 1");
+        $stmt->bind_param('s', $numero);
+        $stmt->execute();
+        $stmt->store_result();
+        $exists = $stmt->num_rows > 0;
+        $stmt->close();
+        return $exists;
     }
 
     private function scrapeBookData(string $isbn): array
@@ -1712,33 +1724,28 @@ class LibraryThingImportController
             }
         }
 
-        // Map lingua to Languages (supports multi-language: "inglese, tedesco" → "English, German")
+        // Map lingua to Languages for LibraryThing export (native → English)
         $linguaMap = [
-            'italiano' => 'Italian',
-            'inglese' => 'English',
-            'francese' => 'French',
-            'tedesco' => 'German',
-            'spagnolo' => 'Spanish',
-            'portoghese' => 'Portuguese',
-            'russo' => 'Russian',
-            'cinese' => 'Chinese',
-            'giapponese' => 'Japanese',
-            'arabo' => 'Arabic',
-            'olandese' => 'Dutch',
-            'svedese' => 'Swedish',
-            'norvegese' => 'Norwegian',
-            'danese' => 'Danish',
-            'finlandese' => 'Finnish',
-            'polacco' => 'Polish',
-            'ceco' => 'Czech',
-            'ungherese' => 'Hungarian',
-            'rumeno' => 'Romanian',
-            'greco' => 'Greek',
-            'turco' => 'Turkish',
-            'ebraico' => 'Hebrew',
-            'hindi' => 'Hindi',
-            'coreano' => 'Korean',
-            'thai' => 'Thai',
+            // Native names (new canonical format)
+            'Italiano' => 'Italian', 'English' => 'English', 'Français' => 'French',
+            'Deutsch' => 'German', 'Español' => 'Spanish', 'Português' => 'Portuguese',
+            'Русский' => 'Russian', '中文' => 'Chinese', '日本語' => 'Japanese',
+            'العربية' => 'Arabic', 'Nederlands' => 'Dutch', 'Svenska' => 'Swedish',
+            'Norsk' => 'Norwegian', 'Dansk' => 'Danish', 'Suomi' => 'Finnish',
+            'Polski' => 'Polish', 'Čeština' => 'Czech', 'Magyar' => 'Hungarian',
+            'Română' => 'Romanian', 'Ελληνικά' => 'Greek', 'Türkçe' => 'Turkish',
+            'עברית' => 'Hebrew', 'हिन्दी' => 'Hindi', '한국어' => 'Korean',
+            'ไทย' => 'Thai', 'Latina' => 'Latin',
+            // Legacy Italian names (backward compatibility for existing data)
+            'italiano' => 'Italian', 'inglese' => 'English', 'francese' => 'French',
+            'tedesco' => 'German', 'spagnolo' => 'Spanish', 'portoghese' => 'Portuguese',
+            'russo' => 'Russian', 'cinese' => 'Chinese', 'giapponese' => 'Japanese',
+            'arabo' => 'Arabic', 'olandese' => 'Dutch', 'svedese' => 'Swedish',
+            'norvegese' => 'Norwegian', 'danese' => 'Danish', 'finlandese' => 'Finnish',
+            'polacco' => 'Polish', 'ceco' => 'Czech', 'ungherese' => 'Hungarian',
+            'rumeno' => 'Romanian', 'greco' => 'Greek', 'turco' => 'Turkish',
+            'ebraico' => 'Hebrew', 'hindi' => 'Hindi', 'coreano' => 'Korean',
+            'thai' => 'Thai', 'latino' => 'Latin',
         ];
         $linguaValue = $libro['lingua'] ?? 'italiano';
         $parts = array_map('trim', explode(',', $linguaValue));

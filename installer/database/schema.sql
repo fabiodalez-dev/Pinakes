@@ -341,7 +341,7 @@ CREATE TABLE `libri` (
   `issn` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ISSN for periodicals (LibraryThing)',
   `titolo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `sottotitolo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `anno_pubblicazione` smallint unsigned DEFAULT NULL,
+  `anno_pubblicazione` smallint DEFAULT NULL,
   `lingua` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `original_languages` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original languages (LibraryThing)',
   `edizione` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,

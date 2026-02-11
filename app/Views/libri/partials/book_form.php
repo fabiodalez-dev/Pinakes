@@ -192,7 +192,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
             <div>
               <label for="anno_pubblicazione" class="form-label"><?= __("Anno di Pubblicazione") ?></label>
-              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="1" max="9999" class="form-input" placeholder="<?= __('es. 2025') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
+              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="-9999" max="9999" class="form-input" placeholder="<?= __('es. 2025') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Anno numerico (usato per filtri e ordinamento)") ?></p>
             </div>
           </div>
