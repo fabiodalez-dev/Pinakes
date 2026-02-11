@@ -445,8 +445,9 @@ class Z39ServerPlugin
             }
         });
 
-        error_log('[Z39 Server Plugin] SRU route registered at /api/sru');
-        error_log('[Z39 Server Plugin] SBN search route registered at /api/sbn/search');
+        \App\Support\SecureLogger::debug('[Z39 Server Plugin] Routes registered', [
+            'routes' => ['/api/sru', '/api/sbn/search']
+        ]);
     }
 
     /**

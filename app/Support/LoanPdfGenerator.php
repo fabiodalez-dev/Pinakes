@@ -114,7 +114,7 @@ class LoanPdfGenerator
     {
         // Logo (scaled to fit max 60x25mm)
         if ($logoPath) {
-            $imageInfo = getimagesize($logoPath);
+            $imageInfo = @getimagesize($logoPath);
             if ($imageInfo && $imageInfo[0] > 0 && $imageInfo[1] > 0) {
                 $width = $imageInfo[0];
                 $height = $imageInfo[1];

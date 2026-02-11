@@ -108,7 +108,10 @@ class MergeHelper
                 ]));
             }
         } catch (\Throwable $e) {
-            error_log("[API] {$labels['log_prefix']} merge error: " . $e->getMessage());
+            AppLog::error("merge.{$entityType}.error", [
+                'error' => $e->getMessage(),
+                'entity_type' => $entityType,
+            ]);
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => $labels['unexpected_error']

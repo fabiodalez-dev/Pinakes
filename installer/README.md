@@ -36,7 +36,7 @@ Populates the database with localized seed data:
 - 18 email templates (registration, loan notifications, reminders, etc.)
 - CMS pages (About, Privacy Policy)
 - Homepage content sections
-- Dewey Decimal Classification (from bundled JSON)
+- Dewey Decimal Classification (from `data/dewey/dewey_completo_*.json`)
 
 ### Step 5 — Triggers & Indexes
 

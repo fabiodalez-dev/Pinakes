@@ -50,7 +50,7 @@ if (!class_exists('OpenLibraryPlugin', false)) {
             if (method_exists($this->instance, 'onDeactivate')) {
                 $this->instance->onDeactivate();
             }
-            error_log('[OpenLibrary] Plugin deactivated');
+            \App\Support\SecureLogger::debug('[OpenLibrary] Plugin deactivated');
         }
 
         /**
@@ -61,7 +61,7 @@ if (!class_exists('OpenLibraryPlugin', false)) {
             if (method_exists($this->instance, 'onInstall')) {
                 $this->instance->onInstall();
             }
-            error_log('[OpenLibrary] Plugin installed');
+            \App\Support\SecureLogger::debug('[OpenLibrary] Plugin installed');
         }
 
         /**
@@ -74,7 +74,7 @@ if (!class_exists('OpenLibraryPlugin', false)) {
             } elseif (method_exists($this->instance, 'activate')) {
                 $this->instance->activate();
             }
-            error_log('[OpenLibrary] Plugin activated via PluginManager');
+            \App\Support\SecureLogger::debug('[OpenLibrary] Plugin activated');
         }
 
         /**
@@ -85,7 +85,7 @@ if (!class_exists('OpenLibraryPlugin', false)) {
             if (method_exists($this->instance, 'onUninstall')) {
                 $this->instance->onUninstall();
             }
-            error_log('[OpenLibrary] Plugin uninstalled');
+            \App\Support\SecureLogger::debug('[OpenLibrary] Plugin uninstalled');
         }
 
         /**
