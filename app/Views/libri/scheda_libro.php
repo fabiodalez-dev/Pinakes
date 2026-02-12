@@ -133,7 +133,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <div>
             <span class="<?php echo $statusBadgeClass; ?>">
               <i class="fas fa-circle text-[8px]"></i>
-              <?php echo App\Support\HtmlHelper::e(ucfirst($libro['stato'])); ?>
+              <?php echo App\Support\HtmlHelper::e(__(ucfirst($libro['stato']))); ?>
             </span>
           </div>
           <?php endif; ?>
@@ -208,12 +208,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Dal") ?></span>
-            <span><?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></span>
+            <span><?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_prestito'] ?? '', false, '/')); ?></span>
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Scadenza") ?></span>
             <?php $isLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
-            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e($activeLoan['data_scadenza'] ?? ''); ?></span>
+            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_scadenza'] ?? '', false, '/')); ?></span>
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Rinnovi effettuati") ?></span>
@@ -375,7 +375,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php if (!empty($libro['tipo_acquisizione'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Tipo acquisizione") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['tipo_acquisizione']); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(__($libro['tipo_acquisizione'])); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['traduttore'])): ?>
@@ -477,7 +477,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   if ($st === 'disponibile') $cls = 'bg-green-500 text-white';
                   elseif (in_array($st, ['prestato','in_ritardo'])) $cls = 'bg-red-100 text-red-800';
                   elseif (in_array($st, ['danneggiato','perso'])) $cls = 'bg-yellow-100 text-yellow-800'; ?>
-                <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $cls; ?>"><?php echo App\Support\HtmlHelper::e($libro['stato'] ?? __('Non specificato')); ?></span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $cls; ?>"><?php echo App\Support\HtmlHelper::e(__(ucfirst($libro['stato'] ?? 'non specificato'))); ?></span>
               </dd>
             </div>
             <?php endif; ?>
@@ -1372,10 +1372,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             </div>
             <div>
               <div class="text-xs text-gray-500 uppercase"><?= __("Prestito") ?></div>
-              <div class="font-medium"><?= __("Dal") ?> <?php echo App\Support\HtmlHelper::e($activeLoan['data_prestito'] ?? ''); ?></div>
+              <div class="font-medium"><?= __("Dal") ?> <?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_prestito'] ?? '', false, '/')); ?></div>
               <?php $modalLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
               <div class="text-xs <?php echo $modalLate ? 'text-red-600 font-semibold' : 'text-gray-500'; ?>">
-                <?= __("Scadenza") ?> <?php echo App\Support\HtmlHelper::e($activeLoan['data_scadenza'] ?? ''); ?>
+                <?= __("Scadenza") ?> <?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_scadenza'] ?? '', false, '/')); ?>
               </div>
             </div>
           </div>

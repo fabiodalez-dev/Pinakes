@@ -627,41 +627,31 @@ class LibriApiController
         $db->begin_transaction();
 
         try {
-            // Delete book-author relationships first
-            $delAuthSql = "DELETE FROM libri_autori WHERE libro_id IN ($placeholders)";
-            $delAuthStmt = $db->prepare($delAuthSql);
-            if (!$delAuthStmt) {
-                throw new \Exception('Failed to prepare author relationship delete: ' . $db->error);
-            }
-            $delAuthStmt->bind_param($types, ...$cleanIds);
-            if (!$delAuthStmt->execute()) {
-                throw new \Exception('Failed to execute author relationship delete: ' . $delAuthStmt->error);
-            }
-            $delAuthStmt->close();
+            // Delete all FK-dependent records in correct order.
+            // prestiti refs both copie.id and libri.id, so must go first.
+            $dependentTables = [
+                'prestiti',      // FK → copie(id), libri(id)
+                'libri_autori',  // FK → libri(id)
+                'libri_donati',  // FK → libri(id)
+                'libri_tag',     // FK → libri(id)
+                'prenotazioni',  // FK → libri(id)
+                'recensioni',    // FK → libri(id)
+                'wishlist',      // FK → libri(id)
+                'copie',         // FK → libri(id)
+            ];
 
-            // Delete copies
-            $delCopySql = "DELETE FROM copie WHERE libro_id IN ($placeholders)";
-            $delCopyStmt = $db->prepare($delCopySql);
-            if (!$delCopyStmt) {
-                throw new \Exception('Failed to prepare copies delete: ' . $db->error);
+            foreach ($dependentTables as $table) {
+                $delSql = "DELETE FROM `$table` WHERE libro_id IN ($placeholders)";
+                $delStmt = $db->prepare($delSql);
+                if (!$delStmt) {
+                    throw new \Exception("Failed to prepare $table delete: " . $db->error);
+                }
+                $delStmt->bind_param($types, ...$cleanIds);
+                if (!$delStmt->execute()) {
+                    throw new \Exception("Failed to execute $table delete: " . $delStmt->error);
+                }
+                $delStmt->close();
             }
-            $delCopyStmt->bind_param($types, ...$cleanIds);
-            if (!$delCopyStmt->execute()) {
-                throw new \Exception('Failed to execute copies delete: ' . $delCopyStmt->error);
-            }
-            $delCopyStmt->close();
-
-            // Delete reservations (prenotazioni) to prevent orphaned records
-            $delResSql = "DELETE FROM prenotazioni WHERE libro_id IN ($placeholders)";
-            $delResStmt = $db->prepare($delResSql);
-            if (!$delResStmt) {
-                throw new \Exception('Failed to prepare reservations delete: ' . $db->error);
-            }
-            $delResStmt->bind_param($types, ...$cleanIds);
-            if (!$delResStmt->execute()) {
-                throw new \Exception('Failed to execute reservations delete: ' . $delResStmt->error);
-            }
-            $delResStmt->close();
 
             // Delete the books
             $sql = "DELETE FROM libri WHERE id IN ($placeholders)";
