@@ -21,46 +21,62 @@ class ScrapingService
      */
     public static function scrapeBookData(string $isbn, int $maxAttempts = 3, string $context = 'Scraping'): array
     {
-        // Check if scraping is available
-        if (!\App\Support\Hooks::has('scrape.fetch.custom')) {
-            return [];
-        }
+        // Try plugin-based scraping first
+        if (\App\Support\Hooks::has('scrape.fetch.custom')) {
+            $delaySeconds = 1;
+            $lastError = null;
 
-        $delaySeconds = 1;
-        $lastError = null;
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                try {
+                    $sources = \App\Support\Hooks::apply('scrape.sources', [], [$isbn]);
+                    $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $isbn]);
 
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                // Get sources configuration from plugins
-                // The scrape.sources hook allows plugins to register their scraping sources
-                $sources = \App\Support\Hooks::apply('scrape.sources', [], [$isbn]);
-
-                // Call scraping hook with sources and ISBN (positional arguments required by plugins)
-                // Plugins like ScrapingPro, OpenLibrary, and ApiBookScraper expect: ($current, $sources, $isbn)
-                $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $isbn]);
-
-                if (!empty($result) && is_array($result)) {
-                    return $result;
+                    if (!empty($result) && is_array($result)) {
+                        return $result;
+                    }
+                } catch (\Throwable $e) {
+                    $lastError = $e;
                 }
-            } catch (\Throwable $e) {
-                // Silent failure, will retry
-                $lastError = $e;
+
+                if ($attempt < $maxAttempts) {
+                    sleep($delaySeconds);
+                    $delaySeconds = min($delaySeconds * 2, 8);
+                }
             }
 
-            // Exponential backoff with cap at 8 seconds
-            if ($attempt < $maxAttempts) {
-                sleep($delaySeconds);
-                $delaySeconds = min($delaySeconds * 2, 8);
+            if ($lastError !== null) {
+                \App\Support\SecureLogger::warning('Scraping plugin fallito dopo tutti i tentativi', [
+                    'context' => $context,
+                    'isbn' => $isbn,
+                    'maxAttempts' => $maxAttempts,
+                    'error' => $lastError->getMessage()
+                ]);
             }
         }
 
-        // Log failure after all attempts exhausted
-        if ($lastError !== null) {
-            \App\Support\SecureLogger::warning('Scraping fallito dopo tutti i tentativi', [
+        // Built-in fallback: use ScrapeController's byIsbn which includes
+        // Google Books and Open Library fallbacks (works without any plugin)
+        try {
+            $scrapeController = new \App\Controllers\ScrapeController();
+            $mockRequest = (new \Slim\Psr7\Factory\ServerRequestFactory())
+                ->createServerRequest('GET', '/api/scrape/isbn')
+                ->withQueryParams(['isbn' => $isbn]);
+            $mockResponse = new \Slim\Psr7\Response();
+
+            $scrapeResponse = $scrapeController->byIsbn($mockRequest, $mockResponse);
+
+            if ($scrapeResponse->getStatusCode() === 200) {
+                $body = (string) $scrapeResponse->getBody();
+                $data = json_decode($body, true);
+                if (!empty($data) && is_array($data) && !isset($data['error'])) {
+                    return $data;
+                }
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('Scraping built-in fallback fallito', [
                 'context' => $context,
                 'isbn' => $isbn,
-                'maxAttempts' => $maxAttempts,
-                'error' => $lastError->getMessage()
+                'error' => $e->getMessage()
             ]);
         }
 
@@ -88,10 +104,10 @@ class ScrapingService
     /**
      * Check if scraping functionality is available
      *
-     * @return bool True if at least one scraping plugin is registered
+     * @return bool Always true — built-in Google Books/Open Library fallback is always available
      */
     public static function isAvailable(): bool
     {
-        return \App\Support\Hooks::has('scrape.fetch.custom');
+        return true;
     }
 }

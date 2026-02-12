@@ -1455,11 +1455,8 @@ class LibraryThingImportController
                     $params[] = $coverData['file_url'];
                     $types .= 's';
                 }
-            } catch (\Exception $e) {
-                // Fallback: save URL only
-                $updates[] = 'copertina_url = ?';
-                $params[] = $scrapedData['image'];
-                $types .= 's';
+            } catch (\Throwable $e) {
+                error_log("[LT Import] Cover download failed for book $bookId: " . $e->getMessage());
             }
         }
 

@@ -172,6 +172,14 @@ class ScrapeController
             $fallbackData = $this->fallbackFromOpenLibrary($cleanIsbn);
         }
 
+        // If fallback found data but no cover, try Goodreads cover API
+        if ($fallbackData !== null && empty($fallbackData['image'])) {
+            $goodreadsCover = $this->fallbackCoverFromGoodreads($cleanIsbn);
+            if ($goodreadsCover !== null) {
+                $fallbackData['image'] = $goodreadsCover;
+            }
+        }
+
         if ($fallbackData !== null) {
             // Merge partial plugin data (e.g., cover from Goodreads) into fallback data
             if (is_array($customResult)) {
@@ -254,8 +262,21 @@ class ScrapeController
      */
     private function getDefaultSources(): array
     {
-        // Le fonti vengono dichiarate dinamicamente dai plugin attivi.
-        return [];
+        // Built-in sources always available (no plugin required)
+        return [
+            'google_books' => [
+                'name' => 'Google Books',
+                'url_pattern' => 'https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}',
+                'priority' => 50,
+                'fields' => ['title', 'authors', 'publisher', 'description', 'image', 'pages', 'isbn'],
+            ],
+            'openlibrary' => [
+                'name' => 'Open Library',
+                'url_pattern' => 'https://openlibrary.org/isbn/{isbn}.json',
+                'priority' => 60,
+                'fields' => ['title', 'authors', 'publisher', 'description', 'image'],
+            ],
+        ];
     }
 
     /**
@@ -398,12 +419,15 @@ class ScrapeController
         $language = $info['language'] ?? '';
         if ($language) {
             $languageNames = [
-                'it' => 'Italiano',
-                'en' => 'English',
-                'fr' => 'Français',
-                'de' => 'Deutsch',
-                'es' => 'Español',
-                'pt' => 'Português',
+                'it' => 'Italiano', 'en' => 'English', 'fr' => 'Français',
+                'de' => 'Deutsch', 'es' => 'Español', 'pt' => 'Português',
+                'ru' => 'Русский', 'zh' => '中文', 'ja' => '日本語',
+                'ar' => 'العربية', 'nl' => 'Nederlands', 'sv' => 'Svenska',
+                'no' => 'Norsk', 'da' => 'Dansk', 'fi' => 'Suomi',
+                'pl' => 'Polski', 'cs' => 'Čeština', 'hu' => 'Magyar',
+                'ro' => 'Română', 'el' => 'Ελληνικά', 'tr' => 'Türkçe',
+                'he' => 'עברית', 'hi' => 'हिन्दी', 'ko' => '한국어',
+                'th' => 'ไทย', 'la' => 'Latina',
             ];
             $language = $languageNames[$language] ?? strtoupper($language);
         }
@@ -483,9 +507,34 @@ class ScrapeController
             'pubDate' => $data['publish_date'] ?? '',
             'pages' => $data['number_of_pages'] ?? '',
             'isbn' => $isbn,
-            'description' => is_array($data['description']) ? ($data['description']['value'] ?? '') : ($data['description'] ?? ''),
+            'description' => is_array($data['description'] ?? null) ? ($data['description']['value'] ?? '') : ($data['description'] ?? ''),
             'image' => $cover
         ];
+    }
+
+    /**
+     * Fallback: get cover image URL from Goodreads via bookcover.longitood.com API
+     */
+    private function fallbackCoverFromGoodreads(string $isbn): ?string
+    {
+        $url = 'https://bookcover.longitood.com/bookcover/' . urlencode($isbn);
+        $json = $this->safeHttpGet($url, 8);
+        if (!$json) {
+            return null;
+        }
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || empty($data['url'])) {
+            return null;
+        }
+
+        $coverUrl = $data['url'];
+        if (!filter_var($coverUrl, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        SecureLogger::debug('[ScrapeController] Goodreads cover found', ['isbn' => $isbn, 'cover' => $coverUrl]);
+        return $coverUrl;
     }
 
     /**
@@ -497,7 +546,8 @@ class ScrapeController
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
             CURLOPT_CONNECTTIMEOUT => max(1, $timeout),
             CURLOPT_TIMEOUT => max(2, $timeout + 2),
             CURLOPT_SSL_VERIFYPEER => true,

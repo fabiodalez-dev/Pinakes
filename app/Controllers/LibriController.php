@@ -1935,8 +1935,11 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
 
-        // Check if already has cover (but not placeholder)
-        if (!empty($libro['copertina_url']) && strpos($libro['copertina_url'], 'placeholder.jpg') === false) {
+        // Check if already has a LOCAL cover (not placeholder, not remote URL)
+        if (!empty($libro['copertina_url'])
+            && strpos($libro['copertina_url'], 'placeholder.jpg') === false
+            && !preg_match('#^https?://#i', $libro['copertina_url'])
+        ) {
             $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
             return $response->withHeader('Content-Type', 'application/json');
         }
@@ -2924,11 +2927,12 @@ class LibriController
         $skipped = 0;
         $errors = 0;
 
-        // Find all books with ISBN but without cover (or only placeholder)
-        $query = "SELECT id, isbn13, isbn10, titolo
+        // Find all books with ISBN but without LOCAL cover (missing, placeholder, or remote URL)
+        $query = "SELECT id, isbn13, isbn10, titolo, copertina_url
                   FROM libri
                   WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
-                    AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg')
+                    AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg'
+                         OR copertina_url LIKE 'http://%' OR copertina_url LIKE 'https://%')
                     AND deleted_at IS NULL
                   ORDER BY id DESC";
 
@@ -2955,14 +2959,27 @@ class LibriController
                 $scrapedData = $this->scrapeBookCover($isbn);
 
                 if (!empty($scrapedData['image'])) {
-                    // Update only cover URL
-                    $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
-                    $stmt->bind_param('si', $scrapedData['image'], $book['id']);
-                    $stmt->execute();
-                    $stmt->close();
+                    // Download cover locally, never store remote URLs
+                    try {
+                        $coverController = new \App\Controllers\CoverController();
+                        $coverData = $coverController->downloadFromUrl($scrapedData['image']);
 
-                    $synced++;
-                    error_log("[Cover Sync] Cover updated for book ID {$book['id']}: {$scrapedData['image']}");
+                        if (!empty($coverData['file_url'])) {
+                            $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
+                            $stmt->bind_param('si', $coverData['file_url'], $book['id']);
+                            $stmt->execute();
+                            $stmt->close();
+
+                            $synced++;
+                            error_log("[Cover Sync] Cover downloaded for book ID {$book['id']}: {$coverData['file_url']}");
+                        } else {
+                            $errors++;
+                            error_log("[Cover Sync] Cover download returned empty for book ID {$book['id']}");
+                        }
+                    } catch (\Throwable $e) {
+                        $errors++;
+                        error_log("[Cover Sync] Cover download failed for book ID {$book['id']}: " . $e->getMessage());
+                    }
                 } else {
                     $errors++;
                     error_log("[Cover Sync] No cover found for book ID {$book['id']}, ISBN: $isbn");

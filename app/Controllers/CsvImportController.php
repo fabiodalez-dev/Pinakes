@@ -1459,11 +1459,19 @@ class CsvImportController
         $params = [];
         $types = '';
 
-        // Copertina
+        // Copertina — download locally, never store remote URLs
         if (empty($csvData['copertina_url']) && !empty($scrapedData['image'])) {
-            $updates[] = 'copertina_url = ?';
-            $params[] = $scrapedData['image'];
-            $types .= 's';
+            try {
+                $coverController = new \App\Controllers\CoverController();
+                $coverData = $coverController->downloadFromUrl($scrapedData['image']);
+                if (!empty($coverData['file_url'])) {
+                    $updates[] = 'copertina_url = ?';
+                    $params[] = $coverData['file_url'];
+                    $types .= 's';
+                }
+            } catch (\Throwable $e) {
+                error_log("[CSV Import] Cover download failed for book $bookId: " . $e->getMessage());
+            }
         }
 
         // Descrizione
