@@ -198,7 +198,9 @@ class LoanPdfGenerator
         if (!empty($loan['utente_tessera'])) {
             $userFields[__('Codice Tessera:')] = $loan['utente_tessera'];
         }
-        $userFields[__('Email:')] = $loan['utente_email'] ?? '';
+        if (!empty($loan['utente_email'])) {
+            $userFields[__('Email:')] = $loan['utente_email'];
+        }
         if (!empty($loan['utente_telefono'])) {
             $userFields[__('Telefono:')] = $loan['utente_telefono'];
         }

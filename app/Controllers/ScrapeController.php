@@ -130,6 +130,16 @@ class ScrapeController
             // Plugin handled scraping completely, use its result
             $payload = $customResult;
 
+            // Plugin returned metadata but no cover image — try built-in sources for cover
+            if (empty($payload['image'])) {
+                SecureLogger::debug('[ScrapeController] Plugin data has no cover, trying built-in sources', ['isbn' => $cleanIsbn]);
+                $coverUrl = $this->findCoverFromBuiltinSources($cleanIsbn);
+                if ($coverUrl !== null) {
+                    $payload['image'] = $coverUrl;
+                    SecureLogger::debug('[ScrapeController] Cover found from built-in source', ['isbn' => $cleanIsbn]);
+                }
+            }
+
             // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
             $payload = $this->normalizeScrapedData($payload);
 
@@ -323,7 +333,7 @@ class ScrapeController
     private function fallbackFromGoogleBooks(string $isbn): ?array
     {
         // Rate limiting to prevent API bans
-        if (!$this->checkRateLimit('google_books', 10)) {
+        if (!$this->checkRateLimit('google_books', 60)) {
             SecureLogger::debug('[ScrapeController] Google Books API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
@@ -458,7 +468,7 @@ class ScrapeController
     private function fallbackFromOpenLibrary(string $isbn): ?array
     {
         // Rate limiting to prevent API bans
-        if (!$this->checkRateLimit('openlibrary', 10)) {
+        if (!$this->checkRateLimit('openlibrary', 60)) {
             SecureLogger::debug('[ScrapeController] Open Library API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
@@ -517,6 +527,11 @@ class ScrapeController
      */
     private function fallbackCoverFromGoodreads(string $isbn): ?string
     {
+        if (!$this->checkRateLimit('goodreads_cover', 60)) {
+            SecureLogger::debug('[ScrapeController] Goodreads cover API rate limit exceeded', ['isbn' => $isbn]);
+            return null;
+        }
+
         $url = 'https://bookcover.longitood.com/bookcover/' . urlencode($isbn);
         $json = $this->safeHttpGet($url, 8);
         if (!$json) {
@@ -538,6 +553,36 @@ class ScrapeController
     }
 
     /**
+     * Try built-in sources (Google Books, Open Library, Goodreads) for cover image only.
+     * Used when a plugin returned complete metadata but no cover image.
+     *
+     * @param string $isbn ISBN to search
+     * @return string|null Cover image URL or null
+     */
+    public function findCoverFromBuiltinSources(string $isbn): ?string
+    {
+        // 1. Try Goodreads cover API (lightest — single URL check)
+        $goodreads = $this->fallbackCoverFromGoodreads($isbn);
+        if ($goodreads !== null) {
+            return $goodreads;
+        }
+
+        // 2. Try Google Books (reliable, has good cover database)
+        $gbData = $this->fallbackFromGoogleBooks($isbn);
+        if (!empty($gbData['image'])) {
+            return $gbData['image'];
+        }
+
+        // 3. Try Open Library (has covers for many editions)
+        $olData = $this->fallbackFromOpenLibrary($isbn);
+        if (!empty($olData['image'])) {
+            return $olData['image'];
+        }
+
+        return null;
+    }
+
+    /**
      * Safe HTTP GET with timeout and basic validation.
      */
     private function safeHttpGet(string $url, int $timeout = 10): ?string
@@ -548,6 +593,8 @@ class ScrapeController
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 3,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
             CURLOPT_CONNECTTIMEOUT => max(1, $timeout),
             CURLOPT_TIMEOUT => max(2, $timeout + 2),
             CURLOPT_SSL_VERIFYPEER => true,
@@ -569,10 +616,10 @@ class ScrapeController
      * Prevents IP bans from Google Books and Open Library due to excessive requests
      *
      * @param string $apiName Nome API (es. 'google_books', 'openlibrary')
-     * @param int $maxCallsPerMinute Max chiamate al minuto (default 10)
+     * @param int $maxCallsPerMinute Max chiamate al minuto (default 60 — safe for all public APIs, allows batch imports)
      * @return bool True se OK, False se rate limit superato
      */
-    private function checkRateLimit(string $apiName, int $maxCallsPerMinute = 10): bool
+    private function checkRateLimit(string $apiName, int $maxCallsPerMinute = 60): bool
     {
         $storageDir = __DIR__ . '/../../storage/rate_limits';
         if (!is_dir($storageDir)) {

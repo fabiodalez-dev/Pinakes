@@ -617,12 +617,13 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       // Generate CSV from server data
-      let csvContent = '<?= __("Nome") ?>,<?= __("Sito Web") ?>,<?= __("N. Libri") ?>\n';
+      let csvContent = '<?= __("Nome") ?>,<?= __("Sito Web") ?>,<?= __("Indirizzo") ?>,<?= __("N. Libri") ?>\n';
       result.data.forEach(row => {
         const nome = (row.nome || '').replace(/"/g, '""');
         const sito = (row.sito_web || '').replace(/"/g, '""');
+        const indirizzo = (row.indirizzo || '').replace(/"/g, '""');
         const libri = row.libri_count || 0;
-        csvContent += `"${nome}","${sito}","${libri}"\n`;
+        csvContent += `"${nome}","${sito}","${indirizzo}","${libri}"\n`;
       });
 
       const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });

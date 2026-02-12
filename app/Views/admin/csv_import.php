@@ -551,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             confirmButtonText: '<?= addslashes(__("OK")) ?>'
                         }).then(() => window.location.reload());
                     } else {
-                        alert(message);
+                        alert(message.replace(/<[^>]*>/g, ''));
                         window.location.reload();
                     }
                 }, 500);

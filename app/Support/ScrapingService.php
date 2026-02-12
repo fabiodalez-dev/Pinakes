@@ -25,13 +25,26 @@ class ScrapingService
         if (\App\Support\Hooks::has('scrape.fetch.custom')) {
             $delaySeconds = 1;
             $lastError = null;
+            $sources = \App\Support\Hooks::apply('scrape.sources', [], [$isbn]);
 
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
                 try {
-                    $sources = \App\Support\Hooks::apply('scrape.sources', [], [$isbn]);
                     $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $isbn]);
 
                     if (!empty($result) && is_array($result)) {
+                        // Plugin returned metadata — check if it also has a cover
+                        if (empty($result['image'])) {
+                            // Try built-in sources for cover image only
+                            try {
+                                $scrapeController = new \App\Controllers\ScrapeController();
+                                $coverUrl = $scrapeController->findCoverFromBuiltinSources($isbn);
+                                if ($coverUrl !== null) {
+                                    $result['image'] = $coverUrl;
+                                }
+                            } catch (\Throwable $coverErr) {
+                                // Cover fallback is optional, don't block on failure
+                            }
+                        }
                         return $result;
                     }
                 } catch (\Throwable $e) {

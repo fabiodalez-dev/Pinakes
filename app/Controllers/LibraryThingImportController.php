@@ -39,6 +39,8 @@ class LibraryThingImportController
     {
         $logFile = __DIR__ . '/../../writable/logs/import.log';
         $timestamp = date('Y-m-d H:i:s');
+        // Sanitize message to prevent log injection (strip newlines/control chars)
+        $message = str_replace(["\r", "\n", "\t"], ' ', $message);
         file_put_contents($logFile, "[$timestamp] [LT] $message\n", FILE_APPEND);
     }
 

@@ -1992,84 +1992,30 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        // Download and save the cover image
+        // Download and save the cover image using CoverController (SSRF protection, domain whitelist)
         $imageUrl = $scrapeData['image'];
 
-        $uploadDir = $this->getCoversUploadPath() . '/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
+        try {
+            $coverController = new \App\Controllers\CoverController();
+            $coverData = $coverController->downloadFromUrl($imageUrl);
 
-        // Download image
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $imageUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
-        ]);
-        $imageData = curl_exec($ch);
-        $imgHttpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+            if (empty($coverData['file_url'])) {
+                $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+            }
 
-        if ($imgHttpCode !== 200 || !$imageData) {
+            $coverUrl = $coverData['file_url'];
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[LibriController] fetchCover download failed', [
+                'book_id' => $id,
+                'image_url' => $imageUrl,
+                'error' => $e->getMessage()
+            ]);
             $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
         }
 
-        // Check size limit (5MB max)
-        $maxSize = 5 * 1024 * 1024;
-        if (\strlen($imageData) > $maxSize) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('File troppo grande. Dimensione massima 5MB.')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        // Validate image
-        $imageInfo = @getimagesizefromstring($imageData);
-        if ($imageInfo === false) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Immagine non valida')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        $mimeType = $imageInfo['mime'];
-        $extension = match ($mimeType) {
-            'image/jpeg', 'image/jpg' => 'jpg',
-            'image/png' => 'png',
-            default => null,
-        };
-
-        if ($extension === null) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Formato immagine non supportato')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        // Save image
-        $filename = 'copertina_' . $id . '_' . time() . '.' . $extension;
-        $filepath = $uploadDir . $filename;
-
-        $image = imagecreatefromstring($imageData);
-        if ($image === false) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore processamento immagine')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
-
-        $saveResult = match ($extension) {
-            'png' => imagepng($image, $filepath, 9),
-            default => imagejpeg($image, $filepath, 85),
-        };
-        imagedestroy($image);
-
-        if (!$saveResult) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore salvataggio immagine')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
-
-        chmod($filepath, 0644);
-
-        // Update book record with cover URL
-        $coverUrl = $this->getCoversUrlPath() . '/' . $filename;
+        // Update book record with local cover URL
         $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
         $stmt->bind_param('si', $coverUrl, $id);
         $stmt->execute();

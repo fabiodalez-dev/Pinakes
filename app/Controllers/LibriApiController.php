@@ -669,7 +669,7 @@ class LibriApiController
 
             // Commit transaction
             $db->commit();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             AppLog::error('libri.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);
             $response->getBody()->write(json_encode([

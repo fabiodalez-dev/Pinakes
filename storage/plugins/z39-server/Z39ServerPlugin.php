@@ -738,6 +738,10 @@ class Z39ServerPlugin
             WHERE plugin_id = ? AND setting_key = ?
         ");
 
+        if ($stmt === false) {
+            return $default;
+        }
+
         $stmt->bind_param('is', $this->pluginId, $key);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -845,6 +849,10 @@ class Z39ServerPlugin
                 updated_at = NOW()
         ");
 
+        if ($stmt === false) {
+            return;
+        }
+
         $stmt->bind_param('iss', $this->pluginId, $key, $value);
         $stmt->execute();
         $stmt->close();
@@ -869,6 +877,10 @@ class Z39ServerPlugin
             INSERT INTO plugin_logs (plugin_id, level, message, context, created_at)
             VALUES (?, ?, ?, ?, NOW())
         ");
+
+        if ($stmt === false) {
+            return;
+        }
 
         $stmt->bind_param('isss', $this->pluginId, $level, $message, $contextJson);
         $stmt->execute();

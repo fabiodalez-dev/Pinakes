@@ -313,13 +313,16 @@ class SruClient
             $book['authors'][] = trim(preg_replace('/,$/', '', $author));
         }
 
-        // Additional authors from 700 field
+        // Additional authors from 700 field (deduplicated against 100$a)
         $additionalAuthors = $xpath->query(".//marc:datafield[@tag='700']/marc:subfield[@code='a']", $record);
         if ($additionalAuthors->length === 0) {
             $additionalAuthors = $xpath->query(".//datafield[@tag='700']/subfield[@code='a']", $record);
         }
         foreach ($additionalAuthors as $addAuthor) {
-            $book['authors'][] = trim(preg_replace('/,$/', '', $addAuthor->nodeValue));
+            $name = trim(preg_replace('/,$/', '', $addAuthor->nodeValue));
+            if ($name !== '' && !in_array($name, $book['authors'], true)) {
+                $book['authors'][] = $name;
+            }
         }
 
         // Publisher (260 $b or 264 $b)
