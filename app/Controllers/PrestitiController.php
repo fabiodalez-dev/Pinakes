@@ -462,33 +462,14 @@ class PrestitiController
                 }
             }
 
-            // Generate PDF automatically if immediate delivery and user opted in
+            // Redirect to list page — PDF download triggered via JS if requested
             $scaricaPdf = isset($data['scarica_pdf']) && $data['scarica_pdf'] === '1';
+            $redirectUrl = '/admin/prestiti?created=1';
             if ($consegnaImmediata && $scaricaPdf && isset($newLoanId)) {
-                try {
-                    $generator = new \App\Support\LoanPdfGenerator($db);
-                    $pdfContent = $generator->generate($newLoanId);
-
-                    $filename = 'prestito_' . $newLoanId . '_' . date('Ymd') . '.pdf';
-
-                    $response->getBody()->write($pdfContent);
-                    return $response
-                        ->withHeader('Content-Type', 'application/pdf')
-                        ->withHeader('Content-Disposition', "attachment; filename=\"{$filename}\"; filename*=UTF-8''" . rawurlencode($filename))
-                        ->withHeader('Cache-Control', 'no-cache, must-revalidate')
-                        ->withHeader('Pragma', 'no-cache');
-
-                } catch (\Throwable $e) {
-                    SecureLogger::warning(__('PDF prestito non generato'), [
-                        'loan_id' => $newLoanId,
-                        'error' => $e->getMessage()
-                    ]);
-                    // Fallback to redirect if PDF fails
-                    return $response->withHeader('Location', '/admin/prestiti?created=1')->withStatus(302);
-                }
+                $redirectUrl .= '&pdf=' . (int) $newLoanId;
             }
 
-            return $response->withHeader('Location', '/admin/prestiti?created=1')->withStatus(302);
+            return $response->withHeader('Location', $redirectUrl)->withStatus(302);
 
         } catch (Exception $e) {
             $db->rollback();
@@ -766,6 +747,7 @@ class PrestitiController
             return $response
                 ->withHeader('Content-Type', 'application/pdf')
                 ->withHeader('Content-Disposition', "attachment; filename=\"{$filename}\"; filename*=UTF-8''" . rawurlencode($filename))
+                ->withHeader('Content-Length', (string) strlen($pdfContent))
                 ->withHeader('Cache-Control', 'no-cache, must-revalidate')
                 ->withHeader('Pragma', 'no-cache');
 
@@ -775,7 +757,7 @@ class PrestitiController
                 'error' => $e->getMessage()
             ]);
             return $response
-                ->withHeader('Location', '/admin/prestiti/' . $id . '?error=pdf_failed')
+                ->withHeader('Location', '/admin/prestiti/dettagli/' . $id . '?error=pdf_failed')
                 ->withStatus(302);
         }
     }

@@ -142,7 +142,7 @@ if (!empty($triggerWarnings)):
 <?php endif; ?>
 <h3 style="margin-top: 30px; margin-bottom: 15px; color: #2d3748;"><?= __("Riepilogo Installazione") ?></h3>
 <ul class="summary-list">
-    <li><i class="fas fa-check-circle"></i> <?= __("Database installato (45 tabelle)") ?></li>
+    <li><i class="fas fa-check-circle"></i> <?= __("Database installato (46 tabelle)") ?></li>
     <?php if (empty($triggerWarnings)): ?>
         <li><i class="fas fa-check-circle"></i> <?= __("Trigger database configurati") ?></li>
     <?php else: ?>

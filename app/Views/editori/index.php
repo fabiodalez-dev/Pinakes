@@ -46,15 +46,6 @@ $editori = $data['editori'];
                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent text-sm" />
           </div>
 
-          <!-- City -->
-          <div class="w-40">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
-              <i class="fas fa-map-marker-alt mr-1"></i><?= __("Città") ?>
-            </label>
-            <input id="search_citta" type="text" placeholder="<?= __('Es. Milano...') ?>"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
-          </div>
-
           <!-- Books Count Filter -->
           <div class="w-36">
             <label class="block text-xs font-medium text-gray-500 mb-1">
@@ -229,7 +220,6 @@ document.addEventListener('DOMContentLoaded', function() {
         d.search_nome = document.getElementById('search_nome').value;
         d.search_text = document.getElementById('search_nome').value;
         d.search_sito = document.getElementById('search_sito').value;
-        d.search_citta = document.getElementById('search_citta').value;
         d.search_via = document.getElementById('search_via').value;
         d.search_cap = document.getElementById('search_cap').value;
         d.filter_libri_count = document.getElementById('filter_libri_count').value;
@@ -260,10 +250,8 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(_, __, row) {
           const id = parseInt(row.id, 10);
           const nome = escapeHtml(row.nome) || '<?= __("Editore sconosciuto") ?>';
-          const citta = row.citta ? `<p class="text-xs text-gray-500 mt-0.5"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(row.citta)}</p>` : '';
           return `<div>
             <a href="/admin/editori/${id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
-            ${citta}
           </div>`;
         }
       },
@@ -341,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Filter handlers
   const reloadDebounced = debounce(() => { table.ajax.reload(); updateActiveFilters(); });
-  ['search_nome', 'search_sito', 'search_citta', 'search_via', 'search_cap', 'filter_libri_count'].forEach(id => {
+  ['search_nome', 'search_sito', 'search_via', 'search_cap', 'filter_libri_count'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', reloadDebounced);
@@ -351,7 +339,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Clear filters
   document.getElementById('clear-filters').addEventListener('click', function() {
-    ['search_nome', 'search_sito', 'search_citta', 'search_via', 'search_cap'].forEach(id => {
+    ['search_nome', 'search_sito', 'search_via', 'search_cap'].forEach(id => {
       document.getElementById(id).value = '';
     });
     document.getElementById('filter_libri_count').value = '';
@@ -367,9 +355,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const nome = document.getElementById('search_nome').value;
     if (nome) filters.push({ key: 'search_nome', label: `"${escapeHtml(nome)}"`, icon: 'fa-search' });
-
-    const citta = document.getElementById('search_citta').value;
-    if (citta) filters.push({ key: 'search_citta', label: `<?= __("Città") ?>: ${escapeHtml(citta)}`, icon: 'fa-map-marker-alt' });
 
     const libri = document.getElementById('filter_libri_count').value;
     if (libri) filters.push({ key: 'filter_libri_count', label: `<?= __("Libri") ?>: ${libri}`, icon: 'fa-book' });
@@ -632,13 +617,12 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       // Generate CSV from server data
-      let csvContent = '<?= __("Nome") ?>,<?= __("Sito Web") ?>,<?= __("Città") ?>,<?= __("N. Libri") ?>\n';
+      let csvContent = '<?= __("Nome") ?>,<?= __("Sito Web") ?>,<?= __("N. Libri") ?>\n';
       result.data.forEach(row => {
         const nome = (row.nome || '').replace(/"/g, '""');
         const sito = (row.sito_web || '').replace(/"/g, '""');
-        const citta = (row.citta || '').replace(/"/g, '""');
         const libri = row.libri_count || 0;
-        csvContent += `"${nome}","${sito}","${citta}","${libri}"\n`;
+        csvContent += `"${nome}","${sito}","${libri}"\n`;
       });
 
       const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });

@@ -500,7 +500,7 @@ class Z39ServerPlugin
                 \App\Support\SecureLogger::error('[SBN Search API] Error', ['error' => $e->getMessage()]);
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'error' => 'Search failed: ' . $e->getMessage()
+                    'error' => 'Search failed. Please try again later.'
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }

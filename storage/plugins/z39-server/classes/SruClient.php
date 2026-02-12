@@ -303,13 +303,9 @@ class SruClient
         // Remove all C1 control characters (U+0080-U+009F)
         $book['title'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['title']);
         $book['subtitle'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['subtitle']);
-        $book['publisher'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['publisher']);
-        $book['description'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['description']);
         // Normalize whitespace (collapse multiple spaces into one)
         $book['title'] = trim(preg_replace('/\s+/u', ' ', $book['title']));
         $book['subtitle'] = trim(preg_replace('/\s+/u', ' ', $book['subtitle']));
-        $book['publisher'] = trim(preg_replace('/\s+/u', ' ', $book['publisher']));
-        $book['description'] = trim(preg_replace('/\s+/u', ' ', $book['description']));
 
         // Author (100 $a) and additional authors (700 $a)
         $author = $getSubfield('100', 'a');
@@ -456,6 +452,12 @@ class SruClient
             if (preg_match('/(\d{3}(?:\.\d+)?)/', $dewey, $matches)) {
                 $book['classificazione_dewey'] = $matches[1];
             }
+        }
+
+        // Sanitize publisher and description (populated above from MARC fields)
+        foreach (['publisher', 'description'] as $field) {
+            $book[$field] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book[$field]);
+            $book[$field] = trim(preg_replace('/\s+/u', ' ', $book[$field]));
         }
 
         // Add 'author' field as string for compatibility

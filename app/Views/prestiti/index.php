@@ -51,6 +51,40 @@ function getStatusBadge($status) {
         </li>
       </ol>
     </nav>
+    <!-- Success Messages -->
+    <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
+      <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-check-circle"></i>
+          <span><?= __("Prestito creato con successo!") ?></span>
+          <?php if(isset($_GET['pdf'])): ?>
+            <a href="/admin/prestiti/<?= (int)$_GET['pdf'] ?>/pdf" class="ml-auto inline-flex items-center px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors">
+              <i class="fas fa-file-pdf mr-1"></i><?= __("Scarica PDF") ?>
+            </a>
+          <?php endif; ?>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <?php if(isset($_GET['pdf'])): ?>
+    <script>
+    // Auto-trigger PDF download after loan creation
+    (function() {
+      var pdfId = <?= json_encode((int)$_GET['pdf']) ?>;
+      if (pdfId > 0) {
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = '/admin/prestiti/' + pdfId + '/pdf';
+        document.body.appendChild(iframe);
+        // Clean up URL params after download triggers
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, '', '/admin/prestiti');
+        }
+      }
+    })();
+    </script>
+    <?php endif; ?>
+
     <!-- Modern Header -->
     <div class="mb-8 fade-in">
       <div class="flex items-center justify-between mb-3">

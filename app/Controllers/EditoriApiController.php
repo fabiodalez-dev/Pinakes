@@ -19,7 +19,6 @@ class EditoriApiController
 
         $search_text = trim((string) ($q['search_text'] ?? ''));
         $search_sito = trim((string) ($q['search_sito'] ?? ''));
-        $search_citta = trim((string) ($q['search_citta'] ?? ''));
         $search_via = trim((string) ($q['search_via'] ?? ''));
         $search_cap = trim((string) ($q['search_cap'] ?? ''));
         $filter_libri_count = trim((string) ($q['filter_libri_count'] ?? ''));
@@ -47,14 +46,6 @@ class EditoriApiController
             $params_for_where[] = "%$search_sito%";
             $param_types_for_where .= 's';
             $params[] = "%$search_sito%";
-            $param_types .= 's';
-        }
-        // City, address, and CAP all search within the indirizzo field
-        if ($search_citta !== '') {
-            $where_prepared .= " AND e.indirizzo LIKE ? ";
-            $params_for_where[] = "%$search_citta%";
-            $param_types_for_where .= 's';
-            $params[] = "%$search_citta%";
             $param_types .= 's';
         }
         if ($search_via !== '') {
@@ -191,7 +182,7 @@ class EditoriApiController
                     LIMIT ?, ?";
         }
 
-        AppLog::debug('editori.list.query', ['params' => array_intersect_key($q, ['draw' => 1, 'start' => 1, 'length' => 1, 'search_text' => 1, 'search_sito' => 1, 'search_citta' => 1, 'filter_libri_count' => 1, 'created_from' => 1])]);
+        AppLog::debug('editori.list.query', ['params' => array_intersect_key($q, ['draw' => 1, 'start' => 1, 'length' => 1, 'search_text' => 1, 'search_sito' => 1, 'filter_libri_count' => 1, 'created_from' => 1])]);
 
         $stmt = $db->prepare($sql_prepared);
         if (!$stmt) {

@@ -136,6 +136,13 @@ class LoanPdfGenerator
                 $logoX = (210 - $logoWidth) / 2; // Center on A4 page
                 $pdf->Image($logoPath, $logoX, 15, $logoWidth, $logoHeight, '', '', '', false, 300, '', false, false, 0);
                 $pdf->SetY(15 + $logoHeight + 5);
+            } elseif (!$isLocal) {
+                // Remote logo: use default dimensions, let TCPDF fetch the URL
+                $logoWidth = 40;
+                $logoHeight = 20;
+                $logoX = (210 - $logoWidth) / 2;
+                $pdf->Image($logoPath, $logoX, 15, $logoWidth, $logoHeight, '', '', '', false, 300, '', false, false, 0);
+                $pdf->SetY(15 + $logoHeight + 5);
             } else {
                 $pdf->SetY(15);
             }
