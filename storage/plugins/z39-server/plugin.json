@@ -2,7 +2,7 @@
   "name": "z39-server",
   "display_name": "Z39.50/SRU Integration (Server & Client)",
   "description": "Soluzione completa per l'interoperabilità bibliotecaria. Server SRU per esporre il catalogo e Client Z39.50/SRU per importazione (Copy Cataloging) e ricerca federata. Supporta MARC21, MARCXML, Dublin Core e MODS.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.loc.gov/standards/sru/",
