@@ -362,12 +362,14 @@ class CsvImportController
 
                         // Also log to file for debugging
                         $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                        $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
+                        $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $scrapeError->getMessage());
                         $logMsg = sprintf(
                             "[%s] SCRAPING ERROR Riga %d (%s): %s\n",
                             date('Y-m-d H:i:s'),
                             $lineNumber,
-                            $title,
-                            $scrapeError->getMessage()
+                            $safeTitle,
+                            $safeMsg
                         );
                         file_put_contents($logFile, $logMsg, FILE_APPEND);
                     }
@@ -390,12 +392,14 @@ class CsvImportController
 
                 // Log to csv_errors.log (legacy)
                 $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
+                $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $e->getMessage());
                 $logMsg = sprintf(
                     "[%s] ERROR Riga %d (%s): %s\n\n",
                     date('Y-m-d H:i:s'),
                     $lineNumber,
-                    $title,
-                    $e->getMessage()
+                    $safeTitle,
+                    $safeMsg
                 );
                 file_put_contents($logFile, $logMsg, FILE_APPEND);
             }
@@ -525,11 +529,11 @@ class CsvImportController
                 return sprintf(
                     'Riga %d (%s): %s',
                     $err['line'] ?? 0,
-                    $err['title'] ?? 'CSV',
-                    $err['message'] ?? ''
+                    htmlspecialchars($err['title'] ?? 'CSV', ENT_QUOTES, 'UTF-8'),
+                    htmlspecialchars($err['message'] ?? '', ENT_QUOTES, 'UTF-8')
                 );
             }
-            return (string)$err;
+            return htmlspecialchars((string)$err, ENT_QUOTES, 'UTF-8');
         }, $errorsForUi);
 
         $response->getBody()->write(json_encode([
@@ -831,7 +835,6 @@ class CsvImportController
      *
      * @param string $language Raw language value from CSV
      * @return string Validated language
-     * @throws \Exception If language is not supported
      */
     private function validateLanguage(string $language): string
     {

@@ -362,6 +362,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const sito = document.getElementById('search_sito').value;
     if (sito) filters.push({ key: 'search_sito', label: `<?= __("Sito") ?>: ${escapeHtml(sito)}`, icon: 'fa-globe' });
 
+    const via = document.getElementById('search_via').value;
+    if (via) filters.push({ key: 'search_via', label: `<?= __("Indirizzo") ?>: ${escapeHtml(via)}`, icon: 'fa-road' });
+
+    const cap = document.getElementById('search_cap').value;
+    if (cap) filters.push({ key: 'search_cap', label: `<?= __("CAP") ?>: ${escapeHtml(cap)}`, icon: 'fa-hashtag' });
+
     if (filters.length === 0) {
       container.classList.add('hidden');
       return;

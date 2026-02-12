@@ -2890,6 +2890,8 @@ class LibriController
 
         error_log("[Cover Sync] Found " . count($books) . " books without covers");
 
+        $coverController = new \App\Controllers\CoverController();
+
         foreach ($books as $book) {
             $isbn = $book['isbn13'] ?: $book['isbn10'];
 
@@ -2907,7 +2909,6 @@ class LibriController
                 if (!empty($scrapedData['image'])) {
                     // Download cover locally, never store remote URLs
                     try {
-                        $coverController = new \App\Controllers\CoverController();
                         $coverData = $coverController->downloadFromUrl($scrapedData['image']);
 
                         if (!empty($coverData['file_url'])) {
@@ -2934,7 +2935,7 @@ class LibriController
                 // Rate limiting: wait 2 seconds between requests
                 sleep(2);
 
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $errors++;
                 error_log("[Cover Sync] Error scraping book ID {$book['id']}: " . $e->getMessage());
             }

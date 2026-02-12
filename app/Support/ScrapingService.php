@@ -31,7 +31,7 @@ class ScrapingService
                 try {
                     $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $isbn]);
 
-                    if (!empty($result) && is_array($result)) {
+                    if (is_array($result) && !empty($result['title'])) {
                         // Plugin returned metadata — check if it also has a cover
                         if (empty($result['image'])) {
                             // Try built-in sources for cover image only
