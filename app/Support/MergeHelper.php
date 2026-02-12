@@ -5,6 +5,7 @@ namespace App\Support;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\Log as AppLog;
 
 /**
  * Helper class for handling entity merge operations
@@ -14,13 +15,14 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class MergeHelper
 {
     /**
-     * Handle a merge request for any entity type
+     * Process a merge request for authors or publishers and return a JSON HTTP response.
      *
-     * @param Request $request The HTTP request
-     * @param Response $response The HTTP response
-     * @param \mysqli $db Database connection
-     * @param string $entityType 'autori' or 'editori'
-     * @return Response
+     * Parses and validates the request payload, performs the merge using the appropriate repository,
+     * optionally updates the merged primary entity's name, and returns a JSON response describing
+     * success or failure.
+     *
+     * @param string $entityType 'autori' for authors or 'editori' for publishers; selects repository and localized messages.
+     * @return Response HTTP response whose JSON body contains the outcome. Uses status 200 for successful merges (and merge_error responses), 400 for validation/JSON errors, and 500 for unexpected server errors.
      */
     public static function handleMergeRequest(
         Request $request,
@@ -79,6 +81,13 @@ class MergeHelper
             $primaryId = $repo->$mergeMethod($ids, $requestedPrimaryId);
 
             if ($primaryId) {
+                // Log successful merge
+                AppLog::info("merge.{$entityType}.success", [
+                    'primary_id' => $primaryId,
+                    'merged_ids' => array_values(array_filter($ids, fn($id) => $id !== $primaryId)),
+                    'entity_type' => $entityType
+                ]);
+
                 // Rename if requested
                 if ($newName !== '') {
                     $current = $repo->getById($primaryId);
@@ -99,7 +108,10 @@ class MergeHelper
                 ]));
             }
         } catch (\Throwable $e) {
-            error_log("[API] {$labels['log_prefix']} merge error: " . $e->getMessage());
+            AppLog::error("merge.{$entityType}.error", [
+                'error' => $e->getMessage(),
+                'entity_type' => $entityType,
+            ]);
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => $labels['unexpected_error']

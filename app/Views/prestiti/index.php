@@ -51,6 +51,40 @@ function getStatusBadge($status) {
         </li>
       </ol>
     </nav>
+    <!-- Success Messages -->
+    <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
+      <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-check-circle"></i>
+          <span><?= __("Prestito creato con successo!") ?></span>
+          <?php if(isset($_GET['pdf'])): ?>
+            <a href="/admin/prestiti/<?= (int)$_GET['pdf'] ?>/pdf" class="ml-auto inline-flex items-center px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors">
+              <i class="fas fa-file-pdf mr-1"></i><?= __("Scarica PDF") ?>
+            </a>
+          <?php endif; ?>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <?php if(isset($_GET['pdf'])): ?>
+    <script>
+    // Auto-trigger PDF download after loan creation
+    (function() {
+      var pdfId = <?= json_encode((int)$_GET['pdf']) ?>;
+      if (pdfId > 0) {
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = '/admin/prestiti/' + pdfId + '/pdf';
+        document.body.appendChild(iframe);
+        // Clean up URL params after download triggers
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, '', '/admin/prestiti');
+        }
+      }
+    })();
+    </script>
+    <?php endif; ?>
+
     <!-- Modern Header -->
     <div class="mb-8 fade-in">
       <div class="flex items-center justify-between mb-3">
@@ -208,13 +242,14 @@ function getStatusBadge($status) {
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Utente') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Date') ?></th>
                         <th scope="col" class="px-6 py-3 text-center font-medium"><?= __('Stato') ?></th>
+                        <th scope="col" class="px-6 py-3 text-center font-medium"><?= __('PDF') ?></th>
                         <th scope="col" class="px-6 py-3 text-right font-medium"><?= __('Azioni') ?></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-200">
                     <?php if (empty($prestiti)): ?>
                         <tr>
-                            <td colspan="5" class="text-center py-10 text-gray-500">
+                            <td colspan="6" class="text-center py-10 text-gray-500">
                                 <i class="fas fa-folder-open fa-2x mb-2"></i>
                                 <p><?= __("Nessun prestito trovato.") ?></p>
                             </td>
@@ -240,6 +275,14 @@ function getStatusBadge($status) {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
                                     <?php echo getStatusBadge($prestito['stato']); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    <a href="/admin/prestiti/<?php echo $prestito['id']; ?>/pdf"
+                                       class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors"
+                                       title="<?= __('Scarica PDF') ?>">
+                                        <i class="fas fa-file-pdf mr-2"></i>
+                                        <?= __('PDF') ?>
+                                    </a>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
                                     <div class="flex items-center justify-end space-x-2">
@@ -354,6 +397,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         default:
                             return `<span class='${baseClasses} bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i><?= __("Sconosciuto") ?></span>`;
                     }
+                }
+            },
+            {
+                data: null,
+                className: 'text-center',
+                orderable: false,
+                render: function(data, type, row) {
+                    return `<a href="/admin/prestiti/${row.id}/pdf" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors" title="${window.__('Scarica PDF')}"><i class="fas fa-file-pdf mr-2"></i>${window.__('PDF')}</a>`;
                 }
             },
             {

@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.8.1-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.8.2-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,44 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.8.1
+## What's New in v0.4.8.2
+
+### 🎨 Illustrator Field, Multi-Language & BCE Dates
+
+**New Illustrator Field:**
+- **`illustratore` column** on `libri` table — dedicated field for book illustrators
+- **`illustratore` role** added to `libri_autori` enum — illustrators can be linked as authors with proper role
+- **CSV import support** — Illustrator column recognized and mapped during bulk imports
+- **LibraryThing import** — Illustrator field extracted from LT data
+- **Book form & detail page** — Illustrator displayed alongside translator in both edit form and book card
+
+**Multi-Language Improvements:**
+- **Language column expanded** from varchar(50) to varchar(255) — supports long multi-language entries (e.g., "Italiano, English, Français")
+- **Native language names** — 25+ language names normalized from Italian to native form (e.g., "inglese" → "English", "giapponese" → "日本語")
+- **Multi-language display** — Book detail page shows language chips with proper formatting
+
+**BCE Year Support:**
+- **`anno_pubblicazione` now SIGNED** — range expanded from 0–65535 to -32768–32767, supporting ancient texts (e.g., The Odyssey, -800)
+- **Form validation** — Book form accepts `min="-9999"` for historical works
+
+**Installer Fixes:**
+- **Session persistence fix** — Installer now uses same `storage/sessions/` path as main app, preventing session loss between steps on macOS/Linux
+- **Output buffering** — Step 3 (database installation) uses `ob_start()`/`ob_end_clean()` to prevent broken redirects
+
+**Bug Fixes:**
+- **CSV import duplicate inventory numbers** — New `inventoryNumberExists()` check with automatic suffix (`-2`, `-3`, ...) prevents unique constraint violations on re-import
+- **Publisher API & detail page** — Fixed phantom `e.citta` column reference, improved publisher card layout
+- **Loan PDF generator** — Fixed rendering issues in loan receipt generation
+- **Loans UI** — Fixed display inconsistencies in loan management views
+- **Z39 Server plugin** — SRU client fixes, bumped to v1.2.1
+- **Theme fallback** — Fixed edge case when selected theme is unavailable
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.8.1</strong> - Import Logging & Auto-Update</summary>
 
 ### 📊 Import Logging & Auto-Update System
 
@@ -60,9 +97,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **ISBN length validation** — `normalizeIsbn()` now rejects values that aren't 10 or 13 characters
 - **Negative price rejection** — `validatePrice()` throws on negative values
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.8</strong> - Security & Data Integrity</summary>

@@ -1,284 +1,156 @@
-# 📦 Pinakes - Installer
+# Pinakes Installer
 
-Installer automatico per **Pinakes** - Sistema di gestione bibliotecaria completo.
+Automated web-based installer for Pinakes, a full-featured library management system.
 
-## 🚀 Come Usare l'Installer
+## Requirements
 
-### 1. Requisiti di Sistema
+- **PHP 8.1** or higher
+- **MySQL 5.7+** or **MariaDB 10.3+**
+- **Required PHP extensions**: PDO, PDO MySQL, MySQLi, Mbstring, JSON, GD, Fileinfo
 
-Prima di iniziare, verifica di avere:
+## How It Works
 
-- **PHP 8.1+**
-- **MySQL 5.7+ / MariaDB 10.3+**
-- **Estensioni PHP richieste**:
-  - PDO
-  - PDO MySQL
-  - MySQLi
-  - Mbstring
-  - JSON
-  - GD
-  - Fileinfo
+When Pinakes detects it has not been installed yet (no `.installed` lock file), it automatically redirects to the installer wizard. The installer guides you through 8 steps to get a fully working instance.
 
-### 2. Avviare l'Installer
+### Step 0 — Language & Requirements
+
+Select the application language (Italian or English) and verify that your server meets all requirements: PHP version, required extensions, and directory permissions.
+
+### Step 1 — Database Configuration
+
+Enter your MySQL/MariaDB credentials. The installer auto-detects the socket path when available.
+
+### Step 2 — Connection Test
+
+Validates the database connection and generates the `.env` configuration file.
+
+### Step 3 — Schema Import
+
+Creates all 46 database tables with proper foreign keys, indexes, and constraints.
+
+### Step 4 — Seed Data
+
+Populates the database with localized seed data:
+
+- 181 literary genres
+- 18 email templates (registration, loan notifications, reminders, etc.)
+- CMS pages (About, Privacy Policy)
+- Homepage content sections
+- Dewey Decimal Classification (from `data/dewey/dewey_completo_*.json`)
+
+### Step 5 — Triggers & Indexes
+
+Installs 3 database triggers (loan validation, membership expiry) and optimization indexes.
+
+### Step 6 — Admin Account & Email
+
+Creates the first administrator account with auto-generated membership card number and bcrypt-hashed password. Configures the email driver (PHP mail, PHPMailer, or SMTP).
+
+### Step 7 — Finalization
+
+Sets directory permissions, installs bundled plugins, creates the `.installed` lock file, and offers the option to delete the installer directory.
+
+---
+
+## Database Schema
+
+The installer creates **46 tables** organized into the following groups:
+
+**Catalog** — `libri`, `autori`, `libri_autori`, `editori`, `generi`, `tag`, `libri_tag`, `copie`, `recensioni`
+
+**Loans & Reservations** — `prestiti`, `prenotazioni`, `wishlist`, `donazioni`, `libri_donati`
+
+**Shelving** — `sedi`, `scaffali`, `mensole`, `posizioni`
+
+**Users & Access** — `utenti`, `staff`, `user_sessions`, `preferenze_notifica_utenti`, `api_keys`
+
+**CMS & Content** — `cms_pages`, `home_content`, `email_templates`, `events`, `contact_messages`, `feedback`
+
+**System** — `system_settings`, `admin_notifications`, `log_modifiche`, `import_logs`, `migrations`, `update_logs`, `languages`, `themes`
+
+**Plugins** — `plugins`, `plugin_hooks`, `plugin_logs`, `plugin_data`, `plugin_settings`
+
+**GDPR & Compliance** — `gdpr_requests`, `consent_log`
+
+**Z39.50/SRU** — `z39_access_logs`, `z39_rate_limits`
+
+### Migrations
+
+The `database/migrations/` directory contains incremental migration scripts for upgrading from previous versions (0.3.0 through 0.4.8.1).
+
+---
+
+## Generated `.env` File
+
+The installer generates a production-ready `.env` file with:
+
+- Database credentials
+- Application locale
+- Encryption key (auto-generated, used for plugin API keys)
+- Session lifetime
+- HTTPS and canonical URL settings
+- Debug mode disabled by default
+
+For development environments, set `APP_ENV=development`, `APP_DEBUG=true`, and `DISPLAY_ERRORS=true` after installation.
+
+---
+
+## Security
+
+- **Lock file** — `.installed` prevents re-running the installer
+- **Password hashing** — bcrypt for all user passwords
+- **CSRF protection** — token validation on all forms
+- **Prepared statements** — all database queries use parameterized queries
+- **Input validation** — all form fields validated server-side
+- **File upload security** — type, size, and extension validation
+- **Session hardening** — httpOnly, secure, samesite=Strict
+- **Security headers** — CSP, X-Frame-Options
+
+---
+
+## Post-Installation
+
+After completing the installer:
+
+1. **Delete the `installer/` directory** for security (or use the built-in option in Step 7)
+2. Verify the `.env` file is inaccessible from the web
+3. Configure your web server to point to the `public/` directory as document root
+4. Set up a daily cron job for automated maintenance (see `docs/cron.md`)
+
+The `.installed` lock file prevents accidental re-installation even if you forget to remove the installer directory.
+
+---
+
+## Reinstalling
+
+To start a fresh installation, remove the lock file and the environment configuration:
 
 ```bash
-# Avvia il server PHP con router.php
-php -S localhost:8000 router.php
-
-# Apri il browser e vai a:
-# http://localhost:8000
+rm .installed .env
 ```
 
-L'applicazione rileverà automaticamente che non è installata e ti reindirizzerà all'installer.
+Then access the application again to trigger the installer.
 
 ---
 
-## 📋 Passi dell'Installazione
+## Directory Structure
 
-### Step 1: Verifica Requisiti
-- ✅ Controlla versione PHP
-- ✅ Verifica estensioni PHP
-- ✅ Controlla permessi directory
-
-### Step 2: Configurazione Database
-- 📝 Inserisci credenziali database
-- 🧪 Test connessione database
-- 🔍 Auto-detect socket MySQL (se disponibile)
-- 💾 Creazione file `.env`
-
-### Step 3: Installazione Database
-- 📊 Import schema (41 tabelle)
-- ⚙️ Import trigger (2 trigger)
-- 📦 Import dati essenziali:
-  - 308 generi letterari
-  - 7 template email
-  - Contenuti CMS placeholder
-- ✅ Verifica installazione
-
-### Step 4: Creazione Admin
-- 👤 Creazione primo utente amministratore
-- 🔑 Generazione automatica codice tessera
-- 🔐 Password hashing sicuro (bcrypt)
-
-### Step 5: Impostazioni Applicazione
-- 🏷️ Nome applicazione
-- 🖼️ Logo (opzionale)
-- 💾 Salvataggio in `system_settings`
-
-### Step 6: Configurazione Email
-- 📧 Scelta driver email (mail/phpmailer/smtp)
-- ⚙️ Configurazione SMTP (se selezionato)
-- 📨 Email mittente e nome visualizzato
-
-### Step 7: Completamento
-- 🎉 Riepilogo installazione
-- 🔒 Creazione lock file (`.installed`)
-- 🗑️ Opzione eliminazione installer
-
----
-
-## 🔐 File `.env` Generato
-
-L'installer crea automaticamente un file `.env` **configurato per produzione**:
-
-```env
-# Database
-DB_HOST=localhost
-DB_USER=your_user
-DB_PASS=your_password
-DB_NAME=biblioteca
-DB_PORT=3306
-DB_SOCKET=
-
-# Environment - PRODUZIONE
-APP_ENV=production
-APP_DEBUG=false
-DISPLAY_ERRORS=false
-SESSION_LIFETIME=3600
+```text
+installer/
+├── classes/
+│   ├── Installer.php        # Core installation logic
+│   └── Validator.php        # Input validation
+├── database/
+│   ├── schema.sql           # 46 tables
+│   ├── triggers.sql         # 3 triggers
+│   ├── data_it_IT.sql       # Italian seed data
+│   ├── data_en_US.sql       # English seed data
+│   ├── indexes_optimization.sql
+│   ├── indexes_optimization_mysql.sql
+│   └── migrations/          # Incremental upgrade scripts
+├── steps/
+│   ├── step0.php … step7.php
+├── assets/                  # Installer CSS/JS
+├── index.php                # Entry point
+└── README.md
 ```
-
-### 📝 Nota per Development
-
-Se stai installando per **sviluppo locale**, modifica `.env` dopo l'installazione:
-
-```env
-APP_ENV=development
-APP_DEBUG=true
-DISPLAY_ERRORS=true
-```
-
-Vedi `DEVELOPMENT.md` per dettagli.
-
----
-
-## 🗄️ Database
-
-### Schema Creato
-
-L'installer crea **41 tabelle**:
-
-**Core**:
-- `users` - Utenti sistema
-- `user_roles` - Ruoli utenti
-- `notifications` - Sistema notifiche
-
-**Biblioteca**:
-- `libri` - Catalogo libri
-- `autori` - Autori
-- `editori` - Case editrici
-- `generi` - Generi letterari
-- `classificazione` - Classificazione Dewey
-- `collocazione_*` - Scaffali/mensole/posizioni
-- `prestiti` - Gestione prestiti
-- `prenotazioni` - Gestione prenotazioni
-- `wishlist` - Liste desideri utenti
-
-**CMS**:
-- `cms_pages` - Pagine statiche
-- `home_content` - Contenuti homepage
-- `email_templates` - Template email
-- `system_settings` - Impostazioni sistema
-
-### Dati Precaricati
-
-- ✅ **1369 classificazioni Dewey** complete
-- ✅ **308 generi letterari**
-- ✅ **7 template email** (conferma registrazione, reset password, etc.)
-- ✅ **Contenuti CMS** placeholder (homepage, chi siamo, etc.)
-
----
-
-## 🔒 Sicurezza
-
-### Protezioni Installate
-
-L'installer implementa:
-
-- **Lock File System**: File `.installed` previene re-installazione
-- **Password Hashing**: bcrypt per password admin
-- **CSRF Token**: Integrato in tutte le form
-- **Prepared Statements**: Tutte le query DB
-- **Input Validation**: Tutti i campi form validati
-- **File Upload Security**: Validazione tipo/dimensione/estensione
-- **Session Security**: httpOnly, secure, samesite=Strict
-- **Security Headers**: CSP, XSS, Frame Options, etc.
-
-### File Sensibili
-
-Il file `.env` contiene credenziali sensibili:
-
-```bash
-# IMPORTANTE: Mai committare .env!
-echo ".env" >> .gitignore
-```
-
----
-
-## 🗑️ Eliminazione Installer
-
-**IMPORTANTE**: Per sicurezza, elimina la cartella `installer/` dopo l'installazione.
-
-Puoi farlo:
-
-1. **Tramite interfaccia** - Step 7 dell'installer
-2. **Manualmente**:
-   ```bash
-   rm -rf installer/
-   ```
-
-Il lock file `.installed` previene esecuzioni accidentali anche se dimentichi di eliminare l'installer.
-
----
-
-## 🔧 Troubleshooting
-
-### Problema: 404 su /installer/
-
-**Soluzione**: Usa `router.php`
-
-```bash
-# ❌ NON funziona
-php -S localhost:8000 -t public/
-
-# ✅ Funziona
-php -S localhost:8000 router.php
-```
-
-### Problema: CSS non caricato
-
-**Causa**: Server non usa router.php
-
-**Soluzione**: Vedi sopra
-
-### Problema: Errore import trigger
-
-**Causa**: I trigger usano DELIMITER (MySQL client-specific)
-
-**Soluzione**: L'installer ora gestisce automaticamente DELIMITER
-
-### Problema: Permessi directory negati
-
-**Soluzione**:
-```bash
-chmod 755 .
-chmod 777 uploads storage backups
-```
-
-### Problema: Database già esistente
-
-Se vuoi reinstallare:
-
-```bash
-# Opzione 1: Elimina lock file
-rm .installed
-rm .env
-
-# Opzione 2: Usa parametro force
-# http://localhost:8000/installer/?force=1
-```
-
----
-
-## 📚 File Creati dall'Installer
-
-```
-biblioteca/
-├── .env                    # ✅ Configurazione ambiente
-├── .installed              # ✅ Lock file (nella root)
-├── .htaccess              # ✅ Apache rewrite rules
-├── installer/
-├── uploads/               # ✅ Directory upload (777)
-├── storage/               # ✅ Directory storage (777)
-└── backups/               # ✅ Directory backup (777)
-```
-
----
-
-## 🎯 Requisiti Produzione
-
-Prima del deploy in produzione, verifica:
-
-- [x] ✅ HTTPS configurato sul server
-- [x] ✅ `.env` con APP_ENV=production (fatto dall'installer)
-- [x] ✅ APP_DEBUG=false (fatto dall'installer)
-- [x] ✅ Permessi corretti (755/777)
-- [x] ✅ Backup database configurato
-- [x] ✅ Installer eliminato
-- [x] ✅ `.env` non committato in Git
-
-Vedi `PRODUCTION-READINESS.md` per checklist completa.
-
----
-
-## 📞 Supporto
-
-Per problemi con l'installer:
-
-1. Controlla `TEST-INSTALLER.md` per testing checklist
-2. Verifica `START-SERVER.md` per comandi server
-3. Leggi log in `storage/logs/`
-
----
-
-**Versione Installer**: 1.0
-**Data**: 2025-10-06

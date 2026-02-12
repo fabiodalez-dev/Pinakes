@@ -54,6 +54,26 @@ class Z39ServerPlugin
         'sru_timeout' => '15'
     ];
 
+    // Pre-configured Nordic SRU servers (publicly accessible, no authentication required)
+    private const NORDIC_SERVERS = [
+        [
+            'name' => 'BIBSYS - Norwegian Union Catalogue',
+            'url' => 'https://bibsys.alma.exlibrisgroup.com/view/sru/47BIBSYS_NETWORK',
+            'version' => '1.2',
+            'syntax' => 'marcxml',
+            'enabled' => true,
+            'indexes' => ['isbn' => 'alma.isbn'],
+        ],
+        [
+            'name' => 'LIBRIS - Swedish Union Catalogue',
+            'url' => 'https://libris.kb.se/sru/libris',
+            'version' => '1.1',
+            'syntax' => 'marcxml',
+            'enabled' => true,
+            'indexes' => ['isbn' => 'bath.isbn'],
+        ],
+    ];
+
     /**
      * Constructor - Initialize when plugin is loaded
      *
@@ -126,10 +146,14 @@ class Z39ServerPlugin
             $this->setSetting($key, $value);
         }
 
+        // Set pre-configured Nordic SRU servers
+        $this->setSetting('servers', json_encode(self::NORDIC_SERVERS, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
         // Log installation
         $this->log('info', 'Z39.50/SRU Server Plugin installed successfully', [
             'tables_created' => ['z39_access_logs', 'z39_rate_limits'],
-            'default_settings' => count(self::DEFAULT_SETTINGS)
+            'default_settings' => count(self::DEFAULT_SETTINGS),
+            'nordic_servers' => count(self::NORDIC_SERVERS),
         ]);
     }
 
@@ -141,6 +165,9 @@ class Z39ServerPlugin
     {
         // Register hooks
         $this->registerHooks();
+
+        // Auto-upgrade: add Nordic servers if not already configured
+        $this->ensureNordicServers();
 
         // Log activation
         $this->log('info', 'Z39.50/SRU Server Plugin activated', [
@@ -173,6 +200,40 @@ class Z39ServerPlugin
         $this->log('info', 'Z39.50/SRU Server Plugin uninstalled', [
             'tables_dropped' => ['z39_access_logs', 'z39_rate_limits']
         ]);
+    }
+
+    /**
+     * Ensure Nordic SRU servers are present in configuration.
+     * Adds any missing Nordic servers without overwriting user customizations.
+     */
+    private function ensureNordicServers(): void
+    {
+        $serversJson = $this->getSetting('servers', '[]');
+        $servers = json_decode($serversJson, true);
+        if (!is_array($servers)) {
+            $servers = [];
+        }
+
+        // Index existing servers by URL for deduplication
+        $existingUrls = [];
+        foreach ($servers as $s) {
+            if (!empty($s['url'])) {
+                $existingUrls[] = $s['url'];
+            }
+        }
+
+        $added = 0;
+        foreach (self::NORDIC_SERVERS as $nordic) {
+            if (!in_array($nordic['url'], $existingUrls, true)) {
+                $servers[] = $nordic;
+                $added++;
+            }
+        }
+
+        if ($added > 0) {
+            $this->setSetting('servers', json_encode($servers, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $this->log('info', 'Nordic SRU servers added during upgrade', ['added' => $added]);
+        }
     }
 
     /**
@@ -222,7 +283,7 @@ class Z39ServerPlugin
             ");
 
             if ($stmt === false) {
-                error_log('[Z39 Server Plugin] Failed to prepare hook registration statement: ' . $this->db->error);
+                \App\Support\SecureLogger::error('[Z39 Server Plugin] Failed to prepare hook registration', ['error' => $this->db->error]);
                 continue;
             }
 
@@ -236,7 +297,7 @@ class Z39ServerPlugin
             );
 
             if (!$stmt->execute()) {
-                error_log('[Z39 Server Plugin] Failed to register hook ' . $hook['hook_name'] . ': ' . $stmt->error);
+                \App\Support\SecureLogger::error('[Z39 Server Plugin] Failed to register hook', ['hook' => $hook['hook_name'], 'error' => $stmt->error]);
             }
 
             $stmt->close();
@@ -383,7 +444,7 @@ class Z39ServerPlugin
             // Load SBN Client
             $clientFile = __DIR__ . '/classes/SbnClient.php';
             if (!file_exists($clientFile)) {
-                error_log('[SBN Search API] Client file not found: ' . $clientFile);
+                \App\Support\SecureLogger::error('[SBN Search API] Client file not found', ['path' => $clientFile]);
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'error' => 'SBN client not available'
@@ -436,17 +497,18 @@ class Z39ServerPlugin
                 return $response->withHeader('Content-Type', 'application/json');
 
             } catch (\Throwable $e) {
-                error_log('[SBN Search API] Error: ' . $e->getMessage());
+                \App\Support\SecureLogger::error('[SBN Search API] Error', ['error' => $e->getMessage()]);
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'error' => 'Search failed: ' . $e->getMessage()
+                    'error' => 'Search failed. Please try again later.'
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
         });
 
-        error_log('[Z39 Server Plugin] SRU route registered at /api/sru');
-        error_log('[Z39 Server Plugin] SBN search route registered at /api/sbn/search');
+        \App\Support\SecureLogger::debug('[Z39 Server Plugin] Routes registered', [
+            'routes' => ['/api/sru', '/api/sbn/search']
+        ]);
     }
 
     /**
@@ -643,7 +705,7 @@ class Z39ServerPlugin
 
         // Add error handling for execute() - may fail on connection issues
         if (!$stmt->execute()) {
-            error_log('[Z39 Server Plugin] Failed to check plugin status: ' . $stmt->error);
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Failed to check plugin status', ['error' => $stmt->error]);
             $stmt->close();
             return false;
         }
@@ -675,6 +737,10 @@ class Z39ServerPlugin
             FROM plugin_settings
             WHERE plugin_id = ? AND setting_key = ?
         ");
+
+        if ($stmt === false) {
+            return $default;
+        }
 
         $stmt->bind_param('is', $this->pluginId, $key);
         $stmt->execute();
@@ -720,7 +786,7 @@ class Z39ServerPlugin
     {
         // Validate ENC: prefix
         if (!str_starts_with($encrypted, 'ENC:')) {
-            error_log('[Z39 Server Plugin] Invalid encrypted value: missing ENC: prefix');
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Invalid encrypted value: missing ENC: prefix');
             return null;
         }
 
@@ -729,7 +795,7 @@ class Z39ServerPlugin
         $decoded = base64_decode($payload);
 
         if ($decoded === false || strlen($decoded) < 28) {
-            error_log('[Z39 Server Plugin] Invalid encrypted payload: decode failed or too short');
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Invalid encrypted payload: decode failed or too short');
             return null;
         }
 
@@ -741,7 +807,7 @@ class Z39ServerPlugin
             ?? null;
         if ($rawKey === null || $rawKey === '') {
             // No key available, cannot decrypt
-            error_log('[Z39 Server Plugin] Cannot decrypt setting: PLUGIN_ENCRYPTION_KEY not available');
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Cannot decrypt setting: PLUGIN_ENCRYPTION_KEY not available');
             return null;
         }
 
@@ -758,7 +824,7 @@ class Z39ServerPlugin
 
             return $decrypted !== false ? $decrypted : null;
         } catch (\Throwable $e) {
-            error_log('[Z39 Server Plugin] Decryption error: ' . $e->getMessage());
+            \App\Support\SecureLogger::error('[Z39 Server Plugin] Decryption error', ['error' => $e->getMessage()]);
             return null;
         }
     }
@@ -782,6 +848,10 @@ class Z39ServerPlugin
                 setting_value = VALUES(setting_value),
                 updated_at = NOW()
         ");
+
+        if ($stmt === false) {
+            return;
+        }
 
         $stmt->bind_param('iss', $this->pluginId, $key, $value);
         $stmt->execute();
@@ -807,6 +877,10 @@ class Z39ServerPlugin
             INSERT INTO plugin_logs (plugin_id, level, message, context, created_at)
             VALUES (?, ?, ?, ?, NOW())
         ");
+
+        if ($stmt === false) {
+            return;
+        }
 
         $stmt->bind_param('isss', $this->pluginId, $level, $message, $contextJson);
         $stmt->execute();

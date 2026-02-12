@@ -51,7 +51,7 @@ class OpenLibraryPlugin
      */
     public function onInstall(): void
     {
-        error_log('[OpenLibrary] Plugin installed');
+        \App\Support\SecureLogger::debug('[OpenLibrary] Plugin installed');
         $this->registerHooks();
     }
 
@@ -61,7 +61,7 @@ class OpenLibraryPlugin
     public function onActivate(): void
     {
         $this->registerHooks();
-        error_log('[OpenLibrary] Plugin activated via PluginManager');
+        \App\Support\SecureLogger::debug('[OpenLibrary] Plugin activated');
     }
 
     /**
@@ -114,7 +114,7 @@ class OpenLibraryPlugin
             $stmt->close();
         }
 
-        error_log('[OpenLibrary] Hooks registered in database');
+        \App\Support\SecureLogger::debug('[OpenLibrary] Hooks registered');
     }
 
     private function ensureHooksRegistered(): void
@@ -1298,6 +1298,8 @@ class OpenLibraryPlugin
             }
         })->add(new \App\Middleware\AdminAuthMiddleware());
 
-        error_log('[OpenLibrary Plugin] Test route registered at /api/open-library/test');
+        \App\Support\SecureLogger::debug('[OpenLibrary Plugin] Route registered', [
+            'route' => '/api/open-library/test'
+        ]);
     }
 }

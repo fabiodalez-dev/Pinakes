@@ -163,6 +163,20 @@ if ($presetUserId > 0) {
       </div>
     </div>
 
+    <!-- Scarica ricevuta PDF (visibile solo con consegna immediata) -->
+    <div id="scarica_pdf_container" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <input type="checkbox" name="scarica_pdf" id="scarica_pdf" value="1" checked
+             class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500">
+      <div class="flex-1">
+        <label for="scarica_pdf" class="block text-sm font-medium text-gray-900 cursor-pointer">
+          <?= __("Scarica ricevuta PDF") ?>
+        </label>
+        <p class="text-xs text-gray-500 mt-0.5">
+          <?= __("Scarica automaticamente la ricevuta PDF dopo la creazione del prestito.") ?>
+        </p>
+      </div>
+    </div>
+
     <!-- Note sul prestito -->
     <div>
       <label for="note" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Note (opzionali)") ?></label>
@@ -329,6 +343,22 @@ if ($presetUserId > 0) {
       // Show/hide "Consegna immediata" checkbox based on whether date is today or future
       const consegnaContainer = document.getElementById('consegna_immediata_container');
       const consegnaCheckbox = document.getElementById('consegna_immediata');
+      const pdfContainer = document.getElementById('scarica_pdf_container');
+      const pdfCheckbox = document.getElementById('scarica_pdf');
+
+      function updatePdfVisibility() {
+        if (!pdfContainer || !pdfCheckbox) return;
+        if (consegnaCheckbox && consegnaCheckbox.checked && !consegnaContainer.classList.contains('hidden')) {
+          pdfContainer.classList.remove('hidden');
+        } else {
+          pdfContainer.classList.add('hidden');
+          pdfCheckbox.checked = false;
+        }
+      }
+
+      if (consegnaCheckbox) {
+        consegnaCheckbox.addEventListener('change', updatePdfVisibility);
+      }
 
       function updateConsegnaImmediataVisibility(dateStr) {
         if (!consegnaContainer || !consegnaCheckbox) return;
@@ -337,13 +367,12 @@ if ($presetUserId > 0) {
         const isImmediate = dateStr <= today;
 
         if (isImmediate) {
-          // Show checkbox for immediate loans (today or past - though past shouldn't happen)
           consegnaContainer.classList.remove('hidden');
         } else {
-          // Hide checkbox for future loans - they always go through da_ritirare flow
           consegnaContainer.classList.add('hidden');
-          consegnaCheckbox.checked = false; // Uncheck when hidden
+          consegnaCheckbox.checked = false;
         }
+        updatePdfVisibility();
       }
 
       // Initialize visibility on page load

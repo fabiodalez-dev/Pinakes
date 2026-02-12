@@ -316,14 +316,17 @@ class AuthorRepository
     {
         // Normalize to integers and deduplicate to prevent type-safety issues
         // and deleting primary when duplicate IDs are passed
-        $authorIds = array_values(array_unique(array_map('intval', $authorIds)));
+        $authorIds = array_values(array_unique(array_filter(
+            array_map('intval', $authorIds),
+            fn($id) => $id > 0
+        )));
 
         if (count($authorIds) < 2) {
             return null;
         }
 
         // Use specified primary ID or default to lowest ID
-        if ($primaryId !== null && in_array($primaryId, $authorIds, true)) {
+        if ($primaryId !== null && $primaryId > 0 && in_array($primaryId, $authorIds, true)) {
             // Create separate array of IDs to delete (excluding primary)
             $duplicateIds = array_values(array_filter($authorIds, fn($id) => $id !== $primaryId));
         } else {
@@ -348,23 +351,41 @@ class AuthorRepository
                 $stmt = $this->db->prepare(
                     "UPDATE IGNORE libri_autori SET autore_id = ? WHERE autore_id = ?"
                 );
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare UPDATE IGNORE: " . $this->db->error);
+                }
                 $stmt->bind_param('ii', $primaryId, $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute UPDATE IGNORE: " . $stmt->error);
+                }
+                $stmt->close();
 
                 // Delete any remaining duplicate links (where book was already linked to primary)
                 $stmt = $this->db->prepare("DELETE FROM libri_autori WHERE autore_id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare DELETE libri_autori: " . $this->db->error);
+                }
                 $stmt->bind_param('i', $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute DELETE libri_autori: " . $stmt->error);
+                }
+                $stmt->close();
 
                 // Delete the duplicate author
                 $stmt = $this->db->prepare("DELETE FROM autori WHERE id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare DELETE autori: " . $this->db->error);
+                }
                 $stmt->bind_param('i', $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute DELETE autori: " . $stmt->error);
+                }
+                $stmt->close();
             }
 
             $this->db->commit();
             return $primaryId;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log("[AuthorRepository] Merge failed: " . $e->getMessage());
             return null;

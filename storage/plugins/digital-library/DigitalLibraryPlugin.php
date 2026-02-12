@@ -263,7 +263,9 @@ class DigitalLibraryPlugin
             return $plugin->serveAsset($request, $response, $args);
         });
 
-        error_log('[Digital Library Plugin] Routes registered: /admin/plugins/digital-library/upload, /plugins/digital-library/assets/{type}/{filename}');
+        \App\Support\SecureLogger::debug('[Digital Library Plugin] Routes registered', [
+            'routes' => ['/admin/plugins/digital-library/upload', '/plugins/digital-library/assets/{type}/{filename}']
+        ]);
     }
 
     // ========================================================================
@@ -379,12 +381,13 @@ class DigitalLibraryPlugin
         $postParams = $_POST;
         $csrfToken = $request->getHeaderLine('X-CSRF-Token') ?: ($params['csrf_token'] ?? $postParams['csrf_token'] ?? '');
 
-        error_log('[Digital Library] Upload request - User: ' . ($user['username'] ?? 'unknown') . ', CSRF from header: ' . ($request->getHeaderLine('X-CSRF-Token') ?: 'NONE') . ', from body: ' . ($params['csrf_token'] ?? 'NONE') . ', from POST: ' . ($postParams['csrf_token'] ?? 'NONE'));
-        error_log('[Digital Library] POST params: ' . json_encode($postParams));
-        error_log('[Digital Library] Parsed body: ' . json_encode($params));
+        \App\Support\SecureLogger::debug('[Digital Library] Upload request', [
+            'user' => $user['username'] ?? 'unknown',
+            'type' => $params['digital_type'] ?? $postParams['digital_type'] ?? 'unspecified'
+        ]);
 
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            error_log('[Digital Library] Upload rejected: Invalid CSRF token. Session token: ' . ($_SESSION['csrf_token'] ?? 'NONE') . ', Received: ' . ($csrfToken ?: 'NONE'));
+            error_log('[Digital Library] Upload rejected: Invalid CSRF token');
             return $this->json($response, ['success' => false, 'message' => __('Token CSRF non valido.')], 400);
         }
 
@@ -404,7 +407,10 @@ class DigitalLibraryPlugin
             $type = 'ebook';
         }
         $file = $uploadedFiles['file'];
-        error_log('[Digital Library] Upload processing - Type: ' . $type . ', Filename: ' . $file->getClientFilename());
+        \App\Support\SecureLogger::debug('[Digital Library] Upload processing', [
+            'type' => $type,
+            'filename' => $file->getClientFilename()
+        ]);
 
         if ($file->getError() !== UPLOAD_ERR_OK) {
             return $this->json($response, ['success' => false, 'message' => __('Errore durante il caricamento del file.')], 400);

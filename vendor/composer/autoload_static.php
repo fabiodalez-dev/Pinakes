@@ -280,6 +280,7 @@ class ComposerStaticInite58358eec498b7b6927cfe671382554c
         'App\\Support\\InputValidator' => __DIR__ . '/../..' . '/app/Support/InputValidator.php',
         'App\\Support\\IsbnFormatter' => __DIR__ . '/../..' . '/app/Support/IsbnFormatter.php',
         'App\\Support\\LibraryThingInstaller' => __DIR__ . '/../..' . '/app/Support/LibraryThingInstaller.php',
+        'App\\Support\\LoanPdfGenerator' => __DIR__ . '/../..' . '/app/Support/LoanPdfGenerator.php',
         'App\\Support\\Log' => __DIR__ . '/../..' . '/app/Support/Log.php',
         'App\\Support\\Mailer' => __DIR__ . '/../..' . '/app/Support/Mailer.php',
         'App\\Support\\MaintenanceService' => __DIR__ . '/../..' . '/app/Support/MaintenanceService.php',

@@ -44,6 +44,8 @@ class ScrapeController
             'series', 'collana',  // Series/collection name
             'keywords', 'language',
             'author',  // Single author string
+            'translator',
+            'illustrator',
             'source', 'notes',
             'edition', 'format',
             'place', 'country',  // Publication place
@@ -128,6 +130,16 @@ class ScrapeController
             // Plugin handled scraping completely, use its result
             $payload = $customResult;
 
+            // Plugin returned metadata but no cover image — try built-in sources for cover
+            if (empty($payload['image'])) {
+                SecureLogger::debug('[ScrapeController] Plugin data has no cover, trying built-in sources', ['isbn' => $cleanIsbn]);
+                $coverUrl = $this->findCoverFromBuiltinSources($cleanIsbn);
+                if ($coverUrl !== null) {
+                    $payload['image'] = $coverUrl;
+                    SecureLogger::debug('[ScrapeController] Cover found from built-in source', ['isbn' => $cleanIsbn]);
+                }
+            }
+
             // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
             $payload = $this->normalizeScrapedData($payload);
 
@@ -168,6 +180,14 @@ class ScrapeController
         $fallbackData = $this->fallbackFromGoogleBooks($cleanIsbn);
         if ($fallbackData === null) {
             $fallbackData = $this->fallbackFromOpenLibrary($cleanIsbn);
+        }
+
+        // If fallback found data but no cover, try Goodreads cover API
+        if ($fallbackData !== null && empty($fallbackData['image'])) {
+            $goodreadsCover = $this->fallbackCoverFromGoodreads($cleanIsbn);
+            if ($goodreadsCover !== null) {
+                $fallbackData['image'] = $goodreadsCover;
+            }
         }
 
         if ($fallbackData !== null) {
@@ -252,8 +272,21 @@ class ScrapeController
      */
     private function getDefaultSources(): array
     {
-        // Le fonti vengono dichiarate dinamicamente dai plugin attivi.
-        return [];
+        // Built-in sources always available (no plugin required)
+        return [
+            'google_books' => [
+                'name' => 'Google Books',
+                'url_pattern' => 'https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}',
+                'priority' => 50,
+                'fields' => ['title', 'authors', 'publisher', 'description', 'image', 'pages', 'isbn'],
+            ],
+            'openlibrary' => [
+                'name' => 'Open Library',
+                'url_pattern' => 'https://openlibrary.org/isbn/{isbn}.json',
+                'priority' => 60,
+                'fields' => ['title', 'authors', 'publisher', 'description', 'image'],
+            ],
+        ];
     }
 
     /**
@@ -300,7 +333,7 @@ class ScrapeController
     private function fallbackFromGoogleBooks(string $isbn): ?array
     {
         // Rate limiting to prevent API bans
-        if (!$this->checkRateLimit('google_books', 10)) {
+        if (!$this->checkRateLimit('google_books', 60)) {
             SecureLogger::debug('[ScrapeController] Google Books API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
@@ -396,12 +429,15 @@ class ScrapeController
         $language = $info['language'] ?? '';
         if ($language) {
             $languageNames = [
-                'it' => 'Italiano',
-                'en' => 'English',
-                'fr' => 'Français',
-                'de' => 'Deutsch',
-                'es' => 'Español',
-                'pt' => 'Português',
+                'it' => 'Italiano', 'en' => 'English', 'fr' => 'Français',
+                'de' => 'Deutsch', 'es' => 'Español', 'pt' => 'Português',
+                'ru' => 'Русский', 'zh' => '中文', 'ja' => '日本語',
+                'ar' => 'العربية', 'nl' => 'Nederlands', 'sv' => 'Svenska',
+                'no' => 'Norsk', 'da' => 'Dansk', 'fi' => 'Suomi',
+                'pl' => 'Polski', 'cs' => 'Čeština', 'hu' => 'Magyar',
+                'ro' => 'Română', 'el' => 'Ελληνικά', 'tr' => 'Türkçe',
+                'he' => 'עברית', 'hi' => 'हिन्दी', 'ko' => '한국어',
+                'th' => 'ไทย', 'la' => 'Latina',
             ];
             $language = $languageNames[$language] ?? strtoupper($language);
         }
@@ -432,7 +468,7 @@ class ScrapeController
     private function fallbackFromOpenLibrary(string $isbn): ?array
     {
         // Rate limiting to prevent API bans
-        if (!$this->checkRateLimit('openlibrary', 10)) {
+        if (!$this->checkRateLimit('openlibrary', 60)) {
             SecureLogger::debug('[ScrapeController] Open Library API rate limit exceeded', ['isbn' => $isbn]);
             return null;
         }
@@ -481,9 +517,69 @@ class ScrapeController
             'pubDate' => $data['publish_date'] ?? '',
             'pages' => $data['number_of_pages'] ?? '',
             'isbn' => $isbn,
-            'description' => is_array($data['description']) ? ($data['description']['value'] ?? '') : ($data['description'] ?? ''),
+            'description' => is_array($data['description'] ?? null) ? ($data['description']['value'] ?? '') : ($data['description'] ?? ''),
             'image' => $cover
         ];
+    }
+
+    /**
+     * Fallback: get cover image URL from Goodreads via bookcover.longitood.com API
+     */
+    private function fallbackCoverFromGoodreads(string $isbn): ?string
+    {
+        if (!$this->checkRateLimit('goodreads_cover', 60)) {
+            SecureLogger::debug('[ScrapeController] Goodreads cover API rate limit exceeded', ['isbn' => $isbn]);
+            return null;
+        }
+
+        $url = 'https://bookcover.longitood.com/bookcover/' . urlencode($isbn);
+        $json = $this->safeHttpGet($url, 8);
+        if (!$json) {
+            return null;
+        }
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || empty($data['url'])) {
+            return null;
+        }
+
+        $coverUrl = $data['url'];
+        if (!filter_var($coverUrl, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        SecureLogger::debug('[ScrapeController] Goodreads cover found', ['isbn' => $isbn, 'cover' => $coverUrl]);
+        return $coverUrl;
+    }
+
+    /**
+     * Try built-in sources (Google Books, Open Library, Goodreads) for cover image only.
+     * Used when a plugin returned complete metadata but no cover image.
+     *
+     * @param string $isbn ISBN to search
+     * @return string|null Cover image URL or null
+     */
+    public function findCoverFromBuiltinSources(string $isbn): ?string
+    {
+        // 1. Try Goodreads cover API (lightest — single URL check)
+        $goodreads = $this->fallbackCoverFromGoodreads($isbn);
+        if ($goodreads !== null) {
+            return $goodreads;
+        }
+
+        // 2. Try Google Books (reliable, has good cover database)
+        $gbData = $this->fallbackFromGoogleBooks($isbn);
+        if (!empty($gbData['image'])) {
+            return $gbData['image'];
+        }
+
+        // 3. Try Open Library (has covers for many editions)
+        $olData = $this->fallbackFromOpenLibrary($isbn);
+        if (!empty($olData['image'])) {
+            return $olData['image'];
+        }
+
+        return null;
     }
 
     /**
@@ -495,7 +591,10 @@ class ScrapeController
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
             CURLOPT_CONNECTTIMEOUT => max(1, $timeout),
             CURLOPT_TIMEOUT => max(2, $timeout + 2),
             CURLOPT_SSL_VERIFYPEER => true,
@@ -517,10 +616,10 @@ class ScrapeController
      * Prevents IP bans from Google Books and Open Library due to excessive requests
      *
      * @param string $apiName Nome API (es. 'google_books', 'openlibrary')
-     * @param int $maxCallsPerMinute Max chiamate al minuto (default 10)
+     * @param int $maxCallsPerMinute Max chiamate al minuto (default 60 — safe for all public APIs, allows batch imports)
      * @return bool True se OK, False se rate limit superato
      */
-    private function checkRateLimit(string $apiName, int $maxCallsPerMinute = 10): bool
+    private function checkRateLimit(string $apiName, int $maxCallsPerMinute = 60): bool
     {
         $storageDir = __DIR__ . '/../../storage/rate_limits';
         if (!is_dir($storageDir)) {

@@ -181,8 +181,10 @@ class Updater
     {
         $fullMessage = "[Updater DEBUG] [{$level}] {$message}";
 
-        // Always log to error_log for immediate visibility
-        error_log($fullMessage . ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        // Only log to error_log in debug mode to avoid noise in production
+        if (getenv('APP_DEBUG') === 'true') {
+            error_log($fullMessage . ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
 
         // Also log to SecureLogger if available
         if (class_exists(SecureLogger::class)) {

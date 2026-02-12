@@ -2612,7 +2612,21 @@
                         "code": "303.4",
                         "name": "Cambiamento sociale",
                         "level": 4,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "303.48",
+                                "name": "Cause Del Cambiamento Sociale",
+                                "level": 5,
+                                "children": [
+                                    {
+                                        "code": "303.482",
+                                        "name": "Cause Del Cambiamento Sociale. Relazioni Tra Culture",
+                                        "level": 6,
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "303.6",
@@ -6786,7 +6800,28 @@
                         "code": "823",
                         "name": "Narrativa inglese",
                         "level": 3,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "823.9",
+                                "name": "Narrativa Inglese",
+                                "level": 4,
+                                "children": [
+                                    {
+                                        "code": "823.91",
+                                        "name": "Narrativa Inglese Moderna",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "823.912",
+                                                "name": "Narrativa Inglese. 1900-1945",
+                                                "level": 6,
+                                                "children": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "824",

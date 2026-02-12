@@ -64,7 +64,10 @@ class SruClient
                     return $result;
                 }
             } catch (\Throwable $e) {
-                error_log("[SruClient] Error querying server {$server['name']}: " . $e->getMessage());
+                \App\Support\SecureLogger::error('[SruClient] Error querying server', [
+                    'server' => $server['name'] ?? 'unknown',
+                    'error' => $e->getMessage(),
+                ]);
                 continue;
             }
         }
@@ -300,13 +303,9 @@ class SruClient
         // Remove all C1 control characters (U+0080-U+009F)
         $book['title'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['title']);
         $book['subtitle'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['subtitle']);
-        $book['publisher'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['publisher']);
-        $book['description'] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book['description']);
         // Normalize whitespace (collapse multiple spaces into one)
         $book['title'] = trim(preg_replace('/\s+/u', ' ', $book['title']));
         $book['subtitle'] = trim(preg_replace('/\s+/u', ' ', $book['subtitle']));
-        $book['publisher'] = trim(preg_replace('/\s+/u', ' ', $book['publisher']));
-        $book['description'] = trim(preg_replace('/\s+/u', ' ', $book['description']));
 
         // Author (100 $a) and additional authors (700 $a)
         $author = $getSubfield('100', 'a');
@@ -314,13 +313,16 @@ class SruClient
             $book['authors'][] = trim(preg_replace('/,$/', '', $author));
         }
 
-        // Additional authors from 700 field
+        // Additional authors from 700 field (deduplicated against 100$a)
         $additionalAuthors = $xpath->query(".//marc:datafield[@tag='700']/marc:subfield[@code='a']", $record);
         if ($additionalAuthors->length === 0) {
             $additionalAuthors = $xpath->query(".//datafield[@tag='700']/subfield[@code='a']", $record);
         }
         foreach ($additionalAuthors as $addAuthor) {
-            $book['authors'][] = trim(preg_replace('/,$/', '', $addAuthor->nodeValue));
+            $name = trim(preg_replace('/,$/', '', $addAuthor->nodeValue));
+            if ($name !== '' && !in_array($name, $book['authors'], true)) {
+                $book['authors'][] = $name;
+            }
         }
 
         // Publisher (260 $b or 264 $b)
@@ -358,16 +360,89 @@ class SruClient
             $book['pages'] = $matches[1];
         }
 
-        // Language (041 $a)
+        // Language (041 $a, fallback to 008 positions 35-37)
         $lang = $getSubfield('041', 'a');
+        if (!$lang) {
+            // Try controlfield 008 positions 35-37 for language code
+            $cf008Nodes = $xpath->query(".//marc:controlfield[@tag='008']", $record);
+            if ($cf008Nodes->length === 0) {
+                $cf008Nodes = $xpath->query(".//controlfield[@tag='008']", $record);
+            }
+            if ($cf008Nodes->length > 0) {
+                $cf008 = $cf008Nodes->item(0)->nodeValue;
+                if (strlen($cf008) >= 38) {
+                    $langCode = substr($cf008, 35, 3);
+                    if ($langCode !== '   ' && $langCode !== '|||') {
+                        $lang = $langCode;
+                    }
+                }
+            }
+        }
         if ($lang) {
-            $book['language'] = strtolower(substr($lang, 0, 3));
+            $book['language'] = $this->marcLanguageToName(strtolower(substr($lang, 0, 3)));
         }
 
         // Description/Summary (520 $a)
         $description = $getSubfield('520', 'a');
         if ($description) {
             $book['description'] = $description;
+        }
+
+        // Subject headings as keywords (650 $a, 651 $a, 653 $a)
+        $subjects = [];
+        foreach (['650', '651', '653'] as $tag) {
+            $subjectNodes = $xpath->query(".//marc:datafield[@tag='$tag']/marc:subfield[@code='a']", $record);
+            if ($subjectNodes->length === 0) {
+                $subjectNodes = $xpath->query(".//datafield[@tag='$tag']/subfield[@code='a']", $record);
+            }
+            foreach ($subjectNodes as $node) {
+                $subject = trim(preg_replace('/[.;,]+$/', '', $node->nodeValue));
+                if ($subject !== '' && !in_array($subject, $subjects, true)) {
+                    $subjects[] = $subject;
+                }
+            }
+        }
+        if (!empty($subjects)) {
+            $book['keywords'] = implode(', ', $subjects);
+        }
+
+        // Translator and Illustrator (700 $a with relator $e or $4)
+        $field700Nodes = $xpath->query(".//marc:datafield[@tag='700']", $record);
+        if ($field700Nodes->length === 0) {
+            $field700Nodes = $xpath->query(".//datafield[@tag='700']", $record);
+        }
+        foreach ($field700Nodes as $f700) {
+            $relatorE = '';
+            $relator4 = '';
+            $nameA = '';
+            foreach ($f700->childNodes as $sub) {
+                if ($sub->nodeType !== XML_ELEMENT_NODE) {
+                    continue;
+                }
+                $code = $sub->getAttribute('code');
+                if ($code === 'a') {
+                    $nameA = trim($sub->nodeValue);
+                } elseif ($code === 'e') {
+                    $relatorE = strtolower(trim($sub->nodeValue));
+                } elseif ($code === '4') {
+                    $relator4 = strtolower(trim($sub->nodeValue));
+                }
+            }
+            if ($nameA === '') {
+                continue;
+            }
+            $cleanName = rtrim($nameA, ' ,.');
+            // Translator: $4=trl or $e contains translator/traduttore/översättare/oversetter
+            if (empty($book['translator']) && ($relator4 === 'trl' || strpos($relatorE, 'translat') !== false
+                || strpos($relatorE, 'tradut') !== false || strpos($relatorE, 'övers') !== false
+                || strpos($relatorE, 'oversett') !== false)) {
+                $book['translator'] = $cleanName;
+            }
+            // Illustrator: $4=ill or $e contains illustrat/ilustra
+            if (empty($book['illustrator']) && ($relator4 === 'ill' || strpos($relatorE, 'illustrat') !== false
+                || strpos($relatorE, 'ilustra') !== false)) {
+                $book['illustrator'] = $cleanName;
+            }
         }
 
         // Dewey Classification (082 $a)
@@ -382,12 +457,62 @@ class SruClient
             }
         }
 
+        // Sanitize publisher and description (populated above from MARC fields)
+        foreach (['publisher', 'description'] as $field) {
+            $book[$field] = preg_replace('/[\x{0080}-\x{009F}]/u', '', $book[$field]);
+            $book[$field] = trim(preg_replace('/\s+/u', ' ', $book[$field]));
+        }
+
         // Add 'author' field as string for compatibility
         if (!empty($book['authors'])) {
             $book['author'] = implode(', ', $book['authors']);
         }
 
         return $book;
+    }
+
+    /**
+     * Convert MARC 3-letter language code (ISO 639-2/B) to human-readable name
+     */
+    private function marcLanguageToName(string $code): string
+    {
+        // Most common languages encountered in Nordic/European library catalogs
+        static $map = [
+            'swe' => 'Svenska',
+            'nor' => 'Norsk',
+            'nob' => 'Norsk (bokmål)',
+            'nno' => 'Norsk (nynorsk)',
+            'dan' => 'Dansk',
+            'fin' => 'Suomi',
+            'ice' => 'Íslenska',
+            'eng' => 'English',
+            'ger' => 'Deutsch',
+            'fre' => 'Français',
+            'ita' => 'Italiano',
+            'spa' => 'Español',
+            'por' => 'Português',
+            'dut' => 'Nederlands',
+            'rus' => 'Русский',
+            'pol' => 'Polski',
+            'cze' => 'Čeština',
+            'gre' => 'Ελληνικά',
+            'lat' => 'Latina',
+            'ara' => 'العربية',
+            'chi' => '中文',
+            'jpn' => '日本語',
+            'kor' => '한국어',
+            'tur' => 'Türkçe',
+            'hun' => 'Magyar',
+            'rum' => 'Română',
+            'cat' => 'Català',
+            'heb' => 'עברית',
+            'per' => 'فارسی',
+            'hin' => 'हिन्दी',
+            'mul' => 'Multilingue',
+            'und' => 'Sconosciuta',
+        ];
+
+        return $map[$code] ?? strtoupper($code);
     }
 
     /**
@@ -501,7 +626,20 @@ class SruClient
         }
 
         // Language
-        $book['language'] = $getDcElement('language') ?? '';
+        // Language (DC may return 3-letter MARC code or 2-letter ISO code)
+        $dcLang = $getDcElement('language') ?? '';
+        if (strlen($dcLang) === 3) {
+            $book['language'] = $this->marcLanguageToName(strtolower($dcLang));
+        } elseif (strlen($dcLang) === 2) {
+            // 2-letter ISO 639-1 → try mapping via common equivalents
+            $iso2to3 = ['sv' => 'swe', 'no' => 'nor', 'da' => 'dan', 'fi' => 'fin',
+                'en' => 'eng', 'de' => 'ger', 'fr' => 'fre', 'it' => 'ita',
+                'es' => 'spa', 'pt' => 'por', 'nl' => 'dut', 'ru' => 'rus'];
+            $code3 = $iso2to3[strtolower($dcLang)] ?? null;
+            $book['language'] = $code3 ? $this->marcLanguageToName($code3) : strtoupper($dcLang);
+        } else {
+            $book['language'] = $dcLang;
+        }
 
         // Description
         $book['description'] = $getDcElement('description') ?? '';
@@ -530,6 +668,27 @@ class SruClient
             if (preg_match('/(?:DDC|Dewey)[:\s]*(\d{3}(?:\.\d+)?)/i', $coverage, $matches)
                 || preg_match('/^(\d{3}(?:\.\d+)?)$/', trim($coverage), $matches)) {
                 $book['classificazione_dewey'] = $matches[1];
+            }
+        }
+
+        // Contributor (may include translator or illustrator in DC format)
+        $contributors = $getAllDcElements('contributor');
+        foreach ($contributors as $contrib) {
+            $lower = strtolower($contrib);
+            if (empty($book['translator']) && (strpos($lower, 'translat') !== false || strpos($lower, 'tradut') !== false
+                || strpos($lower, 'övers') !== false || strpos($lower, 'oversett') !== false)) {
+                $name = preg_replace('/\s*[\(\[]?(?:translat|tradut|övers|oversett)\w*[\)\]]?\s*/i', '', $contrib);
+                $name = trim($name, ' ,:;-');
+                if ($name !== '') {
+                    $book['translator'] = $name;
+                }
+            }
+            if (empty($book['illustrator']) && (strpos($lower, 'illustrat') !== false || strpos($lower, 'ilustra') !== false)) {
+                $name = preg_replace('/\s*[\(\[]?(?:illustrat|ilustra)\w*[\)\]]?\s*/i', '', $contrib);
+                $name = trim($name, ' ,:;-');
+                if ($name !== '') {
+                    $book['illustrator'] = $name;
+                }
             }
         }
 

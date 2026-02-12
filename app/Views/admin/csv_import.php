@@ -509,7 +509,8 @@ document.addEventListener('DOMContentLoaded', function() {
             scraped: 0,
             authors_created: 0,
             publishers_created: 0,
-            errors: 0
+            errors: 0,
+            error_details: []
         };
 
         function processNextChunk() {
@@ -523,15 +524,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (stats.scraped > 0) message += `, ${stats.scraped} arricchiti con scraping`;
                     if (stats.errors > 0) message += `, ${stats.errors} errori`;
 
+                    // Append error details if available
+                    const escapeHtml = (value) => String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+
+                    if (stats.error_details.length > 0) {
+                        const maxShow = 10;
+                        const shown = stats.error_details.slice(0, maxShow);
+                        message += '<br><br><strong><?= addslashes(__("Errori durante l\'import")) ?>:</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
+                        shown.forEach(e => { message += `<li>${escapeHtml(e)}</li>`; });
+                        if (stats.error_details.length > maxShow) {
+                            message += `<li><em>... <?= addslashes(__("e altri")) ?> ${stats.error_details.length - maxShow} <?= addslashes(__("errori")) ?></em></li>`;
+                        }
+                        message += '</ul>';
+                    }
+
                     if (window.Swal) {
                         Swal.fire({
                             icon: stats.errors > 0 ? 'warning' : 'success',
                             title: '<?= addslashes(__("Import Completato")) ?>',
-                            html: message.replace(/\n/g, '<br>'),
+                            html: message,
                             confirmButtonText: '<?= addslashes(__("OK")) ?>'
                         }).then(() => window.location.reload());
                     } else {
-                        alert(message);
+                        alert(message.replace(/<[^>]*>/g, ''));
                         window.location.reload();
                     }
                 }, 500);
@@ -564,8 +584,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     stats.scraped = data.scraped || 0;
                     stats.authors_created = data.authors_created || 0;
                     stats.publishers_created = data.publishers_created || 0;
-                    // Backend returns cumulative error count
+                    // Backend returns cumulative error count + details
                     stats.errors = data.errors || 0;
+                    if (data.error_details && data.error_details.length > 0) {
+                        stats.error_details = data.error_details;
+                    }
 
                     currentRow += size;
                     processNextChunk();

@@ -1068,16 +1068,22 @@ document.addEventListener('DOMContentLoaded', function() {
               headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
               body: JSON.stringify({ ids })
             });
-            const data = await response.json();
+            const data = await response.json().catch(() => ({
+              success: false,
+              error: '<?= __("Errore nel parsing della risposta") ?>'
+            }));
 
-            if (data.success) {
-              Swal.fire({ icon: 'success', title: '<?= __("Eliminati") ?>', text: `${ids.length} <?= __("libri eliminati") ?>`, timer: 2000, showConfirmButton: false });
+            if (response.ok && data.success) {
+              Swal.fire({ icon: 'success', title: '<?= __("Eliminati") ?>', text: data.message || `${ids.length} <?= __("libri eliminati") ?>`, timer: 2000, showConfirmButton: false });
               selectedBooks.clear();
               table.ajax.reload();
               updateBulkActionsBar();
+            } else {
+              Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: data.error || data.message });
             }
           } catch (err) {
             console.error(err);
+            Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Errore di connessione") ?>' });
           }
         }
       });

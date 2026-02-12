@@ -462,7 +462,14 @@ class PrestitiController
                 }
             }
 
-            return $response->withHeader('Location', '/admin/prestiti?created=1')->withStatus(302);
+            // Redirect to list page — PDF download triggered via JS if requested
+            $scaricaPdf = isset($data['scarica_pdf']) && $data['scarica_pdf'] === '1';
+            $redirectUrl = '/admin/prestiti?created=1';
+            if ($consegnaImmediata && $scaricaPdf && isset($newLoanId)) {
+                $redirectUrl .= '&pdf=' . (int) $newLoanId;
+            }
+
+            return $response->withHeader('Location', $redirectUrl)->withStatus(302);
 
         } catch (Exception $e) {
             $db->rollback();
@@ -713,6 +720,46 @@ class PrestitiController
         $html = ob_get_clean();
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /**
+     * Generate and download PDF receipt for a loan
+     *
+     * @param Request $request PSR-7 request
+     * @param Response $response PSR-7 response
+     * @param mysqli $db Database connection
+     * @param int $id Loan ID
+     * @return Response PDF file download
+     */
+    public function downloadPdf(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+
+        try {
+            $generator = new \App\Support\LoanPdfGenerator($db);
+            $pdfContent = $generator->generate($id);
+
+            $filename = 'prestito_' . $id . '_' . date('Ymd') . '.pdf';
+
+            $response->getBody()->write($pdfContent);
+            return $response
+                ->withHeader('Content-Type', 'application/pdf')
+                ->withHeader('Content-Disposition', "attachment; filename=\"{$filename}\"; filename*=UTF-8''" . rawurlencode($filename))
+                ->withHeader('Content-Length', (string) strlen($pdfContent))
+                ->withHeader('Cache-Control', 'no-cache, must-revalidate')
+                ->withHeader('Pragma', 'no-cache');
+
+        } catch (\Throwable $e) {
+            SecureLogger::error(__('Errore generazione PDF prestito'), [
+                'loan_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            return $response
+                ->withHeader('Location', '/admin/prestiti/dettagli/' . $id . '?error=pdf_failed')
+                ->withStatus(302);
+        }
     }
 
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response
@@ -1038,19 +1085,7 @@ class PrestitiController
             __('Note')
         ], ',', '"', '');
 
-        // Status translations
-        $statusLabels = [
-            'pendente' => __('Pendente'),
-            'prenotato' => __('Prenotato'),
-            'da_ritirare' => __('Da Ritirare'),
-            'in_corso' => __('In Corso'),
-            'in_ritardo' => __('In Ritardo'),
-            'restituito' => __('Restituito'),
-            'perso' => __('Perso'),
-            'danneggiato' => __('Danneggiato'),
-            'annullato' => __('Annullato'),
-            'scaduto' => __('Scaduto'),
-        ];
+        // Status translations (shared helper in helpers.php)
 
         // Sanitize CSV values to prevent formula injection (CSV injection)
         // Characters =, +, -, @, tab, carriage return can trigger formula execution in Excel/LibreOffice
@@ -1067,7 +1102,7 @@ class PrestitiController
 
         // CSV data rows
         foreach ($loans as $loan) {
-            $stato = $statusLabels[$loan['stato']] ?? $loan['stato'];
+            $stato = translate_loan_status($loan['stato']);
             fputcsv($output, [
                 $loan['id'],
                 $sanitizeCsv($loan['libro_titolo'] ?? ''),

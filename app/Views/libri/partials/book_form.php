@@ -49,6 +49,8 @@ $initialData = [
     'file_url' => $book['file_url'] ?? '',
     'audio_url' => $book['audio_url'] ?? '',
     'parole_chiave' => $book['parole_chiave'] ?? '',
+    'traduttore' => $book['traduttore'] ?? '',
+    'illustratore' => $book['illustratore'] ?? '',
 ];
 
 $initialData['autori'] = $initialAuthors;
@@ -78,6 +80,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       <input type="hidden" id="scraped_pages" name="scraped_pages" value="">
       <input type="hidden" id="scraped_publisher" name="scraped_publisher" value="">
       <input type="hidden" id="scraped_translator" name="scraped_translator" value="">
+      <input type="hidden" id="scraped_illustrator" name="scraped_illustrator" value="">
       <input type="hidden" id="scraped_cover_url" name="scraped_cover_url" value="">
       <input type="hidden" id="copertina_url" name="copertina_url" value="<?php echo HtmlHelper::e($currentCover); ?>">
       <input type="hidden" id="remove_cover" name="remove_cover" value="0">
@@ -189,7 +192,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
             <div>
               <label for="anno_pubblicazione" class="form-label"><?= __("Anno di Pubblicazione") ?></label>
-              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="1" max="9999" class="form-input" placeholder="<?= __('es. 2025') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
+              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="-9999" max="9999" class="form-input" placeholder="<?= __('es. 2025') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Anno numerico (usato per filtri e ordinamento)") ?></p>
             </div>
           </div>
@@ -206,6 +209,19 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <p class="text-xs text-gray-500 mt-1"><?= __("Lingua originale del libro") ?></p>
             </div>
           </div>
+          <div class="form-grid-2">
+            <div>
+              <label for="traduttore" class="form-label"><?= __("Traduttore") ?></label>
+              <input id="traduttore" name="traduttore" type="text" class="form-input" placeholder="<?= __('es. Mario Rossi') ?>" value="<?php echo HtmlHelper::e($book['traduttore'] ?? ''); ?>" />
+              <p class="text-xs text-gray-500 mt-1"><?= __("Nome del traduttore (se applicabile)") ?></p>
+            </div>
+            <div>
+              <label for="illustratore" class="form-label"><?= __("Illustratore") ?></label>
+              <input id="illustratore" name="illustratore" type="text" class="form-input" placeholder="<?= __('es. Gianni De Conno') ?>" value="<?php echo HtmlHelper::e($book['illustratore'] ?? ''); ?>" />
+              <p class="text-xs text-gray-500 mt-1"><?= __("Nome dell'illustratore (se applicabile)") ?></p>
+            </div>
+          </div>
+
           <div class="mt-2 text-xs text-gray-500" id="genre_path_preview" style="min-height:1.25rem;">
             <!-- Percorso selezionato -->
           </div>
@@ -3621,6 +3637,36 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
+            // Handle translator (traduttore)
+            try {
+                if (data.translator) {
+                    const translatorInput = document.querySelector('input[name="traduttore"]');
+                    if (translatorInput) {
+                        translatorInput.value = data.translator;
+                    }
+                    const scrapedTranslator = document.getElementById('scraped_translator');
+                    if (scrapedTranslator) {
+                        scrapedTranslator.value = data.translator;
+                    }
+                }
+            } catch (err) {
+            }
+
+            // Handle illustrator (illustratore)
+            try {
+                if (data.illustrator) {
+                    const illustratorInput = document.querySelector('input[name="illustratore"]');
+                    if (illustratorInput) {
+                        illustratorInput.value = data.illustrator;
+                    }
+                    const scrapedIllustrator = document.getElementById('scraped_illustrator');
+                    if (scrapedIllustrator) {
+                        scrapedIllustrator.value = data.illustrator;
+                    }
+                }
+            } catch (err) {
+            }
+
             // Handle Dewey classification (classificazione_dewey) - from SBN or other sources
             try {
                 if (data.classificazione_dewey) {
@@ -3669,6 +3715,8 @@ function initializeIsbnImport() {
             if (data.year) fieldsPopulated.push('year');
             if (data.language) fieldsPopulated.push('language');
             if (data.keywords) fieldsPopulated.push('keywords');
+            if (data.translator) fieldsPopulated.push('translator');
+            if (data.illustrator) fieldsPopulated.push('illustrator');
 
             // Show source information panel
             displayScrapeSourceInfo(data);

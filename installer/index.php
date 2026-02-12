@@ -4,16 +4,21 @@
  * Main Router
  */
 
-// Reset session if requested OR if starting from step 0 (language selection)
-if (isset($_GET['reset']) || (!isset($_GET['step']) || $_GET['step'] == 0)) {
-    session_start();
-    // Only destroy if reset is explicitly requested OR if there's an old installation_complete flag
-    if (isset($_GET['reset']) || isset($_SESSION['installation_complete'])) {
-        session_destroy();
-        session_start(); // Start a fresh session
-    }
-} else {
-    session_start();
+// Session management — use same save path as main app to avoid cookie conflicts
+$sessionPath = dirname(__DIR__) . '/storage/sessions';
+if (!is_dir($sessionPath)) {
+    @mkdir($sessionPath, 0775, true);
+}
+if (is_dir($sessionPath) && is_writable($sessionPath)) {
+    ini_set('session.save_path', $sessionPath);
+}
+
+session_start();
+
+// Only destroy session on explicit reset request
+if (isset($_GET['reset'])) {
+    session_destroy();
+    session_start(); // Start a fresh session
 }
 
 // Simple translation function for installer

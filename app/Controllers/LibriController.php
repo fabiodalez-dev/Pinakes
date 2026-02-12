@@ -506,6 +506,7 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
+            'illustratore' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -1005,6 +1006,7 @@ class LibriController
             'edizione' => '',
             'data_pubblicazione' => '',
             'traduttore' => '',
+            'illustratore' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -1933,8 +1935,11 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
 
-        // Check if already has cover (but not placeholder)
-        if (!empty($libro['copertina_url']) && strpos($libro['copertina_url'], 'placeholder.jpg') === false) {
+        // Check if already has a LOCAL cover (not placeholder, not remote URL)
+        if (!empty($libro['copertina_url'])
+            && strpos($libro['copertina_url'], 'placeholder.jpg') === false
+            && !preg_match('#^https?://#i', $libro['copertina_url'])
+        ) {
             $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
             return $response->withHeader('Content-Type', 'application/json');
         }
@@ -1987,84 +1992,30 @@ class LibriController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        // Download and save the cover image
+        // Download and save the cover image using CoverController (SSRF protection, domain whitelist)
         $imageUrl = $scrapeData['image'];
 
-        $uploadDir = $this->getCoversUploadPath() . '/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
+        try {
+            $coverController = new \App\Controllers\CoverController();
+            $coverData = $coverController->downloadFromUrl($imageUrl);
 
-        // Download image
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $imageUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
-        ]);
-        $imageData = curl_exec($ch);
-        $imgHttpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+            if (empty($coverData['file_url'])) {
+                $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+            }
 
-        if ($imgHttpCode !== 200 || !$imageData) {
+            $coverUrl = $coverData['file_url'];
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[LibriController] fetchCover download failed', [
+                'book_id' => $id,
+                'image_url' => $imageUrl,
+                'error' => $e->getMessage()
+            ]);
             $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
         }
 
-        // Check size limit (5MB max)
-        $maxSize = 5 * 1024 * 1024;
-        if (\strlen($imageData) > $maxSize) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('File troppo grande. Dimensione massima 5MB.')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        // Validate image
-        $imageInfo = @getimagesizefromstring($imageData);
-        if ($imageInfo === false) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Immagine non valida')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        $mimeType = $imageInfo['mime'];
-        $extension = match ($mimeType) {
-            'image/jpeg', 'image/jpg' => 'jpg',
-            'image/png' => 'png',
-            default => null,
-        };
-
-        if ($extension === null) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Formato immagine non supportato')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
-
-        // Save image
-        $filename = 'copertina_' . $id . '_' . time() . '.' . $extension;
-        $filepath = $uploadDir . $filename;
-
-        $image = imagecreatefromstring($imageData);
-        if ($image === false) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore processamento immagine')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
-
-        $saveResult = match ($extension) {
-            'png' => imagepng($image, $filepath, 9),
-            default => imagejpeg($image, $filepath, 85),
-        };
-        imagedestroy($image);
-
-        if (!$saveResult) {
-            $response->getBody()->write(json_encode(['success' => false, 'error' => __('Errore salvataggio immagine')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
-
-        chmod($filepath, 0644);
-
-        // Update book record with cover URL
-        $coverUrl = $this->getCoversUrlPath() . '/' . $filename;
+        // Update book record with local cover URL
         $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
         $stmt->bind_param('si', $coverUrl, $id);
         $stmt->execute();
@@ -2922,11 +2873,12 @@ class LibriController
         $skipped = 0;
         $errors = 0;
 
-        // Find all books with ISBN but without cover (or only placeholder)
-        $query = "SELECT id, isbn13, isbn10, titolo
+        // Find all books with ISBN but without LOCAL cover (missing, placeholder, or remote URL)
+        $query = "SELECT id, isbn13, isbn10, titolo, copertina_url
                   FROM libri
                   WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
-                    AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg')
+                    AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg'
+                         OR copertina_url LIKE 'http://%' OR copertina_url LIKE 'https://%')
                     AND deleted_at IS NULL
                   ORDER BY id DESC";
 
@@ -2937,6 +2889,8 @@ class LibriController
         }
 
         error_log("[Cover Sync] Found " . count($books) . " books without covers");
+
+        $coverController = new \App\Controllers\CoverController();
 
         foreach ($books as $book) {
             $isbn = $book['isbn13'] ?: $book['isbn10'];
@@ -2953,14 +2907,26 @@ class LibriController
                 $scrapedData = $this->scrapeBookCover($isbn);
 
                 if (!empty($scrapedData['image'])) {
-                    // Update only cover URL
-                    $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
-                    $stmt->bind_param('si', $scrapedData['image'], $book['id']);
-                    $stmt->execute();
-                    $stmt->close();
+                    // Download cover locally, never store remote URLs
+                    try {
+                        $coverData = $coverController->downloadFromUrl($scrapedData['image']);
 
-                    $synced++;
-                    error_log("[Cover Sync] Cover updated for book ID {$book['id']}: {$scrapedData['image']}");
+                        if (!empty($coverData['file_url'])) {
+                            $stmt = $db->prepare("UPDATE libri SET copertina_url = ? WHERE id = ?");
+                            $stmt->bind_param('si', $coverData['file_url'], $book['id']);
+                            $stmt->execute();
+                            $stmt->close();
+
+                            $synced++;
+                            error_log("[Cover Sync] Cover downloaded for book ID {$book['id']}: {$coverData['file_url']}");
+                        } else {
+                            $errors++;
+                            error_log("[Cover Sync] Cover download returned empty for book ID {$book['id']}");
+                        }
+                    } catch (\Throwable $e) {
+                        $errors++;
+                        error_log("[Cover Sync] Cover download failed for book ID {$book['id']}: " . $e->getMessage());
+                    }
                 } else {
                     $errors++;
                     error_log("[Cover Sync] No cover found for book ID {$book['id']}, ISBN: $isbn");
@@ -2969,7 +2935,7 @@ class LibriController
                 // Rate limiting: wait 2 seconds between requests
                 sleep(2);
 
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $errors++;
                 error_log("[Cover Sync] Error scraping book ID {$book['id']}: " . $e->getMessage());
             }

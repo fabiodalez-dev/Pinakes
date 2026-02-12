@@ -142,6 +142,11 @@ function formatLoanStatus($status) {
             <?= __("Modifica") ?>
         </a>
       <?php endif; ?>
+      <a href="/admin/prestiti/<?= (int)$prestito['id']; ?>/pdf"
+         class="px-4 py-2 bg-red-600 text-white hover:bg-red-500 rounded-lg transition-colors duration-200 inline-flex items-center">
+          <i class="fas fa-file-pdf mr-2"></i>
+          <?= __("Scarica Ricevuta PDF") ?>
+      </a>
       <a href="/admin/prestiti" class="px-4 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
         <i class="fas fa-arrow-left mr-2"></i><?= __("Torna ai Prestiti") ?></a>
     </div>

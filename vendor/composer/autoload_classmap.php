@@ -105,6 +105,7 @@ return array(
     'App\\Support\\InputValidator' => $baseDir . '/app/Support/InputValidator.php',
     'App\\Support\\IsbnFormatter' => $baseDir . '/app/Support/IsbnFormatter.php',
     'App\\Support\\LibraryThingInstaller' => $baseDir . '/app/Support/LibraryThingInstaller.php',
+    'App\\Support\\LoanPdfGenerator' => $baseDir . '/app/Support/LoanPdfGenerator.php',
     'App\\Support\\Log' => $baseDir . '/app/Support/Log.php',
     'App\\Support\\Mailer' => $baseDir . '/app/Support/Mailer.php',
     'App\\Support\\MaintenanceService' => $baseDir . '/app/Support/MaintenanceService.php',

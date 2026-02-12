@@ -453,10 +453,14 @@ class CoverController
 
         // Italian bookstores
         'www.libreriauniversitaria.it',
+        'img.libreriauniversitaria.it',
+        'img2.libreriauniversitaria.it',
+        'img3.libreriauniversitaria.it',
         'www.ibs.it',
         'images.ibs.it',
         'www.lafeltrinelli.it',
         'www.ubiklibri.it',
+        'ubiklibri.it',
         'cdn.mondadoristore.it',
 
         // Amazon CDN

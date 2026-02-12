@@ -199,14 +199,17 @@ class PublisherRepository
     {
         // Normalize to integers and deduplicate to prevent type-safety issues
         // and deleting primary when duplicate IDs are passed
-        $publisherIds = array_values(array_unique(array_map('intval', $publisherIds)));
+        $publisherIds = array_values(array_unique(array_filter(
+            array_map('intval', $publisherIds),
+            fn($id) => $id > 0
+        )));
 
         if (count($publisherIds) < 2) {
             return null;
         }
 
         // Use specified primary ID or default to lowest ID
-        if ($primaryId !== null && \in_array($primaryId, $publisherIds, true)) {
+        if ($primaryId !== null && $primaryId > 0 && \in_array($primaryId, $publisherIds, true)) {
             // Create separate array of IDs to delete (excluding primary)
             $duplicateIds = array_values(array_filter($publisherIds, fn($id) => $id !== $primaryId));
         } else {
@@ -228,18 +231,30 @@ class PublisherRepository
             foreach ($duplicateIds as $duplicateId) {
                 // Update books to point to primary publisher
                 $stmt = $this->db->prepare("UPDATE libri SET editore_id = ? WHERE editore_id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare UPDATE libri: " . $this->db->error);
+                }
                 $stmt->bind_param('ii', $primaryId, $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute UPDATE libri: " . $stmt->error);
+                }
+                $stmt->close();
 
                 // Delete the duplicate publisher
                 $stmt = $this->db->prepare("DELETE FROM editori WHERE id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare DELETE editori: " . $this->db->error);
+                }
                 $stmt->bind_param('i', $duplicateId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute DELETE editori: " . $stmt->error);
+                }
+                $stmt->close();
             }
 
             $this->db->commit();
             return $primaryId;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log("[PublisherRepository] Merge failed: " . $e->getMessage());
             return null;

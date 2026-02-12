@@ -83,6 +83,19 @@ Each migration should include:
 
 ## Migration History
 
+### 0.4.8.2 (2026-02-12)
+**Illustrator field, language improvements, BCE year support**
+- Added `illustratore` column to `libri` (after traduttore)
+- Expanded `lingua` column from varchar(50) to varchar(255)
+- Added `illustratore` to `libri_autori` ruolo ENUM
+- Normalized language names from Italian to native (25+ languages)
+- Changed `anno_pubblicazione` to SIGNED (supports BCE dates, range -32768 to 32767)
+
+### 0.4.8.1 (2026-02-10)
+**Import logs tracking system**
+- Added `import_logs` table for CSV/LibraryThing import tracking
+- Added composite index for efficient querying
+
 ### 0.4.7 (2025-02-02)
 **LibraryThing Comprehensive Migration**
 - Consolidated all LibraryThing fields (25+ columns)
@@ -186,7 +199,7 @@ DROP INDEX IF EXISTS idx_lt_date_read ON libri;
 
 ### Step 1: Determine Version
 
-Next version after current latest (0.4.7 → 0.4.8)
+Next version after current latest (0.4.8.2 → 0.4.9)
 
 ### Step 2: Create File
 

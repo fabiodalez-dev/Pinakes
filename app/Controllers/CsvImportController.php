@@ -18,6 +18,18 @@ class CsvImportController
     private const CHUNK_SIZE = 10;
 
     /**
+     * Write log message to import log file
+     */
+    private function log(string $message): void
+    {
+        $logFile = __DIR__ . '/../../writable/logs/import.log';
+        $timestamp = date('Y-m-d H:i:s');
+        // Sanitize message to prevent log injection (strip newlines/control chars)
+        $message = str_replace(["\r", "\n", "\t"], ' ', $message);
+        file_put_contents($logFile, "[$timestamp] [CSV] $message\n", FILE_APPEND);
+    }
+
+    /**
      * Mostra la pagina di import CSV
      */
     public function showImportPage(Request $request, Response $response): Response
@@ -250,7 +262,14 @@ class CsvImportController
             try {
                 // Validate column count
                 if (count($rawData) !== count($headers)) {
-                    throw new \RuntimeException(__('Numero colonne non valido'));
+                    $this->log("[processChunk] Column count mismatch at row $lineNumber: expected " . count($headers) . ", got " . count($rawData));
+                    $this->log("[processChunk] Headers: " . json_encode($headers));
+                    $this->log("[processChunk] Row data: " . json_encode($rawData));
+                    throw new \RuntimeException(sprintf(
+                        __('Numero colonne non valido') . ' (attese: %d, trovate: %d)',
+                        count($headers),
+                        count($rawData)
+                    ));
                 }
 
                 // Map data
@@ -343,12 +362,14 @@ class CsvImportController
 
                         // Also log to file for debugging
                         $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                        $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
+                        $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $scrapeError->getMessage());
                         $logMsg = sprintf(
                             "[%s] SCRAPING ERROR Riga %d (%s): %s\n",
                             date('Y-m-d H:i:s'),
                             $lineNumber,
-                            $title,
-                            $scrapeError->getMessage()
+                            $safeTitle,
+                            $safeMsg
                         );
                         file_put_contents($logFile, $logMsg, FILE_APPEND);
                     }
@@ -364,14 +385,21 @@ class CsvImportController
                     'type' => 'validation',
                 ];
 
-                // Log to file
+                // Log to import.log (same format as LT)
+                $this->log("[processChunk] ERROR Riga $lineNumber ($title): " . $e->getMessage());
+                $this->log("[processChunk] ERROR Class: " . get_class($e));
+                $this->log("[processChunk] ERROR Trace: " . $e->getTraceAsString());
+
+                // Log to csv_errors.log (legacy)
                 $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
+                $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $e->getMessage());
                 $logMsg = sprintf(
                     "[%s] ERROR Riga %d (%s): %s\n\n",
                     date('Y-m-d H:i:s'),
                     $lineNumber,
-                    $title,
-                    $e->getMessage()
+                    $safeTitle,
+                    $safeMsg
                 );
                 file_put_contents($logFile, $logMsg, FILE_APPEND);
             }
@@ -459,8 +487,54 @@ class CsvImportController
             } else {
                 error_log("[CsvImportController] Orphaned import file (persistence failed): " . ($importData['file_path'] ?? 'unknown'));
             }
+
+            // Save summary + errors to session for display after redirect (same as LT import)
+            $message = sprintf(__('%d libri importati, %d aggiornati'), $importData['imported'], $importData['updated']);
+            if ($importData['authors_created'] > 0) {
+                $message .= sprintf(__(', %d autori creati'), $importData['authors_created']);
+            }
+            if ($importData['publishers_created'] > 0) {
+                $message .= sprintf(__(', %d editori creati'), $importData['publishers_created']);
+            }
+            if ($importData['scraped'] > 0) {
+                $message .= sprintf(__(', %d libri arricchiti con scraping'), $importData['scraped']);
+            }
+            if (!empty($importData['errors'])) {
+                $message .= sprintf(__(', %d errori'), count($importData['errors']));
+            }
+            $_SESSION['success'] = $message;
+
+            if (!empty($importData['errors'])) {
+                $_SESSION['import_errors'] = array_map(function ($err) {
+                    if (is_array($err)) {
+                        return sprintf(
+                            'Riga %d (%s): %s',
+                            $err['line'] ?? 0,
+                            htmlspecialchars($err['title'] ?? 'CSV', ENT_QUOTES, 'UTF-8'),
+                            htmlspecialchars($err['message'] ?? '', ENT_QUOTES, 'UTF-8')
+                        );
+                    }
+                    return htmlspecialchars((string)$err, ENT_QUOTES, 'UTF-8');
+                }, $importData['errors']);
+            }
+
             unset($_SESSION['csv_import_data']);
         }
+
+        // Build error_details for frontend display (limit to 50 to keep payload small)
+        $maxErrorDetails = 50;
+        $errorsForUi = array_slice($importData['errors'], 0, $maxErrorDetails);
+        $errorDetails = array_map(function ($err) {
+            if (is_array($err)) {
+                return sprintf(
+                    'Riga %d (%s): %s',
+                    $err['line'] ?? 0,
+                    htmlspecialchars($err['title'] ?? 'CSV', ENT_QUOTES, 'UTF-8'),
+                    htmlspecialchars($err['message'] ?? '', ENT_QUOTES, 'UTF-8')
+                );
+            }
+            return htmlspecialchars((string)$err, ENT_QUOTES, 'UTF-8');
+        }, $errorsForUi);
 
         $response->getBody()->write(json_encode([
             'success' => true,
@@ -471,6 +545,7 @@ class CsvImportController
             'authors_created' => $importData['authors_created'],
             'publishers_created' => $importData['publishers_created'],
             'errors' => count($importData['errors']),
+            'error_details' => $errorDetails,
             'complete' => $isComplete
         ]));
 
@@ -506,6 +581,7 @@ class CsvImportController
             'collana',
             'numero_serie',
             'traduttore',
+            'illustratore',
             'parole_chiave',
             'classificazione_dewey'
         ];
@@ -521,7 +597,7 @@ class CsvImportController
                 'Umberto Eco',
                 'Mondadori',
                 '1980',
-                'italiano',
+                'Italiano',
                 'Prima edizione',
                 '503',
                 'Narrativa',
@@ -531,6 +607,7 @@ class CsvImportController
                 '2',
                 'Oscar Bestsellers',
                 '1',
+                '',
                 '',
                 'medioevo, giallo, monastero',
                 '853'  // Dewey: Narrativa italiana
@@ -545,7 +622,7 @@ class CsvImportController
                 'George Orwell',
                 'Einaudi',
                 '1949',
-                'italiano',
+                'Italiano',
                 '',
                 '328',
                 'Narrativa',
@@ -556,6 +633,7 @@ class CsvImportController
                 '',
                 '',
                 'Gabriele Baldini',
+                '',
                 'distopia, controllo, totalitarismo',
                 ''  // Dewey vuoto - verrà popolato dallo scraping se abilitato
             ],
@@ -569,7 +647,7 @@ class CsvImportController
                 'Dante Alighieri',
                 'Rizzoli',
                 '1321',
-                'italiano',
+                'Italiano',
                 'Edizione integrale',
                 '768',
                 'Classici',
@@ -578,6 +656,7 @@ class CsvImportController
                 '15.00',
                 '3',
                 'BUR Classici',
+                '',
                 '',
                 '',
                 'dante, medioevo, poesia, inferno, paradiso',
@@ -667,8 +746,8 @@ class CsvImportController
             $authors[] = trim($row['secondary_author']);
         }
         if (!empty($row['autori'])) {
-            // autori might already contain multiple authors separated by ;
-            $existingAuthors = array_map('trim', explode(';', $row['autori']));
+            // autori might contain multiple authors separated by ; or |
+            $existingAuthors = array_filter(array_map('trim', preg_split('/[;|]/', $row['autori'])));
             $authors = array_merge($authors, $existingAuthors);
         }
         // Remove duplicates and empty values
@@ -696,6 +775,7 @@ class CsvImportController
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
             'numero_serie' => !empty($row['numero_serie']) ? trim($row['numero_serie']) : null,
             'traduttore' => !empty($row['traduttore']) ? trim($row['traduttore']) : null,
+            'illustratore' => !empty($row['illustratore']) ? trim($row['illustratore']) : null,
             'parole_chiave' => !empty($row['parole_chiave']) ? trim($row['parole_chiave']) : null,
             'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
             'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null
@@ -755,94 +835,83 @@ class CsvImportController
      *
      * @param string $language Raw language value from CSV
      * @return string Validated language
-     * @throws \Exception If language is not supported
      */
     private function validateLanguage(string $language): string
     {
+        // Canonical native language names
         $validLanguages = [
-            'italiano', 'inglese', 'francese', 'tedesco', 'spagnolo',
-            'portoghese', 'russo', 'cinese', 'giapponese', 'arabo',
-            'olandese', 'svedese', 'norvegese', 'danese', 'finlandese',
-            'polacco', 'ceco', 'ungherese', 'rumeno', 'greco',
-            'turco', 'ebraico', 'hindi', 'coreano', 'thai'
+            'Italiano', 'English', 'Français', 'Deutsch', 'Español',
+            'Português', 'Русский', '中文', '日本語', 'العربية',
+            'Nederlands', 'Svenska', 'Norsk', 'Dansk', 'Suomi',
+            'Polski', 'Čeština', 'Magyar', 'Română', 'Ελληνικά',
+            'Türkçe', 'עברית', 'हिन्दी', '한국어', 'ไทย', 'Latina'
         ];
 
-        // Language aliases: ISO codes and English names
+        // Lowercase lookup for case-insensitive matching
+        $validLower = array_map('mb_strtolower', $validLanguages);
+        $nativeByLower = array_combine($validLower, $validLanguages);
+
+        // Aliases: ISO codes, Italian names, and English names → native
         $aliases = [
             // ISO 639-1 codes
-            'it' => 'italiano',
-            'en' => 'inglese',
-            'fr' => 'francese',
-            'de' => 'tedesco',
-            'es' => 'spagnolo',
-            'pt' => 'portoghese',
-            'ru' => 'russo',
-            'zh' => 'cinese',
-            'ja' => 'giapponese',
-            'ar' => 'arabo',
-            'nl' => 'olandese',
-            'sv' => 'svedese',
-            'no' => 'norvegese',
-            'da' => 'danese',
-            'fi' => 'finlandese',
-            'pl' => 'polacco',
-            'cs' => 'ceco',
-            'hu' => 'ungherese',
-            'ro' => 'rumeno',
-            'el' => 'greco',
-            'tr' => 'turco',
-            'he' => 'ebraico',
-            'hi' => 'hindi',
-            'ko' => 'coreano',
-            'th' => 'thai',
+            'it' => 'Italiano', 'en' => 'English', 'fr' => 'Français',
+            'de' => 'Deutsch', 'es' => 'Español', 'pt' => 'Português',
+            'ru' => 'Русский', 'zh' => '中文', 'ja' => '日本語',
+            'ar' => 'العربية', 'nl' => 'Nederlands', 'sv' => 'Svenska',
+            'no' => 'Norsk', 'da' => 'Dansk', 'fi' => 'Suomi',
+            'pl' => 'Polski', 'cs' => 'Čeština', 'hu' => 'Magyar',
+            'ro' => 'Română', 'el' => 'Ελληνικά', 'tr' => 'Türkçe',
+            'he' => 'עברית', 'hi' => 'हिन्दी', 'ko' => '한국어',
+            'th' => 'ไทย', 'la' => 'Latina',
+            // Italian names
+            'italiano' => 'Italiano', 'inglese' => 'English', 'francese' => 'Français',
+            'tedesco' => 'Deutsch', 'spagnolo' => 'Español', 'portoghese' => 'Português',
+            'russo' => 'Русский', 'cinese' => '中文', 'giapponese' => '日本語',
+            'arabo' => 'العربية', 'olandese' => 'Nederlands', 'svedese' => 'Svenska',
+            'norvegese' => 'Norsk', 'danese' => 'Dansk', 'finlandese' => 'Suomi',
+            'polacco' => 'Polski', 'ceco' => 'Čeština', 'ungherese' => 'Magyar',
+            'rumeno' => 'Română', 'greco' => 'Ελληνικά', 'turco' => 'Türkçe',
+            'ebraico' => 'עברית', 'hindi' => 'हिन्दी', 'coreano' => '한국어',
+            'thai' => 'ไทย', 'latino' => 'Latina',
             // English names
-            'italian' => 'italiano',
-            'english' => 'inglese',
-            'french' => 'francese',
-            'german' => 'tedesco',
-            'spanish' => 'spagnolo',
-            'portuguese' => 'portoghese',
-            'russian' => 'russo',
-            'chinese' => 'cinese',
-            'japanese' => 'giapponese',
-            'arabic' => 'arabo',
-            'dutch' => 'olandese',
-            'swedish' => 'svedese',
-            'norwegian' => 'norvegese',
-            'danish' => 'danese',
-            'finnish' => 'finlandese',
-            'polish' => 'polacco',
-            'czech' => 'ceco',
-            'hungarian' => 'ungherese',
-            'romanian' => 'rumeno',
-            'greek' => 'greco',
-            'turkish' => 'turco',
-            'hebrew' => 'ebraico',
-            'hindi' => 'hindi',
-            'korean' => 'coreano',
-            'thai' => 'thai',
+            'italian' => 'Italiano', 'english' => 'English', 'french' => 'Français',
+            'german' => 'Deutsch', 'spanish' => 'Español', 'portuguese' => 'Português',
+            'russian' => 'Русский', 'chinese' => '中文', 'japanese' => '日本語',
+            'arabic' => 'العربية', 'dutch' => 'Nederlands', 'swedish' => 'Svenska',
+            'norwegian' => 'Norsk', 'danish' => 'Dansk', 'finnish' => 'Suomi',
+            'polish' => 'Polski', 'czech' => 'Čeština', 'hungarian' => 'Magyar',
+            'romanian' => 'Română', 'greek' => 'Ελληνικά', 'turkish' => 'Türkçe',
+            'hebrew' => 'עברית', 'latin' => 'Latina', 'korean' => '한국어',
         ];
 
-        // Default to Italian if empty
+        // Default to Italiano if empty
         if (empty($language)) {
-            return 'italiano';
+            return 'Italiano';
         }
 
-        $normalized = trim(strtolower($language));
+        // Split on commas to support multi-language values like "English, German"
+        $parts = array_map('trim', explode(',', $language));
+        $normalized = [];
 
-        // Map aliases to canonical names
-        if (isset($aliases[$normalized])) {
-            $normalized = $aliases[$normalized];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $lower = mb_strtolower($part);
+
+            // Map aliases to canonical native names (passthrough if unknown)
+            if (isset($aliases[$lower])) {
+                $normalized[] = $aliases[$lower];
+            } elseif (isset($nativeByLower[$lower])) {
+                $normalized[] = $nativeByLower[$lower];
+            } else {
+                // Accept unknown languages as-is (ucfirst for consistency)
+                $normalized[] = mb_convert_case($part, MB_CASE_TITLE, 'UTF-8');
+            }
         }
 
-        // Check if language is supported
-        if (!in_array($normalized, $validLanguages, true)) {
-            throw new \Exception(__('Lingua non supportata') . ": '{$language}'. " .
-                __('Lingue valide') . ': ' . implode(', ', array_slice($validLanguages, 0, 10)) . '... ' .
-                __('(codici ISO e nomi inglesi accettati)'));
-        }
-
-        return $normalized;
+        // Remove duplicates and rejoin
+        return implode(', ', array_unique($normalized)) ?: 'Italiano';
     }
 
     /**
@@ -958,6 +1027,7 @@ class CsvImportController
             'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
             'numero_serie' => ['numero_serie', 'series number', 'número de serie', 'numéro de série'],
             'traduttore' => ['traduttore', 'translator', 'traductor', 'traducteur', 'übersetzer'],
+            'illustratore' => ['illustratore', 'illustrator', 'ilustrador', 'illustrateur', 'zeichner'],
             'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],
             'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number']
         ];
@@ -1173,6 +1243,7 @@ class CsvImportController
                 collana = ?,
                 numero_serie = ?,
                 traduttore = ?,
+                illustratore = ?,
                 parole_chiave = ?,
                 classificazione_dewey = ?,
                 updated_at = NOW()
@@ -1194,11 +1265,12 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
+        $illustratore = !empty($data['illustratore']) ? $data['illustratore'] : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssissiissdisssssi',
+            'sssssissiissdissssssi',
             $isbn10,
             $isbn13,
             $ean,
@@ -1216,6 +1288,7 @@ class CsvImportController
             $collana,
             $numeroSerie,
             $traduttore,
+            $illustratore,
             $paroleChiave,
             $dewey,
             $bookId
@@ -1255,13 +1328,13 @@ class CsvImportController
                 isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                 lingua, edizione, numero_pagine, genere_id,
                 descrizione, formato, prezzo, copie_totali, copie_disponibili,
-                editore_id, collana, numero_serie, traduttore, parole_chiave,
+                editore_id, collana, numero_serie, traduttore, illustratore, parole_chiave,
                 classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
                 ?, 'disponibile', NOW()
             )
         ");
@@ -1288,11 +1361,12 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
+        $illustratore = !empty($data['illustratore']) ? $data['illustratore'] : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssissiissdiiisssss',
+            'sssssissiissdiiissssss',
             $isbn10,
             $isbn13,
             $ean,
@@ -1312,6 +1386,7 @@ class CsvImportController
             $collana,
             $numeroSerie,
             $traduttore,
+            $illustratore,
             $paroleChiave,
             $dewey
         );
@@ -1327,9 +1402,21 @@ class CsvImportController
         $baseInventario = $isbn13 ?: ($isbn10 ?: "LIB-{$bookId}");
 
         for ($i = 1; $i <= $copie; $i++) {
-            $numeroInventario = $copie > 1
+            $candidato = $copie > 1
                 ? "{$baseInventario}-C{$i}"
                 : $baseInventario;
+
+            // Ensure unique numero_inventario (may collide with previous imports)
+            $numeroInventario = $candidato;
+            $suffix = 2;
+            $maxAttempts = 1000;
+            while ($this->inventoryNumberExists($db, $numeroInventario) && $suffix <= $maxAttempts) {
+                $numeroInventario = "{$candidato}-{$suffix}";
+                $suffix++;
+            }
+            if ($suffix > $maxAttempts) {
+                throw new \RuntimeException("Impossibile generare numero inventario unico per: {$candidato}");
+            }
 
             $note = $copie > 1 ? sprintf(__("Copia %d di %d"), $i, $copie) : null;
 
@@ -1343,6 +1430,20 @@ class CsvImportController
         return $bookId;
     }
 
+
+    /**
+     * Check if a numero_inventario already exists in the copie table.
+     */
+    private function inventoryNumberExists(\mysqli $db, string $numero): bool
+    {
+        $stmt = $db->prepare("SELECT 1 FROM copie WHERE numero_inventario = ? LIMIT 1");
+        $stmt->bind_param('s', $numero);
+        $stmt->execute();
+        $stmt->store_result();
+        $exists = $stmt->num_rows > 0;
+        $stmt->close();
+        return $exists;
+    }
 
     /**
      * Scrape book data from online services
@@ -1363,11 +1464,19 @@ class CsvImportController
         $params = [];
         $types = '';
 
-        // Copertina
+        // Copertina — download locally, never store remote URLs
         if (empty($csvData['copertina_url']) && !empty($scrapedData['image'])) {
-            $updates[] = 'copertina_url = ?';
-            $params[] = $scrapedData['image'];
-            $types .= 's';
+            try {
+                $coverController = new \App\Controllers\CoverController();
+                $coverData = $coverController->downloadFromUrl($scrapedData['image']);
+                if (!empty($coverData['file_url'])) {
+                    $updates[] = 'copertina_url = ?';
+                    $params[] = $coverData['file_url'];
+                    $types .= 's';
+                }
+            } catch (\Throwable $e) {
+                error_log("[CSV Import] Cover download failed for book $bookId: " . $e->getMessage());
+            }
         }
 
         // Descrizione

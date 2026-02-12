@@ -93,7 +93,7 @@ class ApiBookScraperPlugin
      */
     public function onInstall(): void
     {
-        error_log('[ApiBookScraper] Plugin installed');
+        \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin installed');
         if ($this->pluginId) {
             $this->registerHooks();
         }
@@ -106,7 +106,7 @@ class ApiBookScraperPlugin
     {
         $this->loadSettings();
         $this->registerHooks();
-        error_log('[ApiBookScraper] Plugin activated');
+        \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin activated');
     }
 
     /**
@@ -115,7 +115,7 @@ class ApiBookScraperPlugin
     public function onDeactivate(): void
     {
         $this->deleteHooks();
-        error_log('[ApiBookScraper] Plugin deactivated');
+        \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin deactivated');
     }
 
     /**
@@ -125,7 +125,7 @@ class ApiBookScraperPlugin
     {
         $this->deleteHooks();
         // Opzionale: rimuovi anche le settings
-        error_log('[ApiBookScraper] Plugin uninstalled');
+        \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin uninstalled');
     }
 
     /**
@@ -176,7 +176,7 @@ class ApiBookScraperPlugin
             $stmt->close();
         }
 
-        error_log('[ApiBookScraper] Hooks registered successfully');
+        \App\Support\SecureLogger::debug('[ApiBookScraper] Hooks registered');
     }
 
     /**

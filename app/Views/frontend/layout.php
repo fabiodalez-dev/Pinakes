@@ -47,6 +47,10 @@ if (isset($container)) {
         'button_text' => '#ffffff',
         'primary_light' => '#f9e6ef',
         'primary_dark' => '#b8014f',
+        'primary_hover' => '#c20157',
+        'primary_focus' => '#b70152',
+        'secondary_hover' => '#0f1623',
+        'button_hover' => '#c20258',
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',
     ];
