@@ -9,9 +9,13 @@ $debug = [];
 
 // If already completed, redirect immediately ONLY if schema was actually imported
 if (isset($_SESSION['installation_complete']) && isset($_SESSION['schema_imported']) && $_SESSION['schema_imported'] === true) {
+    session_write_close();
     header('Location: index.php?step=4');
     exit;
 }
+
+// Buffer output to prevent accidental output from breaking header() redirect
+ob_start();
 
 // Reset the flag and start fresh installation
 unset($_SESSION['installation_started']);
@@ -77,7 +81,9 @@ if (true) {
         $_SESSION['installation_complete'] = true;
         $_SESSION['debug_log'] = $debug;
 
-        // Redirect to next step
+        // Discard any accidental output, save session, then redirect
+        ob_end_clean();
+        session_write_close();
         header('Location: index.php?step=4');
         exit;
 
@@ -88,6 +94,7 @@ if (true) {
         $_SESSION['debug_log'] = $debug;
         unset($_SESSION['installation_started']); // Allow retry
         $installing = false;
+        ob_end_clean(); // Discard buffered output before rendering error page
     } catch (Error $e) {
         $error = __("Fatal Error:") . " " . $e->getMessage();
         $debug[] = __("FATAL ERROR:") . " " . $e->getMessage();
@@ -95,6 +102,7 @@ if (true) {
         $_SESSION['debug_log'] = $debug;
         unset($_SESSION['installation_started']); // Allow retry
         $installing = false;
+        ob_end_clean(); // Discard buffered output before rendering error page
     }
 }
 
