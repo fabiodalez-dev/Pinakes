@@ -13,7 +13,7 @@ $title = "Modifica " . __("Editore:") . " " . ($editore['nome'] ?? 'N/D');
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i>Home
           </a>
         </li>
@@ -21,7 +21,7 @@ $title = "Modifica " . __("Editore:") . " " . ($editore['nome'] ?? 'N/D');
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li>
-          <a href="/admin/editori" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/editori') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-building mr-1"></i><?= __("Editori") ?>
           </a>
         </li>
@@ -41,7 +41,7 @@ $title = "Modifica " . __("Editore:") . " " . ($editore['nome'] ?? 'N/D');
     </div>
 
     <!-- Main Form -->
-    <form method="post" action="/admin/editori/update/<?php echo (int)$editore['id']; ?>" class="space-y-8 slide-in-up">
+    <form method="post" action="<?= url('/admin/editori/update/' . (int)$editore['id']) ?>" class="space-y-8 slide-in-up">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -120,7 +120,7 @@ $title = "Modifica " . __("Editore:") . " " . ($editore['nome'] ?? 'N/D');
 
       <!-- Submit Section -->
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
-        <a href="/admin/editori" class="btn-secondary order-2 sm:order-1 text-center">
+        <a href="<?= url('/admin/editori') ?>" class="btn-secondary order-2 sm:order-1 text-center">
           <i class="fas fa-times mr-2"></i>
           <?= __("Annulla") ?>
         </a>

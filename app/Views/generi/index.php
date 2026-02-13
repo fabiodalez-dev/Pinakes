@@ -5,7 +5,7 @@
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -13,7 +13,7 @@
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <a href="/admin/generi" class="text-gray-900 hover:text-gray-900">
+          <a href="<?= url('/admin/generi') ?>" class="text-gray-900 hover:text-gray-900">
             <i class="fas fa-tags mr-1"></i><?= __("Generi") ?>
           </a>
         </li>
@@ -59,7 +59,7 @@
       </div>
       <div class="card-body">
         <?php $csrf = App\Support\Csrf::ensureToken(); ?>
-        <form method="post" action="/admin/generi/crea" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <form method="post" action="<?= url('/admin/generi/crea') ?>" class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
           <div class="md:col-span-2">
             <label for="nome_genere" class="form-label"><?= __("Nome") ?></label>
@@ -125,7 +125,7 @@
 
     <!-- Create New Button -->
     <div class="mb-6">
-      <a href="/admin/generi/crea" class="btn-primary inline-flex items-center">
+      <a href="<?= url('/admin/generi/crea') ?>" class="btn-primary inline-flex items-center">
         <i class="fas fa-plus mr-2"></i>
         <?= __("Crea Nuovo Genere") ?>
       </a>
@@ -141,7 +141,7 @@
                 <i class="fas fa-tags text-6xl text-gray-300 mb-4"></i>
                 <h3 class="text-xl font-medium text-gray-900 mb-2"><?= __("Nessun genere trovato") ?></h3>
                 <p class="text-gray-600 mb-6"><?= __("Inizia creando il primo genere letterario") ?></p>
-                <a href="/admin/generi/crea" class="btn-primary inline-flex items-center">
+                <a href="<?= url('/admin/generi/crea') ?>" class="btn-primary inline-flex items-center">
                   <i class="fas fa-plus mr-2"></i>
               <?= __("Crea Primo Genere") ?>
             </a>
@@ -166,7 +166,7 @@
                     </div>
                   </div>
                   <div class="flex items-center space-x-2">
-                    <a href="/admin/generi/<?php echo $genere['id']; ?>" class="btn-outline btn-sm">
+                    <a href="<?= url('/admin/generi/' . $genere['id']) ?>" class="btn-outline btn-sm">
                       <i class="fas fa-eye mr-1"></i>
                       <?= __("Dettagli") ?>
                     </a>
@@ -185,7 +185,7 @@
                               <?php echo htmlspecialchars($sottogenere['nome']); ?>
                             </span>
                           </div>
-                          <a href="/admin/generi/<?php echo $sottogenere['id']; ?>" class="btn-outline btn-sm">
+                          <a href="<?= url('/admin/generi/' . $sottogenere['id']) ?>" class="btn-outline btn-sm">
                             <i class="fas fa-external-link-alt mr-1"></i><?= __("Dettagli") ?>
                           </a>
                         </div>

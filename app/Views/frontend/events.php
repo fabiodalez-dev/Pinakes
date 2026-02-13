@@ -12,7 +12,7 @@ $baseUrl = ConfigStore::get('app.canonical_url');
 // Open Graph defaults
 $ogTitle = $seoTitle;
 $ogDescription = $seoDescription;
-$ogImage = $baseUrl . '/assets/social.jpg';
+$ogImage = assetUrl('social.jpg');
 $ogUrl = $seoCanonical;
 $ogType = 'website';
 
@@ -328,7 +328,7 @@ ob_start();
 
                     ?>
                     <article class="event-card">
-                        <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__thumb">
+                        <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
                                 <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                             <?php else: ?>
@@ -342,12 +342,12 @@ ob_start();
                                 <?= HtmlHelper::e($eventDateFormatted) ?>
                             </div>
                             <h2 class="event-card__title">
-                                <a href="/events/<?= HtmlHelper::e($event['slug']) ?>">
+                                <a href="<?= url('/events/' . $event['slug']) ?>">
                                     <?= HtmlHelper::e($event['title']) ?>
                                 </a>
                             </h2>
                             <div class="event-card__actions">
-                                <a href="/events/<?= HtmlHelper::e($event['slug']) ?>" class="event-card__button">
+                                <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__button">
                                     <?= __("Scopri l'evento") ?>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>

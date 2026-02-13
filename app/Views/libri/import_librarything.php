@@ -14,13 +14,13 @@ $csrfToken = Csrf::ensureToken();
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="flex items-center space-x-2 text-sm">
                 <li>
-                    <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
                         <i class="fas fa-home mr-1"></i><?= __("Home") ?>
                     </a>
                 </li>
                 <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
                 <li>
-                    <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <a href="<?= url('/admin/libri') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
                         <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
                     </a>
                 </li>
@@ -40,11 +40,11 @@ $csrfToken = Csrf::ensureToken();
                 </h1>
                 <p class="text-sm text-gray-600"><?= __("Importa i tuoi libri esportati da LibraryThing.com (formato TSV)") ?></p>
                 <div class="flex gap-2">
-                    <a href="/admin/libri" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center">
+                    <a href="<?= url('/admin/libri') ?>" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center">
                         <i class="fas fa-arrow-left mr-2"></i>
                         <?= __("Torna ai Libri") ?>
                     </a>
-                    <a href="/admin/libri/import" class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors inline-flex items-center">
+                    <a href="<?= url('/admin/libri/import') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors inline-flex items-center">
                         <i class="fas fa-file-csv mr-2"></i>
                         <?= __("Import CSV Standard") ?>
                     </a>
@@ -111,7 +111,7 @@ $csrfToken = Csrf::ensureToken();
                         <?= __("Carica File LibraryThing") ?>
                     </h2>
 
-                    <form method="POST" action="/admin/libri/import/librarything/process" enctype="multipart/form-data" id="import-form">
+                    <form method="POST" action="<?= url('/admin/libri/import/librarything/process') ?>" enctype="multipart/form-data" id="import-form">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
 
                         <!-- Uppy Upload Area -->
@@ -197,7 +197,7 @@ $csrfToken = Csrf::ensureToken();
                     <p class="text-gray-600 mb-4">
                         <?= __("Scarica un file TSV di esempio con alcuni libri già compilati per capire il formato LibraryThing e iniziare subito.") ?>
                     </p>
-                    <a href="/admin/libri/import/librarything/example" class="px-6 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center">
+                    <a href="<?= url('/admin/libri/import/librarything/example') ?>" class="px-6 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center">
                         <i class="fas fa-file-download mr-2"></i>
                         <?= __("Scarica esempio_librarything.tsv") ?>
                     </a>
@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Step 1: Prepare import (validate and save file)
             updateProgress(10, '<?= addslashes(__("Caricamento file...")) ?>', '');
 
-            const prepareResponse = await fetch('/admin/libri/import/librarything/prepare', {
+            const prepareResponse = await fetch(window.BASE_PATH + '/admin/libri/import/librarything/prepare', {
                 method: 'POST',
                 body: formData
             });
@@ -530,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const percent = 20 + Math.round((currentRow / totalRows) * 80);
                 updateProgress(percent, `<?= addslashes(__("Elaborazione libri")) ?> ${currentRow + 1}-${nextRow}...`, `${currentRow}/${totalRows}`);
 
-                const chunkResponse = await fetch('/admin/libri/import/librarything/chunk', {
+                const chunkResponse = await fetch(window.BASE_PATH + '/admin/libri/import/librarything/chunk', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -573,7 +573,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Step 3: Get final results
             updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
 
-            const resultsResponse = await fetch('/admin/libri/import/librarything/results');
+            const resultsResponse = await fetch(window.BASE_PATH + '/admin/libri/import/librarything/results');
             if (!resultsResponse.ok) {
                 throw new Error('<?= __("Errore nel recupero dei risultati") ?>');
             }

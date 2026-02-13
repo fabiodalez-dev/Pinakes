@@ -265,7 +265,7 @@ $pluginSettings = $pluginSettings ?? [];
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($plugin['name'] === 'dewey-editor' && $plugin['is_active']): ?>
-                                    <a href="/admin/dewey-editor"
+                                    <a href="<?= url('/admin/dewey-editor') ?>"
                                         class="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
                                         <i class="fas fa-edit mr-1"></i>
                                         <?= __("Apri Editor") ?>
@@ -993,7 +993,7 @@ $pluginSettings = $pluginSettings ?? [];
         formData.append('settings[servers]', JSON.stringify(servers));
 
         try {
-            const response = await fetch(`/admin/plugins/${pluginId}/settings`, {
+            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/settings`, {
                 method: 'POST',
                 body: formData
             });
@@ -1132,7 +1132,7 @@ $pluginSettings = $pluginSettings ?? [];
         this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= addslashes(__("Installazione in corso...")) ?>';
 
         try {
-            const response = await fetch('/admin/plugins/upload', {
+            const response = await fetch(window.BASE_PATH + '/admin/plugins/upload', {
                 method: 'POST',
                 body: formData
             });
@@ -1188,7 +1188,7 @@ $pluginSettings = $pluginSettings ?? [];
             const formData = new FormData();
             formData.append('csrf_token', csrfToken);
 
-            const response = await fetch(`/admin/plugins/${pluginId}/activate`, {
+            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/activate`, {
                 method: 'POST',
                 body: formData
             });
@@ -1241,7 +1241,7 @@ $pluginSettings = $pluginSettings ?? [];
             const formData = new FormData();
             formData.append('csrf_token', csrfToken);
 
-            const response = await fetch(`/admin/plugins/${pluginId}/deactivate`, {
+            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/deactivate`, {
                 method: 'POST',
                 body: formData
             });
@@ -1296,7 +1296,7 @@ $pluginSettings = $pluginSettings ?? [];
             const formData = new FormData();
             formData.append('csrf_token', csrfToken);
 
-            const response = await fetch(`/admin/plugins/${pluginId}/uninstall`, {
+            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/uninstall`, {
                 method: 'POST',
                 body: formData
             });
@@ -1382,7 +1382,7 @@ $pluginSettings = $pluginSettings ?? [];
         }
 
         try {
-            const response = await fetch(`/admin/plugins/${pluginId}/settings`, {
+            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/settings`, {
                 method: 'POST',
                 body: formData
             });
@@ -1513,7 +1513,7 @@ $pluginSettings = $pluginSettings ?? [];
         }
 
         try {
-            const response = await fetch(`/admin/plugins/${pluginId}/settings`, {
+            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/settings`, {
                 method: 'POST',
                 body: formData
             });

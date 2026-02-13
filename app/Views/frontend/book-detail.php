@@ -1476,7 +1476,7 @@ ob_start();
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb bg-transparent p-0 mb-0">
                                 <li class="breadcrumb-item">
-                                    <a href="/" class="text-dark"><?= __("Home") ?></a>
+                                    <a href="<?= url('/') ?>" class="text-dark"><?= __("Home") ?></a>
                                 </li>
                                 <li class="breadcrumb-item">
                                     <a href="<?= $legacyCatalogRoute ?>" class="text-dark-50"><?= __("Catalogo") ?></a>
@@ -2154,14 +2154,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  fetch(`/api/user/wishlist/status?libro_id=${libroId}`)
+  fetch(`${window.BASE_PATH}/api/user/wishlist/status?libro_id=${libroId}`)
     .then(r => r.ok ? r.json() : {favorite:false})
     .then(data => setFavUI(!!data.favorite))
     .catch(() => setFavUI(false));
 
   favBtn.addEventListener('click', async function() {
     try {
-      const res = await fetch('/api/user/wishlist/toggle', {
+      const res = await fetch(window.BASE_PATH + '/api/user/wishlist/toggle', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -2196,7 +2196,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const badge = document.getElementById('nav-res-count');
       if (!badge) return;
       try {
-        const r = await fetch('/api/user/reservations/count');
+        const r = await fetch(window.BASE_PATH + '/api/user/reservations/count');
         if (!r.ok) return;
         const data = await r.json();
         const c = parseInt(data.count || 0, 10);
@@ -2241,7 +2241,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let maxAvailableDate = null;
         try {
-          const availRes = await fetch(`/api/libro/${libroId}/availability`);
+          const availRes = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/availability`);
           if (availRes.ok) {
             const availData = await availRes.json();
             if (availData.success && availData.availability) {
@@ -2416,7 +2416,7 @@ document.addEventListener('DOMContentLoaded', function() {
               reqBody.end_date = formValues.endDate;
             }
 
-            const res = await fetch(`/api/libro/${libroId}/reservation`, {
+            const res = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/reservation`, {
               method: 'POST',
               credentials: 'same-origin',
               headers: {
@@ -2457,7 +2457,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const date = prompt(__('Inserisci la data di inizio (YYYY-MM-DD)'), suggestedDate);
         if (date) {
           try {
-            const res = await fetch(`/api/libro/${libroId}/reservation`, {
+            const res = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/reservation`, {
               method: 'POST',
               credentials: 'same-origin',
               headers: {

@@ -33,7 +33,7 @@ if ($presetUserId > 0) {
   <nav aria-label="breadcrumb" class="mb-2">
     <ol class="flex items-center space-x-2 text-sm">
       <li>
-        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <i class="fas fa-home mr-1"></i><?= __("Home") ?>
         </a>
       </li>
@@ -41,7 +41,7 @@ if ($presetUserId > 0) {
         <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
       </li>
       <li>
-        <a href="/admin/prestiti" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= url('/admin/prestiti') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <i class="fas fa-handshake mr-1"></i><?= __("Prestiti") ?></a>
       </li>
       <li>
@@ -86,7 +86,7 @@ if ($presetUserId > 0) {
     <div class="mb-4 p-4 bg-green-100 text-green-800 rounded"><?= __("Prestito creato con successo.") ?></div>
   <?php endif; ?>
 
-  <form method="post" action="/admin/prestiti/crea" class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
+  <form method="post" action="<?= url('/admin/prestiti/crea') ?>" class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 
     <!-- Ricerca Utente -->
@@ -187,7 +187,7 @@ if ($presetUserId > 0) {
     <div class="flex items-center gap-4">
       <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
-      <a href="/admin/prestiti" class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+      <a href="<?= url('/admin/prestiti') ?>" class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-times mr-2"></i><?= __("Annulla") ?>
       </a>
     </div>
@@ -455,7 +455,7 @@ if ($presetUserId > 0) {
         }
 
         // Use same API as frontend
-        fetch('/api/libro/' + bookId + '/availability')
+        fetch(window.BASE_PATH + '/api/libro/' + bookId + '/availability')
           .then(function(response) {
             if (!response.ok) throw new Error('Failed to fetch availability');
             return response.json();
@@ -667,8 +667,8 @@ if ($presetUserId > 0) {
       }
 
       // Initialize autocompletes
-      setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', '/api/search/utenti', false);
-      setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', '/api/search/libri', true);
+      setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', window.BASE_PATH + '/api/search/utenti', false);
+      setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', window.BASE_PATH + '/api/search/libri', true);
     });
   </script>
 </section>

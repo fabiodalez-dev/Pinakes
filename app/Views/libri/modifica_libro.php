@@ -19,7 +19,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
       <nav aria-label="breadcrumb" class="mb-4">
         <ol class="flex items-center space-x-2 text-sm">
           <li>
-            <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+            <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
               <i class="fas fa-home mr-1"></i><?= __("Home") ?>
             </a>
           </li>
@@ -27,7 +27,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
             <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
           </li>
           <li>
-            <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
+            <a href="<?= url('/admin/libri') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
               <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
             </a>
           </li>
@@ -44,7 +44,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
           <?= __("Modifica Libro") ?>
         </h1>
         <p class="text-gray-600 text-base mb-4">
-          <?= __("Aggiorna i dettagli del libro:") ?> <a href="/admin/libri/<?php echo (int)($book['id'] ?? 0); ?>" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold transition-colors"><strong><?php echo HtmlHelper::e($book['titolo'] ?? ''); ?></strong></a>
+          <?= __("Aggiorna i dettagli del libro:") ?> <a href="<?= url('/admin/libri/' . (int)($book['id'] ?? 0)) ?>" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold transition-colors"><strong><?php echo HtmlHelper::e($book['titolo'] ?? ''); ?></strong></a>
         </p>
         
         <div class="flex items-center text-sm text-gray-500">

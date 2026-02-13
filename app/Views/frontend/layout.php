@@ -59,24 +59,6 @@ if (isset($container)) {
 // Get events page status using ConfigStore (has its own DB connection)
 $eventsEnabled = ConfigStore::get('cms.events_page_enabled', '1') === '1';
 
-// Helper function for generating absolute URLs
-if (!function_exists('absoluteUrl')) {
-    function absoluteUrl($path = '')
-    {
-        // Delegate to HtmlHelper for secure URL generation
-        return HtmlHelper::absoluteUrl($path);
-    }
-}
-
-// Helper function for asset URLs
-if (!function_exists('assetUrl')) {
-    function assetUrl($path)
-    {
-        $normalizedPath = '/' . ltrim($path, '/');
-        return absoluteUrl('/assets' . $normalizedPath);
-    }
-}
-
 $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 ?>
@@ -177,7 +159,8 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     <meta name="csrf-token"
         content="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
-    <link rel="icon" type="image/x-icon" href="<?= absoluteUrl('/favicon.ico') ?>">
+    <link rel="icon" type="image/x-icon" href="<?= url('/favicon.ico') ?>">
+    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
 
     <!-- CSS moderno e minimale -->
     <link href="<?= assetUrl('/vendor.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
@@ -1623,7 +1606,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             const badge = document.getElementById('nav-res-count');
             if (!badge) return;
             try {
-                const r = await fetch('/api/user/reservations/count');
+                const r = await fetch(window.BASE_PATH + '/api/user/reservations/count');
                 if (!r.ok) return;
                 const data = await r.json();
                 const c = parseInt(data.count || 0, 10);

@@ -39,7 +39,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
           <?= $isEdit ? __("Modifica le informazioni dell'evento") : __("Inserisci le informazioni del nuovo evento") ?>
         </p>
       </div>
-      <a href="/admin/cms/events" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
+      <a href="<?= url('/admin/cms/events') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
         <i class="fas fa-arrow-left"></i>
         <?= __("Torna agli Eventi") ?>
       </a>
@@ -60,7 +60,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
     <?php endif; ?>
   </div>
 
-  <form action="<?= $isEdit ? '/admin/cms/events/update/' . $event['id'] : '/admin/cms/events' ?>" method="post" enctype="multipart/form-data" class="space-y-6">
+  <form action="<?= $isEdit ? url('/admin/cms/events/update/' . $event['id']) : url('/admin/cms/events') ?>" method="post" enctype="multipart/form-data" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
     <!-- Main Event Information -->
@@ -355,7 +355,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
 
     <!-- Submit Button -->
     <div class="flex items-center justify-between gap-4">
-      <a href="/admin/cms/events" class="inline-flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold">
+      <a href="<?= url('/admin/cms/events') ?>" class="inline-flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold">
         <i class="fas fa-times"></i>
         <?= __("Annulla") ?>
       </a>

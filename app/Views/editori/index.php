@@ -12,7 +12,7 @@ $editori = $data['editori'];
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <nav class="flex items-center text-sm text-gray-500 mb-2">
-            <a href="/admin/dashboard" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+            <a href="<?= url('/admin/dashboard') ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
             <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
             <span class="text-gray-900 font-medium"><?= __("Editori") ?></span>
           </nav>
@@ -25,7 +25,7 @@ $editori = $data['editori'];
           </h1>
         </div>
         <div class="flex items-center gap-2">
-          <a href="/admin/editori/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium inline-flex items-center">
+          <a href="<?= url('/admin/editori/crea') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium inline-flex items-center">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Editore") ?>
           </a>
         </div>
@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
     stateDuration: 60 * 60 * 24,
     dom: '<"top"l>rt<"bottom"ip><"clear">',
     ajax: {
-      url: '/api/editori',
+      url: window.BASE_PATH + '/api/editori',
       type: 'GET',
       data: function(d) {
         d.search_nome = document.getElementById('search_nome').value;
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const id = parseInt(row.id, 10);
           const nome = escapeHtml(row.nome) || '<?= __("Editore sconosciuto") ?>';
           return `<div>
-            <a href="/admin/editori/${id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
+            <a href="${window.BASE_PATH}/admin/editori/${id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
           </div>`;
         }
       },
@@ -301,10 +301,10 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data) {
           const id = parseInt(data, 10);
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="/admin/editori/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+            <a href="${window.BASE_PATH}/admin/editori/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="/admin/editori/modifica/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+            <a href="${window.BASE_PATH}/admin/editori/modifica/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
               <i class="fas fa-edit text-xs"></i>
             </a>
             <button onclick="deletePublisher(${id})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
@@ -458,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const ids = Array.from(selectedPublishers);
 
     try {
-      const response = await fetch('/api/editori/bulk-delete', {
+      const response = await fetch(window.BASE_PATH + '/api/editori/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
@@ -498,7 +498,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // First get the names of selected publishers
     try {
-      const response = await fetch('/api/editori/bulk-export', {
+      const response = await fetch(window.BASE_PATH + '/api/editori/bulk-export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
@@ -553,7 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!formValues) return;
 
       // Perform the merge
-      const mergeResponse = await fetch('/api/editori/merge', {
+      const mergeResponse = await fetch(window.BASE_PATH + '/api/editori/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({
@@ -607,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const ids = Array.from(selectedPublishers);
 
     try {
-      const response = await fetch('/api/editori/bulk-export', {
+      const response = await fetch(window.BASE_PATH + '/api/editori/bulk-export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
@@ -659,7 +659,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/admin/editori/delete/${id}`;
+        form.action = `${window.BASE_PATH}/admin/editori/delete/${id}`;
         const inp = document.createElement('input');
         inp.type = 'hidden';
         inp.name = 'csrf_token';

@@ -490,7 +490,7 @@ async function checkForUpdatesManual() {
             didOpen: () => Swal.showLoading()
         });
 
-        const response = await fetch('/admin/updates/check');
+        const response = await fetch(window.BASE_PATH + '/admin/updates/check');
         const data = await response.json();
 
         if (data.available) {
@@ -542,7 +542,7 @@ async function createBackup() {
             didOpen: () => Swal.showLoading()
         });
 
-        const response = await fetch('/admin/updates/backup', {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/backup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -601,7 +601,7 @@ async function startUpdate(version) {
         setStepActive('download');
 
         // Perform the actual update
-        const response = await fetch('/admin/updates/perform', {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/perform', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -694,7 +694,7 @@ function closeUpdateModal() {
 
 async function clearMaintenanceMode() {
     try {
-        const response = await fetch('/admin/updates/maintenance/clear', {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/maintenance/clear', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -745,7 +745,7 @@ async function loadBackups() {
     `;
 
     try {
-        const response = await fetch('/admin/updates/backups');
+        const response = await fetch(window.BASE_PATH + '/admin/updates/backups');
         const data = await response.json();
 
         if (data.error) {
@@ -856,7 +856,7 @@ async function deleteBackup(backupName) {
             didOpen: () => Swal.showLoading()
         });
 
-        const response = await fetch('/admin/updates/backup/delete', {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/backup/delete', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -892,7 +892,7 @@ async function deleteBackup(backupName) {
 }
 
 function downloadBackup(backupName) {
-    window.location.href = `/admin/updates/backup/download?backup=${encodeURIComponent(backupName)}`;
+    window.location.href = `${window.BASE_PATH}/admin/updates/backup/download?backup=${encodeURIComponent(backupName)}`;
 }
 
 function formatBytes(bytes) {
@@ -1008,7 +1008,7 @@ async function submitManualUpdate() {
             didOpen: () => Swal.showLoading()
         });
 
-        const uploadResponse = await fetch('/admin/updates/upload', {
+        const uploadResponse = await fetch(window.BASE_PATH + '/admin/updates/upload', {
             method: 'POST',
             body: formData
         });
@@ -1059,7 +1059,7 @@ async function submitManualUpdate() {
             didOpen: () => Swal.showLoading()
         });
 
-        const installResponse = await fetch('/admin/updates/install-manual', {
+        const installResponse = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

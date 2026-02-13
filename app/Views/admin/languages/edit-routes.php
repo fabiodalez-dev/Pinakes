@@ -22,7 +22,7 @@ use App\Support\HtmlHelper;
                         <?= __("Lingua") ?>: <strong><?= HtmlHelper::e($language['native_name']) ?></strong> (<?= HtmlHelper::e($language['code']) ?>)
                     </p>
                 </div>
-                <a href="/admin/languages" class="btn btn-secondary">
+                <a href="<?= url('/admin/languages') ?>" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> <?= __("Torna alle Lingue") ?>
                 </a>
             </div>
@@ -61,7 +61,7 @@ use App\Support\HtmlHelper;
         </div>
 
         <!-- Routes Form -->
-        <form method="POST" action="/admin/languages/<?= urlencode($language['code']) ?>/update-routes">
+        <form method="POST" action="<?= url('/admin/languages/' . urlencode($language['code']) . '/update-routes') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
             <div class="card">
@@ -125,7 +125,7 @@ use App\Support\HtmlHelper;
                     </div>
                 </div>
                 <div class="card-footer flex items-center justify-between">
-                    <a href="/admin/languages" class="btn btn-secondary">
+                    <a href="<?= url('/admin/languages') ?>" class="btn btn-secondary">
                         <?= __("Annulla") ?>
                     </a>
                     <button type="submit" class="btn btn-primary">

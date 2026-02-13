@@ -6,7 +6,7 @@ $mode = $mode ?? 'create';
 $book = $book ?? [];
 $csrfToken = $csrfToken ?? null;
 $error_message = $error_message ?? null;
-$action = $action ?? ($mode === 'edit' ? '/admin/libri/update/' . ($book['id'] ?? '') : '/admin/libri/crea');
+$action = $action ?? url($mode === 'edit' ? '/admin/libri/update/' . ($book['id'] ?? '') : '/admin/libri/crea');
 $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? '');
 $scrapingAvailable = Hooks::has('scrape.fetch.custom');
 $scaffali = $scaffali ?? [];
@@ -888,10 +888,10 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
   </div>
 </div>
 <!-- CSS and JavaScript Libraries - LOCAL NPM PACKAGES VIA WEBPACK -->
-<link rel="stylesheet" href="/assets/vendor.css">
-<link rel="stylesheet" href="/assets/star-rating/dist/star-rating.min.css">
-<script src="/assets/vendor.bundle.js"></script>
-<script src="/assets/star-rating/dist/star-rating.min.js"></script>
+<link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>">
+<link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.min.css') ?>">
+<script src="<?= assetUrl('vendor.bundle.js') ?>"></script>
+<script src="<?= assetUrl('star-rating/dist/star-rating.min.js') ?>"></script>
 
 <script>
 const FORM_MODE = <?php echo json_encode($mode); ?>;
@@ -1430,7 +1430,7 @@ async function initializeDewey() {
   // Returns { codes: "100 > 110 > 116", names: "Filosofia > Metafisica > Cambiamento" } or null
   const fetchDeweyPath = async (code) => {
     try {
-      const response = await fetch(`/api/dewey/path?code=${encodeURIComponent(code)}`, {
+      const response = await fetch(`${window.BASE_PATH}/api/dewey/path?code=${encodeURIComponent(code)}`, {
         credentials: 'same-origin'
       });
       if (!response.ok) return null;
@@ -1577,8 +1577,8 @@ async function initializeDewey() {
   const loadLevel = async (parentCode = null, levelIndex = 0) => {
     try {
       const url = parentCode
-        ? `/api/dewey/children?parent_code=${encodeURIComponent(parentCode)}`
-        : '/api/dewey/children';
+        ? `${window.BASE_PATH}/api/dewey/children?parent_code=${encodeURIComponent(parentCode)}`
+        : window.BASE_PATH + '/api/dewey/children';
 
       const response = await fetch(url, { credentials: 'same-origin' });
       if (!response.ok) {
@@ -1780,7 +1780,7 @@ async function initializeDewey() {
 async function loadAuthorsData(preselected = []) {
     try {
         // Load all authors without query parameter
-        const response = await fetch('/api/search/autori', {
+        const response = await fetch(window.BASE_PATH + '/api/search/autori', {
             credentials: 'same-origin'
         });
         const authors = await response.json();
@@ -2014,7 +2014,7 @@ function initializeAutocomplete() {
         editoreInput.placeholder = '';
     };
 
-    setupEnhancedAutocomplete('editore_search', 'editore_suggest', '/api/search/editori?q=',
+    setupEnhancedAutocomplete('editore_search', 'editore_suggest', window.BASE_PATH + '/api/search/editori?q=',
         (item) => {
             renderEditoreChip(item.label, {isNew: false, publisherId: item.id });
             if (window.Toast) {
@@ -2093,7 +2093,7 @@ function initializeGeneriDropdowns() {
   };
 
   // 1) Carica radici (parent_id NULL)
-  fetch('/api/generi?only_parents=1&limit=500', { credentials: 'same-origin' })
+  fetch(window.BASE_PATH + '/api/generi?only_parents=1&limit=500', { credentials: 'same-origin' })
     .then(r => r.json())
     .then(items => {
       radiceSelect.innerHTML = `<option value="0">${__('Seleziona radice...')}</option>`;
@@ -2116,7 +2116,7 @@ function initializeGeneriDropdowns() {
     resetSottogenere(__('Seleziona prima un genere...'));
     if (rootId > 0) {
       try {
-        const res = await fetch(`/api/generi/sottogeneri?parent_id=${encodeURIComponent(rootId)}`);
+        const res = await fetch(`${window.BASE_PATH}/api/generi/sottogeneri?parent_id=${encodeURIComponent(rootId)}`);
         const data = await res.json();
         genereSelect.innerHTML = `<option value="0">${__("Seleziona genere...")}</option>`;
         data.forEach(g => {
@@ -2143,7 +2143,7 @@ function initializeGeneriDropdowns() {
     resetSottogenere(__('Seleziona prima un genere...'));
     if (parentId > 0) {
       try {
-        const res = await fetch(`/api/generi/sottogeneri?parent_id=${encodeURIComponent(parentId)}`);
+        const res = await fetch(`${window.BASE_PATH}/api/generi/sottogeneri?parent_id=${encodeURIComponent(parentId)}`);
         const data = await res.json();
         sottogenereSelect.innerHTML = `<option value="0">${bookFormI18n.noSubgenre}</option>`;
         data.forEach(sg => {
@@ -2182,7 +2182,7 @@ function initializeSuggestCollocazione() {
     const gid = parseInt(document.getElementById('genere_select')?.value || '0', 10) || 0;
     const sid = parseInt(document.getElementById('sottogenere_select')?.value || '0', 10) || 0;
     try {
-      const res = await fetch(`/api/collocazione/suggerisci?genere_id=${gid}&sottogenere_id=${sid}`);
+      const res = await fetch(`${window.BASE_PATH}/api/collocazione/suggerisci?genere_id=${gid}&sottogenere_id=${sid}`);
       const data = await res.json();
       if (data && data.scaffale_id) {
         const scaffaleSel = document.querySelector('select[name="scaffale_id"]');
@@ -2254,7 +2254,7 @@ function initializeCollocationFilters() {
       const bookId = normalizeNumber(INITIAL_BOOK.id || 0);
       if (bookId) params.append('book_id', String(bookId));
       try {
-        const res = await fetch(`/api/collocazione/next?${params.toString()}`);
+        const res = await fetch(`${window.BASE_PATH}/api/collocazione/next?${params.toString()}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!posizioneInput.dataset.manual || force) {
@@ -2651,7 +2651,7 @@ async function handleDuplicateBook(existingBook) {
         await increaseCopies(existingBook);
     } else if (result.isDenied) {
         // Redirect to book detail page
-        window.location.href = `/admin/libri/${existingBook.id}`;
+        window.location.href = `${window.BASE_PATH}/admin/libri/${existingBook.id}`;
     }
 }
 
@@ -2690,7 +2690,7 @@ async function increaseCopies(book) {
         });
 
         try {
-            const response = await fetch(`/api/libri/${book.id}/increase-copies`, {
+            const response = await fetch(`${window.BASE_PATH}/api/libri/${book.id}/increase-copies`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -2737,7 +2737,7 @@ async function increaseCopies(book) {
                     confirmButtonText: __('OK')
                 });
                 // Redirect to book list
-                window.location.href = '/admin/libri';
+                window.location.href = window.BASE_PATH + '/admin/libri';
             } else {
                 const error = data;
                 Swal.fire({
@@ -2862,7 +2862,7 @@ function initializeFormValidation() {
                     if (response.redirected) {
                         window.location.href = response.url;
                     } else {
-                        window.location.href = '/admin/libri';
+                        window.location.href = window.BASE_PATH + '/admin/libri';
                     }
                 } else {
                     // Other error
@@ -2889,8 +2889,8 @@ function initializeFormValidation() {
         cancelBtn.addEventListener('click', async function(e) {
             e.preventDefault();
             const cancelUrl = (FORM_MODE === 'edit' && INITIAL_BOOK.id)
-                ? `/admin/libri/${INITIAL_BOOK.id}`
-                : '/admin/libri';
+                ? `${window.BASE_PATH}/admin/libri/${INITIAL_BOOK.id}`
+                : window.BASE_PATH + '/admin/libri';
             const result = await Swal.fire({
                 title: __('Conferma Annullamento'),
                 text: __('Sei sicuro di voler annullare? Tutti i dati inseriti andranno persi.'),
@@ -3178,7 +3178,7 @@ function initializeIsbnImport() {
         btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${FORM_MODE === 'edit' ? __('Aggiornamento...') : __('Importazione...')}`;
         
         try {
-            const response = await fetch(`/api/scrape/isbn?isbn=${encodeURIComponent(isbn)}`, {
+            const response = await fetch(`${window.BASE_PATH}/api/scrape/isbn?isbn=${encodeURIComponent(isbn)}`, {
                 credentials: 'same-origin'  // Include session cookies for authentication
             });
 
@@ -3275,7 +3275,7 @@ function initializeIsbnImport() {
                 document.getElementById('scraped_publisher').value = data.publisher;
 
                 try {
-                    const publishers = await fetchJSON(`/api/search/editori?q=${encodeURIComponent(data.publisher)}`);
+                    const publishers = await fetchJSON(`${window.BASE_PATH}/api/search/editori?q=${encodeURIComponent(data.publisher)}`);
                     if (publishers && publishers.length > 0) {
                         document.getElementById('editore_id').value = publishers[0].id;
                         document.getElementById('editore_search').value = publishers[0].label || data.publisher;
@@ -3361,7 +3361,7 @@ function initializeIsbnImport() {
                         let assignedId = null;
 
                         try {
-                            const found = await fetchJSON(`/api/search/autori?q=${encodeURIComponent(label)}`);
+                            const found = await fetchJSON(`${window.BASE_PATH}/api/search/autori?q=${encodeURIComponent(label)}`);
 
                             if (found && found.length > 0) {
                                 const existing = found[0];
@@ -3767,7 +3767,7 @@ function displayScrapedCover(imageUrl) {
         imageSrc = window.location.origin + imageUrl;
     } else if (imageUrl.startsWith('http')) {
         // External image - use plugin proxy (no domain whitelist)
-        imageSrc = `/api/plugins/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+        imageSrc = `${window.BASE_PATH}/api/plugins/proxy-image?url=${encodeURIComponent(imageUrl)}`;
     }
 
     img.src = imageSrc;
@@ -4080,13 +4080,13 @@ document.head.appendChild(style);
 </script>
 
 <!-- Load TinyMCE -->
-<script src="/assets/tinymce/tinymce.min.js"></script>
+<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
 
 <script>
 // Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 8;
-const TINYMCE_BASE = '/assets/tinymce';
+const TINYMCE_BASE = '<?= assetUrl("tinymce") ?>';
 
 function initBookTinyMCE() {
     if (!window.tinymce) {

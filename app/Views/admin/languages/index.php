@@ -17,7 +17,7 @@ use App\Support\HtmlHelper;
                     <i class="fas fa-globe text-blue-600"></i>
                     <?= __("Gestione Lingue") ?>
                 </h1>
-                <a href="/admin/languages/create" class="btn btn-primary">
+                <a href="<?= url('/admin/languages/create') ?>" class="btn btn-primary">
                     <i class="fas fa-plus"></i> <?= __("Aggiungi Lingua") ?>
                 </a>
             </div>
@@ -76,7 +76,7 @@ use App\Support\HtmlHelper;
                     <?= __("Lingue Configurate") ?>
                     <span class="ml-2 text-sm font-normal text-gray-500">(<?= count($languages) ?>)</span>
                 </h2>
-                <form method="POST" action="/admin/languages/refresh-stats" class="inline">
+                <form method="POST" action="<?= url('/admin/languages/refresh-stats') ?>" class="inline">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit" class="btn btn-secondary btn-sm">
                         <i class="fas fa-sync-alt"></i> <?= __("Aggiorna Statistiche") ?>
@@ -89,7 +89,7 @@ use App\Support\HtmlHelper;
                         <i class="fas fa-globe text-6xl mb-4 text-gray-300"></i>
                         <p class="text-lg mb-2"><?= __("Nessuna lingua configurata") ?></p>
                         <p class="text-sm"><?= __("Inizia aggiungendo la prima lingua.") ?></p>
-                        <a href="/admin/languages/create" class="btn btn-primary mt-4">
+                        <a href="<?= url('/admin/languages/create') ?>" class="btn btn-primary mt-4">
                             <i class="fas fa-plus"></i> <?= __("Aggiungi Prima Lingua") ?>
                         </a>
                     </div>
@@ -171,7 +171,7 @@ use App\Support\HtmlHelper;
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div class="flex items-center justify-end gap-2">
                                                 <!-- Download JSON -->
-                                                <a href="/admin/languages/<?= urlencode($lang['code']) ?>/download"
+                                                <a href="<?= url('/admin/languages/' . urlencode($lang['code']) . '/download') ?>"
                                                    class="text-green-600 hover:text-green-900"
                                                    title="<?= __("Scarica JSON") ?>"
                                                    download>
@@ -179,14 +179,14 @@ use App\Support\HtmlHelper;
                                                 </a>
 
                                                 <!-- Edit -->
-                                                <a href="/admin/languages/<?= urlencode($lang['code']) ?>/edit"
+                                                <a href="<?= url('/admin/languages/' . urlencode($lang['code']) . '/edit') ?>"
                                                    class="text-blue-600 hover:text-blue-900"
                                                    title="<?= __("Modifica") ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
 
                                                 <!-- Edit Routes -->
-                                                <a href="/admin/languages/<?= urlencode($lang['code']) ?>/edit-routes"
+                                                <a href="<?= url('/admin/languages/' . urlencode($lang['code']) . '/edit-routes') ?>"
                                                    class="text-purple-600 hover:text-purple-900"
                                                    title="<?= __("Modifica Route") ?>">
                                                     <i class="fas fa-route"></i>
@@ -194,7 +194,7 @@ use App\Support\HtmlHelper;
 
                                                 <!-- Set as Default -->
                                                 <?php if (!$lang['is_default']): ?>
-                                                    <form method="POST" action="/admin/languages/<?= urlencode($lang['code']) ?>/set-default" class="inline">
+                                                    <form method="POST" action="<?= url('/admin/languages/' . urlencode($lang['code']) . '/set-default') ?>" class="inline">
                                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                         <button type="submit"
                                                                 class="text-yellow-600 hover:text-yellow-900"
@@ -206,7 +206,7 @@ use App\Support\HtmlHelper;
                                                 <?php endif; ?>
 
                                                 <!-- Toggle Active -->
-                                                <form method="POST" action="/admin/languages/<?= urlencode($lang['code']) ?>/toggle-active" class="inline">
+                                                <form method="POST" action="<?= url('/admin/languages/' . urlencode($lang['code']) . '/toggle-active') ?>" class="inline">
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                     <button type="submit"
                                                             class="<?= $lang['is_active'] ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900' ?>"
@@ -217,7 +217,7 @@ use App\Support\HtmlHelper;
 
                                                 <!-- Delete -->
                                                 <?php if (!$lang['is_default']): ?>
-                                                    <form method="POST" action="/admin/languages/<?= urlencode($lang['code']) ?>/delete" class="inline">
+                                                    <form method="POST" action="<?= url('/admin/languages/' . urlencode($lang['code']) . '/delete') ?>" class="inline">
                                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                         <button type="submit"
                                                                 class="text-red-600 hover:text-red-900"

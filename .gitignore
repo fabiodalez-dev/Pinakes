@@ -408,5 +408,6 @@ docs/reference/agents.md
 # Internal development folder (completely untracked)
 internal/
 updater.md
+updater_new.md
 scraping-pro-*.zip
 fix-autoloader.php

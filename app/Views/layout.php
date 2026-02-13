@@ -23,11 +23,12 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?php echo HtmlHelper::e($appName); ?> - Sistema di Gestione Bibliotecaria</title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/assets/vendor.css?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="/assets/flatpickr-custom.css?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="/assets/main.css?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="/assets/css/swal-theme.css?v=<?= $appVersion ?>" />
+  <link rel="icon" type="image/x-icon" href="<?= url('/favicon.ico') ?>">
+  <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
+  <link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= assetUrl('flatpickr-custom.css') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= assetUrl('main.css') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= assetUrl('css/swal-theme.css') ?>?v=<?= $appVersion ?>" />
   <script>
     (function () {
       if (typeof window.__ !== 'function') {
@@ -88,7 +89,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
       <!-- Sidebar Header -->
       <div class="flex items-center justify-between px-6 py-5 flex-shrink-0">
-        <a href="/" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
+        <a href="<?= url('/') ?>" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
           <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center">
             <?php if ($appLogo !== ''): ?>
               <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>"
@@ -117,7 +118,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?>
         </div>
         <div class="space-y-2 mt-3">
-          <a href="/admin/libri/crea"
+          <a href="<?= url('/admin/libri/crea') ?>"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
               <i class="fas fa-plus text-sm text-gray-600"></i>
@@ -129,7 +130,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <?php if (!$isCatalogueMode): ?>
-            <a href="/prestiti/crea"
+            <a href="<?= url('/prestiti/crea') ?>"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
                 <i class="fas fa-handshake text-sm text-gray-600"></i>
@@ -140,7 +141,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
             </a>
 
-            <a href="/admin/loans/pending"
+            <a href="<?= url('/admin/loans/pending') ?>"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
                 <i class="fas fa-clock text-sm text-gray-600"></i>
@@ -152,7 +153,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </a>
           <?php endif; ?>
 
-          <a href="/admin/maintenance/integrity-report"
+          <a href="<?= url('/admin/maintenance/integrity-report') ?>"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
               <i class="fas fa-shield-alt text-sm text-gray-600"></i>
@@ -175,7 +176,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
-          <a href="/admin/updates" id="sidebar-updates-link"
+          <a href="<?= url('/admin/updates') ?>" id="sidebar-updates-link"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 relative">
               <i class="fas fa-sync-alt text-sm text-gray-600"></i>
@@ -200,7 +201,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </div>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/dashboard">
+            href="<?= url('/admin/dashboard') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-tachometer-alt text-gray-600"></i>
@@ -212,7 +213,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/libri">
+            href="<?= url('/admin/libri') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-book text-gray-600"></i>
@@ -224,7 +225,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/autori">
+            href="<?= url('/admin/autori') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-user-edit text-gray-600"></i>
@@ -236,7 +237,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/editori">
+            href="<?= url('/admin/editori') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-building text-gray-600"></i>
@@ -248,7 +249,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/generi">
+            href="<?= url('/admin/generi') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-tags text-gray-600"></i>
@@ -261,7 +262,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
           <?php if (!$isCatalogueMode): ?>
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-              href="/admin/prestiti">
+              href="<?= url('/admin/prestiti') ?>">
               <div
                 class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                 <i class="fas fa-handshake text-gray-600"></i>
@@ -274,7 +275,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           <?php endif; ?>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/collocazione">
+            href="<?= url('/admin/collocazione') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-warehouse text-gray-600"></i>
@@ -286,7 +287,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/utenti">
+            href="<?= url('/admin/utenti') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-users text-gray-600"></i>
@@ -298,7 +299,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/statistiche">
+            href="<?= url('/admin/statistiche') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-chart-bar text-gray-600"></i>
@@ -310,7 +311,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="/admin/recensioni">
+            href="<?= url('/admin/recensioni') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-star text-gray-600"></i>
@@ -323,7 +324,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
           <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-              href="/admin/plugins">
+              href="<?= url('/admin/plugins') ?>">
               <div
                 class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                 <i class="fas fa-puzzle-piece text-gray-600"></i>
@@ -335,7 +336,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </a>
 
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-              href="/admin/themes">
+              href="<?= url('/admin/themes') ?>">
               <div
                 class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                 <i class="fas fa-palette text-gray-600"></i>
@@ -356,7 +357,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
             <div class="space-y-1 mt-3">
               <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-                href="/admin/settings">
+                href="<?= url('/admin/settings') ?>">
                 <div
                   class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                   <i class="fas fa-cog text-gray-600"></i>
@@ -368,7 +369,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </a>
 
               <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-                href="/admin/languages">
+                href="<?= url('/admin/languages') ?>">
                 <div
                   class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                   <i class="fas fa-language text-gray-600"></i>
@@ -413,7 +414,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="text-sm font-medium text-gray-900"><?= __("Admin") ?></div>
             <div class="text-xs text-gray-500"><?= __("Sistema attivo") ?></div>
           </div>
-          <a href="/admin/settings"
+          <a href="<?= url('/admin/settings') ?>"
             class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
             title="<?= __('Impostazioni') ?>">
             <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
@@ -536,7 +537,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </div>
                   </div>
                   <div class="p-4 border-t border-gray-200 flex items-center justify-between">
-                    <a href="/admin/notifications" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
+                    <a href="<?= url('/admin/notifications') ?>" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
                       <?= __("Vedi tutte le notifiche") ?>
                     </a>
                   </div>
@@ -544,7 +545,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
 
               <!-- Settings Button -->
-              <a href="/admin/settings"
+              <a href="<?= url('/admin/settings') ?>"
                 class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
                 title="<?= __('Impostazioni') ?>">
                 <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
@@ -583,18 +584,18 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <i class="fas fa-heart w-4 h-4"></i>
                         <span class="text-sm"><?= __("Preferiti") ?></span>
                       </a>
-                      <a href="/admin/settings"
+                      <a href="<?= url('/admin/settings') ?>"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                         <i class="fas fa-cog w-4 h-4"></i>
                         <span class="text-sm"><?= __("Impostazioni") ?></span>
                       </a>
                       <?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
-                        <a href="/admin/imports-history"
+                        <a href="<?= url('/admin/imports-history') ?>"
                           class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-history w-4 h-4 text-blue-600"></i>
                           <span class="text-sm"><?= __("Storico Import") ?></span>
                         </a>
-                        <a href="/admin/security-logs"
+                        <a href="<?= url('/admin/security-logs') ?>"
                           class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-shield-alt w-4 h-4 text-red-600"></i>
                           <span class="text-sm"><?= __("Log Sicurezza") ?></span>
@@ -711,12 +712,12 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="/assets/vendor.bundle.js?v=<?= $appVersion ?>" defer></script>
-  <script src="/assets/flatpickr-init.js?v=<?= $appVersion ?>" defer></script>
-  <script src="/assets/main.bundle.js?v=<?= $appVersion ?>" defer></script>
-  <script src="/assets/js/csrf-helper.js?v=<?= $appVersion ?>" defer></script>
-  <script src="/assets/js/swal-config.js?v=<?= $appVersion ?>" defer></script>
-  <script src="/assets/tinymce/tinymce.min.js" defer></script>
+  <script src="<?= assetUrl('vendor.bundle.js') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= assetUrl('flatpickr-init.js') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= assetUrl('main.bundle.js') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= assetUrl('js/csrf-helper.js') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= assetUrl('js/swal-config.js') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= assetUrl('tinymce/tinymce.min.js') ?>" defer></script>
   <script>
 
     function escapeHtml(value) {
@@ -811,7 +812,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           searchTimeout = setTimeout(async () => {
             try {
               // Use unified search endpoint
-              const response = await fetch(`/api/search/unified?q=${encodeURIComponent(query)}`);
+              const response = await fetch(`${window.BASE_PATH}/api/search/unified?q=${encodeURIComponent(query)}`);
               const results = await response.json();
 
               let html = '';
@@ -1050,7 +1051,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
           mobileSearchTimeout = setTimeout(async () => {
             try {
-              const response = await fetch(`/api/search/unified?q=${encodeURIComponent(query)}`);
+              const response = await fetch(`${window.BASE_PATH}/api/search/unified?q=${encodeURIComponent(query)}`);
               const results = await response.json();
 
               let html = '';
@@ -1114,7 +1115,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       const empty = document.getElementById('notifications-empty');
 
       try {
-        const response = await fetch('/admin/notifications/recent?limit=5');
+        const response = await fetch(window.BASE_PATH + '/admin/notifications/recent?limit=5');
         if (!response.ok) {
           throw new Error('Failed to load notifications');
         }
@@ -1237,7 +1238,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     // Load notification count
     async function loadNotificationCount() {
       try {
-        const response = await fetch('/admin/notifications/unread-count');
+        const response = await fetch(window.BASE_PATH + '/admin/notifications/unread-count');
         if (response.ok) {
           const data = await response.json();
           const badge = document.getElementById('notifications-badge');
@@ -1259,7 +1260,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     // Mark all notifications as read
     async function markAllNotificationsAsRead() {
       try {
-        const response = await csrfFetch('/admin/notifications/mark-all-read', { method: 'POST' });
+        const response = await csrfFetch(window.BASE_PATH + '/admin/notifications/mark-all-read', { method: 'POST' });
         if (response.ok) {
           loadNotificationCount();
           loadNotifications();
@@ -1310,7 +1311,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
       try {
         // Load books count
-        const booksResponse = await fetch('/api/stats/books-count', {
+        const booksResponse = await fetch(window.BASE_PATH + '/api/stats/books-count', {
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
           cache: 'no-store'
@@ -1327,7 +1328,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         // Load loans count
-        const loansResponse = await fetch('/api/stats/active-loans-count', {
+        const loansResponse = await fetch(window.BASE_PATH + '/api/stats/active-loans-count', {
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
           cache: 'no-store'
@@ -1355,7 +1356,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       if (!isAdmin) return;
 
       try {
-        const response = await fetch('/admin/updates/available', {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/available', {
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
           cache: 'no-store'

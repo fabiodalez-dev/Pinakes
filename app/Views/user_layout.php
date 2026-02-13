@@ -67,11 +67,12 @@ $htmlLang = substr($currentLocale, 0, 2);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo HtmlHelper::e($title ?? ($appName . ' - Area Utente')); ?></title>
     <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>">
+    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
 
     <!-- Assets -->
-    <link href="/assets/vendor.css" rel="stylesheet">
-    <link href="/assets/main.css" rel="stylesheet">
-    <link href="/assets/css/swal-theme.css" rel="stylesheet">
+    <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
+    <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
+    <link href="<?= assetUrl('css/swal-theme.css') ?>" rel="stylesheet">
 
     <style>
         :root {
@@ -797,7 +798,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <div class="header-main">
             <div class="container">
                 <div class="header-content">
-                    <a class="header-brand" href="/">
+                    <a class="header-brand" href="<?= url('/') ?>">
                         <?php if ($appLogo !== ''): ?>
                             <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>"
                                 class="logo-image">
@@ -811,7 +812,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                 class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a>
                         </li>
                         <?php if ($eventsEnabled): ?>
-                            <li><a href="/events"
+                            <li><a href="<?= url('/events') ?>"
                                     class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
                             </li>
                         <?php endif; ?>
@@ -844,7 +845,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                 </a>
                                 <?php endif; ?>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
-                                    <a class="btn btn-primary-header" href="/admin/dashboard">
+                                    <a class="btn btn-primary-header" href="<?= url('/admin/dashboard') ?>">
                                         <i class="fas fa-user-shield"></i>
                                         <span class="d-none d-md-inline"><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __("Admin") : __("Staff") ?></span>
                                     </a>
@@ -909,14 +910,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
                     <?php if ($eventsEnabled): ?>
-                        <a href="/events"
+                        <a href="<?= url('/events') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
                             <i class="fas fa-calendar-alt me-2"></i><?= __("Eventi") ?>
                         </a>
                     <?php endif; ?>
                     <?php if ($isLogged): ?>
                         <hr class="mobile-menu-divider">
-                        <a href="/user/dashboard" class="mobile-nav-link">
+                        <a href="<?= url('/user/dashboard') ?>" class="mobile-nav-link">
                             <i class="fas fa-tachometer-alt me-2"></i><?= __("Dashboard") ?>
                         </a>
                         <?php if (!$isCatalogueMode): ?>
@@ -928,7 +929,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         </a>
                         <?php endif; ?>
                         <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
-                            <a href="/admin/dashboard" class="mobile-nav-link">
+                            <a href="<?= url('/admin/dashboard') ?>" class="mobile-nav-link">
                                 <i class="fas fa-user-shield me-2"></i><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __("Admin") : __("Staff") ?>
                             </a>
                         <?php else: ?>
@@ -1049,9 +1050,9 @@ $htmlLang = substr($currentLocale, 0, 2);
     </footer>
 
     <!-- Scripts -->
-    <script src="/assets/vendor.bundle.js" defer></script>
-    <script src="/assets/main.bundle.js" defer></script>
-    <script src="/assets/js/swal-config.js" defer></script>
+    <script src="<?= assetUrl('vendor.bundle.js') ?>" defer></script>
+    <script src="<?= assetUrl('main.bundle.js') ?>" defer></script>
+    <script src="<?= assetUrl('js/swal-config.js') ?>" defer></script>
 
     <script>
         // Search functionality with preview - wrapped in DOMContentLoaded for reliability
@@ -1097,7 +1098,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             }
 
             function performSearch(query, resultsContainer) {
-                fetch('/api/search/preview?q=' + encodeURIComponent(query))
+                fetch(window.BASE_PATH + '/api/search/preview?q=' + encodeURIComponent(query))
                     .then(response => response.json())
                     .then(data => {
                         displaySearchResults(data, resultsContainer);
@@ -1318,7 +1319,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             const mobileBadge = document.getElementById('mobile-res-count');
 
             try {
-                const response = await fetch('/api/user/reservations/count');
+                const response = await fetch(window.BASE_PATH + '/api/user/reservations/count');
                 if (!response.ok) return;
 
                 const data = await response.json();

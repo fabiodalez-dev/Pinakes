@@ -37,7 +37,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   <nav aria-label="breadcrumb" class="mb-4">
     <ol class="flex items-center space-x-2 text-sm">
       <li>
-        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <i class="fas fa-home mr-1"></i><?= __("Home") ?>
         </a>
       </li>
@@ -45,7 +45,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
       </li>
       <li>
-        <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= url('/admin/libri') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
         </a>
       </li>
@@ -76,7 +76,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <!-- Primo blocco: Stampa etichetta e Visualizza frontend: 50% each su mobile -->
         <div class="flex gap-3 w-full lg:w-auto">
           <!-- Stampa etichetta -->
-          <a href="/api/libri/<?php echo (int)$libro['id']; ?>/etichetta-pdf" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+          <a href="<?= url('/api/libri/' . (int)$libro['id'] . '/etichetta-pdf') ?>" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-barcode"></i>
             <?= __("Stampa etichetta") ?>
           </a>
@@ -89,7 +89,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
         <!-- Secondo blocco: Modifica ed Elimina: 50% each su mobile, inline su desktop -->
         <div class="flex gap-3 w-full lg:w-auto">
-          <a href="/admin/libri/modifica/<?php echo (int)$libro['id']; ?>" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+          <a href="<?= url('/admin/libri/modifica/' . (int)$libro['id']) ?>" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-edit"></i>
             <?= __("Modifica") ?>
           </a>
@@ -99,7 +99,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?= __("Restituzione") ?>
           </button>
           <?php endif; ?>
-          <form id="delete-book" method="post" action="/admin/libri/delete/<?php echo (int)$libro['id']; ?>" onsubmit="return confirmDeleteBook(event);" class="flex-1 lg:flex-none">
+          <form id="delete-book" method="post" action="<?= url('/admin/libri/delete/' . (int)$libro['id']) ?>" onsubmit="return confirmDeleteBook(event);" class="flex-1 lg:flex-none">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
             <button type="submit" class="<?php echo $btnDanger; ?> w-full">
               <i class="fas fa-trash"></i>
@@ -153,7 +153,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     $label = trim((string)($a['nome'] ?? ''));
                     if ($label === '') continue;
               ?>
-                <a href="/admin/autori/<?php echo (int)($a['id'] ?? 0); ?>"
+                <a href="<?= url('/admin/autori/' . (int)($a['id'] ?? 0)) ?>"
                    class="inline-flex items-center px-2 py-1 rounded-full text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
                   <i class="fas fa-user mr-1"></i><?php echo App\Support\HtmlHelper::e($label); ?>
                 </a>
@@ -179,7 +179,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               if (!empty($libro['sottogenere_nome'])) $pathParts[] = (string)$libro['sottogenere_nome'];
               $path = implode(' → ', array_map('App\\Support\\HtmlHelper::e', $pathParts));
             ?>
-            <a href="/admin/generi/<?php echo !empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']); ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
+            <a href="<?= url('/admin/generi/' . (!empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']))) ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
               <?php echo $path !== '' ? $path : __('Non specificato'); ?>
             </a>
           </div>
@@ -243,9 +243,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             ?>
 
             <?php if ($canRenew): ?>
-            <form method="post" action="/admin/prestiti/rinnova/<?php echo (int)$activeLoan['id']; ?>" onsubmit="return confirmRenewal(event);">
+            <form method="post" action="<?= url('/admin/prestiti/rinnova/' . (int)$activeLoan['id']) ?>" onsubmit="return confirmRenewal(event);">
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-              <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars('/admin/libri/' . (int)($libro['id'] ?? 0), ENT_QUOTES, 'UTF-8'); ?>">
+              <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars(url('/admin/libri/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
               <button type="submit" class="<?php echo $btnPrimary; ?> w-full justify-center">
                 <i class="fas fa-redo-alt"></i> <?= __("Rinnova prestito (+14 giorni)") ?>
               </button>
@@ -323,7 +323,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Collana") ?></dt>
               <dd class="text-gray-900 font-medium">
-                <a href="/admin/libri?collana=<?php echo urlencode($libro['collana']); ?>"
+                <a href="<?= url('/admin/libri?collana=' . urlencode($libro['collana'])) ?>"
                    class="text-gray-700 hover:text-gray-900 hover:underline transition-colors">
                   <?php echo App\Support\HtmlHelper::e($libro['collana']); ?>
                 </a>
@@ -407,7 +407,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   const finalCode = parts.length > 1 ? parts[parts.length - 1] : code;
 
                   try {
-                    const response = await fetch(`/api/dewey/path?code=${encodeURIComponent(finalCode)}`, {
+                    const response = await fetch(`${window.BASE_PATH}/api/dewey/path?code=${encodeURIComponent(finalCode)}`, {
                       credentials: 'same-origin'
                     });
                     if (response.ok) {
@@ -461,7 +461,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   foreach ($keywords as $keyword):
                     if (empty($keyword)) continue;
                 ?>
-                  <a href="/admin/libri?keywords=<?php echo urlencode($keyword); ?>"
+                  <a href="<?= url('/admin/libri?keywords=' . urlencode($keyword)) ?>"
                      class="inline-block px-2 py-1 mr-2 mb-2 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors">
                     <i class="fas fa-tag mr-1"></i><?php echo App\Support\HtmlHelper::e($keyword); ?>
                   </a>
@@ -934,7 +934,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <div class="flex items-center">
                     <div>
                       <div class="text-sm font-medium text-gray-900">
-                        <a href="/admin/utenti/<?php echo (int)$loan['utente_id']; ?>" class="hover:text-blue-600 transition-colors">
+                        <a href="<?= url('/admin/utenti/' . (int)$loan['utente_id']) ?>" class="hover:text-blue-600 transition-colors">
                           <?php echo App\Support\HtmlHelper::e($loan['utente_nome'] . ' ' . $loan['utente_cognome']); ?>
                         </a>
                       </div>
@@ -1124,7 +1124,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   </div>
 
   <!-- FullCalendar (same as dashboard) -->
-  <script src="/assets/fullcalendar.min.js"></script>
+  <script src="<?= assetUrl('fullcalendar.min.js') ?>"></script>
   <?php
   // Prepare calendar events for each copy's loan
   $copyColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
@@ -1361,9 +1361,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <i class="fas fa-times"></i>
           </button>
         </div>
-        <form method="post" action="/admin/prestiti/restituito/<?php echo (int)$activeLoan['id']; ?>" class="px-6 py-5 space-y-4">
+        <form method="post" action="<?= url('/admin/prestiti/restituito/' . (int)$activeLoan['id']) ?>" class="px-6 py-5 space-y-4">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-          <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($bookPath ?? ('/admin/libri/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
+          <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($bookPath ?? url('/admin/libri/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
             <div>
               <div class="text-xs text-gray-500 uppercase"><?= __("Utente") ?></div>
@@ -1520,7 +1520,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
       statoSelect.value = stato;
 
-      editCopyForm.action = `/admin/libri/copie/${copyId}/update`;
+      editCopyForm.action = `${window.BASE_PATH}/admin/libri/copie/${copyId}/update`;
 
       editCopyModal.classList.remove('hidden');
       editCopyModal.classList.add('flex');
@@ -1575,7 +1575,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           if (result.isConfirmed) {
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = `/admin/libri/copie/${copyId}/delete`;
+            form.action = `${window.BASE_PATH}/admin/libri/copie/${copyId}/delete`;
 
             const csrfInput = document.createElement('input');
             csrfInput.type = 'hidden';
@@ -1591,7 +1591,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         if (confirm(`${__('Sei sicuro di voler eliminare la copia')} ${numeroInventario}? ${__('Questa azione non può essere annullata.')}`)) {
           const form = document.createElement('form');
           form.method = 'POST';
-          form.action = `/admin/libri/copie/${copyId}/delete`;
+          form.action = `${window.BASE_PATH}/admin/libri/copie/${copyId}/delete`;
 
           const csrfInput = document.createElement('input');
           csrfInput.type = 'hidden';

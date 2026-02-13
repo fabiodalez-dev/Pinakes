@@ -102,7 +102,7 @@
                                 </div>
                             </div>
                             <div class="mt-3 flex gap-2">
-                                <a href="/admin/prestiti/modifica/<?= $loan['id'] ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="<?= url('/admin/prestiti/modifica/' . $loan['id']) ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
                                 <button type="button" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">
@@ -305,7 +305,7 @@
                                 </div>
                             </div>
                             <div class="mt-3">
-                                <a href="/admin/prestiti/modifica/<?= $loan['id'] ?>" class="block w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="<?= url('/admin/prestiti/modifica/' . $loan['id']) ?>" class="block w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
                             </div>
@@ -368,7 +368,7 @@
                                 </div>
                             </div>
                             <div class="mt-3 flex gap-2">
-                                <a href="/admin/prestiti/modifica/<?= $loan['id'] ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="<?= url('/admin/prestiti/modifica/' . $loan['id']) ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
                                 <button type="button" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">
@@ -438,7 +438,7 @@
                                 </div>
                             </div>
                             <div class="mt-3 flex gap-2">
-                                <a href="/admin/prenotazioni" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="<?= url('/admin/prenotazioni') ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-eye mr-1"></i><?= __("Dettagli") ?>
                                 </a>
                                 <button type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-3 rounded-lg transition-colors cancel-reservation-btn text-sm" data-reservation-id="<?= $reservation['id'] ?>">
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 cancelButtonText: '<?= __("Annulla") ?>'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    fetch('/admin/prestiti/' + loanId + '/return', {
+                    fetch(window.BASE_PATH + '/admin/prestiti/' + loanId + '/return', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -534,7 +534,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 cancelButtonText: '<?= __("Chiudi") ?>'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    fetch('/api/reservations/' + reservationId + '/cancel', {
+                    fetch(window.BASE_PATH + '/api/reservations/' + reservationId + '/cancel', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

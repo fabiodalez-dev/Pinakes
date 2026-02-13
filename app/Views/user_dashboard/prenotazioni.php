@@ -13,7 +13,7 @@ function reservationBookUrl(array $item): string {
 }
 ?>
 
-<link rel="stylesheet" href="/assets/star-rating/dist/star-rating.css">
+<link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.css') ?>">
 
 <style>
   .loans-container {
@@ -625,7 +625,7 @@ function reservationBookUrl(array $item): string {
                   <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
-              <form method="post" action="/reservation/cancel" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
+              <form method="post" action="<?= url('/reservation/cancel') ?>" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
                 <button type="submit" class="btn-cancel">
@@ -836,7 +836,7 @@ function reservationBookUrl(array $item): string {
   </div>
 </div>
 
-<script src="/assets/star-rating/dist/star-rating.js"></script>
+<script src="<?= assetUrl('star-rating/dist/star-rating.js') ?>"></script>
 <script>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
@@ -951,7 +951,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     try {
-      const response = await fetch('/api/user/recensioni', {
+      const response = await fetch(window.BASE_PATH + '/api/user/recensioni', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

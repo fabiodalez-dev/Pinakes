@@ -5,7 +5,7 @@
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i>Home
           </a>
         </li>
@@ -13,7 +13,7 @@
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <a href="/admin/utenti" class="text-gray-900 hover:text-gray-700">
+          <a href="<?= url('/admin/utenti') ?>" class="text-gray-900 hover:text-gray-700">
             <i class="fas fa-users mr-1"></i>Utenti
           </a>
         </li>
@@ -30,14 +30,14 @@
           <p class="text-gray-600"><?= __("Esplora e gestisci gli utenti registrati alla biblioteca") ?></p>
         </div>
         <div class="hidden md:flex items-center gap-3">
-          <a href="/admin/utenti/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+          <a href="<?= url('/admin/utenti/crea') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-user-plus mr-2"></i>
             <?= __("Nuovo Utente") ?>
           </a>
         </div>
       </div>
       <div class="flex md:hidden mb-4">
-        <a href="/admin/utenti/crea" class="w-full px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center">
+        <a href="<?= url('/admin/utenti/crea') ?>" class="w-full px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center">
           <i class="fas fa-user-plus mr-2"></i>
           <?= __("Nuovo Utente") ?>
         </a>
@@ -86,7 +86,7 @@
                       <i class="fas fa-id-card mr-1"></i><?= \App\Support\HtmlHelper::e($user['codice_tessera'] ?? 'N/A') ?>
                     </p>
                   </div>
-                  <a href="/admin/utenti/dettagli/<?= (int)$user['id'] ?>"
+                  <a href="<?= url('/admin/utenti/dettagli/' . (int)$user['id']) ?>"
                      class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                      title="<?= __("Visualizza dettagli") ?>">
                     <i class="fas fa-external-link-alt text-sm"></i>
@@ -114,14 +114,14 @@
               </div>
 
               <div class="mt-4 flex flex-col sm:flex-row gap-2">
-                <form method="POST" action="/admin/utenti/<?= (int)$user['id'] ?>/approve-and-send-activation" class="flex-1">
+                <form method="POST" action="<?= url('/admin/utenti/' . (int)$user['id'] . '/approve-and-send-activation') ?>" class="flex-1">
                   <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
                   <button type="submit" class="w-full bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
                     <i class="fas fa-envelope"></i>
                     <span><?= __("Invia Email") ?></span>
                   </button>
                 </form>
-                <form method="POST" action="/admin/utenti/<?= (int)$user['id'] ?>/activate-directly" class="flex-1" onsubmit="return confirm('<?= addslashes(__('Confermi di voler attivare direttamente questo utente?')) ?>')">
+                <form method="POST" action="<?= url('/admin/utenti/' . (int)$user['id'] . '/activate-directly') ?>" class="flex-1" onsubmit="return confirm('<?= addslashes(__('Confermi di voler attivare direttamente questo utente?')) ?>')">
                   <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
                   <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
                     <i class="fas fa-user-check"></i>
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
     scrollX: true,
     autoWidth: false,
     ajax: {
-      url: '/api/utenti',
+      url: window.BASE_PATH + '/api/utenti',
       type: 'GET',
       data: function(d) {
         return {
@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const tessera = row.codice_tessera || 'N/A';
 
           return `
-            <a href="/admin/utenti/dettagli/${row.id}"
+            <a href="${window.BASE_PATH}/admin/utenti/dettagli/${row.id}"
                class="block hover:bg-blue-50 -m-2 p-2 rounded transition-colors duration-200">
               <div class="font-semibold text-gray-900 text-base">
                 ${nomeCompleto}
@@ -411,13 +411,13 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data, type, row) {
           return `
             <div class="flex items-center gap-1">
-              <a href="/admin/utenti/dettagli/${data}" 
-                 class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200" 
+              <a href="${window.BASE_PATH}/admin/utenti/dettagli/${data}"
+                 class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                  title="<?= __("Visualizza dettagli") ?>">
                 <i class="fas fa-eye text-sm"></i>
               </a>
-              <a href="/admin/utenti/modifica/${data}" 
-                 class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200" 
+              <a href="${window.BASE_PATH}/admin/utenti/modifica/${data}"
+                 class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200"
                  title="<?= __("Modifica") ?>">
                 <i class="fas fa-edit text-sm"></i>
               </a>
@@ -551,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (result.isConfirmed) {
           // Make DELETE request
           const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-          fetch(`/admin/utenti/delete/${userId}`, {
+          fetch(`${window.BASE_PATH}/admin/utenti/delete/${userId}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
@@ -578,7 +578,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       if (confirm(__('Sei sicuro di voler eliminare questo utente?'))) {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        fetch(`/admin/utenti/delete/${userId}`, {
+        fetch(`${window.BASE_PATH}/admin/utenti/delete/${userId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -650,7 +650,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       // Redirect to server-side export endpoint with filters
-      const url = '/admin/utenti/export/csv' + (params.toString() ? '?' + params.toString() : '');
+      const url = window.BASE_PATH + '/admin/utenti/export/csv' + (params.toString() ? '?' + params.toString() : '');
       window.location.href = url;
     });
 
@@ -677,7 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (typeof window.jspdf === 'undefined') {
         // Load jsPDF if not available
         const script = document.createElement('script');
-        script.src = '/assets/js/jspdf.umd.min.js';
+        script.src = '<?= assetUrl("js/jspdf.umd.min.js") ?>';
         script.onload = function() {
           generatePDF(currentData);
         };

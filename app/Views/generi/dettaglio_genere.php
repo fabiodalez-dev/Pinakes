@@ -5,7 +5,7 @@
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i>Home
           </a>
         </li>
@@ -13,7 +13,7 @@
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li>
-          <a href="/admin/generi" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/generi') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-tags mr-1"></i>Generi
           </a>
         </li>
@@ -60,7 +60,7 @@
           <?php else: ?>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <?php foreach ($children as $c): ?>
-                <a href="/admin/generi/<?php echo (int)$c['id']; ?>" class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition">
+                <a href="<?= url('/admin/generi/' . (int)$c['id']) ?>" class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition">
                   <span class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo App\Support\HtmlHelper::e($c['nome']); ?></span>
                   <i class="fas fa-chevron-right text-gray-400"></i>
                 </a>
@@ -78,7 +78,7 @@
             <?= __("Aggiungi Sottogenere") ?>
           </h2>
         </div>
-        <form method="post" action="/admin/generi/crea" class="p-6 space-y-4">
+        <form method="post" action="<?= url('/admin/generi/crea') ?>" class="p-6 space-y-4">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
           <input type="hidden" name="parent_id" value="<?php echo (int)($genere['id'] ?? 0); ?>">
           <div>

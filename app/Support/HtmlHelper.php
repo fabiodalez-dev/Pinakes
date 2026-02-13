@@ -200,6 +200,42 @@ class HtmlHelper
     }
 
     /**
+     * Ottiene il base path dell'applicazione (es. '/pinakes' se in sottocartella)
+     * Restituisce stringa vuota se l'app è alla root del dominio.
+     *
+     * @return string Base path senza trailing slash, o stringa vuota
+     */
+    public static function getBasePath(): string
+    {
+        static $basePath = null;
+        if ($basePath !== null) {
+            return $basePath;
+        }
+
+        // Priorità 1: Estrai path da APP_CANONICAL_URL
+        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: '';
+        if ($canonicalUrl !== '') {
+            $path = parse_url($canonicalUrl, PHP_URL_PATH);
+            if ($path !== null && $path !== '' && $path !== '/') {
+                $basePath = rtrim($path, '/');
+                return $basePath;
+            }
+        }
+
+        // Priorità 2: Auto-detect da SCRIPT_NAME
+        if (isset($_SERVER['SCRIPT_NAME'])) {
+            $scriptDir = dirname(dirname($_SERVER['SCRIPT_NAME']));
+            if ($scriptDir !== '/' && $scriptDir !== '\\' && $scriptDir !== '.') {
+                $basePath = rtrim($scriptDir, '/');
+                return $basePath;
+            }
+        }
+
+        $basePath = '';
+        return $basePath;
+    }
+
+    /**
      * Ottiene l'URL base sicuro dell'applicazione
      * Usa APP_CANONICAL_URL dalla configurazione per evitare Host header injection
      *
@@ -248,7 +284,7 @@ class HtmlHelper
             }
         }
 
-        return $baseUrl;
+        return $baseUrl . self::getBasePath();
     }
 
     /**

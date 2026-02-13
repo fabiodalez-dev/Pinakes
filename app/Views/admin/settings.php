@@ -14,7 +14,7 @@
       <?php endif; ?>
     </div>
 
-    <form method="post" action="/settings" class="space-y-8">
+    <form method="post" action="<?= url('/settings') ?>" class="space-y-8">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="card">
@@ -190,7 +190,7 @@ php cron/automatic-notifications.php
       </div>
 
       <!-- Cookie Banner Configuration -->
-      <form method="post" action="/admin/settings/cookie-banner">
+      <form method="post" action="<?= url('/admin/settings/cookie-banner') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
       <div class="card">
         <div class="card-header">
@@ -368,7 +368,7 @@ php cron/automatic-notifications.php
   </div>
 </div>
 
-<script src="/assets/tinymce/tinymce.min.js"></script>
+<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
 <script>
 // Global __ function for JavaScript (MUST be defined before DOM elements use it)
 if (typeof window.__ === 'undefined') {
@@ -479,7 +479,7 @@ document.getElementById('template-form').addEventListener('submit', async functi
   const body = editor ? editor.getContent() : document.getElementById('template-body').value;
 
   try {
-    const response = await fetch('/admin/settings/templates/' + encodeURIComponent(templateKey), {
+    const response = await fetch(window.BASE_PATH + '/admin/settings/templates/' + encodeURIComponent(templateKey), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'

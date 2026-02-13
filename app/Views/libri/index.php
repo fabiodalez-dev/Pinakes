@@ -12,7 +12,7 @@ $libri = $data['libri'];
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -20,7 +20,7 @@ $libri = $data['libri'];
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <a href="/admin/libri" class="text-gray-900 hover:text-gray-700">
+          <a href="<?= url('/admin/libri') ?>" class="text-gray-900 hover:text-gray-700">
             <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
           </a>
         </li>
@@ -56,10 +56,10 @@ $libri = $data['libri'];
               <i class="fas fa-download mr-2"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="export-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-              <a href="/admin/libri/export/csv" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+              <a href="<?= url('/admin/libri/export/csv') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
                 <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
               </a>
-              <a href="/admin/libri/export/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <a href="<?= url('/admin/libri/export/librarything') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
                 <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
             </div>
@@ -71,19 +71,19 @@ $libri = $data['libri'];
               <i class="fas fa-upload mr-2"></i><?= __("Import") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="import-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-              <a href="/admin/libri/import" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+              <a href="<?= url('/admin/libri/import') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
                 <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
               </a>
-              <a href="/admin/libri/import/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <a href="<?= url('/admin/libri/import/librarything') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-cloud-upload-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
               <hr class="border-gray-200">
-              <a href="/admin/imports-history" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <a href="<?= url('/admin/imports-history') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
                 <i class="fas fa-history mr-2"></i><?= __("Storico Import") ?>
               </a>
             </div>
           </div>
-          <a href="/admin/libri/crea" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
+          <a href="<?= url('/admin/libri/crea') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Libro") ?>
           </a>
           <!-- Keyboard Shortcuts Help -->
@@ -108,15 +108,15 @@ $libri = $data['libri'];
             <i class="fas fa-download mr-1"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-1 text-xs"></i>
           </button>
           <div class="export-menu-mobile hidden absolute left-0 mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-            <a href="/admin/libri/export/csv" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+            <a href="<?= url('/admin/libri/export/csv') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
               <i class="fas fa-file-csv mr-2"></i><?= __("CSV") ?>
             </a>
-            <a href="/admin/libri/export/librarything" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+            <a href="<?= url('/admin/libri/export/librarything') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
               <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing") ?>
             </a>
           </div>
         </div>
-        <a href="/admin/libri/crea" class="flex-1 px-3 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center text-sm">
+        <a href="<?= url('/admin/libri/crea') ?>" class="flex-1 px-3 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center text-sm">
           <i class="fas fa-plus mr-1"></i><?= __("Nuovo") ?>
         </a>
       </div>
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', function() {
     dom: '<"top"l>rt<"bottom"ip><"clear">',
     deferRender: true,
     ajax: {
-      url: '/api/libri',
+      url: window.BASE_PATH + '/api/libri',
       type: 'GET',
       data: function(d) {
         return {
@@ -663,7 +663,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const linkedAutori = autoriArray.map((nome, i) => {
               const id = idsArray[i];
               const safeName = escapeHtml(nome);
-              if (id) return `<a href="/admin/autori/${id}" class="text-gray-600 hover:text-gray-900 hover:underline">${safeName}</a>`;
+              if (id) return `<a href="${window.BASE_PATH}/admin/autori/${id}" class="text-gray-600 hover:text-gray-900 hover:underline">${safeName}</a>`;
               return safeName;
             });
             autoriHtml = `<div class="text-xs text-gray-600 mt-1"><i class="fas fa-user text-gray-400 mr-1"></i>${linkedAutori.join(', ')}${autoriStr.split(', ').length > 2 ? ' ...' : ''}</div>`;
@@ -680,7 +680,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
 
           return `<div class="min-w-0">
-            <a href="/admin/libri/${row.id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline line-clamp-2 leading-tight">${titolo}</a>
+            <a href="${window.BASE_PATH}/admin/libri/${row.id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline line-clamp-2 leading-tight">${titolo}</a>
             ${sottotitolo}${autoriHtml}${editoreHtml}${isbnHtml}
           </div>`;
         }
@@ -727,10 +727,10 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data, type, row) {
           if (!row || data == null) return '<span class="text-gray-400">-</span>';
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="/admin/libri/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+            <a href="${window.BASE_PATH}/admin/libri/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="/admin/libri/modifica/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+            <a href="${window.BASE_PATH}/admin/libri/modifica/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
               <i class="fas fa-edit text-xs"></i>
             </a>
             <button onclick="deleteBook(${data})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
@@ -902,19 +902,19 @@ document.addEventListener('DOMContentLoaded', function() {
     input.addEventListener('blur', () => setTimeout(() => suggest.classList.add('hidden'), 200));
   }
 
-  setupAutocomplete('filter_autore', 'filter_autore_suggest', 'autore_id', '/api/search/autori?q=', item => {
+  setupAutocomplete('filter_autore', 'filter_autore_suggest', 'autore_id', window.BASE_PATH + '/api/search/autori?q=', item => {
     document.getElementById('autore_id').value = item.id;
     document.getElementById('filter_autore').value = item.label;
   });
-  setupAutocomplete('filter_editore', 'filter_editore_suggest', 'editore_filter', '/api/search/editori?q=', item => {
+  setupAutocomplete('filter_editore', 'filter_editore_suggest', 'editore_filter', window.BASE_PATH + '/api/search/editori?q=', item => {
     document.getElementById('editore_filter').value = item.id;
     document.getElementById('filter_editore').value = item.label;
   });
-  setupAutocomplete('filter_genere', 'filter_genere_suggest', 'genere_id', '/api/search/generi?q=', item => {
+  setupAutocomplete('filter_genere', 'filter_genere_suggest', 'genere_id', window.BASE_PATH + '/api/search/generi?q=', item => {
     document.getElementById('genere_id').value = item.id;
     document.getElementById('filter_genere').value = item.label;
   });
-  setupAutocomplete('filter_posizione', 'filter_posizione_suggest', 'posizione_id', '/api/search/collocazione?q=', item => {
+  setupAutocomplete('filter_posizione', 'filter_posizione_suggest', 'posizione_id', window.BASE_PATH + '/api/search/collocazione?q=', item => {
     document.getElementById('posizione_id').value = item.id;
     document.getElementById('filter_posizione').value = item.label;
   });
@@ -984,7 +984,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     for (const id of ids) {
       try {
-        const response = await fetch(`/api/libri/${id}/fetch-cover`, {
+        const response = await fetch(`${window.BASE_PATH}/api/libri/${id}/fetch-cover`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }
         });
@@ -1063,7 +1063,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const ids = Array.from(selectedBooks);
 
           try {
-            const response = await fetch('/api/libri/bulk-delete', {
+            const response = await fetch(window.BASE_PATH + '/api/libri/bulk-delete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
               body: JSON.stringify({ ids })
@@ -1094,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('bulk-export').addEventListener('click', function() {
     if (selectedBooks.size === 0) return;
     const ids = Array.from(selectedBooks).join(',');
-    window.location.href = `/admin/libri/export/csv?ids=${ids}`;
+    window.location.href = `${window.BASE_PATH}/admin/libri/export/csv?ids=${ids}`;
   });
 
   // View toggle
@@ -1152,7 +1152,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const anno = escapeHtml(book.anno_pubblicazione_formatted || '');
       return `
         <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
-          <a href="/admin/libri/${book.id}" class="flex flex-col h-full">
+          <a href="${window.BASE_PATH}/admin/libri/${book.id}" class="flex flex-col h-full">
             <div class="aspect-[2/3] bg-gray-100 relative flex-shrink-0">
               <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.src='/uploads/copertine/placeholder.jpg'">
               <span class="absolute top-2 right-2 w-3 h-3 rounded-full ${statusClass} ring-2 ring-white"></span>
@@ -1190,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('clear-filters').click();
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
       e.preventDefault();
-      window.location.href = '/admin/libri/crea';
+      window.location.href = window.BASE_PATH + '/admin/libri/crea';
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
       e.preventDefault();
       document.getElementById('select-all').click();
@@ -1227,7 +1227,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (result.isConfirmed) {
           const form = document.createElement('form');
           form.method = 'POST';
-          form.action = `/admin/libri/delete/${bookId}`;
+          form.action = `${window.BASE_PATH}/admin/libri/delete/${bookId}`;
           form.innerHTML = `<input type="hidden" name="csrf_token" value="${csrf}">`;
           document.body.appendChild(form);
           form.submit();
@@ -1252,8 +1252,8 @@ document.addEventListener('DOMContentLoaded', function() {
             ${autori ? `<p class="text-sm text-gray-600 mt-1">${autori}</p>` : ''}
             ${editore ? `<p class="text-sm text-gray-500">${editore}</p>` : ''}
             <div class="flex gap-2 mt-4">
-              <a href="/admin/libri/${bookId}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700"><?= __("Dettagli") ?></a>
-              <a href="/admin/libri/modifica/${bookId}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200"><?= __("Modifica") ?></a>
+              <a href="${window.BASE_PATH}/admin/libri/${bookId}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700"><?= __("Dettagli") ?></a>
+              <a href="${window.BASE_PATH}/admin/libri/modifica/${bookId}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200"><?= __("Modifica") ?></a>
             </div>
           </div>
         `,

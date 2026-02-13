@@ -4,7 +4,7 @@
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -175,7 +175,7 @@
                              onerror="this.src='/uploads/copertine/placeholder.jpg'">
                       <?php endif; ?>
                       <div>
-                        <a href="/admin/libri/<?php echo (int)$book['id']; ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                        <a href="<?= url('/admin/libri/' . (int)$book['id']) ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
                           <?php echo App\Support\HtmlHelper::e($book['titolo']); ?>
                         </a>
                       </div>
@@ -243,7 +243,7 @@
                   </td>
                   <td class="px-6 py-4">
                     <div>
-                      <a href="/admin/utenti/<?php echo (int)$reader['id']; ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                      <a href="<?= url('/admin/utenti/' . (int)$reader['id']) ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
                         <?php echo App\Support\HtmlHelper::e($reader['nome'] . ' ' . $reader['cognome']); ?>
                       </a>
                       <div class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($reader['email']); ?></div>

@@ -61,6 +61,10 @@ $baseDir = dirname(__DIR__);
 $installer = new Installer($baseDir);
 $validator = new Validator();
 
+// Base path detection for subfolder installations
+$installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
+if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
+
 // Handle AJAX requests
 if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {
     header('Content-Type: application/json');
@@ -156,8 +160,8 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
             <html>
             <head>
                 <title>' . __("Autenticazione Richiesta") . '</title>
-                <link rel="stylesheet" href="/assets/vendor.css">
-                <link rel="stylesheet" href="/installer/assets/style.css">
+                <link rel="stylesheet" href="' . $installerBasePath . '/assets/vendor.css">
+                <link rel="stylesheet" href="' . $installerBasePath . '/installer/assets/style.css">
             </head>
             <body>
                 <div class="installer-container">
@@ -171,7 +175,7 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                             ' . __("Questa operazione cancellerà tutti i dati esistenti. Assicurati di avere un backup.") . '
                         </div>
                         ' . ($loginError ? '<div class="alert alert-danger">' . htmlspecialchars($loginError) . '</div>' : '') . '
-                        <form method="POST" action="/installer/?force=1">
+                        <form method="POST" action="' . $installerBasePath . '/installer/?force=1">
                             <div class="form-group">
                                 <label for="admin_email">' . __("Email Admin") . '</label>
                                 <input type="email" name="admin_email" id="admin_email" class="form-control" required placeholder="admin@example.com">
@@ -182,7 +186,7 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                             </div>
                             <div class="form-group text-center mt-4">
                                 <button type="submit" class="btn btn-warning">' . __("Accedi e Procedi") . '</button>
-                                <a href="/" class="btn btn-secondary">' . __("Annulla") . '</a>
+                                <a href="' . $installerBasePath . '/" class="btn btn-secondary">' . __("Annulla") . '</a>
                             </div>
                         </form>
                     </div>
@@ -218,8 +222,8 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
             <html>
             <head>
                 <title>' . __("Errore Installazione") . '</title>
-                <link rel="stylesheet" href="/assets/vendor.css">
-                <link rel="stylesheet" href="/installer/assets/style.css">
+                <link rel="stylesheet" href="' . $installerBasePath . '/assets/vendor.css">
+                <link rel="stylesheet" href="' . $installerBasePath . '/installer/assets/style.css">
             </head>
             <body>
                 <div class="installer-container">
@@ -250,8 +254,8 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
                         </ul>
 
                         <p class="text-center mt-4">
-                            <a href="/installer/?force=1" class="btn btn-warning">' . __("Reinstalla da Capo") . '</a>
-                            <a href="/" class="btn btn-secondary">' . __("Torna all'Applicazione") . '</a>
+                            <a href="' . $installerBasePath . '/installer/?force=1" class="btn btn-warning">' . __("Reinstalla da Capo") . '</a>
+                            <a href="' . $installerBasePath . '/" class="btn btn-secondary">' . __("Torna all'Applicazione") . '</a>
                         </p>
                     </div>
                 </div>
@@ -266,8 +270,8 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
         <html>
         <head>
             <title>' . __("Già Installato") . '</title>
-            <link rel="stylesheet" href="/assets/vendor.css">
-                <link rel="stylesheet" href="/installer/assets/style.css">
+            <link rel="stylesheet" href="' . $installerBasePath . '/assets/vendor.css">
+                <link rel="stylesheet" href="' . $installerBasePath . '/installer/assets/style.css">
         </head>
         <body>
             <div class="installer-container">
@@ -285,7 +289,7 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
                         <li>' . __("Oppure accedere a /installer/?force=1 per forzare una nuova procedura") . '</li>
                     </ol>
                     <p class="text-center mt-4">
-                        <a href="/" class="btn btn-primary">' . __("Vai all'applicazione") . '</a>
+                        <a href="' . $installerBasePath . '/" class="btn btn-primary">' . __("Vai all'applicazione") . '</a>
                     </p>
                 </div>
             </div>
@@ -321,6 +325,7 @@ function completeStep($stepNumber) {
 
 // Helper function to render header
 function renderHeader($currentStep, $stepTitle) {
+    global $installerBasePath;
     $steps = [
         0 => __('Lingua'),
         1 => __('Benvenuto'),
@@ -345,14 +350,14 @@ function renderHeader($currentStep, $stepTitle) {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title><?= htmlspecialchars($stepTitle) ?> - <?= __("Installer Pinakes") ?></title>
-        <link rel="stylesheet" href="/assets/vendor.css">
-                <link rel="stylesheet" href="/installer/assets/style.css">
+        <link rel="stylesheet" href="<?= $installerBasePath ?>/assets/vendor.css">
+                <link rel="stylesheet" href="<?= $installerBasePath ?>/installer/assets/style.css">
     </head>
     <body>
         <div class="installer-container">
             <div class="installer-hero">
                 <div class="brand-lockup">
-                    <img src="/assets/brand/logo.png" alt="Pinakes logo" width="90" height="90" loading="lazy">
+                    <img src="<?= $installerBasePath ?>/assets/brand/logo.png" alt="Pinakes logo" width="90" height="90" loading="lazy">
                     <div class="brand-copy">
                         <p class="brand-title">Pinakes</p>
                         <p class="brand-subtitle"><?= __("Library Management System") ?></p>
@@ -389,10 +394,11 @@ function renderHeader($currentStep, $stepTitle) {
 
 // Helper function to render footer
 function renderFooter() {
+    global $installerBasePath;
     ?>
             </div>
         </div>
-        <script src="/installer/assets/installer.js"></script>
+        <script src="<?= $installerBasePath ?>/installer/assets/installer.js"></script>
     </body>
     </html>
     <?php

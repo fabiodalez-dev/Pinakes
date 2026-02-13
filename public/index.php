@@ -7,7 +7,9 @@ $installerLockFile = __DIR__ . '/../.installed';
 
 // If .env doesn't exist AND installer hasn't been completed, redirect to installer
 if (!file_exists($envFile) && !file_exists($installerLockFile)) {
-    header('Location: /installer/', true, 302);
+    $installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
+    if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
+    header('Location: ' . $installerBasePath . '/installer/', true, 302);
     exit;
 }
 
@@ -148,7 +150,9 @@ try {
     error_log("Error loading .env file: " . $e->getMessage());
     // If .env failed to load and installer exists, redirect there
     if (is_dir(__DIR__ . '/../installer') && !file_exists($installerLockFile)) {
-        header('Location: /installer/', true, 302);
+        $installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
+        if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
+        header('Location: ' . $installerBasePath . '/installer/', true, 302);
         exit;
     }
 }
@@ -336,6 +340,13 @@ $container->get('pluginManager')->loadActivePlugins();
 
 // App
 $app = AppFactory::create();
+
+// Set base path for subfolder installations (e.g. /pinakes)
+$basePath = \App\Support\HtmlHelper::getBasePath();
+if ($basePath !== '') {
+    $app->setBasePath($basePath);
+}
+
 $app->addRoutingMiddleware();
 
 // Global security headers
@@ -454,6 +465,9 @@ $app->add(new \App\Middleware\RememberMeMiddleware($container->get('db')));
 // Load plugins
 // Note: Plugins can be loaded via PluginManager (database) or directly
 // Plugins installed via PluginManager are loaded automatically from database
+
+// BasePathMiddleware: rewrites Location headers for subfolder installs
+$app->add(new \App\Middleware\BasePathMiddleware());
 
 // Routes
 (require __DIR__ . '/../app/Routes/web.php')($app);
