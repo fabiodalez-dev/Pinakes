@@ -45,8 +45,9 @@ class LoanApprovalController
             FROM prestiti p
             JOIN libri l ON p.libro_id = l.id
             JOIN utenti u ON p.utente_id = u.id
-            WHERE p.stato = 'da_ritirare'
-              OR (p.stato = 'prenotato' AND p.data_prestito <= ?)
+            WHERE p.attivo = 1
+              AND (p.stato = 'da_ritirare'
+                OR (p.stato = 'prenotato' AND p.data_prestito <= ?))
             ORDER BY
                 CASE WHEN p.pickup_deadline IS NOT NULL THEN p.pickup_deadline ELSE p.data_prestito END ASC
         ");

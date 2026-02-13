@@ -190,10 +190,10 @@ $forgotPasswordRoute = route_path('forgot_password');
     <!-- Footer Links -->
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
-        <a href="/privacy-policy" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= route_path('privacy') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="/contatti" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= route_path('contact') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <?= __('Contatti') ?>
         </a>
       </div>

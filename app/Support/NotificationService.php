@@ -6,6 +6,7 @@ namespace App\Support;
 use mysqli;
 use Exception;
 use App\Support\ConfigStore;
+use App\Support\RouteTranslator;
 use App\Support\SettingsMailTemplates;
 
 class NotificationService {
@@ -163,7 +164,7 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'login_url' => $this->getBaseUrl() . '/login'
+                'login_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('login')
             ];
 
             // Use installation locale for email template
@@ -634,7 +635,7 @@ class NotificationService {
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
                     'data_disponibilita' => $this->formatEmailDate('now', true),
                     'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
-                    'wishlist_url' => $this->getBaseUrl() . '/profile/wishlist'
+                    'wishlist_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('wishlist')
                 ];
 
                 $emailSent = $this->sendWithRetry($wishlist['email'], 'wishlist_book_available', $variables);

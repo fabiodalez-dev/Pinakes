@@ -35,7 +35,7 @@ final class CsrfHelper
         // Token invalido - determina il redirect appropriato
         if ($validation['reason'] === 'session_expired') {
             // Sessione scaduta - redirect a login con messaggio chiaro
-            $location = '/login?error=session_expired';
+            $location = RouteTranslator::route('login') . '?error=session_expired';
             if ($returnUrl) {
                 $location .= '&return=' . urlencode($returnUrl);
             }

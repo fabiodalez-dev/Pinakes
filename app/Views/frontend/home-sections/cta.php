@@ -20,7 +20,7 @@ $registerRoute = $registerRoute ?? route_path('register');
                     <i class="fas fa-user-plus"></i>
                     <?php echo htmlspecialchars($ctaData['button_text'] ?? __("Registrati Ora"), ENT_QUOTES, 'UTF-8'); ?>
                 </a>
-                <a href="/contatti" class="btn-cta">
+                <a href="<?= route_path('contact') ?>" class="btn-cta">
                     <i class="fas fa-envelope"></i>
                     <?= __("Contattaci") ?>
                 </a>

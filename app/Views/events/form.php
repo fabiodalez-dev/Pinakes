@@ -396,6 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
     tinymce.init({
       selector: '#event_content',
+      model: 'dom',
       license_key: 'gpl',
       height: 520,
       menubar: true,

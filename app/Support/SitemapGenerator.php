@@ -5,6 +5,7 @@ namespace App\Support;
 
 use mysqli;
 use RuntimeException;
+use App\Support\RouteTranslator;
 use Thepixeldeveloper\Sitemap\Drivers\XmlWriterDriver;
 use Thepixeldeveloper\Sitemap\Url;
 use Thepixeldeveloper\Sitemap\Urlset;
@@ -143,12 +144,12 @@ class SitemapGenerator
         $entries = [];
         $staticPages = [
             ['path' => '/', 'changefreq' => 'daily', 'priority' => '1.0'],
-            ['path' => '/catalogo', 'changefreq' => 'daily', 'priority' => '0.9'],
-            ['path' => '/chi-siamo', 'changefreq' => 'monthly', 'priority' => '0.7'],
-            ['path' => '/contatti', 'changefreq' => 'monthly', 'priority' => '0.6'],
-            ['path' => '/privacy-policy', 'changefreq' => 'yearly', 'priority' => '0.4'],
-            ['path' => '/register', 'changefreq' => 'monthly', 'priority' => '0.5'],
-            ['path' => '/login', 'changefreq' => 'monthly', 'priority' => '0.4'],
+            ['route' => 'catalog', 'changefreq' => 'daily', 'priority' => '0.9'],
+            ['route' => 'about', 'changefreq' => 'monthly', 'priority' => '0.7'],
+            ['route' => 'contact', 'changefreq' => 'monthly', 'priority' => '0.6'],
+            ['route' => 'privacy', 'changefreq' => 'yearly', 'priority' => '0.4'],
+            ['route' => 'register', 'changefreq' => 'monthly', 'priority' => '0.5'],
+            ['route' => 'login', 'changefreq' => 'monthly', 'priority' => '0.4'],
         ];
 
         // Generate URL for each active locale
@@ -156,8 +157,11 @@ class SitemapGenerator
             $localePrefix = $this->getLocalePrefix($locale);
 
             foreach ($staticPages as $page) {
+                $path = isset($page['route'])
+                    ? RouteTranslator::getRouteForLocale($page['route'], $locale)
+                    : $page['path'];
                 $entries[] = [
-                    'loc' => $this->baseUrl . $localePrefix . $page['path'],
+                    'loc' => $this->baseUrl . $localePrefix . $path,
                     'changefreq' => $page['changefreq'],
                     'priority' => $page['priority'],
                 ];
@@ -274,7 +278,7 @@ class SitemapGenerator
                     $localePrefix = $this->getLocalePrefix($locale);
 
                     $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . '/autore/' . rawurlencode($name),
+                        'loc' => $this->baseUrl . $localePrefix . RouteTranslator::getRouteForLocale('author', $locale) . '/' . rawurlencode($name),
                         'changefreq' => 'monthly',
                         'priority' => '0.6',
                         'lastmod' => $row['created_at'] ?? null,
@@ -307,7 +311,7 @@ class SitemapGenerator
                     $localePrefix = $this->getLocalePrefix($locale);
 
                     $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . '/editore/' . rawurlencode($name),
+                        'loc' => $this->baseUrl . $localePrefix . RouteTranslator::getRouteForLocale('publisher', $locale) . '/' . rawurlencode($name),
                         'changefreq' => 'monthly',
                         'priority' => '0.5',
                         'lastmod' => null,
@@ -347,7 +351,7 @@ class SitemapGenerator
                     $localePrefix = $this->getLocalePrefix($locale);
 
                     $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . '/genere/' . rawurlencode($name),
+                        'loc' => $this->baseUrl . $localePrefix . RouteTranslator::getRouteForLocale('genre', $locale) . '/' . rawurlencode($name),
                         'changefreq' => 'monthly',
                         'priority' => '0.5',
                         'lastmod' => null,

@@ -98,7 +98,7 @@ $cookieBannerTexts = [
                 preferences: {
                     title: <?= json_encode($cookieBannerTexts['preferences_title'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
                     description: <?= json_encode($cookieBannerTexts['preferences_description'], JSON_HEX_TAG | JSON_HEX_AMP) ?>,
-                    statementUrl: '/cookies',
+                    statementUrl: '<?= route_path('cookies') ?>',
                     statementAccessibleLabel: 'Maggiori informazioni sui cookie',
                 },
             },

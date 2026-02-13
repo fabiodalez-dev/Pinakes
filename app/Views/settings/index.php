@@ -419,7 +419,7 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Gestisci il contenuto della pagina Chi Siamo con testo e immagine personalizzati") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="/chi-siamo" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= route_path('about') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
@@ -650,6 +650,7 @@ $activeTab = $activeTab ?? 'general';
     if (window.tinymce) {
       tinymce.init({
         selector: 'textarea.tinymce-editor',
+        model: 'dom',
         license_key: 'gpl',
         menubar: false,
         height: 320,

@@ -173,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
    tinymce.init({
      selector: '#tinymce-editor',
+     model: 'dom',
      license_key: 'gpl',
      height: 500,
      menubar: true,

@@ -1432,7 +1432,7 @@ ob_start();
                     <?php if (!empty($book['editore'])): ?>
                         <p class="mb-2 opacity-75">
                             <i class="fas fa-building me-2"></i>
-                            <a href="/editore/<?= urlencode(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="text-decoration-none text-dark">
+                            <a href="<?= route_path('publisher') ?>/<?= urlencode(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="text-decoration-none text-dark">
                                 <?= htmlspecialchars(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                             </a>
                         </p>
@@ -1442,7 +1442,7 @@ ob_start();
 
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
-                            <a href="/autore/<?= urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="text-decoration-none">
+                            <a href="<?= route_path('author') ?>/<?= urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="text-decoration-none">
                                 <span class="author-item role-<?= $author['ruolo'] ?>">
                                     <?= htmlspecialchars(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                                     <?php if ($author['ruolo'] !== 'principale'): ?>

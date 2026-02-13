@@ -394,6 +394,8 @@ function initTinyMCE() {
 // TinyMCE Configuration
 tinymce.init({
   selector: '#template-body',
+  model: 'dom',
+  license_key: 'gpl',
   plugins: 'lists link image table code help',
   toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist | link image | code | help',
   menubar: 'file edit view insert format tools help',

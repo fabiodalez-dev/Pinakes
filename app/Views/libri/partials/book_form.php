@@ -4119,6 +4119,7 @@ function initBookTinyMCE() {
         selector: '#descrizione',
         base_url: TINYMCE_BASE,
         suffix: '.min',
+        model: 'dom',
         license_key: 'gpl',
         height: 360,
         menubar: false,
