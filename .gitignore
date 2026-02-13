@@ -409,3 +409,4 @@ docs/reference/agents.md
 internal/
 updater.md
 scraping-pro-*.zip
+fix-autoloader.php
