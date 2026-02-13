@@ -130,6 +130,61 @@ echo -e "${GREEN}✓ Release ZIP created: $ZIPFILE ($SIZE)${NC}"
 echo ""
 
 # ============================================================================
+# STEP 5.5: Verify ZIP contents (critical files check)
+# ============================================================================
+echo -e "${YELLOW}[5.5/9] Verifying ZIP contents...${NC}"
+
+VERIFY_DIR=$(mktemp -d)
+unzip -q "$ZIPFILE" -d "$VERIFY_DIR"
+
+# List of critical files that MUST be in the ZIP
+CRITICAL_FILES=(
+    "public/assets/tinymce/tinymce.min.js"
+    "public/assets/tinymce/models/dom/model.min.js"
+    "public/assets/tinymce/themes/silver/theme.min.js"
+    "public/assets/tinymce/skins/ui/oxide/skin.min.css"
+    "public/assets/tinymce/icons/default/icons.min.js"
+    "public/index.php"
+    "app/Support/Updater.php"
+    "version.json"
+    "vendor/composer/autoload_real.php"
+)
+
+MISSING=0
+for file in "${CRITICAL_FILES[@]}"; do
+    FULL_PATH="$VERIFY_DIR/pinakes-v${VERSION}/$file"
+    if [ ! -f "$FULL_PATH" ]; then
+        echo -e "${RED}  ✗ MISSING: $file${NC}"
+        MISSING=$((MISSING + 1))
+    fi
+done
+
+# Verify no PHPStan in autoloader
+PHPSTAN_COUNT=$(grep -c "phpstan" "$VERIFY_DIR/pinakes-v${VERSION}/vendor/composer/autoload_real.php" || true)
+if [ "$PHPSTAN_COUNT" -gt 0 ]; then
+    echo -e "${RED}  ✗ PHPStan found in autoload_real.php ($PHPSTAN_COUNT references)${NC}"
+    MISSING=$((MISSING + 1))
+fi
+
+# Verify version matches
+ZIP_VERSION=$(jq -r '.version' "$VERIFY_DIR/pinakes-v${VERSION}/version.json")
+if [ "$ZIP_VERSION" != "$VERSION" ]; then
+    echo -e "${RED}  ✗ version.json in ZIP has $ZIP_VERSION (expected $VERSION)${NC}"
+    MISSING=$((MISSING + 1))
+fi
+
+rm -rf "$VERIFY_DIR"
+
+if [ "$MISSING" -gt 0 ]; then
+    echo -e "${RED}❌ ERROR: ZIP verification failed ($MISSING problems). Aborting release.${NC}"
+    rm -f "$ZIPFILE"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ ZIP verified: all critical files present, no PHPStan, version correct${NC}"
+echo ""
+
+# ============================================================================
 # STEP 6: Generate SHA256 checksum
 # ============================================================================
 echo -e "${YELLOW}[6/9] Generating SHA256 checksum...${NC}"
