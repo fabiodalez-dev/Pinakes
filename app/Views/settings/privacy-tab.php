@@ -200,7 +200,7 @@
     </div>
 
   <div class="flex justify-end gap-2 md:gap-3">
-      <a href="/privacy-policy" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+      <a href="<?= route_path('privacy') ?>" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
         <i class="fas fa-eye"></i>
         <?= __("Anteprima") ?>
       </a>

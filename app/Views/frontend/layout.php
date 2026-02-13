@@ -1392,7 +1392,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                                 <?= __('Il mio profilo') ?>
                                             </a>
                                             <div class="user-dropdown-divider"></div>
-                                            <a href="<?= absoluteUrl('/logout') ?>" class="logout-link" role="menuitem">
+                                            <a href="<?= absoluteUrl(route_path('logout')) ?>" class="logout-link" role="menuitem">
                                                 <i class="fas fa-sign-out-alt"></i>
                                                 <?= __('Esci') ?>
                                             </a>

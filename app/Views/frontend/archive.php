@@ -503,7 +503,7 @@ function createBookUrl($book) {
                                 <?php if (!empty($book['genere']) && $archive_type !== 'genere'): ?>
                                     <div>
                                         <i class="fas fa-tags me-1"></i>
-                                        <a href="/genere/<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>">
+                                        <a href="<?= route_path('genre') ?>/<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>">
                                             <?= htmlspecialchars(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>
                                         </a>
                                     </div>
@@ -511,7 +511,7 @@ function createBookUrl($book) {
                                 <?php if (!empty($book['editore']) && $archive_type !== 'editore'): ?>
                                     <div>
                                         <i class="fas fa-building me-1"></i>
-                                        <a href="/editore/<?= urlencode(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>">
+                                        <a href="<?= route_path('publisher') ?>/<?= urlencode(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>">
                                             <?= htmlspecialchars(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>
                                         </a>
                                     </div>

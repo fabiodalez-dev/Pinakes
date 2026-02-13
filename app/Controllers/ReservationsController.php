@@ -246,14 +246,19 @@ class ReservationsController
         }
 
         // If no end date specified, set it to 1 month from start date
-        if (!$endDate) {
-            $endDateTime = new DateTime($startDate);
-            $endDateTime->add(new DateInterval('P1M'));
-            $endDate = $endDateTime->format('Y-m-d');
-        }
+        try {
+            if (!$endDate) {
+                $endDateTime = new DateTime($startDate);
+                $endDateTime->add(new DateInterval('P1M'));
+                $endDate = $endDateTime->format('Y-m-d');
+            }
 
-        // Check if dates are available
-        $requestedDates = $this->getDateRange($startDate, $endDate);
+            // Check if dates are available
+            $requestedDates = $this->getDateRange($startDate, $endDate);
+        } catch (\Throwable $e) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Formato data non valido')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
         $rangeDays = max(count($requestedDates), 1);
         // Pass userId to exclude their own reservation from blocking them
         $availability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);

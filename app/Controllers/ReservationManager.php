@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use mysqli;
+use App\Support\RouteTranslator;
 
 /**
  * Manages book reservations and their conversion to loans
@@ -40,7 +41,8 @@ class ReservationManager
     private function isInTransaction(): bool
     {
         // Check if autocommit is disabled (indicates active transaction)
-        // Note: begin_transaction() internally disables autocommit
+        // Note: begin_transaction() uses START TRANSACTION which does NOT change @@autocommit.
+        // This check only detects transactions started via $db->autocommit(false).
         $result = $this->db->query("SELECT @@autocommit as ac");
         if ($result) {
             $row = $result->fetch_assoc();
@@ -429,7 +431,7 @@ class ReservationManager
                 'data_inizio' => date($dateFormat, strtotime($reservation['data_inizio_richiesta'])),
                 'data_fine' => date($dateFormat, strtotime($reservation['data_fine_richiesta'])),
                 'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
-                'profile_url' => $this->getBaseUrl() . '/profile/prestiti'
+                'profile_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('profile')
             ];
 
             // Use NotificationService for consistent email handling

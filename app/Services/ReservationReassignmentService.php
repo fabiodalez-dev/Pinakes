@@ -5,6 +5,7 @@ namespace App\Services;
 
 use mysqli;
 use App\Support\NotificationService;
+use App\Support\RouteTranslator;
 use App\Support\SecureLogger;
 use Exception;
 
@@ -458,8 +459,8 @@ class ReservationReassignmentService
             'libro_isbn' => $isbn,
             'data_inizio' => $data['data_prestito'] ? date('d/m/Y', strtotime($data['data_prestito'])) : '',
             'data_fine' => $data['data_scadenza'] ? date('d/m/Y', strtotime($data['data_scadenza'])) : '',
-            'book_url' => $baseUrl . '/catalogo/libro/' . $data['libro_id'],
-            'profile_url' => $baseUrl . '/profilo/prestiti'
+            'book_url' => rtrim($baseUrl, '/') . book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore_principale' => $author['nome'] ?? '']),
+            'profile_url' => rtrim($baseUrl, '/') . RouteTranslator::route('profile')
         ];
 
         $sent = $this->notificationService->sendReservationBookAvailable($data['email'], $variables);

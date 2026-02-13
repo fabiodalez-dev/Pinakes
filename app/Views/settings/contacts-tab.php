@@ -160,7 +160,7 @@
     </div>
 
     <div class="flex justify-end gap-3">
-      <a href="/contatti" target="_blank" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+      <a href="<?= route_path('contact') ?>" target="_blank" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
         <i class="fas fa-eye"></i>
         <?= __("Anteprima") ?>
       </a>

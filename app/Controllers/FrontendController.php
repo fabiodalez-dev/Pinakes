@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Repositories\RecensioniRepository;
 use App\Support\Branding;
+use App\Support\RouteTranslator;
 use mysqli;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -359,7 +360,7 @@ class FrontendController
             '@type' => 'SearchAction',
             'target' => [
                 '@type' => 'EntryPoint',
-                'urlTemplate' => $baseUrl . '/catalogo?q={search_term_string}'
+                'urlTemplate' => $baseUrl . RouteTranslator::route('catalog') . '?q={search_term_string}'
             ],
             'query-input' => 'required name=search_term_string'
         ];
@@ -1270,7 +1271,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $publisherName = htmlspecialchars($publisher['nome']);
         $seoTitle = "Libri di {$publisherName} - Catalogo Editore | Biblioteca";
         $seoDescription = "Scopri tutti i libri pubblicati da {$publisherName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/editore/' . urlencode($publisher['nome']);
+        $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']);
         $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
 
         $archive_type = 'editore';
@@ -1358,7 +1359,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $genreName = htmlspecialchars($genre['nome']);
         $seoTitle = "Libri di {$genreName} - Catalogo per Genere | Biblioteca";
         $seoDescription = "Esplora tutti i libri del genere {$genreName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/genere/' . urlencode($genre['nome']);
+        $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . RouteTranslator::route('genre') . '/' . urlencode($genre['nome']);
         $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
 
         $archive_type = 'genere';
@@ -1811,7 +1812,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // SEO meta tags for events list page
         $seoTitle = __("Eventi") . ' - ' . \App\Support\ConfigStore::get('app.name');
         $seoDescription = __("Scopri tutti gli eventi organizzati dalla biblioteca");
-        $seoCanonical = \App\Support\ConfigStore::get('app.canonical_url') . '/events';
+        $seoCanonical = \App\Support\ConfigStore::get('app.canonical_url') . RouteTranslator::route('events');
 
         $container = $this->container;
         ob_start();

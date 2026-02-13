@@ -7,7 +7,7 @@
  */
 
 $pageTitle = $pageTitle ?? __('Sessione Scaduta');
-$loginUrl = $loginUrl ?? '/login';
+$loginUrl = $loginUrl ?? route_path('login');
 ?>
 <!DOCTYPE html>
 <html lang="<?= \App\Support\I18n::getLocale() === 'en_US' ? 'en' : 'it' ?>">

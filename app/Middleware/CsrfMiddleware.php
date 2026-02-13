@@ -9,6 +9,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use Slim\Psr7\Response as SlimResponse;
 use App\Support\Csrf;
+use App\Support\RouteTranslator;
 
 /**
  * CSRF Protection Middleware
@@ -71,7 +72,7 @@ class CsrfMiddleware implements MiddlewareInterface
                         $response->getBody()->write(json_encode([
                             'error' => __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso'),
                             'code' => 'SESSION_EXPIRED',
-                            'redirect' => '/login?error=session_expired'
+                            'redirect' => RouteTranslator::route('login') . '?error=session_expired'
                         ], JSON_UNESCAPED_UNICODE));
                     } else {
                         $response->getBody()->write(json_encode([

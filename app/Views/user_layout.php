@@ -999,15 +999,15 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <h5>Menu</h5>
                     <ul class="list-unstyled">
                         <li><a href="<?= $catalogRoute ?>"><?= __("Catalogo") ?></a></li>
-                        <li><a href="/chi-siamo"><?= __("Chi Siamo") ?></a></li>
-                        <li><a href="/contatti"><?= __("Contatti") ?></a></li>
-                        <li><a href="/privacy-policy"><?= __("Privacy Policy") ?></a></li>
+                        <li><a href="<?= route_path('about') ?>"><?= __("Chi Siamo") ?></a></li>
+                        <li><a href="<?= route_path('contact') ?>"><?= __("Contatti") ?></a></li>
+                        <li><a href="<?= route_path('privacy') ?>"><?= __("Privacy Policy") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
                     <h5>Account</h5>
                     <ul class="list-unstyled">
-                        <li><a href="/user/dashboard"><?= __("Dashboard") ?></a></li>
+                        <li><a href="<?= route_path('user_dashboard') ?>"><?= __("Dashboard") ?></a></li>
                         <li><a href="<?= $profileRoute ?>"><?= __("Profilo") ?></a></li>
                         <?php if (!$isCatalogueMode): ?>
                         <li><a href="<?= $wishlistRoute ?>"><?= __("Preferiti") ?></a></li>
