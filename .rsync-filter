@@ -144,7 +144,7 @@
 
 # AI/ML models and database files (from .gitignore)
 - vectors.db
-- models/
+- /models/
 - *.onnx
 - .env
 - .env.local
