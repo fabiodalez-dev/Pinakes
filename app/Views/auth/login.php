@@ -4,7 +4,7 @@ use App\Support\ConfigStore;
 use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
-$appLogo = Branding::fullLogo();
+$appLogo = url(Branding::fullLogo());
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 $forgotPasswordRoute = route_path('forgot_password');

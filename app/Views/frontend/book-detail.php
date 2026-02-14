@@ -110,7 +110,7 @@ $canonicalUrl = HtmlHelper::getCurrentUrl();
 $baseUrl = HtmlHelper::getBaseUrl();
 if ($bookCover) {
     // $bookCover already includes base path via url(), make it absolute
-    $ogImage = (strpos($bookCover, 'http') === 0) ? $bookCover : absoluteUrl($book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg');
+    $ogImage = preg_match('#^https?://#', $bookCover) ? $bookCover : absoluteUrl($book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg');
 } else {
     $ogImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 }
@@ -2234,10 +2234,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
+      const iso = (dt) => dt.toISOString().slice(0,10);
+      let earliestAvailable = new Date();
+      let suggestedDate = iso(earliestAvailable);
+
       if (window.Swal) {
         // Fetch availability data for the calendar
         let disabledDates = [];
-        let earliestAvailable = new Date();
         let availabilityByDate = {};
 
         let maxAvailableDate = null;
@@ -2271,7 +2274,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error('Error fetching availability:', e);
         }
 
-        const iso = (dt) => dt.toISOString().slice(0,10);
+        suggestedDate = iso(earliestAvailable);
         const formatDateIT = (dateStr) => {
           if (!dateStr) { return ''; }
           const parts = dateStr.split('-');
@@ -2283,7 +2286,6 @@ document.addEventListener('DOMContentLoaded', function() {
           });
           return formatter.format(new Date(year, month - 1, day));
         };
-        const suggestedDate = iso(earliestAvailable);
 
         const tooltipTexts = {
           borrowed: __('Tutte le copie in prestito'),

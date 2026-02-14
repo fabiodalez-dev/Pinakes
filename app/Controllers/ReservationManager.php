@@ -438,7 +438,7 @@ class ReservationManager
                 'data_inizio' => date($dateFormat, strtotime($reservation['data_inizio_richiesta'])),
                 'data_fine' => date($dateFormat, strtotime($reservation['data_fine_richiesta'])),
                 'book_url' => $baseUrl . $bookLink,
-                'profile_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('profile')
+                'profile_url' => $baseUrl . (($basePath !== '' && !str_ends_with($baseUrl, $basePath)) ? $basePath : '') . RouteTranslator::route('profile')
             ];
 
             // Use NotificationService for consistent email handling

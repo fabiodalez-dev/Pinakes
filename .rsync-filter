@@ -122,7 +122,7 @@
 # Keep frontend/ source for customization (users can rebuild with npm)
 
 # Vendor bloat: dev-only packages and nested vendor directories
-- vendor/phpstan/
+- /vendor/phpstan/
 - vendor/**/vendor/
 
 # Testing (root level only — don't strip vendor test utilities)

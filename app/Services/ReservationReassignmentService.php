@@ -468,7 +468,7 @@ class ReservationReassignmentService
             'data_inizio' => $data['data_prestito'] ? date('d/m/Y', strtotime($data['data_prestito'])) : '',
             'data_fine' => $data['data_scadenza'] ? date('d/m/Y', strtotime($data['data_scadenza'])) : '',
             'book_url' => $baseUrl . $bookLink,
-            'profile_url' => $baseUrl . RouteTranslator::route('profile')
+            'profile_url' => $baseUrl . (($basePath !== '' && !str_ends_with($baseUrl, $basePath)) ? $basePath : '') . RouteTranslator::route('profile')
         ];
 
         $sent = $this->notificationService->sendReservationBookAvailable($data['email'], $variables);

@@ -7,7 +7,7 @@ use App\Support\HtmlHelper;
 use App\Support\I18n;
 
 $appName = (string) ConfigStore::get('app.name', 'Pinakes');
-$appLogo = Branding::logo();
+$appLogo = url(Branding::logo());
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 $versionFile = __DIR__ . '/../../version.json';

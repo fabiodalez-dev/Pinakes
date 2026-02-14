@@ -9,7 +9,7 @@ if (empty($book['audio_url'] ?? '')) {
     return;
 }
 
-$audioUrl = htmlspecialchars($book['audio_url'], ENT_QUOTES, 'UTF-8');
+$audioUrl = htmlspecialchars(url($book['audio_url']), ENT_QUOTES, 'UTF-8');
 $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8');
 ?>
 

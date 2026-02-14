@@ -247,8 +247,9 @@ class LibriApiController
                 if ($cover === '' && !empty($row['copertina'])) {
                     $cover = (string) $row['copertina'];
                 }
-                if ($cover !== '' && strpos($cover, '/') !== 0 && strpos($cover, 'uploads/') === 0) {
-                    $cover = '/' . $cover; // normalize missing leading slash
+                // Normalize: ensure relative paths start with /
+                if ($cover !== '' && strpos($cover, 'http') !== 0 && strpos($cover, '/') !== 0) {
+                    $cover = '/' . $cover;
                 }
                 // Convert relative URLs to absolute for consistent display (same as catalog)
                 if ($cover !== '' && strpos($cover, 'http') !== 0) {
