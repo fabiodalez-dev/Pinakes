@@ -3,6 +3,10 @@
 # Used by build-release.sh to create distribution packages
 # CRITICAL: In rsync, INCLUDES must come BEFORE EXCLUDES
 # Format: + (include), - (exclude), processed in order
+#
+# IMPORTANT: Rules without a leading '/' match at ANY directory level.
+# Always use '/' prefix for root-only excludes to avoid accidentally
+# excluding files in vendor/ or other nested directories.
 # ========================================
 
 # ========================================
@@ -12,7 +16,7 @@
 # Keep .env.example
 + .env.example
 
-# Keep README and LICENSE
+# Keep README and LICENSE (matches at any level, protects vendor READMEs too)
 + README.md
 + LICENSE.md
 
@@ -101,7 +105,7 @@
 - *.swo
 - *~
 
-# Server & development directories (root level)
+# Server & development directories (root level only)
 - /server/
 - /sito/
 - /internal/
@@ -113,19 +117,23 @@
 - scripts/export-email-templates-to-installer.php
 
 # Development dependencies
+# node_modules/ without leading / catches any level (intentional: vendor packages too)
 - node_modules/
-- /frontend/node_modules/
 # Keep frontend/ source for customization (users can rebuild with npm)
 
-# Testing
+# Vendor bloat: dev-only packages and nested vendor directories
+- vendor/phpstan/
+- vendor/**/vendor/
+
+# Testing (root level only — don't strip vendor test utilities)
 - .phpunit.result.cache
 - .phpunit.cache/
-- tests/
-- test/
-- coverage/
+- /tests/
+- /test/
+- /coverage/
 - .nyc_output/
 - .coverage
-- htmlcov/
+- /htmlcov/
 - .playwright-mcp/
 
 # Development files
@@ -142,7 +150,8 @@
 - Thumbs.db
 - desktop.ini
 
-# AI/ML models and database files (from .gitignore)
+# AI/ML models and database files
+# IMPORTANT: /models/ with leading / = root only (don't exclude tinymce/models/)
 - vectors.db
 - /models/
 - *.onnx
@@ -152,7 +161,6 @@
 - .installed
 - config.local.php
 - config.local.sample.php
-- internal/
 - todo.md
 - updater.md
 - .distignore
@@ -174,12 +182,12 @@
 # Release artifacts
 - /releases/
 - /build/
-- build-tmp/
+- /build-tmp/
 - /migrations/
 
-# CI/CD & documentation (except README/LICENSE already included)
-- .github/
-- docs/
+# CI/CD & documentation (root level only — don't strip vendor docs)
+- /.github/
+- /docs/
 - CHANGELOG.md
 - *.md
 - .travis.yml
