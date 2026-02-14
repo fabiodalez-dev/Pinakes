@@ -627,6 +627,12 @@ class NotificationService {
                     'titolo' => $wishlist['titolo'] ?? '',
                     'autore' => $wishlist['autore'] ?? ''
                 ]);
+                // book_url() already includes getBasePath(), strip it to avoid
+                // double base path when combined with getBaseUrl() which also includes it
+                $basePath = \App\Support\HtmlHelper::getBasePath();
+                if ($basePath !== '' && str_starts_with($bookLink, $basePath)) {
+                    $bookLink = substr($bookLink, strlen($basePath));
+                }
 
                 $variables = [
                     'utente_nome' => $wishlist['utente_nome'],

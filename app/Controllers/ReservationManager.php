@@ -417,6 +417,12 @@ class ReservationManager
                 'titolo' => $book['titolo'] ?? '',
                 'autore' => $book['autore'] ?? ''
             ]);
+            // book_url() already includes getBasePath(), strip it to avoid
+            // double base path when combined with getBaseUrl() which also includes it
+            $basePath = \App\Support\HtmlHelper::getBasePath();
+            if ($basePath !== '' && str_starts_with($bookLink, $basePath)) {
+                $bookLink = substr($bookLink, strlen($basePath));
+            }
 
             // Format dates according to installation locale for email templates
             $locale = \App\Support\I18n::getInstallationLocale();
