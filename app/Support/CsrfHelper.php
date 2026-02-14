@@ -71,7 +71,7 @@ final class CsrfHelper
                 'success' => false,
                 'error' => __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina ed effettua nuovamente l\'accesso.'),
                 'code' => 'SESSION_EXPIRED',
-                'redirect' => '/login?error=session_expired'
+                'redirect' => url('/login?error=session_expired')
             ], JSON_UNESCAPED_UNICODE);
         } else {
             $body = json_encode([

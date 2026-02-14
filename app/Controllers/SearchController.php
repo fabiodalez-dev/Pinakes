@@ -250,7 +250,7 @@ class SearchController
                 'identifier' => $identifier,
                 'isbn' => $isbn,
                 'type' => 'book',
-                'url' => '/admin/libri/' . $row['id']
+                'url' => url('/admin/libri/' . $row['id'])
             ];
         }
 
@@ -272,7 +272,7 @@ class SearchController
                 'id' => $row['id'],
                 'label' => HtmlHelper::decode($row['label']),
                 'type' => 'author',
-                'url' => '/admin/autori/' . $row['id']
+                'url' => url('/admin/autori/' . $row['id'])
             ];
         }
         
@@ -294,7 +294,7 @@ class SearchController
                 'id' => $row['id'],
                 'label' => HtmlHelper::decode($row['label']),
                 'type' => 'publisher',
-                'url' => '/admin/editori/' . $row['id']
+                'url' => url('/admin/editori/' . $row['id'])
             ];
         }
         
@@ -370,7 +370,7 @@ class SearchController
                 'biography' => $biografia,
                 'book_count' => (int)$row['libro_count'],
                 'type' => 'author',
-                'url' => RouteTranslator::route('author') . '/' . $row['id']
+                'url' => url(RouteTranslator::route('author') . '/' . $row['id'])
             ];
         }
 
@@ -402,7 +402,7 @@ class SearchController
                 'description' => $indirizzo,
                 'book_count' => (int)$row['libro_count'],
                 'type' => 'publisher',
-                'url' => RouteTranslator::route('publisher') . '/' . $row['id']
+                'url' => url(RouteTranslator::route('publisher') . '/' . $row['id'])
             ];
         }
 

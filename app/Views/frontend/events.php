@@ -330,7 +330,7 @@ ob_start();
                     <article class="event-card">
                         <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
-                                <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                                <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                             <?php else: ?>
                                 <div class="event-card__placeholder">
                                     <i class="fas fa-calendar"></i>

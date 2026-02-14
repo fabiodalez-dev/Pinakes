@@ -60,7 +60,7 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                     <article class="event-card">
                         <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
-                                <img src="<?= \App\Support\HtmlHelper::e($event['featured_image']) ?>"
+                                <img src="<?= \App\Support\HtmlHelper::e(url($event['featured_image'])) ?>"
                                     alt="<?= \App\Support\HtmlHelper::e($event['title']) ?>">
                             <?php else: ?>
                                 <div class="event-card__placeholder">

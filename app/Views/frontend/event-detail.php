@@ -334,7 +334,7 @@ ob_start();
         <article class="event-card">
             <?php if (!empty($event['featured_image'])): ?>
                 <figure class="event-cover">
-                    <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                    <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                 </figure>
             <?php endif; ?>
 
@@ -389,7 +389,7 @@ $stmt->close();
                     <article class="related-card">
                         <a href="<?= url('/events/' . $relatedEvent['slug']) ?>" class="related-thumb">
                             <?php if (!empty($relatedEvent['featured_image'])): ?>
-                                <img src="<?= HtmlHelper::e($relatedEvent['featured_image']) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
+                                <img src="<?= HtmlHelper::e(url($relatedEvent['featured_image'])) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
                             <?php endif; ?>
                         </a>
                         <div class="related-body">

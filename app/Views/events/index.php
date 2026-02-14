@@ -164,7 +164,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
                 <!-- Event Image -->
                 <div class="flex-shrink-0">
                   <?php if ($event['featured_image']): ?>
-                    <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>"
+                    <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>"
                       class="w-full md:w-48 h-48 object-cover rounded-xl">
                   <?php else: ?>
                     <div class="w-full md:w-48 h-48 bg-gray-100 rounded-xl flex items-center justify-center">
