@@ -31,7 +31,7 @@ $seoSchema = json_encode([
     "isPartOf" => [
         "@type" => "Library",
         "name" => __("Biblioteca Digitale"),
-        "url" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/'
+        "url" => rtrim(HtmlHelper::getBaseUrl(), '/') . '/'
     ],
     "potentialAction" => [
         "@type" => "SearchAction",

@@ -627,10 +627,11 @@ class NotificationService {
                     'titolo' => $wishlist['titolo'] ?? '',
                     'autore' => $wishlist['autore'] ?? ''
                 ]);
-                // book_url() already includes getBasePath(), strip it to avoid
-                // double base path when combined with getBaseUrl() which also includes it
+                // book_url() includes getBasePath(); strip only if getBaseUrl()
+                // also includes it (APP_CANONICAL_URL) to avoid double base path
                 $basePath = \App\Support\HtmlHelper::getBasePath();
-                if ($basePath !== '' && str_starts_with($bookLink, $basePath)) {
+                $baseUrl = rtrim($this->getBaseUrl(), '/');
+                if ($basePath !== '' && str_ends_with($baseUrl, $basePath) && str_starts_with($bookLink, $basePath)) {
                     $bookLink = substr($bookLink, strlen($basePath));
                 }
 
@@ -640,7 +641,7 @@ class NotificationService {
                     'libro_autore' => $wishlist['autore'] ?: 'Autore non specificato',
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
                     'data_disponibilita' => $this->formatEmailDate('now', true),
-                    'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
+                    'book_url' => $baseUrl . $bookLink,
                     'wishlist_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('wishlist')
                 ];
 

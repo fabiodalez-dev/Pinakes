@@ -17,6 +17,9 @@ final class Branding
         $configured = (string)ConfigStore::get('app.logo', '');
 
         if ($configured !== '' && self::assetExists($configured)) {
+            if (preg_match('/^https?:\\/\\//i', $configured)) {
+                return $configured;
+            }
             return HtmlHelper::getBasePath() . $configured;
         }
 
@@ -34,6 +37,9 @@ final class Branding
         // First check for user-configured logo
         $configured = (string)ConfigStore::get('app.logo', '');
         if ($configured !== '' && self::assetExists($configured)) {
+            if (preg_match('/^https?:\\/\\//i', $configured)) {
+                return $configured;
+            }
             return $basePath . $configured;
         }
 

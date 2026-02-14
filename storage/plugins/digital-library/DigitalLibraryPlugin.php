@@ -460,7 +460,7 @@ class DigitalLibraryPlugin
         $publicUrl = '/uploads/digital/' . $safeName;
         return $this->json($response, [
             'success' => true,
-            'uploadURL' => $publicUrl,
+            'uploadURL' => url($publicUrl),
             'filename' => $safeName,
             'type' => $type
         ]);

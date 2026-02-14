@@ -417,10 +417,11 @@ class ReservationManager
                 'titolo' => $book['titolo'] ?? '',
                 'autore' => $book['autore'] ?? ''
             ]);
-            // book_url() already includes getBasePath(), strip it to avoid
-            // double base path when combined with getBaseUrl() which also includes it
+            // book_url() includes getBasePath(); strip only if getBaseUrl()
+            // also includes it (APP_CANONICAL_URL) to avoid double base path
             $basePath = \App\Support\HtmlHelper::getBasePath();
-            if ($basePath !== '' && str_starts_with($bookLink, $basePath)) {
+            $baseUrl = rtrim($this->getBaseUrl(), '/');
+            if ($basePath !== '' && str_ends_with($baseUrl, $basePath) && str_starts_with($bookLink, $basePath)) {
                 $bookLink = substr($bookLink, strlen($basePath));
             }
 
@@ -436,7 +437,7 @@ class ReservationManager
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => date($dateFormat, strtotime($reservation['data_inizio_richiesta'])),
                 'data_fine' => date($dateFormat, strtotime($reservation['data_fine_richiesta'])),
-                'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
+                'book_url' => $baseUrl . $bookLink,
                 'profile_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('profile')
             ];
 

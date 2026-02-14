@@ -189,7 +189,7 @@
 - /.github/
 - /docs/
 - CHANGELOG.md
-- *.md
+- /*.md
 - .travis.yml
 - .circleci/
 - azure-pipelines.yml

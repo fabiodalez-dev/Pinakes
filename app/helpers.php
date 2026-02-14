@@ -58,6 +58,10 @@ if (!function_exists('url')) {
      */
     function url(string $path = '/'): string
     {
+        // Don't modify absolute URLs (e.g. cover images from external APIs)
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, '//')) {
+            return $path;
+        }
         return App\Support\HtmlHelper::getBasePath() . $path;
     }
 }
