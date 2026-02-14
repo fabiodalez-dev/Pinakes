@@ -215,7 +215,7 @@ if (!empty($triggerWarnings)):
 </div>
 
 <div style="margin-top: 40px; text-align: center;">
-    <a href="<?= $installerBasePath ?>/" class="btn btn-primary" style="min-width: 250px; font-size: 16px;">
+    <a href="<?= htmlspecialchars($installerBasePath, ENT_QUOTES, 'UTF-8') ?>/" class="btn btn-primary" style="min-width: 250px; font-size: 16px;">
         <i class="fas fa-sign-in-alt"></i> <?= __("Vai all'Applicazione") ?>
     </a>
 </div>

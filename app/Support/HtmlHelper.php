@@ -320,9 +320,20 @@ class HtmlHelper
      */
     public static function absoluteUrl(string $path): string
     {
+        // Don't modify already-absolute URLs
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, '//')) {
+            return $path;
+        }
+
         $baseUrl = self::getBaseUrl();
 
-        // Rimuovi slash iniziale se presente
+        // Strip basePath from path if already included (e.g. from book_url())
+        // to avoid double prefix since getBaseUrl() already contains basePath
+        $basePath = self::getBasePath();
+        if ($basePath !== '' && str_starts_with($path, $basePath . '/')) {
+            $path = substr($path, strlen($basePath));
+        }
+
         $path = ltrim($path, '/');
 
         return $baseUrl . '/' . $path;

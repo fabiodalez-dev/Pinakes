@@ -324,8 +324,7 @@ class SearchController
 
         while ($row = $res->fetch_assoc()) {
             $coverUrl = $row['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
-            $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl :
-                rtrim(HtmlHelper::getBaseUrl(), '/') . $coverUrl;
+            $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : absoluteUrl($coverUrl);
 
             $results[] = [
                 'id' => $row['id'],

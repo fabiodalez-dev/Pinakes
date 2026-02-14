@@ -820,7 +820,12 @@ class LoanApprovalController
         try {
             $db->begin_transaction();
 
-            $stmt = $db->prepare("SELECT libro_id, copia_id FROM prestiti WHERE id = ? AND attivo = 1 FOR UPDATE");
+            $stmt = $db->prepare("
+                SELECT libro_id, copia_id, stato
+                FROM prestiti
+                WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')
+                FOR UPDATE
+            ");
             $stmt->bind_param('i', $loanId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -831,7 +836,7 @@ class LoanApprovalController
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => __('Prestito non trovato o già chiuso')
+                    'message' => __('Prestito non trovato o non restituibile')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
@@ -846,15 +851,20 @@ class LoanApprovalController
             $stmt->execute();
             $stmt->close();
 
-            // Update copy status
+            // Update copy status (only if not in a non-lendable state)
             if ($copiaId) {
-                $copyRepo = new \App\Models\CopyRepository($db);
-                $copyRepo->updateStatus($copiaId, 'disponibile');
-            }
+                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
+                $copyCheckStmt->bind_param('i', $copiaId);
+                $copyCheckStmt->execute();
+                $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
+                $copyCheckStmt->close();
 
-            // Recalculate availability
-            $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
+                    $copyRepo = new \App\Models\CopyRepository($db);
+                    $copyRepo->updateStatus($copiaId, 'disponibile');
+                }
+            }
 
             // Reassign returned copy to next waiting reservation
             if ($copiaId) {
@@ -866,11 +876,19 @@ class LoanApprovalController
                 }
             }
 
-            // Notify wishlist users
-            $notificationService = new \App\Support\NotificationService($db);
-            $notificationService->notifyWishlistBookAvailability($libroId);
+            // Recalculate availability AFTER reassignment
+            $integrity = new DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
 
             $db->commit();
+
+            // Notify wishlist users AFTER commit
+            try {
+                $notificationService = new \App\Support\NotificationService($db);
+                $notificationService->notifyWishlistBookAvailability($libroId);
+            } catch (Exception $e) {
+                error_log("[returnLoan] Wishlist notify error for book {$libroId}: " . $e->getMessage());
+            }
 
             $response->getBody()->write(json_encode([
                 'success' => true,

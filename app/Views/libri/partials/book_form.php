@@ -3763,8 +3763,11 @@ function displayScrapedCover(imageUrl) {
     let imageSrc = imageUrl;
 
     if (imageUrl.startsWith('/')) {
-        // Local image - prepend base path
-        imageSrc = window.location.origin + window.BASE_PATH + imageUrl;
+        // Local image - avoid double base path
+        const base = window.BASE_PATH || '';
+        imageSrc = imageUrl.startsWith(base + '/')
+            ? window.location.origin + imageUrl
+            : window.location.origin + base + imageUrl;
     } else if (imageUrl.startsWith('http')) {
         // External image - use plugin proxy (no domain whitelist)
         imageSrc = `${window.BASE_PATH}/api/plugins/proxy-image?url=${encodeURIComponent(imageUrl)}`;

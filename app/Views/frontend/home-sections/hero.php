@@ -8,7 +8,11 @@ $catalogRoute = $catalogRoute ?? route_path('catalog');
 ?>
 
 <!-- Hero Section -->
-<section class="hero-section" data-section="hero" style="background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), url('<?php echo htmlspecialchars($heroData['background_image'] ?? assetUrl('books.jpg'), ENT_QUOTES, 'UTF-8'); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+<?php
+$heroBgImage = $heroData['background_image'] ?? '';
+$heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
+?>
+<section class="hero-section" data-section="hero" style="background: linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), url('<?php echo htmlspecialchars($heroBgUrl, ENT_QUOTES, 'UTF-8'); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;">
     <div class="container">
         <div class="hero-content text-center">
             <h1 class="hero-title"><?php echo htmlspecialchars($heroData['title'] ?? __("La Tua Biblioteca Digitale"), ENT_QUOTES, 'UTF-8'); ?></h1>

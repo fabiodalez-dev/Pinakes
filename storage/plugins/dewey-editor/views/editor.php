@@ -605,8 +605,8 @@ $pageTitle = __('Editor Classificazione Dewey');
 
         // Use merge endpoint if mode is merge, otherwise use import (replace)
         const endpoint = mode === 'merge'
-            ? `/api/dewey-editor/merge/${currentLocale}`
-            : `/api/dewey-editor/import/${currentLocale}`;
+            ? `${window.BASE_PATH}/api/dewey-editor/merge/${currentLocale}`
+            : `${window.BASE_PATH}/api/dewey-editor/import/${currentLocale}`;
 
         try {
             const response = await fetch(endpoint, {

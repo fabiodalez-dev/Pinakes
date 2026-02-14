@@ -107,11 +107,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 album: 'Biblioteca',
                 artwork: [
                     <?php if (!empty($book['copertina_url'])): ?>
-                    { src: <?= json_encode($book['copertina_url'], JSON_UNESCAPED_UNICODE) ?>, sizes: '512x512', type: 'image/jpeg' },
-                    { src: <?= json_encode($book['copertina_url'], JSON_UNESCAPED_UNICODE) ?>, sizes: '256x256', type: 'image/jpeg' },
-                    { src: <?= json_encode($book['copertina_url'], JSON_UNESCAPED_UNICODE) ?>, sizes: '128x128', type: 'image/jpeg' }
+                    { src: <?= json_encode(url($book['copertina_url']), JSON_UNESCAPED_UNICODE) ?>, sizes: '512x512', type: 'image/jpeg' },
+                    { src: <?= json_encode(url($book['copertina_url']), JSON_UNESCAPED_UNICODE) ?>, sizes: '256x256', type: 'image/jpeg' },
+                    { src: <?= json_encode(url($book['copertina_url']), JSON_UNESCAPED_UNICODE) ?>, sizes: '128x128', type: 'image/jpeg' }
                     <?php else: ?>
-                    { src: '/public/uploads/copertine/placeholder.jpg', sizes: '512x512', type: 'image/jpeg' }
+                    { src: <?= json_encode(url('/uploads/copertine/placeholder.jpg'), JSON_UNESCAPED_UNICODE) ?>, sizes: '512x512', type: 'image/jpeg' }
                     <?php endif; ?>
                 ]
             });

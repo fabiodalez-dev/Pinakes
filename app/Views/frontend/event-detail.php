@@ -426,7 +426,7 @@ $stmt->close();
     "name": "<?= addslashes(HtmlHelper::e($event['title'])) ?>",
     "startDate": "<?= HtmlHelper::e($event['event_date']) ?><?= $event['event_time'] ? 'T' . HtmlHelper::e($event['event_time']) : '' ?>",
     <?php if ($event['featured_image']): ?>
-    "image": "<?= addslashes($baseUrl . $event['featured_image']) ?>",
+    "image": "<?= addslashes(absoluteUrl($event['featured_image'])) ?>",
     <?php endif; ?>
     "description": "<?= addslashes(strip_tags($event['content'] ?? '')) ?>",
     "eventStatus": "https://schema.org/EventScheduled",

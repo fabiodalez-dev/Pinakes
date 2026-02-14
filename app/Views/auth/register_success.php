@@ -4,7 +4,8 @@ use App\Support\ConfigStore;
 use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
-$appLogo = url(Branding::fullLogo());
+$appLogoPath = Branding::fullLogo();
+$appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
 ?>
 <!DOCTYPE html>
 <html lang="<?= substr(I18n::getLocale(), 0, 2) ?>">

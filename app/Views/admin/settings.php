@@ -14,7 +14,7 @@
       <?php endif; ?>
     </div>
 
-    <form method="post" action="<?= url('/settings') ?>" class="space-y-8">
+    <form method="post" action="<?= url('/admin/settings/email') ?>" class="space-y-8">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="card">
@@ -189,6 +189,8 @@ php cron/automatic-notifications.php
         </div>
       </div>
 
+    </form>
+
       <!-- Cookie Banner Configuration -->
       <form method="post" action="<?= url('/admin/settings/cookie-banner') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
@@ -308,6 +310,9 @@ php cron/automatic-notifications.php
         </div>
       </div>
       </form>
+
+    <form method="post" action="<?= url('/admin/settings/email') ?>" class="space-y-8">
+      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <!-- Email Templates -->
       <div class="card">

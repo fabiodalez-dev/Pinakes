@@ -62,6 +62,10 @@ if (!function_exists('url')) {
         if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, '//')) {
             return $path;
         }
+        // Ensure path starts with /
+        if ($path !== '' && !str_starts_with($path, '/')) {
+            $path = '/' . $path;
+        }
         return App\Support\HtmlHelper::getBasePath() . $path;
     }
 }

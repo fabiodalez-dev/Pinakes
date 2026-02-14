@@ -93,7 +93,7 @@ $activeTab = $activeTab ?? 'general';
                 </div>
 
                 <?php $currentLogo = (string)($appSettings['logo'] ?? '');
-                      $currentLogoUrl = $currentLogo !== '' ? \App\Support\HtmlHelper::getBasePath() . $currentLogo : ''; ?>
+                      $currentLogoUrl = $currentLogo !== '' ? url($currentLogo) : ''; ?>
                 <div id="logo-preview-wrapper"
                      class="flex items-center gap-4 bg-white border border-gray-200 rounded-xl p-3 <?php echo $currentLogo === '' ? 'hidden' : ''; ?>"
                      data-original-src="<?php echo HtmlHelper::e($currentLogoUrl); ?>">

@@ -81,6 +81,12 @@ require $vendorAutoload;
 $maintenanceFile = __DIR__ . '/../storage/.maintenance';
 if (file_exists($maintenanceFile)) {
     $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+    // Strip base path for subfolder installations
+    $maintenanceBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
+    if ($maintenanceBasePath === '.' || $maintenanceBasePath === DIRECTORY_SEPARATOR) $maintenanceBasePath = '';
+    if ($maintenanceBasePath !== '' && str_starts_with($requestUri, $maintenanceBasePath)) {
+        $requestUri = substr($requestUri, strlen($maintenanceBasePath)) ?: '/';
+    }
     // Allow update endpoints and static assets during maintenance
     $allowedPaths = ['/admin/updates', '/assets/', '/favicon.ico'];
     $isAllowed = false;

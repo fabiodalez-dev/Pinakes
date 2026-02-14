@@ -110,7 +110,8 @@ $canonicalUrl = HtmlHelper::getCurrentUrl();
 $baseUrl = HtmlHelper::getBaseUrl();
 if ($bookCover) {
     // $bookCover already includes base path via url(), make it absolute
-    $ogImage = preg_match('#^https?://#', $bookCover) ? $bookCover : absoluteUrl($book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg');
+    $isAbsolute = preg_match('#^(https?:)?//#', $bookCover);
+    $ogImage = $isAbsolute ? $bookCover : absoluteUrl($book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg');
 } else {
     $ogImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 }

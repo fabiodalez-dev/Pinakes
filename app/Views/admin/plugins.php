@@ -130,7 +130,7 @@ $pluginSettings = $pluginSettings ?? [];
                                             <div class="mb-3 p-2 bg-gray-50 rounded-lg border border-gray-200 inline-block">
                                                 <p class="text-xs text-gray-500 font-medium mb-1"><?= __("Endpoint SRU:") ?></p>
                                                 <div class="flex items-center gap-2">
-                                                    <?php $baseUrl = rtrim(getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? ''), '/'); ?>
+                                                    <?php $baseUrl = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/'); ?>
                                                     <code
                                                         class="text-xs bg-white px-2 py-1 rounded border border-gray-200 select-all"><?= $baseUrl . '/api/sru' ?></code>
                                                     <a href="<?= $baseUrl . '/api/sru?operation=explain&version=1.1' ?>"

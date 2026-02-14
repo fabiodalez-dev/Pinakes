@@ -64,6 +64,7 @@ $validator = new Validator();
 // Base path detection for subfolder installations
 $installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
 if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
+$installerBasePath = htmlspecialchars($installerBasePath, ENT_QUOTES, 'UTF-8');
 
 // Handle AJAX requests
 if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {

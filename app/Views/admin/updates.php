@@ -892,7 +892,7 @@ async function deleteBackup(backupName) {
 }
 
 function downloadBackup(backupName) {
-    window.location.href = `${window.BASE_PATH}/admin/updates/backup/download?backup=${encodeURIComponent(backupName)}`;
+    window.location.href = window.BASE_PATH + '/admin/updates/backup/download?backup=' + encodeURIComponent(backupName);
 }
 
 function formatBytes(bytes) {

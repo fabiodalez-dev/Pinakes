@@ -639,7 +639,8 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(data, type, row) {
           if (!row) return '<div class="w-12 h-16 mx-auto bg-gray-100 rounded"></div>';
-          const imageUrl = escapeHtml(window.BASE_PATH + (data || '/uploads/copertine/placeholder.jpg'));
+          const rawUrl = data || '/uploads/copertine/placeholder.jpg';
+          const imageUrl = escapeHtml(/^(https?:)?\/\//.test(rawUrl) ? rawUrl : window.BASE_PATH + rawUrl);
           const payload = encodeURIComponent(JSON.stringify(row));
           return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity js-cover-modal" data-book="${payload}">
             <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
@@ -1145,7 +1146,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     container.innerHTML = items.map(book => {
       if (!book || book.id == null) return '';
-      const img = escapeHtml(window.BASE_PATH + (book.copertina_url || '/uploads/copertine/placeholder.jpg'));
+      const rawImg = book.copertina_url || '/uploads/copertine/placeholder.jpg';
+      const img = escapeHtml(/^(https?:)?\/\//.test(rawImg) ? rawImg : window.BASE_PATH + rawImg);
       const statusClass = getStatusMeta(book.stato).cls;
       const autori = escapeHtml(book.autori || '');
       const titolo = escapeHtml(book.titolo || '<?= __("Senza titolo") ?>');
@@ -1238,7 +1240,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Image modal
   window.showImageModal = function(bookData) {
-    const img = escapeHtml(window.BASE_PATH + (bookData.copertina_url || '/uploads/copertine/placeholder.jpg'));
+    const rawImg = bookData.copertina_url || '/uploads/copertine/placeholder.jpg';
+    const img = escapeHtml(/^(https?:)?\/\//.test(rawImg) ? rawImg : window.BASE_PATH + rawImg);
     const titolo = escapeHtml(bookData.titolo || '');
     const autori = escapeHtml(bookData.autori || '');
     const editore = escapeHtml(bookData.editore_nome || '');
