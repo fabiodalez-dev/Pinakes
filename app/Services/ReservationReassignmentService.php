@@ -449,8 +449,16 @@ class ReservationReassignmentService
         $author = $authorStmt->get_result()->fetch_assoc();
         $authorStmt->close();
 
-        $baseUrl = $this->getBaseUrl();
+        $basePath = \App\Support\HtmlHelper::getBasePath();
+        $baseUrl = rtrim($this->getBaseUrl(), '/');
         $isbn = $data['isbn13'] ?: $data['isbn10'] ?: '';
+
+        // book_url() includes getBasePath(); strip only if getBaseUrl()
+        // already includes it (APP_CANONICAL_URL set), to avoid double base path
+        $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore_principale' => $author['nome'] ?? '']);
+        if ($basePath !== '' && str_ends_with($baseUrl, $basePath) && str_starts_with($bookLink, $basePath)) {
+            $bookLink = substr($bookLink, strlen($basePath));
+        }
 
         $variables = [
             'utente_nome' => $data['utente_nome'] ?: __('Utente'),
@@ -459,8 +467,8 @@ class ReservationReassignmentService
             'libro_isbn' => $isbn,
             'data_inizio' => $data['data_prestito'] ? date('d/m/Y', strtotime($data['data_prestito'])) : '',
             'data_fine' => $data['data_scadenza'] ? date('d/m/Y', strtotime($data['data_scadenza'])) : '',
-            'book_url' => rtrim($baseUrl, '/') . book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore_principale' => $author['nome'] ?? '']),
-            'profile_url' => rtrim($baseUrl, '/') . RouteTranslator::route('profile')
+            'book_url' => $baseUrl . $bookLink,
+            'profile_url' => $baseUrl . RouteTranslator::route('profile')
         ];
 
         $sent = $this->notificationService->sendReservationBookAvailable($data['email'], $variables);

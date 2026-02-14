@@ -224,7 +224,7 @@ $organizationSchema = [
     "@context" => "https://schema.org",
     "@type" => "Library",
     "name" => __("Biblioteca"),
-    "url" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'],
+    "url" => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/',
     "description" => __("Biblioteca digitale con catalogo completo di libri disponibili per il prestito")
 ];
 $additional_css = "

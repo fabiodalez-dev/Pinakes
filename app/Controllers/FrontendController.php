@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Repositories\RecensioniRepository;
 use App\Support\Branding;
+use App\Support\HtmlHelper;
 use App\Support\RouteTranslator;
 use mysqli;
 use Psr\Container\ContainerInterface;
@@ -227,25 +228,8 @@ class FrontendController
         $footerDescription = \App\Support\ConfigStore::get('app.footer_description', '');
         $appLogo = Branding::logo();
 
-        // Build base URL and protocol
-        // Priority 1: Use APP_CANONICAL_URL from .env if configured
-        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
-        if ($canonicalUrl !== false && trim((string)$canonicalUrl) !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
-            $baseUrlNormalized = rtrim((string)$canonicalUrl, '/');
-        } else {
-            // Priority 2: Fallback to HTTP_HOST
-            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? null;
-            if ($host !== null) {
-                $baseUrl = $protocol . '://' . $host;
-                $baseUrlNormalized = rtrim($baseUrl, '/');
-            } else {
-                // Cannot determine base URL - use empty string to force relative URLs
-                $baseUrlNormalized = '';
-            }
-        }
-
-        // Set $baseUrl for later use (e.g., $seoCanonical)
+        // Build base URL (includes base path for subfolder installs)
+        $baseUrlNormalized = rtrim(HtmlHelper::getBaseUrl(), '/');
         $baseUrl = $baseUrlNormalized;
 
         $makeAbsolute = static function (string $path) use ($baseUrlNormalized): string {
@@ -1271,8 +1255,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $publisherName = htmlspecialchars($publisher['nome']);
         $seoTitle = "Libri di {$publisherName} - Catalogo Editore | Biblioteca";
         $seoDescription = "Scopri tutti i libri pubblicati da {$publisherName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']);
-        $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
+        $seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']);
+        $seoImage = rtrim(HtmlHelper::getBaseUrl(), '/') . '/uploads/copertine/placeholder.jpg';
 
         $archive_type = 'editore';
         $archive_info = $publisher;
@@ -1359,8 +1343,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $genreName = htmlspecialchars($genre['nome']);
         $seoTitle = "Libri di {$genreName} - Catalogo per Genere | Biblioteca";
         $seoDescription = "Esplora tutti i libri del genere {$genreName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . RouteTranslator::route('genre') . '/' . urlencode($genre['nome']);
-        $seoImage = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/uploads/copertine/placeholder.jpg';
+        $seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . RouteTranslator::route('genre') . '/' . urlencode($genre['nome']);
+        $seoImage = rtrim(HtmlHelper::getBaseUrl(), '/') . '/uploads/copertine/placeholder.jpg';
 
         $archive_type = 'genere';
         $archive_info = $genre;
