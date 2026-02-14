@@ -26,7 +26,7 @@ use App\Support\HtmlHelper;
             <!-- Flash Messages -->
             <?php if (isset($_SESSION['flash_error'])): ?>
                 <div class="mt-3 p-3 bg-red-50 text-red-800 border border-red-200 rounded" role="alert">
-                    <?= $_SESSION['flash_error'] ?>
+                    <?= HtmlHelper::e($_SESSION['flash_error']) ?>
                 </div>
                 <?php unset($_SESSION['flash_error']); ?>
             <?php endif; ?>
