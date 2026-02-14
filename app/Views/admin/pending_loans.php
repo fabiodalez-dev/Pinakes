@@ -490,14 +490,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 cancelButtonText: '<?= __("Annulla") ?>'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    fetch(window.BASE_PATH + '/admin/prestiti/' + loanId + '/return', {
+                    fetch(window.BASE_PATH + '/admin/loans/return', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
                             'X-CSRF-Token': csrfToken
                         },
-                        body: JSON.stringify({ _csrf: csrfToken })
+                        body: JSON.stringify({ _csrf: csrfToken, loan_id: loanId })
                     })
                     .then(response => response.json())
                     .then(data => {
@@ -534,14 +534,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 cancelButtonText: '<?= __("Chiudi") ?>'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    fetch(window.BASE_PATH + '/api/reservations/' + reservationId + '/cancel', {
+                    fetch(window.BASE_PATH + '/admin/loans/cancel-reservation', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
                             'X-CSRF-Token': csrfToken
                         },
-                        body: JSON.stringify({ _csrf: csrfToken })
+                        body: JSON.stringify({ _csrf: csrfToken, reservation_id: reservationId })
                     })
                     .then(response => response.json())
                     .then(data => {
