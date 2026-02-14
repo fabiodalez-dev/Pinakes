@@ -155,10 +155,10 @@ class PrestitiApiController
         $res = $stmt->get_result();
         $rows = [];
         while ($r = $res->fetch_assoc()) {
-            $actions = '<a class="text-blue-600" href="/prestiti/dettagli/'.(int)$r['id'].'">'.__('Dettagli').'</a>';
-            $actions .= ' | <a class="text-orange-600" href="/prestiti/modifica/'.(int)$r['id'].'">'.__('Modifica').'</a>';
+            $actions = '<a class="text-blue-600" href="'.url('/prestiti/dettagli/'.(int)$r['id']).'">'.__('Dettagli').'</a>';
+            $actions .= ' | <a class="text-orange-600" href="'.url('/prestiti/modifica/'.(int)$r['id']).'">'.__('Modifica').'</a>';
             if ((int)$r['attivo'] === 1) {
-                $actions .= ' | <a class="text-green-600" href="/prestiti/restituito/'.(int)$r['id'].'">'.__('Restituito').'</a>';
+                $actions .= ' | <a class="text-green-600" href="'.url('/prestiti/restituito/'.(int)$r['id']).'">'.__('Restituito').'</a>';
             }
             $rows[] = [
                 'id' => (int)$r['id'],

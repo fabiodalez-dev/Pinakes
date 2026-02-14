@@ -131,10 +131,10 @@ class UtentiApiController
         $res = $stmt->get_result();
         $rows = [];
         while ($r = $res->fetch_assoc()) {
-            $actions = '<a class="text-blue-600" href="/utenti/dettagli/'.(int)$r['id'].'">'.__('Dettagli').'</a>';
-            $actions .= ' | <a class="text-orange-600" href="/utenti/modifica/'.(int)$r['id'].'">'.__('Modifica').'</a>';
+            $actions = '<a class="text-blue-600" href="'.url('/utenti/dettagli/'.(int)$r['id']).'">'.__('Dettagli').'</a>';
+            $actions .= ' | <a class="text-orange-600" href="'.url('/utenti/modifica/'.(int)$r['id']).'">'.__('Modifica').'</a>';
             $confirmMessage = __('Eliminare l\'utente?');
-            $actions .= ' | <form method="post" action="/utenti/delete/'.(int)$r['id'].'" style="display:inline" onsubmit="return confirm(\'' . addslashes($confirmMessage) . '\')">'
+            $actions .= ' | <form method="post" action="'.url('/utenti/delete/'.(int)$r['id']).'" style="display:inline" onsubmit="return confirm(\'' . addslashes($confirmMessage) . '\')">'
                      . '<input type="hidden" name="csrf_token" value="'.htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8').'">'
                      . '<button class="text-red-600">'.__('Elimina').'</button></form>';
                      
