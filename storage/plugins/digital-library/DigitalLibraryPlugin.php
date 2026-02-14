@@ -317,17 +317,18 @@ class DigitalLibraryPlugin
     public function enqueueAssets(): void
     {
         // Green Audio Player CSS (hosted locally to satisfy CSP)
-        $cssPath = '/assets/vendor/green-audio-player/css/green-audio-player.min.css';
+        $basePath = \App\Support\HtmlHelper::getBasePath();
+        $cssPath = $basePath . '/assets/vendor/green-audio-player/css/green-audio-player.min.css';
         echo '<link rel="stylesheet" href="' . htmlspecialchars($cssPath, ENT_QUOTES, 'UTF-8') . '">' . "\n";
 
         // Digital Library CSS - only load if file exists in plugin directory
         $pluginCssPath = __DIR__ . '/assets/css/digital-library.css';
         if (file_exists($pluginCssPath)) {
-            echo '<link rel="stylesheet" href="/plugins/digital-library/assets/css/digital-library.css">' . "\n";
+            echo '<link rel="stylesheet" href="' . htmlspecialchars($basePath . '/plugins/digital-library/assets/css/digital-library.css', ENT_QUOTES, 'UTF-8') . '">' . "\n";
         }
 
         // Green Audio Player JS (hosted locally to satisfy CSP)
-        $jsPath = '/assets/vendor/green-audio-player/js/green-audio-player.min.js';
+        $jsPath = $basePath . '/assets/vendor/green-audio-player/js/green-audio-player.min.js';
         echo '<script src="' . htmlspecialchars($jsPath, ENT_QUOTES, 'UTF-8') . '" defer></script>' . "\n";
     }
 

@@ -330,6 +330,7 @@ $reservationsRoute = route_path('reservations');
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
+        $cover = url($cover);
         // Use actual copy availability (considers reservations and physical copy state)
         $available = !empty($it['has_actual_copy']);
         $nextAvailable = $it['next_available'] ?? null;
@@ -339,7 +340,7 @@ $reservationsRoute = route_path('reservations');
         <div class="col-xl-4 col-md-6">
           <article class="wishlist-card" data-libro-id="<?= (int)$it['id']; ?>" data-title="<?= $dataTitle; ?>" data-status="<?= $statusLabel; ?>">
             <div class="wishlist-card-cover">
-              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= __("Copertina") ?>" onerror="this.src='/uploads/copertine/placeholder.jpg'">
+              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= __("Copertina") ?>" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </div>
             <div class="wishlist-card-body">
               <span class="wishlist-status <?= $available ? 'available' : 'pending'; ?>">

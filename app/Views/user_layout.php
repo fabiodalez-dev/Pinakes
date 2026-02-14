@@ -917,7 +917,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <?php endif; ?>
                     <?php if ($isLogged): ?>
                         <hr class="mobile-menu-divider">
-                        <a href="<?= url('/user/dashboard') ?>" class="mobile-nav-link">
+                        <a href="<?= $dashboardRoute ?>" class="mobile-nav-link">
                             <i class="fas fa-tachometer-alt me-2"></i><?= __("Dashboard") ?>
                         </a>
                         <?php if (!$isCatalogueMode): ?>

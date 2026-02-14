@@ -31,7 +31,7 @@ class DashboardController
         }
 
         // ICS file URL (dynamic generation)
-        $icsUrl = '/calendar/events.ics';
+        $icsUrl = \App\Support\HtmlHelper::getBasePath() . '/calendar/events.ics';
 
         ob_start();
         require __DIR__ . '/../Views/dashboard/index.php';

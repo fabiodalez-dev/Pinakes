@@ -287,13 +287,14 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
                   if ($cover === '' && !empty($libro['copertina'])) { $cover = (string)$libro['copertina']; }
                   if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
                   if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+                  $cover = url($cover);
                 ?>
                 <article class="group bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-xl transition-all duration-300">
                   <div class="relative h-52 bg-gray-100 overflow-hidden">
                     <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="Copertina <?php echo HtmlHelper::e($libro['titolo'] ?? ''); ?>"
                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                         onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                         onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="p-5 space-y-3">
                     <div>

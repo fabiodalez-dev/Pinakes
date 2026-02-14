@@ -92,12 +92,13 @@ $activeTab = $activeTab ?? 'general';
                   <?php endif; ?>
                 </div>
 
-                <?php $currentLogo = (string)($appSettings['logo'] ?? ''); ?>
+                <?php $currentLogo = (string)($appSettings['logo'] ?? '');
+                      $currentLogoUrl = $currentLogo !== '' ? \App\Support\HtmlHelper::getBasePath() . $currentLogo : ''; ?>
                 <div id="logo-preview-wrapper"
                      class="flex items-center gap-4 bg-white border border-gray-200 rounded-xl p-3 <?php echo $currentLogo === '' ? 'hidden' : ''; ?>"
-                     data-original-src="<?php echo HtmlHelper::e($currentLogo); ?>">
+                     data-original-src="<?php echo HtmlHelper::e($currentLogoUrl); ?>">
                   <img id="logo-preview-image"
-                       src="<?php echo $currentLogo !== '' ? HtmlHelper::e($currentLogo) : ''; ?>"
+                       src="<?php echo $currentLogoUrl !== '' ? HtmlHelper::e($currentLogoUrl) : ''; ?>"
                        alt="<?= __("Anteprima logo") ?>"
                        class="h-16 object-contain <?php echo $currentLogo === '' ? 'hidden' : ''; ?>">
                   <div id="logo-preview-label" class="text-xs text-gray-500">

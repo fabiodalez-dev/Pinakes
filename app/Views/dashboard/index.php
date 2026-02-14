@@ -217,11 +217,11 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
               <div class="p-5">
                 <div class="flex gap-4">
                   <div class="flex-shrink-0">
-                    <?php $cover = !empty($loan['copertina_url']) ? $loan['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
+                    <?php $cover = !empty($loan['copertina_url']) ? url($loan['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                         onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -309,11 +309,11 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
               <div class="p-5">
                 <div class="flex gap-4">
                   <div class="flex-shrink-0">
-                    <?php $cover = !empty($loan['copertina_url']) ? $loan['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
+                    <?php $cover = !empty($loan['copertina_url']) ? url($loan['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                         onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -407,11 +407,11 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
               <div class="p-5">
                 <div class="flex gap-4">
                   <div class="flex-shrink-0">
-                    <?php $cover = !empty($loan['copertina_url']) ? $loan['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
+                    <?php $cover = !empty($loan['copertina_url']) ? url($loan['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                         onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -545,11 +545,11 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
               <div class="p-5">
                 <div class="flex gap-4">
                   <div class="flex-shrink-0">
-                    <?php $cover = !empty($res['copertina_url']) ? $res['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
+                    <?php $cover = !empty($res['copertina_url']) ? url($res['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($res['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                         onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($res['titolo'] ?? ''); ?></h3>
@@ -708,11 +708,11 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
             <?php foreach ($lastBooks as $libro): ?>
               <a href="<?= url('/admin/libri/' . (int)$libro['id']) ?>" class="group h-full">
                 <div class="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200 h-full flex flex-col">
-                  <?php $coverUrl = !empty($libro['copertina_url']) ? $libro['copertina_url'] : '/uploads/copertine/placeholder.jpg'; ?>
+                  <?php $coverUrl = !empty($libro['copertina_url']) ? url($libro['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                   <img src="<?php echo htmlspecialchars($coverUrl, ENT_QUOTES, 'UTF-8'); ?>"
                        alt="<?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>"
                        class="w-full h-48 object-cover"
-                       onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                       onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
                   <div class="p-4 flex-1">
                     <h3 class="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors truncate">
                       <?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>

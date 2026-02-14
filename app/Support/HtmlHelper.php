@@ -300,6 +300,15 @@ class HtmlHelper
         // Sanitizza REQUEST_URI rimuovendo caratteri potenzialmente pericolosi
         $requestUri = preg_replace('/[^\x20-\x7E]/', '', $requestUri);
 
+        // getBaseUrl() includes basePath (e.g. http://host/pinakes)
+        // REQUEST_URI also includes basePath (e.g. /pinakes/admin/dashboard)
+        // Extract origin (protocol+host+port) to avoid duplication
+        $basePath = self::getBasePath();
+        if ($basePath !== '' && str_ends_with($baseUrl, $basePath)) {
+            $origin = substr($baseUrl, 0, -strlen($basePath));
+            return $origin . $requestUri;
+        }
+
         return $baseUrl . $requestUri;
     }
 

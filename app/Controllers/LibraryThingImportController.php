@@ -590,7 +590,7 @@ class LibraryThingImportController
         $response->getBody()->write(json_encode([
             'success' => true,
             'message' => $message,
-            'redirect' => '/admin/libri/import/librarything'
+            'redirect' => url('/admin/libri/import/librarything')
         ], JSON_THROW_ON_ERROR));
         return $response->withHeader('Content-Type', 'application/json');
     }

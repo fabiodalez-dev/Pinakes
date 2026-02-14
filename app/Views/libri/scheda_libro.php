@@ -121,10 +121,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           if ($cover === '' && !empty($libro['copertina'])) { $cover = (string)$libro['copertina']; }
           if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
           if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+          $cover = url($cover);
         ?>
         <div class="p-4 flex items-center justify-center bg-gray-50">
           <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-               onerror="this.src='/uploads/copertine/placeholder.jpg'"
+               onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'"
                alt="<?php echo htmlspecialchars(($libro['titolo'] ?? 'Libro') . ' - Copertina', ENT_QUOTES, 'UTF-8'); ?>"
                class="max-h-80 object-contain rounded-lg shadow" />
         </div>

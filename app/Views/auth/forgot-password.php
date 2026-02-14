@@ -12,6 +12,7 @@ $forgotPasswordRoute = route_path('forgot_password');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= __('Recupera Password') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
+    <link rel="icon" type="image/x-icon" href="<?= url('/favicon.ico') ?>">
 
     <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
     <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">

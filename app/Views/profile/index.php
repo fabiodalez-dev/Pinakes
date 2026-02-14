@@ -373,7 +373,7 @@
       <i class="fas fa-user-edit"></i>
       <?= __("Dati personali") ?>
     </h2>
-    <form method="post" action="<?= App\Support\RouteTranslator::route('profile_update') ?>">
+    <form method="post" action="<?= route_path('profile_update') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
@@ -443,7 +443,7 @@
       <i class="fas fa-lock"></i>
       <?= __("Cambia password") ?>
     </h2>
-    <form method="post" action="<?= App\Support\RouteTranslator::route('profile_password') ?>">
+    <form method="post" action="<?= route_path('profile_password') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">

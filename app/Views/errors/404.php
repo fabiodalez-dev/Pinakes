@@ -217,7 +217,7 @@ ob_start();
                 <i class="fas fa-arrow-left"></i>
                 <?= __('Torna Indietro') ?>
             </button>
-            <a href="/" class="error-404-btn error-404-btn-primary">
+            <a href="<?= url('/') ?>" class="error-404-btn error-404-btn-primary">
                 <i class="fas fa-home"></i>
                 <?= __('Vai alla Home') ?>
             </a>

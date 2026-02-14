@@ -348,13 +348,14 @@ function profileReservationBookUrl(array $item): string {
       if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
       if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
       if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+      $cover = url($cover);
     ?>
       <div class="item-card">
         <div class="item-inner">
           <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? __('Libro')) . ' - ' . __('Copertina')); ?>"
-                 onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                 onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
           </a>
           <div class="item-info">
             <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -405,6 +406,7 @@ function profileReservationBookUrl(array $item): string {
         if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
         if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
         if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+        $cover = url($cover);
 
         $scadenza = $p['data_scadenza'] ?? '';
         $dataPrestito = $p['data_prestito'] ?? '';
@@ -418,7 +420,7 @@ function profileReservationBookUrl(array $item): string {
             <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -487,13 +489,14 @@ function profileReservationBookUrl(array $item): string {
         if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
         if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
         if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+        $cover = url($cover);
       ?>
         <div class="item-card">
           <div class="item-inner">
             <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -548,6 +551,7 @@ function profileReservationBookUrl(array $item): string {
         if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
         if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
         if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+        $cover = url($cover);
 
         $statusLabels = [
           'restituito' => __('Restituito'),
@@ -565,7 +569,7 @@ function profileReservationBookUrl(array $item): string {
             <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -625,6 +629,7 @@ function profileReservationBookUrl(array $item): string {
         $cover = (string)($r['libro_copertina'] ?? '');
         if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
         if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+        $cover = url($cover);
 
         $statusLabels = [
           'pendente' => __('In attesa di approvazione'),
@@ -644,7 +649,7 @@ function profileReservationBookUrl(array $item): string {
             <a href="<?php echo htmlspecialchars(profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src='/uploads/copertine/placeholder.jpg'">
+                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>

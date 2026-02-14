@@ -241,7 +241,7 @@ ob_start();
                 <i class="fas fa-sync-alt"></i>
                 <?= __('Ricarica Pagina') ?>
             </button>
-            <a href="/" class="error-500-btn error-500-btn-primary">
+            <a href="<?= url('/') ?>" class="error-500-btn error-500-btn-primary">
                 <i class="fas fa-home"></i>
                 <?= __('Vai alla Home') ?>
             </a>

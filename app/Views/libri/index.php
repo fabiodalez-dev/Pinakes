@@ -639,10 +639,10 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(data, type, row) {
           if (!row) return '<div class="w-12 h-16 mx-auto bg-gray-100 rounded"></div>';
-          const imageUrl = escapeHtml(data || '/uploads/copertine/placeholder.jpg');
+          const imageUrl = escapeHtml(window.BASE_PATH + (data || '/uploads/copertine/placeholder.jpg'));
           const payload = encodeURIComponent(JSON.stringify(row));
           return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity js-cover-modal" data-book="${payload}">
-            <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
+            <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
           </div>`;
         }
       },
@@ -1145,7 +1145,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     container.innerHTML = items.map(book => {
       if (!book || book.id == null) return '';
-      const img = escapeHtml(book.copertina_url || '/uploads/copertine/placeholder.jpg');
+      const img = escapeHtml(window.BASE_PATH + (book.copertina_url || '/uploads/copertine/placeholder.jpg'));
       const statusClass = getStatusMeta(book.stato).cls;
       const autori = escapeHtml(book.autori || '');
       const titolo = escapeHtml(book.titolo || '<?= __("Senza titolo") ?>');
@@ -1154,7 +1154,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
           <a href="${window.BASE_PATH}/admin/libri/${book.id}" class="flex flex-col h-full">
             <div class="aspect-[2/3] bg-gray-100 relative flex-shrink-0">
-              <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.src='/uploads/copertine/placeholder.jpg'">
+              <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
               <span class="absolute top-2 right-2 w-3 h-3 rounded-full ${statusClass} ring-2 ring-white"></span>
             </div>
             <div class="p-3 mt-auto">
@@ -1238,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Image modal
   window.showImageModal = function(bookData) {
-    const img = escapeHtml(bookData.copertina_url || '/uploads/copertine/placeholder.jpg');
+    const img = escapeHtml(window.BASE_PATH + (bookData.copertina_url || '/uploads/copertine/placeholder.jpg'));
     const titolo = escapeHtml(bookData.titolo || '');
     const autori = escapeHtml(bookData.autori || '');
     const editore = escapeHtml(bookData.editore_nome || '');
@@ -1247,7 +1247,7 @@ document.addEventListener('DOMContentLoaded', function() {
       Swal.fire({
         html: `
           <div class="text-left">
-            <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" onerror="this.src='/uploads/copertine/placeholder.jpg'">
+            <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             <h3 class="font-semibold text-lg">${titolo}</h3>
             ${autori ? `<p class="text-sm text-gray-600 mt-1">${autori}</p>` : ''}
             ${editore ? `<p class="text-sm text-gray-500">${editore}</p>` : ''}

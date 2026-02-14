@@ -602,7 +602,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         </a>
                       <?php endif; ?>
                       <hr class="my-2 border-gray-200">
-                      <a href="<?= \App\Support\RouteTranslator::route('logout') ?>"
+                      <a href="<?= route_path('logout') ?>"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
                         <i class="fas fa-sign-out-alt w-4 h-4"></i>
                         <span class="text-sm"><?= __("Esci") ?></span>
@@ -1166,7 +1166,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
             const isUnread = !notif.is_read;
             const hasLink = Boolean(notif.link);
-            const rawLink = hasLink ? String(notif.link) : '';
+            const rawLink = hasLink ? (String(notif.link).startsWith('http') ? String(notif.link) : window.BASE_PATH + String(notif.link)) : '';
             const escapedLink = hasLink ? escapeHtml(rawLink) : '';
 
             if (hasLink) {

@@ -46,6 +46,7 @@ if (!empty($book['genere'])) {
 $bookGenre = !empty($genreHierarchy) ? implode(' > ', $genreHierarchy) : '';
 $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
 $bookCover = $book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg';
+$bookCover = url($bookCover);
 $isAvailable = ($book['copie_disponibili'] ?? 0) > 0;
 $authorNames = [];
 foreach ($authors as $authorData) {
@@ -108,10 +109,10 @@ $canonicalUrl = HtmlHelper::getCurrentUrl();
 // Open Graph Image - Ensure absolute URLs
 $baseUrl = HtmlHelper::getBaseUrl();
 if ($bookCover) {
-    // Se l'URL è relativo, renderlo assoluto
-    $ogImage = (strpos($bookCover, 'http') === 0) ? $bookCover : $baseUrl . $bookCover;
+    // $bookCover already includes base path via url(), make it absolute
+    $ogImage = (strpos($bookCover, 'http') === 0) ? $bookCover : absoluteUrl($book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg');
 } else {
-    $ogImage = $baseUrl . '/uploads/copertine/placeholder.jpg';
+    $ogImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 }
 
 // Breadcrumb Schema
@@ -129,7 +130,7 @@ $breadcrumbSchema = [
             "@type" => "ListItem",
             "position" => 2,
             "name" => __("Catalogo"),
-            "item" => HtmlHelper::getBaseUrl() . $catalogRoute
+            "item" => HtmlHelper::getBaseUrl() . \App\Support\RouteTranslator::route('catalog')
         ]
     ]
 ];
@@ -2037,7 +2038,7 @@ ob_start();
                         }
                         ?>
                         <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                            <img src="<?= htmlspecialchars($related['copertina_url'] ?? '/uploads/copertine/placeholder.jpg') ?>"
+                            <img src="<?= htmlspecialchars(url($related['copertina_url'] ?? '/uploads/copertine/placeholder.jpg')) ?>"
                                  alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
                                  class="related-book-image">
                         </a>

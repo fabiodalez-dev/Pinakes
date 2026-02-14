@@ -510,7 +510,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <?php if (!empty($currentCover)): ?>
                 <div class="inline-flex flex-col items-start space-y-2">
                   <div class="relative group">
-                    <img src="<?php echo HtmlHelper::e($currentCover); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none';" />
+                    <img src="<?php echo HtmlHelper::e(url($currentCover)); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none';" />
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500"><?= __("Copertina attuale") ?></span>
@@ -3763,8 +3763,8 @@ function displayScrapedCover(imageUrl) {
     let imageSrc = imageUrl;
 
     if (imageUrl.startsWith('/')) {
-        // Local image - use as is
-        imageSrc = window.location.origin + imageUrl;
+        // Local image - prepend base path
+        imageSrc = window.location.origin + window.BASE_PATH + imageUrl;
     } else if (imageUrl.startsWith('http')) {
         // External image - use plugin proxy (no domain whitelist)
         imageSrc = `${window.BASE_PATH}/api/plugins/proxy-image?url=${encodeURIComponent(imageUrl)}`;

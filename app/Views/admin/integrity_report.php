@@ -409,7 +409,7 @@ async function recalculateAvailability() {
         didOpen: () => Swal.showLoading()
     });
     try {
-        const response = await csrfFetch('/admin/maintenance/recalculate-availability', { method: 'POST' });
+        const response = await csrfFetch(window.BASE_PATH + '/admin/maintenance/recalculate-availability', { method: 'POST' });
         const result = await response.json();
         Swal.close();
         Swal.fire({
@@ -450,7 +450,7 @@ async function fixIssues() {
     });
 
     try {
-        const response = await csrfFetch('/admin/maintenance/fix-issues', { method: 'POST' });
+        const response = await csrfFetch(window.BASE_PATH + '/admin/maintenance/fix-issues', { method: 'POST' });
         const result = await response.json();
         Swal.close();
         Swal.fire({
@@ -491,7 +491,7 @@ async function performMaintenance() {
     });
 
     try {
-        const response = await csrfFetch('/admin/maintenance/perform', { method: 'POST' });
+        const response = await csrfFetch(window.BASE_PATH + '/admin/maintenance/perform', { method: 'POST' });
         const result = await response.json();
         Swal.close();
         Swal.fire({
@@ -533,7 +533,7 @@ async function applyConfigFix(issueType, fixValue) {
     });
 
     try {
-        const response = await csrfFetch('/admin/maintenance/apply-config-fix', {
+        const response = await csrfFetch(window.BASE_PATH + '/admin/maintenance/apply-config-fix', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -581,7 +581,7 @@ async function createMissingIndexes() {
     });
 
     try {
-        const response = await csrfFetch('/admin/maintenance/create-indexes', { method: 'POST' });
+        const response = await csrfFetch(window.BASE_PATH + '/admin/maintenance/create-indexes', { method: 'POST' });
         const result = await response.json();
         Swal.close();
 
@@ -631,7 +631,7 @@ async function createMissingSystemTables() {
     });
 
     try {
-        const response = await csrfFetch('/admin/maintenance/create-system-tables', { method: 'POST' });
+        const response = await csrfFetch(window.BASE_PATH + '/admin/maintenance/create-system-tables', { method: 'POST' });
         const result = await response.json();
         Swal.close();
 

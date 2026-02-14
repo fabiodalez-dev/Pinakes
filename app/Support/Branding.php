@@ -17,10 +17,10 @@ final class Branding
         $configured = (string)ConfigStore::get('app.logo', '');
 
         if ($configured !== '' && self::assetExists($configured)) {
-            return $configured;
+            return HtmlHelper::getBasePath() . $configured;
         }
 
-        return self::assetExists(self::DEFAULT_LOGO) ? self::DEFAULT_LOGO : '';
+        return self::assetExists(self::DEFAULT_LOGO) ? HtmlHelper::getBasePath() . self::DEFAULT_LOGO : '';
     }
 
     /**
@@ -29,19 +29,21 @@ final class Branding
      */
     public static function fullLogo(): string
     {
+        $basePath = HtmlHelper::getBasePath();
+
         // First check for user-configured logo
         $configured = (string)ConfigStore::get('app.logo', '');
         if ($configured !== '' && self::assetExists($configured)) {
-            return $configured;
+            return $basePath . $configured;
         }
 
         // Fall back to default full logo
         if (self::assetExists(self::DEFAULT_FULL_LOGO)) {
-            return self::DEFAULT_FULL_LOGO;
+            return $basePath . self::DEFAULT_FULL_LOGO;
         }
 
         // Final fallback to small logo
-        return self::assetExists(self::DEFAULT_LOGO) ? self::DEFAULT_LOGO : '';
+        return self::assetExists(self::DEFAULT_LOGO) ? $basePath . self::DEFAULT_LOGO : '';
     }
 
     /**
@@ -50,7 +52,7 @@ final class Branding
     public static function socialImage(): string
     {
         if (self::assetExists(self::DEFAULT_SOCIAL_IMAGE)) {
-            return self::DEFAULT_SOCIAL_IMAGE;
+            return HtmlHelper::getBasePath() . self::DEFAULT_SOCIAL_IMAGE;
         }
 
         return self::logo();

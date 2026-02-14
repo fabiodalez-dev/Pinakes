@@ -130,7 +130,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
       <div class="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
         <i class="fas fa-exclamation-circle text-red-600 text-xl mt-0.5"></i>
         <div class="flex-1">
-          <p class="text-sm text-red-800 font-medium"><?= $_SESSION['error_message'] ?></p>
+          <p class="text-sm text-red-800 font-medium"><?= HtmlHelper::e($_SESSION['error_message']) ?></p>
         </div>
         <button onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-800">
           <i class="fas fa-times"></i>
