@@ -64,10 +64,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Resolve OUTPUT_DIR to absolute path so cd inside functions won't break it
-case "$OUTPUT_DIR" in
-    /*) ;; # already absolute
-    *)  OUTPUT_DIR="$(pwd)/${OUTPUT_DIR}" ;;
-esac
+# Uses python3 for portability (macOS realpath lacks -m flag)
+OUTPUT_DIR="$(python3 -c "import os,sys; print(os.path.abspath(sys.argv[1]))" "$OUTPUT_DIR")"
 
 ################################################################################
 # Functions

@@ -74,7 +74,7 @@ class NotificationService {
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
                 'data_registrazione' => $this->formatEmailDate($user['created_at'], true),
-                'admin_users_url' => $this->getBaseUrl() . '/admin/utenti'
+                'admin_users_url' => absoluteUrl('/admin/utenti')
             ];
 
             // Send to admins
@@ -115,7 +115,7 @@ class NotificationService {
                 \App\Support\I18n::setLocale($locale);
 
                 // Use /verify-email (English route) as it's supported in all languages
-                $verifyUrl = $this->getBaseUrl() . '/verify-email?token=' . urlencode((string)$user['token_verifica_email']);
+                $verifyUrl = absoluteUrl('/verify-email?token=' . urlencode((string)$user['token_verifica_email']));
                 $buttonText = __('Conferma la tua email');
                 $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
 
@@ -164,7 +164,7 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'login_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('login')
+                'login_url' => absoluteUrl(RouteTranslator::route('login'))
             ];
 
             // Use installation locale for email template
@@ -197,7 +197,7 @@ class NotificationService {
             }
             $stmt->close();
 
-            $verificationUrl = $this->getBaseUrl() . '/verify-email?token=' . urlencode($token);
+            $verificationUrl = absoluteUrl('/verify-email?token=' . urlencode($token));
 
             $variables = [
                 'nome' => $user['nome'],
@@ -245,7 +245,7 @@ class NotificationService {
             $variables = [
                 'nome' => $user['nome'],
                 'cognome' => $user['cognome'],
-                'reset_url' => $this->getBaseUrl() . '/reset-password?token=' . urlencode((string)$token),
+                'reset_url' => absoluteUrl('/reset-password?token=' . urlencode((string)$token)),
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
@@ -287,8 +287,8 @@ class NotificationService {
                 'nome' => $user['nome'],
                 'cognome' => $user['cognome'],
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca'),
-                'reset_url' => $this->getBaseUrl() . '/reset-password?token=' . urlencode((string)$token),
-                'dashboard_url' => $this->getBaseUrl() . '/admin/dashboard'
+                'reset_url' => absoluteUrl('/reset-password?token=' . urlencode((string)$token)),
+                'dashboard_url' => absoluteUrl('/admin/dashboard')
             ];
 
             // Use installation locale for email template
@@ -331,7 +331,7 @@ class NotificationService {
                 'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
                 'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
                 'data_richiesta' => $this->formatEmailDate($loan['created_at'], true),
-                'approve_url' => $this->getBaseUrl() . '/admin/loans/pending'
+                'approve_url' => absoluteUrl('/admin/loans/pending')
             ];
 
             // Send email to admins
@@ -1487,7 +1487,7 @@ class NotificationService {
                 'titolo_recensione' => $review['titolo'] ?? '',
                 'descrizione_recensione' => $review['descrizione'] ?? '',
                 'data_recensione' => $this->formatEmailDate($review['created_at'], true),
-                'link_approvazione' => $this->getBaseUrl() . '/admin/recensioni'
+                'link_approvazione' => absoluteUrl('/admin/recensioni')
             ];
 
             // Send email to admins
