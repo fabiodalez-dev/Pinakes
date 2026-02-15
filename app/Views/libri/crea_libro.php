@@ -10,7 +10,7 @@ $csrfToken = Csrf::ensureToken();
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -18,7 +18,7 @@ $csrfToken = Csrf::ensureToken();
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li>
-          <a href="/admin/libri" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/libri') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
           </a>
         </li>

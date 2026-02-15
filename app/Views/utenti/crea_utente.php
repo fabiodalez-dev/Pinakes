@@ -24,7 +24,7 @@ $errorKey = (string)($_GET['error'] ?? '');
       </div>
     <?php endif; ?>
 
-    <form action="/admin/utenti/store" method="post" class="space-y-6" id="user-form">
+    <form action="<?= url('/admin/utenti/store') ?>" method="post" class="space-y-6" id="user-form">
       <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
 
       <section class="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
@@ -129,7 +129,7 @@ $errorKey = (string)($_GET['error'] ?? '');
       </section>
 
       <div class="flex items-center justify-end gap-3">
-        <a href="/admin/utenti" class="btn-secondary"><?= __("Annulla") ?></a>
+        <a href="<?= url('/admin/utenti') ?>" class="btn-secondary"><?= __("Annulla") ?></a>
         <button type="submit" class="btn-primary"><?= __("Salva utente") ?></button>
       </div>
     </form>

@@ -119,7 +119,7 @@
 
 <script>
 function viewMessage(id) {
-  fetch(`/admin/messages/${id}`)
+  fetch(`${window.BASE_PATH}/admin/messages/${id}`)
     .then(response => response.json())
     .then(data => {
       const modal = document.getElementById('message-modal');
@@ -187,13 +187,13 @@ function closeMessageModal() {
 
 function deleteMessage(id) {
   if (confirm(__('Sei sicuro di voler eliminare questo messaggio?'))) {
-    csrfFetch(`/admin/messages/${id}`, { method: 'DELETE' })
+    csrfFetch(`${window.BASE_PATH}/admin/messages/${id}`, { method: 'DELETE' })
       .then(() => location.reload());
   }
 }
 
 function archiveMessage(id) {
-  csrfFetch(`/admin/messages/${id}/archive`, { method: 'POST' })
+  csrfFetch(`${window.BASE_PATH}/admin/messages/${id}/archive`, { method: 'POST' })
     .then(() => {
       closeMessageModal();
       location.reload();
@@ -201,7 +201,7 @@ function archiveMessage(id) {
 }
 
 function markAllAsRead() {
-  csrfFetch('/admin/messages/mark-all-read', { method: 'POST' })
+  csrfFetch(window.BASE_PATH + '/admin/messages/mark-all-read', { method: 'POST' })
     .then(() => location.reload());
 }
 

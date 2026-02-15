@@ -200,6 +200,42 @@ class HtmlHelper
     }
 
     /**
+     * Ottiene il base path dell'applicazione (es. '/pinakes' se in sottocartella)
+     * Restituisce stringa vuota se l'app è alla root del dominio.
+     *
+     * @return string Base path senza trailing slash, o stringa vuota
+     */
+    public static function getBasePath(): string
+    {
+        static $basePath = null;
+        if ($basePath !== null) {
+            return $basePath;
+        }
+
+        // Priorità 1: Estrai path da APP_CANONICAL_URL
+        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: '';
+        if ($canonicalUrl !== '') {
+            $path = parse_url($canonicalUrl, PHP_URL_PATH);
+            if ($path !== null && $path !== '' && $path !== '/') {
+                $basePath = rtrim($path, '/');
+                return $basePath;
+            }
+        }
+
+        // Priorità 2: Auto-detect da SCRIPT_NAME
+        if (isset($_SERVER['SCRIPT_NAME'])) {
+            $scriptDir = dirname(dirname($_SERVER['SCRIPT_NAME']));
+            if ($scriptDir !== '/' && $scriptDir !== '\\' && $scriptDir !== '.') {
+                $basePath = rtrim($scriptDir, '/');
+                return $basePath;
+            }
+        }
+
+        $basePath = '';
+        return $basePath;
+    }
+
+    /**
      * Ottiene l'URL base sicuro dell'applicazione
      * Usa APP_CANONICAL_URL dalla configurazione per evitare Host header injection
      *
@@ -248,7 +284,7 @@ class HtmlHelper
             }
         }
 
-        return $baseUrl;
+        return $baseUrl . self::getBasePath();
     }
 
     /**
@@ -264,6 +300,15 @@ class HtmlHelper
         // Sanitizza REQUEST_URI rimuovendo caratteri potenzialmente pericolosi
         $requestUri = preg_replace('/[^\x20-\x7E]/', '', $requestUri);
 
+        // getBaseUrl() includes basePath (e.g. http://host/pinakes)
+        // REQUEST_URI also includes basePath (e.g. /pinakes/admin/dashboard)
+        // Extract origin (protocol+host+port) to avoid duplication
+        $basePath = self::getBasePath();
+        if ($basePath !== '' && str_ends_with($baseUrl, $basePath)) {
+            $origin = substr($baseUrl, 0, -strlen($basePath));
+            return $origin . $requestUri;
+        }
+
         return $baseUrl . $requestUri;
     }
 
@@ -275,9 +320,20 @@ class HtmlHelper
      */
     public static function absoluteUrl(string $path): string
     {
+        // Don't modify already-absolute URLs
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, '//')) {
+            return $path;
+        }
+
         $baseUrl = self::getBaseUrl();
 
-        // Rimuovi slash iniziale se presente
+        // Strip basePath from path if already included (e.g. from book_url())
+        // to avoid double prefix since getBaseUrl() already contains basePath
+        $basePath = self::getBasePath();
+        if ($basePath !== '' && (str_starts_with($path, $basePath . '/') || $path === $basePath)) {
+            $path = substr($path, strlen($basePath));
+        }
+
         $path = ltrim($path, '/');
 
         return $baseUrl . '/' . $path;

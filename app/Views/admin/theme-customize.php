@@ -11,7 +11,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
         <div class="mb-6">
             <div class="flex items-center justify-between">
                 <div>
-                    <a href="/admin/themes" class="text-sm text-gray-600 hover:text-gray-900 mb-2 inline-block">
+                    <a href="<?= url('/admin/themes') ?>" class="text-sm text-gray-600 hover:text-gray-900 mb-2 inline-block">
                         <i class="fas fa-arrow-left mr-1"></i>
                         <?= __("Torna ai temi") ?>
                     </a>
@@ -44,7 +44,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
             </div>
         <?php endif; ?>
 
-        <form method="POST" action="/admin/themes/<?= $theme['id'] ?>/save" id="theme-form">
+        <form method="POST" action="<?= url('/admin/themes/' . $theme['id'] . '/save') ?>" id="theme-form">
             <input type="hidden" name="csrf_token" value="<?= Csrf::ensureToken() ?>">
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -285,7 +285,7 @@ function checkContrast() {
     const button = document.getElementById('color-button').value;
     const buttonText = document.getElementById('color-button-text').value;
 
-    fetch('/admin/themes/check-contrast', {
+    fetch(window.BASE_PATH + '/admin/themes/check-contrast', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -352,7 +352,7 @@ function hexToRgb(hex) {
 function resetToDefaults() {
     if (!confirm('<?= addslashes(__("Ripristinare i colori?")) ?>')) return;
 
-    fetch('/admin/themes/<?= $theme['id'] ?>/reset', {
+    fetch(window.BASE_PATH + '/admin/themes/<?= $theme['id'] ?>/reset', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {

@@ -344,8 +344,8 @@ function toggleSection(section) {
 
             try {
                 const url = endpoint
-                    ? `/admin/recensioni/${reviewId}/${endpoint}`
-                    : `/admin/recensioni/${reviewId}`;
+                    ? `${window.BASE_PATH}/admin/recensioni/${reviewId}/${endpoint}`
+                    : `${window.BASE_PATH}/admin/recensioni/${reviewId}`;
                 const response = await fetch(url, {
                     method: method || 'POST',
                     credentials: 'same-origin',

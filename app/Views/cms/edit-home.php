@@ -44,7 +44,7 @@ function getSectionDisplayName($key) {
           <?= __("Personalizza tutti i contenuti della homepage del sito") ?>
         </p>
       </div>
-      <a href="/admin/settings?tab=cms" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
+      <a href="<?= url('/admin/settings?tab=cms') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
         <i class="fas fa-arrow-left"></i>
         <?= __("Torna alle Impostazioni") ?>
       </a>
@@ -114,7 +114,7 @@ function getSectionDisplayName($key) {
     </div>
   </div>
 
-  <form action="/admin/cms/home" method="post" enctype="multipart/form-data" class="space-y-6">
+  <form action="<?= url('/admin/cms/home') ?>" method="post" enctype="multipart/form-data" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
     <!-- Hero Section -->
@@ -658,7 +658,7 @@ function getSectionDisplayName($key) {
 
     <!-- Submit Button -->
     <div class="flex justify-end gap-3">
-      <a href="/admin/settings?tab=cms" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-semibold transition-colors">
+      <a href="<?= url('/admin/settings?tab=cms') ?>" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-semibold transition-colors">
         <i class="fas fa-times"></i>
         <?= __("Annulla") ?>
       </a>
@@ -942,7 +942,7 @@ document.addEventListener('keydown', function(e) {
 </script>
 
 <!-- TinyMCE -->
-<script src="/assets/tinymce/tinymce.min.js"></script>
+<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
 <script>
 // Accordion toggle function
 function toggleAccordion(id) {
@@ -1020,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', function() {
       statusEl.textContent = '<?= __("Salvataggio in corso...") ?>';
       statusEl.className = 'mt-4 text-sm text-blue-600';
 
-      fetch('/admin/cms/home/reorder', {
+      fetch(window.BASE_PATH + '/admin/cms/home/reorder', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -1076,7 +1076,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const sectionId = parseInt(this.dataset.sectionId);
         const isActive = this.checked ? 1 : 0;
 
-        fetch('/admin/cms/home/toggle-visibility', {
+        fetch(window.BASE_PATH + '/admin/cms/home/toggle-visibility', {
             method: 'POST',
             credentials: 'same-origin',
           headers: {
@@ -1133,4 +1133,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- Load Sortable.js -->
-<script src="/assets/vendor/sortablejs/Sortable.min.js"></script>
+<script src="<?= assetUrl('vendor/sortablejs/Sortable.min.js') ?>"></script>

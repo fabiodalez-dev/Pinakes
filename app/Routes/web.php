@@ -1498,6 +1498,24 @@ return function (App $app): void {
         return $controller->cancelPickup($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/loans/return', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new LoanApprovalController();
+        $db = $app->getContainer()->get('db');
+        return $controller->returnLoan($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/loans/cancel-reservation', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new LoanApprovalController();
+        $db = $app->getContainer()->get('db');
+        return $controller->cancelReservation($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Maintenance routes
     $app->get('/admin/maintenance/integrity-report', function ($request, $response) use ($app) {
         $controller = new MaintenanceController();

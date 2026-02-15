@@ -794,4 +794,210 @@ class LoanApprovalController
         }
     }
 
+    /**
+     * Mark an active loan as returned (JSON API for pending loans page).
+     */
+    public function returnLoan(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody();
+        if (!is_array($data) || empty($data)) {
+            $contentType = $request->getHeaderLine('Content-Type');
+            if (str_contains($contentType, 'application/json')) {
+                $raw = (string) $request->getBody();
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    $data = $decoded;
+                }
+            }
+        }
+        $loanId = (int) ($data['loan_id'] ?? 0);
+
+        if ($loanId <= 0) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        try {
+            $db->begin_transaction();
+
+            $stmt = $db->prepare("
+                SELECT libro_id, copia_id, stato
+                FROM prestiti
+                WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')
+                FOR UPDATE
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $loan = $result->fetch_assoc();
+            $stmt->close();
+
+            if (!$loan) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non restituibile')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $libroId = (int) $loan['libro_id'];
+            $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
+            $dataRestituzione = date('Y-m-d');
+
+            // Close the loan
+            $stmt = $db->prepare("UPDATE prestiti SET stato = 'restituito', data_restituzione = ?, attivo = 0 WHERE id = ?");
+            $stmt->bind_param('si', $dataRestituzione, $loanId);
+            $stmt->execute();
+            $stmt->close();
+
+            // Update copy status (only if not in a non-lendable state)
+            if ($copiaId) {
+                $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
+                $copyCheckStmt->bind_param('i', $copiaId);
+                $copyCheckStmt->execute();
+                $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
+                $copyCheckStmt->close();
+
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
+                    $copyRepo = new \App\Models\CopyRepository($db);
+                    $copyRepo->updateStatus($copiaId, 'disponibile');
+                }
+            }
+
+            // Reassign returned copy to next waiting reservation
+            if ($copiaId) {
+                try {
+                    $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                    $reassignmentService->reassignOnReturn($copiaId);
+                } catch (Exception $e) {
+                    error_log("[returnLoan] Reassignment error for copy {$copiaId}: " . $e->getMessage());
+                }
+            }
+
+            // Recalculate availability AFTER reassignment
+            $integrity = new DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+
+            $db->commit();
+
+            // Notify wishlist users AFTER commit
+            try {
+                $notificationService = new \App\Support\NotificationService($db);
+                $notificationService->notifyWishlistBookAvailability($libroId);
+            } catch (Exception $e) {
+                error_log("[returnLoan] Wishlist notify error for book {$libroId}: " . $e->getMessage());
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Libro restituito con successo')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+
+        } catch (Exception $e) {
+            $db->rollback();
+            error_log("[returnLoan] Error for loan {$loanId}: " . $e->getMessage());
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Errore durante la restituzione')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
+    /**
+     * Admin cancel a reservation (JSON API for pending loans page).
+     */
+    public function cancelReservation(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody();
+        if (!is_array($data) || empty($data)) {
+            $contentType = $request->getHeaderLine('Content-Type');
+            if (str_contains($contentType, 'application/json')) {
+                $raw = (string) $request->getBody();
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    $data = $decoded;
+                }
+            }
+        }
+        $reservationId = (int) ($data['reservation_id'] ?? 0);
+
+        if ($reservationId <= 0) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prenotazione non valido')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        try {
+            $db->begin_transaction();
+
+            $stmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND stato = 'attiva' FOR UPDATE");
+            $stmt->bind_param('i', $reservationId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $reservation = $result->fetch_assoc();
+            $stmt->close();
+
+            if (!$reservation) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prenotazione non trovata o già annullata')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $libroId = (int) $reservation['libro_id'];
+
+            // Cancel the reservation
+            $stmt = $db->prepare("UPDATE prenotazioni SET stato = 'annullata' WHERE id = ?");
+            $stmt->bind_param('i', $reservationId);
+            $stmt->execute();
+            $stmt->close();
+
+            // Reorder queue positions for remaining active reservations
+            $reorderStmt = $db->prepare("
+                SELECT id FROM prenotazioni
+                WHERE libro_id = ? AND stato = 'attiva'
+                ORDER BY queue_position ASC
+            ");
+            $reorderStmt->bind_param('i', $libroId);
+            $reorderStmt->execute();
+            $reorderResult = $reorderStmt->get_result();
+
+            $position = 1;
+            while ($row = $reorderResult->fetch_assoc()) {
+                $updatePos = $db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
+                $updatePos->bind_param('ii', $position, $row['id']);
+                $updatePos->execute();
+                $updatePos->close();
+                $position++;
+            }
+            $reorderStmt->close();
+
+            // Recalculate book availability
+            $integrity = new DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId);
+
+            $db->commit();
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Prenotazione annullata con successo')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+
+        } catch (Exception $e) {
+            $db->rollback();
+            error_log("[cancelReservation] Error for reservation {$reservationId}: " . $e->getMessage());
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Errore durante l\'annullamento della prenotazione')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+    }
+
 }

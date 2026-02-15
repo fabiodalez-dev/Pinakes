@@ -518,7 +518,7 @@ class Z39ServerPlugin
     {
         $menuItems[] = [
             'title' => 'Z39.50/SRU Server',
-            'url' => '/admin/plugins/z39-server/settings',
+            'url' => url('/admin/plugins/z39-server/settings'),
             'icon' => 'fa-server',
             'section' => 'plugins'
         ];

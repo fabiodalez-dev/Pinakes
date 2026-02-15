@@ -63,6 +63,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Resolve OUTPUT_DIR to absolute path so cd inside functions won't break it
+case "$OUTPUT_DIR" in
+    /*) ;; # already absolute
+    *)  OUTPUT_DIR="$(pwd)/${OUTPUT_DIR}" ;;
+esac
+
 ################################################################################
 # Functions
 ################################################################################
@@ -370,11 +376,11 @@ create_release_package() {
         sha256sum "${package_name}.zip" > "${package_name}.zip.sha256"
     fi
 
-    # Move to releases directory
-    mv "${package_name}.zip" "../${OUTPUT_DIR}/"
-    mv "${package_name}.zip.sha256" "../${OUTPUT_DIR}/"
+    # Move to releases directory (OUTPUT_DIR is absolute)
+    mv "${package_name}.zip" "${OUTPUT_DIR}/"
+    mv "${package_name}.zip.sha256" "${OUTPUT_DIR}/"
 
-    cd ..
+    cd - > /dev/null
 
     # Cleanup
     rm -rf "$temp_dir"

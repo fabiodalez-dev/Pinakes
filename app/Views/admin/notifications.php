@@ -103,7 +103,8 @@
                   </span>
                   <div class="flex flex-wrap items-center gap-2">
                     <?php if (!empty($notification['link'])): ?>
-                    <a href="<?php echo HtmlHelper::e($notification['link']); ?>"
+                    <?php $notifLink = $notification['link']; if (str_starts_with($notifLink, '/') && !str_starts_with($notifLink, '//')) { $notifLink = url($notifLink); } ?>
+                    <a href="<?php echo HtmlHelper::e($notifLink); ?>"
                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
                       <i class="fas fa-arrow-right text-xs"></i>
                       <?= __("Vai") ?>
@@ -147,7 +148,7 @@
 
 <script>
 function markAsRead(id) {
-  csrfFetch(`/admin/notifications/${id}/read`, { method: 'POST' })
+  csrfFetch(`${window.BASE_PATH}/admin/notifications/${id}/read`, { method: 'POST' })
     .then(response => response.json())
     .then(data => {
       if (data.success) {
@@ -158,7 +159,7 @@ function markAsRead(id) {
 }
 
 function markAllAsRead() {
-  csrfFetch('/admin/notifications/mark-all-read', { method: 'POST' })
+  csrfFetch(window.BASE_PATH + '/admin/notifications/mark-all-read', { method: 'POST' })
     .then(response => response.json())
     .then(data => {
       if (data.success) {
@@ -170,7 +171,7 @@ function markAllAsRead() {
 
 function deleteNotification(id) {
   if (confirm('<?= addslashes(__("Sei sicuro di voler eliminare questa notifica?")) ?>')) {
-    csrfFetch(`/admin/notifications/${id}`, { method: 'DELETE' })
+    csrfFetch(`${window.BASE_PATH}/admin/notifications/${id}`, { method: 'DELETE' })
       .then(response => response.json())
       .then(data => {
         if (data.success) {

@@ -56,8 +56,8 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
 
                         // Use same image logic as home-books-grid.php
                         $coverUrl = $book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg';
-                        $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : HtmlHelper::getBaseUrl() . $coverUrl;
-                        $defaultCoverUrl = HtmlHelper::getBaseUrl() . '/uploads/copertine/placeholder.jpg';
+                        $absoluteCoverUrl = (strpos($coverUrl, 'http') === 0) ? $coverUrl : absoluteUrl($coverUrl);
+                        $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     ?>
                     <a href="<?php echo $bookDetailUrl; ?>" class="carousel-book-card">
                         <img src="<?php echo htmlspecialchars($absoluteCoverUrl, ENT_QUOTES, 'UTF-8'); ?>"

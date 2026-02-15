@@ -61,7 +61,7 @@ $activeTab = $activeTab ?? 'general';
     <div class="p-6">
       <!-- General Settings -->
       <section data-settings-panel="general" class="settings-panel <?php echo $activeTab === 'general' ? 'block' : 'hidden'; ?>">
-        <form action="/admin/settings/general" method="post" enctype="multipart/form-data" class="space-y-8">
+        <form action="<?= url('/admin/settings/general') ?>" method="post" enctype="multipart/form-data" class="space-y-8">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="space-y-4">
@@ -92,16 +92,17 @@ $activeTab = $activeTab ?? 'general';
                   <?php endif; ?>
                 </div>
 
-                <?php $currentLogo = (string)($appSettings['logo'] ?? ''); ?>
+                <?php $currentLogo = (string)($appSettings['logo'] ?? '');
+                      $currentLogoUrl = $currentLogo !== '' ? url($currentLogo) : ''; ?>
                 <div id="logo-preview-wrapper"
                      class="flex items-center gap-4 bg-white border border-gray-200 rounded-xl p-3 <?php echo $currentLogo === '' ? 'hidden' : ''; ?>"
-                     data-original-src="<?php echo HtmlHelper::e($currentLogo); ?>">
+                     data-original-src="<?php echo HtmlHelper::e($currentLogoUrl); ?>">
                   <img id="logo-preview-image"
-                       src="<?php echo $currentLogo !== '' ? HtmlHelper::e($currentLogo) : ''; ?>"
+                       src="<?php echo $currentLogoUrl !== '' ? HtmlHelper::e($currentLogoUrl) : ''; ?>"
                        alt="<?= __("Anteprima logo") ?>"
                        class="h-16 object-contain <?php echo $currentLogo === '' ? 'hidden' : ''; ?>">
                   <div id="logo-preview-label" class="text-xs text-gray-500">
-                    <?php echo $currentLogo !== '' ? '<?= __("Anteprima logo") ?>' : '<?= __("Nessun logo caricato") ?>'; ?>
+                    <?php echo $currentLogo !== '' ? __("Anteprima logo") : __("Nessun logo caricato"); ?>
                   </div>
                 </div>
 
@@ -219,7 +220,7 @@ $activeTab = $activeTab ?? 'general';
 
       <!-- Email Settings -->
       <section data-settings-panel="email" class="settings-panel <?php echo $activeTab === 'email' ? 'block' : 'hidden'; ?>">
-        <form action="/admin/settings/email" method="post" class="space-y-8">
+        <form action="<?= url('/admin/settings/email') ?>" method="post" class="space-y-8">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -346,7 +347,7 @@ $activeTab = $activeTab ?? 'general';
                   </div>
                 </div>
 
-                <form action="/admin/settings/templates/<?php echo HtmlHelper::e($template['name']); ?>" method="post" class="p-3 md:p-5 space-y-4">
+                <form action="<?= url('/admin/settings/templates/' . HtmlHelper::e($template['name'])) ?>" method="post" class="p-3 md:p-5 space-y-4">
                   <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
                   <div>
                     <label class="block text-sm font-medium text-gray-700"><?= __("Oggetto") ?></label>
@@ -395,12 +396,12 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Modifica i contenuti della homepage: hero, features, CTA e immagine di sfondo") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="/" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= url('/') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
               <div class="mt-4">
-                <a href="/admin/cms/home" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
+                <a href="<?= url('/admin/cms/home') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
                   <?= __("Modifica Homepage") ?>
                 </a>
@@ -424,7 +425,7 @@ $activeTab = $activeTab ?? 'general';
                 </div>
               </div>
               <div class="mt-4">
-                <a href="/admin/cms/chi-siamo" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
+                <a href="<?= url('/admin/cms/chi-siamo') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
                   <?= __("Modifica Chi Siamo") ?>
                 </a>
@@ -443,12 +444,12 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Gestisci gli eventi della biblioteca: crea, modifica ed elimina eventi con immagini e descrizioni") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="/events" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= url('/events') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
               <div class="mt-4">
-                <a href="/admin/cms/events" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
+                <a href="<?= url('/admin/cms/events') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
                   <?= __("Gestisci Eventi") ?>
                 </a>
@@ -479,7 +480,7 @@ $activeTab = $activeTab ?? 'general';
 
       <!-- Label Settings -->
       <section data-settings-panel="labels" class="settings-panel <?php echo $activeTab === 'labels' ? 'block' : 'hidden'; ?>">
-        <form action="/admin/settings/labels" method="post" class="space-y-8">
+        <form action="<?= url('/admin/settings/labels') ?>" method="post" class="space-y-8">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -602,7 +603,7 @@ $activeTab = $activeTab ?? 'general';
   }
 </style>
 
-<script src="/assets/tinymce/tinymce.min.js"></script>
+<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('[data-settings-tab]');

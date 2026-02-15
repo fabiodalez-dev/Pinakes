@@ -48,16 +48,38 @@ if (!function_exists('__n')) {
     }
 }
 
+if (!function_exists('url')) {
+    /**
+     * Generate a path-only URL with base path prepended.
+     * Use for href/action attributes in views.
+     *
+     * @param string $path Absolute path starting with /
+     * @return string Path with base path prefix
+     */
+    function url(string $path = '/'): string
+    {
+        // Don't modify absolute URLs (e.g. cover images from external APIs)
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, '//')) {
+            return $path;
+        }
+        // Ensure path starts with /
+        if ($path !== '' && !str_starts_with($path, '/')) {
+            $path = '/' . $path;
+        }
+        return App\Support\HtmlHelper::getBasePath() . $path;
+    }
+}
+
 if (!function_exists('route_path')) {
     /**
      * Resolve a localized route path using RouteTranslator
      *
      * @param string $key Route key (e.g., 'catalog', 'login')
-     * @return string Localized route path starting with /
+     * @return string Localized route path starting with / (includes base path)
      */
     function route_path(string $key): string
     {
-        return App\Support\RouteTranslator::route($key);
+        return App\Support\HtmlHelper::getBasePath() . App\Support\RouteTranslator::route($key);
     }
 }
 
@@ -147,7 +169,7 @@ if (!function_exists('book_url')) {
     {
         $bookId = (int)($book['id'] ?? $book['libro_id'] ?? 0);
         if ($bookId <= 0) {
-            return '/';
+            return App\Support\HtmlHelper::getBasePath() . '/';
         }
 
         $title = (string)($book['titolo'] ?? $book['libro_titolo'] ?? $book['title'] ?? '');
@@ -162,7 +184,7 @@ if (!function_exists('book_url')) {
             $authorSlug = 'autore';
         }
 
-        return '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
+        return App\Support\HtmlHelper::getBasePath() . '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
     }
 }
 
@@ -271,6 +293,37 @@ if (!function_exists('translate_loan_status')) {
             'scaduto' => __('Scaduto'),
             default => $status
         };
+    }
+}
+
+if (!function_exists('absoluteUrl')) {
+    /**
+     * Generate an absolute URL for the given path.
+     *
+     * @param string $path The path to append to the base URL
+     * @return string Absolute URL
+     */
+    function absoluteUrl(string $path = ''): string
+    {
+        return App\Support\HtmlHelper::absoluteUrl($path);
+    }
+}
+
+if (!function_exists('assetUrl')) {
+    /**
+     * Generate an absolute URL for an asset file.
+     *
+     * Usage examples:
+     *   echo assetUrl('main.css');        // => http://example.com/assets/main.css
+     *   echo assetUrl('tinymce/tinymce.min.js');
+     *
+     * @param string $path The asset path relative to /assets/
+     * @return string Absolute asset URL
+     */
+    function assetUrl(string $path): string
+    {
+        $normalizedPath = '/' . ltrim($path, '/');
+        return App\Support\HtmlHelper::absoluteUrl('/assets' . $normalizedPath);
     }
 }
 

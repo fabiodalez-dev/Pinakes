@@ -384,7 +384,7 @@ $profileRoute = route_path('profile');
             <div class="book-card">
               <div class="book-card-icon">
                 <?php if (!empty($coverUrl)): ?>
-                  <img src="<?= HtmlHelper::e($coverUrl) ?>" alt="<?= HtmlHelper::e($libro['titolo'] ?? '') ?>" loading="lazy">
+                  <img src="<?= HtmlHelper::e(url($coverUrl)) ?>" alt="<?= HtmlHelper::e($libro['titolo'] ?? '') ?>" loading="lazy">
                 <?php else: ?>
                   <i class="fas fa-book"></i>
                 <?php endif; ?>
@@ -453,7 +453,7 @@ $profileRoute = route_path('profile');
             <div class="book-card">
               <div class="book-card-icon">
                 <?php if (!empty($coverUrl)): ?>
-                  <img src="<?= HtmlHelper::e($coverUrl) ?>" alt="<?= HtmlHelper::e($prestito['titolo_libro'] ?? '') ?>" loading="lazy">
+                  <img src="<?= HtmlHelper::e(url($coverUrl)) ?>" alt="<?= HtmlHelper::e($prestito['titolo_libro'] ?? '') ?>" loading="lazy">
                 <?php else: ?>
                   <i class="fas fa-book"></i>
                 <?php endif; ?>

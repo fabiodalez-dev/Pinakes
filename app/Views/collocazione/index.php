@@ -1,4 +1,4 @@
-<link href="/assets/css/sortable.min.css" rel="stylesheet">
+<link href="<?= assetUrl('css/sortable.min.css') ?>" rel="stylesheet">
 
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6">
@@ -7,7 +7,7 @@
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -175,7 +175,7 @@
           <div class="p-6">
 
             <!-- Add Form -->
-            <form method="post" action="/admin/collocazione/scaffali" class="mb-6">
+            <form method="post" action="<?= url('/admin/collocazione/scaffali') ?>" class="mb-6">
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
@@ -216,7 +216,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><?= __("Ordine:") ?> <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
-                          <form method="post" action="/admin/collocazione/scaffali/<?php echo (int)$s['id']; ?>/delete" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questo scaffale? (Solo se vuoto)")) ?>);">
+                          <form method="post" action="<?= url('/admin/collocazione/scaffali/' . (int)$s['id'] . '/delete') ?>" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questo scaffale? (Solo se vuoto)")) ?>);">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                             <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
@@ -248,7 +248,7 @@
           <div class="p-6">
 
             <!-- Add Form -->
-            <form method="post" action="/admin/collocazione/mensole" class="mb-6">
+            <form method="post" action="<?= url('/admin/collocazione/mensole') ?>" class="mb-6">
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="md:col-span-2">
@@ -316,7 +316,7 @@
                       </div>
                       <div class="flex items-center gap-2">
                         <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mensola-order-label"><?= __("Ordine:") ?> <span class="order-value"><?php echo (int)($m['ordine'] ?? 0); ?></span></span>
-                        <form method="post" action="/admin/collocazione/mensole/<?php echo (int)$m['id']; ?>/delete" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questa mensola? (Solo se vuota)")) ?>);">
+                        <form method="post" action="<?= url('/admin/collocazione/mensole/' . (int)$m['id'] . '/delete') ?>" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questa mensola? (Solo se vuota)")) ?>);">
                           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                           <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                         </form>
@@ -410,7 +410,7 @@
   </div>
 </div>
 
-<script src="/assets/js/sortable.min.js"></script>
+<script src="<?= assetUrl('js/sortable.min.js') ?>"></script>
 <script>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
@@ -449,7 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (scaffaleId) {
         payload.scaffale_id = scaffaleId;
       }
-      const response = await fetch('/api/collocazione/sort', {
+      const response = await fetch(window.BASE_PATH + '/api/collocazione/sort', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   async function loadCollocationBooks() {
     try {
-      const response = await fetch('/api/collocazione/libri');
+      const response = await fetch(window.BASE_PATH + '/api/collocazione/libri');
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
@@ -624,7 +624,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const bookId = parseInt(book.id, 10);
       // Validate book ID to prevent invalid URLs
       const editLink = Number.isFinite(bookId) && bookId > 0
-        ? `<a href="/admin/libri/modifica/${bookId}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>"><i class="fas fa-edit"></i></a>`
+        ? `<a href="${window.BASE_PATH}/admin/libri/modifica/${bookId}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>"><i class="fas fa-edit"></i></a>`
         : '<span class="text-gray-400" title="ID non valido"><i class="fas fa-edit"></i></span>';
 
       return `
@@ -669,7 +669,7 @@ function exportCollocationCSV() {
   const scaffaleId = document.getElementById('filter-scaffale').value;
   const mensolaId = document.getElementById('filter-mensola').value;
 
-  let url = '/api/collocazione/export-csv';
+  let url = window.BASE_PATH + '/api/collocazione/export-csv';
   const params = new URLSearchParams();
 
   if (scaffaleId) params.append('scaffale_id', scaffaleId);

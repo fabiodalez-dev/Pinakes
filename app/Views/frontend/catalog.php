@@ -18,8 +18,8 @@ if ($searchQuery) {
 }
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
-$seoCanonical = HtmlHelper::getBaseUrl() . $catalogRoute;
-$seoImage = HtmlHelper::getBaseUrl() . '/uploads/copertine/placeholder.jpg';
+$seoCanonical = HtmlHelper::getBaseUrl() . \App\Support\RouteTranslator::route('catalog');
+$seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
 // Schema.org structured data
 $seoSchema = json_encode([
@@ -31,7 +31,7 @@ $seoSchema = json_encode([
     "isPartOf" => [
         "@type" => "Library",
         "name" => __("Biblioteca Digitale"),
-        "url" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/'
+        "url" => rtrim(HtmlHelper::getBaseUrl(), '/') . '/'
     ],
     "potentialAction" => [
         "@type" => "SearchAction",
@@ -1121,7 +1121,7 @@ ob_start();
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb justify-content-center bg-transparent p-0 mb-0">
                     <li class="breadcrumb-item">
-                        <a href="/" class="text-white opacity-75"><?= __("Home") ?></a>
+                        <a href="<?= url('/') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
                     </li>
                     <li class="breadcrumb-item text-white active" aria-current="page">
                         <?= __("Catalogo") ?>

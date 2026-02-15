@@ -19,6 +19,7 @@ class ReservationReassignmentService
     private mysqli $db;
     private NotificationService $notificationService;
     private bool $externalTransaction = false;
+    private bool $transactionOwned = false;
 
     /**
      * Notifiche da inviare dopo il commit della transazione esterna.
@@ -84,15 +85,7 @@ class ReservationReassignmentService
         if ($this->externalTransaction) {
             return true;
         }
-        // MySQL/MariaDB compatible: check autocommit status
-        // When in a transaction started with begin_transaction(), autocommit is 0
-        $result = $this->db->query("SELECT @@autocommit as ac");
-        if ($result) {
-            $row = $result->fetch_assoc();
-            // autocommit = 0 typically means we're in a transaction
-            return (int)($row['ac'] ?? 1) === 0;
-        }
-        return false;
+        return $this->transactionOwned;
     }
 
     /**
@@ -104,6 +97,7 @@ class ReservationReassignmentService
             return false; // Non abbiamo iniziato noi
         }
         $this->db->begin_transaction();
+        $this->transactionOwned = true;
         return true; // Abbiamo iniziato noi
     }
 
@@ -114,6 +108,7 @@ class ReservationReassignmentService
     {
         if ($ownTransaction) {
             $this->db->commit();
+            $this->transactionOwned = false;
         }
     }
 
@@ -124,6 +119,7 @@ class ReservationReassignmentService
     {
         if ($ownTransaction) {
             $this->db->rollback();
+            $this->transactionOwned = false;
         }
     }
 
@@ -449,8 +445,16 @@ class ReservationReassignmentService
         $author = $authorStmt->get_result()->fetch_assoc();
         $authorStmt->close();
 
-        $baseUrl = $this->getBaseUrl();
+        $basePath = \App\Support\HtmlHelper::getBasePath();
+        $baseUrl = rtrim($this->getBaseUrl(), '/');
         $isbn = $data['isbn13'] ?: $data['isbn10'] ?: '';
+
+        // book_url() includes getBasePath(); strip only if getBaseUrl()
+        // already includes it (APP_CANONICAL_URL set), to avoid double base path
+        $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore_principale' => $author['nome'] ?? '']);
+        if ($basePath !== '' && str_ends_with($baseUrl, $basePath) && str_starts_with($bookLink, $basePath)) {
+            $bookLink = substr($bookLink, strlen($basePath));
+        }
 
         $variables = [
             'utente_nome' => $data['utente_nome'] ?: __('Utente'),
@@ -459,8 +463,8 @@ class ReservationReassignmentService
             'libro_isbn' => $isbn,
             'data_inizio' => $data['data_prestito'] ? date('d/m/Y', strtotime($data['data_prestito'])) : '',
             'data_fine' => $data['data_scadenza'] ? date('d/m/Y', strtotime($data['data_scadenza'])) : '',
-            'book_url' => rtrim($baseUrl, '/') . book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore_principale' => $author['nome'] ?? '']),
-            'profile_url' => rtrim($baseUrl, '/') . RouteTranslator::route('profile')
+            'book_url' => $baseUrl . $bookLink,
+            'profile_url' => $baseUrl . (($basePath !== '' && !str_ends_with($baseUrl, $basePath)) ? $basePath : '') . RouteTranslator::route('profile')
         ];
 
         $sent = $this->notificationService->sendReservationBookAvailable($data['email'], $variables);

@@ -373,7 +373,7 @@
       <i class="fas fa-user-edit"></i>
       <?= __("Dati personali") ?>
     </h2>
-    <form method="post" action="<?= App\Support\RouteTranslator::route('profile_update') ?>">
+    <form method="post" action="<?= route_path('profile_update') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
@@ -443,7 +443,7 @@
       <i class="fas fa-lock"></i>
       <?= __("Cambia password") ?>
     </h2>
-    <form method="post" action="<?= App\Support\RouteTranslator::route('profile_password') ?>">
+    <form method="post" action="<?= route_path('profile_password') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
@@ -523,7 +523,7 @@
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    fetch('/api/profile/sessions', { credentials: 'same-origin', signal: controller.signal })
+    fetch(window.BASE_PATH + '/api/profile/sessions', { credentials: 'same-origin', signal: controller.signal })
       .then(response => response.json())
       .then(data => {
         clearTimeout(timeoutId);
@@ -593,7 +593,7 @@
   window.revokeSession = function(sessionId) {
     if (!confirm(translations.confirmRevoke)) return;
 
-    fetch('/api/profile/sessions/revoke', {
+    fetch(window.BASE_PATH + '/api/profile/sessions/revoke', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
@@ -617,7 +617,7 @@
   window.revokeAllSessions = function() {
     if (!confirm(translations.confirmRevokeAll)) return;
 
-    fetch('/api/profile/sessions/revoke-all', {
+    fetch(window.BASE_PATH + '/api/profile/sessions/revoke-all', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {

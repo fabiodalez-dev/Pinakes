@@ -627,15 +627,14 @@ class NotificationService {
                     'titolo' => $wishlist['titolo'] ?? '',
                     'autore' => $wishlist['autore'] ?? ''
                 ]);
-
                 $variables = [
                     'utente_nome' => $wishlist['utente_nome'],
                     'libro_titolo' => $wishlist['titolo'],
                     'libro_autore' => $wishlist['autore'] ?: 'Autore non specificato',
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
                     'data_disponibilita' => $this->formatEmailDate('now', true),
-                    'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
-                    'wishlist_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('wishlist')
+                    'book_url' => absoluteUrl($bookLink),
+                    'wishlist_url' => absoluteUrl(RouteTranslator::route('wishlist'))
                 ];
 
                 $emailSent = $this->sendWithRetry($wishlist['email'], 'wishlist_book_available', $variables);

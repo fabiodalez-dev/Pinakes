@@ -417,6 +417,13 @@ class ReservationManager
                 'titolo' => $book['titolo'] ?? '',
                 'autore' => $book['autore'] ?? ''
             ]);
+            // book_url() includes getBasePath(); strip only if getBaseUrl()
+            // also includes it (APP_CANONICAL_URL) to avoid double base path
+            $basePath = \App\Support\HtmlHelper::getBasePath();
+            $baseUrl = rtrim($this->getBaseUrl(), '/');
+            if ($basePath !== '' && str_ends_with($baseUrl, $basePath) && str_starts_with($bookLink, $basePath)) {
+                $bookLink = substr($bookLink, strlen($basePath));
+            }
 
             // Format dates according to installation locale for email templates
             $locale = \App\Support\I18n::getInstallationLocale();
@@ -430,8 +437,8 @@ class ReservationManager
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => date($dateFormat, strtotime($reservation['data_inizio_richiesta'])),
                 'data_fine' => date($dateFormat, strtotime($reservation['data_fine_richiesta'])),
-                'book_url' => rtrim($this->getBaseUrl(), '/') . $bookLink,
-                'profile_url' => rtrim($this->getBaseUrl(), '/') . RouteTranslator::route('profile')
+                'book_url' => $baseUrl . $bookLink,
+                'profile_url' => $baseUrl . (($basePath !== '' && !str_ends_with($baseUrl, $basePath)) ? $basePath : '') . RouteTranslator::route('profile')
             ];
 
             // Use NotificationService for consistent email handling

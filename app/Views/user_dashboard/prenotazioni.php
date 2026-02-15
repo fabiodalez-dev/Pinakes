@@ -13,7 +13,7 @@ function reservationBookUrl(array $item): string {
 }
 ?>
 
-<link rel="stylesheet" href="/assets/star-rating/dist/star-rating.css">
+<link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.css') ?>">
 
 <style>
   .loans-container {
@@ -469,13 +469,14 @@ function reservationBookUrl(array $item): string {
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
+        $cover = url($cover);
         $loanStart = $request['data_prestito'] ?? '';
         $loanEnd = $request['data_scadenza'] ?? '';
       ?>
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></a></h3>
@@ -530,6 +531,7 @@ function reservationBookUrl(array $item): string {
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
+        $cover = url($cover);
         $scadenza = $loan['data_scadenza'] ?? '';
         $isOverdue = ($scadenza !== '' && strtotime($scadenza) < time());
         $startDate = $loan['data_prestito'] ?? '';
@@ -538,7 +540,7 @@ function reservationBookUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
@@ -606,12 +608,13 @@ function reservationBookUrl(array $item): string {
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
+        $cover = url($cover);
         $deadline = $reservation['data_scadenza_prenotazione'] ?? '';
       ?>
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></a></h3>
@@ -625,7 +628,7 @@ function reservationBookUrl(array $item): string {
                   <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
-              <form method="post" action="/reservation/cancel" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
+              <form method="post" action="<?= url('/reservation/cancel') ?>" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
                 <button type="submit" class="btn-cancel">
@@ -668,6 +671,7 @@ function reservationBookUrl(array $item): string {
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
+        $cover = url($cover);
         $statusLabels = [
           'restituito' => __('Restituito'),
           'in_ritardo' => __('Restituito in ritardo'),
@@ -683,7 +687,7 @@ function reservationBookUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
@@ -738,6 +742,7 @@ function reservationBookUrl(array $item): string {
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
+        $cover = url($cover);
         $statusLabels = [
           'pendente' => __('In attesa di approvazione'),
           'approvata' => __('Approvata'),
@@ -755,7 +760,7 @@ function reservationBookUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src='/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></a></h3>
@@ -836,7 +841,7 @@ function reservationBookUrl(array $item): string {
   </div>
 </div>
 
-<script src="/assets/star-rating/dist/star-rating.js"></script>
+<script src="<?= assetUrl('star-rating/dist/star-rating.js') ?>"></script>
 <script>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
@@ -951,7 +956,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     try {
-      const response = await fetch('/api/user/recensioni', {
+      const response = await fetch(window.BASE_PATH + '/api/user/recensioni', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

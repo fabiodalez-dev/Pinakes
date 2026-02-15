@@ -46,6 +46,7 @@ if (!empty($book['genere'])) {
 $bookGenre = !empty($genreHierarchy) ? implode(' > ', $genreHierarchy) : '';
 $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
 $bookCover = $book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg';
+$bookCover = url($bookCover);
 $isAvailable = ($book['copie_disponibili'] ?? 0) > 0;
 $authorNames = [];
 foreach ($authors as $authorData) {
@@ -108,10 +109,11 @@ $canonicalUrl = HtmlHelper::getCurrentUrl();
 // Open Graph Image - Ensure absolute URLs
 $baseUrl = HtmlHelper::getBaseUrl();
 if ($bookCover) {
-    // Se l'URL è relativo, renderlo assoluto
-    $ogImage = (strpos($bookCover, 'http') === 0) ? $bookCover : $baseUrl . $bookCover;
+    // $bookCover already includes base path via url(), make it absolute
+    $isAbsolute = preg_match('#^(https?:)?//#', $bookCover);
+    $ogImage = $isAbsolute ? $bookCover : absoluteUrl($book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg');
 } else {
-    $ogImage = $baseUrl . '/uploads/copertine/placeholder.jpg';
+    $ogImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 }
 
 // Breadcrumb Schema
@@ -129,7 +131,7 @@ $breadcrumbSchema = [
             "@type" => "ListItem",
             "position" => 2,
             "name" => __("Catalogo"),
-            "item" => HtmlHelper::getBaseUrl() . $catalogRoute
+            "item" => HtmlHelper::getBaseUrl() . \App\Support\RouteTranslator::route('catalog')
         ]
     ]
 ];
@@ -223,7 +225,7 @@ $organizationSchema = [
     "@context" => "https://schema.org",
     "@type" => "Library",
     "name" => __("Biblioteca"),
-    "url" => (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'],
+    "url" => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/',
     "description" => __("Biblioteca digitale con catalogo completo di libri disponibili per il prestito")
 ];
 $additional_css = "
@@ -1476,7 +1478,7 @@ ob_start();
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb bg-transparent p-0 mb-0">
                                 <li class="breadcrumb-item">
-                                    <a href="/" class="text-dark"><?= __("Home") ?></a>
+                                    <a href="<?= url('/') ?>" class="text-dark"><?= __("Home") ?></a>
                                 </li>
                                 <li class="breadcrumb-item">
                                     <a href="<?= $legacyCatalogRoute ?>" class="text-dark-50"><?= __("Catalogo") ?></a>
@@ -2037,7 +2039,7 @@ ob_start();
                         }
                         ?>
                         <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                            <img src="<?= htmlspecialchars($related['copertina_url'] ?? '/uploads/copertine/placeholder.jpg') ?>"
+                            <img src="<?= htmlspecialchars(url($related['copertina_url'] ?? '/uploads/copertine/placeholder.jpg')) ?>"
                                  alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
                                  class="related-book-image">
                         </a>
@@ -2154,14 +2156,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  fetch(`/api/user/wishlist/status?libro_id=${libroId}`)
+  fetch(`${window.BASE_PATH}/api/user/wishlist/status?libro_id=${libroId}`)
     .then(r => r.ok ? r.json() : {favorite:false})
     .then(data => setFavUI(!!data.favorite))
     .catch(() => setFavUI(false));
 
   favBtn.addEventListener('click', async function() {
     try {
-      const res = await fetch('/api/user/wishlist/toggle', {
+      const res = await fetch(window.BASE_PATH + '/api/user/wishlist/toggle', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -2196,7 +2198,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const badge = document.getElementById('nav-res-count');
       if (!badge) return;
       try {
-        const r = await fetch('/api/user/reservations/count');
+        const r = await fetch(window.BASE_PATH + '/api/user/reservations/count');
         if (!r.ok) return;
         const data = await r.json();
         const c = parseInt(data.count || 0, 10);
@@ -2233,15 +2235,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
+      const iso = (dt) => dt.toISOString().slice(0,10);
+      let earliestAvailable = new Date();
+      let suggestedDate = iso(earliestAvailable);
+
       if (window.Swal) {
         // Fetch availability data for the calendar
         let disabledDates = [];
-        let earliestAvailable = new Date();
         let availabilityByDate = {};
 
         let maxAvailableDate = null;
         try {
-          const availRes = await fetch(`/api/libro/${libroId}/availability`);
+          const availRes = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/availability`);
           if (availRes.ok) {
             const availData = await availRes.json();
             if (availData.success && availData.availability) {
@@ -2270,7 +2275,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error('Error fetching availability:', e);
         }
 
-        const iso = (dt) => dt.toISOString().slice(0,10);
+        suggestedDate = iso(earliestAvailable);
         const formatDateIT = (dateStr) => {
           if (!dateStr) { return ''; }
           const parts = dateStr.split('-');
@@ -2282,7 +2287,6 @@ document.addEventListener('DOMContentLoaded', function() {
           });
           return formatter.format(new Date(year, month - 1, day));
         };
-        const suggestedDate = iso(earliestAvailable);
 
         const tooltipTexts = {
           borrowed: __('Tutte le copie in prestito'),
@@ -2416,7 +2420,7 @@ document.addEventListener('DOMContentLoaded', function() {
               reqBody.end_date = formValues.endDate;
             }
 
-            const res = await fetch(`/api/libro/${libroId}/reservation`, {
+            const res = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/reservation`, {
               method: 'POST',
               credentials: 'same-origin',
               headers: {
@@ -2457,7 +2461,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const date = prompt(__('Inserisci la data di inizio (YYYY-MM-DD)'), suggestedDate);
         if (date) {
           try {
-            const res = await fetch(`/api/libro/${libroId}/reservation`, {
+            const res = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/reservation`, {
               method: 'POST',
               credentials: 'same-origin',
               headers: {

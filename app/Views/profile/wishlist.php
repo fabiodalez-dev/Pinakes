@@ -312,7 +312,7 @@ $reservationsRoute = route_path('reservations');
       <p class="text-muted mb-4"><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
       <div class="wishlist-actions justify-content-center">
         <a href="<?= $catalogRoute ?>" class="btn-outline"><i class="fas fa-compass me-2"></i><?= __("Cerca titoli") ?></a>
-        <a href="/dashboard" class="btn-outline"><i class="fas fa-arrow-left me-2"></i><?= __("Torna alla dashboard") ?></a>
+        <a href="<?= url('/dashboard') ?>" class="btn-outline"><i class="fas fa-arrow-left me-2"></i><?= __("Torna alla dashboard") ?></a>
       </div>
     </div>
   </section>
@@ -330,6 +330,7 @@ $reservationsRoute = route_path('reservations');
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
+        $cover = url($cover);
         // Use actual copy availability (considers reservations and physical copy state)
         $available = !empty($it['has_actual_copy']);
         $nextAvailable = $it['next_available'] ?? null;
@@ -339,7 +340,7 @@ $reservationsRoute = route_path('reservations');
         <div class="col-xl-4 col-md-6">
           <article class="wishlist-card" data-libro-id="<?= (int)$it['id']; ?>" data-title="<?= $dataTitle; ?>" data-status="<?= $statusLabel; ?>">
             <div class="wishlist-card-cover">
-              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= __("Copertina") ?>" onerror="this.src='/uploads/copertine/placeholder.jpg'">
+              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= __("Copertina") ?>" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </div>
             <div class="wishlist-card-body">
               <span class="wishlist-status <?= $available ? 'available' : 'pending'; ?>">
@@ -445,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch('/api/user/wishlist/toggle', {
+      const res = await fetch(window.BASE_PATH + '/api/user/wishlist/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ csrf_token: csrf, libro_id: String(libroId) })

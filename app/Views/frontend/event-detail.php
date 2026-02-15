@@ -294,9 +294,9 @@ ob_start();
 <section class="event-hero">
     <div class="container">
         <div class="event-breadcrumb" aria-label="<?= __("Percorso di navigazione") ?>">
-            <a href="/"><?= __("Home") ?></a>
+            <a href="<?= url('/') ?>"><?= __("Home") ?></a>
             <span>/</span>
-            <a href="/events"><?= __("Eventi") ?></a>
+            <a href="<?= url('/events') ?>"><?= __("Eventi") ?></a>
             <span>/</span>
             <span><?= HtmlHelper::e($event['title']) ?></span>
         </div>
@@ -334,7 +334,7 @@ ob_start();
         <article class="event-card">
             <?php if (!empty($event['featured_image'])): ?>
                 <figure class="event-cover">
-                    <img src="<?= HtmlHelper::e($event['featured_image']) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                    <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                 </figure>
             <?php endif; ?>
 
@@ -343,7 +343,7 @@ ob_start();
             </div>
 
             <div class="event-back">
-                <a href="/events">
+                <a href="<?= url('/events') ?>">
                     <i class="fas fa-arrow-left"></i>
                     <?= __("Torna alla panoramica eventi") ?>
                 </a>
@@ -387,9 +387,9 @@ $stmt->close();
                     $relatedTimeFormatted = $formatTime($relatedEvent['event_time'] ?? null);
                     ?>
                     <article class="related-card">
-                        <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>" class="related-thumb">
+                        <a href="<?= url('/events/' . $relatedEvent['slug']) ?>" class="related-thumb">
                             <?php if (!empty($relatedEvent['featured_image'])): ?>
-                                <img src="<?= HtmlHelper::e($relatedEvent['featured_image']) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
+                                <img src="<?= HtmlHelper::e(url($relatedEvent['featured_image'])) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
                             <?php endif; ?>
                         </a>
                         <div class="related-body">
@@ -402,11 +402,11 @@ $stmt->close();
                                 <?php endif; ?>
                             </div>
                             <h3 class="related-title">
-                                <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>">
+                                <a href="<?= url('/events/' . $relatedEvent['slug']) ?>">
                                     <?= HtmlHelper::e($relatedEvent['title']) ?>
                                 </a>
                             </h3>
-                            <a href="/events/<?= HtmlHelper::e($relatedEvent['slug']) ?>" class="related-link">
+                            <a href="<?= url('/events/' . $relatedEvent['slug']) ?>" class="related-link">
                                 <?= __("Dettagli evento") ?>
                                 <i class="fas fa-arrow-right"></i>
                             </a>
@@ -426,7 +426,7 @@ $stmt->close();
     "name": "<?= addslashes(HtmlHelper::e($event['title'])) ?>",
     "startDate": "<?= HtmlHelper::e($event['event_date']) ?><?= $event['event_time'] ? 'T' . HtmlHelper::e($event['event_time']) : '' ?>",
     <?php if ($event['featured_image']): ?>
-    "image": "<?= addslashes($baseUrl . $event['featured_image']) ?>",
+    "image": "<?= addslashes(absoluteUrl($event['featured_image'])) ?>",
     <?php endif; ?>
     "description": "<?= addslashes(strip_tags($event['content'] ?? '')) ?>",
     "eventStatus": "https://schema.org/EventScheduled",

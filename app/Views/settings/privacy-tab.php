@@ -1,7 +1,7 @@
 <?php use App\Support\HtmlHelper; ?>
 <?php $cookieBannerTexts = $cookieBannerTexts ?? []; ?>
 <section id="privacy" data-settings-panel="privacy" class="settings-panel <?php echo $activeTab === 'privacy' ? 'block' : 'hidden'; ?>">
-  <form action="/admin/settings/privacy" method="post" class="space-y-8">
+  <form action="<?= url('/admin/settings/privacy') ?>" method="post" class="space-y-8">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
 
     <!-- Contenuto Privacy Policy -->
@@ -223,7 +223,7 @@
         </p>
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-3xl p-3 md:p-5">
-        <form action="/admin/settings/cookie-banner" method="post" class="space-y-6">
+        <form action="<?= url('/admin/settings/cookie-banner') ?>" method="post" class="space-y-6">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
 
           <details class="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 group" open>
@@ -383,7 +383,7 @@
           </details>
 
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <a href="/" target="_blank" class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900">
+            <a href="<?= url('/') ?>" target="_blank" class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900">
               <i class="fas fa-external-link-alt"></i>
               <?= __("Anteprima Banner") ?>
             </a>

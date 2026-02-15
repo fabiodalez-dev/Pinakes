@@ -19,7 +19,7 @@ function formatLoanStatus($status) {
   <nav aria-label="breadcrumb" class="mb-2">
     <ol class="flex items-center space-x-2 text-sm">
       <li>
-        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <i class="fas fa-home mr-1"></i><?= __("Home") ?>
         </a>
       </li>
@@ -27,7 +27,7 @@ function formatLoanStatus($status) {
         <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
       </li>
       <li>
-        <a href="/admin/prestiti" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= url('/admin/prestiti') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <i class="fas fa-handshake mr-1"></i><?= __("Prestiti") ?></a>
       </li>
       <li>
@@ -51,7 +51,7 @@ function formatLoanStatus($status) {
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Libro:") ?></span>
-            <a href="/admin/libri/modifica/<?= (int)($prestito['libro_id'] ?? 0); ?>" class="text-blue-600 underline hover:text-blue-800 transition-colors">
+            <a href="<?= url('/admin/libri/modifica/' . (int)($prestito['libro_id'] ?? 0)) ?>" class="text-blue-600 underline hover:text-blue-800 transition-colors">
               <?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? __('Non disponibile')); ?>
             </a>
           </div>
@@ -135,19 +135,19 @@ function formatLoanStatus($status) {
         </button>
       <?php endif; ?>
       <?php if ((int)($prestito['attivo'] ?? 0) === 1 && ($prestito['stato'] ?? '') !== 'pendente'): ?>
-        <a href="/admin/prestiti/restituito/<?= (int)$prestito['id']; ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+        <a href="<?= url('/admin/prestiti/restituito/' . (int)$prestito['id']) ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-undo-alt mr-2"></i><?= __("Gestisci Restituzione") ?></a>
-        <a href="/admin/prestiti/modifica/<?= (int)$prestito['id']; ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
+        <a href="<?= url('/admin/prestiti/modifica/' . (int)$prestito['id']) ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-pencil-alt mr-2"></i>
             <?= __("Modifica") ?>
         </a>
       <?php endif; ?>
-      <a href="/admin/prestiti/<?= (int)$prestito['id']; ?>/pdf"
+      <a href="<?= url('/admin/prestiti/' . (int)$prestito['id'] . '/pdf') ?>"
          class="px-4 py-2 bg-red-600 text-white hover:bg-red-500 rounded-lg transition-colors duration-200 inline-flex items-center">
           <i class="fas fa-file-pdf mr-2"></i>
           <?= __("Scarica Ricevuta PDF") ?>
       </a>
-      <a href="/admin/prestiti" class="px-4 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
+      <a href="<?= url('/admin/prestiti') ?>" class="px-4 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
         <i class="fas fa-arrow-left mr-2"></i><?= __("Torna ai Prestiti") ?></a>
     </div>
   </div>
@@ -216,7 +216,7 @@ foreach ($jsTranslationKeys as $key) {
             }
 
             try {
-                const response = await fetch('/admin/loans/approve', {
+                const response = await fetch(window.BASE_PATH + '/admin/loans/approve', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -236,7 +236,7 @@ foreach ($jsTranslationKeys as $key) {
                         confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'
                     });
-                    window.location.href = '/admin/prestiti';
+                    window.location.href = window.BASE_PATH + '/admin/prestiti';
                 } else {
                     Swal.fire({
                         title: __('Errore'),
@@ -286,7 +286,7 @@ foreach ($jsTranslationKeys as $key) {
             }
 
             try {
-                const response = await fetch('/admin/loans/reject', {
+                const response = await fetch(window.BASE_PATH + '/admin/loans/reject', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -309,7 +309,7 @@ foreach ($jsTranslationKeys as $key) {
                         confirmButtonText: __('OK'),
                         confirmButtonColor: '#111827'
                     });
-                    window.location.href = '/admin/prestiti';
+                    window.location.href = window.BASE_PATH + '/admin/prestiti';
                 } else {
                     Swal.fire({
                         title: __('Errore'),

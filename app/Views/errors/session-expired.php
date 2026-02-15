@@ -15,8 +15,9 @@ $loginUrl = $loginUrl ?? route_path('login');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?></title>
-    <link rel="stylesheet" href="/assets/main.css">
-    <link rel="stylesheet" href="/assets/vendor.css">
+    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
+    <link rel="stylesheet" href="<?= assetUrl('main.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>">
     <style>
         .session-expired-container {
             min-height: 100vh;
@@ -155,7 +156,7 @@ $loginUrl = $loginUrl ?? route_path('login');
                     <i class="fas fa-sign-in-alt"></i>
                     <?= __('Accedi') ?>
                 </a>
-                <a href="/" class="session-expired-btn session-expired-btn-secondary">
+                <a href="<?= url('/') ?>" class="session-expired-btn session-expired-btn-secondary">
                     <i class="fas fa-home"></i>
                     <?= __('Torna alla Home') ?>
                 </a>
