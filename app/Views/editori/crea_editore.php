@@ -33,7 +33,7 @@
     </div>
 
     <!-- Main Form -->
-    <form method="post" action="<?= url('/admin/editori/crea') ?>" class="space-y-8 slide-in-up">
+    <form method="post" action="<?= url('/admin/editori/crea') ?>" id="form-crea-editore" class="space-y-8 slide-in-up">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize Form Validation
 function initializeFormValidation() {
-    const form = document.querySelector('form[action$="/admin/editori/crea"]');
+    const form = document.getElementById('form-crea-editore');
     if (!form) return;
     
     form.addEventListener('submit', async function(e) {

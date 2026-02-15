@@ -326,6 +326,12 @@ function getStatusBadge($status) {
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
+function escHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof DataTable === 'undefined') {
         console.error('DataTable is not loaded!');
@@ -353,14 +359,14 @@ document.addEventListener('DOMContentLoaded', function() {
             {
                 data: 'libro',
                 render: function(data, type, row) {
-                    return `<div class="font-semibold text-gray-900">${data || window.__('N/D')}</div>
-                            <div class="text-gray-500">${window.__('ID Prestito')}: ${row.id}</div>`;
+                    return `<div class="font-semibold text-gray-900">${escHtml(data) || window.__('N/D')}</div>
+                            <div class="text-gray-500">${window.__('ID Prestito')}: ${parseInt(row.id) || 0}</div>`;
                 }
             },
             {
                 data: 'utente',
                 render: function(data, type, row) {
-                    return `<div class="font-semibold text-gray-900">${data || window.__('N/D')}</div>`;
+                    return `<div class="font-semibold text-gray-900">${escHtml(data) || window.__('N/D')}</div>`;
                 }
             },
             {

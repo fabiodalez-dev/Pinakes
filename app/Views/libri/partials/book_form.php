@@ -6,7 +6,7 @@ $mode = $mode ?? 'create';
 $book = $book ?? [];
 $csrfToken = $csrfToken ?? null;
 $error_message = $error_message ?? null;
-$action = $action ?? url($mode === 'edit' ? '/admin/libri/update/' . ($book['id'] ?? '') : '/admin/libri/crea');
+$action = $action ?? url($mode === 'edit' ? '/admin/libri/update/' . (int)($book['id'] ?? 0) : '/admin/libri/crea');
 $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? '');
 $scrapingAvailable = Hooks::has('scrape.fetch.custom');
 $scaffali = $scaffali ?? [];

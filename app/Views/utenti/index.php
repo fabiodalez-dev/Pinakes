@@ -329,13 +329,14 @@ document.addEventListener('DOMContentLoaded', function() {
       {
         data: 'nome',
         render: function(data, type, row) {
-          const nome = decodeHtml(data) || 'N/A';
-          const cognome = decodeHtml(row.cognome) || '';
+          const nome = escapeHtml(decodeHtml(data)) || 'N/A';
+          const cognome = escapeHtml(decodeHtml(row.cognome)) || '';
           const nomeCompleto = cognome ? `${nome} ${cognome}` : nome;
-          const tessera = row.codice_tessera || 'N/A';
+          const tessera = escapeHtml(decodeHtml(row.codice_tessera)) || 'N/A';
+          const userId = encodeURIComponent(String(row.id ?? ''));
 
           return `
-            <a href="${window.BASE_PATH}/admin/utenti/dettagli/${row.id}"
+            <a href="${window.BASE_PATH}/admin/utenti/dettagli/${userId}"
                class="block hover:bg-blue-50 -m-2 p-2 rounded transition-colors duration-200">
               <div class="font-semibold text-gray-900 text-base">
                 ${nomeCompleto}
@@ -350,14 +351,16 @@ document.addEventListener('DOMContentLoaded', function() {
         data: 'email',
         render: function(data, type, row) {
           if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
-          return `<a href="mailto:${data}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${data}</a>`;
+          const emailText = escapeHtml(decodeHtml(String(data)));
+          return `<a href="mailto:${encodeURIComponent(data)}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${emailText}</a>`;
         }
       },
       {
         data: 'telefono',
         render: function(data, type, row) {
           if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
-          return `<a href="tel:${data}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${data}</a>`;
+          const telText = escapeHtml(decodeHtml(String(data)));
+          return `<a href="tel:${encodeURIComponent(data)}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${telText}</a>`;
         }
       },
       {
@@ -409,20 +412,21 @@ document.addEventListener('DOMContentLoaded', function() {
         orderable: false,
         searchable: false,
         render: function(data, type, row) {
+          const id = encodeURIComponent(String(data ?? ''));
           return `
             <div class="flex items-center gap-1">
-              <a href="${window.BASE_PATH}/admin/utenti/dettagli/${data}"
+              <a href="${window.BASE_PATH}/admin/utenti/dettagli/${id}"
                  class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                  title="<?= __("Visualizza dettagli") ?>">
                 <i class="fas fa-eye text-sm"></i>
               </a>
-              <a href="${window.BASE_PATH}/admin/utenti/modifica/${data}"
+              <a href="${window.BASE_PATH}/admin/utenti/modifica/${id}"
                  class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200"
                  title="<?= __("Modifica") ?>">
                 <i class="fas fa-edit text-sm"></i>
               </a>
-              <button onclick="deleteUser(${data})" 
-                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200" 
+              <button onclick="deleteUser(${Number(data)})"
+                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                       title="<?= __("Elimina") ?>">
                 <i class="fas fa-trash text-sm"></i>
               </button>
@@ -597,6 +601,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var txt = document.createElement("textarea");
     txt.innerHTML = html;
     return txt.value;
+  }
+
+  function escapeHtml(value) {
+    var div = document.createElement('div');
+    div.textContent = value ?? '';
+    return div.innerHTML;
   }
 
   // Initialize export buttons

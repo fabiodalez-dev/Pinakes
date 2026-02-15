@@ -263,7 +263,7 @@ use App\Support\HtmlHelper;
                     <p class="text-sm text-gray-700 mb-4">
                         <?= __("Elimina questa lingua. Questa azione non può essere annullata.") ?>
                     </p>
-                    <form method="POST" action="<?= url('/admin/languages/' . urlencode($language['code']) . '/delete') ?>" onsubmit="return confirm('<?= __("Sei sicuro di voler eliminare questa lingua? Tutti i dati associati e il file di traduzione verranno rimossi.") ?>')">
+                    <form method="POST" action="<?= url('/admin/languages/' . urlencode($language['code']) . '/delete') ?>" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Sei sicuro di voler eliminare questa lingua? Tutti i dati associati e il file di traduzione verranno rimossi.')), ENT_QUOTES, 'UTF-8') ?>)">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                         <button type="submit" class="btn btn-danger">
                             <i class="fas fa-trash"></i> <?= __("Elimina Lingua") ?>

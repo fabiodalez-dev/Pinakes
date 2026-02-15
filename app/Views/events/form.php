@@ -60,7 +60,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
     <?php endif; ?>
   </div>
 
-  <form action="<?= $isEdit ? url('/admin/cms/events/update/' . $event['id']) : url('/admin/cms/events') ?>" method="post" enctype="multipart/form-data" class="space-y-6">
+  <form action="<?= $isEdit ? url('/admin/cms/events/update/' . (int)$event['id']) : url('/admin/cms/events') ?>" method="post" enctype="multipart/form-data" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
     <!-- Main Event Information -->

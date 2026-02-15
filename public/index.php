@@ -100,7 +100,10 @@ if (file_exists($maintenanceFile)) {
     $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
     // Strip base path for subfolder installations (consistent with Slim app)
     $maintenanceBasePath = \App\Support\HtmlHelper::getBasePath();
-    if ($maintenanceBasePath !== '' && str_starts_with($requestUri, $maintenanceBasePath)) {
+    if (
+        $maintenanceBasePath !== ''
+        && ($requestUri === $maintenanceBasePath || str_starts_with($requestUri, $maintenanceBasePath . '/'))
+    ) {
         $requestUri = substr($requestUri, strlen($maintenanceBasePath)) ?: '/';
     }
     // Allow update endpoints and static assets during maintenance

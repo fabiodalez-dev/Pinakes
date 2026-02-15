@@ -628,7 +628,7 @@ function reservationBookUrl(array $item): string {
                   <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
-              <form method="post" action="<?= url('/reservation/cancel') ?>" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
+              <form method="post" action="<?= htmlspecialchars(url('/reservation/cancel'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
                 <button type="submit" class="btn-cancel">

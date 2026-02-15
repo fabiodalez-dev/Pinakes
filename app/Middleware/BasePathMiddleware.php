@@ -27,6 +27,8 @@ class BasePathMiddleware implements MiddlewareInterface
                 str_starts_with($location, '/')
                 && !str_starts_with($location, '//')
                 && !str_starts_with($location, $basePath . '/')
+                && !str_starts_with($location, $basePath . '?')
+                && !str_starts_with($location, $basePath . '#')
                 && $location !== $basePath
             ) {
                 $response = $response->withHeader('Location', $basePath . $location);

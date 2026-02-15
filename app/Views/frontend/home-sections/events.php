@@ -58,7 +58,7 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                 <?php foreach ($homeEvents as $event): ?>
                     <?php $eventDateText = $homeEventsFormatDate($event['event_date'] ?? ''); ?>
                     <article class="event-card">
-                        <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__thumb">
+                        <a href="<?= \App\Support\HtmlHelper::e(url('/events/' . $event['slug'])) ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
                                 <img src="<?= \App\Support\HtmlHelper::e(url($event['featured_image'])) ?>"
                                     alt="<?= \App\Support\HtmlHelper::e($event['title']) ?>">
@@ -73,11 +73,11 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                                 <?= \App\Support\HtmlHelper::e($eventDateText) ?>
                             </div>
                             <h3 class="event-card__title">
-                                <a href="<?= url('/events/' . $event['slug']) ?>">
+                                <a href="<?= \App\Support\HtmlHelper::e(url('/events/' . $event['slug'])) ?>">
                                     <?= \App\Support\HtmlHelper::e($event['title']) ?>
                                 </a>
                             </h3>
-                            <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__button">
+                            <a href="<?= \App\Support\HtmlHelper::e(url('/events/' . $event['slug'])) ?>" class="event-card__button">
                                 <?= __("Scopri l'evento") ?>
                                 <i class="fas fa-arrow-right"></i>
                             </a>

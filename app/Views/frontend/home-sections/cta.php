@@ -6,10 +6,9 @@
 $ctaData = $section ?? [];
 $registerRoute = $registerRoute ?? route_path('register');
 // Prepend base path to CMS button link if it's a relative path
-$ctaButtonLink = $ctaData['button_link'] ?? $registerRoute;
-if (isset($ctaData['button_link']) && str_starts_with($ctaData['button_link'], '/') && !str_starts_with($ctaData['button_link'], '//')) {
-    $ctaButtonLink = url($ctaData['button_link']);
-}
+$ctaButtonLink = isset($ctaData['button_link']) && $ctaData['button_link'] !== ''
+    ? url($ctaData['button_link'])
+    : $registerRoute;
 ?>
 
 <!-- Call to Action Section -->

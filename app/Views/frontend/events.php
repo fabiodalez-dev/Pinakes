@@ -328,7 +328,7 @@ ob_start();
 
                     ?>
                     <article class="event-card">
-                        <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__thumb">
+                        <a href="<?= HtmlHelper::e(url('/events/' . $event['slug'])) ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
                                 <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                             <?php else: ?>
@@ -342,12 +342,12 @@ ob_start();
                                 <?= HtmlHelper::e($eventDateFormatted) ?>
                             </div>
                             <h2 class="event-card__title">
-                                <a href="<?= url('/events/' . $event['slug']) ?>">
+                                <a href="<?= HtmlHelper::e(url('/events/' . $event['slug'])) ?>">
                                     <?= HtmlHelper::e($event['title']) ?>
                                 </a>
                             </h2>
                             <div class="event-card__actions">
-                                <a href="<?= url('/events/' . $event['slug']) ?>" class="event-card__button">
+                                <a href="<?= HtmlHelper::e(url('/events/' . $event['slug'])) ?>" class="event-card__button">
                                     <?= __("Scopri l'evento") ?>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>
