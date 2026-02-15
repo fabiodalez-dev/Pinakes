@@ -136,7 +136,7 @@ $pageTitle = __('Gestione Temi');
                                 </button>
                             <?php endif; ?>
 
-                            <a href="<?= url('/admin/themes/' . $theme['id'] . '/customize') ?>"
+                            <a href="<?= htmlspecialchars(url('/admin/themes/' . (int)$theme['id'] . '/customize'), ENT_QUOTES, 'UTF-8') ?>"
                                class="<?= $isActive ? 'flex-1' : '' ?> px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-center">
                                 <i class="fas fa-sliders-h mr-1"></i>
                                 <?= __("Personalizza") ?>

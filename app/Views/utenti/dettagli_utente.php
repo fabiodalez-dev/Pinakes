@@ -300,7 +300,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
                                 <?= getLoanStatusBadge($prestito['stato']); ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">
-                                <a href="<?= url('/admin/prestiti/dettagli/' . $prestito['id']) ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="Dettagli Prestito">
+                                <a href="<?= url('/admin/prestiti/dettagli/' . (int)$prestito['id']) ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="Dettagli Prestito">
                                     <i class="fas fa-eye w-4 h-4"></i>
                                 </a>
                             </td>

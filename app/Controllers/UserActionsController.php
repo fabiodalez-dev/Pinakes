@@ -174,6 +174,7 @@ class UserActionsController
 
                 // Trigger reassignment
                 $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                $reassignmentService->setExternalTransaction(true);
                 $reassignmentService->reassignOnReturn($copiaId);
             }
 

@@ -2235,7 +2235,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      const iso = (dt) => dt.toISOString().slice(0,10);
+      const iso = (dt) => {
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      };
       let earliestAvailable = new Date();
       let suggestedDate = iso(earliestAvailable);
 

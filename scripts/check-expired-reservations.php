@@ -50,6 +50,7 @@ $result = $stmt->get_result();
 
 $expiredCount = 0;
 $reassignmentService = new ReservationReassignmentService($db);
+$reassignmentService->setExternalTransaction(true);
 $notificationService = new NotificationService($db);
 
 while ($reservation = $result->fetch_assoc()) {

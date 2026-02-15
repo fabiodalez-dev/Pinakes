@@ -18,6 +18,7 @@ function getBookStatusBadge($book) {
     return ob_get_clean();
 }
 ?>
+<?php $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg'); ?>
 <?php if (!empty($books)): ?>
     <?php foreach($books as $book): ?>
         <div class="book-card fade-in">
@@ -26,7 +27,6 @@ function getBookStatusBadge($book) {
                     <?php
                     $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
                     $absoluteCoverUrl = absoluteUrl($coverUrl);
-                    $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     ?>
                     <img class="book-image"
                          src="<?= htmlspecialchars($absoluteCoverUrl) ?>"

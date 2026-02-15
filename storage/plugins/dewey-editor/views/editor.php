@@ -671,7 +671,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                         <div class="text-xs text-gray-500">${safeSize} KB</div>
                     </div>
                     <button class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                            onclick="DeweyEditor.restoreBackup(decodeURIComponent('${safeFilename}'))">
+                            data-filename="${safeFilename}" data-action="restore">
                         <?= __('Ripristina') ?>
                     </button>
                 </div>`;
@@ -679,7 +679,13 @@ $pageTitle = __('Editor Classificazione Dewey');
             html += '</div>';
             html += '<div class="mt-4 flex justify-end"><button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" onclick="DeweyEditor.closeModal()"><?= __('Chiudi') ?></button></div></div>';
 
+            // Safe: html built from escapeHtml/encodeURIComponent-sanitized values above
             modalContent.innerHTML = html;
+            modalContent.querySelectorAll('[data-action="restore"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    DeweyEditor.restoreBackup(decodeURIComponent(btn.dataset.filename));
+                });
+            });
             modalBackdrop.classList.remove('hidden');
         } catch (error) {
             console.error('Backups error:', error);

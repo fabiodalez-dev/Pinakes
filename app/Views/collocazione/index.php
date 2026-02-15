@@ -669,17 +669,17 @@ function exportCollocationCSV() {
   const scaffaleId = document.getElementById('filter-scaffale').value;
   const mensolaId = document.getElementById('filter-mensola').value;
 
-  let url = window.BASE_PATH + '/api/collocazione/export-csv';
+  let exportUrl = window.BASE_PATH + '/api/collocazione/export-csv';
   const params = new URLSearchParams();
 
   if (scaffaleId) params.append('scaffale_id', scaffaleId);
   if (mensolaId) params.append('mensola_id', mensolaId);
 
   if (params.toString()) {
-    url += '?' + params.toString();
+    exportUrl += '?' + params.toString();
   }
 
-  window.location.href = url;
+  window.location.href = exportUrl;
 }
 </script>
 

@@ -661,6 +661,7 @@ class PrestitiController
                 // Case 3: Reassign returned copy to next waiting reservation (NEW SYSTEM - prestiti table)
                 try {
                     $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                    $reassignmentService->setExternalTransaction(true);
                     $reassignmentService->reassignOnReturn($copia_id);
                 } catch (\Exception $e) {
                     SecureLogger::error(__('Riassegnazione copia fallita'), ['copia_id' => $copia_id, 'error' => $e->getMessage()]);

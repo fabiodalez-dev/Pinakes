@@ -22,7 +22,7 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
 
             <!-- Hero Search Bar -->
             <div class="hero-search-container">
-                <form class="hero-search-form search-form" action="<?= $catalogRoute ?>" method="get">
+                <form class="hero-search-form search-form" action="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" method="get">
                     <div class="hero-search-input-group">
                         <i class="fas fa-search hero-search-icon"></i>
                         <input type="search"
@@ -42,7 +42,7 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
                         <i class="fas fa-book"></i>
                         <?= __("Ultimi Arrivi") ?>
                     </a>
-                    <a href="<?= $catalogRoute ?>" class="hero-quick-link">
+                    <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="hero-quick-link">
                         <i class="fas fa-list"></i>
                         <?= __("Sfoglia Catalogo") ?>
                     </a>

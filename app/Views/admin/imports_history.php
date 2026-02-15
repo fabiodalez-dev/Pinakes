@@ -12,7 +12,7 @@ $title = __("Storico Import");
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -213,7 +213,7 @@ $title = __("Storico Import");
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">
                     <?php if ($import['failed'] > 0): ?>
-                      <a href="<?= url('/admin/imports/download-errors?import_id=' . urlencode($import['import_id'])) ?>"
+                      <a href="<?= htmlspecialchars(url('/admin/imports/download-errors?import_id=' . urlencode($import['import_id'])), ENT_QUOTES, 'UTF-8') ?>"
                          class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200">
                         <i class="fas fa-download mr-1.5"></i>
                         <?= __("Scarica Errori") ?>

@@ -330,7 +330,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
       // Usa form POST per operazioni di eliminazione (sicurezza OWASP)
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = window.BASE_PATH + '/admin/cms/events/delete/' + eventId;
+      form.action = window.BASE_PATH + '/admin/cms/events/delete/' + parseInt(eventId, 10);
 
       const csrfInput = document.createElement('input');
       csrfInput.type = 'hidden';

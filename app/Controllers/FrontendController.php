@@ -1861,7 +1861,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $seoTitle = $event['seo_title'] ?: ($event['title'] . ' - ' . $appName);
         $seoDescription = $event['seo_description'] ?: $excerpt;
         $seoKeywords = $event['seo_keywords'] ?? '';
-        $seoCanonical = $baseUrl . '/events/' . $event['slug'];
+        $seoCanonical = $baseUrl . RouteTranslator::route('events') . '/' . $event['slug'];
 
         // Open Graph tags
         $ogTitle = $event['og_title'] ?: $event['title'];

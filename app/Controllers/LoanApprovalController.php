@@ -870,6 +870,7 @@ class LoanApprovalController
             if ($copiaId) {
                 try {
                     $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                    $reassignmentService->setExternalTransaction(true);
                     $reassignmentService->reassignOnReturn($copiaId);
                 } catch (Exception $e) {
                     error_log("[returnLoan] Reassignment error for copy {$copiaId}: " . $e->getMessage());

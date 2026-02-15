@@ -718,7 +718,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   <script src="<?= assetUrl('main.bundle.js') ?>?v=<?= $appVersion ?>" defer></script>
   <script src="<?= assetUrl('js/csrf-helper.js') ?>?v=<?= $appVersion ?>" defer></script>
   <script src="<?= assetUrl('js/swal-config.js') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= assetUrl('tinymce/tinymce.min.js') ?>" defer></script>
+  <script src="<?= assetUrl('tinymce/tinymce.min.js') ?>?v=<?= $appVersion ?>" defer></script>
   <script>
 
     function escapeHtml(value) {
