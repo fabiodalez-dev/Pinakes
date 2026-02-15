@@ -166,7 +166,7 @@
                     </div>
                   </div>
                   <div class="flex items-center space-x-2">
-                    <a href="<?= url('/admin/generi/' . $genere['id']) ?>" class="btn-outline btn-sm">
+                    <a href="<?= url('/admin/generi/' . (int)$genere['id']) ?>" class="btn-outline btn-sm">
                       <i class="fas fa-eye mr-1"></i>
                       <?= __("Dettagli") ?>
                     </a>
@@ -185,7 +185,7 @@
                               <?php echo htmlspecialchars($sottogenere['nome']); ?>
                             </span>
                           </div>
-                          <a href="<?= url('/admin/generi/' . $sottogenere['id']) ?>" class="btn-outline btn-sm">
+                          <a href="<?= url('/admin/generi/' . (int)$sottogenere['id']) ?>" class="btn-outline btn-sm">
                             <i class="fas fa-external-link-alt mr-1"></i><?= __("Dettagli") ?>
                           </a>
                         </div>

@@ -10,7 +10,7 @@
           <?= __("Modifica il contenuto e le impostazioni della pagina") ?>
         </p>
       </div>
-      <a href="<?= url('/admin/settings?tab=cms') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
+      <a href="<?= htmlspecialchars(url('/admin/settings?tab=cms'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
         <i class="fas fa-arrow-left"></i>
         <?= __("Torna alle Impostazioni") ?>
       </a>
@@ -32,7 +32,7 @@
     <?php endif; ?>
   </div>
 
-  <form method="post" action="<?= url('/admin/cms/' . htmlspecialchars($pageData['slug']) . '/update') ?>" class="space-y-6">
+  <form method="post" action="<?= htmlspecialchars(url('/admin/cms/' . rawurlencode($pageData['slug']) . '/update'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
     <!-- Titolo -->
@@ -156,7 +156,7 @@
 
     <!-- Pulsanti -->
     <div class="flex items-center justify-between">
-      <a href="<?= url('/' . htmlspecialchars($pageData['slug'])) ?>" target="_blank" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
+      <a href="<?= htmlspecialchars(url('/' . rawurlencode($pageData['slug'])), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
         <i class="fas fa-eye"></i><?= __("Anteprima") ?>
       </a>
       <button type="submit" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-white hover:bg-gray-800 text-sm font-medium transition-colors">

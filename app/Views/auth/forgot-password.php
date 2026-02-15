@@ -94,7 +94,7 @@ $forgotPasswordRoute = route_path('forgot_password');
             value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            <?= __('Riceverai un link di reset via email. Il link sarà valido per 24 ore.') ?>
+            <?= __('Riceverai un link di reset via email. Il link sarà valido per 2 ore.') ?>
           </p>
           <span id="email-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>

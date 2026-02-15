@@ -566,11 +566,11 @@ function createBookUrl($book) {
                 <h3><?= __("Nessun libro trovato") ?></h3>
                 <p>
                     <?php if ($archive_type === 'autore'): ?>
-                        Non sono stati trovati libri di questo autore.
+                        <?= __("Non sono stati trovati libri di questo autore.") ?>
                     <?php elseif ($archive_type === 'editore'): ?>
-                        Non sono stati trovati libri di questo editore.
+                        <?= __("Non sono stati trovati libri di questo editore.") ?>
                     <?php else: ?>
-                        Non sono stati trovati libri di questo genere.
+                        <?= __("Non sono stati trovati libri di questo genere.") ?>
                     <?php endif; ?>
                 </p>
                 <a href="<?= $catalogRoute ?>" class="btn-catalog">

@@ -398,10 +398,10 @@
 
 <script>
 async function recalculateAvailability() {
-    const processingTitle = '<?= __("Elaborazione...") ?>';
-    const doneTitle = '<?= __("Operazione completata") ?>';
-    const failTitle = '<?= __("Operazione fallita") ?>';
-    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
+    const processingTitle = <?= json_encode(__("Elaborazione...")) ?>;
+    const doneTitle = <?= json_encode(__("Operazione completata")) ?>;
+    const failTitle = <?= json_encode(__("Operazione fallita")) ?>;
+    const commErr = <?= json_encode(__("Errore di comunicazione con il server")) ?>;
 
     Swal.fire({
         title: processingTitle,
@@ -426,20 +426,20 @@ async function recalculateAvailability() {
 }
 
 async function fixIssues() {
-    const processingTitle = '<?= __("Elaborazione...") ?>';
-    const doneTitle = '<?= __("Operazione completata") ?>';
-    const failTitle = '<?= __("Operazione fallita") ?>';
-    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
+    const processingTitle = <?= json_encode(__("Elaborazione...")) ?>;
+    const doneTitle = <?= json_encode(__("Operazione completata")) ?>;
+    const failTitle = <?= json_encode(__("Operazione fallita")) ?>;
+    const commErr = <?= json_encode(__("Errore di comunicazione con il server")) ?>;
 
-    const confirmTitle = '<?= __("Confermi?") ?>';
-    const confirmText = '<?= __("Vuoi correggere automaticamente i problemi di integrità rilevati?") ?>';
+    const confirmTitle = <?= json_encode(__("Confermi?")) ?>;
+    const confirmText = <?= json_encode(__("Vuoi correggere automaticamente i problemi di integrità rilevati?")) ?>;
     const confirmResult = await Swal.fire({
         title: confirmTitle,
         text: confirmText,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: '<?= __("Sì, correggi") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>'
+        confirmButtonText: <?= json_encode(__("Sì, correggi")) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla")) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -467,20 +467,20 @@ async function fixIssues() {
 }
 
 async function performMaintenance() {
-    const processingTitle = '<?= __("Elaborazione...") ?>';
-    const doneTitle = '<?= __("Operazione completata") ?>';
-    const failTitle = '<?= __("Operazione fallita") ?>';
-    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
+    const processingTitle = <?= json_encode(__("Elaborazione...")) ?>;
+    const doneTitle = <?= json_encode(__("Operazione completata")) ?>;
+    const failTitle = <?= json_encode(__("Operazione fallita")) ?>;
+    const commErr = <?= json_encode(__("Errore di comunicazione con il server")) ?>;
 
-    const confirmTitle = '<?= __("Confermi?") ?>';
-    const confirmText = '<?= __("Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti.") ?>';
+    const confirmTitle = <?= json_encode(__("Confermi?")) ?>;
+    const confirmText = <?= json_encode(__("Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti.")) ?>;
     const confirmResult = await Swal.fire({
         title: confirmTitle,
         text: confirmText,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: '<?= __("Sì, esegui") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>'
+        confirmButtonText: <?= json_encode(__("Sì, esegui")) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla")) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -508,21 +508,21 @@ async function performMaintenance() {
 }
 
 async function applyConfigFix(issueType, fixValue) {
-    const processingTitle = '<?= __("Applicazione del fix...") ?>';
-    const doneTitle = '<?= __("Fix applicato") ?>';
-    const failTitle = '<?= __("Operazione fallita") ?>';
-    const commErr = '<?= __("Errore di comunicazione con il server") ?>';
+    const processingTitle = <?= json_encode(__("Applicazione del fix...")) ?>;
+    const doneTitle = <?= json_encode(__("Fix applicato")) ?>;
+    const failTitle = <?= json_encode(__("Operazione fallita")) ?>;
+    const commErr = <?= json_encode(__("Errore di comunicazione con il server")) ?>;
 
-    const confirmTitle = '<?= __("Confermi?") ?>';
-    const confirmTextTemplate = '<?= __("Vuoi impostare APP_CANONICAL_URL a:") ?>';
+    const confirmTitle = <?= json_encode(__("Confermi?")) ?>;
+    const confirmTextTemplate = <?= json_encode(__("Vuoi impostare APP_CANONICAL_URL a:")) ?>;
     const confirmText = `${confirmTextTemplate}\n${fixValue}`;
     const confirmResult = await Swal.fire({
         title: confirmTitle,
         text: confirmText,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: '<?= __("Sì, applica") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>'
+        confirmButtonText: <?= json_encode(__("Sì, applica")) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla")) ?>
     });
     if (!confirmResult.isConfirmed) return;
 

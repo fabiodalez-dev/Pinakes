@@ -16,8 +16,8 @@ $loginUrl = $loginUrl ?? route_path('login');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?></title>
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
-    <link rel="stylesheet" href="<?= assetUrl('main.css') ?>">
     <link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('main.css') ?>">
     <style>
         .session-expired-container {
             min-height: 100vh;

@@ -248,11 +248,11 @@ class LibriApiController
                     $cover = (string) $row['copertina'];
                 }
                 // Normalize: ensure relative paths start with /
-                if ($cover !== '' && strpos($cover, 'http') !== 0 && strpos($cover, '/') !== 0) {
+                if ($cover !== '' && strpos($cover, 'http') !== 0 && strpos($cover, '//') !== 0 && strpos($cover, '/') !== 0) {
                     $cover = '/' . $cover;
                 }
                 // Convert relative URLs to absolute for consistent display (same as catalog)
-                if ($cover !== '' && strpos($cover, 'http') !== 0) {
+                if ($cover !== '' && strpos($cover, 'http') !== 0 && strpos($cover, '//') !== 0) {
                     $cover = rtrim(HtmlHelper::getBaseUrl(), '/') . $cover;
                 }
                 $row['copertina_url'] = $cover;

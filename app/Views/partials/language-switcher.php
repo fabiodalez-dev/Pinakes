@@ -99,7 +99,7 @@ if (count($languagesData) <= 1) {
         <div class="py-1">
             <?php foreach ($languagesData as $code => $lang): ?>
                 <?php $isActive = $code === $currentLocale; ?>
-                <a href="<?= url('/language/' . urlencode($code) . '?redirect=' . $redirectParam) ?>"
+                <a href="<?= htmlspecialchars(url('/language/' . urlencode($code) . '?redirect=' . $redirectParam), ENT_QUOTES, 'UTF-8') ?>"
                    class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors <?= $isActive ? 'bg-blue-50 border-l-4 border-blue-600' : '' ?>"
                    role="menuitem">
                     <span class="text-xl leading-none"><?= HtmlHelper::e($lang['flag_emoji']) ?></span>

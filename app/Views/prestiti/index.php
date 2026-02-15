@@ -277,7 +277,7 @@ function getStatusBadge($status) {
                                     <?php echo getStatusBadge($prestito['stato']); ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
-                                    <a href="<?= url('/admin/prestiti/' . $prestito['id'] . '/pdf') ?>"
+                                    <a href="<?= url('/admin/prestiti/' . (int)$prestito['id'] . '/pdf') ?>"
                                        class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors"
                                        title="<?= __('Scarica PDF') ?>">
                                         <i class="fas fa-file-pdf mr-2"></i>
@@ -286,11 +286,11 @@ function getStatusBadge($status) {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
                                     <div class="flex items-center justify-end space-x-2">
-                                        <a href="<?= url('/admin/prestiti/dettagli/' . $prestito['id']) ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
+                                        <a href="<?= url('/admin/prestiti/dettagli/' . (int)$prestito['id']) ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
                                             <i class="fas fa-eye w-4 h-4"></i>
                                         </a>
                                         <?php if ($prestito['attivo']): ?>
-                                            <a href="<?= url('/admin/prestiti/restituito/' . $prestito['id']) ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="<?= __("Registra Restituzione") ?>">
+                                            <a href="<?= url('/admin/prestiti/restituito/' . (int)$prestito['id']) ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="<?= __("Registra Restituzione") ?>">
                                                 <i class="fas fa-undo-alt w-4 h-4"></i>
                                             </a>
                                         <?php endif; ?>
