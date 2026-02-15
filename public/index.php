@@ -77,13 +77,29 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
 
 require $vendorAutoload;
 
+// Load environment variables from .env file
+// Loaded early: base path detection (maintenance mode) and HTTPS/host checks need env vars
+use Dotenv\Dotenv;
+$dotenv = Dotenv::createImmutable(__DIR__ . '/../');
+try {
+    $dotenv->load();
+} catch (\Throwable $e) {
+    error_log("Error loading .env file: " . $e->getMessage());
+    // If .env failed to load and installer exists, redirect there
+    if (is_dir(__DIR__ . '/../installer') && !file_exists($installerLockFile)) {
+        $installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
+        if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
+        header('Location: ' . $installerBasePath . '/installer/', true, 302);
+        exit;
+    }
+}
+
 // Check for maintenance mode (created during updates)
 $maintenanceFile = __DIR__ . '/../storage/.maintenance';
 if (file_exists($maintenanceFile)) {
     $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-    // Strip base path for subfolder installations
-    $maintenanceBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
-    if ($maintenanceBasePath === '.' || $maintenanceBasePath === DIRECTORY_SEPARATOR) $maintenanceBasePath = '';
+    // Strip base path for subfolder installations (consistent with Slim app)
+    $maintenanceBasePath = \App\Support\HtmlHelper::getBasePath();
     if ($maintenanceBasePath !== '' && str_starts_with($requestUri, $maintenanceBasePath)) {
         $requestUri = substr($requestUri, strlen($maintenanceBasePath)) ?: '/';
     }
@@ -146,22 +162,6 @@ if (file_exists($maintenanceFile)) {
 
 use DI\ContainerBuilder;
 use Slim\Factory\AppFactory;
-use Dotenv\Dotenv;
-
-// Load environment variables from .env file
-$dotenv = Dotenv::createImmutable(__DIR__ . '/../');
-try {
-    $dotenv->load();
-} catch (Exception $e) {
-    error_log("Error loading .env file: " . $e->getMessage());
-    // If .env failed to load and installer exists, redirect there
-    if (is_dir(__DIR__ . '/../installer') && !file_exists($installerLockFile)) {
-        $installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
-        if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
-        header('Location: ' . $installerBasePath . '/installer/', true, 302);
-        exit;
-    }
-}
 
 $httpsDetected = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')

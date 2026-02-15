@@ -311,9 +311,6 @@ php cron/automatic-notifications.php
       </div>
       </form>
 
-    <form method="post" action="<?= url('/admin/settings/email') ?>" class="space-y-8">
-      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-
       <!-- Email Templates -->
       <div class="card">
         <div class="card-header">
@@ -366,10 +363,6 @@ php cron/automatic-notifications.php
         </div>
       </div>
 
-      <div class="flex justify-end">
-        <button class="btn-primary"><i class="fas fa-save mr-2"></i><?= __("Salva Impostazioni") ?></button>
-      </div>
-    </form>
   </div>
 </div>
 
