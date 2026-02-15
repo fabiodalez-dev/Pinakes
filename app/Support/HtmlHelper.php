@@ -330,7 +330,7 @@ class HtmlHelper
         // Strip basePath from path if already included (e.g. from book_url())
         // to avoid double prefix since getBaseUrl() already contains basePath
         $basePath = self::getBasePath();
-        if ($basePath !== '' && str_starts_with($path, $basePath . '/')) {
+        if ($basePath !== '' && (str_starts_with($path, $basePath . '/') || $path === $basePath)) {
             $path = substr($path, strlen($basePath));
         }
 

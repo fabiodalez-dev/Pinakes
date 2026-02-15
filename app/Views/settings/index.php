@@ -102,7 +102,7 @@ $activeTab = $activeTab ?? 'general';
                        alt="<?= __("Anteprima logo") ?>"
                        class="h-16 object-contain <?php echo $currentLogo === '' ? 'hidden' : ''; ?>">
                   <div id="logo-preview-label" class="text-xs text-gray-500">
-                    <?php echo $currentLogo !== '' ? '<?= __("Anteprima logo") ?>' : '<?= __("Nessun logo caricato") ?>'; ?>
+                    <?php echo $currentLogo !== '' ? __("Anteprima logo") : __("Nessun logo caricato"); ?>
                   </div>
                 </div>
 

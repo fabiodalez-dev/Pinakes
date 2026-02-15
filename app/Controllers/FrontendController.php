@@ -1796,7 +1796,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // SEO meta tags for events list page
         $seoTitle = __("Eventi") . ' - ' . \App\Support\ConfigStore::get('app.name');
         $seoDescription = __("Scopri tutti gli eventi organizzati dalla biblioteca");
-        $seoCanonical = \App\Support\ConfigStore::get('app.canonical_url') . RouteTranslator::route('events');
+        $seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . RouteTranslator::route('events');
 
         $container = $this->container;
         ob_start();
@@ -1847,7 +1847,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         // Prepare SEO variables with fallbacks
-        $baseUrl = \App\Support\ConfigStore::get('app.canonical_url');
+        $baseUrl = rtrim(HtmlHelper::getBaseUrl(), '/');
         $appName = \App\Support\ConfigStore::get('app.name');
 
         // Extract excerpt from content (first 160 chars of plain text)

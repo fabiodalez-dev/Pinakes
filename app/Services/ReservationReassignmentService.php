@@ -19,6 +19,7 @@ class ReservationReassignmentService
     private mysqli $db;
     private NotificationService $notificationService;
     private bool $externalTransaction = false;
+    private bool $transactionOwned = false;
 
     /**
      * Notifiche da inviare dopo il commit della transazione esterna.
@@ -84,15 +85,7 @@ class ReservationReassignmentService
         if ($this->externalTransaction) {
             return true;
         }
-        // MySQL/MariaDB compatible: check autocommit status
-        // When in a transaction started with begin_transaction(), autocommit is 0
-        $result = $this->db->query("SELECT @@autocommit as ac");
-        if ($result) {
-            $row = $result->fetch_assoc();
-            // autocommit = 0 typically means we're in a transaction
-            return (int)($row['ac'] ?? 1) === 0;
-        }
-        return false;
+        return $this->transactionOwned;
     }
 
     /**
@@ -104,6 +97,7 @@ class ReservationReassignmentService
             return false; // Non abbiamo iniziato noi
         }
         $this->db->begin_transaction();
+        $this->transactionOwned = true;
         return true; // Abbiamo iniziato noi
     }
 
@@ -114,6 +108,7 @@ class ReservationReassignmentService
     {
         if ($ownTransaction) {
             $this->db->commit();
+            $this->transactionOwned = false;
         }
     }
 
@@ -124,6 +119,7 @@ class ReservationReassignmentService
     {
         if ($ownTransaction) {
             $this->db->rollback();
+            $this->transactionOwned = false;
         }
     }
 

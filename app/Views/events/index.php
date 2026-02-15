@@ -212,7 +212,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 
                   <!-- Action Buttons -->
                   <div class="flex flex-wrap items-center gap-3 mt-4">
-                    <a href="<?= url('/admin/cms/events/edit/' . $event['id']) ?>"
+                    <a href="<?= url('/admin/cms/events/edit/' . (int)$event['id']) ?>"
                       class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold">
                       <i class="fas fa-edit"></i>
                       <?= __("Modifica") ?>

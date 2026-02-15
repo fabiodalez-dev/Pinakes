@@ -1,6 +1,6 @@
 <?php use App\Support\HtmlHelper; ?>
 <section data-settings-panel="contacts" class="settings-panel <?php echo $activeTab === 'contacts' ? 'block' : 'hidden'; ?>">
-  <form action="<?= url('/admin/settings/contacts') ?>" method="post" class="space-y-8">
+  <form action="<?= htmlspecialchars(url('/admin/settings/contacts'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
 
     <!-- Titolo e contenuto pagina -->
@@ -160,7 +160,7 @@
     </div>
 
     <div class="flex justify-end gap-3">
-      <a href="<?= route_path('contact') ?>" target="_blank" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+      <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
         <i class="fas fa-eye"></i>
         <?= __("Anteprima") ?>
       </a>

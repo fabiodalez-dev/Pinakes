@@ -478,7 +478,8 @@ function createBookUrl($book) {
                     <div class="book-card">
                         <div class="book-image-container">
                             <a href="<?= createBookUrl($book) ?>">
-                                <img src="<?= htmlspecialchars(url($book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg')) ?>"
+                                <?php $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg'; ?>
+                                <img src="<?= htmlspecialchars(absoluteUrl($coverUrl)) ?>"
                                      alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>">
                             </a>
                             <span class="book-status-badge <?= ($book['copie_disponibili'] > 0) ? 'status-available' : 'status-borrowed' ?>">
@@ -562,7 +563,7 @@ function createBookUrl($book) {
         <?php else: ?>
             <div class="empty-state">
                 <i class="fas fa-book-open"></i>
-                <h$1><?= __("$2") ?></h$1>
+                <h3><?= __("Nessun libro trovato") ?></h3>
                 <p>
                     <?php if ($archive_type === 'autore'): ?>
                         Non sono stati trovati libri di questo autore.

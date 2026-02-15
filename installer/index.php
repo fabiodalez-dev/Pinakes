@@ -411,5 +411,5 @@ $stepFile = __DIR__ . "/steps/step{$step}.php";
 if (file_exists($stepFile)) {
     require_once $stepFile;
 } else {
-    die("Step file not found: {$stepFile}");
+    die("Step file not found for step: {$step}");
 }

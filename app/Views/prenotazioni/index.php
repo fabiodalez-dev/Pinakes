@@ -105,7 +105,12 @@ document.addEventListener('DOMContentLoaded', function(){
           if (Array.isArray(data) && data.length){
             data.slice(0,8).forEach(it=>{
               const li = document.createElement('li');
-              li.innerHTML = `<i class="fas ${inputId.includes('utente')?'fa-user':'fa-book'} text-gray-400"></i><span>${it.label}</span>`;
+              const icon = document.createElement('i');
+              icon.className = `fas ${inputId.includes('utente')?'fa-user':'fa-book'} text-gray-400`;
+              const span = document.createElement('span');
+              span.textContent = it.label;
+              li.appendChild(icon);
+              li.appendChild(span);
               li.onclick = ()=>{ onPick(it); ul.classList.remove('show'); };
               ul.appendChild(li);
             });

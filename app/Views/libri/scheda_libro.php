@@ -935,7 +935,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <div class="flex items-center">
                     <div>
                       <div class="text-sm font-medium text-gray-900">
-                        <a href="<?= url('/admin/utenti/' . (int)$loan['utente_id']) ?>" class="hover:text-blue-600 transition-colors">
+                        <a href="<?= url('/admin/utenti/dettagli/' . (int)$loan['utente_id']) ?>" class="hover:text-blue-600 transition-colors">
                           <?php echo App\Support\HtmlHelper::e($loan['utente_nome'] . ' ' . $loan['utente_cognome']); ?>
                         </a>
                       </div>
