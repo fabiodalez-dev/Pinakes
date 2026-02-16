@@ -220,6 +220,11 @@ $additional_css = "
         color: white;
     }
 
+    .status-reserved {
+        background: rgba(139, 92, 246, 0.9);
+        color: white;
+    }
+
     .book-content {
         padding: 1.25rem;
         flex: 1;
@@ -482,9 +487,13 @@ function createBookUrl($book) {
                                 <img src="<?= htmlspecialchars(absoluteUrl($coverUrl)) ?>"
                                      alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>">
                             </a>
-                            <span class="book-status-badge <?= ($book['copie_disponibili'] > 0) ? 'status-available' : 'status-borrowed' ?>">
-                                <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?>"></i>
-                                <?= ($book['copie_disponibili'] > 0) ? __('Disponibile') : __('Prestato') ?>
+                            <?php
+                            $bookAvailable = ($book['copie_disponibili'] ?? 0) > 0;
+                            $bookReserved = !$bookAvailable && ($book['stato'] ?? '') === 'prenotato';
+                            ?>
+                            <span class="book-status-badge <?= $bookAvailable ? 'status-available' : ($bookReserved ? 'status-reserved' : 'status-borrowed') ?>">
+                                <i class="fas fa-<?= $bookAvailable ? 'check-circle' : ($bookReserved ? 'bookmark' : 'times-circle') ?>"></i>
+                                <?= $bookAvailable ? __('Disponibile') : ($bookReserved ? __('Prenotato') : __('Prestato')) ?>
                                 <?php
                                 // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
                                 do_action('book.badge.digital_icons', $book);
@@ -573,7 +582,7 @@ function createBookUrl($book) {
                         <?= __("Non sono stati trovati libri di questo genere.") ?>
                     <?php endif; ?>
                 </p>
-                <a href="<?= $catalogRoute ?>" class="btn-catalog">
+                <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-catalog">
                     <i class="fas fa-search"></i>
                     <span><?= __('Esplora Catalogo') ?></span>
                 </a>

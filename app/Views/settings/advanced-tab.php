@@ -7,7 +7,7 @@ use App\Support\HtmlHelper;
 .api-toggle-input:checked + .api-toggle-track .api-toggle-label-off { display: none; }
 </style>
 <section data-settings-panel="advanced" class="settings-panel <?php echo $activeTab === 'advanced' ? 'block' : 'hidden'; ?>">
-  <form action="<?= url('/admin/settings/advanced') ?>" method="post" class="space-y-6">
+  <form action="<?= htmlspecialchars(url('/admin/settings/advanced'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
 
     <!-- JavaScript Personalizzato - Informazioni Generali -->
@@ -511,7 +511,7 @@ use App\Support\HtmlHelper;
           <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">php scripts/generate-sitemap.php</code>.
           <?= __("Usa questa azione dopo aver importato un grande numero di libri o modifiche ai contenuti CMS.") ?>
         </p>
-        <form action="<?= url('/admin/settings/advanced/regenerate-sitemap') ?>" method="post">
+        <form action="<?= htmlspecialchars(url('/admin/settings/advanced/regenerate-sitemap'), ENT_QUOTES, 'UTF-8') ?>" method="post">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
           <button type="submit"
                   class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
@@ -570,7 +570,7 @@ use App\Support\HtmlHelper;
 
     <div id="api-section-content" class="p-6 space-y-6">
       <!-- Enable/Disable API -->
-      <form action="<?= url('/admin/settings/api/toggle') ?>" method="post" id="api-toggle-form">
+      <form action="<?= htmlspecialchars(url('/admin/settings/api/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" id="api-toggle-form">
         <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
         <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
           <div>
@@ -668,7 +668,7 @@ use App\Support\HtmlHelper;
                   </div>
                 </div>
                 <div class="flex items-center gap-2 ml-4">
-                  <form action="<?= url('/admin/settings/api/keys/' . $key['id'] . '/toggle') ?>" method="post" class="inline">
+                  <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . $key['id'] . '/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline">
                     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg <?php echo $key['is_active'] ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-gray-900 text-white hover:bg-black'; ?> transition-colors"
@@ -676,7 +676,7 @@ use App\Support\HtmlHelper;
                       <i class="fas <?php echo $key['is_active'] ? 'fa-pause' : 'fa-play'; ?>"></i>
                     </button>
                   </form>
-                  <form action="<?= url('/admin/settings/api/keys/' . $key['id'] . '/delete') ?>" method="post" class="inline" onsubmit="return confirm(__('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.'))">
+                  <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . $key['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline" onsubmit="return confirm(__('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.'))">
                     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
@@ -800,7 +800,7 @@ use App\Support\HtmlHelper;
         <i class="fas fa-times text-xl"></i>
       </button>
     </div>
-    <form action="<?= url('/admin/settings/api/keys/create') ?>" method="post">
+    <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/create'), ENT_QUOTES, 'UTF-8') ?>" method="post">
       <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
       <div class="space-y-4">
         <div>

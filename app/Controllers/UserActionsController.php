@@ -244,13 +244,13 @@ class UserActionsController
             $reorderResult = $reorderStmt->get_result();
 
             $position = 1;
+            $updatePos = $db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
             while ($row = $reorderResult->fetch_assoc()) {
-                $updatePos = $db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
                 $updatePos->bind_param('ii', $position, $row['id']);
                 $updatePos->execute();
-                $updatePos->close();
                 $position++;
             }
+            $updatePos->close();
             $reorderStmt->close();
 
             // Recalculate book availability

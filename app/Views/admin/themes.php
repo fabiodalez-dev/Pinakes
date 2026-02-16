@@ -129,7 +129,7 @@ $pageTitle = __('Gestione Temi');
                         <!-- Actions -->
                         <div class="flex gap-2">
                             <?php if (!$isActive): ?>
-                                <button onclick="activateTheme(<?= $theme['id'] ?>)"
+                                <button onclick="activateTheme(<?= (int)$theme['id'] ?>)"
                                         class="flex-1 px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
                                     <i class="fas fa-check mr-1"></i>
                                     <?= __("Attiva") ?>

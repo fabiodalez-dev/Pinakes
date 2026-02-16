@@ -39,7 +39,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
           <?= $isEdit ? __("Modifica le informazioni dell'evento") : __("Inserisci le informazioni del nuovo evento") ?>
         </p>
       </div>
-      <a href="<?= url('/admin/cms/events') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
+      <a href="<?= htmlspecialchars(url('/admin/cms/events'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
         <i class="fas fa-arrow-left"></i>
         <?= __("Torna agli Eventi") ?>
       </a>
@@ -60,7 +60,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
     <?php endif; ?>
   </div>
 
-  <form action="<?= $isEdit ? url('/admin/cms/events/update/' . (int)$event['id']) : url('/admin/cms/events') ?>" method="post" enctype="multipart/form-data" class="space-y-6">
+  <form action="<?= htmlspecialchars($isEdit ? url('/admin/cms/events/update/' . (int)$event['id']) : url('/admin/cms/events'), ENT_QUOTES, 'UTF-8') ?>" method="post" enctype="multipart/form-data" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
     <!-- Main Event Information -->
@@ -96,7 +96,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
           <label class="block text-sm font-medium text-gray-700"><?= __("Immagine in Evidenza") ?></label>
           <?php if ($isEdit && !empty($event['featured_image'])): ?>
             <div class="relative rounded-2xl overflow-hidden h-64 bg-gray-100">
-              <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>" class="w-full h-full object-cover">
+              <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= HtmlHelper::e($event['title']) ?>" class="w-full h-full object-cover">
               <div class="absolute inset-0 flex items-center justify-center" style="background: rgba(0, 0, 0, 0.4);">
                 <span class="text-white text-sm font-medium"><?= __("Immagine attuale") ?></span>
               </div>
@@ -355,7 +355,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
 
     <!-- Submit Button -->
     <div class="flex items-center justify-between gap-4">
-      <a href="<?= url('/admin/cms/events') ?>" class="inline-flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold">
+      <a href="<?= htmlspecialchars(url('/admin/cms/events'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold">
         <i class="fas fa-times"></i>
         <?= __("Annulla") ?>
       </a>
@@ -396,6 +396,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
     tinymce.init({
       selector: '#event_content',
+      base_url: '<?= assetUrl("tinymce") ?>',
+      suffix: '.min',
       model: 'dom',
       license_key: 'gpl',
       height: 520,

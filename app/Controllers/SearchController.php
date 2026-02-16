@@ -108,8 +108,8 @@ class SearchController
                         FROM libri_autori la
                         JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = l.id) AS autori,
-                       (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'disponibile') AS copie_disponibili,
-                       (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id) AS copie_totali
+                       l.copie_disponibili,
+                       l.copie_totali
                 FROM libri l
                 WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?)
                 ORDER BY l.titolo LIMIT 20

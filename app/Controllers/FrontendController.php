@@ -1255,8 +1255,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $publisherName = htmlspecialchars($publisher['nome']);
         $seoTitle = "Libri di {$publisherName} - Catalogo Editore | Biblioteca";
         $seoDescription = "Scopri tutti i libri pubblicati da {$publisherName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']);
-        $seoImage = rtrim(HtmlHelper::getBaseUrl(), '/') . '/uploads/copertine/placeholder.jpg';
+        $seoCanonical = absoluteUrl(RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']));
+        $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
         $archive_type = 'editore';
         $archive_info = $publisher;
@@ -1343,8 +1343,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $genreName = htmlspecialchars($genre['nome']);
         $seoTitle = "Libri di {$genreName} - Catalogo per Genere | Biblioteca";
         $seoDescription = "Esplora tutti i libri del genere {$genreName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . RouteTranslator::route('genre') . '/' . urlencode($genre['nome']);
-        $seoImage = rtrim(HtmlHelper::getBaseUrl(), '/') . '/uploads/copertine/placeholder.jpg';
+        $seoCanonical = absoluteUrl(RouteTranslator::route('genre') . '/' . urlencode($genre['nome']));
+        $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
         $archive_type = 'genere';
         $archive_info = $genre;
@@ -1796,7 +1796,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // SEO meta tags for events list page
         $seoTitle = __("Eventi") . ' - ' . \App\Support\ConfigStore::get('app.name');
         $seoDescription = __("Scopri tutti gli eventi organizzati dalla biblioteca");
-        $seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . RouteTranslator::route('events');
+        $seoCanonical = absoluteUrl(RouteTranslator::route('events'));
 
         $container = $this->container;
         ob_start();
@@ -1847,7 +1847,6 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         // Prepare SEO variables with fallbacks
-        $baseUrl = rtrim(HtmlHelper::getBaseUrl(), '/');
         $appName = \App\Support\ConfigStore::get('app.name');
 
         // Extract excerpt from content (first 160 chars of plain text)
@@ -1861,14 +1860,14 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $seoTitle = $event['seo_title'] ?: ($event['title'] . ' - ' . $appName);
         $seoDescription = $event['seo_description'] ?: $excerpt;
         $seoKeywords = $event['seo_keywords'] ?? '';
-        $seoCanonical = $baseUrl . RouteTranslator::route('events') . '/' . $event['slug'];
+        $seoCanonical = absoluteUrl(RouteTranslator::route('events') . '/' . $event['slug']);
 
         // Open Graph tags
         $ogTitle = $event['og_title'] ?: $event['title'];
         $ogDescription = $event['og_description'] ?: $seoDescription;
         $ogType = $event['og_type'] ?: 'article';
         $ogUrl = $event['og_url'] ?: $seoCanonical;
-        $ogImage = $event['og_image'] ?: ($event['featured_image'] ? $baseUrl . $event['featured_image'] : $baseUrl . '/assets/social.jpg');
+        $ogImage = $event['og_image'] ?: ($event['featured_image'] ? absoluteUrl($event['featured_image']) : absoluteUrl('/assets/social.jpg'));
 
         // Twitter Card tags
         $twitterCard = $event['twitter_card'] ?: 'summary_large_image';

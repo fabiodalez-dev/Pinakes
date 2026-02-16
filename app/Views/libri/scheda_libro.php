@@ -9,6 +9,7 @@ $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
     'disponibile' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-green-500 text-white',
     'prestato'    => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-red-500 text-white',
+    'prenotato'   => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-purple-500 text-white',
     'in_ritardo'  => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-amber-500 text-white',
     'danneggiato' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-orange-500 text-white',
     'perso'       => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-gray-700 text-white',

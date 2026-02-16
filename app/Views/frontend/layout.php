@@ -826,6 +826,12 @@ $htmlLang = substr($currentLocale, 0, 2);
             box-shadow: none;
         }
 
+        .status-reserved {
+            background: rgba(139, 92, 246, 0.9);
+            color: white;
+            box-shadow: none;
+        }
+
         .book-content {
             padding: 1.5rem;
         }

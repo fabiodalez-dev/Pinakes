@@ -7,8 +7,12 @@ function createBookUrl($book) {
 
 function getBookStatusBadge($book) {
     ob_start();
-    if (($book['copie_disponibili'] ?? 0) > 0) {
+    $available = ($book['copie_disponibili'] ?? 0) > 0;
+    $reserved = !$available && ($book['stato'] ?? '') === 'prenotato';
+    if ($available) {
         echo '<span class="book-status-badge status-available">' . __("Disponibile");
+    } elseif ($reserved) {
+        echo '<span class="book-status-badge status-reserved">' . __("Prenotato");
     } else {
         echo '<span class="book-status-badge status-borrowed">' . __("In prestito");
     }
@@ -154,6 +158,11 @@ function getBookStatusBadge($book) {
 
 .status-borrowed {
     background: rgba(239, 68, 68, 0.9);
+    color: white;
+}
+
+.status-reserved {
+    background: rgba(139, 92, 246, 0.9);
     color: white;
 }
 

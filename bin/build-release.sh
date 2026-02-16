@@ -64,8 +64,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Resolve OUTPUT_DIR to absolute path so cd inside functions won't break it
-# Uses python3 for portability (macOS realpath lacks -m flag)
-OUTPUT_DIR="$(python3 -c "import os,sys; print(os.path.abspath(sys.argv[1]))" "$OUTPUT_DIR")"
+mkdir -p "$OUTPUT_DIR"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
 ################################################################################
 # Functions
@@ -226,8 +226,15 @@ verify_package_contents() {
         ".env.example"
         "README.md"
         "vendor/autoload.php"
+        "vendor/composer/autoload_real.php"
         "app/Support/Updater.php"
         "installer/database/schema.sql"
+        # TinyMCE critical files (without these, the editor fails silently)
+        "public/assets/tinymce/tinymce.min.js"
+        "public/assets/tinymce/models/dom/model.min.js"
+        "public/assets/tinymce/themes/silver/theme.min.js"
+        "public/assets/tinymce/skins/ui/oxide/skin.min.css"
+        "public/assets/tinymce/icons/default/icons.min.js"
     )
 
     for file in "${required_files[@]}"; do
@@ -236,6 +243,25 @@ verify_package_contents() {
             has_errors=true
         fi
     done
+
+    # Verify no PHPStan references in autoloader (dev deps leak)
+    local autoload_real="${package_dir}/vendor/composer/autoload_real.php"
+    if [ -f "$autoload_real" ]; then
+        local phpstan_count
+        phpstan_count=$(grep -c "phpstan" "$autoload_real" || true)
+        if [ "$phpstan_count" -gt 0 ]; then
+            log_error "PHPStan found in autoload_real.php ($phpstan_count references) - dev dependencies leaked into package"
+            has_errors=true
+        fi
+    fi
+
+    # Verify version.json contains a valid version
+    local pkg_version
+    pkg_version=$(jq -r '.version' "${package_dir}/version.json" 2>/dev/null || echo "")
+    if [ -z "$pkg_version" ] || [ "$pkg_version" = "null" ]; then
+        log_error "version.json in package has no valid version"
+        has_errors=true
+    fi
 
     # Bundled plugins that MUST be included
     local bundled_plugins=(

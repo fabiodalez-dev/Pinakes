@@ -103,7 +103,7 @@
                   </span>
                   <div class="flex flex-wrap items-center gap-2">
                     <?php if (!empty($notification['link'])): ?>
-                    <?php $notifLink = $notification['link']; if (!str_starts_with($notifLink, 'http://') && !str_starts_with($notifLink, 'https://') && !str_starts_with($notifLink, '//')) { $notifLink = url($notifLink); } ?>
+                    <?php $notifLink = url($notification['link']); ?>
                     <a href="<?php echo HtmlHelper::e($notifLink); ?>"
                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
                       <i class="fas fa-arrow-right text-xs"></i>

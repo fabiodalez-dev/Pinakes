@@ -798,6 +798,11 @@ $additional_css = "
         color: white;
     }
 
+    .status-reserved {
+        background: rgba(139, 92, 246, 0.9);
+        color: white;
+    }
+
     .book-content {
     flex: 1;
         padding: 1.5rem;

@@ -347,7 +347,7 @@ $activeTab = $activeTab ?? 'general';
                   </div>
                 </div>
 
-                <form action="<?= url('/admin/settings/templates/' . HtmlHelper::e($template['name'])) ?>" method="post" class="p-3 md:p-5 space-y-4">
+                <form action="<?php echo HtmlHelper::e(url('/admin/settings/templates/' . rawurlencode($template['name']))); ?>" method="post" class="p-3 md:p-5 space-y-4">
                   <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
                   <div>
                     <label class="block text-sm font-medium text-gray-700"><?= __("Oggetto") ?></label>
@@ -651,6 +651,8 @@ $activeTab = $activeTab ?? 'general';
     if (window.tinymce) {
       tinymce.init({
         selector: 'textarea.tinymce-editor',
+        base_url: '<?= assetUrl("tinymce") ?>',
+        suffix: '.min',
         model: 'dom',
         license_key: 'gpl',
         menubar: false,

@@ -90,6 +90,9 @@ class SeoController
             $base .= ':' . $port;
         }
 
+        // Include basePath for subfolder installations (e.g. /pinakes)
+        $base .= \App\Support\HtmlHelper::getBasePath();
+
         return rtrim($base, '/');
     }
 }

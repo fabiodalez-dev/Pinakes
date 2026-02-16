@@ -231,7 +231,7 @@ class LibriController
 
             return $this->getCoversUrlPath() . '/' . $filename;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('Cover download exception', ['url' => $url, 'error' => $e->getMessage()]);
             return $url; // Return original URL on any error
         }
@@ -354,7 +354,7 @@ class LibriController
         }
         $loanRepo = new \App\Models\LoanRepository($db);
         $activeLoan = $loanRepo->getActiveLoanByBook($id);
-        $bookPath = '/admin/libri/' . $id;
+        $bookPath = url('/admin/libri/' . $id);
 
         // Recupera tutte le copie del libro con informazioni sui prestiti
         $copyRepo = new \App\Models\CopyRepository($db);
@@ -920,7 +920,7 @@ class LibriController
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
 
-            return $response->withHeader('Location', '/admin/libri/' . $id)->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/' . $id))->withStatus(302);
 
         } finally {
             // Release advisory lock
@@ -1111,7 +1111,7 @@ class LibriController
                     $nonRemovableCopies,
                     $nonRemovableCopies
                 );
-                return $response->withHeader('Location', '/admin/libri/modifica/' . $id)->withStatus(302);
+                return $response->withHeader('Location', url('/admin/libri/modifica/' . $id))->withStatus(302);
             }
         }
 
@@ -1197,7 +1197,7 @@ class LibriController
             if (!$locked) {
                 // Failed to acquire lock (timeout or error)
                 $_SESSION['error_message'] = __('Impossibile acquisire il lock. Riprova tra qualche secondo.');
-                return $response->withHeader('Location', '/admin/libri/modifica/' . $id)->withStatus(302);
+                return $response->withHeader('Location', url('/admin/libri/modifica/' . $id))->withStatus(302);
             }
         }
 
@@ -1441,7 +1441,7 @@ class LibriController
                     try {
                         $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                         $reassignmentService->reassignOnNewCopy($id, $newCopyId);
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         SecureLogger::error(__('Riassegnazione prenotazione nuova copia fallita'), [
                             'copia_id' => $newCopyId,
                             'error' => $e->getMessage()
@@ -1452,7 +1452,7 @@ class LibriController
                     try {
                         $reservationManager = new \App\Controllers\ReservationManager($db);
                         $reservationManager->processBookAvailability($id);
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         SecureLogger::error(__('Elaborazione lista attesa fallita'), [
                             'libro_id' => $id,
                             'error' => $e->getMessage()
@@ -1497,7 +1497,7 @@ class LibriController
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');
 
-            return $response->withHeader('Location', '/admin/libri/' . $id)->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/' . $id))->withStatus(302);
 
         } finally {
             // Release advisory lock
@@ -1772,12 +1772,12 @@ class LibriController
 
         if ($prestitiCount > 0 || $prenotazioniCount > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare il libro: ci sono prestiti o prenotazioni attive. Termina prima i prestiti/prenotazioni.');
-            return $response->withHeader('Location', '/admin/libri/' . $id)->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/' . $id))->withStatus(302);
         }
 
         $repo = new \App\Models\BookRepository($db);
         $repo->delete($id);
-        return $response->withHeader('Location', '/admin/libri')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/libri'))->withStatus(302);
     }
 
     /**

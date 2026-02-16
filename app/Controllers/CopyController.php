@@ -95,7 +95,7 @@ class CopyController
         // Non permettere cambio diretto a "prestato", deve usare il sistema prestiti
         if ($stato === 'prestato' && $statoCorrente !== 'prestato') {
             $_SESSION['error_message'] = __('Per prestare una copia, utilizza il sistema Prestiti dalla sezione dedicata. Non è possibile impostare manualmente lo stato "Prestato".');
-            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+            return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
         }
 
         // GESTIONE CAMBIO STATO DA "PRESTATO" A "DISPONIBILE"
@@ -123,7 +123,7 @@ class CopyController
         // Blocca modifiche se c'è un prestito attivo (eccetto cambio a disponibile già gestito)
         if ($prestito && !($statoCorrente === 'prestato' && $stato === 'disponibile')) {
             $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente in prestito. Prima termina il prestito o imposta lo stato su "Disponibile" per chiuderlo automaticamente.');
-            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+            return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
         }
 
         // Aggiorna la copia
@@ -144,7 +144,7 @@ class CopyController
             elseif ($stato === 'disponibile') {
                 $reassignmentService->reassignOnReturn($copyId); // reassignOnReturn handles picking a waiting reservation
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             SecureLogger::error(__('Errore gestione cambio stato copia'), [
                 'copia_id' => $copyId,
                 'stato' => $stato,
@@ -157,7 +157,7 @@ class CopyController
         $integrity->recalculateBookAvailability($libroId);
 
         $_SESSION['success_message'] = __('Stato della copia aggiornato con successo.');
-        return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+        return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
     }
 
     /**
@@ -197,13 +197,13 @@ class CopyController
 
         if ($hasPrestito) {
             $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente in prestito.');
-            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+            return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
         }
 
         // Permetti eliminazione solo per copie perse, danneggiate o in manutenzione
         if (!in_array($stato, ['perso', 'danneggiato', 'manutenzione'])) {
             $_SESSION['error_message'] = __('Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.');
-            return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+            return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
         }
 
         // Elimina la copia
@@ -217,6 +217,6 @@ class CopyController
         $integrity->recalculateBookAvailability($libroId);
 
         $_SESSION['success_message'] = __('Copia eliminata con successo.');
-        return $response->withHeader('Location', "/admin/libri/{$libroId}")->withStatus(302);
+        return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
     }
 }

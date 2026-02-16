@@ -510,10 +510,7 @@ class EmailService {
 
         $logoHtml = '';
         if ($appLogo !== '') {
-            $logoSrc = $appLogo;
-            if (!preg_match('/^https?:\\/\\//i', $logoSrc)) {
-                $logoSrc = rtrim($this->getBaseUrl(), '/') . '/' . ltrim($logoSrc, '/');
-            }
+            $logoSrc = absoluteUrl($appLogo);
             $logoHtml = "<img src='" . htmlspecialchars($logoSrc, ENT_QUOTES, 'UTF-8') . "' alt='" . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . "' style='max-height:60px; margin-bottom: 10px;'>";
         } else {
             $logoHtml = "<h1 style='color: #1f2937; margin: 0;'>" . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . "</h1>";
@@ -542,43 +539,6 @@ class EmailService {
             </div>
         </body>
         </html>";
-    }
-
-    /**
-     * Get the application base URL
-     *
-     * @throws \RuntimeException If unable to determine base URL
-     */
-    private function getBaseUrl(): string
-    {
-        // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
-        // This ensures emails always use the production URL even when sent from CLI/localhost
-        // This is the recommended approach for production environments
-        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
-        if ($canonicalUrl !== false) {
-            $canonicalUrl = trim((string)$canonicalUrl);
-            if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
-                return rtrim($canonicalUrl, '/');
-            }
-        }
-
-        // PRIORITY 2: Fallback to HTTP_HOST with security validation
-        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? null;
-
-        // Validate hostname format to prevent Host Header Injection attacks
-        // Accepts: domain.com, subdomain.domain.com, localhost, localhost:8000, IP:port
-        if ($host !== null && preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
-            return $protocol . '://' . $host;
-        }
-
-        // CRITICAL: Cannot determine base URL - configuration required
-        // This prevents the application from using hardcoded localhost on production
-        throw new \RuntimeException(
-            'Cannot determine application base URL. ' .
-            'Please configure APP_CANONICAL_URL in your .env file. ' .
-            'Example: APP_CANONICAL_URL=https://yourdomain.com'
-        );
     }
 
     /**

@@ -144,6 +144,30 @@ span.flatpickr-weekday {
   cursor: not-allowed !important;
 }
 
+/* Availability calendar: override disabled styles for colored days */
+.flatpickr-day.flatpickr-disabled.borrowed-day,
+.flatpickr-day.flatpickr-disabled.borrowed-day:hover {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+  cursor: not-allowed !important;
+}
+
+.flatpickr-day.flatpickr-disabled.reserved-day,
+.flatpickr-day.flatpickr-disabled.reserved-day:hover {
+  background: #f59e0b !important;
+  border-color: #d97706 !important;
+  color: #ffffff !important;
+  cursor: not-allowed !important;
+}
+
+.flatpickr-day.free-day,
+.flatpickr-day.free-day:hover {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #166534 !important;
+}
+
 /* Week numbers */
 .flatpickr-weekwrapper .flatpickr-weeks {
   background: #f9fafb !important;

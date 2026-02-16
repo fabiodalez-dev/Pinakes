@@ -12,13 +12,13 @@ ob_start();
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="flex items-center space-x-2 text-sm">
                 <li>
-                    <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
                         <i class="fas fa-home mr-1"></i><?= __("Home") ?>
                     </a>
                 </li>
                 <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
                 <li>
-                    <a href="<?= url('/admin/libri') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <a href="<?= htmlspecialchars(url('/admin/libri'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
                         <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
                     </a>
                 </li>
@@ -38,7 +38,7 @@ ob_start();
                 </h1>
                 <p class="text-sm text-gray-600"><?= __("Carica un file CSV per importare più libri contemporaneamente") ?></p>
                 <div>
-                    <a href="<?= url('/admin/libri') ?>" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center">
+                    <a href="<?= htmlspecialchars(url('/admin/libri'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center">
                         <i class="fas fa-arrow-left mr-2"></i>
                         <?= __("Torna ai Libri") ?>
                     </a>
@@ -103,7 +103,7 @@ ob_start();
                         <?= __("Carica File CSV") ?>
                     </h2>
 
-                    <form id="uploadForm" action="<?= url('/admin/libri/import/upload') ?>" method="POST" enctype="multipart/form-data">
+                    <form id="uploadForm" action="<?= htmlspecialchars(url('/admin/libri/import/upload'), ENT_QUOTES, 'UTF-8') ?>" method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
                         <!-- Uppy Upload Area -->
                         <div id="uppy-csv-upload" class="mb-4"></div>
@@ -188,7 +188,7 @@ ob_start();
                     <p class="text-gray-600 mb-4">
                         <?= __("Scarica il CSV di esempio con 3 libri già compilati per capire il formato corretto e iniziare subito.") ?>
                     </p>
-                    <a href="<?= url('/admin/libri/import/example') ?>" class="px-6 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center">
+                    <a href="<?= htmlspecialchars(url('/admin/libri/import/example'), ENT_QUOTES, 'UTF-8') ?>" class="px-6 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center">
                         <i class="fas fa-file-download mr-2"></i>
                         <?= __("Scarica esempio_import_libri.csv") ?>
                     </a>

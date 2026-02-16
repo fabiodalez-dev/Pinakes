@@ -392,6 +392,8 @@ function initTinyMCE() {
 // TinyMCE Configuration
 tinymce.init({
   selector: '#template-body',
+  base_url: '<?= assetUrl("tinymce") ?>',
+  suffix: '.min',
   model: 'dom',
   license_key: 'gpl',
   plugins: 'lists link image table code help',

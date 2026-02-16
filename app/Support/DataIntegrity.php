@@ -287,9 +287,11 @@ class DataIntegrity {
             $stmt->close();
 
             // Aggiorna copie_disponibili e stato del libro dalla tabella copie
-            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, da_ritirare, o prenotato già iniziato)
-            // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
-            // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora 'disponibile'
+            // Conta le copie fisicamente disponibili OGGI:
+            // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
+            // - Esclude quelle con prestiti attivi già iniziati (in_corso, in_ritardo, da_ritirare, prenotato con data <= oggi)
+            // - Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
+            // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora in biblioteca
             $stmt = $this->db->prepare("
                 UPDATE libri l
                 SET copie_disponibili = GREATEST(
@@ -303,7 +305,7 @@ class DataIntegrity {
                                 OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                             )
                         WHERE c.libro_id = ?
-                        AND c.stato = 'disponibile'
+                        AND c.stato IN ('disponibile', 'prenotato')
                         AND p.id IS NULL
                     ) - (
                         SELECT COUNT(*)
@@ -333,7 +335,7 @@ class DataIntegrity {
                                     OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                                 )
                             WHERE c.libro_id = ?
-                            AND c.stato = 'disponibile'
+                            AND c.stato IN ('disponibile', 'prenotato')
                             AND p.id IS NULL
                         ) - (
                             SELECT COUNT(*)
@@ -346,11 +348,13 @@ class DataIntegrity {
                         ),
                         0
                     ) > 0 THEN 'disponibile'
-                    ELSE 'prestato'
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato = 'prestato') > 0 THEN 'prestato'
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato = 'prenotato') > 0 THEN 'prenotato'
+                    ELSE l.stato
                 END
                 WHERE id = ?
             ");
-            $stmt->bind_param('iiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
+            $stmt->bind_param('iiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
             $result = $stmt->execute();
             $stmt->close();
 
@@ -360,7 +364,7 @@ class DataIntegrity {
             }
 
             return $result;
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             // Rollback only if we started the transaction
             if (!$wasInTransaction) {
                 $this->db->rollback();

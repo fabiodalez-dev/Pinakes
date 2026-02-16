@@ -45,7 +45,7 @@ if (!empty($book['genere'])) {
 }
 $bookGenre = !empty($genreHierarchy) ? implode(' > ', $genreHierarchy) : '';
 $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
-$bookCover = $book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg';
+$bookCover = ($book['copertina_url'] ?? '') ?: ($book['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg';
 $bookCover = url($bookCover);
 $isAvailable = ($book['copie_disponibili'] ?? 0) > 0;
 $authorNames = [];
@@ -2039,7 +2039,8 @@ ob_start();
                         }
                         ?>
                         <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                            <img src="<?= htmlspecialchars(url($related['copertina_url'] ?? '/uploads/copertine/placeholder.jpg')) ?>"
+                            <?php $relatedCover = ($related['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
+                            <img src="<?= htmlspecialchars(url($relatedCover), ENT_QUOTES, 'UTF-8') ?>"
                                  alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
                                  class="related-book-image">
                         </a>
@@ -2257,7 +2258,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (availData.success && availData.availability) {
               disabledDates = availData.availability.unavailable_dates || [];
               if (availData.availability.earliest_available) {
-                earliestAvailable = new Date(availData.availability.earliest_available);
+                const parts = String(availData.availability.earliest_available).split('-').map(Number);
+                if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                  earliestAvailable = new Date(parts[0], parts[1] - 1, parts[2]);
+                } else {
+                  earliestAvailable = new Date(availData.availability.earliest_available);
+                }
               }
               if (Array.isArray(availData.availability.days)) {
                 availabilityByDate = availData.availability.days.reduce((acc, day) => {
@@ -2299,7 +2305,7 @@ document.addEventListener('DOMContentLoaded', function() {
           free: __('Copie disponibili')
         };
 
-        const infoText = __('Le date rosse o gialle non sono disponibili. La richiesta verrà valutata da un amministratore.');
+        const infoText = __('Le date rosse o arancioni non sono disponibili. La richiesta verrà valutata da un amministratore.');
 
         const { value: formValues } = await Swal.fire({
           title: __('Richiesta Prestito'),
@@ -2360,9 +2366,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     dayElem.style.borderColor = '#fecaca';
                     dayElem.style.color = '#b91c1c';
                   } else if (info.state === 'reserved') {
-                    dayElem.style.backgroundColor = '#fffbeb';
-                    dayElem.style.borderColor = '#fef3c7';
-                    dayElem.style.color = '#b45309';
+                    dayElem.style.backgroundColor = '#f59e0b';
+                    dayElem.style.borderColor = '#d97706';
+                    dayElem.style.color = '#ffffff';
                   } else if (info.state === 'free') {
                     dayElem.style.backgroundColor = '#f0fdf4';
                     dayElem.style.borderColor = '#bbf7d0';

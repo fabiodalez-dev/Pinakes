@@ -445,16 +445,9 @@ class ReservationReassignmentService
         $author = $authorStmt->get_result()->fetch_assoc();
         $authorStmt->close();
 
-        $basePath = \App\Support\HtmlHelper::getBasePath();
-        $baseUrl = rtrim($this->getBaseUrl(), '/');
         $isbn = $data['isbn13'] ?: $data['isbn10'] ?: '';
 
-        // book_url() includes getBasePath(); strip only if getBaseUrl()
-        // already includes it (APP_CANONICAL_URL set), to avoid double base path
         $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore_principale' => $author['nome'] ?? '']);
-        if ($basePath !== '' && str_ends_with($baseUrl, $basePath) && str_starts_with($bookLink, $basePath)) {
-            $bookLink = substr($bookLink, strlen($basePath));
-        }
 
         $variables = [
             'utente_nome' => $data['utente_nome'] ?: __('Utente'),
@@ -463,8 +456,8 @@ class ReservationReassignmentService
             'libro_isbn' => $isbn,
             'data_inizio' => $data['data_prestito'] ? date('d/m/Y', strtotime($data['data_prestito'])) : '',
             'data_fine' => $data['data_scadenza'] ? date('d/m/Y', strtotime($data['data_scadenza'])) : '',
-            'book_url' => $baseUrl . $bookLink,
-            'profile_url' => $baseUrl . (($basePath !== '' && !str_ends_with($baseUrl, $basePath)) ? $basePath : '') . RouteTranslator::route('profile')
+            'book_url' => absoluteUrl($bookLink),
+            'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
         ];
 
         $sent = $this->notificationService->sendReservationBookAvailable($data['email'], $variables);
@@ -536,39 +529,4 @@ class ReservationReassignmentService
         ]);
     }
 
-    /**
-     * Ottiene la URL base dell'applicazione.
-     *
-     * @throws \RuntimeException Se non è possibile determinare l'URL base
-     */
-    private function getBaseUrl(): string
-    {
-        // PRIORITY 1: Use APP_CANONICAL_URL from .env if configured
-        // This is the recommended approach for production environments
-        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
-        if ($canonicalUrl !== false) {
-            $canonicalUrl = trim((string)$canonicalUrl);
-            if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL)) {
-                return rtrim($canonicalUrl, '/');
-            }
-        }
-
-        // PRIORITY 2: Fallback to HTTP_HOST with security validation
-        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? null;
-
-        // Validate hostname format to prevent Host Header Injection attacks
-        // Accepts: domain.com, subdomain.domain.com, localhost, localhost:8000, IP:port
-        if ($host !== null && preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/', $host)) {
-            return $protocol . '://' . $host;
-        }
-
-        // CRITICAL: Cannot determine base URL - configuration required
-        // This prevents the application from using hardcoded localhost on production
-        throw new \RuntimeException(
-            'Cannot determine application base URL. ' .
-            'Please configure APP_CANONICAL_URL in your .env file. ' .
-            'Example: APP_CANONICAL_URL=https://yourdomain.com'
-        );
-    }
 }

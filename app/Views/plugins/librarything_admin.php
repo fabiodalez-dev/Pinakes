@@ -16,7 +16,7 @@ $expectedFields = $status['expected_fields'] ?? 24;
         <nav aria-label="breadcrumb" class="mb-4">
             <ol class="flex items-center space-x-2 text-sm">
                 <li>
-                    <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
                         <i class="fas fa-home mr-1"></i><?= __("Home") ?>
                     </a>
                 </li>
@@ -115,7 +115,7 @@ $expectedFields = $status['expected_fields'] ?? 24;
 
             <?php if (!$installed): ?>
                 <!-- Install Form -->
-                <form method="POST" action="<?= url('/admin/plugins/librarything/install') ?>" id="install-form">
+                <form method="POST" action="<?= htmlspecialchars(url('/admin/plugins/librarything/install'), ENT_QUOTES, 'UTF-8') ?>" id="install-form">
                     <input type="hidden" name="csrf_token" value="<?= \App\Support\HtmlHelper::e(\App\Support\Csrf::ensureToken()) ?>">
 
                     <div class="mb-4">
@@ -157,7 +157,7 @@ $expectedFields = $status['expected_fields'] ?? 24;
 
             <?php else: ?>
                 <!-- Uninstall Form -->
-                <form method="POST" action="<?= url('/admin/plugins/librarything/uninstall') ?>" id="uninstall-form">
+                <form method="POST" action="<?= htmlspecialchars(url('/admin/plugins/librarything/uninstall'), ENT_QUOTES, 'UTF-8') ?>" id="uninstall-form">
                     <input type="hidden" name="csrf_token" value="<?= \App\Support\HtmlHelper::e(\App\Support\Csrf::ensureToken()) ?>">
 
                     <div class="mb-4">
@@ -257,17 +257,17 @@ $expectedFields = $status['expected_fields'] ?? 24;
             <?php if ($installed): ?>
                 <div class="mt-6 pt-6 border-t border-gray-200">
                     <div class="flex gap-3">
-                        <a href="<?= url('/admin/libri/import/librarything') ?>"
+                        <a href="<?= htmlspecialchars(url('/admin/libri/import/librarything'), ENT_QUOTES, 'UTF-8') ?>"
                            class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors inline-flex items-center text-sm">
                             <i class="fas fa-cloud-upload-alt mr-2"></i>
                             <?= __("Import da LibraryThing") ?>
                         </a>
-                        <a href="<?= url('/admin/libri/export/librarything') ?>"
+                        <a href="<?= htmlspecialchars(url('/admin/libri/export/librarything'), ENT_QUOTES, 'UTF-8') ?>"
                            class="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors inline-flex items-center text-sm">
                             <i class="fas fa-cloud-download-alt mr-2"></i>
                             <?= __("Export per LibraryThing") ?>
                         </a>
-                        <a href="<?= url('/admin/libri') ?>"
+                        <a href="<?= htmlspecialchars(url('/admin/libri'), ENT_QUOTES, 'UTF-8') ?>"
                            class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg transition-colors inline-flex items-center text-sm">
                             <i class="fas fa-book mr-2"></i>
                             <?= __("Gestione Libri") ?>

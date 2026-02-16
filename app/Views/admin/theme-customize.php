@@ -44,7 +44,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
             </div>
         <?php endif; ?>
 
-        <form method="POST" action="<?= url('/admin/themes/' . $theme['id'] . '/save') ?>" id="theme-form">
+        <form method="POST" action="<?= htmlspecialchars(url('/admin/themes/' . (int)$theme['id'] . '/save'), ENT_QUOTES, 'UTF-8') ?>" id="theme-form">
             <input type="hidden" name="csrf_token" value="<?= Csrf::ensureToken() ?>">
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -352,7 +352,7 @@ function hexToRgb(hex) {
 function resetToDefaults() {
     if (!confirm('<?= addslashes(__("Ripristinare i colori?")) ?>')) return;
 
-    fetch(window.BASE_PATH + '/admin/themes/<?= $theme['id'] ?>/reset', {
+    fetch(window.BASE_PATH + '/admin/themes/<?= (int)$theme['id'] ?>/reset', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {

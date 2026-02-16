@@ -272,7 +272,7 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
         <head>
             <title>' . __("Già Installato") . '</title>
             <link rel="stylesheet" href="' . $installerBasePath . '/assets/vendor.css">
-                <link rel="stylesheet" href="' . $installerBasePath . '/installer/assets/style.css">
+            <link rel="stylesheet" href="' . $installerBasePath . '/installer/assets/style.css">
         </head>
         <body>
             <div class="installer-container">
@@ -352,7 +352,7 @@ function renderHeader($currentStep, $stepTitle) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title><?= htmlspecialchars($stepTitle) ?> - <?= __("Installer Pinakes") ?></title>
         <link rel="stylesheet" href="<?= $installerBasePath ?>/assets/vendor.css">
-                <link rel="stylesheet" href="<?= $installerBasePath ?>/installer/assets/style.css">
+        <link rel="stylesheet" href="<?= $installerBasePath ?>/installer/assets/style.css">
     </head>
     <body>
         <div class="installer-container">
