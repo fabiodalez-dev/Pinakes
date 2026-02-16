@@ -159,7 +159,7 @@ function markAsRead(id) {
 }
 
 function markAllAsRead() {
-  csrfFetch(window.BASE_PATH + '/admin/notifications/mark-all-read', { method: 'POST' })
+  csrfFetch(`${window.BASE_PATH}/admin/notifications/mark-all-read`, { method: 'POST' })
     .then(response => response.json())
     .then(data => {
       if (data.success) {

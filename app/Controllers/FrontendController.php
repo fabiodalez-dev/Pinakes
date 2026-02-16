@@ -229,23 +229,11 @@ class FrontendController
         $appLogo = Branding::logo();
 
         // Build base URL (includes base path for subfolder installs)
-        $baseUrlNormalized = rtrim(HtmlHelper::getBaseUrl(), '/');
-        $baseUrl = $baseUrlNormalized;
+        $baseUrl = rtrim(HtmlHelper::getBaseUrl(), '/');
 
-        $makeAbsolute = static function (string $path) use ($baseUrlNormalized): string {
-            if ($path === '') {
-                return '';
-            }
-
-            if (preg_match('/^https?:\\/\\//i', $path)) {
-                return $path;
-            }
-
-            return $baseUrlNormalized . '/' . ltrim($path, '/');
-        };
         $seoCanonical = $baseUrl . '/';
-        $brandLogoUrl = $appLogo !== '' ? $makeAbsolute($appLogo) : '';
-        $defaultSocialImage = $makeAbsolute(Branding::socialImage());
+        $brandLogoUrl = $appLogo !== '' ? HtmlHelper::absoluteUrl($appLogo) : '';
+        $defaultSocialImage = HtmlHelper::absoluteUrl(Branding::socialImage());
 
         // === Basic SEO Meta Tags ===
 
@@ -284,9 +272,9 @@ class FrontendController
         // OG Image (priority: custom og_image > hero background > app logo > default cover)
         $ogImage = $defaultSocialImage;
         if (!empty($hero['og_image'])) {
-            $ogImage = $makeAbsolute($hero['og_image']);
+            $ogImage = HtmlHelper::absoluteUrl($hero['og_image']);
         } elseif (!empty($hero['background_image'])) {
-            $ogImage = $makeAbsolute($hero['background_image']);
+            $ogImage = HtmlHelper::absoluteUrl($hero['background_image']);
         } elseif ($brandLogoUrl !== '') {
             $ogImage = $brandLogoUrl;
         }
@@ -315,11 +303,11 @@ class FrontendController
         // Twitter Image (priority: custom twitter_image > og_image > hero background > app logo > default cover)
         $twitterImage = $defaultSocialImage;
         if (!empty($hero['twitter_image'])) {
-            $twitterImage = $makeAbsolute($hero['twitter_image']);
+            $twitterImage = HtmlHelper::absoluteUrl($hero['twitter_image']);
         } elseif (!empty($hero['og_image'])) {
-            $twitterImage = $makeAbsolute($hero['og_image']);
+            $twitterImage = HtmlHelper::absoluteUrl($hero['og_image']);
         } elseif (!empty($hero['background_image'])) {
-            $twitterImage = $makeAbsolute($hero['background_image']);
+            $twitterImage = HtmlHelper::absoluteUrl($hero['background_image']);
         } elseif ($brandLogoUrl !== '') {
             $twitterImage = $brandLogoUrl;
         }

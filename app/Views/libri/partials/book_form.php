@@ -2629,10 +2629,10 @@ async function handleDuplicateBook(existingBook) {
             <div class="bg-gray-100 p-4 rounded-lg mb-4 text-left">
                 <p class="font-semibold mb-2"><i class="fas fa-book mr-2"></i>${__('Libro Esistente:')}</p>
                 <p class="text-gray-700 mb-1"><strong>${__('ID:')}</strong> #${existingBook.id}</p>
-                <p class="text-gray-700 mb-1"><strong>${__('Titolo:')}</strong> ${existingBook.title}</p>
-                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${__('ISBN-13:')}</strong> ${existingBook.isbn13}</p>` : ''}
-                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${__('EAN:')}</strong> ${existingBook.ean}</p>` : ''}
-                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${existingBook.location}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="text-gray-400">${__('Non specificata')}</span></p>`}
+                <p class="text-gray-700 mb-1"><strong>${__('Titolo:')}</strong> ${escapeHtml(existingBook.title)}</p>
+                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${__('ISBN-13:')}</strong> ${escapeHtml(existingBook.isbn13)}</p>` : ''}
+                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${__('EAN:')}</strong> ${escapeHtml(existingBook.ean)}</p>` : ''}
+                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(existingBook.location)}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="text-gray-400">${__('Non specificata')}</span></p>`}
             </div>
             <p class="text-sm text-gray-600">${__('Vuoi aumentare il numero di copie di questo libro?')}</p>
         `,
@@ -2730,7 +2730,7 @@ async function increaseCopies(book) {
                     icon: 'success',
                     title: __('Copie Aggiunte!'),
                     html: `
-                        <p class="mb-2">${__('Hai aggiunto %s copie a "%s"').replace('%s', copiesToAdd).replace('%s', book.title)}</p>
+                        <p class="mb-2">${__('Hai aggiunto %s copie a "%s"').replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
                         <p class="text-sm text-gray-600">${__('Copie totali:')}: ${data.copie_totali}</p>
                         <p class="text-sm text-gray-600">${__('Copie disponibili:')}: ${data.copie_disponibili}</p>
                     `,
@@ -3789,7 +3789,7 @@ function displayScrapedCover(imageUrl) {
                 </div>
                 <p class="text-sm text-gray-600 mb-2"><?= __("Anteprima non disponibile") ?></p>
                 <p class="text-xs text-gray-500 mb-3"><?= __("L'immagine verrà scaricata al salvataggio") ?></p>
-                <a href="${imageSrc}" target="_blank" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${imageUrl}</a>
+                <a href="${escapeAttr(imageSrc)}" target="_blank" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${escapeHtml(imageUrl)}</a>
             </div>
         `;
         return;

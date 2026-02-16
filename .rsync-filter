@@ -124,7 +124,7 @@
 # Vendor bloat: dev-only packages, bin directory, and nested vendor directories
 - /vendor/phpstan/
 - /vendor/bin/
-- vendor/**/vendor/
+- /vendor/**/vendor/
 
 # Testing (root level only — don't strip vendor test utilities)
 - .phpunit.result.cache
@@ -231,19 +231,19 @@
 - /temp/
 
 # Storage user data (structure already included above)
-- storage/logs/*
-- storage/cache/*
-- storage/backups/*
-- storage/tmp/*
-- storage/calendar/*
-- storage/uploads/*
-- storage/settings.json
-- storage/*.log
+- /storage/logs/*
+- /storage/cache/*
+- /storage/backups/*
+- /storage/tmp/*
+- /storage/calendar/*
+- /storage/uploads/*
+- /storage/settings.json
+- /storage/*.log
 
 # Exclude non-bundled plugins
-- storage/plugins/*
+- /storage/plugins/*
 
 # Public uploads and user-generated assets
-- public/uploads/settings/
-- public/uploads/*
-- public/assets/logo_*
+- /public/uploads/settings/
+- /public/uploads/*
+- /public/assets/logo_*

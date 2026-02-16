@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Support;
 
 use mysqli;
-use Exception;
 
 class DataIntegrity {
     private mysqli $db;
@@ -50,9 +49,11 @@ class DataIntegrity {
             $stmt->close();
 
             // Ricalcola copie_disponibili e stato per tutti i libri non soft-deleted
-            // Conta le copie NON occupate OGGI (prestiti in_corso, in_ritardo, da_ritirare, o prenotato già iniziato)
-            // Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
-            // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora 'disponibile'
+            // Conta le copie fisicamente disponibili OGGI:
+            // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
+            // - Esclude quelle con prestiti attivi già iniziati (in_corso, in_ritardo, da_ritirare, prenotato con data <= oggi)
+            // - Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
+            // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora in biblioteca
             $stmt = $this->db->prepare("
                 UPDATE libri l
                 SET copie_disponibili = GREATEST(
@@ -66,7 +67,7 @@ class DataIntegrity {
                                 OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                             )
                         WHERE c.libro_id = l.id
-                        AND c.stato = 'disponibile'
+                        AND c.stato IN ('disponibile', 'prenotato')
                         AND p.id IS NULL
                     ) - (
                         SELECT COUNT(*)
@@ -96,7 +97,7 @@ class DataIntegrity {
                                     OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
                                 )
                             WHERE c.libro_id = l.id
-                            AND c.stato = 'disponibile'
+                            AND c.stato IN ('disponibile', 'prenotato')
                             AND p.id IS NULL
                         ) - (
                             SELECT COUNT(*)
@@ -109,7 +110,9 @@ class DataIntegrity {
                         ),
                         0
                     ) > 0 THEN 'disponibile'
-                    ELSE 'prestato'
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prestato') > 0 THEN 'prestato'
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prenotato') > 0 THEN 'prenotato'
+                    ELSE l.stato
                 END
                 WHERE l.deleted_at IS NULL
             ");
@@ -119,7 +122,7 @@ class DataIntegrity {
 
             $this->db->commit();
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             $results['errors'][] = "Errore ricalcolo disponibilità: " . $e->getMessage();
         }
@@ -170,7 +173,7 @@ class DataIntegrity {
             $stmt->execute();
             $stmt->close();
             $this->db->commit();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             $results['errors'][] = "Errore aggiornamento copie: " . $e->getMessage();
             return $results;
@@ -227,7 +230,7 @@ class DataIntegrity {
                     if ($this->recalculateBookAvailability($bookId)) {
                         $results['updated']++;
                     }
-                } catch (Exception $e) {
+                } catch (\Throwable $e) {
                     $results['errors'][] = "Libro #$bookId: " . $e->getMessage();
                 }
                 $processed++;
@@ -817,7 +820,7 @@ class DataIntegrity {
 
             $this->db->commit();
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             $results['errors'][] = "Errore correzione dati: " . $e->getMessage();
         }
@@ -830,7 +833,7 @@ class DataIntegrity {
             if (!empty($indexResult['errors'])) {
                 $results['errors'] = array_merge($results['errors'], $indexResult['errors']);
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $results['errors'][] = "Errore creazione indici: " . $e->getMessage();
         }
 
@@ -842,7 +845,7 @@ class DataIntegrity {
             if (!empty($tableResult['errors'])) {
                 $results['errors'] = array_merge($results['errors'], $tableResult['errors']);
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $results['errors'][] = "Errore creazione tabelle di sistema: " . $e->getMessage();
         }
 
@@ -913,7 +916,7 @@ class DataIntegrity {
             $result['success'] = true;
             $result['message'] = __('Prestito validato e aggiornato');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             $result['message'] = __('Errore validazione prestito:') . ' ' . $e->getMessage();
         }
@@ -1049,7 +1052,7 @@ class DataIntegrity {
                         'message' => $this->db->error
                     ];
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 $results['errors'][] = \sprintf(__("Eccezione creazione tabella %s:"), $tableName) . ' ' . $e->getMessage();
                 $results['details'][] = [
                     'success' => false,
@@ -1220,7 +1223,7 @@ class DataIntegrity {
                         'message' => $this->db->error
                     ];
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 $results['errors'][] = \sprintf(__("Eccezione creazione %s su %s:"), $indexName, $table) . ' ' . $e->getMessage();
                 $results['details'][] = [
                     'success' => false,

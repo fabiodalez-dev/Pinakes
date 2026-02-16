@@ -152,11 +152,11 @@ $loginUrl = $loginUrl ?? route_path('login');
             </p>
 
             <div class="session-expired-actions">
-                <a href="<?= htmlspecialchars($loginUrl) ?>" class="session-expired-btn session-expired-btn-primary">
+                <a href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8') ?>" class="session-expired-btn session-expired-btn-primary">
                     <i class="fas fa-sign-in-alt"></i>
                     <?= __('Accedi') ?>
                 </a>
-                <a href="<?= url('/') ?>" class="session-expired-btn session-expired-btn-secondary">
+                <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="session-expired-btn session-expired-btn-secondary">
                     <i class="fas fa-home"></i>
                     <?= __('Torna alla Home') ?>
                 </a>

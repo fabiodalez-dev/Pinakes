@@ -15,7 +15,7 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
     <title><?= __('Registrazione Completata') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
 
-    <link rel="icon" type="image/x-icon" href="<?= url('/favicon.ico') ?>">
+    <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     
     <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
     <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
@@ -55,7 +55,7 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
         </p>
         <div class="space-y-4">
           <a
-            href="<?= route_path('login') ?>"
+            href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>"
             class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center"
           >
             <i class="fas fa-sign-in-alt mr-2"></i>
@@ -67,10 +67,10 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
 
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= route_path('privacy') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= route_path('contact') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
           <?= __('Contatti') ?>
         </a>
       </div>

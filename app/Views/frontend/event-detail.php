@@ -419,24 +419,27 @@ $stmt->close();
 <?php endif; ?>
 
 <!-- JSON-LD Structured Data for Event -->
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Event",
-    "name": "<?= addslashes(HtmlHelper::e($event['title'])) ?>",
-    "startDate": "<?= HtmlHelper::e($event['event_date']) ?><?= $event['event_time'] ? 'T' . HtmlHelper::e($event['event_time']) : '' ?>",
-    <?php if ($event['featured_image']): ?>
-    "image": "<?= addslashes(absoluteUrl($event['featured_image'])) ?>",
-    <?php endif; ?>
-    "description": "<?= addslashes(strip_tags($event['content'] ?? '')) ?>",
-    "eventStatus": "https://schema.org/EventScheduled",
-    "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-    "organizer": {
-        "@type": "Organization",
-        "name": "<?= addslashes(ConfigStore::get('app.name')) ?>",
-        "url": "<?= addslashes($baseUrl) ?>"
-    }
+<?php
+$jsonLd = [
+    '@context' => 'https://schema.org',
+    '@type' => 'Event',
+    'name' => $event['title'],
+    'startDate' => $event['event_date'] . ($event['event_time'] ? 'T' . $event['event_time'] : ''),
+    'description' => strip_tags($event['content'] ?? ''),
+    'eventStatus' => 'https://schema.org/EventScheduled',
+    'eventAttendanceMode' => 'https://schema.org/OfflineEventAttendanceMode',
+    'organizer' => [
+        '@type' => 'Organization',
+        'name' => ConfigStore::get('app.name'),
+        'url' => $baseUrl,
+    ],
+];
+if ($event['featured_image']) {
+    $jsonLd['image'] = absoluteUrl($event['featured_image']);
 }
+?>
+<script type="application/ld+json">
+<?= json_encode($jsonLd, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
 </script>
 
 <?php

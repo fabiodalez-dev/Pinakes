@@ -15,6 +15,7 @@ class CopyController
      */
     private function safeReferer(string $default = '/admin/libri'): string
     {
+        $default = url($default);
         $referer = $_SERVER['HTTP_REFERER'] ?? $default;
 
         // Block CRLF injection

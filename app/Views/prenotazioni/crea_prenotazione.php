@@ -5,9 +5,9 @@
         <!-- Header -->
         <div class="mb-12">
             <nav class="flex text-sm text-gray-500 mb-8 pb-4 border-b border-gray-200">
-                <a href="<?= url('/admin/dashboard') ?>" class="hover:text-gray-900 transition-colors">Dashboard</a>
+                <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-900 transition-colors">Dashboard</a>
                 <span class="mx-3 text-gray-300">/</span>
-                <a href="<?= url('/admin/prenotazioni') ?>" class="hover:text-gray-900 transition-colors"><?= __("Prenotazioni") ?></a>
+                <a href="<?= htmlspecialchars(url('/admin/prenotazioni'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-900 transition-colors"><?= __("Prenotazioni") ?></a>
                 <span class="mx-3 text-gray-300">/</span>
                 <span class="text-gray-900 font-medium"><?= __("Crea Prenotazione") ?></span>
             </nav>
@@ -20,7 +20,7 @@
                         </div><?= __("Crea Nuova Prenotazione") ?></h1>
                     <p class="text-lg text-gray-600 ml-22"><?= __("Registra una prenotazione per permettere ad un utente di riservare un libro specifico") ?></p>
                 </div>
-                <a href="<?= url('/admin/prenotazioni') ?>" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
+                <a href="<?= htmlspecialchars(url('/admin/prenotazioni'), ENT_QUOTES, 'UTF-8') ?>" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
                     <i class="fas fa-arrow-left mr-2"></i><?= __("Torna alle Prenotazioni") ?></a>
             </div>
         </div>
@@ -80,7 +80,7 @@
             </div>
 
             <div class="p-10">
-                <form method="POST" action="<?= url('/admin/prenotazioni/crea') ?>" class="space-y-12">
+                <form method="POST" action="<?= htmlspecialchars(url('/admin/prenotazioni/crea'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-12">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
 
                     <!-- Main Fields Section -->
@@ -204,7 +204,7 @@
 
                     <!-- Buttons -->
                     <div class="flex items-center justify-between pt-12 border-t-2 border-gray-200">
-                        <a href="<?= url('/admin/prenotazioni') ?>"
+                        <a href="<?= htmlspecialchars(url('/admin/prenotazioni'), ENT_QUOTES, 'UTF-8') ?>"
                            class="px-8 py-4 text-lg border-2 border-gray-300 text-gray-700 rounded-2xl hover:bg-gray-50 transition-colors font-semibold shadow-md">
                             <i class="fas fa-times mr-3"></i>Annulla
                         </a>

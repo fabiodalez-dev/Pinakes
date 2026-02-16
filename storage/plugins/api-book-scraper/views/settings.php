@@ -215,7 +215,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                 Test Connessione
             </button>
 
-            <a href="<?= url('/admin/plugins') ?>"
+            <a href="<?= htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8') ?>"
                class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors">
                 <i class="fas fa-arrow-left"></i>
                 Torna ai Plugin

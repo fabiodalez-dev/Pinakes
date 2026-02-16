@@ -472,9 +472,9 @@ ob_start();
         </div>
 
         <?php
-function createBookUrl($book) {
+$createBookUrl = static function ($book) {
     return book_url($book);
-}
+};
 ?>
 
         <?php if (!empty($books)): ?>
@@ -482,7 +482,7 @@ function createBookUrl($book) {
                 <?php foreach($books as $book): ?>
                     <div class="book-card">
                         <div class="book-image-container">
-                            <a href="<?= createBookUrl($book) ?>">
+                            <a href="<?= $createBookUrl($book) ?>">
                                 <?php $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg'; ?>
                                 <img src="<?= htmlspecialchars(absoluteUrl($coverUrl)) ?>"
                                      alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>">
@@ -502,7 +502,7 @@ function createBookUrl($book) {
                         </div>
                         <div class="book-content">
                             <h3 class="book-title">
-                                <a href="<?= createBookUrl($book) ?>">
+                                <a href="<?= $createBookUrl($book) ?>">
                                     <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                                 </a>
                             </h3>
@@ -528,7 +528,7 @@ function createBookUrl($book) {
                                 <?php endif; ?>
                             </div>
                             <div class="book-actions">
-                                <a href="<?= createBookUrl($book) ?>" class="btn-view">
+                                <a href="<?= $createBookUrl($book) ?>" class="btn-view">
                                     <i class="fas fa-eye"></i>
                                     <span><?= __('Vedi dettagli') ?></span>
                                 </a>

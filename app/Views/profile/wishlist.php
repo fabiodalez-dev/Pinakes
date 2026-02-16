@@ -284,8 +284,8 @@ $reservationsRoute = route_path('reservations');
       </div>
       <div class="col-md-6 text-md-end">
         <div class="wishlist-actions justify-content-md-end">
-          <a href="<?= $catalogRoute ?>" class="btn-outline"><i class="fas fa-search me-2"></i><?= __("Esplora catalogo") ?></a>
-          <a href="<?= $reservationsRoute ?>" class="btn-outline"><i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?></a>
+          <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-search me-2"></i><?= __("Esplora catalogo") ?></a>
+          <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?></a>
         </div>
       </div>
     </div>
@@ -311,8 +311,8 @@ $reservationsRoute = route_path('reservations');
       <h2 class="h4 fw-bold mb-2"><?= __("La tua wishlist è vuota") ?></h2>
       <p class="text-muted mb-4"><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
       <div class="wishlist-actions justify-content-center">
-        <a href="<?= $catalogRoute ?>" class="btn-outline"><i class="fas fa-compass me-2"></i><?= __("Cerca titoli") ?></a>
-        <a href="<?= url('/dashboard') ?>" class="btn-outline"><i class="fas fa-arrow-left me-2"></i><?= __("Torna alla dashboard") ?></a>
+        <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-compass me-2"></i><?= __("Cerca titoli") ?></a>
+        <a href="<?= htmlspecialchars(url('/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-arrow-left me-2"></i><?= __("Torna alla dashboard") ?></a>
       </div>
     </div>
   </section>

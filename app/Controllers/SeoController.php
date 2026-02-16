@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Support\HtmlHelper;
+use App\Support\RouteTranslator;
 use App\Support\SitemapGenerator;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -23,11 +25,12 @@ class SeoController
     {
         $baseUrl = self::resolveBaseUrl($request);
 
+        $basePath = HtmlHelper::getBasePath();
         $lines = [
             'User-agent: *',
-            'Disallow: /admin/',
-            'Disallow: /login',
-            'Disallow: /register',
+            'Disallow: ' . $basePath . '/admin/',
+            'Disallow: ' . $basePath . RouteTranslator::route('login'),
+            'Disallow: ' . $basePath . RouteTranslator::route('register'),
             '',
             'Sitemap: ' . $baseUrl . '/sitemap.xml',
         ];

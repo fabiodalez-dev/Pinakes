@@ -1,9 +1,9 @@
 <?php
 use App\Support\HtmlHelper;
 
-function createBookUrl($book) {
+$createBookUrl = static function ($book) {
     return book_url($book);
-}
+};
 
 function getBookStatusBadge($book) {
     ob_start();
@@ -27,7 +27,7 @@ function getBookStatusBadge($book) {
     <?php foreach($books as $book): ?>
         <div class="book-card fade-in">
             <div class="book-image-container">
-                <a href="<?= createBookUrl($book) ?>">
+                <a href="<?= $createBookUrl($book) ?>">
                     <?php
                     $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
                     $absoluteCoverUrl = absoluteUrl($coverUrl);
@@ -41,7 +41,7 @@ function getBookStatusBadge($book) {
             </div>
             <div class="book-content">
                 <h3 class="book-title">
-                    <a href="<?= createBookUrl($book) ?>">
+                    <a href="<?= $createBookUrl($book) ?>">
                         <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                     </a>
                 </h3>
@@ -61,7 +61,7 @@ function getBookStatusBadge($book) {
                     <p class="book-meta" style="visibility: hidden;">&nbsp;</p>
                 <?php endif; ?>
                 <div class="book-actions">
-                    <a href="<?= createBookUrl($book) ?>" class="btn-cta btn-cta-sm">
+                    <a href="<?= $createBookUrl($book) ?>" class="btn-cta btn-cta-sm">
                         <i class="fas fa-eye"></i>
                         <?= __("Dettagli") ?>
                     </a>
