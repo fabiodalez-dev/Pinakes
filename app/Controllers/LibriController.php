@@ -247,10 +247,12 @@ class LibriController
         if ($text === null || $text === '') {
             return '';
         }
-        // Remove MARC-8 control characters (NSB/NSE non-sorting markers)
-        $text = preg_replace('/[\x88\x89\x98\x9C]/', '', $text);
+        // Remove C1 control characters (U+0080–U+009F) including MARC-8 NSB/NSE markers.
+        // MUST use /u flag to match Unicode code points, not raw bytes — without it,
+        // continuation bytes in multi-byte UTF-8 chars like Ø (0xC3 0x98) get stripped.
+        $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text);
         // Collapse multiple whitespace into single space and trim
-        $text = trim(preg_replace('/\s+/', ' ', $text));
+        $text = trim(preg_replace('/\s+/u', ' ', $text));
         return $text;
     }
 
@@ -354,7 +356,6 @@ class LibriController
         }
         $loanRepo = new \App\Models\LoanRepository($db);
         $activeLoan = $loanRepo->getActiveLoanByBook($id);
-        $bookPath = url('/admin/libri/' . $id);
 
         // Recupera tutte le copie del libro con informazioni sui prestiti
         $copyRepo = new \App\Models\CopyRepository($db);

@@ -8,6 +8,20 @@ function profileReservationBookUrl(array $item): string {
         'autore' => $item['autore'] ?? ($item['libro_autore'] ?? ''),
     ]);
 }
+
+function profileReservationCoverUrl(array $item): string {
+    $cover = (string)($item['copertina_url'] ?? $item['libro_copertina'] ?? '');
+    if ($cover === '' && !empty($item['copertina'])) {
+        $cover = (string)$item['copertina'];
+    }
+    if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
+        $cover = '/' . $cover;
+    }
+    if ($cover === '') {
+        $cover = '/uploads/copertine/placeholder.jpg';
+    }
+    return url($cover);
+}
 ?>
 <!-- Link star-rating.js CSS -->
 <link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.css') ?>">
@@ -344,11 +358,7 @@ function profileReservationBookUrl(array $item): string {
 
   <div class="items-grid">
     <?php foreach ($pendingRequests as $p):
-      $cover = (string)($p['copertina_url'] ?? '');
-      if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
-      if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
-      if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
-      $cover = url($cover);
+      $cover = profileReservationCoverUrl($p);
     ?>
       <div class="item-card">
         <div class="item-inner">
@@ -402,11 +412,7 @@ function profileReservationBookUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($activePrestiti as $p):
-        $cover = (string)($p['copertina_url'] ?? '');
-        if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
-        if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
-        $cover = url($cover);
+        $cover = profileReservationCoverUrl($p);
 
         $scadenza = $p['data_scadenza'] ?? '';
         $dataPrestito = $p['data_prestito'] ?? '';
@@ -485,11 +491,7 @@ function profileReservationBookUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($items as $p):
-        $cover = (string)($p['copertina_url'] ?? '');
-        if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
-        if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
-        $cover = url($cover);
+        $cover = profileReservationCoverUrl($p);
       ?>
         <div class="item-card">
           <div class="item-inner">
@@ -547,11 +549,7 @@ function profileReservationBookUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($pastPrestiti as $p):
-        $cover = (string)($p['copertina_url'] ?? '');
-        if ($cover === '' && !empty($p['copertina'])) { $cover = (string)$p['copertina']; }
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
-        if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
-        $cover = url($cover);
+        $cover = profileReservationCoverUrl($p);
 
         $statusLabels = [
           'restituito' => __('Restituito'),
@@ -626,10 +624,7 @@ function profileReservationBookUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($myReviews as $r):
-        $cover = (string)($r['libro_copertina'] ?? '');
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
-        if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
-        $cover = url($cover);
+        $cover = profileReservationCoverUrl($r);
 
         $statusLabels = [
           'pendente' => __('In attesa di approvazione'),

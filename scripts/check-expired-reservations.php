@@ -49,11 +49,12 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 $expiredCount = 0;
-$reassignmentService = new ReservationReassignmentService($db);
-$reassignmentService->setExternalTransaction(true);
 $notificationService = new NotificationService($db);
 
 while ($reservation = $result->fetch_assoc()) {
+    $reassignmentService = new ReservationReassignmentService($db);
+    $reassignmentService->setExternalTransaction(true);
+
     $id = (int) $reservation['id'];
     $copiaId = $reservation['copia_id'] ? (int) $reservation['copia_id'] : null;
     $utenteId = (int) $reservation['utente_id'];

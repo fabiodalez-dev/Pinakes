@@ -27,8 +27,8 @@ opcache.validate_timestamps=1
 memory_limit=256M
 max_execution_time=60
 max_input_time=60
-post_max_size=20M
-upload_max_filesize=10M
+post_max_size=512M
+upload_max_filesize=512M
 
 ; ===================================
 ; SESSION CONFIGURATION

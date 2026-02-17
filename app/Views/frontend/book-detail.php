@@ -2105,7 +2105,7 @@ $jsTranslationKeys = [
     'Quando vuoi iniziare il prestito?',
     'Fino a quando? (opzionale):',
     'Lascia vuoto per 1 mese',
-    'Le date rosse o gialle non sono disponibili. La richiesta verrà valutata da un amministratore.',
+    'Le date rosse o arancioni non sono disponibili. La richiesta verrà valutata da un amministratore.',
     'Seleziona una data di inizio',
     'Richiesta Inviata!',
     'Invia Richiesta',

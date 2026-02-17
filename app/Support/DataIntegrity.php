@@ -1010,6 +1010,7 @@ class DataIntegrity {
         $missing = [];
 
         foreach ($expected as $tableName => $createSql) {
+            // SAFETY: $tableName comes from hardcoded getExpectedSystemTables() — not user input
             $result = $this->db->query("SHOW TABLES LIKE '$tableName'");
             if (!$result || $result->num_rows === 0) {
                 $missing[] = [
@@ -1140,6 +1141,7 @@ class DataIntegrity {
         $missing = [];
 
         foreach ($expected as $table => $indexes) {
+            // SAFETY: $table comes from hardcoded getExpectedIndexes() — not user input
             // Verifica se la tabella esiste
             $tableCheck = $this->db->query("SHOW TABLES LIKE '$table'");
             if (!$tableCheck || $tableCheck->num_rows === 0) {

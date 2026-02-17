@@ -63,6 +63,12 @@ class FrontendController
         }
         $stmt_ordered->close();
 
+        // Determine sort order for latest books section
+        $latestBooksSort = $sectionsOrdered['latest_books_title']['content'] ?? 'created_at';
+        if (!in_array($latestBooksSort, ['created_at', 'updated_at'], true)) {
+            $latestBooksSort = 'created_at';
+        }
+
         // Query per gli ultimi 10 libri inseriti
         $query_slider = "
             SELECT l.*,
@@ -72,7 +78,7 @@ class FrontendController
             FROM libri l
             LEFT JOIN generi g ON l.genere_id = g.id
             WHERE l.deleted_at IS NULL
-            ORDER BY l.created_at DESC
+            ORDER BY l.{$latestBooksSort} DESC
             LIMIT 10
         ";
         $stmt_slider = $db->prepare($query_slider);
@@ -233,7 +239,8 @@ class FrontendController
 
         $seoCanonical = $baseUrl . '/';
         $brandLogoUrl = $appLogo !== '' ? HtmlHelper::absoluteUrl($appLogo) : '';
-        $defaultSocialImage = HtmlHelper::absoluteUrl(Branding::socialImage());
+        $socialImage = Branding::socialImage();
+        $defaultSocialImage = $socialImage !== '' ? HtmlHelper::absoluteUrl($socialImage) : '';
 
         // === Basic SEO Meta Tags ===
 
@@ -1009,6 +1016,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         switch ($section) {
             case 'latest':
+                // Read sort preference from CMS settings
+                $sortStmt = $db->prepare("SELECT content FROM home_content WHERE section_key = 'latest_books_title' LIMIT 1");
+                $sortStmt->execute();
+                $sortResult = $sortStmt->get_result();
+                $latestSort = $sortResult->fetch_assoc()['content'] ?? 'created_at';
+                $sortStmt->close();
+                if (!in_array($latestSort, ['created_at', 'updated_at'], true)) {
+                    $latestSort = 'created_at';
+                }
+
                 // Ultimi libri aggiunti
                 $query = "
                     SELECT l.*,
@@ -1018,7 +1035,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                     FROM libri l
                     LEFT JOIN generi g ON l.genere_id = g.id
                     WHERE l.deleted_at IS NULL
-                    ORDER BY l.created_at DESC
+                    ORDER BY l.{$latestSort} DESC
                     LIMIT ? OFFSET ?
                 ";
                 $stmt = $db->prepare($query);

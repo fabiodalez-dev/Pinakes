@@ -987,13 +987,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <?php if ($appLogo !== ''): ?>
                         <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
                     <?php else: ?>
-                        <?php if ($appLogo !== ''): ?>
-                            <div class="footer-logo">
-                                <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>">
-                            </div>
-                        <?php else: ?>
-                            <h5><i class="fas fa-book-open me-2"></i><?= HtmlHelper::e($appName) ?></h5>
-                        <?php endif; ?>
+                        <h5><i class="fas fa-book-open me-2"></i><?= HtmlHelper::e($appName) ?></h5>
                     <?php endif; ?>
                     <p><?= HtmlHelper::e($footerDescription) ?></p>
                 </div>

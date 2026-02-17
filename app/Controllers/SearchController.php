@@ -16,7 +16,7 @@ class SearchController
         $rows=[];
         if ($q !== '') {
             $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT 100");
+            $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome");
             $stmt->bind_param('s', $s);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -25,8 +25,8 @@ class SearchController
                 $rows[] = $r;
             }
         } else {
-            // Return all authors when no query is provided (for initial load)
-            $stmt = $db->prepare("SELECT id, nome AS label FROM autori ORDER BY nome LIMIT 200");
+            // Return all authors when no query is provided (for Choices.js initial load)
+            $stmt = $db->prepare("SELECT id, nome AS label FROM autori ORDER BY nome");
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {

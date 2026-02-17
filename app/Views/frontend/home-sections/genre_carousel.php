@@ -51,13 +51,14 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
 
                 <div class="carousel-wrapper">
                     <div class="carousel-track" id="<?php echo $carouselId; ?>">
-                    <?php foreach ($books as $book):
+                    <?php
+                    $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
+                    foreach ($books as $book):
                         $bookDetailUrl = book_url($book);
 
                         // Use same image logic as home-books-grid.php
                         $coverUrl = ($book['copertina_url'] ?? '') ?: ($book['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg';
                         $absoluteCoverUrl = absoluteUrl($coverUrl);
-                        $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     ?>
                     <a href="<?php echo htmlspecialchars($bookDetailUrl, ENT_QUOTES, 'UTF-8'); ?>" class="carousel-book-card">
                         <img src="<?php echo htmlspecialchars($absoluteCoverUrl, ENT_QUOTES, 'UTF-8'); ?>"

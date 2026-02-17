@@ -12,7 +12,7 @@ $editori = $data['editori'];
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <nav class="flex items-center text-sm text-gray-500 mb-2">
-            <a href="<?= url('/admin/dashboard') ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+            <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
             <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
             <span class="text-gray-900 font-medium"><?= __("Editori") ?></span>
           </nav>
@@ -25,7 +25,7 @@ $editori = $data['editori'];
           </h1>
         </div>
         <div class="flex items-center gap-2">
-          <a href="<?= url('/admin/editori/crea') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium inline-flex items-center">
+          <a href="<?= htmlspecialchars(url('/admin/editori/crea'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium inline-flex items-center">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Editore") ?>
           </a>
         </div>

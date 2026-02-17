@@ -14,7 +14,7 @@ if (!$hasEbook && !$hasAudiobook) {
 ?>
 
 <?php if ($hasEbook): ?>
-<a href="<?= htmlspecialchars(url('/' . ltrim($book['file_url'], '/')), ENT_QUOTES, 'UTF-8') ?>"
+<a href="<?= htmlspecialchars(url($book['file_url']), ENT_QUOTES, 'UTF-8') ?>"
    download
    target="_blank"
    class="btn btn-outline-danger btn-lg"

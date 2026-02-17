@@ -241,18 +241,18 @@ ob_start();
                 <i class="fas fa-sync-alt"></i>
                 <?= __('Ricarica Pagina') ?>
             </button>
-            <a href="<?= url('/') ?>" class="error-500-btn error-500-btn-primary">
+            <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="error-500-btn error-500-btn-primary">
                 <i class="fas fa-home"></i>
                 <?= __('Vai alla Home') ?>
             </a>
         </div>
 
         <div class="error-500-links">
-            <a href="<?= $catalogRoute ?>" class="error-500-link">
+            <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-500-link">
                 <i class="fas fa-book"></i>
                 <span><?= __('Catalogo') ?></span>
             </a>
-            <a href="<?= $contactRoute ?>" class="error-500-link">
+            <a href="<?= htmlspecialchars($contactRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-500-link">
                 <i class="fas fa-envelope"></i>
                 <span><?= __('Contatti') ?></span>
             </a>

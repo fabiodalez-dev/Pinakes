@@ -417,7 +417,7 @@ class DigitalLibraryPlugin
         }
 
         // Validate size / mime
-        $maxSize = ($type === 'audio') ? (500 * 1024 * 1024) : (50 * 1024 * 1024);
+        $maxSize = ($type === 'audio') ? (500 * 1024 * 1024) : (100 * 1024 * 1024);
         if ($file->getSize() > $maxSize) {
             return $this->json($response, ['success' => false, 'message' => __('File troppo grande.')], 400);
         }

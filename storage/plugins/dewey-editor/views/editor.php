@@ -156,6 +156,7 @@ $pageTitle = __('Editor Classificazione Dewey');
 (function() {
     'use strict';
 
+    const BASE_PATH = (window.BASE_PATH || '').replace(/\/$/, '');
     const CSRF_TOKEN = <?= json_encode($csrfToken) ?>;
     let currentLocale = <?= json_encode($defaultLocale) ?>;
     let deweyData = null;
@@ -201,7 +202,7 @@ $pageTitle = __('Editor Classificazione Dewey');
 
         // Export
         exportBtn.addEventListener('click', () => {
-            window.location.href = `${window.BASE_PATH}/api/dewey-editor/export/${currentLocale}`;
+            window.location.href = `${BASE_PATH}/api/dewey-editor/export/${currentLocale}`;
         });
 
         // Import - show mode selection dialog
@@ -263,7 +264,7 @@ $pageTitle = __('Editor Classificazione Dewey');
         </div>`;
 
         try {
-            const response = await fetch(`${window.BASE_PATH}/api/dewey-editor/data/${locale}`);
+            const response = await fetch(`${BASE_PATH}/api/dewey-editor/data/${locale}`);
             const result = await response.json();
 
             if (result.success) {
@@ -540,7 +541,7 @@ $pageTitle = __('Editor Classificazione Dewey');
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= __('Salvataggio...') ?>';
 
         try {
-            const response = await fetch(`${window.BASE_PATH}/api/dewey-editor/save/${currentLocale}`, {
+            const response = await fetch(`${BASE_PATH}/api/dewey-editor/save/${currentLocale}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -605,8 +606,8 @@ $pageTitle = __('Editor Classificazione Dewey');
 
         // Use merge endpoint if mode is merge, otherwise use import (replace)
         const endpoint = mode === 'merge'
-            ? `${window.BASE_PATH}/api/dewey-editor/merge/${currentLocale}`
-            : `${window.BASE_PATH}/api/dewey-editor/import/${currentLocale}`;
+            ? `${BASE_PATH}/api/dewey-editor/merge/${currentLocale}`
+            : `${BASE_PATH}/api/dewey-editor/import/${currentLocale}`;
 
         try {
             const response = await fetch(endpoint, {
@@ -650,7 +651,7 @@ $pageTitle = __('Editor Classificazione Dewey');
 
     async function showBackups() {
         try {
-            const response = await fetch(`${window.BASE_PATH}/api/dewey-editor/backups/${currentLocale}`);
+            const response = await fetch(`${BASE_PATH}/api/dewey-editor/backups/${currentLocale}`);
             const result = await response.json();
 
             if (!result.success || !result.backups.length) {
@@ -711,7 +712,7 @@ $pageTitle = __('Editor Classificazione Dewey');
         if (!confirm.isConfirmed) return;
 
         try {
-            const response = await fetch(`${window.BASE_PATH}/api/dewey-editor/restore/${currentLocale}`, {
+            const response = await fetch(`${BASE_PATH}/api/dewey-editor/restore/${currentLocale}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

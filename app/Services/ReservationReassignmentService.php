@@ -96,7 +96,9 @@ class ReservationReassignmentService
         if ($this->isInTransaction()) {
             return false; // Non abbiamo iniziato noi
         }
-        $this->db->begin_transaction();
+        if (!$this->db->begin_transaction()) {
+            throw new \RuntimeException('Failed to start transaction');
+        }
         $this->transactionOwned = true;
         return true; // Abbiamo iniziato noi
     }

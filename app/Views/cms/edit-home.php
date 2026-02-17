@@ -339,6 +339,22 @@ function getSectionDisplayName($key) {
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
+        <div>
+          <label for="latest_sort" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Ordinamento libri") ?></label>
+          <?php $latestBooksSort = $latestBooksTitle['content'] ?? 'created_at'; ?>
+          <select id="latest_sort" name="latest_books_title[content]"
+                  class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+            <option value="created_at" <?= $latestBooksSort === 'created_at' ? 'selected' : '' ?>>
+              <?= __("Ultimi aggiunti (data creazione)") ?>
+            </option>
+            <option value="updated_at" <?= $latestBooksSort === 'updated_at' ? 'selected' : '' ?>>
+              <?= __("Ultimi modificati (data aggiornamento)") ?>
+            </option>
+          </select>
+          <p class="mt-1 text-xs text-gray-500">
+            <?= __("Scegli come ordinare i libri nella sezione") ?>
+          </p>
+        </div>
       </div>
     </div>
 

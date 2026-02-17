@@ -113,7 +113,7 @@ use App\Support\HtmlHelper;
                                             <button
                                                 type="button"
                                                 class="text-gray-600 hover:text-gray-900"
-                                                onclick="resetRoute(this, '<?= HtmlHelper::e($key) ?>')"
+                                                onclick="resetRoute(this, <?= htmlspecialchars(json_encode($key), ENT_QUOTES, 'UTF-8') ?>)"
                                                 title="<?= __("Ripristina Default") ?>">
                                                 <i class="fas fa-undo"></i>
                                             </button>

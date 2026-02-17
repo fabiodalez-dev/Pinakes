@@ -126,23 +126,14 @@ class UtentiApiController
         $stmt = $db->prepare($sql);
         if (!$stmt) {
             AppLog::error('utenti.list.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore interno del server')], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del server')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
-        if (!empty($params)) {
-            $stmt->bind_param($types, ...$params);
-        }
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];
         while ($r = $res->fetch_assoc()) {
-            $actions = '<a class="text-blue-600" href="'.htmlspecialchars(url('/admin/utenti/dettagli/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.__('Dettagli').'</a>';
-            $actions .= ' | <a class="text-orange-600" href="'.htmlspecialchars(url('/admin/utenti/modifica/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.__('Modifica').'</a>';
-            $confirmMessage = __('Eliminare l\'utente?');
-            $actions .= ' | <form method="post" action="'.htmlspecialchars(url('/admin/utenti/delete/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'" style="display:inline" onsubmit="return confirm(\'' . addslashes($confirmMessage) . '\')">'
-                     . '<input type="hidden" name="csrf_token" value="'.htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8').'">'
-                     . '<button class="text-red-600">'.__('Elimina').'</button></form>';
-                     
             $rows[] = [
                 'id' => (int)$r['id'],
                 'nome' => $r['nome'] ?? '',
@@ -154,7 +145,6 @@ class UtentiApiController
                 'codice_tessera' => $r['codice_tessera'] ?? '',
                 'data_scadenza_tessera' => $r['data_scadenza_tessera'] ?? '',
                 'created_at' => $r['created_at'] ?? '',
-                'actions' => $actions,
             ];
         }
         $stmt->close();

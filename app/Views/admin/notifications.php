@@ -112,7 +112,7 @@
                     <?php endif; ?>
                     <?php if (!$notification['is_read']): ?>
                     <button type="button"
-                            onclick="markAsRead(<?php echo $notification['id']; ?>)"
+                            onclick="markAsRead(<?php echo (int)$notification['id']; ?>)"
                             class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                             title="<?= __("Segna come letto") ?>">
                       <i class="fas fa-check text-xs"></i>
@@ -120,7 +120,7 @@
                     </button>
                     <?php endif; ?>
                     <button type="button"
-                            onclick="deleteNotification(<?php echo $notification['id']; ?>)"
+                            onclick="deleteNotification(<?php echo (int)$notification['id']; ?>)"
                             class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-100 text-sm font-medium text-red-600 hover:bg-red-50"
                             title="<?= __("Elimina") ?>">
                       <i class="fas fa-trash text-xs"></i>

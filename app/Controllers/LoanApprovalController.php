@@ -852,6 +852,7 @@ class LoanApprovalController
             $stmt->close();
 
             // Update copy status (only if not in a non-lendable state)
+            $copyAvailable = false;
             if ($copiaId) {
                 $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
                 $copyCheckStmt->bind_param('i', $copiaId);
@@ -863,12 +864,13 @@ class LoanApprovalController
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     $copyRepo->updateStatus($copiaId, 'disponibile');
+                    $copyAvailable = true;
                 }
             }
 
             // Reassign returned copy to next waiting reservation
             $reassignmentService = null;
-            if ($copiaId) {
+            if ($copiaId && $copyAvailable) {
                 try {
                     $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                     $reassignmentService->setExternalTransaction(true);

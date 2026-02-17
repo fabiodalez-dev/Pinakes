@@ -887,10 +887,8 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
     </form>
   </div>
 </div>
-<!-- CSS and JavaScript Libraries - LOCAL NPM PACKAGES VIA WEBPACK -->
-<link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>">
+<!-- CSS and JavaScript Libraries - partial-specific assets only (vendor.css/vendor.bundle.js loaded by layout) -->
 <link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.min.css') ?>">
-<script src="<?= assetUrl('vendor.bundle.js') ?>"></script>
 <script src="<?= assetUrl('star-rating/dist/star-rating.min.js') ?>"></script>
 
 <script>

@@ -24,10 +24,10 @@ use App\Support\HtmlHelper;
               <li><strong><?= __("Marketing:") ?></strong> <?= __("Si caricano solo se l'utente accetta i cookie Marketing nel banner") ?></li>
             </ul>
             <p class="mt-3">
-              <?= sprintf(__("⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati."), url('/admin/settings?tab=privacy#privacy')) ?>
+              <?= sprintf(__("⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati."), htmlspecialchars(url('/admin/settings?tab=privacy#privacy'), ENT_QUOTES, 'UTF-8')) ?>
             </p>
             <p class="mt-2">
-              <?= sprintf(__("📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR."), url('/cookies')) ?>
+              <?= sprintf(__("📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR."), htmlspecialchars(url('/cookies'), ENT_QUOTES, 'UTF-8')) ?>
             </p>
           </div>
         </div>

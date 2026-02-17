@@ -117,7 +117,7 @@ class NotificationService {
                 // Use /verify-email (English route) as it's supported in all languages
                 $verifyUrl = absoluteUrl('/verify-email?token=' . urlencode((string)$user['token_verifica_email']));
                 $buttonText = __('Conferma la tua email');
-                $verifySection = '<p style="margin: 20px 0;"><a href="' . $verifyUrl . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
+                $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
 
                 // Restore original locale
                 \App\Support\I18n::setLocale($currentLocale);

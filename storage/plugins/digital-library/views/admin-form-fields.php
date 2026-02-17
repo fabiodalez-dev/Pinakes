@@ -68,7 +68,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
 
         <p class="text-xs text-gray-600 mt-2">
             <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Formati supportati: PDF, ePub • Dimensione massima: 50 MB") ?>
+            <?= __("Formati supportati: PDF, ePub • Dimensione massima: 100 MB") ?>
         </p>
     </div>
 
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 allowedFileTypes: ['.mp3', '.m4a', '.ogg', 'audio/mpeg', 'audio/mp4', 'audio/ogg']
             }
             : {
-                maxFileSize: 50 * 1024 * 1024,
+                maxFileSize: 100 * 1024 * 1024,
                 maxNumberOfFiles: 1,
                 allowedFileTypes: ['.pdf', '.epub', 'application/pdf', 'application/epub+zip']
             };
@@ -259,7 +259,7 @@ document.addEventListener('DOMContentLoaded', function() {
             target: targetSelector,
             note: isAudio
                 ? '<?= __("MP3, M4A o OGG, max 500 MB") ?>'
-                : '<?= __("PDF o ePub, max 50 MB") ?>'
+                : '<?= __("PDF o ePub, max 100 MB") ?>'
         });
 
         uppyInstance.use(UppyProgressBar, {

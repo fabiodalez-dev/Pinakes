@@ -20,7 +20,7 @@ Il plugin **Digital Library** estende Pinakes con funzionalità avanzate per la 
 
 - **Upload Semplificato**: Interfaccia drag-and-drop per caricare file (usa Uppy, già integrato)
 - **Gestione Flessibile**: Supporto per URL esterni o file caricati localmente
-- **Limiti Configurabili**: eBook max 50MB, audiobook max 500MB
+- **Limiti Configurabili**: eBook max 100MB, audiobook max 500MB
 - **Formati Multipli**: PDF, ePub per eBook | MP3, M4A, OGG per audio
 
 ### Per gli Utenti
@@ -80,7 +80,7 @@ Il plugin **Digital Library** estende Pinakes con funzionalità avanzate per la 
 3. **Per un eBook**:
    - Inserisci l'URL nel campo "eBook (PDF/ePub)"
    - OPPURE clicca **Carica** e trascina il file PDF/ePub
-   - Supporto per file fino a 50 MB
+   - Supporto per file fino a 100 MB
 
 4. **Per un Audiobook**:
    - Inserisci l'URL nel campo "Audiobook (MP3/M4A/OGG)"
@@ -124,8 +124,8 @@ Una volta caricati i contenuti:
 Modifica `views/admin-form-fields.php`:
 
 ```php
-// eBook (default: 50MB)
-maxFileSize: 50 * 1024 * 1024
+// eBook (default: 100MB)
+maxFileSize: 100 * 1024 * 1024
 
 // Audiobook (default: 500MB)
 maxFileSize: 500 * 1024 * 1024

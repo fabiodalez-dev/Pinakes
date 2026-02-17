@@ -187,7 +187,11 @@ class UserActionsController
 
             // Send deferred notifications after commit
             if (isset($reassignmentService)) {
-                $reassignmentService->flushDeferredNotifications();
+                try {
+                    $reassignmentService->flushDeferredNotifications();
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Failed to flush deferred notifications after loan cancellation', ['error' => $e->getMessage()]);
+                }
             }
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);

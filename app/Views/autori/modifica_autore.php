@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize Form Validation
 function initializeFormValidation() {
-    const form = document.querySelector('form[action*="/admin/autori/update/"]');
+    const form = document.querySelector('form[action$="/admin/autori/update/<?= (int)($autore['id'] ?? 0) ?>"]');
     if (!form) return;
     
     form.addEventListener('submit', async function(e) {

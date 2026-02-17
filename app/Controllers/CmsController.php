@@ -385,17 +385,23 @@ class CmsController
             $title = $sanitizeText($latestBooks['title'] ?? '');
             $subtitle = $sanitizeText($latestBooks['subtitle'] ?? '');
             $isActive = isset($latestBooks['is_active']) ? 1 : 0;
+            // Whitelist-validate sort preference
+            $sortOrder = $latestBooks['content'] ?? 'created_at';
+            if (!in_array($sortOrder, ['created_at', 'updated_at'], true)) {
+                $sortOrder = 'created_at';
+            }
 
             // UPSERT: Insert if not exists, update if exists
             $stmt = $db->prepare("
-                INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
-                VALUES ('latest_books_title', ?, ?, ?, 6)
+                INSERT INTO home_content (section_key, title, subtitle, content, is_active, display_order)
+                VALUES ('latest_books_title', ?, ?, ?, ?, 6)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
                     subtitle = VALUES(subtitle),
+                    content = VALUES(content),
                     is_active = VALUES(is_active)
             ");
-            $stmt->bind_param('ssi', $title, $subtitle, $isActive);
+            $stmt->bind_param('sssi', $title, $subtitle, $sortOrder, $isActive);
             $stmt->execute();
             $stmt->close();
         }
