@@ -714,6 +714,7 @@ class ScrapeController
 
         try {
             require_once $sbnClientPath;
+            /** @phpstan-ignore class.notFound (dynamically loaded plugin) */
             $sbnClient = new \Plugins\Z39Server\Classes\SbnClient(timeout: 10);
 
             foreach ($variants as $format => $isbn) {

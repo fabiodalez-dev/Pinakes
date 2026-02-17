@@ -124,6 +124,11 @@ class UtentiApiController
         $types .= 'ii';
 
         $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            AppLog::error('utenti.list.prepare_failed', ['error' => $db->error]);
+            $response->getBody()->write(json_encode(['error' => true], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
         if (!empty($params)) {
             $stmt->bind_param($types, ...$params);
         }

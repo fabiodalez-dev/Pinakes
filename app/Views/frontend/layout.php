@@ -7,7 +7,8 @@ use App\Support\HtmlHelper;
 use App\Support\I18n;
 
 $appName = (string) ConfigStore::get('app.name', 'Pinakes');
-$appLogo = url(Branding::logo());
+$brandingLogo = Branding::logo();
+$appLogo = $brandingLogo !== '' ? url($brandingLogo) : '';
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $footerDescription = (string) ConfigStore::get('app.footer_description', __('Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.'));
 

@@ -664,7 +664,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const linkedAutori = autoriArray.map((nome, i) => {
               const id = idsArray[i];
               const safeName = escapeHtml(nome);
-              if (id) return `<a href="${window.BASE_PATH}/admin/autori/${encodeURIComponent(id)}" class="text-gray-600 hover:text-gray-900 hover:underline">${safeName}</a>`;
+              if (id) return `<a href="${window.BASE_PATH}/admin/autori/${parseInt(id, 10)}" class="text-gray-600 hover:text-gray-900 hover:underline">${safeName}</a>`;
               return safeName;
             });
             autoriHtml = `<div class="text-xs text-gray-600 mt-1"><i class="fas fa-user text-gray-400 mr-1"></i>${linkedAutori.join(', ')}${autoriStr.split(', ').length > 2 ? ' ...' : ''}</div>`;

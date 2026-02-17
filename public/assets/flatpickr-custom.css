@@ -157,7 +157,7 @@ span.flatpickr-weekday {
 .flatpickr-day.flatpickr-disabled.reserved-day:hover {
   background: #f59e0b !important;
   border-color: #d97706 !important;
-  color: #ffffff !important;
+  color: #78350f !important;
   cursor: not-allowed !important;
 }
 

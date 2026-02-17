@@ -2,7 +2,7 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
-        <li><a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700"><i class="fas fa-home mr-1"></i>Home</a></li>
+        <li><a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700"><i class="fas fa-home mr-1"></i>Home</a></li>
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
         <li class="text-gray-900 font-medium"><?= __("Prenotazioni") ?></li>
       </ol>
@@ -27,7 +27,7 @@
         </div>
         <div class="flex gap-2">
           <button class="btn-primary"><i class="fas fa-search mr-2"></i><?= __('Cerca') ?></button>
-          <a href="<?= url('/admin/prenotazioni') ?>" class="btn-secondary" id="btn-reset"><i class="fas fa-times mr-2"></i>Reset</a>
+          <a href="<?= htmlspecialchars(url('/admin/prenotazioni'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary" id="btn-reset"><i class="fas fa-times mr-2"></i>Reset</a>
         </div>
       </form>
     </div>
@@ -68,7 +68,7 @@
                 <span class="px-2 py-1 rounded-full text-xs font-medium <?php echo ($r['stato']==='attiva'?'bg-green-100 text-green-800':($r['stato']==='completata'?'bg-blue-100 text-blue-800':'bg-gray-100 text-gray-800')); ?>"><?php echo App\Support\HtmlHelper::e($reservationStatoLabel); ?></span>
               </td>
               <td class="px-4 py-2 text-sm text-right">
-                <a href="<?= url('/admin/prenotazioni/modifica/' . (int)$r['id']) ?>" class="text-blue-600 hover:text-blue-800"><i class="fas fa-edit mr-1"></i><?= __('Modifica') ?></a>
+                <a href="<?= htmlspecialchars(url('/admin/prenotazioni/modifica/' . (int)$r['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-blue-600 hover:text-blue-800"><i class="fas fa-edit mr-1"></i><?= __('Modifica') ?></a>
               </td>
             </tr>
           <?php endforeach; ?>

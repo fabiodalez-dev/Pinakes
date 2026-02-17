@@ -61,7 +61,7 @@ $activeTab = $activeTab ?? 'general';
     <div class="p-6">
       <!-- General Settings -->
       <section data-settings-panel="general" class="settings-panel <?php echo $activeTab === 'general' ? 'block' : 'hidden'; ?>">
-        <form action="<?= url('/admin/settings/general') ?>" method="post" enctype="multipart/form-data" class="space-y-8">
+        <form action="<?= htmlspecialchars(url('/admin/settings/general'), ENT_QUOTES, 'UTF-8') ?>" method="post" enctype="multipart/form-data" class="space-y-8">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="space-y-4">
@@ -220,7 +220,7 @@ $activeTab = $activeTab ?? 'general';
 
       <!-- Email Settings -->
       <section data-settings-panel="email" class="settings-panel <?php echo $activeTab === 'email' ? 'block' : 'hidden'; ?>">
-        <form action="<?= url('/admin/settings/email') ?>" method="post" class="space-y-8">
+        <form action="<?= htmlspecialchars(url('/admin/settings/email'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -396,12 +396,12 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Modifica i contenuti della homepage: hero, features, CTA e immagine di sfondo") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="<?= url('/') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
               <div class="mt-4">
-                <a href="<?= url('/admin/cms/home') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
+                <a href="<?= htmlspecialchars(url('/admin/cms/home'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
                   <?= __("Modifica Homepage") ?>
                 </a>
@@ -420,12 +420,12 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Gestisci il contenuto della pagina Chi Siamo con testo e immagine personalizzati") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="<?= route_path('about') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= htmlspecialchars(route_path('about'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
               <div class="mt-4">
-                <a href="<?= url('/admin/cms/chi-siamo') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
+                <a href="<?= htmlspecialchars(url('/admin/cms/chi-siamo'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
                   <?= __("Modifica Chi Siamo") ?>
                 </a>
@@ -444,12 +444,12 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Gestisci gli eventi della biblioteca: crea, modifica ed elimina eventi con immagini e descrizioni") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="<?= url('/events') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= htmlspecialchars(url('/events'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
               <div class="mt-4">
-                <a href="<?= url('/admin/cms/events') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
+                <a href="<?= htmlspecialchars(url('/admin/cms/events'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
                   <i class="fas fa-edit"></i>
                   <?= __("Gestisci Eventi") ?>
                 </a>
@@ -480,7 +480,7 @@ $activeTab = $activeTab ?? 'general';
 
       <!-- Label Settings -->
       <section data-settings-panel="labels" class="settings-panel <?php echo $activeTab === 'labels' ? 'block' : 'hidden'; ?>">
-        <form action="<?= url('/admin/settings/labels') ?>" method="post" class="space-y-8">
+        <form action="<?= htmlspecialchars(url('/admin/settings/labels'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

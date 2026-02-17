@@ -13,6 +13,7 @@ $resetPasswordRoute = route_path('reset_password');
     <title><?= __('Resetta Password') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
 
+    <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
     <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
     <style>

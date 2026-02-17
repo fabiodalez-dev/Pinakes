@@ -165,6 +165,11 @@ class SettingsController
         $repository->set('email', 'smtp_password', $smtpPass);
         $repository->set('email', 'smtp_security', $encryption);
 
+        // Handle registration setting (require_admin_approval is in the same form)
+        $requireApproval = isset($data['require_admin_approval']) ? '1' : '0';
+        $repository->set('registration', 'require_admin_approval', $requireApproval);
+        ConfigStore::set('registration.require_admin_approval', (bool) $requireApproval);
+
         ConfigStore::set('mail.driver', $driver);
         ConfigStore::set('mail.from_email', $fromEmail);
         ConfigStore::set('mail.from_name', $fromName);

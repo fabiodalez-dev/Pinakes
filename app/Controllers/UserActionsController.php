@@ -153,12 +153,13 @@ class UserActionsController
             }
 
             // Mark as cancelled
+            $cancelNote = "\n[User] Annullato dall'utente";
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'annullato', attivo = 0, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), '\n[User] Annullato dall\'utente')
+                SET stato = 'annullato', attivo = 0, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->bind_param('si', $cancelNote, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 

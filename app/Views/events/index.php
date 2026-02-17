@@ -223,7 +223,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
                       <?= __("Visualizza") ?>
                     </a>
                     <button
-                      onclick="confirmDelete(<?= $event['id'] ?>, '<?= addslashes(HtmlHelper::e($event['title'])) ?>')"
+                      onclick="confirmDelete(<?= (int)$event['id'] ?>, <?= htmlspecialchars(json_encode($event['title']), ENT_QUOTES, 'UTF-8') ?>)"
                       class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-semibold">
                       <i class="fas fa-trash"></i>
                       <?= __("Elimina") ?>

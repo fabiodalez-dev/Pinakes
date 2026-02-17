@@ -59,7 +59,7 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                         $absoluteCoverUrl = absoluteUrl($coverUrl);
                         $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     ?>
-                    <a href="<?php echo $bookDetailUrl; ?>" class="carousel-book-card">
+                    <a href="<?php echo htmlspecialchars($bookDetailUrl, ENT_QUOTES, 'UTF-8'); ?>" class="carousel-book-card">
                         <img src="<?php echo htmlspecialchars($absoluteCoverUrl, ENT_QUOTES, 'UTF-8'); ?>"
                              alt="<?php echo htmlspecialchars($book['titolo'], ENT_QUOTES, 'UTF-8'); ?>"
                              class="carousel-book-cover"

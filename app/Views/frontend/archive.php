@@ -482,7 +482,7 @@ $createBookUrl = static function ($book) {
                 <?php foreach($books as $book): ?>
                     <div class="book-card">
                         <div class="book-image-container">
-                            <a href="<?= $createBookUrl($book) ?>">
+                            <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
                                 <?php $coverUrl = ($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
                                 <img src="<?= htmlspecialchars(absoluteUrl($coverUrl)) ?>"
                                      alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>">
@@ -502,7 +502,7 @@ $createBookUrl = static function ($book) {
                         </div>
                         <div class="book-content">
                             <h3 class="book-title">
-                                <a href="<?= $createBookUrl($book) ?>">
+                                <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                                 </a>
                             </h3>
@@ -513,7 +513,7 @@ $createBookUrl = static function ($book) {
                                 <?php if (!empty($book['genere']) && $archive_type !== 'genere'): ?>
                                     <div>
                                         <i class="fas fa-tags me-1"></i>
-                                        <a href="<?= route_path('genre') ?>/<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>">
+                                        <a href="<?= htmlspecialchars(route_path('genre'), ENT_QUOTES, 'UTF-8') ?>/<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>">
                                             <?= htmlspecialchars(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>
                                         </a>
                                     </div>
@@ -521,14 +521,14 @@ $createBookUrl = static function ($book) {
                                 <?php if (!empty($book['editore']) && $archive_type !== 'editore'): ?>
                                     <div>
                                         <i class="fas fa-building me-1"></i>
-                                        <a href="<?= route_path('publisher') ?>/<?= urlencode(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>">
+                                        <a href="<?= htmlspecialchars(route_path('publisher'), ENT_QUOTES, 'UTF-8') ?>/<?= urlencode(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>">
                                             <?= htmlspecialchars(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>
                                         </a>
                                     </div>
                                 <?php endif; ?>
                             </div>
                             <div class="book-actions">
-                                <a href="<?= $createBookUrl($book) ?>" class="btn-view">
+                                <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>" class="btn-view">
                                     <i class="fas fa-eye"></i>
                                     <span><?= __('Vedi dettagli') ?></span>
                                 </a>

@@ -867,6 +867,7 @@ class LoanApprovalController
             }
 
             // Reassign returned copy to next waiting reservation
+            $reassignmentService = null;
             if ($copiaId) {
                 try {
                     $reassignmentService = new \App\Services\ReservationReassignmentService($db);
@@ -882,6 +883,11 @@ class LoanApprovalController
             $integrity->recalculateBookAvailability($libroId);
 
             $db->commit();
+
+            // Send deferred notifications after commit
+            if ($reassignmentService) {
+                $reassignmentService->flushDeferredNotifications();
+            }
 
             // Notify wishlist users AFTER commit
             try {

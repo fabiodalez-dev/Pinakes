@@ -188,21 +188,21 @@ function closeMessageModal() {
 function deleteMessage(id) {
   if (confirm(__('Sei sicuro di voler eliminare questo messaggio?'))) {
     csrfFetch(`${window.BASE_PATH}/admin/messages/${id}`, { method: 'DELETE' })
-      .then(() => location.reload());
+      .then(r => { if (!r.ok) throw new Error('delete failed'); location.reload(); })
+      .catch(() => alert(__('Errore durante l\'eliminazione del messaggio.')));
   }
 }
 
 function archiveMessage(id) {
   csrfFetch(`${window.BASE_PATH}/admin/messages/${id}/archive`, { method: 'POST' })
-    .then(() => {
-      closeMessageModal();
-      location.reload();
-    });
+    .then(r => { if (!r.ok) throw new Error('archive failed'); closeMessageModal(); location.reload(); })
+    .catch(() => alert(__('Errore durante l\'archiviazione del messaggio.')));
 }
 
 function markAllAsRead() {
   csrfFetch(`${window.BASE_PATH}/admin/messages/mark-all-read`, { method: 'POST' })
-    .then(() => location.reload());
+    .then(r => { if (!r.ok) throw new Error('mark-all-read failed'); location.reload(); })
+    .catch(() => alert(__('Errore durante l\'aggiornamento dei messaggi.')));
 }
 
 function replyToMessage(email) {

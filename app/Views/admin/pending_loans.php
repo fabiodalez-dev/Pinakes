@@ -79,7 +79,7 @@
                         <div class="p-4">
                             <div class="flex gap-3">
                                 <div class="flex-shrink-0">
-                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg')) ?>"
+                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
                                 </div>
@@ -141,7 +141,7 @@
                         <div class="p-4">
                             <div class="flex gap-3">
                                 <div class="flex-shrink-0">
-                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg')) ?>"
+                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
                                 </div>
@@ -213,7 +213,7 @@
                         <div class="p-4">
                             <div class="flex gap-3">
                                 <div class="flex-shrink-0">
-                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg')) ?>"
+                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
                                 </div>
@@ -282,7 +282,7 @@
                         <div class="p-4">
                             <div class="flex gap-3">
                                 <div class="flex-shrink-0">
-                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg')) ?>"
+                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
                                 </div>
@@ -341,7 +341,7 @@
                         <div class="p-4">
                             <div class="flex gap-3">
                                 <div class="flex-shrink-0">
-                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg')) ?>"
+                                    <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
                                 </div>
@@ -407,7 +407,7 @@
                         <div class="p-4">
                             <div class="flex gap-3">
                                 <div class="flex-shrink-0">
-                                    <img src="<?= htmlspecialchars(url($reservation['copertina_url'] ?: '/uploads/copertine/placeholder.jpg')) ?>"
+                                    <img src="<?= htmlspecialchars(url($reservation['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($reservation['titolo']) ?>">
                                 </div>

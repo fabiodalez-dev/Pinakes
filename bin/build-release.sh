@@ -248,7 +248,7 @@ verify_package_contents() {
     local autoload_real="${package_dir}/vendor/composer/autoload_real.php"
     if [ -f "$autoload_real" ]; then
         local phpstan_count
-        phpstan_count=$(grep -c "phpstan" "$autoload_real" || true)
+        phpstan_count=$(grep -ci "phpstan" "$autoload_real" || true)
         if [ "$phpstan_count" -gt 0 ]; then
             log_error "PHPStan found in autoload_real.php ($phpstan_count references) - dev dependencies leaked into package"
             has_errors=true

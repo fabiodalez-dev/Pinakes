@@ -17,7 +17,7 @@ $forgotPasswordRoute = route_path('forgot_password');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= __('Accesso') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
-    <link rel="icon" type="image/x-icon" href="<?= url('/favicon.ico') ?>">
+    <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     
     <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
     <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
@@ -48,7 +48,7 @@ $forgotPasswordRoute = route_path('forgot_password');
 
     <!-- Login Form -->
     <div class="bg-white rounded-2xl p-8 border border-gray-200">
-      <form method="post" action="<?= $loginRoute ?>" class="space-y-6">
+      <form method="post" action="<?= htmlspecialchars($loginRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
         <?php if (!empty($return_url ?? '')): ?>
           <input type="hidden" name="return_url" value="<?php echo htmlspecialchars($return_url ?? '', ENT_QUOTES, 'UTF-8'); ?>">
@@ -159,7 +159,7 @@ $forgotPasswordRoute = route_path('forgot_password');
               <?= __('Ricordami') ?>
             </label>
           </div>
-          <a href="<?= $forgotPasswordRoute ?>" class="text-sm font-medium text-gray-600 hover:text-black transition-colors whitespace-nowrap">
+          <a href="<?= htmlspecialchars($forgotPasswordRoute, ENT_QUOTES, 'UTF-8') ?>" class="text-sm font-medium text-gray-600 hover:text-black transition-colors whitespace-nowrap">
             <?= __('Password dimenticata?') ?>
           </a>
         </div>
@@ -182,7 +182,7 @@ $forgotPasswordRoute = route_path('forgot_password');
       <div class="mt-6 text-center">
         <p class="text-gray-600 text-sm">
           <?= __('Non hai un account?') ?>
-          <a href="<?= $registerRoute ?>" class="font-medium text-gray-600 hover:text-black transition-colors">
+          <a href="<?= htmlspecialchars($registerRoute, ENT_QUOTES, 'UTF-8') ?>" class="font-medium text-gray-600 hover:text-black transition-colors">
             <?= __('Registrati') ?>
           </a>
         </p>
@@ -192,10 +192,10 @@ $forgotPasswordRoute = route_path('forgot_password');
     <!-- Footer Links -->
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= route_path('privacy') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= route_path('contact') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <?= __('Contatti') ?>
         </a>
       </div>

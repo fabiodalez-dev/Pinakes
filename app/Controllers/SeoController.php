@@ -94,7 +94,7 @@ class SeoController
         }
 
         // Include basePath for subfolder installations (e.g. /pinakes)
-        $base .= \App\Support\HtmlHelper::getBasePath();
+        $base .= HtmlHelper::getBasePath();
 
         return rtrim($base, '/');
     }

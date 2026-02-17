@@ -130,10 +130,9 @@ $pluginSettings = $pluginSettings ?? [];
                                             <div class="mb-3 p-2 bg-gray-50 rounded-lg border border-gray-200 inline-block">
                                                 <p class="text-xs text-gray-500 font-medium mb-1"><?= __("Endpoint SRU:") ?></p>
                                                 <div class="flex items-center gap-2">
-                                                    <?php $baseUrl = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/'); ?>
                                                     <code
-                                                        class="text-xs bg-white px-2 py-1 rounded border border-gray-200 select-all"><?= $baseUrl . '/api/sru' ?></code>
-                                                    <a href="<?= $baseUrl . '/api/sru?operation=explain&version=1.1' ?>"
+                                                        class="text-xs bg-white px-2 py-1 rounded border border-gray-200 select-all"><?= htmlspecialchars(absoluteUrl('/api/sru'), ENT_QUOTES, 'UTF-8') ?></code>
+                                                    <a href="<?= htmlspecialchars(absoluteUrl('/api/sru') . '?operation=explain&version=1.1', ENT_QUOTES, 'UTF-8') ?>"
                                                         target="_blank" rel="noopener noreferrer"
                                                         class="text-indigo-600 hover:text-indigo-800 text-xs"
                                                         title="<?= __("Test Endpoint") ?>">

@@ -659,6 +659,7 @@ class PrestitiController
                 $notificationService->notifyWishlistBookAvailability($libro_id);
 
                 // Case 3: Reassign returned copy to next waiting reservation (NEW SYSTEM - prestiti table)
+                $reassignmentService = null;
                 try {
                     $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                     $reassignmentService->setExternalTransaction(true);
@@ -673,6 +674,11 @@ class PrestitiController
             }
 
             $db->commit();
+
+            // Send deferred notifications after commit
+            if (isset($reassignmentService) && $reassignmentService) {
+                $reassignmentService->flushDeferredNotifications();
+            }
             $_SESSION['success_message'] = __('Prestito aggiornato correttamente.');
             $successUrl = $redirectTo ?? '/admin/prestiti?updated=1';
             return $response->withHeader('Location', $successUrl)->withStatus(302);

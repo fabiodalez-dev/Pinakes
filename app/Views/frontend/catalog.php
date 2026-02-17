@@ -1126,7 +1126,7 @@ ob_start();
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb justify-content-center bg-transparent p-0 mb-0">
                     <li class="breadcrumb-item">
-                        <a href="<?= url('/') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
+                        <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
                     </li>
                     <li class="breadcrumb-item text-white active" aria-current="page">
                         <?= __("Catalogo") ?>

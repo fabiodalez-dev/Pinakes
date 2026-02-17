@@ -284,7 +284,7 @@
                         <button onclick="createMissingIndexes()" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors">
                             <i class="fas fa-bolt mr-2"></i><?= __("Crea Indici Automaticamente") ?>
                         </button>
-                        <a href="<?= url('/admin/maintenance/indexes-sql') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium rounded-lg transition-colors">
+                        <a href="<?= htmlspecialchars(url('/admin/maintenance/indexes-sql'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium rounded-lg transition-colors">
                             <i class="fas fa-download mr-2"></i><?= __("Scarica Script SQL") ?>
                         </a>
                     </div>

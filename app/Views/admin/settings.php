@@ -14,7 +14,7 @@
       <?php endif; ?>
     </div>
 
-    <form method="post" action="<?= url('/admin/settings/email') ?>" class="space-y-8">
+    <form method="post" action="<?= htmlspecialchars(url('/admin/settings/email'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="card">
@@ -110,7 +110,7 @@
               <h3 class="font-semibold text-blue-900"><i class="fas fa-info-circle mr-2"></i><?= __("Pagina \"Chi Siamo\"") ?></h3>
               <p class="text-sm text-blue-700 mt-1"><?= __("Gestisci il contenuto della pagina Chi Siamo con testo e immagine") ?></p>
             </div>
-            <a href="<?= \App\Support\CmsHelper::getAdminUrl('about') ?>" class="btn-primary whitespace-nowrap">
+            <a href="<?= htmlspecialchars(\App\Support\CmsHelper::getAdminUrl('about'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary whitespace-nowrap">
               <i class="fas fa-edit mr-2"></i><?= __("Modifica") ?>
             </a>
           </div>
@@ -198,7 +198,7 @@ php cron/automatic-notifications.php
     </form>
 
       <!-- Cookie Banner Configuration -->
-      <form method="post" action="<?= url('/admin/settings/cookie-banner') ?>">
+      <form method="post" action="<?= htmlspecialchars(url('/admin/settings/cookie-banner'), ENT_QUOTES, 'UTF-8') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
       <div class="card">
         <div class="card-header">
@@ -282,7 +282,7 @@ php cron/automatic-notifications.php
                 <i class="fas fa-info-circle mr-2"></i><?= __("Codice JavaScript Analytics") ?>
               </p>
               <p class="text-xs text-blue-800">
-                <?= sprintf(__("Per inserire il codice JavaScript Analytics (Google Analytics, Matomo, ecc.), vai su <a href=\"%s\" class=\"underline font-semibold hover:text-blue-900\">Impostazioni → Avanzate</a> nella sezione \"JavaScript Analitici\"."), url('/admin/settings?tab=advanced#advanced')) ?>
+                <?= sprintf(__("Per inserire il codice JavaScript Analytics (Google Analytics, Matomo, ecc.), vai su <a href=\"%s\" class=\"underline font-semibold hover:text-blue-900\">Impostazioni → Avanzate</a> nella sezione \"JavaScript Analitici\"."), htmlspecialchars(url('/admin/settings?tab=advanced#advanced'), ENT_QUOTES, 'UTF-8')) ?>
               </p>
             </div>
           </div>

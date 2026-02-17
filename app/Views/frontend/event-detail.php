@@ -434,7 +434,7 @@ $jsonLd = [
         'url' => $baseUrl,
     ],
 ];
-if ($event['featured_image']) {
+if (!empty($event['featured_image'])) {
     $jsonLd['image'] = absoluteUrl($event['featured_image']);
 }
 ?>

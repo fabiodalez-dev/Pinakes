@@ -139,7 +139,7 @@ use App\Support\HtmlHelper;
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center gap-2">
                                                 <div class="flex-1 bg-gray-200 rounded-full h-2 max-w-[120px]">
-                                                    <div class="bg-blue-600 h-2 rounded-full" style="width: <?= $lang['completion_percentage'] ?>%"></div>
+                                                    <div class="bg-blue-600 h-2 rounded-full" style="width: <?= (float)$lang['completion_percentage'] ?>%"></div>
                                                 </div>
                                                 <span class="text-sm text-gray-700 font-medium">
                                                     <?= number_format($lang['completion_percentage'], 1) ?>%

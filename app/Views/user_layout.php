@@ -30,7 +30,8 @@ if (isset($container)) {
 }
 
 $appName = (string) ConfigStore::get('app.name', 'Biblioteca');
-$appLogo = url(Branding::logo());
+$brandingLogo = Branding::logo();
+$appLogo = $brandingLogo !== '' ? url($brandingLogo) : '';
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $footerDescription = (string) ConfigStore::get('app.footer_description', 'La tua biblioteca digitale per scoprire, esplorare e gestire la tua collezione di libri preferiti.');
 $socialFacebook = (string) ConfigStore::get('app.social_facebook', '');

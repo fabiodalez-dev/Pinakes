@@ -131,7 +131,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <?php if (!$isCatalogueMode): ?>
-            <a href="<?= url('/prestiti/crea') ?>"
+            <a href="<?= url('/admin/prestiti/crea') ?>"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
                 <i class="fas fa-handshake text-sm text-gray-600"></i>

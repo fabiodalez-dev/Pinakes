@@ -130,7 +130,7 @@ function getStatusBadge($status) {
           <div class="flex flex-col bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm" data-loan-card="">
             <div class="flex gap-4">
               <div class="flex-shrink-0">
-                <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?? '/uploads/copertine/placeholder.jpg')) ?>" alt="<?= htmlspecialchars($loan['libro_titolo']) ?>" class="w-20 h-28 object-cover rounded-lg shadow-sm">
+                <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($loan['libro_titolo']) ?>" class="w-20 h-28 object-cover rounded-lg shadow-sm">
               </div>
               <div class="flex-1 min-w-0">
                 <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2">

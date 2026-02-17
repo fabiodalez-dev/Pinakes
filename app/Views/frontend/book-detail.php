@@ -2236,6 +2236,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
+      // Note: Uses local timezone (getFullYear/getMonth/getDate) rather than UTC,
+      // which is intentional — loan dates should reflect the user's local date.
       const iso = (dt) => {
         const y = dt.getFullYear();
         const m = String(dt.getMonth() + 1).padStart(2, '0');

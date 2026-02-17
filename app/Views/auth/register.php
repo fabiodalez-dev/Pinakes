@@ -16,7 +16,7 @@ $registerRoute = route_path('register');
     <title><?= __('Registrazione') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
 
-    <link rel="icon" type="image/x-icon" href="<?= url('/favicon.ico') ?>">
+    <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     
     <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
     <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
@@ -47,7 +47,7 @@ $registerRoute = route_path('register');
 
     <!-- Registration Form -->
     <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-      <form method="post" action="<?= $registerRoute ?>" class="space-y-6">
+      <form method="post" action="<?= htmlspecialchars($registerRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
         
         <?php if (isset($_GET['error'])): ?>
@@ -285,7 +285,7 @@ $registerRoute = route_path('register');
           </div>
           <div class="ml-2">
             <label for="privacy_acceptance" class="text-sm font-medium text-gray-700">
-              <?= __('Accetto la') ?> <a href="<?= route_path('privacy') ?>" class="text-gray-600 hover:underline"><?= __('Privacy Policy') ?></a>.
+              <?= __('Accetto la') ?> <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-600 hover:underline"><?= __('Privacy Policy') ?></a>.
             </label>
             <span id="privacy_acceptance-error" class="text-sm text-red-600 mt-1 hidden block" role="alert" aria-live="polite"></span>
           </div>
@@ -304,7 +304,7 @@ $registerRoute = route_path('register');
       <div class="mt-6 text-center">
         <p class="text-gray-600 text-sm">
           <?= __('Hai già un account?') ?> 
-          <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 hover:text-gray-800 transition-colors">
+          <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="font-medium text-gray-600 hover:text-gray-800 transition-colors">
             <?= __('Accedi') ?>
           </a>
         </p>
@@ -314,10 +314,10 @@ $registerRoute = route_path('register');
     <!-- Footer Links -->
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= route_path('privacy') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= route_path('contact') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
           <?= __('Contatti') ?>
         </a>
       </div>
