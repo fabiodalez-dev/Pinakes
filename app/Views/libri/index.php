@@ -680,8 +680,12 @@ document.addEventListener('DOMContentLoaded', function() {
             isbnHtml = `<div class="text-xs text-gray-400 mt-0.5 font-mono">${escapeHtml(row.isbn13 || row.isbn10)}</div>`;
           }
 
+          const safeId = parseInt(row.id, 10);
+          const titleLink = Number.isFinite(safeId)
+            ? `<a href="${window.BASE_PATH}/admin/libri/${safeId}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline line-clamp-2 leading-tight">${titolo}</a>`
+            : `<span class="font-medium text-gray-900 line-clamp-2 leading-tight">${titolo}</span>`;
           return `<div class="min-w-0">
-            <a href="${window.BASE_PATH}/admin/libri/${row.id}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline line-clamp-2 leading-tight">${titolo}</a>
+            ${titleLink}
             ${sottotitolo}${autoriHtml}${editoreHtml}${isbnHtml}
           </div>`;
         }
@@ -727,14 +731,16 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(data, type, row) {
           if (!row || data == null) return '<span class="text-gray-400">-</span>';
+          const safeActionId = parseInt(data, 10);
+          if (!Number.isFinite(safeActionId)) return '<span class="text-gray-400">-</span>';
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="${window.BASE_PATH}/admin/libri/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+            <a href="${window.BASE_PATH}/admin/libri/${safeActionId}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="${window.BASE_PATH}/admin/libri/modifica/${data}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+            <a href="${window.BASE_PATH}/admin/libri/modifica/${safeActionId}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button onclick="deleteBook(${data})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
+            <button onclick="deleteBook(${safeActionId})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;

@@ -486,11 +486,19 @@ class EventsController
      */
     private function generateSlug(string $title, \mysqli $db, ?int $excludeId = null): string
     {
-        // Convert to lowercase and replace spaces with hyphens
-        $slug = strtolower($title);
-
-        // Remove accents
-        $slug = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $slug);
+        // Transliterate Unicode → ASCII before lowercasing.
+        // Prefer intl Transliterator (handles all Unicode correctly),
+        // fall back to iconv (buggy on macOS with some sequences)
+        if (class_exists('Transliterator')) {
+            $t = \Transliterator::create('Any-Latin; Latin-ASCII');
+            $slug = ($t !== null) ? $t->transliterate($title) : $title;
+        } else {
+            $slug = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $title);
+            if ($slug === false) {
+                $slug = $title;
+            }
+        }
+        $slug = strtolower($slug);
 
         // Remove special characters
         $slug = preg_replace('/[^a-z0-9\s-]/', '', $slug);

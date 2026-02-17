@@ -1299,7 +1299,12 @@ $htmlLang = substr($currentLocale, 0, 2);
     </script>
 </head>
 
-<body class="<?= $_SERVER['REQUEST_URI'] === '/' || $_SERVER['REQUEST_URI'] === '/index.php' ? 'home' : '' ?>">
+<?php
+  $basePath = \App\Support\HtmlHelper::getBasePath();
+  $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+  $isHome = ($requestPath === ($basePath ?: '/') || $requestPath === $basePath . '/' || $requestPath === $basePath . '/index.php');
+?>
+<body class="<?= $isHome ? 'home' : '' ?>">
     <!-- Minimalist Header -->
     <div class="header-container">
         <div class="header-main">
@@ -1728,7 +1733,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             }
 
             function displaySearchResults(results, container) {
-                if (results.length === 0) {
+                if (!Array.isArray(results) || results.length === 0) {
                     container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: #9ca3af;">' + __('Nessun risultato trovato') + '</div>';
                     container.style.display = 'block';
                     return;

@@ -13,12 +13,21 @@ class SearchController
     public function authors(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
-        $limit = min(max((int)($request->getQueryParams()['limit'] ?? 200), 1), 200);
-        $rows=[];
+        $rows = [];
         if ($q !== '') {
-            $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT ?");
-            $stmt->bind_param('si', $s, $limit);
+            // Split query into words — each word must match (AND logic)
+            $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
+            $conditions = [];
+            $params = [];
+            $types = '';
+            foreach ($words as $word) {
+                $conditions[] = 'nome LIKE ?';
+                $params[] = '%' . $word . '%';
+                $types .= 's';
+            }
+            $sql = "SELECT id, nome AS label FROM autori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome";
+            $stmt = $db->prepare($sql);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -26,9 +35,35 @@ class SearchController
                 $rows[] = $r;
             }
         } else {
-            // Return all authors when no query is provided (for Choices.js initial load)
-            $stmt = $db->prepare("SELECT id, nome AS label FROM autori ORDER BY nome LIMIT ?");
-            $stmt->bind_param('i', $limit);
+            // Return all authors (for Choices.js initial load)
+            $res = $db->query("SELECT id, nome AS label FROM autori ORDER BY nome");
+            while ($r = $res->fetch_assoc()) {
+                $r['label'] = HtmlHelper::decode($r['label']);
+                $rows[] = $r;
+            }
+        }
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function publishers(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $rows = [];
+        if ($q !== '') {
+            // Split query into words — each word must match (AND logic)
+            $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
+            $conditions = [];
+            $params = [];
+            $types = '';
+            foreach ($words as $word) {
+                $conditions[] = 'nome LIKE ?';
+                $params[] = '%' . $word . '%';
+                $types .= 's';
+            }
+            $sql = "SELECT id, nome AS label FROM editori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome LIMIT 20";
+            $stmt = $db->prepare($sql);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -36,26 +71,7 @@ class SearchController
                 $rows[] = $r;
             }
         }
-        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
-        return $response->withHeader('Content-Type', 'application/json');
-    }
-
-    public function publishers(Request $request, Response $response, mysqli $db): Response
-    {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
-        $rows=[];
-        if ($q !== '') {
-            $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, nome AS label FROM editori WHERE nome LIKE ? ORDER BY nome LIMIT 20");
-            $stmt->bind_param('s', $s);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            while ($r = $res->fetch_assoc()) { 
-                $r['label'] = HtmlHelper::decode($r['label']); 
-                $rows[] = $r; 
-            }
-        }
-        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        $response->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -261,10 +277,18 @@ class SearchController
     private function searchAuthors(mysqli $db, string $query): array
     {
         $results = [];
-        $s = '%'.$query.'%';
-        
-        $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT 5");
-        $stmt->bind_param('s', $s);
+        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $conditions = [];
+        $params = [];
+        $types = '';
+        foreach ($words as $word) {
+            $conditions[] = 'nome LIKE ?';
+            $params[] = '%' . $word . '%';
+            $types .= 's';
+        }
+        $sql = "SELECT id, nome AS label FROM autori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome LIMIT 5";
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
         
@@ -283,10 +307,18 @@ class SearchController
     private function searchPublishers(mysqli $db, string $query): array
     {
         $results = [];
-        $s = '%'.$query.'%';
-        
-        $stmt = $db->prepare("SELECT id, nome AS label FROM editori WHERE nome LIKE ? ORDER BY nome LIMIT 5");
-        $stmt->bind_param('s', $s);
+        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $conditions = [];
+        $params = [];
+        $types = '';
+        foreach ($words as $word) {
+            $conditions[] = 'nome LIKE ?';
+            $params[] = '%' . $word . '%';
+            $types .= 's';
+        }
+        $sql = "SELECT id, nome AS label FROM editori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome LIMIT 5";
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
         
@@ -351,16 +383,25 @@ class SearchController
     private function searchAuthorsWithDetails(mysqli $db, string $query): array
     {
         $results = [];
-        $s = '%'.$query.'%';
+        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $conditions = [];
+        $params = [];
+        $types = '';
+        foreach ($words as $word) {
+            $conditions[] = 'a.nome LIKE ?';
+            $params[] = '%' . $word . '%';
+            $types .= 's';
+        }
 
-        $stmt = $db->prepare("
+        $sql = "
             SELECT a.id, a.nome, a.biografia,
                    (SELECT COUNT(*) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL) as libro_count
             FROM autori a
-            WHERE a.nome LIKE ?
+            WHERE " . implode(' AND ', $conditions) . "
             ORDER BY a.nome LIMIT 4
-        ");
-        $stmt->bind_param('s', $s);
+        ";
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
 
@@ -383,16 +424,25 @@ class SearchController
     private function searchPublishersWithDetails(mysqli $db, string $query): array
     {
         $results = [];
-        $s = '%'.$query.'%';
+        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $conditions = [];
+        $params = [];
+        $types = '';
+        foreach ($words as $word) {
+            $conditions[] = 'e.nome LIKE ?';
+            $params[] = '%' . $word . '%';
+            $types .= 's';
+        }
 
-        $stmt = $db->prepare("
+        $sql = "
             SELECT e.id, e.nome, e.indirizzo,
                    (SELECT COUNT(*) FROM libri l2 WHERE l2.editore_id = e.id AND l2.deleted_at IS NULL) as libro_count
             FROM editori e
-            WHERE e.nome LIKE ?
+            WHERE " . implode(' AND ', $conditions) . "
             ORDER BY e.nome LIMIT 3
-        ");
-        $stmt->bind_param('s', $s);
+        ";
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
 

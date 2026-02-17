@@ -199,7 +199,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                 <div>
                                     <p class="text-sm text-gray-600 mb-2"><?= __("Link") ?>:</p>
                                     <a href="#" class="preview-link font-medium"
-                                       style="color: <?= $colors['primary'] ?? '#d70161' ?>">
+                                       style="color: <?= htmlspecialchars($colors['primary'] ?? '#d70161', ENT_QUOTES, 'UTF-8') ?>">
                                         <?= __("Link di esempio") ?>
                                     </a>
                                 </div>
@@ -207,9 +207,9 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                 <div>
                                     <p class="text-sm text-gray-600 mb-2"><?= __("Bottone CTA") ?>:</p>
                                     <button type="button" class="preview-btn-cta w-full px-4 py-2 rounded-lg font-medium"
-                                            style="background: <?= $colors['button'] ?? '#d70262' ?>;
-                                                   color: <?= $colors['button_text'] ?? '#ffffff' ?>;
-                                                   border: 1.5px solid <?= $colors['button'] ?? '#d70262' ?>;">
+                                            style="background: <?= htmlspecialchars($colors['button'] ?? '#d70262', ENT_QUOTES, 'UTF-8') ?>;
+                                                   color: <?= htmlspecialchars($colors['button_text'] ?? '#ffffff', ENT_QUOTES, 'UTF-8') ?>;
+                                                   border: 1.5px solid <?= htmlspecialchars($colors['button'] ?? '#d70262', ENT_QUOTES, 'UTF-8') ?>;">
                                         <?= __("Dettagli") ?>
                                     </button>
                                 </div>
@@ -217,9 +217,9 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                 <div>
                                     <p class="text-sm text-gray-600 mb-2"><?= __("Bottone Primario") ?>:</p>
                                     <button type="button" class="preview-btn-primary w-full px-4 py-2 rounded-lg font-medium"
-                                            style="background: <?= $colors['secondary'] ?? '#111827' ?>;
+                                            style="background: <?= htmlspecialchars($colors['secondary'] ?? '#111827', ENT_QUOTES, 'UTF-8') ?>;
                                                    color: #fff;
-                                                   border: 1.5px solid <?= $colors['secondary'] ?? '#111827' ?>;">
+                                                   border: 1.5px solid <?= htmlspecialchars($colors['secondary'] ?? '#111827', ENT_QUOTES, 'UTF-8') ?>;">
                                         <?= __("Richiedi Prestito") ?>
                                     </button>
                                 </div>

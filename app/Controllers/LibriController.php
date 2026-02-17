@@ -135,7 +135,9 @@ class LibriController
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
+                ...(defined('CURLOPT_PROTOCOLS_STR')
+                    ? [CURLOPT_PROTOCOLS_STR => 'https,http']
+                    : [CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
             ]);
             curl_exec($ch);
             $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
@@ -162,8 +164,12 @@ class LibriController
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
-                CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
+                ...(defined('CURLOPT_PROTOCOLS_STR')
+                    ? [CURLOPT_PROTOCOLS_STR => 'https,http']
+                    : [CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
+                ...(defined('CURLOPT_REDIR_PROTOCOLS_STR')
+                    ? [CURLOPT_REDIR_PROTOCOLS_STR => 'https,http']
+                    : [CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
             ]);
 
             $imageData = curl_exec($ch);
@@ -3036,8 +3042,7 @@ class LibriController
 
     private function parseRequestBody(Request $request): array
     {
-        $method = 'getParsedBody';
-        $parsed = $request->$method();
+        $parsed = $request->getParsedBody();
         if ($parsed !== null) {
             return (array) $parsed;
         }

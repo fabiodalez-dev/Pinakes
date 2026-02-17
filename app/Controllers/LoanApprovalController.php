@@ -893,11 +893,19 @@ class LoanApprovalController
                 $reassignmentService->flushDeferredNotifications();
             }
 
-            // Notify wishlist users AFTER commit
+            // Notify wishlist users AFTER commit, only if book has available copies
             try {
-                $notificationService = new \App\Support\NotificationService($db);
-                $notificationService->notifyWishlistBookAvailability($libroId);
-            } catch (Exception $e) {
+                $availStmt = $db->prepare("SELECT copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL");
+                $availStmt->bind_param('i', $libroId);
+                $availStmt->execute();
+                $availResult = $availStmt->get_result()->fetch_assoc();
+                $availStmt->close();
+
+                if ($availResult && (int)($availResult['copie_disponibili'] ?? 0) > 0) {
+                    $notificationService = new \App\Support\NotificationService($db);
+                    $notificationService->notifyWishlistBookAvailability($libroId);
+                }
+            } catch (\Throwable $e) {
                 error_log("[returnLoan] Wishlist notify error for book {$libroId}: " . $e->getMessage());
             }
 

@@ -94,11 +94,21 @@ if (!function_exists('slugify_text')) {
         }
 
         $decoded = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
-        $decoded = strtolower($decoded);
-        $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT', $decoded);
-        if ($transliterated !== false) {
-            $decoded = $transliterated;
+
+        // Transliterate Unicode → ASCII. Prefer intl Transliterator (handles all
+        // Unicode correctly), fall back to iconv (buggy on macOS with some sequences)
+        if (class_exists('Transliterator')) {
+            $t = \Transliterator::create('Any-Latin; Latin-ASCII');
+            if ($t !== null) {
+                $decoded = $t->transliterate($decoded);
+            }
+        } else {
+            $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT', $decoded);
+            if ($transliterated !== false) {
+                $decoded = $transliterated;
+            }
         }
+        $decoded = strtolower($decoded);
 
         $decoded = preg_replace('/[^a-z0-9\s-]/', '', $decoded) ?? '';
         $decoded = preg_replace('/[\s-]+/', '-', $decoded) ?? '';

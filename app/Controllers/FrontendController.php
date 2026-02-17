@@ -1264,12 +1264,11 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di " . htmlspecialchars($publisher['nome'], ENT_QUOTES, 'UTF-8');
+        $title = "Libri di " . $publisher['nome'];
 
-        // SEO Variables
-        $publisherName = htmlspecialchars($publisher['nome'], ENT_QUOTES, 'UTF-8');
-        $seoTitle = "Libri di {$publisherName} - Catalogo Editore | Biblioteca";
-        $seoDescription = "Scopri tutti i libri pubblicati da {$publisherName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
+        // SEO Variables — escaping is handled at template output time by HtmlHelper::e()
+        $seoTitle = "Libri di {$publisher['nome']} - Catalogo Editore | Biblioteca";
+        $seoDescription = "Scopri tutti i libri pubblicati da {$publisher['nome']} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
         $seoCanonical = absoluteUrl(RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']));
         $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
@@ -1353,12 +1352,11 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di genere " . htmlspecialchars($genre['nome'], ENT_QUOTES, 'UTF-8');
+        $title = "Libri di genere " . $genre['nome'];
 
-        // SEO Variables
-        $genreName = htmlspecialchars($genre['nome'], ENT_QUOTES, 'UTF-8');
-        $seoTitle = "Libri di {$genreName} - Catalogo per Genere | Biblioteca";
-        $seoDescription = "Esplora tutti i libri del genere {$genreName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
+        // SEO Variables — escaping is handled at template output time by HtmlHelper::e()
+        $seoTitle = "Libri di {$genre['nome']} - Catalogo per Genere | Biblioteca";
+        $seoDescription = "Esplora tutti i libri del genere {$genre['nome']} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
         $seoCanonical = absoluteUrl(RouteTranslator::route('genre') . '/' . urlencode($genre['nome']));
         $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
@@ -1885,7 +1883,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $ogDescription = $event['og_description'] ?: $seoDescription;
         $ogType = $event['og_type'] ?: 'article';
         $ogUrl = $event['og_url'] ?: $seoCanonical;
-        $ogImage = $event['og_image'] ? absoluteUrl($event['og_image']) : ($event['featured_image'] ? absoluteUrl($event['featured_image']) : absoluteUrl('/assets/social.jpg'));
+        $ogImage = !empty($event['og_image'])
+            ? absoluteUrl($event['og_image'])
+            : (!empty($event['featured_image']) ? absoluteUrl($event['featured_image']) : absoluteUrl('/assets/social.jpg'));
 
         // Twitter Card tags
         $twitterCard = $event['twitter_card'] ?: 'summary_large_image';

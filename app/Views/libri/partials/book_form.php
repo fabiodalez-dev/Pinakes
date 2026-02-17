@@ -1223,6 +1223,43 @@ function initializeChoicesJS() {
 
         loadAuthorsData(preselected);
 
+        // Server-side search: fetch matching authors on keystroke
+        let authorSearchTimeout = null;
+        authorsChoice.passedElement.element.addEventListener('search', async function(event) {
+            const query = (event.detail && event.detail.value) ? event.detail.value.trim() : '';
+            clearTimeout(authorSearchTimeout);
+            if (query.length < 2) return;
+
+            authorSearchTimeout = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`${window.BASE_PATH}/api/search/autori?q=${encodeURIComponent(query)}`);
+                    if (!resp.ok) return;
+                    const serverResults = await resp.json();
+
+                    // Get currently selected values to preserve them
+                    const selectedValues = new Set(
+                        (authorsChoice.getValue(true) || []).map(v => String(v))
+                    );
+
+                    // Add server results that aren't already in the choices list
+                    const newChoices = (serverResults || [])
+                        .filter(a => !selectedValues.has(String(a.id)))
+                        .map(a => ({
+                            value: String(a.id),
+                            label: a.label,
+                            selected: false,
+                            customProperties: { isNew: false }
+                        }));
+
+                    if (newChoices.length > 0) {
+                        authorsChoice.setChoices(newChoices, 'value', 'label', false);
+                    }
+                } catch (e) {
+                    // Silent fail — client-side search still works as fallback
+                }
+            }, 300);
+        });
+
         const wrapper = element.closest('.choices');
         const internalInput = wrapper ? wrapper.querySelector('.choices__input--cloned') : null;
 

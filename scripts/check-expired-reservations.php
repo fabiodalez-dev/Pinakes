@@ -67,7 +67,7 @@ while ($reservation = $result->fetch_assoc()) {
             SET stato = 'scaduto',
                 attivo = 0,
                 updated_at = NOW(),
-                note = CONCAT(COALESCE(note, ''), '\n[System] Scaduta il " . date('d/m/Y') . "')
+                note = CONCAT(COALESCE(note, ''), '\n[System] Scaduta il ', DATE_FORMAT(CURDATE(), '%d/%m/%Y'))
             WHERE id = ?
         ");
         $updateStmt->bind_param('i', $id);

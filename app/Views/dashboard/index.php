@@ -803,7 +803,7 @@ unset($loanActionTranslations);
 </style>
 
 <!-- FullCalendar (local) -->
-<script src="<?= assetUrl('fullcalendar.min.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('fullcalendar.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <?php
 // Prepare calendar events JSON - show only START and END events, not duration
 $calendarEventsJson = [];

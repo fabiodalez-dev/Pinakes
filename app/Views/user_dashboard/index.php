@@ -444,6 +444,9 @@ $profileRoute = route_path('profile');
                 'autore' => ''
               ]);
               $scadenza = strtotime($prestito['data_scadenza'] ?? '');
+              if ($scadenza === false) {
+                  $scadenza = 0;
+              }
               $oggi = time();
               $giorni_rimanenti = ceil(($scadenza - $oggi) / 86400);
               $scaduto = $giorni_rimanenti < 0;

@@ -825,7 +825,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                   let iconColor = 'text-gray-500';
                   let identifierHtml = '';
                   const safeLabel = escapeHtml(String(item.label ?? ''));
-                  const safeUrl = item.url ? encodeURI(String(item.url)) : '#';
+                  const rawUrl = item.url ? String(item.url) : '';
+                  const safeUrl = rawUrl && !/^javascript:/i.test(rawUrl)
+                    ? encodeURI(rawUrl.startsWith('http') ? rawUrl : (window.BASE_PATH || '') + rawUrl)
+                    : '#';
 
                   switch (item.type) {
                     case 'book':
@@ -1065,7 +1068,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                   let iconColor = 'text-gray-500';
                   let identifierHtml = '';
                   const safeLabel = escapeHtml(String(item.label || item.title || ''));
-                  const safeUrl = item.url ? encodeURI(String(item.url)) : '#';
+                  const rawUrl = item.url ? String(item.url) : '';
+                  const safeUrl = rawUrl && !/^javascript:/i.test(rawUrl)
+                    ? encodeURI(rawUrl.startsWith('http') ? rawUrl : (window.BASE_PATH || '') + rawUrl)
+                    : '#';
                   const safeDescription = escapeHtml(String(item.description || ''));
 
                   switch (item.type) {
@@ -1171,7 +1177,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             }
 
             const isUnread = !notif.is_read;
-            const hasLink = Boolean(notif.link);
+            const hasLink = Boolean(notif.link) && !/^javascript:/i.test(String(notif.link));
             const rawLink = hasLink ? (String(notif.link).startsWith('http') ? String(notif.link) : window.BASE_PATH + String(notif.link)) : '';
             const escapedLink = hasLink ? escapeHtml(rawLink) : '';
 
@@ -1445,11 +1451,12 @@ $htmlLang = substr($currentLocale, 0, 2);
     // Active navigation highlighting
     function initializeActiveNavigation() {
       const currentPath = window.location.pathname;
+      const basePath = window.BASE_PATH || '';
       const navLinks = document.querySelectorAll('.nav-link');
 
       navLinks.forEach(link => {
         const href = link.getAttribute('href');
-        if (currentPath.startsWith(href) && href !== '/') {
+        if (currentPath.startsWith(href) && href !== '/' && href !== basePath && href !== basePath + '/') {
           link.classList.add('bg-rose-50', 'text-rose-600', 'border-r-2', 'border-rose-600');
           link.classList.remove('text-gray-700');
         }

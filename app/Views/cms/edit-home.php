@@ -957,6 +957,8 @@ document.addEventListener('keydown', function(e) {
 
 </script>
 
+<!-- Load Sortable.js before the script that uses it -->
+<script src="<?= assetUrl('vendor/sortablejs/Sortable.min.js') ?>"></script>
 <!-- TinyMCE -->
 <script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
 <script>
@@ -1149,6 +1151,3 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-
-<!-- Load Sortable.js -->
-<script src="<?= assetUrl('vendor/sortablejs/Sortable.min.js') ?>"></script>

@@ -96,7 +96,7 @@ $pluginSettings = $pluginSettings ?? [];
                     $hasApiConfig = $isApiBookScraper && !empty($apiBookScraperSettings['api_endpoint'] ?? false) && !empty($apiBookScraperSettings['api_key_exists'] ?? false);
                     $isApiEnabled = $isApiBookScraper && !empty($apiBookScraperSettings['enabled'] ?? false);
                     ?>
-                    <div class="p-6 hover:bg-gray-50 transition-colors" data-plugin-id="<?= $plugin['id'] ?>">
+                    <div class="p-6 hover:bg-gray-50 transition-colors" data-plugin-id="<?= (int)$plugin['id'] ?>">
                         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                             <!-- Plugin Info -->
                             <div class="flex-1">
@@ -211,7 +211,7 @@ $pluginSettings = $pluginSettings ?? [];
                                     <?php if ($hasGoogleKey): ?>
                                         <button type="button"
                                             class="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-all duration-200 text-sm font-medium"
-                                            data-plugin-id="<?= $plugin['id'] ?>"
+                                            data-plugin-id="<?= (int)$plugin['id'] ?>"
                                             data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
                                             data-plugin-type="open-library" data-has-key="1" onclick="openPluginSettingsModal(this)">
                                             <i class="fas fa-check-circle mr-1"></i>
@@ -220,7 +220,7 @@ $pluginSettings = $pluginSettings ?? [];
                                     <?php else: ?>
                                         <button type="button"
                                             class="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-all duration-200 text-sm font-medium"
-                                            data-plugin-id="<?= $plugin['id'] ?>"
+                                            data-plugin-id="<?= (int)$plugin['id'] ?>"
                                             data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
                                             data-plugin-type="open-library" data-has-key="0" onclick="openPluginSettingsModal(this)">
                                             <i class="fas fa-exclamation-triangle mr-1"></i>
@@ -231,7 +231,7 @@ $pluginSettings = $pluginSettings ?? [];
                                 <?php if ($isApiBookScraper): ?>
                                     <button type="button"
                                         class="px-4 py-2 <?= $hasApiConfig ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-orange-100 text-orange-700 hover:bg-orange-200' ?> rounded-lg transition-all duration-200 text-sm font-medium"
-                                        data-plugin-id="<?= $plugin['id'] ?>"
+                                        data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
                                         data-plugin-type="api-book-scraper" data-has-config="<?= $hasApiConfig ? '1' : '0' ?>"
                                         data-api-endpoint="<?= HtmlHelper::e($apiBookScraperSettings['api_endpoint'] ?? '') ?>"
@@ -249,7 +249,7 @@ $pluginSettings = $pluginSettings ?? [];
                                     ?>
                                     <button type="button"
                                         class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium"
-                                        data-plugin-id="<?= $plugin['id'] ?>"
+                                        data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
                                         data-enable-server="<?= ($z39Settings['enable_server'] ?? '0') === '1' ? '1' : '0' ?>"
                                         data-enable-client="<?= ($z39Settings['enable_client'] ?? '0') === '1' ? '1' : '0' ?>"
@@ -271,13 +271,13 @@ $pluginSettings = $pluginSettings ?? [];
                                     </a>
                                 <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
-                                    <button onclick="deactivatePlugin(<?= $plugin['id'] ?>)"
+                                    <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"
                                         class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-pause mr-1"></i>
                                         <?= __("Disattiva") ?>
                                     </button>
                                 <?php else: ?>
-                                    <button onclick="activatePlugin(<?= $plugin['id'] ?>)"
+                                    <button onclick="activatePlugin(<?= (int)$plugin['id'] ?>)"
                                         class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-check mr-1"></i>
                                         <?= __("Attiva") ?>
@@ -285,7 +285,7 @@ $pluginSettings = $pluginSettings ?? [];
                                 <?php endif; ?>
 
                                 <button
-                                    data-plugin-id="<?= $plugin['id'] ?>"
+                                    data-plugin-id="<?= (int)$plugin['id'] ?>"
                                     data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
                                     onclick="uninstallPlugin(this.dataset.pluginId, this.dataset.pluginName)"
                                     class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all duration-200 text-sm font-medium">

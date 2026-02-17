@@ -486,7 +486,7 @@ class CmsController
             $_SESSION['success_message'] = __('Contenuti homepage aggiornati con successo!');
         }
 
-        return $response->withHeader('Location', '/admin/cms/home')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/cms/home'))->withStatus(302);
     }
 
     /**

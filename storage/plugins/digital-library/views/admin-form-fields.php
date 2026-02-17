@@ -195,10 +195,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (displayInput) displayInput.value = uploadedUrl;
 
             if (resultEl) {
-                const safeFileName = escapeHtml(file.name);
-                const safeFileSize = escapeHtml((file.size / 1024 / 1024).toFixed(2));
-                const safeUrl = escapeHtml(uploadedUrl);
-
                 resultEl.classList.remove('hidden');
                 resultEl.textContent = '';
                 const wrapper = document.createElement('div');

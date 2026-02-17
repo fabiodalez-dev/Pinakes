@@ -162,8 +162,8 @@
 - .installed
 - config.local.php
 - config.local.sample.php
-- todo.md
-- updater.md
+- /todo.md
+- /updater.md
 - .distignore
 - .rsync-filter
 - error_log
