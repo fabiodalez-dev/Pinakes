@@ -442,9 +442,7 @@ class FrontendController
         $stmt_books = $db->prepare($books_query);
         $final_params = array_merge($query_params, [$limit, $offset]);
         $final_types = $param_types . 'ii';
-        if (!empty($final_params)) {
-            $stmt_books->bind_param($final_types, ...$final_params);
-        }
+        $stmt_books->bind_param($final_types, ...$final_params);
         $stmt_books->execute();
         $books_result = $stmt_books->get_result();
 
@@ -527,9 +525,7 @@ class FrontendController
         $stmt_books = $db->prepare($books_query);
         $final_params = array_merge($query_params, [$limit, $offset]);
         $final_types = $param_types . 'ii';
-        if (!empty($final_params)) {
-            $stmt_books->bind_param($final_types, ...$final_params);
-        }
+        $stmt_books->bind_param($final_types, ...$final_params);
         $stmt_books->execute();
         $books_result = $stmt_books->get_result();
 

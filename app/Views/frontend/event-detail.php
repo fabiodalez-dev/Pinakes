@@ -1,4 +1,7 @@
 <?php
+/** @var \mysqli $db */
+/** @var array $event */
+
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\ContentSanitizer;
@@ -296,7 +299,7 @@ ob_start();
         <div class="event-breadcrumb" aria-label="<?= __("Percorso di navigazione") ?>">
             <a href="<?= HtmlHelper::e(url('/')) ?>"><?= __("Home") ?></a>
             <span>/</span>
-            <a href="<?= HtmlHelper::e(url('/events')) ?>"><?= __("Eventi") ?></a>
+            <a href="<?= HtmlHelper::e(route_path('events')) ?>"><?= __("Eventi") ?></a>
             <span>/</span>
             <span><?= HtmlHelper::e($event['title']) ?></span>
         </div>
@@ -343,7 +346,7 @@ ob_start();
             </div>
 
             <div class="event-back">
-                <a href="<?= HtmlHelper::e(url('/events')) ?>">
+                <a href="<?= HtmlHelper::e(route_path('events')) ?>">
                     <i class="fas fa-arrow-left"></i>
                     <?= __("Torna alla panoramica eventi") ?>
                 </a>

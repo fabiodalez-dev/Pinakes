@@ -4,6 +4,7 @@
  *
  * Form to edit an existing language.
  */
+/** @var array $language */
 
 use App\Support\HtmlHelper;
 ?>

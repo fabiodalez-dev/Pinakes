@@ -1,4 +1,10 @@
 <?php
+/** @var string $seoCanonical */
+/** @var string $seoTitle */
+/** @var string $seoDescription */
+/** @var int $totalPages */
+/** @var int $page */
+
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 

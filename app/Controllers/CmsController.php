@@ -209,6 +209,7 @@ class CmsController
                                 }
 
                                 // SECURITY: Generate cryptographically secure random filename
+                                $randomSuffix = '';
                                 try {
                                     $randomSuffix = bin2hex(random_bytes(8));
                                 } catch (\Exception $e) {

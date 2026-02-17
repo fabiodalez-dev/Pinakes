@@ -1,4 +1,7 @@
 <?php
+/** @var string $title */
+/** @var string $privacyText */
+
 $additional_css = "
 <style>
     main {

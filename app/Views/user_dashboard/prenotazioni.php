@@ -1,4 +1,8 @@
 <?php
+/** @var array $activePrestiti */
+/** @var array $items */
+/** @var array $pastPrestiti */
+/** @var array $myReviews */
 use App\Support\Csrf;
 use App\Support\HtmlHelper;
 

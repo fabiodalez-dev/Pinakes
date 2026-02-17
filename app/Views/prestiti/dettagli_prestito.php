@@ -1,4 +1,6 @@
 <?php
+/** @var array $prestito */
+$prestito = $prestito ?? [];
 // Helper function to generate a human-readable status string
 function formatLoanStatus($status) {
     return match ($status) {

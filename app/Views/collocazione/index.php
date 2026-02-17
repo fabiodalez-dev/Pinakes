@@ -1,3 +1,8 @@
+<?php
+/** @var array $scaffali */
+/** @var array $posizioni */
+/** @var array $mensole */
+?>
 <link href="<?= assetUrl('css/sortable.min.css') ?>" rel="stylesheet">
 
 <div class="min-h-screen bg-gray-50 py-6">

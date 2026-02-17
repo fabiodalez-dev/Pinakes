@@ -173,12 +173,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => waitForLibraries(callback, attempts - 1), 200);
     };
 
-    const escapeHtml = (str) => {
-        const div = document.createElement('div');
-        div.appendChild(document.createTextNode(String(str ?? '')));
-        return div.innerHTML;
-    };
-
     const bindUploadEvents = (uppyInstance, type) => {
         const inputId = type === 'audio' ? 'audio_url' : 'file_url';
         const displayId = type === 'audio' ? 'audio_url_display' : 'file_url_display';

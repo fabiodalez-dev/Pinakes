@@ -147,9 +147,7 @@ class PrestitiApiController
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
-        if (!empty($params)) {
-            $stmt->bind_param($param_types, ...$params);
-        }
+        $stmt->bind_param($param_types, ...$params);
 
         $stmt->execute();
         $res = $stmt->get_result();

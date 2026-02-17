@@ -1,4 +1,5 @@
 <?php
+/** @var array $sections */
 use App\Support\HtmlHelper;
 use App\Support\Csrf;
 

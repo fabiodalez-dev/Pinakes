@@ -1,4 +1,7 @@
-<?php use App\Support\HtmlHelper; ?>
+<?php
+/** @var int $unreadCount */
+use App\Support\HtmlHelper;
+?>
 
 <div class="p-6">
   <div class="mb-6">

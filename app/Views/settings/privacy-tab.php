@@ -1,4 +1,8 @@
-<?php use App\Support\HtmlHelper; ?>
+<?php
+/** @var string $activeTab */
+/** @var string $csrfToken */
+use App\Support\HtmlHelper;
+?>
 <?php $cookieBannerTexts = $cookieBannerTexts ?? []; ?>
 <section id="privacy" data-settings-panel="privacy" class="settings-panel <?php echo $activeTab === 'privacy' ? 'block' : 'hidden'; ?>">
   <form action="<?= htmlspecialchars(url('/admin/settings/privacy'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">

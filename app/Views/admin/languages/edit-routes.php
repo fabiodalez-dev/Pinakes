@@ -4,6 +4,8 @@
  *
  * Allows editing route translations for a specific language.
  */
+/** @var array $language */
+/** @var array $routes */
 
 use App\Support\HtmlHelper;
 ?>
@@ -244,7 +246,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const inputs = form.querySelectorAll('input[name^="routes["]');
         let hasErrors = false;
 
-        inputs.forEach(input => {
+        for (const input of inputs) {
             const value = input.value.trim();
 
             // Check starts with /
@@ -253,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 input.focus();
                 e.preventDefault();
                 hasErrors = true;
-                return false;
+                break;
             }
 
             // Check no spaces
@@ -262,9 +264,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 input.focus();
                 e.preventDefault();
                 hasErrors = true;
-                return false;
+                break;
             }
-        });
+        }
 
         if (!hasErrors) {
             // Show saving indicator

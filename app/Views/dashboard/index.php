@@ -1,4 +1,6 @@
 <?php
+/** @var array $stats */
+/** @var array $calendarEvents */
 use App\Support\ConfigStore;
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 ?>

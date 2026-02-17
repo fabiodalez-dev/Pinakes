@@ -1,3 +1,7 @@
+<?php
+/** @var string $title */
+/** @var array $pageData */
+?>
 <div class="max-w-7xl mx-auto py-6 px-4">
   <div class="mb-6">
     <div class="flex items-center justify-between">

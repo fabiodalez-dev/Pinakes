@@ -1,4 +1,5 @@
 <?php
+/** @var string $content */
 // Expects $content
 
 use App\Support\Branding;
@@ -24,7 +25,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?php echo HtmlHelper::e($appName); ?> - Sistema di Gestione Bibliotecaria</title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
-  <link rel="icon" type="image/x-icon" href="<?= url('/favicon.ico') ?>">
+  <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
   <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
   <link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>?v=<?= $appVersion ?>" />
   <link rel="stylesheet" href="<?= assetUrl('flatpickr-custom.css') ?>?v=<?= $appVersion ?>" />
@@ -90,7 +91,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
       <!-- Sidebar Header -->
       <div class="flex items-center justify-between px-6 py-5 flex-shrink-0">
-        <a href="<?= url('/') ?>" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
+        <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
           <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center">
             <?php if ($appLogo !== ''): ?>
               <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>"
@@ -119,7 +120,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?>
         </div>
         <div class="space-y-2 mt-3">
-          <a href="<?= url('/admin/libri/crea') ?>"
+          <a href="<?= htmlspecialchars(url('/admin/libri/crea'), ENT_QUOTES, 'UTF-8') ?>"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
               <i class="fas fa-plus text-sm text-gray-600"></i>
@@ -131,7 +132,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <?php if (!$isCatalogueMode): ?>
-            <a href="<?= url('/admin/prestiti/crea') ?>"
+            <a href="<?= htmlspecialchars(url('/admin/prestiti/crea'), ENT_QUOTES, 'UTF-8') ?>"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
                 <i class="fas fa-handshake text-sm text-gray-600"></i>
@@ -142,7 +143,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
             </a>
 
-            <a href="<?= url('/admin/loans/pending') ?>"
+            <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
                 <i class="fas fa-clock text-sm text-gray-600"></i>
@@ -154,7 +155,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </a>
           <?php endif; ?>
 
-          <a href="<?= url('/admin/maintenance/integrity-report') ?>"
+          <a href="<?= htmlspecialchars(url('/admin/maintenance/integrity-report'), ENT_QUOTES, 'UTF-8') ?>"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
               <i class="fas fa-shield-alt text-sm text-gray-600"></i>
@@ -177,7 +178,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
-          <a href="<?= url('/admin/updates') ?>" id="sidebar-updates-link"
+          <a href="<?= htmlspecialchars(url('/admin/updates'), ENT_QUOTES, 'UTF-8') ?>" id="sidebar-updates-link"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 relative">
               <i class="fas fa-sync-alt text-sm text-gray-600"></i>
@@ -202,7 +203,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </div>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/dashboard') ?>">
+            href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-tachometer-alt text-gray-600"></i>
@@ -214,7 +215,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/libri') ?>">
+            href="<?= htmlspecialchars(url('/admin/libri'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-book text-gray-600"></i>
@@ -226,7 +227,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/autori') ?>">
+            href="<?= htmlspecialchars(url('/admin/autori'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-user-edit text-gray-600"></i>
@@ -238,7 +239,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/editori') ?>">
+            href="<?= htmlspecialchars(url('/admin/editori'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-building text-gray-600"></i>
@@ -250,7 +251,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/generi') ?>">
+            href="<?= htmlspecialchars(url('/admin/generi'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-tags text-gray-600"></i>
@@ -263,7 +264,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
           <?php if (!$isCatalogueMode): ?>
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-              href="<?= url('/admin/prestiti') ?>">
+              href="<?= htmlspecialchars(url('/admin/prestiti'), ENT_QUOTES, 'UTF-8') ?>">
               <div
                 class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                 <i class="fas fa-handshake text-gray-600"></i>
@@ -276,7 +277,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           <?php endif; ?>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/collocazione') ?>">
+            href="<?= htmlspecialchars(url('/admin/collocazione'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-warehouse text-gray-600"></i>
@@ -288,7 +289,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/utenti') ?>">
+            href="<?= htmlspecialchars(url('/admin/utenti'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-users text-gray-600"></i>
@@ -300,7 +301,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/statistiche') ?>">
+            href="<?= htmlspecialchars(url('/admin/statistiche'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-chart-bar text-gray-600"></i>
@@ -312,7 +313,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </a>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-            href="<?= url('/admin/recensioni') ?>">
+            href="<?= htmlspecialchars(url('/admin/recensioni'), ENT_QUOTES, 'UTF-8') ?>">
             <div
               class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
               <i class="fas fa-star text-gray-600"></i>
@@ -325,7 +326,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
           <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-              href="<?= url('/admin/plugins') ?>">
+              href="<?= htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8') ?>">
               <div
                 class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                 <i class="fas fa-puzzle-piece text-gray-600"></i>
@@ -337,7 +338,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </a>
 
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-              href="<?= url('/admin/themes') ?>">
+              href="<?= htmlspecialchars(url('/admin/themes'), ENT_QUOTES, 'UTF-8') ?>">
               <div
                 class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                 <i class="fas fa-palette text-gray-600"></i>
@@ -358,7 +359,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
             <div class="space-y-1 mt-3">
               <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-                href="<?= url('/admin/settings') ?>">
+                href="<?= htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>">
                 <div
                   class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                   <i class="fas fa-cog text-gray-600"></i>
@@ -370,7 +371,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </a>
 
               <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-                href="<?= url('/admin/languages') ?>">
+                href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>">
                 <div
                   class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
                   <i class="fas fa-language text-gray-600"></i>
@@ -415,7 +416,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="text-sm font-medium text-gray-900"><?= __("Admin") ?></div>
             <div class="text-xs text-gray-500"><?= __("Sistema attivo") ?></div>
           </div>
-          <a href="<?= url('/admin/settings') ?>"
+          <a href="<?= htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>"
             class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
             title="<?= __('Impostazioni') ?>">
             <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
@@ -538,7 +539,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </div>
                   </div>
                   <div class="p-4 border-t border-gray-200 flex items-center justify-between">
-                    <a href="<?= url('/admin/notifications') ?>" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
+                    <a href="<?= htmlspecialchars(url('/admin/notifications'), ENT_QUOTES, 'UTF-8') ?>" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
                       <?= __("Vedi tutte le notifiche") ?>
                     </a>
                   </div>
@@ -546,7 +547,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
 
               <!-- Settings Button -->
-              <a href="<?= url('/admin/settings') ?>"
+              <a href="<?= htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>"
                 class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
                 title="<?= __('Impostazioni') ?>">
                 <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
@@ -585,18 +586,18 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <i class="fas fa-heart w-4 h-4"></i>
                         <span class="text-sm"><?= __("Preferiti") ?></span>
                       </a>
-                      <a href="<?= url('/admin/settings') ?>"
+                      <a href="<?= htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                         <i class="fas fa-cog w-4 h-4"></i>
                         <span class="text-sm"><?= __("Impostazioni") ?></span>
                       </a>
                       <?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
-                        <a href="<?= url('/admin/imports-history') ?>"
+                        <a href="<?= htmlspecialchars(url('/admin/imports-history'), ENT_QUOTES, 'UTF-8') ?>"
                           class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-history w-4 h-4 text-blue-600"></i>
                           <span class="text-sm"><?= __("Storico Import") ?></span>
                         </a>
-                        <a href="<?= url('/admin/security-logs') ?>"
+                        <a href="<?= htmlspecialchars(url('/admin/security-logs'), ENT_QUOTES, 'UTF-8') ?>"
                           class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                           <i class="fas fa-shield-alt w-4 h-4 text-red-600"></i>
                           <span class="text-sm"><?= __("Log Sicurezza") ?></span>
@@ -827,7 +828,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                   const safeLabel = escapeHtml(String(item.label ?? ''));
                   const rawUrl = item.url ? String(item.url) : '';
                   const safeUrl = rawUrl && !/^javascript:/i.test(rawUrl)
-                    ? encodeURI(rawUrl.startsWith('http') ? rawUrl : (window.BASE_PATH || '') + rawUrl)
+                    ? encodeURI(rawUrl)
                     : '#';
 
                   switch (item.type) {
@@ -1070,7 +1071,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                   const safeLabel = escapeHtml(String(item.label || item.title || ''));
                   const rawUrl = item.url ? String(item.url) : '';
                   const safeUrl = rawUrl && !/^javascript:/i.test(rawUrl)
-                    ? encodeURI(rawUrl.startsWith('http') ? rawUrl : (window.BASE_PATH || '') + rawUrl)
+                    ? encodeURI(rawUrl)
                     : '#';
                   const safeDescription = escapeHtml(String(item.description || ''));
 

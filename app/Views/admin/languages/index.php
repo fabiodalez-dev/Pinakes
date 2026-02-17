@@ -4,6 +4,7 @@
  *
  * Displays all languages with translation statistics and management actions.
  */
+/** @var array $languages */
 
 use App\Support\HtmlHelper;
 ?>

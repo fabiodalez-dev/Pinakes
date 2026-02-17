@@ -1,4 +1,7 @@
 <?php
+/** @var string $title */
+/** @var string $content */
+
 $additional_css = "
 <style>
     main {

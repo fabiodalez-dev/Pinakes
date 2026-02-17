@@ -1,4 +1,5 @@
 <?php
+/** @var array $themes */
 use App\Support\HtmlHelper;
 use App\Support\Csrf;
 

@@ -18,8 +18,14 @@ class DataIntegrity {
     public function recalculateAllBookAvailability(): array {
         $results = ['updated' => 0, 'errors' => []];
 
+        // Detect if already inside a transaction (e.g. called from fixDataInconsistencies)
+        $result = $this->db->query("SELECT @@autocommit as ac");
+        $wasInTransaction = $result && ($result->fetch_assoc()['ac'] ?? 1) == 0;
+
         try {
-            $this->db->begin_transaction();
+            if (!$wasInTransaction) {
+                $this->db->begin_transaction();
+            }
 
             // Aggiorna stato copie basandosi sui prestiti attivi
             // - 'in_corso' e 'in_ritardo' → copia prestata (libro fisicamente fuori)
@@ -120,10 +126,14 @@ class DataIntegrity {
             $results['updated'] = $this->db->affected_rows;
             $stmt->close();
 
-            $this->db->commit();
+            if (!$wasInTransaction) {
+                $this->db->commit();
+            }
 
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if (!$wasInTransaction) {
+                $this->db->rollback();
+            }
             $results['errors'][] = "Errore ricalcolo disponibilità: " . $e->getMessage();
         }
 
@@ -1009,8 +1019,14 @@ class DataIntegrity {
         $expected = $this->getExpectedSystemTables();
         $missing = [];
 
+        $allowedSystemTables = array_keys($expected);
         foreach ($expected as $tableName => $createSql) {
-            // SAFETY: $tableName comes from hardcoded getExpectedSystemTables() — not user input
+            // Defense-in-depth: validate against known whitelist even though source is hardcoded
+            if (!in_array($tableName, $allowedSystemTables, true) || !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)) {
+                continue;
+            }
+            // SHOW TABLES LIKE uses string comparison, so no backtick escaping needed;
+            // the regex above ensures only safe identifier characters pass through
             $result = $this->db->query("SHOW TABLES LIKE '$tableName'");
             if (!$result || $result->num_rows === 0) {
                 $missing[] = [
@@ -1140,8 +1156,12 @@ class DataIntegrity {
         $expected = $this->getExpectedIndexes();
         $missing = [];
 
+        $allowedTables = array_keys($expected);
         foreach ($expected as $table => $indexes) {
-            // SAFETY: $table comes from hardcoded getExpectedIndexes() — not user input
+            // Defense-in-depth: validate against known whitelist even though source is hardcoded
+            if (!in_array($table, $allowedTables, true) || !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table)) {
+                continue;
+            }
             // Verifica se la tabella esiste
             $tableCheck = $this->db->query("SHOW TABLES LIKE '$table'");
             if (!$tableCheck || $tableCheck->num_rows === 0) {
@@ -1188,20 +1208,34 @@ class DataIntegrity {
         $missing = $this->checkMissingIndexes();
         $results = ['created' => 0, 'errors' => [], 'details' => []];
 
+        $identifierPattern = '/^[a-zA-Z_][a-zA-Z0-9_]*$/';
         foreach ($missing as $index) {
             $table = $index['table'];
             $indexName = $index['index_name'];
             $columns = $index['columns'];
             $prefixLength = $index['prefix_length'] ?? null;
 
+            // Defense-in-depth: validate all identifiers before interpolation
+            if (!preg_match($identifierPattern, $table) || !preg_match($identifierPattern, $indexName)) {
+                continue;
+            }
+
             // Costruisci la definizione delle colonne
             $columnDefs = [];
+            $validColumns = true;
             foreach ($columns as $col) {
+                if (!preg_match($identifierPattern, $col)) {
+                    $validColumns = false;
+                    break;
+                }
                 if ($prefixLength !== null) {
-                    $columnDefs[] = "`$col`($prefixLength)";
+                    $columnDefs[] = "`$col`(" . (int) $prefixLength . ")";
                 } else {
                     $columnDefs[] = "`$col`";
                 }
+            }
+            if (!$validColumns) {
+                continue;
             }
             $columnStr = implode(', ', $columnDefs);
 

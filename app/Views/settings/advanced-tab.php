@@ -1,4 +1,6 @@
 <?php
+/** @var string $activeTab */
+/** @var string $csrfToken */
 use App\Support\HtmlHelper;
 ?>
 <style>

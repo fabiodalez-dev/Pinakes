@@ -1,4 +1,5 @@
 <?php
+/** @var ?string $return_url */
 use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\I18n;
@@ -51,7 +52,7 @@ $forgotPasswordRoute = route_path('forgot_password');
       <form method="post" action="<?= htmlspecialchars($loginRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
         <?php if (!empty($return_url ?? '')): ?>
-          <input type="hidden" name="return_url" value="<?php echo htmlspecialchars($return_url ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+          <input type="hidden" name="return_url" value="<?php echo htmlspecialchars((string)$return_url, ENT_QUOTES, 'UTF-8'); ?>">
         <?php endif; ?>
 
         <?php if (isset($_GET['verified']) && $_GET['verified'] === '1'): ?>

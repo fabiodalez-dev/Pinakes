@@ -1,4 +1,5 @@
 <?php
+/** @var ?bool $libraryThingInstalled */
 use App\Support\Hooks;
 use App\Support\HtmlHelper;
 
@@ -598,7 +599,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       </div>
 
       <!-- LibraryThing Plugin Fields -->
-      <?php if (!empty($libraryThingInstalled ?? false)): ?>
+      <?php if (!empty($libraryThingInstalled)): ?>
       <div class="card">
         <button type="button"
                 class="w-full card-header flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors text-left border-0 bg-transparent"
@@ -1210,7 +1211,7 @@ function initializeChoicesJS() {
             addItemText: (value) => `<?= __('Aggiungi') ?> <b>"${value}"</b> <?= __('come nuovo autore') ?>`,
             maxItemText: (maxItemCount) => `Solo ${maxItemCount} autori possono essere aggiunti`,
             shouldSort: false,
-            searchResultLimit: 50,
+            searchResultLimit: -1,
             searchFloor: 1,
             fuseOptions: {
                 threshold: 0.3,
@@ -4109,14 +4110,15 @@ style.textContent = `
 document.head.appendChild(style);
 </script>
 
-<!-- Load TinyMCE -->
-<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-
+<!-- TinyMCE is loaded by layout.php; only initialize here -->
 <script>
 // Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 8;
-const TINYMCE_BASE = <?= json_encode(assetUrl("tinymce")) ?>;
+if (typeof window.TINYMCE_BASE === 'undefined') {
+    window.TINYMCE_BASE = <?= json_encode(assetUrl("tinymce")) ?>;
+}
+const TINYMCE_BASE = window.TINYMCE_BASE;
 
 function initBookTinyMCE() {
     if (!window.tinymce) {

@@ -43,13 +43,13 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                 <div>
                     <p class="page-hero__eyebrow"><?= __("Calendario eventi") ?></p>
                     <h2 class="home-events__title">
-                        <?= !empty($section['title']) ? \App\Support\HtmlHelper::e($section['title']) : __("Gli appuntamenti della biblioteca") ?>
+                        <?= !empty($section['title']) ? htmlspecialchars($section['title'], ENT_QUOTES, 'UTF-8') : __("Gli appuntamenti della biblioteca") ?>
                     </h2>
                     <p class="home-events__subtitle">
-                        <?= !empty($section['subtitle']) ? \App\Support\HtmlHelper::e($section['subtitle']) : __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.") ?>
+                        <?= !empty($section['subtitle']) ? htmlspecialchars($section['subtitle'], ENT_QUOTES, 'UTF-8') : __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.") ?>
                     </p>
                 </div>
-                <a href="<?= \App\Support\HtmlHelper::e(url('/events')) ?>" class="home-events__all-link">
+                <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>" class="home-events__all-link">
                     <?= __("Vedi tutti gli eventi") ?>
                     <i class="fas fa-arrow-right"></i>
                 </a>
@@ -58,10 +58,10 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                 <?php foreach ($homeEvents as $event): ?>
                     <?php $eventDateText = $homeEventsFormatDate($event['event_date'] ?? ''); ?>
                     <article class="event-card">
-                        <a href="<?= \App\Support\HtmlHelper::e(url('/events/' . $event['slug'])) ?>" class="event-card__thumb">
+                        <a href="<?= htmlspecialchars(route_path('events') . '/' . $event['slug'], ENT_QUOTES, 'UTF-8') ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
-                                <img src="<?= \App\Support\HtmlHelper::e(url($event['featured_image'])) ?>"
-                                    alt="<?= \App\Support\HtmlHelper::e($event['title']) ?>">
+                                <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>"
+                                    alt="<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>">
                             <?php else: ?>
                                 <div class="event-card__placeholder">
                                     <i class="fas fa-calendar"></i>
@@ -70,14 +70,14 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                         </a>
                         <div class="event-card__body">
                             <div class="event-card__meta">
-                                <?= \App\Support\HtmlHelper::e($eventDateText) ?>
+                                <?= htmlspecialchars($eventDateText, ENT_QUOTES, 'UTF-8') ?>
                             </div>
                             <h3 class="event-card__title">
-                                <a href="<?= \App\Support\HtmlHelper::e(url('/events/' . $event['slug'])) ?>">
-                                    <?= \App\Support\HtmlHelper::e($event['title']) ?>
+                                <a href="<?= htmlspecialchars(route_path('events') . '/' . $event['slug'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>
                                 </a>
                             </h3>
-                            <a href="<?= \App\Support\HtmlHelper::e(url('/events/' . $event['slug'])) ?>" class="event-card__button">
+                            <a href="<?= htmlspecialchars(route_path('events') . '/' . $event['slug'], ENT_QUOTES, 'UTF-8') ?>" class="event-card__button">
                                 <?= __("Scopri l'evento") ?>
                                 <i class="fas fa-arrow-right"></i>
                             </a>

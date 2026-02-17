@@ -61,7 +61,7 @@ class SearchController
                 $params[] = '%' . $word . '%';
                 $types .= 's';
             }
-            $sql = "SELECT id, nome AS label FROM editori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome LIMIT 20";
+            $sql = "SELECT id, nome AS label FROM editori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome";
             $stmt = $db->prepare($sql);
             $stmt->bind_param($types, ...$params);
             $stmt->execute();

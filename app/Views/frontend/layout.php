@@ -1,4 +1,7 @@
 <?php $content = $content ?? '';
+$footerDescription = $footerDescription ?? null;
+$ogTitle = $ogTitle ?? null;
+$twitterCard = $twitterCard ?? null;
 
 use App\Support\Branding;
 use App\Support\ConfigStore;
@@ -104,7 +107,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     $resolvedDefaultOgImage = absoluteUrl($defaultOgImagePath);
 
     $ogTitle = $ogTitle ?? ($seoTitle ?? $title ?? $appName);
-    $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?? __('Esplora il nostro catalogo digitale')));
+    $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?: __('Esplora il nostro catalogo digitale')));
     $ogType = $ogType ?? 'website';
     $ogUrl = $ogUrl ?? $baseUrlClean;
     $ogImage = $ogImage ?? $resolvedDefaultOgImage;
@@ -118,7 +121,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     ?>
 
     <!-- Open Graph Meta Tags -->
-    <?php if (isset($ogTitle)): ?>
+    <?php if ($ogTitle !== null): ?>
         <meta property="og:title" content="<?= htmlspecialchars($ogTitle) ?>">
         <meta property="og:description" content="<?= htmlspecialchars($ogDescription) ?>">
         <meta property="og:image" content="<?= htmlspecialchars($ogImage) ?>">
@@ -128,7 +131,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php endif; ?>
 
     <!-- Twitter Card Meta Tags -->
-    <?php if (isset($twitterCard)): ?>
+    <?php if ($twitterCard !== null): ?>
         <meta name="twitter:card" content="<?= htmlspecialchars($twitterCard) ?>">
         <meta name="twitter:title" content="<?= htmlspecialchars($twitterTitle) ?>">
         <meta name="twitter:description" content="<?= htmlspecialchars($twitterDescription) ?>">

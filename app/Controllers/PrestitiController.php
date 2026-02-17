@@ -423,49 +423,45 @@ class PrestitiController
             try {
                 $integrity = new DataIntegrity($db);
                 $integrity->recalculateBookAvailability($libro_id);
-                if (isset($newLoanId)) {
-                    $integrity->validateAndUpdateLoan($newLoanId);
-                }
+                $integrity->validateAndUpdateLoan($newLoanId);
             } catch (\Throwable $e) {
                 SecureLogger::warning(__('DataIntegrity warning (store loan)'), ['error' => $e->getMessage()]);
             }
 
             // Create in-app notification for new loan
-            if (isset($newLoanId)) {
-                try {
-                    $notificationService = new \App\Support\NotificationService($db);
+            try {
+                $notificationService = new \App\Support\NotificationService($db);
 
-                    // Get book and user details for notification
-                    $infoStmt = $db->prepare("
-                        SELECT l.titolo, CONCAT(u.nome, ' ', u.cognome) as utente_nome
-                        FROM prestiti p
-                        JOIN libri l ON p.libro_id = l.id
-                        JOIN utenti u ON p.utente_id = u.id
-                        WHERE p.id = ?
-                    ");
-                    $infoStmt->bind_param('i', $newLoanId);
-                    $infoStmt->execute();
-                    $loanInfo = $infoStmt->get_result()->fetch_assoc();
-                    $infoStmt->close();
+                // Get book and user details for notification
+                $infoStmt = $db->prepare("
+                    SELECT l.titolo, CONCAT(u.nome, ' ', u.cognome) as utente_nome
+                    FROM prestiti p
+                    JOIN libri l ON p.libro_id = l.id
+                    JOIN utenti u ON p.utente_id = u.id
+                    WHERE p.id = ?
+                ");
+                $infoStmt->bind_param('i', $newLoanId);
+                $infoStmt->execute();
+                $loanInfo = $infoStmt->get_result()->fetch_assoc();
+                $infoStmt->close();
 
-                    if ($loanInfo) {
-                        $notificationService->createNotification(
-                            'general',
-                            'Nuovo prestito creato',
-                            sprintf('%s ha preso in prestito "%s"', $loanInfo['utente_nome'], $loanInfo['titolo']),
-                            '/admin/prestiti',
-                            $newLoanId
-                        );
-                    }
-                } catch (\Throwable $e) {
-                    SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);
+                if ($loanInfo) {
+                    $notificationService->createNotification(
+                        'general',
+                        'Nuovo prestito creato',
+                        sprintf('%s ha preso in prestito "%s"', $loanInfo['utente_nome'], $loanInfo['titolo']),
+                        '/admin/prestiti',
+                        $newLoanId
+                    );
                 }
+            } catch (\Throwable $e) {
+                SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);
             }
 
             // Redirect to list page — PDF download triggered via JS if requested
             $scaricaPdf = isset($data['scarica_pdf']) && $data['scarica_pdf'] === '1';
             $redirectUrl = '/admin/prestiti?created=1';
-            if ($consegnaImmediata && $scaricaPdf && isset($newLoanId)) {
+            if ($consegnaImmediata && $scaricaPdf) {
                 $redirectUrl .= '&pdf=' . (int) $newLoanId;
             }
 

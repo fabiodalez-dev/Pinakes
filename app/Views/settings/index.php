@@ -1,4 +1,5 @@
 <?php
+/** @var array $templates */
 use App\Support\Csrf;
 use App\Support\HtmlHelper;
 
@@ -444,7 +445,7 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Gestisci gli eventi della biblioteca: crea, modifica ed elimina eventi con immagini e descrizioni") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="<?= htmlspecialchars(url('/events'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>

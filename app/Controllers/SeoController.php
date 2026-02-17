@@ -43,7 +43,13 @@ class SeoController
     {
         $envUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
         if (is_string($envUrl) && $envUrl !== '') {
-            return rtrim($envUrl, '/');
+            $envUrl = rtrim($envUrl, '/');
+            // Ensure base path is included for subfolder installations
+            $basePath = HtmlHelper::getBasePath();
+            if ($basePath !== '' && !str_ends_with($envUrl, $basePath)) {
+                $envUrl .= $basePath;
+            }
+            return $envUrl;
         }
 
         $scheme = 'https';

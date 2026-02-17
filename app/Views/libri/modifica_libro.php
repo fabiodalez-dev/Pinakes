@@ -64,7 +64,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
         <div class="flex items-center gap-3">
           <?php $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? ''); ?>
           <?php if (!empty($currentCover)): ?>
-            <img src="<?php echo HtmlHelper::e(url($currentCover)); ?>"
+            <img src="<?= htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8') ?>"
                  alt="<?php echo HtmlHelper::e(($book['titolo'] ?? 'Libro') . ' - Copertina attuale'); ?>"
                  class="w-12 h-16 object-cover rounded border"
                  onerror="this.style.display='none'" />

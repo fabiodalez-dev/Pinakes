@@ -1,4 +1,9 @@
-<?php use App\Support\HtmlHelper; ?>
+<?php
+/** @var int $pendingCount */
+/** @var array $approvedReviews */
+/** @var array $rejectedReviews */
+use App\Support\HtmlHelper;
+?>
 
 <!-- Main Content Area -->
 <div class="flex-1 overflow-x-hidden">

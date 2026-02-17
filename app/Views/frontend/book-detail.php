@@ -1478,7 +1478,7 @@ ob_start();
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb bg-transparent p-0 mb-0">
                                 <li class="breadcrumb-item">
-                                    <a href="<?= url('/') ?>" class="text-dark"><?= __("Home") ?></a>
+                                    <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-dark"><?= __("Home") ?></a>
                                 </li>
                                 <li class="breadcrumb-item">
                                     <a href="<?= $legacyCatalogRoute ?>" class="text-dark-50"><?= __("Catalogo") ?></a>

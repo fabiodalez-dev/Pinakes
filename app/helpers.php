@@ -66,7 +66,12 @@ if (!function_exists('url')) {
         if ($path !== '' && !str_starts_with($path, '/')) {
             $path = '/' . $path;
         }
-        return App\Support\HtmlHelper::getBasePath() . $path;
+        // Guard against double-prepending the base path
+        $basePath = App\Support\HtmlHelper::getBasePath();
+        if ($basePath !== '' && str_starts_with($path, $basePath . '/')) {
+            return $path;
+        }
+        return $basePath . $path;
     }
 }
 

@@ -1,4 +1,5 @@
 <?php
+/** @var string $pageContent */
 
 use App\Support\HtmlHelper;
 

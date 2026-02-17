@@ -1,4 +1,5 @@
 <?php
+/** @var array $plugins */
 use App\Support\HtmlHelper;
 use App\Support\Csrf;
 

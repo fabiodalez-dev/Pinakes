@@ -1,4 +1,5 @@
 <?php
+/** @var string $content */
 // Expects $content
 
 use App\Support\Branding;
@@ -813,8 +814,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                                 class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a>
                         </li>
                         <?php if ($eventsEnabled): ?>
-                            <li><a href="<?= htmlspecialchars(url('/events'), ENT_QUOTES, 'UTF-8') ?>"
-                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
+                            <li><a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>"
+                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', route_path('events')) !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
                             </li>
                         <?php endif; ?>
                     </ul>
@@ -911,8 +912,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
                     <?php if ($eventsEnabled): ?>
-                        <a href="<?= htmlspecialchars(url('/events'), ENT_QUOTES, 'UTF-8') ?>"
-                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
+                        <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', route_path('events')) !== false ? 'active' : '' ?>">
                             <i class="fas fa-calendar-alt me-2"></i><?= __("Eventi") ?>
                         </a>
                     <?php endif; ?>

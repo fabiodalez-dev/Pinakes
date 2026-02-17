@@ -37,7 +37,7 @@ function getStatusBadge($status) {
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -45,7 +45,7 @@ function getStatusBadge($status) {
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <a href="<?= url('/admin/prestiti') ?>" class="text-gray-900 hover:text-gray-900">
+          <a href="<?= htmlspecialchars(url('/admin/prestiti'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-900">
             <i class="fas fa-handshake mr-1"></i><?= __("Prestiti") ?>
           </a>
         </li>
@@ -58,7 +58,7 @@ function getStatusBadge($status) {
           <i class="fas fa-check-circle"></i>
           <span><?= __("Prestito creato con successo!") ?></span>
           <?php if(isset($_GET['pdf'])): ?>
-            <a href="<?= url('/admin/prestiti/' . (int)$_GET['pdf'] . '/pdf') ?>" class="ml-auto inline-flex items-center px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors">
+            <a href="<?= htmlspecialchars(url('/admin/prestiti/' . (int)$_GET['pdf'] . '/pdf'), ENT_QUOTES, 'UTF-8') ?>" class="ml-auto inline-flex items-center px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors">
               <i class="fas fa-file-pdf mr-1"></i><?= __("Scarica PDF") ?>
             </a>
           <?php endif; ?>
@@ -100,7 +100,7 @@ function getStatusBadge($status) {
             <i class="fas fa-file-csv mr-2"></i>
             <?= __("Esporta CSV") ?>
           </button>
-          <a href="<?= url('/admin/prestiti/crea') ?>" class="hidden md:inline-flex btn-primary items-center">
+          <a href="<?= htmlspecialchars(url('/admin/prestiti/crea'), ENT_QUOTES, 'UTF-8') ?>" class="hidden md:inline-flex btn-primary items-center">
             <i class="fas fa-plus mr-2"></i>
             <?= __("Nuovo Prestito") ?>
           </a>
@@ -109,7 +109,7 @@ function getStatusBadge($status) {
       <div class="flex md:hidden mb-3 gap-2">
         <button type="button" onclick="showExportDialog()" class="flex-1 btn-secondary inline-flex items-center justify-center">
           <i class="fas fa-file-csv mr-2"></i><?= __("CSV") ?></button>
-        <a href="<?= url('/admin/prestiti/crea') ?>" class="flex-1 btn-primary inline-flex items-center justify-center">
+        <a href="<?= htmlspecialchars(url('/admin/prestiti/crea'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1 btn-primary inline-flex items-center justify-center">
           <i class="fas fa-plus mr-2"></i><?= __("Nuovo Prestito") ?></a>
       </div>
     </div>
@@ -184,7 +184,7 @@ function getStatusBadge($status) {
         </h2>
       </div>
       <div class="card-body" id="filters-container">
-        <form method="get" action="<?= url('/admin/prestiti') ?>">
+        <form method="get" action="<?= htmlspecialchars(url('/admin/prestiti'), ENT_QUOTES, 'UTF-8') ?>">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div>
                 <label class="form-label"><?= __("Cerca Utente") ?></label>
@@ -205,7 +205,7 @@ function getStatusBadge($status) {
             </div>
 
             <div class="flex justify-between items-center pt-4 border-t border-gray-200">
-              <a href="<?= url('/admin/prestiti') ?>" class="text-sm text-gray-600 hover:text-gray-800">
+              <a href="<?= htmlspecialchars(url('/admin/prestiti'), ENT_QUOTES, 'UTF-8') ?>" class="text-sm text-gray-600 hover:text-gray-800">
                 <i class="fas fa-times mr-2"></i>
                 <?= __("Cancella filtri") ?>
               </a>
@@ -277,7 +277,7 @@ function getStatusBadge($status) {
                                     <?php echo getStatusBadge($prestito['stato']); ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
-                                    <a href="<?= url('/admin/prestiti/' . (int)$prestito['id'] . '/pdf') ?>"
+                                    <a href="<?= htmlspecialchars(url('/admin/prestiti/' . (int)$prestito['id'] . '/pdf'), ENT_QUOTES, 'UTF-8') ?>"
                                        class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors"
                                        title="<?= __('Scarica PDF') ?>">
                                         <i class="fas fa-file-pdf mr-2"></i>
@@ -286,11 +286,11 @@ function getStatusBadge($status) {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
                                     <div class="flex items-center justify-end space-x-2">
-                                        <a href="<?= url('/admin/prestiti/dettagli/' . (int)$prestito['id']) ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
+                                        <a href="<?= htmlspecialchars(url('/admin/prestiti/dettagli/' . (int)$prestito['id']), ENT_QUOTES, 'UTF-8') ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
                                             <i class="fas fa-eye w-4 h-4"></i>
                                         </a>
                                         <?php if ($prestito['attivo']): ?>
-                                            <a href="<?= url('/admin/prestiti/restituito/' . (int)$prestito['id']) ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="<?= __("Registra Restituzione") ?>">
+                                            <a href="<?= htmlspecialchars(url('/admin/prestiti/restituito/' . (int)$prestito['id']), ENT_QUOTES, 'UTF-8') ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="<?= __("Registra Restituzione") ?>">
                                                 <i class="fas fa-undo-alt w-4 h-4"></i>
                                             </a>
                                         <?php endif; ?>

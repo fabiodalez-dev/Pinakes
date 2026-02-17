@@ -1,4 +1,10 @@
 <?php
+/** @var string $archive_type */
+/** @var array $archive_info */
+/** @var int $totalBooks */
+/** @var int $totalPages */
+/** @var int $page */
+
 $catalogRoute = route_path('catalog');
 $additional_css = "
 <style>
@@ -484,8 +490,8 @@ $createBookUrl = static function ($book) {
                         <div class="book-image-container">
                             <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
                                 <?php $coverUrl = ($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
-                                <img src="<?= htmlspecialchars(absoluteUrl($coverUrl)) ?>"
-                                     alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>">
+                                <img src="<?= htmlspecialchars(url($coverUrl), ENT_QUOTES, 'UTF-8') ?>"
+                                     alt="<?= htmlspecialchars($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             </a>
                             <?php
                             $bookAvailable = ($book['copie_disponibili'] ?? 0) > 0;

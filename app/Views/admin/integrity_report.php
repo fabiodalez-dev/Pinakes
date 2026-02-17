@@ -1,3 +1,6 @@
+<?php
+/** @var array $report */
+?>
 <!-- Report Integrità Dati -->
 <div class="flex-1 overflow-x-hidden">
     <!-- Page Header -->

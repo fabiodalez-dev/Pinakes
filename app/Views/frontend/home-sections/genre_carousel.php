@@ -28,7 +28,9 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
         <?php endif; ?>
     </div>
 
-    <?php foreach ($genres_with_books as $index => $genreData):
+    <?php
+    $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
+    foreach ($genres_with_books as $index => $genreData):
         $genre = $genreData['genre'];
         $books = $genreData['books'];
 
@@ -52,7 +54,6 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                 <div class="carousel-wrapper">
                     <div class="carousel-track" id="<?php echo $carouselId; ?>">
                     <?php
-                    $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     foreach ($books as $book):
                         $bookDetailUrl = book_url($book);
 

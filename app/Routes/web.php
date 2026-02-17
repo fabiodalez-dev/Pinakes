@@ -1226,7 +1226,7 @@ return function (App $app): void {
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
 
     // Chunked import endpoints (new)
-    $app->post('/admin/libri/import/librarything/prepare', function ($request, $response) use ($app) {
+    $app->post('/admin/libri/import/librarything/prepare', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->prepareImport($request, $response);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());

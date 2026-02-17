@@ -1,4 +1,7 @@
-<?php use App\Support\HtmlHelper; ?>
+<?php
+/** @var string $activeTab */
+use App\Support\HtmlHelper;
+?>
 <section data-settings-panel="messages" class="settings-panel <?php echo $activeTab === 'messages' ? 'block' : 'hidden'; ?>">
   <div class="space-y-6">
     <div class="flex items-center justify-between">

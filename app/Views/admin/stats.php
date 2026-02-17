@@ -1,3 +1,7 @@
+<?php
+/** @var array $loansByMonth */
+/** @var array $loansByStatus */
+?>
 <section class="min-h-screen py-6 px-4">
   <!-- Header -->
   <div class="mb-6">

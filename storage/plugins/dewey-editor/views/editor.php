@@ -690,7 +690,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                 </div>`;
             });
             html += '</div>';
-            html += '<div class="mt-4 flex justify-end"><button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" onclick="DeweyEditor.closeModal()"><?= __('Chiudi') ?></button></div></div>';
+            html += '<div class="mt-4 flex justify-end"><button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal"><?= __('Chiudi') ?></button></div></div>';
 
             // Safe: html built from escapeHtml/encodeURIComponent-sanitized values above
             modalContent.innerHTML = html;
@@ -698,6 +698,9 @@ $pageTitle = __('Editor Classificazione Dewey');
                 btn.addEventListener('click', () => {
                     DeweyEditor.restoreBackup(decodeURIComponent(btn.dataset.filename));
                 });
+            });
+            modalContent.querySelector('[data-action="close-modal"]')?.addEventListener('click', () => {
+                DeweyEditor.closeModal();
             });
             modalBackdrop.classList.remove('hidden');
         } catch (error) {

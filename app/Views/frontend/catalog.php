@@ -1,4 +1,9 @@
 <?php
+/** @var array $container */
+/** @var array $genre_display */
+/** @var array $filter_options */
+/** @var ?int $total_books */
+
 use App\Support\HtmlHelper;
 
 $title = __("Catalogo Libri - Biblioteca");

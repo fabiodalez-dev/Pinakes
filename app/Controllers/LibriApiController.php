@@ -221,9 +221,7 @@ class LibriApiController
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
-        if (!empty($params)) {
-            $stmt->bind_param($types, ...$params);
-        }
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
         $data = [];

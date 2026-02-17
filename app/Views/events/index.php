@@ -1,4 +1,7 @@
 <?php
+/** @var bool $eventsEnabled */
+/** @var int $totalPages */
+/** @var int $page */
 use App\Support\HtmlHelper;
 use App\Support\Csrf;
 

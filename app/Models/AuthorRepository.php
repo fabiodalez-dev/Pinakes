@@ -233,30 +233,28 @@ class AuthorRepository
         if ($searchForm !== '') {
             // Extract individual words for LIKE matching
             $words = explode(' ', $searchForm);
-            if (!empty($words)) {
-                // Build LIKE conditions for each word (case-insensitive via collation)
-                $conditions = [];
-                $params = [];
-                foreach ($words as $word) {
-                    if (strlen($word) >= 2) { // Skip very short words
-                        $conditions[] = "LOWER(nome) LIKE ?";
-                        $params[] = '%' . $word . '%';
-                    }
+            // Build LIKE conditions for each word (case-insensitive via collation)
+            $conditions = [];
+            $params = [];
+            foreach ($words as $word) {
+                if (strlen($word) >= 2) { // Skip very short words
+                    $conditions[] = "LOWER(nome) LIKE ?";
+                    $params[] = '%' . $word . '%';
                 }
+            }
 
-                if (!empty($conditions)) {
-                    // Search for authors containing ALL of the words (AND condition)
-                    $sql = "SELECT id, nome FROM autori WHERE " . implode(' AND ', $conditions) . " LIMIT 50";
-                    $stmt = $this->db->prepare($sql);
-                    $types = str_repeat('s', count($params));
-                    $stmt->bind_param($types, ...$params);
-                    $stmt->execute();
-                    $res = $stmt->get_result();
+            if (!empty($conditions)) {
+                // Search for authors containing ALL of the words (AND condition)
+                $sql = "SELECT id, nome FROM autori WHERE " . implode(' AND ', $conditions) . " LIMIT 50";
+                $stmt = $this->db->prepare($sql);
+                $types = str_repeat('s', count($params));
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $res = $stmt->get_result();
 
-                    while ($row = $res->fetch_assoc()) {
-                        if (\App\Support\AuthorNormalizer::match($name, $row['nome'])) {
-                            return (int)$row['id'];
-                        }
+                while ($row = $res->fetch_assoc()) {
+                    if (\App\Support\AuthorNormalizer::match($name, $row['nome'])) {
+                        return (int)$row['id'];
                     }
                 }
             }

@@ -12,7 +12,7 @@ $libri = $data['libri'];
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i><?= __("Home") ?>
           </a>
         </li>
@@ -20,7 +20,7 @@ $libri = $data['libri'];
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li class="text-gray-900 font-medium">
-          <a href="<?= url('/admin/libri') ?>" class="text-gray-900 hover:text-gray-700">
+          <a href="<?= htmlspecialchars(url('/admin/libri'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-700">
             <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
           </a>
         </li>
@@ -56,10 +56,10 @@ $libri = $data['libri'];
               <i class="fas fa-download mr-2"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="export-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-              <a href="<?= url('/admin/libri/export/csv') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+              <a href="<?= htmlspecialchars(url('/admin/libri/export/csv'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
                 <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
               </a>
-              <a href="<?= url('/admin/libri/export/librarything') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <a href="<?= htmlspecialchars(url('/admin/libri/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
                 <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
             </div>
@@ -71,19 +71,19 @@ $libri = $data['libri'];
               <i class="fas fa-upload mr-2"></i><?= __("Import") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="import-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-              <a href="<?= url('/admin/libri/import') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+              <a href="<?= htmlspecialchars(url('/admin/libri/import'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
                 <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
               </a>
-              <a href="<?= url('/admin/libri/import/librarything') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <a href="<?= htmlspecialchars(url('/admin/libri/import/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-cloud-upload-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
               <hr class="border-gray-200">
-              <a href="<?= url('/admin/imports-history') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <a href="<?= htmlspecialchars(url('/admin/imports-history'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
                 <i class="fas fa-history mr-2"></i><?= __("Storico Import") ?>
               </a>
             </div>
           </div>
-          <a href="<?= url('/admin/libri/crea') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
+          <a href="<?= htmlspecialchars(url('/admin/libri/crea'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Libro") ?>
           </a>
           <!-- Keyboard Shortcuts Help -->
@@ -108,15 +108,15 @@ $libri = $data['libri'];
             <i class="fas fa-download mr-1"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-1 text-xs"></i>
           </button>
           <div class="export-menu-mobile hidden absolute left-0 mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-            <a href="<?= url('/admin/libri/export/csv') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
+            <a href="<?= htmlspecialchars(url('/admin/libri/export/csv'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
               <i class="fas fa-file-csv mr-2"></i><?= __("CSV") ?>
             </a>
-            <a href="<?= url('/admin/libri/export/librarything') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+            <a href="<?= htmlspecialchars(url('/admin/libri/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
               <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing") ?>
             </a>
           </div>
         </div>
-        <a href="<?= url('/admin/libri/crea') ?>" class="flex-1 px-3 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center text-sm">
+        <a href="<?= htmlspecialchars(url('/admin/libri/crea'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1 px-3 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center text-sm">
           <i class="fas fa-plus mr-1"></i><?= __("Nuovo") ?>
         </a>
       </div>
@@ -662,9 +662,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const autoriArray = autoriStr.split(', ').slice(0, 2);
             const idsArray = row.autori_order_key ? String(row.autori_order_key).split(',') : [];
             const linkedAutori = autoriArray.map((nome, i) => {
-              const id = idsArray[i];
               const safeName = escapeHtml(nome);
-              if (id) return `<a href="${window.BASE_PATH}/admin/autori/${parseInt(id, 10)}" class="text-gray-600 hover:text-gray-900 hover:underline">${safeName}</a>`;
+              const safeAuthorId = parseInt(idsArray[i], 10);
+              if (Number.isFinite(safeAuthorId)) return `<a href="${window.BASE_PATH}/admin/autori/${safeAuthorId}" class="text-gray-600 hover:text-gray-900 hover:underline">${safeName}</a>`;
               return safeName;
             });
             autoriHtml = `<div class="text-xs text-gray-600 mt-1"><i class="fas fa-user text-gray-400 mr-1"></i>${linkedAutori.join(', ')}${autoriStr.split(', ').length > 2 ? ' ...' : ''}</div>`;
@@ -1158,9 +1158,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const autori = escapeHtml(book.autori || '');
       const titolo = escapeHtml(book.titolo || '<?= __("Senza titolo") ?>');
       const anno = escapeHtml(book.anno_pubblicazione_formatted || '');
+      const safeBookId = parseInt(book.id, 10);
+      const bookHref = Number.isFinite(safeBookId) ? `${window.BASE_PATH}/admin/libri/${safeBookId}` : '#';
       return `
         <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
-          <a href="${window.BASE_PATH}/admin/libri/${book.id}" class="flex flex-col h-full">
+          <a href="${bookHref}" class="flex flex-col h-full">
             <div class="aspect-[2/3] bg-gray-100 relative flex-shrink-0">
               <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
               <span class="absolute top-2 right-2 w-3 h-3 rounded-full ${statusClass} ring-2 ring-white"></span>

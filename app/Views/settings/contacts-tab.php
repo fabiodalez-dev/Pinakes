@@ -1,4 +1,8 @@
-<?php use App\Support\HtmlHelper; ?>
+<?php
+/** @var string $activeTab */
+/** @var string $csrfToken */
+use App\Support\HtmlHelper;
+?>
 <section data-settings-panel="contacts" class="settings-panel <?php echo $activeTab === 'contacts' ? 'block' : 'hidden'; ?>">
   <form action="<?= htmlspecialchars(url('/admin/settings/contacts'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">

@@ -1,4 +1,7 @@
-<?php 
+<?php
+/** @var array $activePrestiti */
+/** @var array $items */
+/** @var array $pastPrestiti */
 use App\Support\Csrf;
 
 function profileReservationBookUrl(array $item): string {

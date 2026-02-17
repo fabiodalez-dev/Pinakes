@@ -1,3 +1,7 @@
+<?php
+/** @var array $libri */
+/** @var array $utenti */
+?>
 <!-- Crea Prenotazione Admin -->
 <div class="min-h-screen bg-gray-50 py-12">
     <div class="max-w-5xl mx-auto px-6 sm:px-8 lg:px-12">

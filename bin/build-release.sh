@@ -63,10 +63,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Resolve OUTPUT_DIR to absolute path so cd inside functions won't break it
-mkdir -p "$OUTPUT_DIR"
-OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
-
 ################################################################################
 # Functions
 ################################################################################
@@ -524,6 +520,10 @@ main() {
 
     # Check requirements
     check_requirements
+
+    # Resolve OUTPUT_DIR to absolute path so cd inside functions won't break it
+    mkdir -p "$OUTPUT_DIR"
+    OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
     # Get version
     local version=$(get_version)
