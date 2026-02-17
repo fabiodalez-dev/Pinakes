@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyInstance.on('upload-success', (file, response) => {
             const body = response?.body || {};
-            const uploadedUrl = body.uploadURL || `/uploads/digital/${file.name}`;
+            const uploadedUrl = body.uploadURL || (window.BASE_PATH || '') + `/uploads/digital/${file.name}`;
             const hiddenInput = document.getElementById(inputId);
             const displayInput = document.getElementById(displayId);
 
@@ -269,7 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (typeof UppyXHRUpload !== 'undefined') {
             uppyInstance.use(UppyXHRUpload, {
-                endpoint: '/admin/plugins/digital-library/upload',
+                endpoint: (window.BASE_PATH || '') + '/admin/plugins/digital-library/upload',
                 fieldName: 'file',
                 formData: true,
                 headers: {

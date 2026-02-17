@@ -172,13 +172,13 @@ $resetPasswordRoute = route_path('reset_password');
   const strengthText = document.getElementById('strength-text');
 
   if (passwordInput) {
+    const labels = {
+      weak: <?= json_encode(__('Debole')) ?>,
+      medium: <?= json_encode(__('Media')) ?>,
+      strong: <?= json_encode(__('Forte')) ?>
+    };
     passwordInput.addEventListener('input', function() {
       const password = this.value;
-      const labels = {
-        weak: <?= json_encode(__('Debole')) ?>,
-        medium: <?= json_encode(__('Media')) ?>,
-        strong: <?= json_encode(__('Forte')) ?>
-      };
       let strength = 0;
       let strengthLabel = labels.weak;
       let color = 'bg-red-500';

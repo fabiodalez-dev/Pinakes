@@ -1013,6 +1013,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $pagination = ['current_page' => $page, 'total_pages' => 1, 'total_books' => 0];
 
         $books = [];
+        $genere_id = 0;
 
         switch ($section) {
             case 'latest':
@@ -1020,7 +1021,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                 $sortStmt = $db->prepare("SELECT content FROM home_content WHERE section_key = 'latest_books_title' LIMIT 1");
                 $sortStmt->execute();
                 $sortResult = $sortStmt->get_result();
-                $latestSort = $sortResult->fetch_assoc()['content'] ?? 'created_at';
+                $sortRow = $sortResult->fetch_assoc();
+                $latestSort = $sortRow['content'] ?? 'created_at';
                 $sortStmt->close();
                 if (!in_array($latestSort, ['created_at', 'updated_at'], true)) {
                     $latestSort = 'created_at';

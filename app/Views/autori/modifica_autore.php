@@ -101,7 +101,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
         <div class="card-body form-section">
           <div>
             <label for="biografia" class="form-label"><?= __("Biografia dell'autore") ?></label>
-            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci $1") ?>"><?php echo App\Support\HtmlHelper::e($autore['biografia'] ?? ''); ?></textarea>
+            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci una breve biografia dell'autore...") ?>"><?php echo App\Support\HtmlHelper::e($autore['biografia'] ?? ''); ?></textarea>
             <p class="text-xs text-gray-500 mt-1"><?= __("Una descrizione completa aiuta gli utenti a conoscere meglio l'autore") ?></p>
           </div>
         </div>

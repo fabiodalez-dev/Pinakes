@@ -1145,7 +1145,7 @@ function displayImagePreview(file) {
                 <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2 text-sm text-gray-600">
                         <i class="fas fa-check-circle text-green-500"></i>
-                        <span>${file.name} (${(file.size / 1024).toFixed(1)} KB)</span>
+                        <span>${escapeHtml(file.name)} (${(file.size / 1024).toFixed(1)} KB)</span>
                     </div>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                         <i class="fas fa-trash"></i>
@@ -1503,7 +1503,7 @@ async function initializeDewey() {
       if (window.Toast) {
         window.Toast.fire({
           icon: 'warning',
-          title: __('<?= __("Inserisci un codice Dewey") ?>')
+          title: '<?= addslashes(__("Inserisci un codice Dewey")) ?>'
         });
       }
       return;
@@ -1513,8 +1513,8 @@ async function initializeDewey() {
       if (window.Toast) {
         window.Toast.fire({
           icon: 'error',
-          title: __('<?= __("Formato codice non valido") ?>'),
-          text: __('<?= __("Usa formato: 599 oppure 599.9 oppure 599.93") ?>')
+          title: '<?= addslashes(__("Formato codice non valido")) ?>',
+          text: '<?= addslashes(__("Usa formato: 599 oppure 599.9 oppure 599.93")) ?>'
         });
       }
       return;
@@ -2598,19 +2598,8 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
         }
     });
 
-    // Hide suggestions when clicking outside (with form field protection)
+    // Hide suggestions when clicking outside
     document.addEventListener('click', function(e) {
-        // Don't interfere with form inputs, selects, buttons, or labels
-        if (e.target.matches('input, select, button, label, textarea')) {
-            return;
-        }
-
-        // Don't interfere if clicking inside form elements
-        if (e.target.closest('form')) {
-            return;
-        }
-
-        // Only hide suggestions if clicking truly outside
         if (!input.contains(e.target) && !suggestions.contains(e.target)) {
             clearSuggestions();
         }
@@ -2658,7 +2647,7 @@ async function increaseCopies(book) {
     const { value: copiesToAdd } = await Swal.fire({
         title: __('Aumenta Copie'),
         html: `
-            <p class="mb-4">${__('Quante copie vuoi aggiungere a "%s"?').replace('%s', book.title)}</p>
+            <p class="mb-4">${__('Quante copie vuoi aggiungere a "%s"?').replace('%s', escapeHtml(book.title))}</p>
             <input type="number" id="copiesToAdd" class="swal2-input" value="1" min="1" max="100" style="width: 150px;">
         `,
         focusConfirm: false,

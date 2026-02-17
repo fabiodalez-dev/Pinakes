@@ -13,11 +13,12 @@ class SearchController
     public function authors(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $limit = min(max((int)($request->getQueryParams()['limit'] ?? 200), 1), 200);
         $rows=[];
         if ($q !== '') {
             $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome");
-            $stmt->bind_param('s', $s);
+            $stmt = $db->prepare("SELECT id, nome AS label FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT ?");
+            $stmt->bind_param('si', $s, $limit);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -26,7 +27,8 @@ class SearchController
             }
         } else {
             // Return all authors when no query is provided (for Choices.js initial load)
-            $stmt = $db->prepare("SELECT id, nome AS label FROM autori ORDER BY nome");
+            $stmt = $db->prepare("SELECT id, nome AS label FROM autori ORDER BY nome LIMIT ?");
+            $stmt->bind_param('i', $limit);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -322,7 +324,10 @@ class SearchController
         $res = $stmt->get_result();
 
         while ($row = $res->fetch_assoc()) {
-            $coverUrl = $row['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
+            $coverUrl = trim((string)($row['copertina_url'] ?? ''));
+            if ($coverUrl === '') {
+                $coverUrl = '/uploads/copertine/placeholder.jpg';
+            }
             $absoluteCoverUrl = absoluteUrl($coverUrl);
 
             $results[] = [

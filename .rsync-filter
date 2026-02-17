@@ -153,7 +153,7 @@
 
 # AI/ML models and database files
 # IMPORTANT: /models/ with leading / = root only (don't exclude tinymce/models/)
-- vectors.db
+- /vectors.db
 - /models/
 - *.onnx
 - .env

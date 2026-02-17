@@ -824,6 +824,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                   let iconClass = 'fas fa-question';
                   let iconColor = 'text-gray-500';
                   let identifierHtml = '';
+                  const safeLabel = escapeHtml(String(item.label ?? ''));
+                  const safeUrl = item.url ? encodeURI(String(item.url)) : '#';
 
                   switch (item.type) {
                     case 'book':
@@ -831,10 +833,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                       iconColor = 'text-blue-500';
                       // Show author and optionally ISBN
                       if (item.identifier) {
-                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${item.identifier}</div>`;
+                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
                       }
                       if (item.isbn) {
-                        identifierHtml += `<div class="text-xs text-gray-400 dark:text-gray-500 font-mono">${item.isbn}</div>`;
+                        identifierHtml += `<div class="text-xs text-gray-400 dark:text-gray-500 font-mono">${escapeHtml(String(item.isbn))}</div>`;
                       }
                       break;
                     case 'author':
@@ -851,10 +853,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                       break;
                   }
 
-                  html += `<a href="${item.url}" class="flex items-start p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm transition-colors">
+                  html += `<a href="${safeUrl}" class="flex items-start p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm transition-colors">
                       <i class="${iconClass} ${iconColor} w-4 h-4 mr-3 mt-1"></i>
                       <div class="flex-1">
-                        <div class="text-gray-800 dark:text-gray-200 font-medium">${item.label}</div>
+                        <div class="text-gray-800 dark:text-gray-200 font-medium">${safeLabel}</div>
                         ${identifierHtml}
                       </div>
                     </a>`;
@@ -1062,13 +1064,16 @@ $htmlLang = substr($currentLocale, 0, 2);
                   let iconClass = 'fas fa-question';
                   let iconColor = 'text-gray-500';
                   let identifierHtml = '';
+                  const safeLabel = escapeHtml(String(item.label || item.title || ''));
+                  const safeUrl = item.url ? encodeURI(String(item.url)) : '#';
+                  const safeDescription = escapeHtml(String(item.description || ''));
 
                   switch (item.type) {
                     case 'book':
                       iconClass = 'fas fa-book-open';
                       iconColor = 'text-blue-500';
                       if (item.identifier) {
-                        identifierHtml = `<div class="text-xs text-gray-500 mt-1">${item.identifier}</div>`;
+                        identifierHtml = `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.identifier))}</div>`;
                       }
                       break;
                     case 'author':
@@ -1085,13 +1090,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                       break;
                   }
 
-                  html += `<a href="${item.url}" class="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg text-sm transition-colors">
+                  html += `<a href="${safeUrl}" class="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg text-sm transition-colors">
                       <div class="flex-shrink-0 w-5 flex items-center justify-center mt-1">
                         <i class="${iconClass} ${iconColor}"></i>
                       </div>
                       <div class="flex-1 min-w-0">
-                        <div class="font-medium text-gray-900">${item.label || item.title}</div>
-                        ${item.description ? `<div class="text-xs text-gray-500 mt-0.5">${item.description}</div>` : ''}
+                        <div class="font-medium text-gray-900">${safeLabel}</div>
+                        ${item.description ? `<div class="text-xs text-gray-500 mt-0.5">${safeDescription}</div>` : ''}
                         ${identifierHtml}
                       </div>
                     </a>`;

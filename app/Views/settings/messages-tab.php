@@ -120,7 +120,7 @@
 <script>
 function viewMessage(id) {
   fetch(`${window.BASE_PATH}/admin/messages/${id}`)
-    .then(response => response.json())
+    .then(response => { if (!response.ok) throw new Error('fetch failed'); return response.json(); })
     .then(data => {
       const modal = document.getElementById('message-modal');
       const detail = document.getElementById('message-detail');
@@ -176,6 +176,12 @@ function viewMessage(id) {
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+    })
+    .catch(() => {
+      const detail = document.getElementById('message-detail');
+      if (detail) detail.textContent = <?= json_encode(__('Errore durante il caricamento del messaggio.')) ?>;
+      const modal = document.getElementById('message-modal');
+      if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
     });
 }
 

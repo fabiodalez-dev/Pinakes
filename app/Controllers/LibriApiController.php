@@ -247,13 +247,9 @@ class LibriApiController
                 if ($cover === '' && !empty($row['copertina'])) {
                     $cover = (string) $row['copertina'];
                 }
-                // Normalize: ensure relative paths start with /
-                if ($cover !== '' && !preg_match('#^(https?:)?//#i', $cover) && strpos($cover, '/') !== 0) {
-                    $cover = '/' . $cover;
-                }
-                // Convert relative URLs to absolute for consistent display (same as catalog)
-                if ($cover !== '' && !preg_match('#^(https?:)?//#i', $cover)) {
-                    $cover = rtrim(HtmlHelper::getBaseUrl(), '/') . $cover;
+                // Convert relative cover URLs to absolute (handles base path, protocol-relative, etc.)
+                if ($cover !== '') {
+                    $cover = HtmlHelper::absoluteUrl($cover);
                 }
                 $row['copertina_url'] = $cover;
 
