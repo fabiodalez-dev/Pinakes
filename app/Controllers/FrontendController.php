@@ -64,7 +64,9 @@ class FrontendController
         $stmt_ordered->close();
 
         // Determine sort order for latest books section
-        $latestBooksSort = $sectionsOrdered['latest_books_title']['content'] ?? 'created_at';
+        $latestBooksSort = isset($sectionsOrdered['latest_books_title']['content'])
+            ? $sectionsOrdered['latest_books_title']['content']
+            : 'created_at';
         if (!in_array($latestBooksSort, ['created_at', 'updated_at'], true)) {
             $latestBooksSort = 'created_at';
         }

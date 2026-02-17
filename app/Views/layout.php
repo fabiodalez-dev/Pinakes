@@ -1300,13 +1300,6 @@ $htmlLang = substr($currentLocale, 0, 2);
       return formatDateLocale(date);
     }
 
-    // HTML escape helper
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
     // Load quick statistics
     async function loadQuickStats() {
       // Check if user is logged in
