@@ -888,8 +888,8 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
   </div>
 </div>
 <!-- CSS and JavaScript Libraries - partial-specific assets only (vendor.css/vendor.bundle.js loaded by layout) -->
-<link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.min.css') ?>">
-<script src="<?= assetUrl('star-rating/dist/star-rating.min.js') ?>"></script>
+<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.css'), ENT_QUOTES, 'UTF-8') ?>">
+<script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 
 <script>
 const FORM_MODE = <?php echo json_encode($mode); ?>;
@@ -1566,7 +1566,7 @@ async function initializeDewey() {
 
     if (!hasSelection) {
       const noSel = document.createElement('span');
-      noSel.textContent = '<?= __("Nessuna selezione") ?>';
+      noSel.textContent = <?= json_encode(__("Nessuna selezione")) ?>;
       breadcrumb.appendChild(noSel);
     }
   };
@@ -1574,11 +1574,11 @@ async function initializeDewey() {
   // Carica livelli Dewey per navigazione
   const loadLevel = async (parentCode = null, levelIndex = 0) => {
     try {
-      const url = parentCode
+      const apiUrl = parentCode
         ? `${window.BASE_PATH}/api/dewey/children?parent_code=${encodeURIComponent(parentCode)}`
         : window.BASE_PATH + '/api/dewey/children';
 
-      const response = await fetch(url, { credentials: 'same-origin' });
+      const response = await fetch(apiUrl, { credentials: 'same-origin' });
       if (!response.ok) {
         console.error('Dewey children API error:', response.status);
         return null;
@@ -1600,7 +1600,7 @@ async function initializeDewey() {
 
       const opt0 = document.createElement('option');
       opt0.value = '';
-      opt0.textContent = '<?= __("Seleziona...") ?>';
+      opt0.textContent = <?= json_encode(__("Seleziona...")) ?>;
       select.appendChild(opt0);
 
       items.forEach(item => {
@@ -1781,6 +1781,7 @@ async function loadAuthorsData(preselected = []) {
         const response = await fetch(window.BASE_PATH + '/api/search/autori', {
             credentials: 'same-origin'
         });
+        if (!response.ok) throw new Error('Network error');
         const authors = await response.json();
 
         if (!authorsChoice) return;
@@ -2082,30 +2083,31 @@ function initializeGeneriDropdowns() {
   let sottogenereApplied = false;
 
   const resetGenere = (placeholder) => {
-    genereSelect.innerHTML = `<option value="0">${placeholder}</option>`;
+    genereSelect.innerHTML = `<option value="0">${escapeHtml(placeholder)}</option>`;
     genereSelect.disabled = true;
   };
   const resetSottogenere = (placeholder) => {
-    sottogenereSelect.innerHTML = `<option value="0">${placeholder}</option>`;
+    sottogenereSelect.innerHTML = `<option value="0">${escapeHtml(placeholder)}</option>`;
     sottogenereSelect.disabled = true;
   };
 
   // 1) Carica radici (parent_id NULL)
-  fetch(window.BASE_PATH + '/api/generi?only_parents=1&limit=500', { credentials: 'same-origin' })
-    .then(r => r.json())
-    .then(items => {
-      radiceSelect.innerHTML = `<option value="0">${__('Seleziona radice...')}</option>`;
-      (items || []).forEach(it => {
-        const opt = document.createElement('option');
-        opt.value = it.id;
-        opt.textContent = it.nome;
-        radiceSelect.appendChild(opt);
-      });
-      if (initialRadice > 0) {
-        radiceSelect.value = String(initialRadice);
-        radiceSelect.dispatchEvent(new Event('change'));
-      }
+  (async () => { try {
+    const r = await fetch(window.BASE_PATH + '/api/generi?only_parents=1&limit=500', { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('Network error');
+    const items = await r.json();
+    radiceSelect.innerHTML = `<option value="0">${escapeHtml(__('Seleziona radice...'))}</option>`;
+    (items || []).forEach(it => {
+      const opt = document.createElement('option');
+      opt.value = it.id;
+      opt.textContent = it.nome;
+      radiceSelect.appendChild(opt);
     });
+    if (initialRadice > 0) {
+      radiceSelect.value = String(initialRadice);
+      radiceSelect.dispatchEvent(new Event('change'));
+    }
+  } catch (e) { console.error('Failed to load genre roots:', e); } })();
 
   // 2) Cambio radice => carica generi (figli della radice)
   radiceSelect.addEventListener('change', async function() {
@@ -2115,8 +2117,9 @@ function initializeGeneriDropdowns() {
     if (rootId > 0) {
       try {
         const res = await fetch(`${window.BASE_PATH}/api/generi/sottogeneri?parent_id=${encodeURIComponent(rootId)}`);
+        if (!res.ok) throw new Error('Network error');
         const data = await res.json();
-        genereSelect.innerHTML = `<option value="0">${__("Seleziona genere...")}</option>`;
+        genereSelect.innerHTML = `<option value="0">${escapeHtml(__("Seleziona genere..."))}</option>`;
         data.forEach(g => {
           const opt = document.createElement('option');
           opt.value = g.id;
@@ -2143,7 +2146,7 @@ function initializeGeneriDropdowns() {
       try {
         const res = await fetch(`${window.BASE_PATH}/api/generi/sottogeneri?parent_id=${encodeURIComponent(parentId)}`);
         const data = await res.json();
-        sottogenereSelect.innerHTML = `<option value="0">${bookFormI18n.noSubgenre}</option>`;
+        sottogenereSelect.innerHTML = `<option value="0">${escapeHtml(bookFormI18n.noSubgenre)}</option>`;
         data.forEach(sg => {
           const opt = document.createElement('option');
           opt.value = sg.id;
@@ -2198,11 +2201,11 @@ function initializeSuggestCollocazione() {
         info.textContent = data.collocazione ? `Suggerito: ${data.collocazione}` : `Suggerito scaffale #${data.scaffale_id}`;
         if (window.Toast) window.Toast.fire({icon: 'success', title: __('Collocazione suggerita') });
       } else {
-        info.textContent = '<?= __("Nessun suggerimento disponibile") ?>';
+        info.textContent = <?= json_encode(__("Nessun suggerimento disponibile")) ?>;
         if (window.Toast) window.Toast.fire({icon: 'info', title: __('Nessun suggerimento') });
       }
     } catch (e) {
-      info.textContent = '<?= __("Errore suggerimento") ?>';
+      info.textContent = <?= json_encode(__("Errore suggerimento")) ?>;
     }
   });
 }
@@ -2297,14 +2300,14 @@ function initializeCollocationFilters() {
 
       // Show loading state
       autoBtn.disabled = true;
-      autoBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${__("Generazione...")}`;
+      autoBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${escapeHtml(__("Generazione..."))}`;
 
       delete posizioneInput.dataset.manual;
       await updateAutoPosition(true);
 
       // Restore button state
       autoBtn.disabled = false;
-      autoBtn.innerHTML = `<i class="fas fa-sync mr-2"></i>${__("Genera automaticamente")}`;
+      autoBtn.innerHTML = `<i class="fas fa-sync mr-2"></i>${escapeHtml(__("Genera automaticamente"))}`;
 
       if (window.Toast && posizioneInput.value) {
         window.Toast.fire({
@@ -2440,7 +2443,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
         }
         
         // Show loading state
-        suggestions.innerHTML = `<li class="px-4 py-2 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>${bookFormI18n.searching}</li>`;
+        suggestions.innerHTML = `<li class="px-4 py-2 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>${escapeHtml(bookFormI18n.searching)}</li>`;
         suggestions.classList.remove('hidden');
         
         timeout = setTimeout(async () => {
@@ -2481,7 +2484,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                 if (combined.length === 0) {
                     const emptyLi = document.createElement('li');
                     emptyLi.className = 'px-4 py-2 text-gray-500';
-                    emptyLi.textContent = '<?= __("Nessun risultato trovato") ?>';
+                    emptyLi.textContent = <?= json_encode(__("Nessun risultato trovato")) ?>;
                     suggestions.appendChild(emptyLi);
                 } else {
                     combined.forEach((item, index) => {
@@ -2555,7 +2558,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                     suggestions.classList.remove('hidden');
                     safeOnEmpty(fallback);
                 } else {
-                    suggestions.innerHTML = `<li class="px-4 py-2 text-red-500">${bookFormI18n.searchError}</li>`;
+                    suggestions.innerHTML = `<li class="px-4 py-2 text-red-500">${escapeHtml(bookFormI18n.searchError)}</li>`;
                     lastResults = [];
                     highlightedIndex = -1;
                     suggestions.classList.remove('hidden');
@@ -3162,7 +3165,7 @@ function initializeIsbnImport() {
         
         // Show loading state
         btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${FORM_MODE === 'edit' ? __('Aggiornamento...') : __('Importazione...')}`;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${escapeHtml(FORM_MODE === 'edit' ? __('Aggiornamento...') : __('Importazione...'))}`;
         
         try {
             const response = await fetch(`${window.BASE_PATH}/api/scrape/isbn?isbn=${encodeURIComponent(isbn)}`, {
@@ -3729,7 +3732,7 @@ function initializeIsbnImport() {
             }
         } finally {
             btn.disabled = false;
-            btn.innerHTML = `<i class="fas fa-download mr-2"></i>${defaultBtnLabel}`;
+            btn.innerHTML = `<i class="fas fa-download mr-2"></i>${escapeHtml(defaultBtnLabel)}`;
         }
     });
 }
@@ -3761,7 +3764,7 @@ function displayScrapedCover(imageUrl) {
     }
 
     img.src = imageSrc;
-    img.alt = '<?= __("Copertina recuperata automaticamente") ?>';
+    img.alt = <?= json_encode(__("Copertina recuperata automaticamente")) ?>;
     img.className = 'max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm';
     
     img.onload = function() {
@@ -4070,13 +4073,13 @@ document.head.appendChild(style);
 </script>
 
 <!-- Load TinyMCE -->
-<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 
 <script>
 // Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 8;
-const TINYMCE_BASE = '<?= assetUrl("tinymce") ?>';
+const TINYMCE_BASE = <?= json_encode(assetUrl("tinymce")) ?>;
 
 function initBookTinyMCE() {
     if (!window.tinymce) {

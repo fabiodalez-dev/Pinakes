@@ -135,6 +135,7 @@ class LibriController
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
+                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
             ]);
             curl_exec($ch);
             $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
@@ -462,7 +463,7 @@ class LibriController
 
     public function store(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array) $request->getParsedBody();
+        $data = $this->parseRequestBody($request);
         // CSRF validated by CsrfMiddleware
 
         // SECURITY: Debug logging rimosso per prevenire information disclosure
@@ -687,17 +688,18 @@ class LibriController
                 $placeholders = implode(',', array_fill(0, count($allValues), '?'));
                 $types = str_repeat('s', count($allValues) * 3); // 3 fields to check
                 $params = array_merge($allValues, $allValues, $allValues); // Same values for each field
+                $inClause = "({$placeholders})";
 
-                $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
+                $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
                         s.codice as scaffale_codice, m.numero_livello as mensola_livello
                         FROM libri l
                         LEFT JOIN scaffali s ON l.scaffale_id = s.id
                         LEFT JOIN mensole m ON l.mensola_id = m.id
-                        WHERE (l.isbn10 IN (' . $placeholders . ')
-                           OR l.isbn13 IN (' . $placeholders . ')
-                           OR l.ean IN (' . $placeholders . '))
+                        WHERE (l.isbn10 IN {$inClause}
+                           OR l.isbn13 IN {$inClause}
+                           OR l.ean IN {$inClause})
                           AND l.deleted_at IS NULL
-                        LIMIT 1';
+                        LIMIT 1";
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
                 $stmt->execute();
@@ -962,7 +964,7 @@ class LibriController
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $data = (array) $request->getParsedBody();
+        $data = $this->parseRequestBody($request);
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\BookRepository($db);
         $currentBook = $repo->getById($id);
@@ -1212,18 +1214,19 @@ class LibriController
                 $placeholders = implode(',', array_fill(0, count($allValues), '?'));
                 $types = str_repeat('s', count($allValues) * 3) . 'i'; // 3 fields + book id
                 $params = array_merge($allValues, $allValues, $allValues, [$id]);
+                $inClause = "({$placeholders})";
 
-                $sql = 'SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione,
+                $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.collocazione,
                                s.codice AS scaffale_codice, m.numero_livello AS mensola_livello, l.posizione_progressiva
                         FROM libri l
                         LEFT JOIN scaffali s ON l.scaffale_id = s.id
                         LEFT JOIN mensole m ON l.mensola_id = m.id
-                        WHERE (l.isbn10 IN (' . $placeholders . ')
-                           OR l.isbn13 IN (' . $placeholders . ')
-                           OR l.ean IN (' . $placeholders . '))
+                        WHERE (l.isbn10 IN {$inClause}
+                           OR l.isbn13 IN {$inClause}
+                           OR l.ean IN {$inClause})
                           AND l.id <> ?
                           AND l.deleted_at IS NULL
-                        LIMIT 1';
+                        LIMIT 1";
                 $stmt = $db->prepare($sql);
                 $stmt->bind_param($types, ...$params);
                 $stmt->execute();
@@ -1443,9 +1446,8 @@ class LibriController
                         $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                         $reassignmentService->reassignOnNewCopy($id, $newCopyId);
                     } catch (\Throwable $e) {
-                        SecureLogger::error(__('Riassegnazione prenotazione nuova copia fallita'), [
+                        SecureLogger::error(__('Riassegnazione prenotazione nuova copia fallita') . ': ' . $e->getMessage(), [
                             'copia_id' => $newCopyId,
-                            'error' => $e->getMessage()
                         ]);
                     }
 
@@ -1454,9 +1456,8 @@ class LibriController
                         $reservationManager = new \App\Controllers\ReservationManager($db);
                         $reservationManager->processBookAvailability($id);
                     } catch (\Throwable $e) {
-                        SecureLogger::error(__('Elaborazione lista attesa fallita'), [
+                        SecureLogger::error(__('Elaborazione lista attesa fallita') . ': ' . $e->getMessage(), [
                             'libro_id' => $id,
-                            'error' => $e->getMessage()
                         ]);
                     }
                 }
@@ -1756,7 +1757,8 @@ class LibriController
         ");
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $prestitiCount = (int) $stmt->get_result()->fetch_assoc()['count'];
+        $row = $stmt->get_result()->fetch_assoc();
+        $prestitiCount = (int) ($row['count'] ?? 0);
         $stmt->close();
 
         // Also check prenotazioni table (waitlist entries with stato='attiva')
@@ -1768,7 +1770,8 @@ class LibriController
         ");
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $prenotazioniCount = (int) $stmt->get_result()->fetch_assoc()['count'];
+        $row = $stmt->get_result()->fetch_assoc();
+        $prenotazioniCount = (int) ($row['count'] ?? 0);
         $stmt->close();
 
         if ($prestitiCount > 0 || $prenotazioniCount > 0) {
@@ -2007,10 +2010,9 @@ class LibriController
 
             $coverUrl = $coverData['file_url'];
         } catch (\Throwable $e) {
-            \App\Support\SecureLogger::warning('[LibriController] fetchCover download failed', [
+            \App\Support\SecureLogger::warning('[LibriController] fetchCover download failed: ' . $e->getMessage(), [
                 'book_id' => $id,
                 'image_url' => $imageUrl,
-                'error' => $e->getMessage()
             ]);
             $response->getBody()->write(json_encode(['success' => false, 'error' => __('Download copertina fallito')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
@@ -3018,9 +3020,8 @@ class LibriController
         try {
             $visibilityJson = !empty($ltVisibility) ? json_encode($ltVisibility, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) : null;
         } catch (\JsonException $e) {
-            SecureLogger::error('JSON encoding failed for LibraryThing visibility', [
+            SecureLogger::error('JSON encoding failed for LibraryThing visibility: ' . $e->getMessage(), [
                 'book_id' => $id,
-                'error' => $e->getMessage()
             ]);
             throw new \RuntimeException('Failed to save LibraryThing field visibility', 0, $e);
         }
@@ -3029,5 +3030,15 @@ class LibriController
         $stmt->bind_param('si', $visibilityJson, $id);
         $stmt->execute();
         $stmt->close();
+    }
+
+    private function parseRequestBody(Request $request): array
+    {
+        $method = 'getParsedBody';
+        $parsed = $request->$method();
+        if ($parsed !== null) {
+            return (array) $parsed;
+        }
+        return (array) json_decode((string) $request->getBody(), true);
     }
 }

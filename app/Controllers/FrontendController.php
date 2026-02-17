@@ -136,13 +136,13 @@ class FrontendController
 
                 // Use proper prepared statements with dynamic placeholders
                 $uniqueGenreIds = array_unique(array_map('intval', $genreIds));
-                $placeholders = implode(',', array_fill(0, count($uniqueGenreIds), '?'));
+                $inClause = '(' . implode(',', array_fill(0, count($uniqueGenreIds), '?')) . ')';
                 $query_genre_books = "
                     SELECT l.*,
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                     FROM libri l
-                    WHERE l.genere_id IN ({$placeholders}) AND l.deleted_at IS NULL
+                    WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
                     ORDER BY l.created_at DESC
                     LIMIT 4
                 ";
@@ -421,7 +421,8 @@ class FrontendController
         }
         $stmt_count->execute();
         $total_result = $stmt_count->get_result();
-        $total_books = $total_result->fetch_assoc()['total'];
+        $total_row = $total_result->fetch_assoc();
+        $total_books = $total_row['total'] ?? 0;
         $total_pages = ceil($total_books / $limit);
 
         // Query per i libri
@@ -505,7 +506,8 @@ class FrontendController
         }
         $stmt_count->execute();
         $total_result = $stmt_count->get_result();
-        $total_books = $total_result->fetch_assoc()['total'];
+        $total_row = $total_result->fetch_assoc();
+        $total_books = $total_row['total'] ?? 0;
         $total_pages = ceil($total_books / $limit);
 
         // Query per i libri
@@ -983,7 +985,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt->bind_param($typesAvail, ...$paramsAvail);
     }
     $stmt->execute();
-    $availableCount = $stmt->get_result()->fetch_assoc()['cnt'];
+    $row = $stmt->get_result()->fetch_assoc();
+    $availableCount = $row['cnt'] ?? 0;
 
     // Count borrowed books (base query always has WHERE l.deleted_at IS NULL)
     $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'prestato'";
@@ -992,7 +995,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt->bind_param($typesAvail, ...$paramsAvail);
     }
     $stmt->execute();
-    $borrowedCount = $stmt->get_result()->fetch_assoc()['cnt'];
+    $row = $stmt->get_result()->fetch_assoc();
+    $borrowedCount = $row['cnt'] ?? 0;
 
     $options['availability_stats'] = [
         'available' => $availableCount,
@@ -1152,7 +1156,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('s', $authorName);
         $stmt->execute();
-        $totalBooks = $stmt->get_result()->fetch_assoc()['total'];
+        $row = $stmt->get_result()->fetch_assoc();
+        $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
         // Query per i libri dell'autore
@@ -1184,7 +1189,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars($author['nome']);
+        $title = "Libri di " . htmlspecialchars($author['nome'], ENT_QUOTES, 'UTF-8');
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';
@@ -1227,7 +1232,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('s', $publisherName);
         $stmt->execute();
-        $totalBooks = $stmt->get_result()->fetch_assoc()['total'];
+        $row = $stmt->get_result()->fetch_assoc();
+        $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
         // Query per i libri dell'editore
@@ -1256,10 +1262,10 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di " . htmlspecialchars($publisher['nome']);
+        $title = "Libri di " . htmlspecialchars($publisher['nome'], ENT_QUOTES, 'UTF-8');
 
         // SEO Variables
-        $publisherName = htmlspecialchars($publisher['nome']);
+        $publisherName = htmlspecialchars($publisher['nome'], ENT_QUOTES, 'UTF-8');
         $seoTitle = "Libri di {$publisherName} - Catalogo Editore | Biblioteca";
         $seoDescription = "Scopri tutti i libri pubblicati da {$publisherName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
         $seoCanonical = absoluteUrl(RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']));
@@ -1315,7 +1321,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('s', $genreName);
         $stmt->execute();
-        $totalBooks = $stmt->get_result()->fetch_assoc()['total'];
+        $row = $stmt->get_result()->fetch_assoc();
+        $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
         // Query per i libri del genere
@@ -1344,10 +1351,10 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di genere " . htmlspecialchars($genre['nome']);
+        $title = "Libri di genere " . htmlspecialchars($genre['nome'], ENT_QUOTES, 'UTF-8');
 
         // SEO Variables
-        $genreName = htmlspecialchars($genre['nome']);
+        $genreName = htmlspecialchars($genre['nome'], ENT_QUOTES, 'UTF-8');
         $seoTitle = "Libri di {$genreName} - Catalogo per Genere | Biblioteca";
         $seoDescription = "Esplora tutti i libri del genere {$genreName} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
         $seoCanonical = absoluteUrl(RouteTranslator::route('genre') . '/' . urlencode($genre['nome']));
@@ -1555,7 +1562,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('i', $authorId);
         $stmt->execute();
-        $totalBooks = $stmt->get_result()->fetch_assoc()['total'];
+        $row = $stmt->get_result()->fetch_assoc();
+        $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
         // Query per i libri dell'autore
@@ -1600,7 +1608,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Render template
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars($author['nome']);
+        $title = "Libri di " . htmlspecialchars($author['nome'], ENT_QUOTES, 'UTF-8');
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';
@@ -1777,7 +1785,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $stmt_count = $db->prepare("SELECT COUNT(*) as total FROM events WHERE is_active = 1");
         $stmt_count->execute();
         $countResult = $stmt_count->get_result();
-        $totalEvents = $countResult->fetch_assoc()['total'];
+        $countRow = $countResult->fetch_assoc();
+        $totalEvents = $countRow['total'] ?? 0;
         $totalPages = (int)ceil($totalEvents / $perPage);
         $stmt_count->close();
 
