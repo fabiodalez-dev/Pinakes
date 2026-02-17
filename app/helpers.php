@@ -161,30 +161,42 @@ if (!function_exists('book_primary_author_name')) {
     }
 }
 
+if (!function_exists('book_path')) {
+    /**
+     * Build the canonical path for a book (author slug + book slug + ID) WITHOUT base path.
+     * Used by book_url() and SitemapGenerator::buildBookPath().
+     */
+    function book_path(array $book): string
+    {
+        $bookId = (int)($book['id'] ?? $book['libro_id'] ?? 0);
+        if ($bookId <= 0) {
+            return '/';
+        }
+
+        $title = (string)($book['titolo'] ?? $book['libro_titolo'] ?? $book['title'] ?? '');
+        $authorName = book_primary_author_name($book);
+
+        $bookSlug = slugify_text($title);
+        if ($bookSlug === '') {
+            $bookSlug = 'libro';
+        }
+
+        $authorSlug = slugify_text($authorName);
+        if ($authorSlug === '') {
+            $authorSlug = 'autore';
+        }
+
+        return '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
+    }
+}
+
 if (!function_exists('book_url')) {
     /**
      * Build the canonical frontend URL for a book (author slug + book slug + ID).
      */
     function book_url(array $book): string
     {
-        $bookId = (int)($book['id'] ?? $book['libro_id'] ?? 0);
-        if ($bookId <= 0) {
-            return App\Support\HtmlHelper::getBasePath() . '/';
-        }
-
-        $title = (string)($book['titolo'] ?? $book['libro_titolo'] ?? $book['title'] ?? '');
-        $bookSlug = slugify_text($title);
-        if ($bookSlug === '') {
-            $bookSlug = 'libro';
-        }
-
-        $authorName = book_primary_author_name($book);
-        $authorSlug = slugify_text($authorName);
-        if ($authorSlug === '') {
-            $authorSlug = 'autore';
-        }
-
-        return App\Support\HtmlHelper::getBasePath() . '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
+        return url(book_path($book));
     }
 }
 

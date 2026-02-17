@@ -478,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Return loan button handler
     document.querySelectorAll('.return-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            const loanId = this.dataset.loanId;
+            const loanId = parseInt(this.dataset.loanId, 10);
             Swal.fire({
                 title: '<?= __("Conferma Restituzione") ?>',
                 text: '<?= __("Confermi la restituzione di questo libro?") ?>',
@@ -499,7 +499,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({ _csrf: csrfToken, loan_id: loanId })
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('HTTP ' + response.status);
+                        }
+                        if (!response.headers.get('content-type')?.includes('application/json')) {
+                            throw new Error('<?= __("Risposta del server non valida") ?>');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success) {
                             Swal.fire({
@@ -522,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Cancel reservation button handler
     document.querySelectorAll('.cancel-reservation-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            const reservationId = this.dataset.reservationId;
+            const reservationId = parseInt(this.dataset.reservationId, 10);
             Swal.fire({
                 title: '<?= __("Annulla Prenotazione") ?>',
                 text: '<?= __("Sei sicuro di voler annullare questa prenotazione?") ?>',
@@ -543,7 +551,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({ _csrf: csrfToken, reservation_id: reservationId })
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('HTTP ' + response.status);
+                        }
+                        if (!response.headers.get('content-type')?.includes('application/json')) {
+                            throw new Error('<?= __("Risposta del server non valida") ?>');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success) {
                             Swal.fire({

@@ -452,18 +452,8 @@ class SitemapGenerator
 
     private function buildBookPath(int $bookId, string $title, string $authorName): string
     {
-        // Generate path WITHOUT basePath since $this->baseUrl already includes it.
-        // Cannot use book_url() here because it prepends getBasePath().
-        $bookSlug = slugify_text($title);
-        if ($bookSlug === '') {
-            $bookSlug = 'libro';
-        }
-
-        $authorSlug = slugify_text($authorName);
-        if ($authorSlug === '') {
-            $authorSlug = 'autore';
-        }
-
-        return '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
+        // Delegate to the shared book_path() helper which generates path WITHOUT basePath,
+        // since $this->baseUrl already includes it.
+        return book_path(['id' => $bookId, 'titolo' => $title, 'autore_principale' => $authorName]);
     }
 }

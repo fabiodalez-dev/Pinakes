@@ -373,7 +373,7 @@ class SearchController
                 'biography' => $biografia,
                 'book_count' => (int)$row['libro_count'],
                 'type' => 'author',
-                'url' => route_path('author') . '/' . $row['id']
+                'url' => route_path('author') . '/' . (int)$row['id']
             ];
         }
 
@@ -405,7 +405,7 @@ class SearchController
                 'description' => $indirizzo,
                 'book_count' => (int)$row['libro_count'],
                 'type' => 'publisher',
-                'url' => route_path('publisher') . '/' . $row['id']
+                'url' => route_path('publisher') . '/' . (int)$row['id']
             ];
         }
 

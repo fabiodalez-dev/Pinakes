@@ -126,7 +126,7 @@ class UtentiApiController
         $stmt = $db->prepare($sql);
         if (!$stmt) {
             AppLog::error('utenti.list.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode(['error' => __('Errore interno del server')], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno del database. Riprova più tardi.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         $stmt->bind_param($types, ...$params);

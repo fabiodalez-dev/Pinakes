@@ -173,6 +173,12 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => waitForLibraries(callback, attempts - 1), 200);
     };
 
+    const escapeHtml = (str) => {
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(String(str ?? '')));
+        return div.innerHTML;
+    };
+
     const bindUploadEvents = (uppyInstance, type) => {
         const inputId = type === 'audio' ? 'audio_url' : 'file_url';
         const displayId = type === 'audio' ? 'audio_url_display' : 'file_url_display';
@@ -189,19 +195,46 @@ document.addEventListener('DOMContentLoaded', function() {
             if (displayInput) displayInput.value = uploadedUrl;
 
             if (resultEl) {
+                const safeFileName = escapeHtml(file.name);
+                const safeFileSize = escapeHtml((file.size / 1024 / 1024).toFixed(2));
+                const safeUrl = escapeHtml(uploadedUrl);
+
                 resultEl.classList.remove('hidden');
-                resultEl.innerHTML = `
-                    <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-                        <div class="flex items-center gap-3 text-sm text-gray-800">
-                            <i class="fas fa-check-circle text-green-500 text-lg"></i>
-                            <div class="flex flex-col">
-                                <span class="font-semibold">${file.name}</span>
-                                <span class="text-xs text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                            </div>
-                        </div>
-                        <a href="${uploadedUrl}" target="_blank" class="text-xs text-purple-600 hover:underline"><?= __("Apri file") ?></a>
-                    </div>
-                `;
+                resultEl.textContent = '';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm';
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'flex items-center gap-3 text-sm text-gray-800';
+
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-check-circle text-green-500 text-lg';
+                infoDiv.appendChild(icon);
+
+                const textDiv = document.createElement('div');
+                textDiv.className = 'flex flex-col';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'font-semibold';
+                nameSpan.textContent = file.name;
+                textDiv.appendChild(nameSpan);
+
+                const sizeSpan = document.createElement('span');
+                sizeSpan.className = 'text-xs text-gray-500';
+                sizeSpan.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+                textDiv.appendChild(sizeSpan);
+
+                infoDiv.appendChild(textDiv);
+                wrapper.appendChild(infoDiv);
+
+                const link = document.createElement('a');
+                link.href = uploadedUrl;
+                link.target = '_blank';
+                link.className = 'text-xs text-purple-600 hover:underline';
+                link.textContent = '<?= __("Apri file") ?>';
+                wrapper.appendChild(link);
+
+                resultEl.appendChild(wrapper);
             }
 
             const successTitle = type === 'audio'

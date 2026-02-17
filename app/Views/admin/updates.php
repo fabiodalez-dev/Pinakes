@@ -609,6 +609,11 @@ async function startUpdate(version) {
             body: `csrf_token=${encodeURIComponent(csrfToken)}&version=${encodeURIComponent(version)}`
         });
 
+        // Check for maintenance mode before parsing response
+        if (response.status === 503) {
+            throw new Error('<?= __("Server in manutenzione. Attendi il completamento dell\\'aggiornamento.") ?>');
+        }
+
         // Check response before parsing JSON
         const contentType = response.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
@@ -616,10 +621,6 @@ async function startUpdate(version) {
             const text = await response.text();
             console.error('Server returned non-JSON response:', text.substring(0, 500));
             throw new Error('<?= __("Il server ha restituito una risposta non valida. Controlla i log per dettagli.") ?>');
-        }
-
-        if (!response.ok && response.status === 503) {
-            throw new Error('<?= __("Server in manutenzione. Attendi il completamento dell\\'aggiornamento.") ?>');
         }
 
         const data = await response.json();

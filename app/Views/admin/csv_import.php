@@ -500,6 +500,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     });
 
+    // Defensive fallback for BASE_PATH
+    const BASE_PATH = window.BASE_PATH || '';
+
     // Process CSV in chunks (10 rows at a time)
     function processChunks(totalRows, chunkSize, enableScraping) {
         let currentRow = 0;
@@ -564,7 +567,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const percent = 20 + Math.round((currentRow / totalRows) * 80);
             updateProgress(percent, `<?= addslashes(__("Processing righe")) ?> ${currentRow}-${Math.min(currentRow + size, totalRows)}...`, '');
 
-            fetch(window.BASE_PATH + '/admin/libri/import/chunk', {
+            fetch(BASE_PATH + '/admin/libri/import/chunk', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -608,7 +611,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Poll for import progress
     let pollInterval;
     function pollProgress() {
-        fetch(window.BASE_PATH + '/admin/libri/import/progress')
+        fetch(BASE_PATH + '/admin/libri/import/progress')
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'processing') {

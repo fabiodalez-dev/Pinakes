@@ -12,8 +12,8 @@ function reservationBookUrl(array $item): string {
     ]);
 }
 
-function resolveCoverUrl(array $item): string {
-    $cover = (string)($item['copertina_url'] ?? '');
+function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
+    $cover = (string)($item[$key] ?? '');
     if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
         $cover = '/' . $cover;
     }
@@ -480,7 +480,7 @@ function resolveCoverUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></a></h3>
@@ -537,7 +537,7 @@ function resolveCoverUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
@@ -604,7 +604,7 @@ function resolveCoverUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></a></h3>
@@ -670,7 +670,7 @@ function resolveCoverUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
@@ -718,14 +718,7 @@ function resolveCoverUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($myReviews as $review):
-        $cover = (string)($review['libro_copertina'] ?? '');
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
-            $cover = '/' . $cover;
-        }
-        if ($cover === '') {
-            $cover = '/uploads/copertine/placeholder.jpg';
-        }
-        $cover = url($cover);
+        $cover = resolveCoverUrl($review, 'libro_copertina');
         $statusLabels = [
           'pendente' => __('In attesa di approvazione'),
           'approvata' => __('Approvata'),
@@ -743,7 +736,7 @@ function resolveCoverUrl(array $item): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></a></h3>

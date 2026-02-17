@@ -5,7 +5,6 @@
  */
 
 use App\Services\ReservationReassignmentService;
-use App\Support\NotificationService;
 use Dotenv\Dotenv;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -49,7 +48,6 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 $expiredCount = 0;
-$notificationService = new NotificationService($db);
 
 while ($reservation = $result->fetch_assoc()) {
     $reassignmentService = new ReservationReassignmentService($db);

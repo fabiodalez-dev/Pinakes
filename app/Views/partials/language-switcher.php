@@ -88,7 +88,7 @@ if (count($languagesData) <= 1) {
             onclick="toggleLanguageDropdown()"
             aria-haspopup="true"
             aria-expanded="false">
-        <span class="text-xl leading-none"><?= $currentLangFlag ?></span>
+        <span class="text-xl leading-none"><?= HtmlHelper::e($currentLangFlag) ?></span>
         <span class="font-medium"><?= HtmlHelper::e($currentLangName) ?></span>
         <i class="fas fa-chevron-down text-xs"></i>
     </button>

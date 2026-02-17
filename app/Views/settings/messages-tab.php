@@ -160,7 +160,7 @@ function viewMessage(id) {
             <div class="mt-2 p-4 bg-gray-50 rounded-xl text-sm text-gray-900 whitespace-pre-wrap">${escapeHtml(data.messaggio)}</div>
           </div>
           <div class="flex gap-2 pt-4">
-            <button onclick="replyToMessage('${escapeHtml(data.email)}')" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
+            <button onclick="replyToMessage(this.dataset.email)" data-email="${escapeHtml(data.email)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
               <i class="fas fa-reply"></i>
               <?= __("Rispondi") ?>
             </button>

@@ -3215,7 +3215,28 @@
                                 "code": "362.3",
                                 "name": "Disabilità intellettiva",
                                 "level": 4,
-                                "children": []
+                                "children": [
+                                    {
+                                        "code": "362.30",
+                                        "name": "",
+                                        "level": 5,
+                                        "children": [
+                                            {
+                                                "code": "362.309",
+                                                "name": "",
+                                                "level": 6,
+                                                "children": [
+                                                    {
+                                                        "code": "362.3092",
+                                                        "name": "PROBLEMI E SERVIZI DI ASSISTENZA SOCIALE. RITARDO MENTALE. Persone",
+                                                        "level": 7,
+                                                        "children": []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
                             },
                             {
                                 "code": "362.4",

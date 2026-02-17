@@ -464,6 +464,11 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'HTTP ' + response.status }));
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: errorData.error || errorData.message || '<?= __("Errore del server") ?>' });
+        return;
+      }
       const data = await response.json().catch(() => ({
         success: false,
         error: '<?= __("Errore nel parsing della risposta") ?>'
@@ -504,6 +509,11 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'HTTP ' + response.status }));
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: errorData.error || errorData.message || '<?= __("Errore del server") ?>' });
+        return;
+      }
       const result = await response.json().catch(() => ({
         success: false,
         error: '<?= __("Risposta del server non valida") ?>'
@@ -613,6 +623,11 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'HTTP ' + response.status }));
+        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: errorData.error || errorData.message || '<?= __("Errore del server") ?>' });
+        return;
+      }
       const result = await response.json().catch(() => ({
         success: false,
         error: '<?= __("Errore nel parsing della risposta") ?>'

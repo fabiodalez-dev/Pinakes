@@ -799,7 +799,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <div class="header-main">
             <div class="container">
                 <div class="header-content">
-                    <a class="header-brand" href="<?= url('/') ?>">
+                    <a class="header-brand" href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>">
                         <?php if ($appLogo !== ''): ?>
                             <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>"
                                 class="logo-image">
@@ -809,11 +809,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </a>
 
                     <ul class="nav-links d-none d-md-flex">
-                        <li><a href="<?= $catalogRoute ?>"
+                        <li><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"
                                 class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a>
                         </li>
                         <?php if ($eventsEnabled): ?>
-                            <li><a href="<?= url('/events') ?>"
+                            <li><a href="<?= htmlspecialchars(url('/events'), ENT_QUOTES, 'UTF-8') ?>"
                                     class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
                             </li>
                         <?php endif; ?>
@@ -824,7 +824,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <i class="fas fa-bars"></i>
                     </button>
 
-                    <form class="search-form d-none d-md-block" action="<?= $catalogRoute ?>" method="get">
+                    <form class="search-form d-none d-md-block" action="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
                             placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="Search">
                     </form>
@@ -835,18 +835,18 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php if ($isLogged): ?>
                             <div class="d-flex align-items-center gap-2">
                                 <?php if (!$isCatalogueMode): ?>
-                                <a class="btn btn-outline-header" href="<?= $reservationsRoute ?>">
+                                <a class="btn btn-outline-header" href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-bookmark"></i>
                                     <span class="d-none d-sm-inline"><?= __("Prenotazioni") ?></span>
                                     <span id="nav-res-count" class="badge-notification d-none">0</span>
                                 </a>
-                                <a class="btn btn-outline-header" href="<?= $wishlistRoute ?>">
+                                <a class="btn btn-outline-header" href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-heart"></i>
                                     <span class="d-none d-sm-inline"><?= __("Preferiti") ?></span>
                                 </a>
                                 <?php endif; ?>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
-                                    <a class="btn btn-primary-header" href="<?= url('/admin/dashboard') ?>">
+                                    <a class="btn btn-primary-header" href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-user-shield"></i>
                                         <span class="d-none d-md-inline"><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __("Admin") : __("Staff") ?></span>
                                     </a>
@@ -858,15 +858,15 @@ $htmlLang = substr($currentLocale, 0, 2);
                                                 class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
                                         </a>
                                         <div class="user-dropdown-menu">
-                                            <a href="<?= $dashboardRoute ?>">
+                                            <a href="<?= htmlspecialchars($dashboardRoute, ENT_QUOTES, 'UTF-8') ?>">
                                                 <i class="fas fa-tachometer-alt"></i>
                                                 <?= __("Dashboard") ?>
                                             </a>
-                                            <a href="<?= $profileRoute ?>">
+                                            <a href="<?= htmlspecialchars($profileRoute, ENT_QUOTES, 'UTF-8') ?>">
                                                 <i class="fas fa-user"></i>
                                                 <?= __("Profilo") ?>
                                             </a>
-                                            <a href="<?= $logoutRoute ?>">
+                                            <a href="<?= htmlspecialchars($logoutRoute, ENT_QUOTES, 'UTF-8') ?>">
                                                 <i class="fas fa-sign-out-alt"></i>
                                                 <?= __("Esci") ?>
                                             </a>
@@ -876,11 +876,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                             </div>
                         <?php else: ?>
                             <div class="d-flex align-items-center gap-2">
-                                <a class="btn btn-outline-header" href="<?= $loginRoute ?>">
+                                <a class="btn btn-outline-header" href="<?= htmlspecialchars($loginRoute, ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-sign-in-alt"></i>
                                     <span class="d-none d-sm-inline"><?= __("Accedi") ?></span>
                                 </a>
-                                <a class="btn btn-primary-header" href="<?= $registerRoute ?>">
+                                <a class="btn btn-primary-header" href="<?= htmlspecialchars($registerRoute, ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-user-plus"></i>
                                     <span class="d-none d-sm-inline"><?= __("Registrati") ?></span>
                                 </a>
@@ -888,7 +888,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php endif; ?>
                     </div>
 
-                    <form class="search-form d-md-none w-100" action="<?= $catalogRoute ?>" method="get">
+                    <form class="search-form d-md-none w-100" action="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>"
                             aria-label="Search">
                     </form>
@@ -906,44 +906,44 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </button>
                 </div>
                 <nav class="mobile-nav">
-                    <a href="<?= $catalogRoute ?>"
+                    <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"
                         class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
                     <?php if ($eventsEnabled): ?>
-                        <a href="<?= url('/events') ?>"
+                        <a href="<?= htmlspecialchars(url('/events'), ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
                             <i class="fas fa-calendar-alt me-2"></i><?= __("Eventi") ?>
                         </a>
                     <?php endif; ?>
                     <?php if ($isLogged): ?>
                         <hr class="mobile-menu-divider">
-                        <a href="<?= $dashboardRoute ?>" class="mobile-nav-link">
+                        <a href="<?= htmlspecialchars($dashboardRoute, ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
                             <i class="fas fa-tachometer-alt me-2"></i><?= __("Dashboard") ?>
                         </a>
                         <?php if (!$isCatalogueMode): ?>
-                        <a href="<?= $reservationsRoute ?>" class="mobile-nav-link">
+                        <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
                             <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
                         </a>
-                        <a href="<?= $wishlistRoute ?>" class="mobile-nav-link">
+                        <a href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
                             <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
                         </a>
                         <?php endif; ?>
                         <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
-                            <a href="<?= url('/admin/dashboard') ?>" class="mobile-nav-link">
+                            <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
                                 <i class="fas fa-user-shield me-2"></i><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __("Admin") : __("Staff") ?>
                             </a>
                         <?php else: ?>
-                            <a href="<?= $profileRoute ?>" class="mobile-nav-link">
+                            <a href="<?= htmlspecialchars($profileRoute, ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
                                 <i class="fas fa-user me-2"></i><?= __("Profilo") ?>
                             </a>
                         <?php endif; ?>
                     <?php else: ?>
                         <hr class="mobile-menu-divider">
-                        <a href="<?= $loginRoute ?>" class="mobile-nav-link">
+                        <a href="<?= htmlspecialchars($loginRoute, ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
                             <i class="fas fa-sign-in-alt me-2"></i><?= __("Accedi") ?>
                         </a>
-                        <a href="<?= $registerRoute ?>" class="mobile-nav-link">
+                        <a href="<?= htmlspecialchars($registerRoute, ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
                             <i class="fas fa-user-plus me-2"></i><?= __("Registrati") ?>
                         </a>
                     <?php endif; ?>
@@ -994,20 +994,20 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <div class="col-lg-3">
                     <h5>Menu</h5>
                     <ul class="list-unstyled">
-                        <li><a href="<?= $catalogRoute ?>"><?= __("Catalogo") ?></a></li>
-                        <li><a href="<?= route_path('about') ?>"><?= __("Chi Siamo") ?></a></li>
-                        <li><a href="<?= route_path('contact') ?>"><?= __("Contatti") ?></a></li>
-                        <li><a href="<?= route_path('privacy') ?>"><?= __("Privacy Policy") ?></a></li>
+                        <li><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a></li>
+                        <li><a href="<?= htmlspecialchars(route_path('about'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Chi Siamo") ?></a></li>
+                        <li><a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Contatti") ?></a></li>
+                        <li><a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Privacy Policy") ?></a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3">
                     <h5>Account</h5>
                     <ul class="list-unstyled">
-                        <li><a href="<?= route_path('user_dashboard') ?>"><?= __("Dashboard") ?></a></li>
-                        <li><a href="<?= $profileRoute ?>"><?= __("Profilo") ?></a></li>
+                        <li><a href="<?= htmlspecialchars(route_path('user_dashboard'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Dashboard") ?></a></li>
+                        <li><a href="<?= htmlspecialchars($profileRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Profilo") ?></a></li>
                         <?php if (!$isCatalogueMode): ?>
-                        <li><a href="<?= $wishlistRoute ?>"><?= __("Preferiti") ?></a></li>
-                        <li><a href="<?= $reservationsRoute ?>"><?= __("Prenotazioni") ?></a></li>
+                        <li><a href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Preferiti") ?></a></li>
+                        <li><a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Prenotazioni") ?></a></li>
                         <?php endif; ?>
                     </ul>
                 </div>

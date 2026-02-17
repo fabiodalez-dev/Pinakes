@@ -863,7 +863,9 @@ class LoanApprovalController
                 $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
-                    $copyRepo->updateStatus($copiaId, 'disponibile');
+                    if (!$copyRepo->updateStatus($copiaId, 'disponibile')) {
+                        throw new \RuntimeException(__('Impossibile aggiornare lo stato della copia'));
+                    }
                     $copyAvailable = true;
                 }
             }

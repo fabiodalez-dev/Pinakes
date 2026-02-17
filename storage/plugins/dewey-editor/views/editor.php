@@ -373,15 +373,21 @@ $pageTitle = __('Editor Classificazione Dewey');
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="flex justify-end gap-3">
-                    <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" onclick="DeweyEditor.closeModal()">
+                    <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal">
                         <?= __('Annulla') ?>
                     </button>
-                    <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onclick="DeweyEditor.saveEdit('${escapeHtml(node.code).replace(/'/g, "\\'")}')">
+                    <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" data-action="save-edit" data-code="${escapeHtml(node.code)}">
                         <?= __('Salva') ?>
                     </button>
                 </div>
             </div>
         `;
+        modalContent.querySelectorAll('[data-action]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.action === 'save-edit') DeweyEditor.saveEdit(btn.dataset.code);
+                else if (btn.dataset.action === 'close-modal') DeweyEditor.closeModal();
+            });
+        });
         modalBackdrop.classList.remove('hidden');
         document.getElementById('edit-name').focus();
     }
@@ -408,15 +414,21 @@ $pageTitle = __('Editor Classificazione Dewey');
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="flex justify-end gap-3">
-                    <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" onclick="DeweyEditor.closeModal()">
+                    <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal">
                         <?= __('Annulla') ?>
                     </button>
-                    <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" onclick="DeweyEditor.saveAdd('${escapeHtml(parentCode).replace(/'/g, "\\'")}')">
+                    <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" data-action="save-add" data-code="${escapeHtml(parentCode)}">
                         <?= __('Aggiungi') ?>
                     </button>
                 </div>
             </div>
         `;
+        modalContent.querySelectorAll('[data-action]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.action === 'save-add') DeweyEditor.saveAdd(btn.dataset.code);
+                else if (btn.dataset.action === 'close-modal') DeweyEditor.closeModal();
+            });
+        });
         modalBackdrop.classList.remove('hidden');
         document.getElementById('add-code').focus();
     }

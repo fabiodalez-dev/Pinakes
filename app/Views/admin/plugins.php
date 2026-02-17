@@ -264,7 +264,7 @@ $pluginSettings = $pluginSettings ?? [];
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($plugin['name'] === 'dewey-editor' && $plugin['is_active']): ?>
-                                    <a href="<?= url('/admin/dewey-editor') ?>"
+                                    <a href="<?= htmlspecialchars(url('/admin/dewey-editor'), ENT_QUOTES, 'UTF-8') ?>"
                                         class="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
                                         <i class="fas fa-edit mr-1"></i>
                                         <?= __("Apri Editor") ?>
