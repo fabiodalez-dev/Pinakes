@@ -13,8 +13,8 @@
 # EXPLICIT INCLUDES (must come first!)
 # ========================================
 
-# Keep .env.example
-+ .env.example
+# Keep .env.example (root only)
++ /.env.example
 
 # Keep README and LICENSE (matches at any level, protects vendor READMEs too)
 + README.md
@@ -244,6 +244,5 @@
 - /storage/plugins/*
 
 # Public uploads and user-generated assets
-- /public/uploads/settings/
 - /public/uploads/*
 - /public/assets/logo_*

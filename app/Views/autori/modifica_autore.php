@@ -12,7 +12,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
     <nav aria-label="breadcrumb" class="mb-4">
       <ol class="flex items-center space-x-2 text-sm">
         <li>
-          <a href="<?= url('/admin/dashboard') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-home mr-1"></i>Home
           </a>
         </li>
@@ -20,7 +20,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
         <li>
-          <a href="<?= url('/admin/autori') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+          <a href="<?= htmlspecialchars(url('/admin/autori'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
             <i class="fas fa-user-edit mr-1"></i>Autori
           </a>
         </li>
@@ -40,7 +40,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
     </div>
 
     <!-- Main Form -->
-    <form method="post" action="<?= url('/admin/autori/update/' . (int)$autore['id']) ?>" class="space-y-8 slide-in-up">
+    <form method="post" action="<?= htmlspecialchars(url('/admin/autori/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -109,7 +109,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
 
       <!-- Submit Section -->
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
-        <a href="<?= url('/admin/autori') ?>" class="btn-secondary order-2 sm:order-1 text-center">
+        <a href="<?= htmlspecialchars(url('/admin/autori'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary order-2 sm:order-1 text-center">
           <i class="fas fa-times mr-2"></i>
           <?= __("Annulla") ?>
         </a>

@@ -17,8 +17,8 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
 
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     
-    <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
     </style>

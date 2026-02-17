@@ -1855,7 +1855,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $ogDescription = $event['og_description'] ?: $seoDescription;
         $ogType = $event['og_type'] ?: 'article';
         $ogUrl = $event['og_url'] ?: $seoCanonical;
-        $ogImage = $event['og_image'] ?: ($event['featured_image'] ? absoluteUrl($event['featured_image']) : absoluteUrl('/assets/social.jpg'));
+        $ogImage = $event['og_image'] ? absoluteUrl($event['og_image']) : ($event['featured_image'] ? absoluteUrl($event['featured_image']) : absoluteUrl('/assets/social.jpg'));
 
         // Twitter Card tags
         $twitterCard = $event['twitter_card'] ?: 'summary_large_image';

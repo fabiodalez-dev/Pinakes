@@ -1479,17 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentFilters.search = value;
             const searchInput = document.getElementById('search-input');
             if (searchInput) {
-                // Sanitize the value before setting it to the input field to prevent XSS
-                const sanitizedValue = value.replace(/[<>&"']/g, function(match) {
-                    return {
-                        '<': '&lt;',
-                        '>': '&gt;',
-                        '&': '&amp;',
-                        '"': '&quot;',
-                        "'": '&#x27;'
-                    }[match];
-                });
-                searchInput.value = sanitizedValue;
+                searchInput.value = value;
             }
         } else {
             currentFilters[key] = value;

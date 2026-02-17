@@ -217,22 +217,22 @@ ob_start();
                 <i class="fas fa-arrow-left"></i>
                 <?= __('Torna Indietro') ?>
             </button>
-            <a href="<?= url('/') ?>" class="error-404-btn error-404-btn-primary">
+            <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="error-404-btn error-404-btn-primary">
                 <i class="fas fa-home"></i>
                 <?= __('Vai alla Home') ?>
             </a>
         </div>
 
         <div class="error-404-links">
-            <a href="<?= $catalogRoute ?>" class="error-404-link">
+            <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-404-link">
                 <i class="fas fa-book"></i>
                 <span><?= __('Catalogo') ?></span>
             </a>
-            <a href="<?= $wishlistRoute ?>" class="error-404-link">
+            <a href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-404-link">
                 <i class="fas fa-heart"></i>
                 <span><?= __('Preferiti') ?></span>
             </a>
-            <a href="<?= $reservationsRoute ?>" class="error-404-link">
+            <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-404-link">
                 <i class="fas fa-bookmark"></i>
                 <span><?= __('Prenotazioni') ?></span>
             </a>

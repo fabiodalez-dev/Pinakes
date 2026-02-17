@@ -213,7 +213,8 @@ class HtmlHelper
         }
 
         // Priorità 1: Estrai path da APP_CANONICAL_URL
-        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: '';
+        $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
+        $canonicalUrl = $canonicalUrl !== false ? (string) $canonicalUrl : '';
         if ($canonicalUrl !== '') {
             $path = parse_url($canonicalUrl, PHP_URL_PATH);
             if ($path !== null && $path !== '' && $path !== '/') {

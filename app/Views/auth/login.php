@@ -19,8 +19,8 @@ $forgotPasswordRoute = route_path('forgot_password');
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     
-    <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
     </style>
@@ -226,7 +226,7 @@ $forgotPasswordRoute = route_path('forgot_password');
 
         // Se l'utente è stato attivo negli ultimi 5 minuti, refresh del token
         if (minutesInactive < 5) {
-            fetch('<?= $loginRoute ?>', {
+            fetch(<?= json_encode($loginRoute) ?>, {
                 method: 'GET',
                 credentials: 'same-origin'
             })

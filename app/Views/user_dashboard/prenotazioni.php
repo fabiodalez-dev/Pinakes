@@ -11,6 +11,17 @@ function reservationBookUrl(array $item): string {
         'autore' => $item['autore'] ?? ($item['libro_autore'] ?? ''),
     ]);
 }
+
+function resolveCoverUrl(array $item): string {
+    $cover = (string)($item['copertina_url'] ?? '');
+    if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
+        $cover = '/' . $cover;
+    }
+    if ($cover === '') {
+        $cover = '/uploads/copertine/placeholder.jpg';
+    }
+    return url($cover);
+}
 ?>
 
 <link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.css') ?>">
@@ -462,14 +473,7 @@ function reservationBookUrl(array $item): string {
 
     <div class="items-grid">
       <?php foreach ($pendingRequests as $request):
-        $cover = (string)($request['copertina_url'] ?? '');
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
-            $cover = '/' . $cover;
-        }
-        if ($cover === '') {
-            $cover = '/uploads/copertine/placeholder.jpg';
-        }
-        $cover = url($cover);
+        $cover = resolveCoverUrl($request);
         $loanStart = $request['data_prestito'] ?? '';
         $loanEnd = $request['data_scadenza'] ?? '';
       ?>
@@ -524,14 +528,7 @@ function reservationBookUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($activePrestiti as $loan):
-        $cover = (string)($loan['copertina_url'] ?? '');
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
-            $cover = '/' . $cover;
-        }
-        if ($cover === '') {
-            $cover = '/uploads/copertine/placeholder.jpg';
-        }
-        $cover = url($cover);
+        $cover = resolveCoverUrl($loan);
         $scadenza = $loan['data_scadenza'] ?? '';
         $isOverdue = ($scadenza !== '' && strtotime($scadenza) < time());
         $startDate = $loan['data_prestito'] ?? '';
@@ -601,14 +598,7 @@ function reservationBookUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($items as $reservation):
-        $cover = (string)($reservation['copertina_url'] ?? '');
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
-            $cover = '/' . $cover;
-        }
-        if ($cover === '') {
-            $cover = '/uploads/copertine/placeholder.jpg';
-        }
-        $cover = url($cover);
+        $cover = resolveCoverUrl($reservation);
         $deadline = $reservation['data_scadenza_prenotazione'] ?? '';
       ?>
         <div class="item-card">
@@ -664,14 +654,7 @@ function reservationBookUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($pastPrestiti as $loan):
-        $cover = (string)($loan['copertina_url'] ?? '');
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
-            $cover = '/' . $cover;
-        }
-        if ($cover === '') {
-            $cover = '/uploads/copertine/placeholder.jpg';
-        }
-        $cover = url($cover);
+        $cover = resolveCoverUrl($loan);
         $statusLabels = [
           'restituito' => __('Restituito'),
           'in_ritardo' => __('Restituito in ritardo'),

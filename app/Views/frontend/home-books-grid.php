@@ -33,9 +33,9 @@ function getBookStatusBadge($book) {
                     $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     ?>
                     <img class="book-image"
-                         src="<?= htmlspecialchars($absoluteCoverUrl) ?>"
-                         alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>"
-                         onerror="this.src='<?= htmlspecialchars($defaultCoverUrl) ?>'">
+                         src="<?= htmlspecialchars($absoluteCoverUrl, ENT_QUOTES, 'UTF-8') ?>"
+                         alt="<?= htmlspecialchars($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                         onerror="this.src='<?= htmlspecialchars($defaultCoverUrl, ENT_QUOTES, 'UTF-8') ?>'">
                 </a>
                 <?= getBookStatusBadge($book) ?>
             </div>

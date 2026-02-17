@@ -100,12 +100,13 @@ while ($reservation = $result->fetch_assoc()) {
         $db->commit();
         $expiredCount++;
 
-        // Send deferred notifications after commit
-        $reassignmentService->flushDeferredNotifications();
-
-        // Notify user
-        // $notificationService->notifyUserReservationExpired($utenteId, $reservation['libro_id']); 
-        // (Method needs to be added to NotificationService if not exists)
+        // Send deferred notifications after commit (in separate try/catch
+        // since rollback is meaningless after a successful commit)
+        try {
+            $reassignmentService->flushDeferredNotifications();
+        } catch (\Throwable $notifyEx) {
+            echo "Warning: failed to send notifications for reservation #{$id}: " . $notifyEx->getMessage() . "\n";
+        }
 
     } catch (Exception $e) {
         $db->rollback();

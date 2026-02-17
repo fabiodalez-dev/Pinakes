@@ -396,7 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
     tinymce.init({
       selector: '#event_content',
-      base_url: '<?= assetUrl("tinymce") ?>',
+      base_url: <?= json_encode(assetUrl("tinymce")) ?>,
       suffix: '.min',
       model: 'dom',
       license_key: 'gpl',

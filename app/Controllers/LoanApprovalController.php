@@ -969,6 +969,7 @@ class LoanApprovalController
                 SELECT id FROM prenotazioni
                 WHERE libro_id = ? AND stato = 'attiva'
                 ORDER BY queue_position ASC
+                FOR UPDATE
             ");
             $reorderStmt->bind_param('i', $libroId);
             $reorderStmt->execute();

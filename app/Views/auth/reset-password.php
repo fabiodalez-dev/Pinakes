@@ -14,8 +14,8 @@ $resetPasswordRoute = route_path('reset_password');
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
 
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
-    <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
     </style>
@@ -174,8 +174,13 @@ $resetPasswordRoute = route_path('reset_password');
   if (passwordInput) {
     passwordInput.addEventListener('input', function() {
       const password = this.value;
+      const labels = {
+        weak: <?= json_encode(__('Debole')) ?>,
+        medium: <?= json_encode(__('Media')) ?>,
+        strong: <?= json_encode(__('Forte')) ?>
+      };
       let strength = 0;
-      let strengthLabel = 'Debole';
+      let strengthLabel = labels.weak;
       let color = 'bg-red-500';
 
       // Check password criteria
@@ -188,13 +193,13 @@ $resetPasswordRoute = route_path('reset_password');
 
       // Determine strength level
       if (strength <= 2) {
-        strengthLabel = 'Debole';
+        strengthLabel = labels.weak;
         color = 'bg-red-500';
       } else if (strength <= 4) {
-        strengthLabel = 'Media';
+        strengthLabel = labels.medium;
         color = 'bg-yellow-500';
       } else {
-        strengthLabel = 'Forte';
+        strengthLabel = labels.strong;
         color = 'bg-green-500';
       }
 

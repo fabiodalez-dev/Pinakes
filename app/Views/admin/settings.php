@@ -282,7 +282,10 @@ php cron/automatic-notifications.php
                 <i class="fas fa-info-circle mr-2"></i><?= __("Codice JavaScript Analytics") ?>
               </p>
               <p class="text-xs text-blue-800">
-                <?= sprintf(__("Per inserire il codice JavaScript Analytics (Google Analytics, Matomo, ecc.), vai su <a href=\"%s\" class=\"underline font-semibold hover:text-blue-900\">Impostazioni → Avanzate</a> nella sezione \"JavaScript Analitici\"."), htmlspecialchars(url('/admin/settings?tab=advanced#advanced'), ENT_QUOTES, 'UTF-8')) ?>
+                <?php
+                // translators: %s is the URL to the Advanced Settings tab
+                echo sprintf(__("Per inserire il codice JavaScript Analytics (Google Analytics, Matomo, ecc.), vai su <a href=\"%s\" class=\"underline font-semibold hover:text-blue-900\">Impostazioni → Avanzate</a> nella sezione \"JavaScript Analitici\"."), htmlspecialchars(url('/admin/settings?tab=advanced#advanced'), ENT_QUOTES, 'UTF-8'));
+                ?>
               </p>
             </div>
           </div>

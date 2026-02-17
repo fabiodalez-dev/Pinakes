@@ -93,7 +93,9 @@ class SeoController
             $base .= ':' . $port;
         }
 
-        // Include basePath for subfolder installations (e.g. /pinakes)
+        // Include basePath for subfolder installations (e.g. /pinakes).
+        // NOTE: APP_CANONICAL_URL must include the subfolder if installed in one
+        // (e.g. https://example.com/pinakes), otherwise canonical URLs will be incorrect.
         $base .= HtmlHelper::getBasePath();
 
         return rtrim($base, '/');

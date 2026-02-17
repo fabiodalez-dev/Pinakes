@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 className: 'text-center',
                 orderable: false,
                 render: function(data, type, row) {
-                    return `<a href="${window.BASE_PATH}/admin/prestiti/${row.id}/pdf" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors" title="${window.__('Scarica PDF')}"><i class="fas fa-file-pdf mr-2"></i>${window.__('PDF')}</a>`;
+                    return `<a href="${window.BASE_PATH}/admin/prestiti/${parseInt(row.id, 10)}/pdf" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors" title="${window.__('Scarica PDF')}"><i class="fas fa-file-pdf mr-2"></i>${window.__('PDF')}</a>`;
                 }
             },
             {
@@ -418,8 +418,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 className: 'text-right',
                 orderable: false,
                 render: function(data, type, row) {
+                    const safeId = parseInt(row.id, 10);
                     let actions = `<div class="flex items-center justify-end space-x-2">
-                        <a href="${window.BASE_PATH}/admin/prestiti/dettagli/${row.id}" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
+                        <a href="${window.BASE_PATH}/admin/prestiti/dettagli/${safeId}" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
                     // Show "Conferma Ritiro" button for da_ritirare OR prenotato with today's date
@@ -431,12 +432,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     const isReadyForPickup = row.stato === 'da_ritirare' ||
                         (row.stato === 'prenotato' && row.data_prestito && row.data_prestito <= today);
                     if (isReadyForPickup) {
-                        actions += `<button type="button" onclick="confirmPickup(${row.id})" class="p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${window.__('Conferma Ritiro')}">
+                        actions += `<button type="button" onclick="confirmPickup(${safeId})" class="p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${window.__('Conferma Ritiro')}">
                             <i class="fas fa-box-open w-4 h-4"></i>
                         </button>`;
                     }
                     if (row.attivo === 1 && row.stato === 'in_corso') {
-                        actions += `<a href="${window.BASE_PATH}/admin/prestiti/restituito/${row.id}" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="${window.__('Registra Restituzione')}">
+                        actions += `<a href="${window.BASE_PATH}/admin/prestiti/restituito/${safeId}" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="${window.__('Registra Restituzione')}">
                             <i class="fas fa-undo-alt w-4 h-4"></i>
                         </a>`;
                     }
