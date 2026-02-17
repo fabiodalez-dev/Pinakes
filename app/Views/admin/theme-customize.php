@@ -11,7 +11,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
         <div class="mb-6">
             <div class="flex items-center justify-between">
                 <div>
-                    <a href="<?= url('/admin/themes') ?>" class="text-sm text-gray-600 hover:text-gray-900 mb-2 inline-block">
+                    <a href="<?= htmlspecialchars(url('/admin/themes'), ENT_QUOTES, 'UTF-8') ?>" class="text-sm text-gray-600 hover:text-gray-900 mb-2 inline-block">
                         <i class="fas fa-arrow-left mr-1"></i>
                         <?= __("Torna ai temi") ?>
                     </a>

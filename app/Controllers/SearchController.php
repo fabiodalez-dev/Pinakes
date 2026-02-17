@@ -7,7 +7,6 @@ use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\HtmlHelper;
-use App\Support\RouteTranslator;
 
 class SearchController
 {
@@ -369,7 +368,7 @@ class SearchController
                 'biography' => $biografia,
                 'book_count' => (int)$row['libro_count'],
                 'type' => 'author',
-                'url' => url(RouteTranslator::route('author') . '/' . $row['id'])
+                'url' => route_path('author') . '/' . $row['id']
             ];
         }
 
@@ -401,7 +400,7 @@ class SearchController
                 'description' => $indirizzo,
                 'book_count' => (int)$row['libro_count'],
                 'type' => 'publisher',
-                'url' => url(RouteTranslator::route('publisher') . '/' . $row['id'])
+                'url' => route_path('publisher') . '/' . $row['id']
             ];
         }
 

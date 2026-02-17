@@ -184,6 +184,11 @@ class UserActionsController
 
             $db->commit();
 
+            // Send deferred notifications after commit
+            if (isset($reassignmentService)) {
+                $reassignmentService->flushDeferredNotifications();
+            }
+
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
 
         } catch (\Throwable $e) {

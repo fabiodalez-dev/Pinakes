@@ -483,7 +483,7 @@ $createBookUrl = static function ($book) {
                     <div class="book-card">
                         <div class="book-image-container">
                             <a href="<?= $createBookUrl($book) ?>">
-                                <?php $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg'; ?>
+                                <?php $coverUrl = ($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
                                 <img src="<?= htmlspecialchars(absoluteUrl($coverUrl)) ?>"
                                      alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>">
                             </a>

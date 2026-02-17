@@ -201,7 +201,7 @@ function archiveMessage(id) {
 }
 
 function markAllAsRead() {
-  csrfFetch(window.BASE_PATH + '/admin/messages/mark-all-read', { method: 'POST' })
+  csrfFetch(`${window.BASE_PATH}/admin/messages/mark-all-read`, { method: 'POST' })
     .then(() => location.reload());
 }
 

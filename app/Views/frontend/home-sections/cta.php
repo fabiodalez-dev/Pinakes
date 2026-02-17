@@ -24,7 +24,7 @@ $ctaButtonLink = isset($ctaData['button_link']) && $ctaData['button_link'] !== '
                     <i class="fas fa-user-plus"></i>
                     <?php echo htmlspecialchars($ctaData['button_text'] ?? __("Registrati Ora"), ENT_QUOTES, 'UTF-8'); ?>
                 </a>
-                <a href="<?= route_path('contact') ?>" class="btn-cta">
+                <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="btn-cta">
                     <i class="fas fa-envelope"></i>
                     <?= __("Contattaci") ?>
                 </a>

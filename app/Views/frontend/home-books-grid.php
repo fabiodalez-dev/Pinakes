@@ -28,7 +28,7 @@ function getBookStatusBadge($book) {
             <div class="book-image-container">
                 <a href="<?= $createBookUrl($book) ?>">
                     <?php
-                    $coverUrl = $book['copertina_url'] ?? '/uploads/copertine/placeholder.jpg';
+                    $coverUrl = ($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg';
                     $absoluteCoverUrl = absoluteUrl($coverUrl);
                     $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     ?>

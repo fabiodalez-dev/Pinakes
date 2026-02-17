@@ -76,7 +76,7 @@ $forgotPasswordRoute = route_path('forgot_password');
         </div>
       <?php endif; ?>
 
-      <form method="post" action="<?= $forgotPasswordRoute ?>" class="space-y-6">
+      <form method="post" action="<?= htmlspecialchars($forgotPasswordRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
 
         <div>
@@ -112,7 +112,7 @@ $forgotPasswordRoute = route_path('forgot_password');
       <div class="mt-6 text-center">
         <p class="text-gray-600 dark:text-gray-400 text-sm">
           <?= __('Ricordi la password?') ?>
-          <a href="<?= route_path('login') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+          <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
             <?= __('Accedi') ?>
           </a>
         </p>
@@ -122,10 +122,10 @@ $forgotPasswordRoute = route_path('forgot_password');
     <!-- Footer Links -->
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= route_path('privacy') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= route_path('contact') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
           <?= __('Contatti') ?>
         </a>
       </div>

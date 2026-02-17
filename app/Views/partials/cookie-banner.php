@@ -9,13 +9,6 @@ if ($cookieBannerEnabled === false || $cookieBannerEnabled === '0' || $cookieBan
     return; // Don't show cookie banner if disabled
 }
 
-if (!function_exists('assetUrl')) {
-    function assetUrl($path) {
-        $normalizedPath = '/' . ltrim($path, '/');
-        return '/assets' . $normalizedPath;
-    }
-}
-
 if (!defined('SILKTIDE_COOKIE_BANNER_CSS_LOADED')) {
     define('SILKTIDE_COOKIE_BANNER_CSS_LOADED', true);
     echo '<link rel="stylesheet" href="' . assetUrl('/css/silktide-consent-manager.css') . '">';

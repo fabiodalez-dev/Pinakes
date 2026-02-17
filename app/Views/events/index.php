@@ -60,7 +60,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
           </p>
         </div>
         <div>
-          <a href="<?= url('/admin/cms/events/create') ?>"
+          <a href="<?= htmlspecialchars(url('/admin/cms/events/create'), ENT_QUOTES, 'UTF-8') ?>"
             class="inline-flex items-center gap-2 px-5 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition-colors font-semibold shadow-sm">
             <i class="fas fa-plus"></i>
             <?= __("Nuovo Evento") ?>
@@ -71,7 +71,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 
     <!-- Visibility Toggle Card -->
     <div class="mb-6 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-      <form action="<?= url('/admin/cms/events/toggle-visibility') ?>" method="post" id="visibilityForm">
+      <form action="<?= htmlspecialchars(url('/admin/cms/events/toggle-visibility'), ENT_QUOTES, 'UTF-8') ?>" method="post" id="visibilityForm">
         <input type="hidden" name="csrf_token"
           value="<?= \App\Support\HtmlHelper::e(\App\Support\Csrf::ensureToken()) ?>">
 
@@ -148,7 +148,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
         <h3 class="text-lg font-semibold text-gray-900 mb-2"><?= __("Nessun evento") ?></h3>
         <p class="text-gray-600 mb-6">
           <?= __("Non hai ancora creato nessun evento. Inizia creando il tuo primo evento.") ?></p>
-        <a href="<?= url('/admin/cms/events/create') ?>"
+        <a href="<?= htmlspecialchars(url('/admin/cms/events/create'), ENT_QUOTES, 'UTF-8') ?>"
           class="inline-flex items-center gap-2 px-5 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition-colors font-semibold">
           <i class="fas fa-plus"></i>
           <?= __("Crea il tuo primo evento") ?>
@@ -212,12 +212,12 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 
                   <!-- Action Buttons -->
                   <div class="flex flex-wrap items-center gap-3 mt-4">
-                    <a href="<?= url('/admin/cms/events/edit/' . (int)$event['id']) ?>"
+                    <a href="<?= htmlspecialchars(url('/admin/cms/events/edit/' . (int)$event['id']), ENT_QUOTES, 'UTF-8') ?>"
                       class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold">
                       <i class="fas fa-edit"></i>
                       <?= __("Modifica") ?>
                     </a>
-                    <a href="<?= url('/events/' . HtmlHelper::e($event['slug'])) ?>" target="_blank"
+                    <a href="<?= htmlspecialchars(url('/events/' . ($event['slug'] ?? '')), ENT_QUOTES, 'UTF-8') ?>" target="_blank"
                       class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold">
                       <i class="fas fa-external-link-alt"></i>
                       <?= __("Visualizza") ?>
@@ -277,7 +277,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 
     <!-- Back to Settings -->
     <div class="mt-8">
-      <a href="<?= url('/admin/settings?tab=cms') ?>"
+      <a href="<?= htmlspecialchars(url('/admin/settings?tab=cms'), ENT_QUOTES, 'UTF-8') ?>"
         class="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors text-sm font-semibold">
         <i class="fas fa-arrow-left"></i>
         <?= __("Torna alle Impostazioni CMS") ?>

@@ -90,6 +90,12 @@
         </div>
       </div>
 
+      <div class="flex justify-end pt-4 border-t">
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-save mr-2"></i><?= __("Salva Impostazioni") ?>
+        </button>
+      </div>
+
       <!-- CMS Section -->
       <div class="card">
         <div class="card-header">

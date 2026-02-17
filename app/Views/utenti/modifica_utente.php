@@ -38,7 +38,7 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
       </div>
     <?php endif; ?>
 
-    <form action="<?= url('/admin/utenti/update/' . $utenteId) ?>" method="post" class="space-y-6" id="user-form">
+    <form action="<?= htmlspecialchars(url('/admin/utenti/update/' . $utenteId), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6" id="user-form">
       <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
 
       <section class="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
@@ -142,7 +142,7 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
       </section>
 
       <div class="flex items-center justify-end gap-3">
-        <a href="<?= url('/admin/utenti') ?>" class="btn-secondary"><?= __("Annulla") ?></a>
+        <a href="<?= htmlspecialchars(url('/admin/utenti'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary"><?= __("Annulla") ?></a>
         <button type="submit" class="btn-primary"><?= __("Salva modifiche") ?></button>
       </div>
     </form>

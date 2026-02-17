@@ -55,7 +55,7 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                         $bookDetailUrl = book_url($book);
 
                         // Use same image logic as home-books-grid.php
-                        $coverUrl = $book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg';
+                        $coverUrl = ($book['copertina_url'] ?? '') ?: ($book['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg';
                         $absoluteCoverUrl = absoluteUrl($coverUrl);
                         $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
                     ?>

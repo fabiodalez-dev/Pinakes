@@ -294,9 +294,9 @@ ob_start();
 <section class="event-hero">
     <div class="container">
         <div class="event-breadcrumb" aria-label="<?= __("Percorso di navigazione") ?>">
-            <a href="<?= url('/') ?>"><?= __("Home") ?></a>
+            <a href="<?= HtmlHelper::e(url('/')) ?>"><?= __("Home") ?></a>
             <span>/</span>
-            <a href="<?= url('/events') ?>"><?= __("Eventi") ?></a>
+            <a href="<?= HtmlHelper::e(url('/events')) ?>"><?= __("Eventi") ?></a>
             <span>/</span>
             <span><?= HtmlHelper::e($event['title']) ?></span>
         </div>
@@ -343,7 +343,7 @@ ob_start();
             </div>
 
             <div class="event-back">
-                <a href="<?= url('/events') ?>">
+                <a href="<?= HtmlHelper::e(url('/events')) ?>">
                     <i class="fas fa-arrow-left"></i>
                     <?= __("Torna alla panoramica eventi") ?>
                 </a>
@@ -424,7 +424,7 @@ $jsonLd = [
     '@context' => 'https://schema.org',
     '@type' => 'Event',
     'name' => $event['title'],
-    'startDate' => $event['event_date'] . ($event['event_time'] ? 'T' . $event['event_time'] : ''),
+    'startDate' => ($event['event_date'] ?? '') . (!empty($event['event_time']) ? 'T' . $event['event_time'] : ''),
     'description' => strip_tags($event['content'] ?? ''),
     'eventStatus' => 'https://schema.org/EventScheduled',
     'eventAttendanceMode' => 'https://schema.org/OfflineEventAttendanceMode',

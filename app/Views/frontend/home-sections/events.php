@@ -49,7 +49,7 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                         <?= !empty($section['subtitle']) ? \App\Support\HtmlHelper::e($section['subtitle']) : __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.") ?>
                     </p>
                 </div>
-                <a href="<?= url('/events') ?>" class="home-events__all-link">
+                <a href="<?= \App\Support\HtmlHelper::e(url('/events')) ?>" class="home-events__all-link">
                     <?= __("Vedi tutti gli eventi") ?>
                     <i class="fas fa-arrow-right"></i>
                 </a>

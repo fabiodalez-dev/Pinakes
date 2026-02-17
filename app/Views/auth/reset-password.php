@@ -73,7 +73,7 @@ $resetPasswordRoute = route_path('reset_password');
                 <?= __('Ora puoi accedere con la tua nuova password.') ?>
               </p>
               <div class="mt-4">
-                <a href="<?= route_path('login') ?>" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                   <?= __('Accedi') ?>
                 </a>
               </div>
@@ -83,7 +83,7 @@ $resetPasswordRoute = route_path('reset_password');
       <?php endif; ?>
 
       <?php if (!isset($_GET['success'])): ?>
-        <form method="post" action="<?= $resetPasswordRoute ?>" class="space-y-6">
+        <form method="post" action="<?= htmlspecialchars($resetPasswordRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
           <input type="hidden" name="token" value="<?php echo htmlspecialchars($token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
 
@@ -149,10 +149,10 @@ $resetPasswordRoute = route_path('reset_password');
     <!-- Footer Links -->
     <div class="mt-8 text-center">
       <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= route_path('privacy') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= route_path('contact') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
           <?= __('Contatti') ?>
         </a>
       </div>

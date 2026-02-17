@@ -100,6 +100,9 @@ while ($reservation = $result->fetch_assoc()) {
         $db->commit();
         $expiredCount++;
 
+        // Send deferred notifications after commit
+        $reassignmentService->flushDeferredNotifications();
+
         // Notify user
         // $notificationService->notifyUserReservationExpired($utenteId, $reservation['libro_id']); 
         // (Method needs to be added to NotificationService if not exists)

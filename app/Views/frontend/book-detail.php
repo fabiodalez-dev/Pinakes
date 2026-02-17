@@ -111,7 +111,7 @@ $baseUrl = HtmlHelper::getBaseUrl();
 if ($bookCover) {
     // $bookCover already includes base path via url(), make it absolute
     $isAbsolute = preg_match('#^(https?:)?//#', $bookCover);
-    $ogImage = $isAbsolute ? $bookCover : absoluteUrl($book['copertina_url'] ?? $book['immagine_copertina'] ?? '/uploads/copertine/placeholder.jpg');
+    $ogImage = $isAbsolute ? $bookCover : absoluteUrl($bookCover);
 } else {
     $ogImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 }
@@ -2262,7 +2262,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
                   earliestAvailable = new Date(parts[0], parts[1] - 1, parts[2]);
                 } else {
-                  earliestAvailable = new Date(availData.availability.earliest_available);
+                  earliestAvailable = new Date(); // fallback: today
                 }
               }
               if (Array.isArray(availData.availability.days)) {

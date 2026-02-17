@@ -968,7 +968,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (copyBtn) {
         copyBtn.addEventListener('click', function() {
             const rawUrl = <?= json_encode($icsUrl ?? url('/calendar/events.ics')) ?>;
-            const icsUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
+            const icsUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('//')
                 ? rawUrl
                 : window.location.origin + rawUrl;
 
