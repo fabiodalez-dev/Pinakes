@@ -468,7 +468,7 @@ $profileRoute = route_path('profile');
                 <div class="book-card-title"><?= HtmlHelper::e($prestito['titolo_libro'] ?? '') ?></div>
                 <div class="book-card-meta">
                   <?= __("Scadenza:") ?> <?= ($scadenza !== false && $scadenza > 0) ? format_date(date('Y-m-d', $scadenza), false, '/') : __('N/D') ?>
-                  <?php if ($giorni_rimanenti >= 0): ?>
+                  <?php if ($scadenza !== false && $scadenza > 0 && $giorni_rimanenti >= 0): ?>
                     (<?= sprintf(__("%d giorni"), $giorni_rimanenti) ?>)
                   <?php endif; ?>
                 </div>

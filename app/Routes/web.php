@@ -1881,7 +1881,7 @@ return function (App $app): void {
     // API for frontend calendar availability (used by book-detail.php)
     // Delegates to ReservationsController::getBookAvailabilityData() to ensure
     // calendar and reservation logic use the same calculation (pickup_deadline, etc.)
-    $app->get('/api/libro/{id}/availability', function ($request, $response, $args) use ($app) {
+    $app->get('/api/libro/{id:\d+}/availability', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $bookId = (int)$args['id'];
 

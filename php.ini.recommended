@@ -30,6 +30,7 @@ max_input_time=60
 post_max_size=100M
 upload_max_filesize=100M
 ; Per caricare audiobook fino a 500 MB, aumentare entrambi i valori a 512M
+; e impostare max_execution_time=300 e max_input_time=300
 
 ; ===================================
 ; SESSION CONFIGURATION

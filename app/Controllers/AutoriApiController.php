@@ -57,29 +57,30 @@ class AutoriApiController
 
         if ($search_text !== '') {
             $where_prepared .= " AND (a.nome LIKE ? OR a.pseudonimo LIKE ? OR a.biografia LIKE ?) ";
-            $params_for_where[] = "%$search_text%";
-            $params_for_where[] = "%$search_text%";
-            $params_for_where[] = "%$search_text%";
+            $escaped = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_text) . '%';
+            $params_for_where[] = $escaped;
+            $params_for_where[] = $escaped;
+            $params_for_where[] = $escaped;
             $param_types_for_where .= 'sss';
         }
         if ($search_nome !== '') {
             $where_prepared .= " AND a.nome LIKE ? ";
-            $params_for_where[] = "%$search_nome%";
+            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_nome) . '%';
             $param_types_for_where .= 's';
         }
         if ($search_pseudonimo !== '') {
             $where_prepared .= " AND a.pseudonimo LIKE ? ";
-            $params_for_where[] = "%$search_pseudonimo%";
+            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_pseudonimo) . '%';
             $param_types_for_where .= 's';
         }
         if ($search_sito !== '') {
             $where_prepared .= " AND a.sito_web LIKE ? ";
-            $params_for_where[] = "%$search_sito%";
+            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_sito) . '%';
             $param_types_for_where .= 's';
         }
         if ($search_naz !== '' && $colNaz !== null) {
             $where_prepared .= " AND a.`$colNaz` LIKE ? ";
-            $params_for_where[] = "%$search_naz%";
+            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_naz) . '%';
             $param_types_for_where .= 's';
         }
         if ($nascita_from !== '') {
@@ -132,6 +133,7 @@ class AutoriApiController
         $count_stmt->execute();
         $filRes = $count_stmt->get_result();
         $filtered = (int) ($filRes->fetch_assoc()['c'] ?? 0);
+        $count_stmt->close();
 
         // Add WHERE clause parameters for main query
         $params = $params_for_where;
@@ -190,6 +192,7 @@ class AutoriApiController
                 $data[] = $row;
             }
         }
+        $stmt->close();
         $payload = [
             'draw' => $draw,
             'recordsTotal' => $total,

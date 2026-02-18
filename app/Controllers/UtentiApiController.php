@@ -91,7 +91,7 @@ class UtentiApiController
         $orderExtra = ', u.nome ASC'; // Secondary sort by nome
 
         // Map column index to database column
-        // 0: nome/cognome, 1: email, 2: telefono, 3: tipo_utente, 4: stato, 5: actions
+        // 0: nome/cognome, 1: email, 2: telefono, 3: tipo_utente, 4: stato
         $columnMap = [
             0 => 'u.cognome',      // Nome (sorts by cognome first)
             1 => 'u.email',        // Email

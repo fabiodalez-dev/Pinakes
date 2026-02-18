@@ -107,7 +107,7 @@ while ($reservation = $result->fetch_assoc()) {
             echo "Warning: failed to send notifications for reservation #{$id}: " . $notifyEx->getMessage() . "\n";
         }
 
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         $db->rollback();
         echo "Error expiring reservation #{$id}: " . $e->getMessage() . "\n";
     }

@@ -169,6 +169,14 @@ span.flatpickr-weekday {
   cursor: pointer !important;
 }
 
+/* Ensure selected day styling wins over availability colors */
+.flatpickr-day.selected.free-day,
+.flatpickr-day.selected.free-day:hover {
+  background: #111827 !important;
+  border-color: #111827 !important;
+  color: #ffffff !important;
+}
+
 /* Week numbers */
 .flatpickr-weekwrapper .flatpickr-weeks {
   background: #f9fafb !important;

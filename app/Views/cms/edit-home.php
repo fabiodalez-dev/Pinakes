@@ -959,9 +959,9 @@ document.addEventListener('keydown', function(e) {
 </script>
 
 <!-- Load Sortable.js before the script that uses it -->
-<script src="<?= assetUrl('vendor/sortablejs/Sortable.min.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('vendor/sortablejs/Sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <!-- TinyMCE -->
-<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
 // Accordion toggle function
 function toggleAccordion(id) {
@@ -981,7 +981,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
    tinymce.init({
      selector: '#text_content_body',
-     base_url: '<?= assetUrl("tinymce") ?>',
+     base_url: <?= json_encode(assetUrl('tinymce'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
      suffix: '.min',
      model: 'dom',
      license_key: 'gpl',

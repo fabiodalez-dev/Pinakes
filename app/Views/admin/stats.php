@@ -284,7 +284,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   // Loans Per Month Chart
   const loansByMonthData = <?php echo json_encode($loansByMonth); ?>;
-  const locale = <?= json_encode($_SESSION['locale'] ?? 'it_IT') ?> === 'en_US' ? 'en-US' : 'it-IT';
+  const locale = <?= json_encode(str_replace('_', '-', $_SESSION['locale'] ?? 'it-IT'), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
   const monthLabels = loansByMonthData.map(item => {
     const parts = item.mese.split('-');
     const date = new Date(parts[0], parts[1] - 1);

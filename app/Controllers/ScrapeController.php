@@ -20,13 +20,10 @@ class ScrapeController
         if ($text === null || $text === '') {
             return '';
         }
-        // Remove MARC-8 control characters (NSB/NSE non-sorting markers)
-        // These are single-byte characters in MARC-8 encoding: 0x88, 0x89, 0x98, 0x9C
-        $text = preg_replace('/[\x{0088}\x{0089}\x{0098}\x{009C}]/u', '', $text) ?? $text;
-        // Also remove any other C1 control characters (0x80-0x9F) that might cause issues
-        $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text) ?? $text;
-        // Ensure valid UTF-8 (replace invalid sequences)
+        // Ensure valid UTF-8 first (replace invalid sequences before regex)
         $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        // Remove C1 control characters (0x80-0x9F) including MARC-8 NSB/NSE markers
+        $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text) ?? $text;
         // Collapse multiple whitespace into single space and trim
         return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
