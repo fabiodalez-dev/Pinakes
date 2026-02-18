@@ -157,7 +157,7 @@ span.flatpickr-weekday {
 .flatpickr-day.flatpickr-disabled.reserved-day:hover {
   background: #f59e0b !important;
   border-color: #d97706 !important;
-  color: #78350f !important;
+  color: #451a03 !important; /* amber-950: WCAG AA compliant (>4.5:1 contrast on amber bg) */
   cursor: not-allowed !important;
 }
 
@@ -166,6 +166,7 @@ span.flatpickr-weekday {
   background: #f0fdf4 !important;
   border-color: #bbf7d0 !important;
   color: #166534 !important;
+  cursor: pointer !important;
 }
 
 /* Week numbers */

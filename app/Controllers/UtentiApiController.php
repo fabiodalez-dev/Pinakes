@@ -66,6 +66,7 @@ class UtentiApiController
         $total_stmt->execute();
         $total_res = $total_stmt->get_result();
         $total = (int)($total_res->fetch_assoc()['c'] ?? 0);
+        $total_stmt->close();
 
         // Use prepared statement for filtered count
         $count_sql = "SELECT COUNT(*) AS c $base $where";

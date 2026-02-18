@@ -1887,7 +1887,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $twitterCard = $event['twitter_card'] ?: 'summary_large_image';
         $twitterTitle = $event['twitter_title'] ?: $ogTitle;
         $twitterDescription = $event['twitter_description'] ?: $ogDescription;
-        $twitterImage = $event['twitter_image'] ?: $ogImage;
+        $twitterImage = !empty($event['twitter_image']) ? absoluteUrl($event['twitter_image']) : $ogImage;
 
         $container = $this->container;
         ob_start();

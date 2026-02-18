@@ -444,13 +444,16 @@ $profileRoute = route_path('profile');
                 'autore' => ''
               ]);
               $scadenza = strtotime($prestito['data_scadenza'] ?? '');
-              if ($scadenza === false) {
-                  $scadenza = 0;
-              }
               $oggi = time();
-              $giorni_rimanenti = ceil(($scadenza - $oggi) / 86400);
-              $scaduto = $giorni_rimanenti < 0;
-              $in_scadenza = $giorni_rimanenti >= 0 && $giorni_rimanenti <= 3;
+              if ($scadenza === false || $scadenza === 0) {
+                  $giorni_rimanenti = 0;
+                  $scaduto = false;
+                  $in_scadenza = true;
+              } else {
+                  $giorni_rimanenti = (int)ceil(($scadenza - $oggi) / 86400);
+                  $scaduto = $giorni_rimanenti < 0;
+                  $in_scadenza = $giorni_rimanenti >= 0 && $giorni_rimanenti <= 3;
+              }
               $coverUrl = $prestito['copertina_url'] ?? '';
             ?>
             <div class="book-card">
@@ -464,7 +467,7 @@ $profileRoute = route_path('profile');
               <div class="book-card-content">
                 <div class="book-card-title"><?= HtmlHelper::e($prestito['titolo_libro'] ?? '') ?></div>
                 <div class="book-card-meta">
-                  <?= __("Scadenza:") ?> <?= format_date(date('Y-m-d', $scadenza), false, '/') ?>
+                  <?= __("Scadenza:") ?> <?= ($scadenza !== false && $scadenza > 0) ? format_date(date('Y-m-d', $scadenza), false, '/') : __('N/D') ?>
                   <?php if ($giorni_rimanenti >= 0): ?>
                     (<?= sprintf(__("%d giorni"), $giorni_rimanenti) ?>)
                   <?php endif; ?>

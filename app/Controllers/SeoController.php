@@ -46,7 +46,7 @@ class SeoController
             $envUrl = rtrim($envUrl, '/');
             // Ensure base path is included for subfolder installations
             $basePath = HtmlHelper::getBasePath();
-            if ($basePath !== '' && !str_ends_with($envUrl, $basePath)) {
+            if ($basePath !== '' && !str_ends_with($envUrl, $basePath) && !str_contains($envUrl, $basePath . '/')) {
                 $envUrl .= $basePath;
             }
             return $envUrl;

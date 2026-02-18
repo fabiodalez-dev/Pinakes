@@ -329,7 +329,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 
 <script>
   function confirmDelete(eventId, eventTitle) {
-    if (confirm('<?= addslashes(__("Sei sicuro di voler eliminare l'evento")) ?> "' + eventTitle + '"?\n\n<?= addslashes(__("Questa azione non può essere annullata.")) ?>')) {
+    if (confirm(<?= json_encode(__("Sei sicuro di voler eliminare l'evento"), JSON_HEX_TAG) ?> + ' "' + eventTitle + '"?\n\n' + <?= json_encode(__("Questa azione non può essere annullata."), JSON_HEX_TAG) ?>)) {
       // Usa form POST per operazioni di eliminazione (sicurezza OWASP)
       const form = document.createElement('form');
       form.method = 'POST';

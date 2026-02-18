@@ -92,7 +92,7 @@ if ($presetUserId > 0) {
     <!-- Ricerca Utente -->
     <div class="relative">
       <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Utente") ?> *</label>
-      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName) ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
+      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName, ENT_QUOTES, 'UTF-8') ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
       <div id="utente_suggest" class="suggestions-box"></div>
       <input type="hidden" name="utente_id" id="utente_id" value="<?= $presetUserId ?>" required />
       <?php if ($presetUserLocked): ?>

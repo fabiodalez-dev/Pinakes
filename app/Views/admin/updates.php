@@ -611,7 +611,7 @@ async function startUpdate(version) {
 
         // Check for maintenance mode before parsing response
         if (response.status === 503) {
-            throw new Error('<?= __("Server in manutenzione. Attendi il completamento dell\\'aggiornamento.") ?>');
+            throw new Error(<?= json_encode(__("Server in manutenzione. Attendi il completamento dell'aggiornamento."), JSON_HEX_TAG) ?>);
         }
 
         // Check response before parsing JSON
@@ -620,7 +620,7 @@ async function startUpdate(version) {
             // Server returned HTML (error page or maintenance page)
             const text = await response.text();
             console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error('<?= __("Il server ha restituito una risposta non valida. Controlla i log per dettagli.") ?>');
+            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
         }
 
         const data = await response.json();
@@ -1018,13 +1018,13 @@ async function submitManualUpdate() {
         if (!uploadContentType.includes('application/json')) {
             const text = await uploadResponse.text();
             console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error('<?= __("Il server ha restituito una risposta non valida. Controlla i log per dettagli.") ?>');
+            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
         }
 
         const uploadData = await uploadResponse.json();
 
         if (!uploadData.success) {
-            throw new Error(uploadData.error || '<?= __("Errore durante il caricamento") ?>');
+            throw new Error(uploadData.error || <?= json_encode(__("Errore durante il caricamento"), JSON_HEX_TAG) ?>);
         }
 
         // Start update process
@@ -1072,7 +1072,7 @@ async function submitManualUpdate() {
         if (!installContentType.includes('application/json')) {
             const text = await installResponse.text();
             console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error('<?= __("Il server ha restituito una risposta non valida. Controlla i log per dettagli.") ?>');
+            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
         }
 
         const installData = await installResponse.json();
@@ -1092,7 +1092,7 @@ async function submitManualUpdate() {
             uppyManualUpdate.cancelAll();
             uploadedFile = null;
         } else {
-            throw new Error(installData.error || '<?= __("Errore durante l\'installazione") ?>');
+            throw new Error(installData.error || <?= json_encode(__("Errore durante l'installazione"), JSON_HEX_TAG) ?>);
         }
 
     } catch (error) {

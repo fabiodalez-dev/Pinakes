@@ -1879,138 +1879,21 @@ return function (App $app): void {
     });
 
     // API for frontend calendar availability (used by book-detail.php)
+    // Delegates to ReservationsController::getBookAvailabilityData() to ensure
+    // calendar and reservation logic use the same calculation (pickup_deadline, etc.)
     $app->get('/api/libro/{id}/availability', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
-        $libroId = (int)$args['id'];
+        $bookId = (int)$args['id'];
 
-        // Get actual number of copies from copie table (not from libri.copie_totali column)
-        $countStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ?");
-        $countStmt->bind_param('i', $libroId);
-        $countStmt->execute();
-        $countResult = $countStmt->get_result()->fetch_assoc();
-        $copieTotali = max(1, (int)($countResult['total'] ?? 1));
-        $countStmt->close();
-
-        // Get all active loans for this book (including pendente without copia_id)
-        // Include all states that occupy a copy or a slot
-        $stmt = $db->prepare("
-            SELECT p.copia_id, p.data_prestito, p.data_scadenza, p.stato
-            FROM prestiti p
-            WHERE p.libro_id = ? AND p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
-            ORDER BY p.data_prestito
-        ");
-        $stmt->bind_param('i', $libroId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        $loans = [];
-        while ($row = $result->fetch_assoc()) {
-            $loans[] = $row;
-        }
-        $stmt->close();
-
-        // Also get active prenotazioni (from prenotazioni table) - include open-ended reservations
-        $resStmt = $db->prepare("
-            SELECT data_inizio_richiesta,
-                   data_fine_richiesta,
-                   data_scadenza_prenotazione,
-                   'prenotazione' as tipo
-            FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            AND data_inizio_richiesta IS NOT NULL
-        ");
-        $resStmt->bind_param('i', $libroId);
-        $resStmt->execute();
-        $resResult = $resStmt->get_result();
-
-        $reservations = [];
-        while ($row = $resResult->fetch_assoc()) {
-            // Normalize end date: prefer data_fine_richiesta, then data_scadenza_prenotazione (date part), fallback to start
-            $start = $row['data_inizio_richiesta'];
-            $end = $row['data_fine_richiesta'] ?? null;
-            if (!$end && !empty($row['data_scadenza_prenotazione'])) {
-                $end = substr((string)$row['data_scadenza_prenotazione'], 0, 10);
-            }
-            if (!$end) {
-                $end = $start;
-            }
-            $reservations[] = [
-                'start' => $start,
-                'end' => $end
-            ];
-        }
-        $resStmt->close();
-
-        // Generate day-by-day availability for next 180 days
-        $today = date('Y-m-d');
-        $days = [];
-        $unavailableDates = [];
-        $earliestAvailable = $today;
-        $foundEarliest = false;
-
-        for ($i = 0; $i < 180; $i++) {
-            $date = date('Y-m-d', strtotime("+{$i} days"));
-
-            // Count how many copies are occupied on this date
-            $occupiedCount = 0;
-            $hasOverdue = false;
-            $hasReserved = false;
-
-            // Count from loans (prestiti)
-            foreach ($loans as $loan) {
-                // Check if loan overlaps with this date
-                if ($loan['data_prestito'] <= $date && $loan['data_scadenza'] >= $date) {
-                    $occupiedCount++;
-                    if ($loan['stato'] === 'in_ritardo') {
-                        $hasOverdue = true;
-                    } elseif ($loan['stato'] === 'prenotato' || $loan['stato'] === 'pendente' || $loan['stato'] === 'da_ritirare') {
-                        $hasReserved = true;
-                    }
-                }
-            }
-
-            // Count from active prenotazioni
-            foreach ($reservations as $res) {
-                if ($res['start'] <= $date && $res['end'] >= $date) {
-                    $occupiedCount++;
-                    $hasReserved = true;
-                }
-            }
-
-            // Determine state for this date
-            $availableCopies = $copieTotali - $occupiedCount;
-
-            if ($availableCopies <= 0) {
-                // All copies occupied
-                if ($hasOverdue) {
-                    $state = 'borrowed'; // Red - overdue loans
-                } elseif ($hasReserved) {
-                    $state = 'reserved'; // Yellow - reserved/pending
-                } else {
-                    $state = 'borrowed'; // Red - in corso
-                }
-                $unavailableDates[] = $date;
-            } else {
-                $state = 'free'; // Green - available
-                if (!$foundEarliest) {
-                    $earliestAvailable = $date;
-                    $foundEarliest = true;
-                }
-            }
-
-            $days[] = [
-                'date' => $date,
-                'state' => $state,
-                'available_copies' => $availableCopies
-            ];
-        }
+        $controller = new \App\Controllers\ReservationsController($db);
+        $availability = $controller->getBookAvailabilityData($bookId, date('Y-m-d'), 180);
 
         $data = [
             'success' => true,
             'availability' => [
-                'unavailable_dates' => $unavailableDates,
-                'earliest_available' => $earliestAvailable,
-                'days' => $days
+                'unavailable_dates' => $availability['unavailable_dates'] ?? [],
+                'earliest_available' => $availability['earliest_available'] ?? date('Y-m-d'),
+                'days' => $availability['days'] ?? []
             ]
         ];
 

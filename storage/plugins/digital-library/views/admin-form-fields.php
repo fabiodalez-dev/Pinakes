@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyInstance.on('upload-success', (file, response) => {
             const body = response?.body || {};
-            const uploadedUrl = body.uploadURL || (window.BASE_PATH || '') + `/uploads/digital/${file.name}`;
+            const uploadedUrl = body.uploadURL || (window.BASE_PATH || '') + `/uploads/digital/${encodeURIComponent(file.name)}`;
             const hiddenInput = document.getElementById(inputId);
             const displayInput = document.getElementById(displayId);
 

@@ -121,7 +121,7 @@
                                 </div>
                                 <?php if (!empty($suggestedUrl)): ?>
                                 <button
-                                    onclick="applyConfigFix('<?= htmlspecialchars($issue['type'], ENT_QUOTES) ?>', '<?= htmlspecialchars($suggestedUrl, ENT_QUOTES) ?>')"
+                                    onclick="applyConfigFix(<?= json_encode($issue['type'], JSON_HEX_TAG | JSON_HEX_APOS) ?>, <?= json_encode($suggestedUrl, JSON_HEX_TAG | JSON_HEX_APOS) ?>)"
                                     class="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     <i class="fas fa-magic mr-2"></i><?= __("Applica Fix") ?>
                                 </button>

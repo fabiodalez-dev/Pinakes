@@ -15,15 +15,11 @@ class DataIntegrity {
     /**
      * Ricalcola le copie disponibili per tutti i libri
      */
-    public function recalculateAllBookAvailability(): array {
+    public function recalculateAllBookAvailability(bool $insideTransaction = false): array {
         $results = ['updated' => 0, 'errors' => []];
 
-        // Detect if already inside a transaction (e.g. called from fixDataInconsistencies)
-        $result = $this->db->query("SELECT @@autocommit as ac");
-        $wasInTransaction = $result && ($result->fetch_assoc()['ac'] ?? 1) == 0;
-
         try {
-            if (!$wasInTransaction) {
+            if (!$insideTransaction) {
                 $this->db->begin_transaction();
             }
 
@@ -126,12 +122,12 @@ class DataIntegrity {
             $results['updated'] = $this->db->affected_rows;
             $stmt->close();
 
-            if (!$wasInTransaction) {
+            if (!$insideTransaction) {
                 $this->db->commit();
             }
 
         } catch (\Throwable $e) {
-            if (!$wasInTransaction) {
+            if (!$insideTransaction) {
                 $this->db->rollback();
             }
             $results['errors'][] = "Errore ricalcolo disponibilità: " . $e->getMessage();
@@ -260,14 +256,9 @@ class DataIntegrity {
      * Ricalcola le copie disponibili per un singolo libro
      * Supports being called inside or outside a transaction
      */
-    public function recalculateBookAvailability(int $bookId): bool {
-        // Check if we're already in a transaction by querying autocommit status
-        $result = $this->db->query("SELECT @@autocommit as ac");
-        $wasInTransaction = $result && ($result->fetch_assoc()['ac'] ?? 1) == 0;
-
+    public function recalculateBookAvailability(int $bookId, bool $insideTransaction = false): bool {
         try {
-            // Start transaction only if not already in one
-            if (!$wasInTransaction) {
+            if (!$insideTransaction) {
                 $this->db->begin_transaction();
             }
 
@@ -371,15 +362,13 @@ class DataIntegrity {
             $result = $stmt->execute();
             $stmt->close();
 
-            // Commit only if we started the transaction
-            if (!$wasInTransaction) {
+            if (!$insideTransaction) {
                 $this->db->commit();
             }
 
             return $result;
         } catch (\Throwable $e) {
-            // Rollback only if we started the transaction
-            if (!$wasInTransaction) {
+            if (!$insideTransaction) {
                 $this->db->rollback();
             }
             error_log("[DataIntegrity] recalculateBookAvailability({$bookId}) error: " . $e->getMessage());
@@ -716,7 +705,7 @@ class DataIntegrity {
             $this->db->begin_transaction();
 
             // 1. Ricalcola tutte le copie disponibili
-            $availabilityResult = $this->recalculateAllBookAvailability();
+            $availabilityResult = $this->recalculateAllBookAvailability(insideTransaction: true);
             $results['fixed'] += $availabilityResult['updated'];
             $results['errors'] = array_merge($results['errors'], $availabilityResult['errors']);
 
@@ -920,7 +909,7 @@ class DataIntegrity {
             }
 
             // Aggiorna disponibilità libro
-            $this->recalculateBookAvailability($loan['libro_id']);
+            $this->recalculateBookAvailability($loan['libro_id'], insideTransaction: true);
 
             $this->db->commit();
             $result['success'] = true;
@@ -1019,15 +1008,14 @@ class DataIntegrity {
         $expected = $this->getExpectedSystemTables();
         $missing = [];
 
-        $allowedSystemTables = array_keys($expected);
         foreach ($expected as $tableName => $createSql) {
-            // Defense-in-depth: validate against known whitelist even though source is hardcoded
-            if (!in_array($tableName, $allowedSystemTables, true) || !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)) {
+            // Defense-in-depth: validate identifier format even though source is hardcoded
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)) {
                 continue;
             }
-            // SHOW TABLES LIKE uses string comparison, so no backtick escaping needed;
-            // the regex above ensures only safe identifier characters pass through
-            $result = $this->db->query("SHOW TABLES LIKE '$tableName'");
+            // Escape LIKE metacharacters (underscore matches any single char in LIKE)
+            $likeEscaped = str_replace(['%', '_'], ['\\%', '\\_'], $tableName);
+            $result = $this->db->query("SHOW TABLES LIKE '$likeEscaped'");
             if (!$result || $result->num_rows === 0) {
                 $missing[] = [
                     'table' => $tableName,

@@ -491,7 +491,7 @@ class EventsController
         // fall back to iconv (buggy on macOS with some sequences)
         if (class_exists('Transliterator')) {
             $t = \Transliterator::create('Any-Latin; Latin-ASCII');
-            $slug = ($t !== null) ? $t->transliterate($title) : $title;
+            $slug = ($t !== null) ? ($t->transliterate($title) ?: $title) : $title;
         } else {
             $slug = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $title);
             if ($slug === false) {
