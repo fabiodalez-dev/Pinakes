@@ -105,7 +105,10 @@ if (!function_exists('slugify_text')) {
         if (class_exists('Transliterator')) {
             $t = \Transliterator::create('Any-Latin; Latin-ASCII');
             if ($t !== null) {
-                $decoded = $t->transliterate($decoded);
+                $transliterated = $t->transliterate($decoded);
+                if ($transliterated !== false) {
+                    $decoded = $transliterated;
+                }
             }
         } else {
             $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT', $decoded);

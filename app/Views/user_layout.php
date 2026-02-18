@@ -49,6 +49,7 @@ $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 $dashboardRoute = route_path('user_dashboard');
 $logoutRoute = route_path('logout');
+$eventsRoute = route_path('events');
 $eventsEnabled = false;
 if (isset($db)) {
     try {
@@ -69,7 +70,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo HtmlHelper::e($title ?? ($appName . ' - Area Utente')); ?></title>
     <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>">
-    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
+    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
     <!-- Assets -->
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
@@ -814,8 +815,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                                 class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a>
                         </li>
                         <?php if ($eventsEnabled): ?>
-                            <li><a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>"
-                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', route_path('events')) !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
+                            <li><a href="<?= htmlspecialchars($eventsRoute, ENT_QUOTES, 'UTF-8') ?>"
+                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $eventsRoute) !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
                             </li>
                         <?php endif; ?>
                     </ul>
@@ -912,8 +913,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <i class="fas fa-book me-2"></i><?= __("Catalogo") ?>
                     </a>
                     <?php if ($eventsEnabled): ?>
-                        <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>"
-                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', route_path('events')) !== false ? 'active' : '' ?>">
+                        <a href="<?= htmlspecialchars($eventsRoute, ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $eventsRoute) !== false ? 'active' : '' ?>">
                             <i class="fas fa-calendar-alt me-2"></i><?= __("Eventi") ?>
                         </a>
                     <?php endif; ?>
@@ -1180,7 +1181,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 }
 
                 html += '<div class="search-section" style="padding: 0.75rem 1rem;">' +
-                    '<a href="' + <?= json_encode($catalogRoute) ?> + '?search=' + encodeURIComponent(currentSearchInput ? currentSearchInput.value : '') + '"' +
+                    '<a href="' + <?= json_encode($catalogRoute, JSON_HEX_TAG | JSON_HEX_AMP) ?> + '?search=' + encodeURIComponent(currentSearchInput ? currentSearchInput.value : '') + '"' +
                     ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; background: #f3f4f6; border-radius: 0.375rem; text-decoration: none; color: #000000; font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#e5e7eb\'" onmouseout="this.style.backgroundColor=\'#f3f4f6\'">' +
                     'Vedi tutti i risultati <i class="fas fa-arrow-right" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>' +
                     '</a>' +

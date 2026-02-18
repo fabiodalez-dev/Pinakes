@@ -3,7 +3,7 @@
 /** @var array $posizioni */
 /** @var array $mensole */
 ?>
-<link href="<?= assetUrl('css/sortable.min.css') ?>" rel="stylesheet">
+<link href="<?= htmlspecialchars(assetUrl('css/sortable.min.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6">
@@ -415,7 +415,7 @@
   </div>
 </div>
 
-<script src="<?= assetUrl('js/sortable.min.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('js/sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
@@ -448,7 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const payload = {
         type,
         ids,
-        csrf_token: '<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>'
+        csrf_token: <?= json_encode(App\Support\Csrf::ensureToken()) ?>
       };
       // Include scaffale_id for mensole sorting (to ensure we only sort within that scaffale)
       if (scaffaleId) {

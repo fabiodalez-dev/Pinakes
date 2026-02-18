@@ -330,7 +330,9 @@ $reservationsRoute = route_path('reservations');
         if ($cover === '') {
             $cover = '/uploads/copertine/placeholder.jpg';
         }
-        $cover = url($cover);
+        if (!preg_match('#^(https?:)?//#', $cover)) {
+            $cover = url($cover);
+        }
         // Use actual copy availability (considers reservations and physical copy state)
         $available = !empty($it['has_actual_copy']);
         $nextAvailable = $it['next_available'] ?? null;

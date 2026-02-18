@@ -1146,7 +1146,6 @@ class DataIntegrity {
         $expected = $this->getExpectedIndexes();
         $missing = [];
 
-        $allowedTables = array_keys($expected);
         foreach ($expected as $table => $indexes) {
             // Defense-in-depth: validate table name format even though source is hardcoded
             if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table)) {

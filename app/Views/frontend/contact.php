@@ -523,7 +523,7 @@ document.getElementById('contact-form').addEventListener('submit', function(e) {
     const submitBtn = form.querySelector('.btn-submit');
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span><?= addslashes(__("Invio in corso...")) ?></span>';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?= json_encode(__("Invio in corso...")) ?> + '</span>';
 
     grecaptcha.ready(function() {
         grecaptcha.execute('<?= htmlspecialchars($recaptchaSiteKey) ?>', {action: 'contact_form'}).then(function(token) {

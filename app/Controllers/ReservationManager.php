@@ -42,7 +42,10 @@ class ReservationManager
      */
     private function beginTransactionIfNeeded(): bool
     {
-        if ($this->inTransaction) {
+        // Also check DB-level transaction state via server_status bitmask
+        // (SERVER_STATUS_IN_TRANS = bit 0) to detect external transactions
+        $inDbTransaction = (bool) ($this->db->server_status & 1);
+        if ($this->inTransaction || $inDbTransaction) {
             return false; // Already in transaction, don't start a new one
         }
         $this->db->begin_transaction();

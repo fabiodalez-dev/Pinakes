@@ -23,6 +23,10 @@ function profileReservationCoverUrl(array $item): string {
     if ($cover === '') {
         $cover = '/uploads/copertine/placeholder.jpg';
     }
+    // Don't apply base path to absolute URLs (e.g. covers from OpenLibrary)
+    if (preg_match('#^(https?:)?//#', $cover)) {
+        return $cover;
+    }
     return url($cover);
 }
 ?>

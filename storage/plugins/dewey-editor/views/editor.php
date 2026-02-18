@@ -715,7 +715,7 @@ $pageTitle = __('Editor Classificazione Dewey');
             ? <?= json_encode(__('Hai modifiche non salvate. I dati attuali verranno sostituiti.')) ?>
             : <?= json_encode(__('I dati attuali verranno sostituiti.')) ?>;
 
-        const confirm = await Swal.fire({
+        const swalResult = await Swal.fire({
             title: <?= json_encode(__('Ripristinare questo backup?')) ?>,
             text: warningText,
             icon: 'warning',

@@ -103,7 +103,7 @@ function formatLoanStatus($status) {
                 'perso', 'danneggiato' => 'bg-red-100 text-red-800',
                 default => 'bg-gray-100 text-gray-800'
               };
-            ?>"><?= formatLoanStatus(App\Support\HtmlHelper::e($prestito['stato'] ?? 'N/D')); ?></span>
+            ?>"><?= App\Support\HtmlHelper::e(formatLoanStatus($prestito['stato'] ?? 'N/D')); ?></span>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Attivo:") ?></span>

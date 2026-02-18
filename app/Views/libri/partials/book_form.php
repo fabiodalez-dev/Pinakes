@@ -1541,7 +1541,7 @@ async function initializeDewey() {
       if (window.Toast) {
         window.Toast.fire({
           icon: 'warning',
-          title: '<?= addslashes(__("Inserisci un codice Dewey")) ?>'
+          title: <?= json_encode(__("Inserisci un codice Dewey")) ?>
         });
       }
       return;
@@ -1551,8 +1551,8 @@ async function initializeDewey() {
       if (window.Toast) {
         window.Toast.fire({
           icon: 'error',
-          title: '<?= addslashes(__("Formato codice non valido")) ?>',
-          text: '<?= addslashes(__("Usa formato: 599 oppure 599.9 oppure 599.93")) ?>'
+          title: <?= json_encode(__("Formato codice non valido")) ?>,
+          text: <?= json_encode(__("Usa formato: 599 oppure 599.9 oppure 599.93")) ?>
         });
       }
       return;
@@ -2183,6 +2183,7 @@ function initializeGeneriDropdowns() {
     if (parentId > 0) {
       try {
         const res = await fetch(`${window.BASE_PATH}/api/generi/sottogeneri?parent_id=${encodeURIComponent(parentId)}`);
+        if (!res.ok) throw new Error('Network error');
         const data = await res.json();
         sottogenereSelect.innerHTML = `<option value="0">${escapeHtml(bookFormI18n.noSubgenre)}</option>`;
         data.forEach(sg => {

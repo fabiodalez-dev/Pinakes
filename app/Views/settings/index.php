@@ -604,7 +604,7 @@ $activeTab = $activeTab ?? 'general';
   }
 </style>
 
-<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('[data-settings-tab]');
@@ -652,7 +652,7 @@ $activeTab = $activeTab ?? 'general';
     if (window.tinymce) {
       tinymce.init({
         selector: 'textarea.tinymce-editor',
-        base_url: '<?= assetUrl("tinymce") ?>',
+        base_url: <?= json_encode(assetUrl('tinymce')) ?>,
         suffix: '.min',
         model: 'dom',
         license_key: 'gpl',

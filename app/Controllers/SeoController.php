@@ -44,11 +44,6 @@ class SeoController
         $envUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
         if (is_string($envUrl) && $envUrl !== '') {
             $envUrl = rtrim($envUrl, '/');
-            // Ensure base path is included for subfolder installations
-            $basePath = HtmlHelper::getBasePath();
-            if ($basePath !== '' && !str_ends_with($envUrl, $basePath) && !str_contains($envUrl, $basePath . '/')) {
-                $envUrl .= $basePath;
-            }
             return $envUrl;
         }
 

@@ -138,7 +138,7 @@ function viewMessage(id) {
             <div>
               <label class="text-sm font-medium text-gray-500"><?= __("Email") ?></label>
               <p class="mt-1 text-sm text-gray-900">
-                <a href="mailto:${escapeHtml(data.email)}" class="text-gray-900 hover:underline">${escapeHtml(data.email)}</a>
+                <a href="mailto:${escapeHtmlAttr(data.email)}" class="text-gray-900 hover:underline">${escapeHtml(data.email)}</a>
               </p>
             </div>
             ${data.telefono ? `
@@ -163,7 +163,7 @@ function viewMessage(id) {
             <div class="mt-2 p-4 bg-gray-50 rounded-xl text-sm text-gray-900 whitespace-pre-wrap">${escapeHtml(data.messaggio)}</div>
           </div>
           <div class="flex gap-2 pt-4">
-            <button onclick="replyToMessage(this.dataset.email)" data-email="${escapeHtml(data.email)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
+            <button onclick="replyToMessage(this.dataset.email)" data-email="${escapeHtmlAttr(data.email)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
               <i class="fas fa-reply"></i>
               <?= __("Rispondi") ?>
             </button>
@@ -222,5 +222,11 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeHtmlAttr(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
 }
 </script>

@@ -5,7 +5,7 @@ $createBookUrl = static function ($book) {
     return book_url($book);
 };
 
-function getBookStatusBadge($book) {
+$getBookStatusBadge = static function ($book) {
     ob_start();
     $available = ($book['copie_disponibili'] ?? 0) > 0;
     $reserved = !$available && ($book['stato'] ?? '') === 'prenotato';
@@ -20,7 +20,7 @@ function getBookStatusBadge($book) {
     do_action('book.badge.digital_icons', $book);
     echo '</span>';
     return ob_get_clean();
-}
+};
 ?>
 <?php $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg'); ?>
 <?php if (!empty($books)): ?>
@@ -33,11 +33,11 @@ function getBookStatusBadge($book) {
                     $absoluteCoverUrl = absoluteUrl($coverUrl);
                     ?>
                     <img class="book-image"
-                         src="<?= htmlspecialchars($absoluteCoverUrl) ?>"
-                         alt="<?= htmlspecialchars($book['titolo'] ?? '') ?>"
-                         onerror="this.src='<?= htmlspecialchars($defaultCoverUrl) ?>'">
+                         src="<?= htmlspecialchars($absoluteCoverUrl, ENT_QUOTES, 'UTF-8') ?>"
+                         alt="<?= htmlspecialchars($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                         onerror="this.src='<?= htmlspecialchars($defaultCoverUrl, ENT_QUOTES, 'UTF-8') ?>'">
                 </a>
-                <?= getBookStatusBadge($book) ?>
+                <?= $getBookStatusBadge($book) ?>
             </div>
             <div class="book-content">
                 <h3 class="book-title">
@@ -222,7 +222,7 @@ function getBookStatusBadge($book) {
 }
 
 .status-reserved {
-    background: rgba(139, 92, 246, 0.9);
+    background: rgba(245, 158, 11, 0.9);
     color: white;
 }
 

@@ -223,8 +223,8 @@ class HtmlHelper
             }
         }
 
-        // Priorità 2: Auto-detect da SCRIPT_NAME
-        if (isset($_SERVER['SCRIPT_NAME'])) {
+        // Priorità 2: Auto-detect da SCRIPT_NAME (skip in CLI)
+        if (php_sapi_name() !== 'cli' && isset($_SERVER['SCRIPT_NAME'])) {
             $scriptDir = dirname(dirname($_SERVER['SCRIPT_NAME']));
             if ($scriptDir !== '/' && $scriptDir !== '\\' && $scriptDir !== '.') {
                 $basePath = rtrim($scriptDir, '/');

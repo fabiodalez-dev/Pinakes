@@ -237,9 +237,10 @@ class AuthorRepository
             $conditions = [];
             $params = [];
             foreach ($words as $word) {
-                if (strlen($word) >= 2) { // Skip very short words
+                if (mb_strlen($word, 'UTF-8') >= 2) { // Skip very short words
                     $conditions[] = "LOWER(nome) LIKE ?";
-                    $params[] = '%' . $word . '%';
+                    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word);
+                    $params[] = '%' . $escaped . '%';
                 }
             }
 
@@ -247,6 +248,9 @@ class AuthorRepository
                 // Search for authors containing ALL of the words (AND condition)
                 $sql = "SELECT id, nome FROM autori WHERE " . implode(' AND ', $conditions) . " LIMIT 50";
                 $stmt = $this->db->prepare($sql);
+                if ($stmt === false) {
+                    return null;
+                }
                 $types = str_repeat('s', count($params));
                 $stmt->bind_param($types, ...$params);
                 $stmt->execute();

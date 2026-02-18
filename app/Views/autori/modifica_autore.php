@@ -40,7 +40,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
     </div>
 
     <!-- Main Form -->
-    <form method="post" action="<?= htmlspecialchars(url('/admin/autori/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
+    <form id="edit-author-form" method="post" action="<?= htmlspecialchars(url('/admin/autori/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize Form Validation
 function initializeFormValidation() {
-    const form = document.querySelector('form[action$="/admin/autori/update/<?= (int)($autore['id'] ?? 0) ?>"]');
+    const form = document.getElementById('edit-author-form');
     if (!form) return;
     
     form.addEventListener('submit', async function(e) {

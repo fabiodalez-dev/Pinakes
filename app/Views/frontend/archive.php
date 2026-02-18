@@ -227,7 +227,7 @@ $additional_css = "
     }
 
     .status-reserved {
-        background: rgba(139, 92, 246, 0.9);
+        background: rgba(245, 158, 11, 0.9);
         color: white;
     }
 

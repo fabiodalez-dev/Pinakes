@@ -401,9 +401,9 @@ class Z39ServerPlugin
             $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 
             if (in_array($remoteAddr, $trustedProxies, true) && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-                // When behind trusted proxy, use last IP in chain (real client)
+                // When behind trusted proxy, use first (leftmost) IP in chain (original client)
                 $forwardedIps = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
-                $clientIp = end($forwardedIps);
+                $clientIp = reset($forwardedIps);
             } else {
                 $clientIp = $remoteAddr;
             }
@@ -745,7 +745,7 @@ class Z39ServerPlugin
         $stmt->bind_param('is', $this->pluginId, $key);
         $stmt->execute();
         $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
+        $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
 
         if (!$row) {

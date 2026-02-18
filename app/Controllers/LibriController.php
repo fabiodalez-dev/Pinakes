@@ -138,6 +138,9 @@ class LibriController
                 ...(defined('CURLOPT_PROTOCOLS_STR')
                     ? [CURLOPT_PROTOCOLS_STR => 'https,http']
                     : [CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
+                ...(defined('CURLOPT_REDIR_PROTOCOLS_STR')
+                    ? [CURLOPT_REDIR_PROTOCOLS_STR => 'https,http']
+                    : [CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
             ]);
             curl_exec($ch);
             $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
@@ -259,9 +262,9 @@ class LibriController
         // Remove C1 control characters (U+0080–U+009F) including MARC-8 NSB/NSE markers.
         // MUST use /u flag to match Unicode code points, not raw bytes — without it,
         // continuation bytes in multi-byte UTF-8 chars like Ø (0xC3 0x98) get stripped.
-        $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text);
+        $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text) ?? $text;
         // Collapse multiple whitespace into single space and trim
-        $text = trim(preg_replace('/\s+/u', ' ', $text));
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
         return $text;
     }
 
@@ -3046,6 +3049,15 @@ class LibriController
         if ($parsed !== null) {
             return (array) $parsed;
         }
-        return (array) json_decode((string) $request->getBody(), true);
+        $body = (string) $request->getBody();
+        if ($body === '') {
+            return [];
+        }
+        $decoded = json_decode($body, true);
+        if (!is_array($decoded)) {
+            error_log('[LibriController] parseRequestBody: JSON decode failed: ' . json_last_error_msg());
+            return [];
+        }
+        return $decoded;
     }
 }

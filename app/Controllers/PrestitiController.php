@@ -672,8 +672,12 @@ class PrestitiController
             $db->commit();
 
             // Send deferred notifications after commit
-            if (isset($reassignmentService) && $reassignmentService) {
-                $reassignmentService->flushDeferredNotifications();
+            try {
+                if (isset($reassignmentService) && $reassignmentService) {
+                    $reassignmentService->flushDeferredNotifications();
+                }
+            } catch (\Throwable $e) {
+                error_log('[PrestitiController] Flush deferred notifications failed: ' . $e->getMessage());
             }
             $_SESSION['success_message'] = __('Prestito aggiornato correttamente.');
             $successUrl = $redirectTo ?? '/admin/prestiti?updated=1';

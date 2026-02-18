@@ -172,7 +172,7 @@ use App\Support\HtmlHelper;
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div class="flex items-center justify-end gap-2">
                                                 <!-- Download JSON -->
-                                                <a href="<?= htmlspecialchars(url('/admin/languages/' . urlencode($lang['code']) . '/download'), ENT_QUOTES, 'UTF-8') ?>"
+                                                <a href="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/download'), ENT_QUOTES, 'UTF-8') ?>"
                                                    class="text-green-600 hover:text-green-900"
                                                    title="<?= __("Scarica JSON") ?>"
                                                    download>
@@ -180,14 +180,14 @@ use App\Support\HtmlHelper;
                                                 </a>
 
                                                 <!-- Edit -->
-                                                <a href="<?= htmlspecialchars(url('/admin/languages/' . urlencode($lang['code']) . '/edit'), ENT_QUOTES, 'UTF-8') ?>"
+                                                <a href="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/edit'), ENT_QUOTES, 'UTF-8') ?>"
                                                    class="text-blue-600 hover:text-blue-900"
                                                    title="<?= __("Modifica") ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
 
                                                 <!-- Edit Routes -->
-                                                <a href="<?= htmlspecialchars(url('/admin/languages/' . urlencode($lang['code']) . '/edit-routes'), ENT_QUOTES, 'UTF-8') ?>"
+                                                <a href="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/edit-routes'), ENT_QUOTES, 'UTF-8') ?>"
                                                    class="text-purple-600 hover:text-purple-900"
                                                    title="<?= __("Modifica Route") ?>">
                                                     <i class="fas fa-route"></i>
@@ -195,7 +195,7 @@ use App\Support\HtmlHelper;
 
                                                 <!-- Set as Default -->
                                                 <?php if (!$lang['is_default']): ?>
-                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . urlencode($lang['code']) . '/set-default'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/set-default'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
                                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                         <button type="submit"
                                                                 class="text-yellow-600 hover:text-yellow-900"
@@ -207,7 +207,7 @@ use App\Support\HtmlHelper;
                                                 <?php endif; ?>
 
                                                 <!-- Toggle Active -->
-                                                <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . urlencode($lang['code']) . '/toggle-active'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                                                <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/toggle-active'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                     <button type="submit"
                                                             class="<?= $lang['is_active'] ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900' ?>"
@@ -218,7 +218,7 @@ use App\Support\HtmlHelper;
 
                                                 <!-- Delete -->
                                                 <?php if (!$lang['is_default']): ?>
-                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . urlencode($lang['code']) . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
                                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                         <button type="submit"
                                                                 class="text-red-600 hover:text-red-900"

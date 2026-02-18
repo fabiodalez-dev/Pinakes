@@ -185,18 +185,11 @@ verify_package_contents() {
         fi
     done
 
-    # FORBIDDEN FILES — recursive (should not exist anywhere in the package)
-    local forbidden_recursive_files=(
-        "CLAUDE.md"
-        "claude.md"
-    )
-
-    for file in "${forbidden_recursive_files[@]}"; do
-        if find "$package_dir" -type f -name "$file" 2>/dev/null | grep -q .; then
-            log_error "Package contains forbidden file: $file"
-            has_errors=true
-        fi
-    done
+    # Single case-insensitive check covers both Linux and macOS
+    if find "$package_dir" -type f -iname "claude.md" 2>/dev/null | grep -q .; then
+        log_error "Package contains forbidden file: CLAUDE.md (case-insensitive)"
+        has_errors=true
+    fi
 
     # ===========================================
     # FORBIDDEN PATTERNS (glob matching)
