@@ -40,7 +40,7 @@ $csrf = Csrf::ensureToken();
 
         <div class="grid gap-5 md:grid-cols-2">
             <div class="rounded-lg border border-gray-200 bg-gray-50 p-5">
-                <span class="text-xs uppercase tracking-widest text-gray-500">Utente</span>
+                <span class="text-xs uppercase tracking-widest text-gray-500"><?= __("Utente") ?></span>
                 <div class="mt-3 flex items-start gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white">
                         <i class="fas fa-user"></i>

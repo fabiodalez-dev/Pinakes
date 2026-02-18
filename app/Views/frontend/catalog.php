@@ -23,7 +23,7 @@ if ($searchQuery) {
 }
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
-$seoCanonical = HtmlHelper::getBaseUrl() . \App\Support\RouteTranslator::route('catalog');
+$seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
 $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
 // Schema.org structured data

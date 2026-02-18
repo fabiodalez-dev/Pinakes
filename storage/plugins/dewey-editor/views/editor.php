@@ -598,7 +598,7 @@ $pageTitle = __('Editor Classificazione Dewey');
 
         // Warn about unsaved changes
         if (hasChanges) {
-            const confirm = await Swal.fire({
+            const swalResult = await Swal.fire({
                 title: <?= json_encode(__('Modifiche non salvate')) ?>,
                 text: <?= json_encode(__('Hai modifiche non salvate che andranno perse. Continuare?')) ?>,
                 icon: 'warning',
@@ -606,7 +606,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                 confirmButtonText: <?= json_encode(__('Continua')) ?>,
                 cancelButtonText: <?= json_encode(__('Annulla')) ?>
             });
-            if (!confirm.isConfirmed) {
+            if (!swalResult.isConfirmed) {
                 importFile.value = '';
                 return;
             }
@@ -724,7 +724,7 @@ $pageTitle = __('Editor Classificazione Dewey');
             cancelButtonText: <?= json_encode(__('Annulla')) ?>
         });
 
-        if (!confirm.isConfirmed) return;
+        if (!swalResult.isConfirmed) return;
 
         try {
             const response = await fetch(`${BASE_PATH}/api/dewey-editor/restore/${currentLocale}`, {

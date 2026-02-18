@@ -104,20 +104,20 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     <?php
     $defaultOgImagePath = Branding::socialImage();
-    $resolvedDefaultOgImage = absoluteUrl($defaultOgImagePath);
+    $resolvedDefaultOgImage = $defaultOgImagePath !== '' ? absoluteUrl($defaultOgImagePath) : '';
 
     $ogTitle = $ogTitle ?? ($seoTitle ?? $title ?? $appName);
     $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?: __('Esplora il nostro catalogo digitale')));
     $ogType = $ogType ?? 'website';
     $ogUrl = $ogUrl ?? $baseUrlClean;
     $ogImage = $ogImage ?? $resolvedDefaultOgImage;
-    $ogImage = absoluteUrl($ogImage);
+    $ogImage = $ogImage !== '' ? absoluteUrl($ogImage) : '';
 
     $twitterCard = $twitterCard ?? 'summary_large_image';
     $twitterTitle = $twitterTitle ?? $ogTitle;
     $twitterDescription = $twitterDescription ?? $ogDescription;
     $twitterImage = $twitterImage ?? $ogImage;
-    $twitterImage = absoluteUrl($twitterImage);
+    $twitterImage = $twitterImage !== '' ? absoluteUrl($twitterImage) : '';
     ?>
 
     <!-- Open Graph Meta Tags -->

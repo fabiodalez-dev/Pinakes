@@ -129,7 +129,7 @@ class SearchController
                        l.copie_totali
                 FROM libri l
                 WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?)
-                ORDER BY l.titolo LIMIT 20
+                ORDER BY l.titolo
             ");
             $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
             $stmt->execute();

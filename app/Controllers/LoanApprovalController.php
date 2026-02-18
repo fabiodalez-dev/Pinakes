@@ -884,7 +884,7 @@ class LoanApprovalController
 
             // Recalculate availability AFTER reassignment
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            $integrity->recalculateBookAvailability($libroId, true);
 
             $db->commit();
 
@@ -999,7 +999,7 @@ class LoanApprovalController
 
             // Recalculate book availability
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            $integrity->recalculateBookAvailability($libroId, true);
 
             $db->commit();
 

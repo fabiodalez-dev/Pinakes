@@ -145,7 +145,7 @@ ob_start();
                 <?php endif; ?>
 
                 <div class="cms-content">
-                    <?= $content ?>
+                    <?= \App\Support\HtmlHelper::sanitizeHtml($content) ?>
                 </div>
             </div>
         </div>

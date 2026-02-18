@@ -158,16 +158,15 @@ verify_package_contents() {
     done
 
     # ===========================================
-    # FORBIDDEN FILES (exact names)
+    # FORBIDDEN FILES — root-level only
+    # (vendor/tinymce may legitimately contain CHANGELOG.md etc.)
     # ===========================================
-    local forbidden_files=(
+    local forbidden_root_files=(
         ".env"
         ".gitignore"
         ".gitattributes"
         ".installed"
         "config.local.php"
-        "CLAUDE.md"
-        "claude.md"
         "updater.md"
         "todo.md"
         "CHANGELOG.md"
@@ -179,7 +178,20 @@ verify_package_contents() {
         "vectors.db"
     )
 
-    for file in "${forbidden_files[@]}"; do
+    for file in "${forbidden_root_files[@]}"; do
+        if [ -f "$package_dir/$file" ]; then
+            log_error "Package contains forbidden root file: $file"
+            has_errors=true
+        fi
+    done
+
+    # FORBIDDEN FILES — recursive (should not exist anywhere in the package)
+    local forbidden_recursive_files=(
+        "CLAUDE.md"
+        "claude.md"
+    )
+
+    for file in "${forbidden_recursive_files[@]}"; do
         if find "$package_dir" -type f -name "$file" 2>/dev/null | grep -q .; then
             log_error "Package contains forbidden file: $file"
             has_errors=true
@@ -377,9 +389,6 @@ create_release_package() {
         rm -rf "$temp_dir"
         exit 1
     fi
-
-    # Create releases directory
-    mkdir -p "$OUTPUT_DIR"
 
     # Create ZIP archive
     log_info "Creating ZIP archive..."

@@ -29,39 +29,24 @@ class ReservationManager
         $this->db = $db;
     }
 
-    /**
-     * Check if a transaction is currently active
-     *
-     * Uses mysqli's internal flag to detect active transactions.
-     * This is needed because begin_transaction() inside an active transaction
-     * would silently succeed in MySQLi but cause undefined behavior.
-     *
-     * @return bool True if a transaction is active
-     */
-    private function isInTransaction(): bool
-    {
-        // Check if autocommit is disabled (indicates active transaction)
-        // Note: begin_transaction() uses START TRANSACTION which does NOT change @@autocommit.
-        // This check only detects transactions started via $db->autocommit(false).
-        $result = $this->db->query("SELECT @@autocommit as ac");
-        if ($result) {
-            $row = $result->fetch_assoc();
-            return (int) ($row['ac'] ?? 1) === 0;
-        }
-        return false;
-    }
+    /** @var bool Internal flag tracking whether we own the current transaction */
+    private bool $inTransaction = false;
 
     /**
-     * Begin transaction only if not already in one
+     * Begin transaction only if not already in one.
+     *
+     * Uses an internal flag instead of @@autocommit because
+     * begin_transaction()/START TRANSACTION does NOT change @@autocommit.
      *
      * @return bool True if we started a new transaction, false if already in one
      */
     private function beginTransactionIfNeeded(): bool
     {
-        if ($this->isInTransaction()) {
+        if ($this->inTransaction) {
             return false; // Already in transaction, don't start a new one
         }
         $this->db->begin_transaction();
+        $this->inTransaction = true;
         return true;
     }
 
@@ -74,6 +59,7 @@ class ReservationManager
     {
         if ($ownTransaction) {
             $this->db->commit();
+            $this->inTransaction = false;
         }
     }
 
@@ -86,6 +72,7 @@ class ReservationManager
     {
         if ($ownTransaction) {
             $this->db->rollback();
+            $this->inTransaction = false;
         }
     }
 

@@ -127,10 +127,11 @@ class DataIntegrity {
             }
 
         } catch (\Throwable $e) {
-            if (!$insideTransaction) {
-                $this->db->rollback();
-            }
             $results['errors'][] = "Errore ricalcolo disponibilità: " . $e->getMessage();
+            if ($insideTransaction) {
+                throw $e;
+            }
+            $this->db->rollback();
         }
 
         return $results;
@@ -368,10 +369,11 @@ class DataIntegrity {
 
             return $result;
         } catch (\Throwable $e) {
-            if (!$insideTransaction) {
-                $this->db->rollback();
-            }
             error_log("[DataIntegrity] recalculateBookAvailability({$bookId}) error: " . $e->getMessage());
+            if ($insideTransaction) {
+                throw $e;
+            }
+            $this->db->rollback();
             return false;
         }
     }
@@ -1146,12 +1148,13 @@ class DataIntegrity {
 
         $allowedTables = array_keys($expected);
         foreach ($expected as $table => $indexes) {
-            // Defense-in-depth: validate against known whitelist even though source is hardcoded
-            if (!in_array($table, $allowedTables, true) || !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table)) {
+            // Defense-in-depth: validate table name format even though source is hardcoded
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table)) {
                 continue;
             }
-            // Verifica se la tabella esiste
-            $tableCheck = $this->db->query("SHOW TABLES LIKE '$table'");
+            // Verifica se la tabella esiste (escape LIKE metacharacters)
+            $escapedTable = str_replace(['_', '%'], ['\\_', '\\%'], $table);
+            $tableCheck = $this->db->query("SHOW TABLES LIKE '$escapedTable'");
             if (!$tableCheck || $tableCheck->num_rows === 0) {
                 continue; // Salta tabelle che non esistono
             }

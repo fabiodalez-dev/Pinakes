@@ -200,7 +200,7 @@ use App\Support\HtmlHelper;
                                                         <button type="submit"
                                                                 class="text-yellow-600 hover:text-yellow-900"
                                                                 title="<?= __("Imposta come Predefinita") ?>"
-                                                                onclick="return confirm(<?= json_encode(__("Impostare questa lingua come predefinita?\n\nQuesta diventerà la lingua dell'intera applicazione per tutti gli utenti."), JSON_HEX_TAG | JSON_HEX_APOS) ?>)">
+                                                                onclick="return confirm(<?= htmlspecialchars(json_encode(__("Impostare questa lingua come predefinita?\n\nQuesta diventerà la lingua dell'intera applicazione per tutti gli utenti."), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)">
                                                             <i class="fas fa-star"></i>
                                                         </button>
                                                     </form>
@@ -223,7 +223,7 @@ use App\Support\HtmlHelper;
                                                         <button type="submit"
                                                                 class="text-red-600 hover:text-red-900"
                                                                 title="<?= __("Elimina") ?>"
-                                                                onclick="return confirm(<?= json_encode(__("Sei sicuro di voler eliminare questa lingua? Questa azione non può essere annullata."), JSON_HEX_TAG | JSON_HEX_APOS) ?>)">
+                                                                onclick="return confirm(<?= htmlspecialchars(json_encode(__("Sei sicuro di voler eliminare questa lingua? Questa azione non può essere annullata."), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
                                                     </form>

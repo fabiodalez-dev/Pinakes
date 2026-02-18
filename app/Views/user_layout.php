@@ -72,9 +72,9 @@ $htmlLang = substr($currentLocale, 0, 2);
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
 
     <!-- Assets -->
-    <link href="<?= assetUrl('vendor.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('main.css') ?>" rel="stylesheet">
-    <link href="<?= assetUrl('css/swal-theme.css') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <style>
         :root {
@@ -1046,9 +1046,9 @@ $htmlLang = substr($currentLocale, 0, 2);
     </footer>
 
     <!-- Scripts -->
-    <script src="<?= assetUrl('vendor.bundle.js') ?>" defer></script>
-    <script src="<?= assetUrl('main.bundle.js') ?>" defer></script>
-    <script src="<?= assetUrl('js/swal-config.js') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
 
     <script>
         // Search functionality with preview - wrapped in DOMContentLoaded for reliability

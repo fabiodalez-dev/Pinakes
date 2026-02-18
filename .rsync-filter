@@ -192,7 +192,6 @@
 # CI/CD & documentation (root level only — don't strip vendor docs)
 - /.github/
 - /docs/
-- /CHANGELOG.md
 - /*.md
 - .travis.yml
 - .circleci/

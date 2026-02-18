@@ -448,9 +448,9 @@ class PrestitiController
                 if ($loanInfo) {
                     $notificationService->createNotification(
                         'general',
-                        'Nuovo prestito creato',
-                        sprintf('%s ha preso in prestito "%s"', $loanInfo['utente_nome'], $loanInfo['titolo']),
-                        '/admin/prestiti',
+                        __('Nuovo prestito creato'),
+                        sprintf(__('%s ha preso in prestito "%s"'), $loanInfo['utente_nome'], $loanInfo['titolo']),
+                        url('/admin/prestiti'),
                         $newLoanId
                     );
                 }
@@ -460,7 +460,7 @@ class PrestitiController
 
             // Redirect to list page — PDF download triggered via JS if requested
             $scaricaPdf = isset($data['scarica_pdf']) && $data['scarica_pdf'] === '1';
-            $redirectUrl = '/admin/prestiti?created=1';
+            $redirectUrl = url('/admin/prestiti') . '?created=1';
             if ($consegnaImmediata && $scaricaPdf) {
                 $redirectUrl .= '&pdf=' . (int) $newLoanId;
             }
@@ -471,7 +471,7 @@ class PrestitiController
             $db->rollback();
             // Se il messaggio di errore contiene un riferimento a un prestito già attivo
             if (strpos($e->getMessage(), 'Esiste già un prestito attivo per questo libro') !== false) {
-                return $response->withHeader('Location', '/admin/prestiti/crea?error=libro_in_prestito')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=libro_in_prestito')->withStatus(302);
             } else {
                 throw $e;
             }

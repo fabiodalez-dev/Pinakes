@@ -27,7 +27,7 @@ function profileReservationCoverUrl(array $item): string {
 }
 ?>
 <!-- Link star-rating.js CSS -->
-<link rel="stylesheet" href="<?= assetUrl('star-rating/dist/star-rating.css') ?>">
+<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.css'), ENT_QUOTES, 'UTF-8') ?>">
 
 <style>
   .loans-container {
@@ -726,7 +726,7 @@ function profileReservationCoverUrl(array $item): string {
   </div>
 </div>
 
-<script src="<?= assetUrl('star-rating/dist/star-rating.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {

@@ -68,7 +68,7 @@ if (!function_exists('url')) {
         }
         // Guard against double-prepending the base path
         $basePath = App\Support\HtmlHelper::getBasePath();
-        if ($basePath !== '' && str_starts_with($path, $basePath . '/')) {
+        if ($basePath !== '' && ($path === $basePath || str_starts_with($path, $basePath . '/'))) {
             return $path;
         }
         return $basePath . $path;
